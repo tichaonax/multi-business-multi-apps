@@ -21,11 +21,11 @@ export async function generateRevenueReport(filters: ReportFilter): Promise<Repo
   try {
     const result = await db.execute(`
       SELECT 
-        DATE_TRUNC('day', created_at) as date,
+        DATE_TRUNC('day', "createdAt") as date,
         SUM(amount) as revenue
       FROM transactions 
-      WHERE created_at >= $1 AND created_at <= $2
-      GROUP BY DATE_TRUNC('day', created_at)
+      WHERE "createdAt" >= $1 AND "createdAt" <= $2
+      GROUP BY DATE_TRUNC('day', "createdAt")
       ORDER BY date
     `)
 
@@ -60,7 +60,7 @@ export async function generateExpenseReport(filters: ReportFilter): Promise<Repo
         category,
         SUM(amount) as total
       FROM expenses 
-      WHERE created_at >= $1 AND created_at <= $2
+      WHERE "createdAt" >= $1 AND "createdAt" <= $2
       GROUP BY category
       ORDER BY total DESC
     `)

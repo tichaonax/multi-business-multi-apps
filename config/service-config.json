@@ -1,0 +1,44 @@
+{
+  "service": {
+    "name": "multi-business-sync",
+    "displayName": "Multi-Business Sync Service",
+    "description": "Peer-to-peer database synchronization service for multi-business platform",
+    "port": 8765,
+    "autoStart": true,
+    "restartDelay": 5000,
+    "maxRestarts": 3
+  },
+  "sync": {
+    "nodeId": "de648da4-78c2-4e62-89ca-e480dd3cc97b",
+    "nodeName": "dell-hwandaza",
+    "registrationKey": "365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766",
+    "port": 8765,
+    "syncInterval": 30000,
+    "enableAutoStart": true,
+    "logLevel": "info",
+    "dataDirectory": "C:\\Users\\ticha\\apps\\multi-business-multi-apps\\data\\sync",
+    "maxLogSize": 10485760,
+    "maxLogFiles": 5,
+    "security": {
+      "enableEncryption": true,
+      "enableSignatures": true,
+      "keyRotationEnabled": false,
+      "sessionTimeout": 3600000,
+      "maxFailedAttempts": 5,
+      "rateLimitWindow": 60000,
+      "rateLimitMaxRequests": 100
+    }
+  },
+  "database": {
+    "url": "postgresql://postgres:postgres@localhost:5432/multi_business_db",
+    "maxConnections": 20,
+    "connectionTimeout": 30000
+  },
+  "logging": {
+    "level": "info",
+    "directory": "C:\\Users\\ticha\\apps\\multi-business-multi-apps\\logs",
+    "maxFileSize": "10MB",
+    "maxFiles": 10,
+    "console": false
+  }
+}

@@ -1,0 +1,32 @@
+name: Smoke-check Service
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run smoke-check (skip DB in CI unless DATABASE_URL provided)
+        env:
+          SKIP_DB_PRECHECK: ${{ env.SKIP_DB_PRECHECK || 'true' }}
+        run: |
+          # Prefer explicit DATABASE_URL in secrets if you want to run DB checks
+          if [ -z "$DATABASE_URL" ]; then
+            echo "No DATABASE_URL provided; skipping DB connectivity check"
+          fi
+          npm run service:smoke-check

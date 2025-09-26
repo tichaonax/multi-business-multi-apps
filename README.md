@@ -1,6 +1,11 @@
 # Multi-Business Management Platform
 
-A unified web-based platform for managing multiple business operations including construction, restaurant, grocery, clothing, and personal finances.
+  A comprehensive Next.js 15 TypeScript application for managing multiple business
+  operations including personal finance, construction projects, restaurant management,
+  grocery inventory, clothing retail, and hardware operations. Features unified project
+  management, contractor payments, expense tracking, user permissions, audit logging, and
+  cross-business financial integration with support for loans, budgets, and real-time
+  transaction processing..
 
 ## Features
 
@@ -46,6 +51,50 @@ A unified web-based platform for managing multiple business operations including
    npm run service:install
    ```
 
+Short service command reference
+
+- Install the Windows service:
+
+   ```bash
+   npm run service:install
+   ```
+
+- Uninstall the Windows service:
+
+   ```bash
+   npm run service:uninstall
+   ```
+
+- Start the service:
+
+   ```bash
+   npm run service:start
+   ```
+
+- Stop the service:
+
+   ```bash
+   npm run service:stop
+   ```
+
+- Restart the service:
+
+   ```bash
+   npm run service:restart
+   ```
+
+- Diagnose service/system state:
+
+   ```bash
+   npm run service:diagnose
+   ```
+
+- Quick CI-friendly smoke-check (skip DB if needed):
+
+   ```bash
+   SKIP_DB_PRECHECK=true npm run service:smoke-check
+   ```
+
 ## Project Structure
 
 ```
@@ -62,7 +111,7 @@ src/
 ```env
 DATABASE_URL=postgresql://username:password@localhost:5432/multi_business_db
 NEXTAUTH_SECRET=your-secret-key-here
-NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:3001
 ```
 
 ## Available Scripts

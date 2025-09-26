@@ -1,8 +1,10 @@
-export type BusinessModule = 
-  | 'construction' 
-  | 'restaurant' 
-  | 'grocery' 
-  | 'clothing' 
+export type BusinessModule =
+  | 'construction'
+  | 'restaurant'
+  | 'grocery'
+  | 'clothing'
+  | 'hardware'
+  | 'vehicles'
   | 'personal'
   | 'admin'
 
@@ -52,6 +54,8 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
     restaurant: ['read', 'write', 'delete', 'reports', 'pos'],
     grocery: ['read', 'write', 'delete', 'reports', 'pos'],
     clothing: ['read', 'write', 'delete', 'reports', 'pos'],
+    hardware: ['read', 'write', 'delete', 'reports', 'pos'],
+    vehicles: ['read', 'write', 'delete', 'reports'],
     personal: ['read', 'write', 'delete', 'reports'],
     admin: ['manage_users', 'backup_restore'],
   },
@@ -60,6 +64,8 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
     restaurant: ['read', 'write', 'reports', 'pos'],
     grocery: ['read', 'write', 'reports', 'pos'],
     clothing: ['read', 'write', 'reports', 'pos'],
+    hardware: ['read', 'write', 'reports', 'pos'],
+    vehicles: ['read', 'write', 'reports'],
     personal: ['read', 'write', 'reports'],
   },
   employee: {
@@ -67,9 +73,12 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
     restaurant: ['read', 'write', 'pos'],
     grocery: ['read', 'write', 'pos'],
     clothing: ['read', 'write', 'pos'],
+    hardware: ['read', 'write', 'pos'],
+    vehicles: ['read', 'write'],
     personal: ['read', 'write'],
   },
   user: {
     personal: ['read', 'write'],
+    vehicles: ['read'], // Users can view their own vehicle records
   },
 }

@@ -1,0 +1,1844 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refreshToken      String?
+  accessToken       String?
+  expiresAt         Int?
+  tokenType         String?
+  scope             String?
+  idToken           String?
+  sessionState      String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  timestamp  DateTime @default(now())
+  oldValues  Json?
+  newValues  Json?
+  metadata   Json?
+  tableName  String?
+  recordId   String?
+  changes    Json?
+  details    Json?
+  user       User     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+model BenefitType {
+  id               String            @id @default(cuid())
+  name             String            @unique
+  description      String?
+  type             String
+  createdAt        DateTime          @default(now())
+  defaultAmount    Decimal?          @db.Decimal(12, 2)
+  isActive         Boolean           @default(true)
+  isPercentage     Boolean           @default(false)
+  updatedAt        DateTime          @default(now())
+  contractBenefits ContractBenefit[]
+  employeeBenefits EmployeeBenefit[]
+
+  @@map("benefit_types")
+}
+
+model BusinessMembership {
+  id                 String              @id @default(cuid())
+  userId             String
+  businessId         String
+  role               String              @default("employee")
+  permissions        Json                @default("{}")
+  isActive           Boolean             @default(true)
+  invitedBy          String?
+  joinedAt           DateTime            @default(now())
+  lastAccessedAt     DateTime?
+  templateId         String?
+  business           Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  permissionTemplate PermissionTemplate? @relation(fields: [templateId], references: [id])
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@map("business_memberships")
+}
+
+model Business {
+  id                           String                       @id @default(uuid())
+  name                         String
+  type                         String
+  description                  String?
+  isActive                     Boolean                      @default(true)
+  settings                     Json                         @default("{}")
+  createdBy                    String?
+  createdAt                    DateTime                     @default(now())
+  updatedAt                    DateTime                     @default(now())
+  umbrellaBusinessId           String?
+  isUmbrellaBusiness           Boolean                      @default(false)
+  umbrellaBusinessName         String?                      @default("Demo Umbrella Company")
+  umbrellaBusinessAddress      String?
+  umbrellaBusinessEmail        String?
+  umbrellaBusinessPhone        String?
+  umbrellaBusinessRegistration String?
+  BusinessBrand                BusinessBrand[]
+  BusinessCategory             BusinessCategory[]
+  BusinessCustomer             BusinessCustomer[]
+  businessMemberships          BusinessMembership[]
+  BusinessOrder                BusinessOrder[]
+  BusinessProduct              BusinessProduct[]
+  BusinessStockMovement        BusinessStockMovement[]
+  BusinessSupplier             BusinessSupplier[]
+  umbrellaBusiness             Business?                    @relation("UmbrellaBusinessChildren", fields: [umbrellaBusinessId], references: [id])
+  childBusinesses              Business[]                   @relation("UmbrellaBusinessChildren")
+  employeeBusinessAssignments  EmployeeBusinessAssignment[]
+  employeeContracts            EmployeeContract[]
+  umbrellaContracts            EmployeeContract[]           @relation("UmbrellaContractBusiness")
+  employees                    Employee[]
+  loansReceived                InterBusinessLoan[]          @relation("BusinessLoansReceived")
+  loansGiven                   InterBusinessLoan[]          @relation("BusinessLoansGiven")
+  MenuCombo                    MenuCombo[]
+  MenuPromotion                MenuPromotion[]
+  projects                     Project[]
+  vehicleExpenses              VehicleExpense[]
+  vehicleReimbursements        VehicleReimbursement[]
+  vehicleTrips                 VehicleTrip[]
+  vehicles                     Vehicle[]
+  businessAccounts             BusinessAccount[]
+  businessTransactions         BusinessTransaction[]
+
+  @@map("businesses")
+}
+
+model ChatMessage {
+  id        String    @id @default(cuid())
+  message   String
+  createdAt DateTime  @default(now())
+  roomId    String?
+  userId    String?
+  chatRoom  ChatRoom? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@map("chat_messages")
+}
+
+model ChatParticipant {
+  id       String    @id @default(cuid())
+  joinedAt DateTime  @default(now())
+  roomId   String?
+  userId   String?
+  chatRoom ChatRoom? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [userId], references: [id])
+
+  @@map("chat_participants")
+}
+
+model ChatRoom {
+  id               String            @id @default(cuid())
+  name             String
+  type             String            @default("group")
+  createdAt        DateTime          @default(now())
+  createdBy        String?
+  chatMessages     ChatMessage[]
+  chatParticipants ChatParticipant[]
+  user             User?             @relation(fields: [createdBy], references: [id])
+
+  @@map("chat_rooms")
+}
+
+model CompensationType {
+  id                   String             @id @default(cuid())
+  name                 String             @unique
+  type                 String
+  description          String?
+  baseAmount           Decimal?           @db.Decimal(12, 2)
+  commissionPercentage Decimal?           @db.Decimal(5, 2)
+  createdAt            DateTime           @default(now())
+  isActive             Boolean            @default(true)
+  updatedAt            DateTime           @default(now())
+  frequency            String?            @default("monthly")
+  employeeContracts    EmployeeContract[] @relation("ContractCompensationType")
+  employees            Employee[]         @relation("EmployeeCompensationType")
+
+  @@map("compensation_types")
+}
+
+model ConstructionExpense {
+  id                  String               @id @default(cuid())
+  category            String
+  description         String
+  amount              Decimal              @db.Decimal(12, 2)
+  vendor              String?
+  createdAt           DateTime             @default(now())
+  createdBy           String?
+  projectId           String?
+  receiptUrl          String?
+  user                User?                @relation(fields: [createdBy], references: [id])
+  constructionProject ConstructionProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("construction_expenses")
+}
+
+model ProjectType {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  businessType String   // 'construction', 'restaurant', 'grocery', etc.
+  isActive    Boolean   @default(true)
+  isSystem    Boolean   @default(false)  // Prevent deletion of system types
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
+
+  constructionProjects ConstructionProject[]
+  projects             Project[]
+
+  @@map("project_types")
+}
+
+model ConstructionProject {
+  id                   String                @id @default(cuid())
+  name                 String
+  description          String?
+  status               String                @default("active")
+  budget               Decimal?              @db.Decimal(12, 2)
+  createdAt            DateTime              @default(now())
+  createdBy            String?
+  endDate              DateTime?
+  startDate            DateTime?
+  updatedAt            DateTime              @default(now())
+  projectTypeId        String?               // Optional for backward compatibility
+  businessType         String                @default("construction")
+  constructionExpenses ConstructionExpense[]
+  user                 User?                 @relation(fields: [createdBy], references: [id])
+  projectType          ProjectType?          @relation(fields: [projectTypeId], references: [id])
+  projectContractors   ProjectContractor[]
+  projectStages        ProjectStage[]
+  projectTransactions  ProjectTransaction[]
+
+  @@map("construction_projects")
+}
+
+model Project {
+  id                   String                @id @default(cuid())
+  name                 String
+  description          String?
+  projectTypeId        String
+  businessType         String                // 'construction', 'restaurant', etc.
+  businessId           String?               // Link to specific business entity (null for personal projects)
+  status               String                @default("active")
+  budget               Decimal?              @db.Decimal(12, 2)
+  startDate            DateTime?
+  endDate              DateTime?
+  createdAt            DateTime              @default(now())
+  createdBy            String?
+  updatedAt            DateTime              @default(now())
+
+  projectType          ProjectType           @relation(fields: [projectTypeId], references: [id])
+  user                 User?                 @relation(fields: [createdBy], references: [id])
+  business             Business?             @relation(fields: [businessId], references: [id])
+  projectContractors   ProjectContractor[]
+  projectStages        ProjectStage[]
+  projectTransactions  ProjectTransaction[]
+
+  @@map("projects")
+}
+
+model ContractBenefit {
+  id               String           @id @default(cuid())
+  amount           Decimal          @db.Decimal(12, 2)
+  notes            String?
+  benefitTypeId    String
+  contractId       String
+  createdAt        DateTime         @default(now())
+  isPercentage     Boolean          @default(false)
+  benefitType      BenefitType      @relation(fields: [benefitTypeId], references: [id])
+  employeeContract EmployeeContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@map("contract_benefits")
+}
+
+model ContractRenewal {
+  id                       String            @id @default(cuid())
+  status                   String            @default("pending")
+  notes                    String?
+  autoRenewalMonths        Int?
+  benefitChanges           Json?
+  createdAt                DateTime          @default(now())
+  employeeId               String
+  isAutoRenewal            Boolean           @default(false)
+  jobTitleChange           String?
+  managerNotifiedAt        DateTime?
+  newContractId            String?
+  originalContractId       String
+  processedAt              DateTime?
+  processedBy              String?
+  reminderSentAt           DateTime?
+  renewalDueDate           DateTime
+  salaryChange             Decimal?          @db.Decimal(12, 2)
+  salaryChangeType         String?
+  updatedAt                DateTime          @default(now())
+  employee                 Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  newEmployeeContract      EmployeeContract? @relation("ContractRenewalNewContract", fields: [newContractId], references: [id])
+  originalEmployeeContract EmployeeContract  @relation("ContractRenewalOriginalContract", fields: [originalContractId], references: [id])
+
+  @@map("contract_renewals")
+}
+
+model DisciplinaryAction {
+  id                   String    @id
+  employeeId           String
+  actionType           String
+  violationType        String
+  title                String
+  description          String
+  incidentDate         DateTime
+  actionDate           DateTime
+  severity             String    @default("low")
+  isActive             Boolean   @default(true)
+  improvementPlan      String?
+  followUpDate         DateTime?
+  followUpNotes        String?
+  createdBy            String
+  hrReviewed           Boolean   @default(false)
+  hrReviewedBy         String?
+  hrReviewedAt         DateTime?
+  hrNotes              String?
+  employeeAcknowledged Boolean   @default(false)
+  employeeResponse     String?
+  employeeSignedAt     DateTime?
+  attachments          String[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now())
+  createdByEmployee    Employee  @relation("DisciplinaryActionCreatedBy", fields: [createdBy], references: [id], map: "disciplinary_actions_created_by_fkey")
+  employee             Employee  @relation("DisciplinaryActionReceived", fields: [employeeId], references: [id], onDelete: Cascade, map: "disciplinary_actions_employee_id_fkey")
+
+  @@map("disciplinary_actions")
+}
+
+model EmployeeBenefit {
+  id            String      @id @default(cuid())
+  amount        Decimal     @db.Decimal(12, 2)
+  notes         String?
+  benefitTypeId String
+  createdAt     DateTime    @default(now())
+  effectiveDate DateTime
+  employeeId    String
+  endDate       DateTime?
+  isActive      Boolean     @default(true)
+  isPercentage  Boolean     @default(false)
+  updatedAt     DateTime    @default(now())
+  benefitType   BenefitType @relation(fields: [benefitTypeId], references: [id])
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_benefits")
+}
+
+model EmployeeBusinessAssignment {
+  id         String    @id @default(cuid())
+  role       String?
+  notes      String?
+  assignedBy String?
+  businessId String
+  createdAt  DateTime  @default(now())
+  employeeId String
+  endDate    DateTime?
+  isActive   Boolean   @default(true)
+  isPrimary  Boolean   @default(false)
+  startDate  DateTime  @default(now())
+  updatedAt  DateTime  @default(now())
+  business   Business  @relation(fields: [businessId], references: [id])
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, businessId])
+  @@map("employee_business_assignments")
+}
+
+model EmployeeContract {
+  id                       String            @id @default(cuid())
+  version                  Int               @default(1)
+  status                   String            @default("draft")
+  notes                    String?
+  additionalBusinesses     String[]
+  approvedAt               DateTime?
+  approvedBy               String?
+  baseSalary               Decimal           @db.Decimal(12, 2)
+  compensationTypeId       String
+  contractNumber           String            @unique
+  createdAt                DateTime          @default(now())
+  createdBy                String?
+  customResponsibilities   String?
+  employeeId               String
+  employeeSignedAt         DateTime?
+  endDate                  DateTime?
+  isCommissionBased        Boolean           @default(false)
+  isSalaryBased            Boolean           @default(true)
+  jobTitleId               String
+  managerSignedAt          DateTime?
+  pdfUrl                   String?
+  primaryBusinessId        String
+  probationPeriodMonths    Int?
+  signedPdfUrl             String?
+  startDate                DateTime
+  supervisorId             String?
+  supervisorName           String?
+  supervisorTitle          String?
+  updatedAt                DateTime          @default(now())
+  commissionAmount         Decimal?          @db.Decimal(12, 2)
+  contractDurationMonths   Int?
+  livingAllowance          Decimal?          @db.Decimal(12, 2)
+  pdfGenerationData        Json?
+  umbrellaBusinessId       String?
+  umbrellaBusinessName     String?           @default("Demo Umbrella Company")
+  businessAssignments      Json?
+  contractBenefits         ContractBenefit[]
+  newContractRenewals      ContractRenewal[] @relation("ContractRenewalNewContract")
+  originalContractRenewals ContractRenewal[] @relation("ContractRenewalOriginalContract")
+  compensationType         CompensationType  @relation("ContractCompensationType", fields: [compensationTypeId], references: [id])
+  employee                 Employee          @relation("EmployeeContractEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  jobTitle                 JobTitle          @relation(fields: [jobTitleId], references: [id])
+  business                 Business          @relation(fields: [primaryBusinessId], references: [id])
+  supervisor               Employee?         @relation("EmployeeContractSupervisor", fields: [supervisorId], references: [id])
+  umbrellaBusinessRelation Business?         @relation("UmbrellaContractBusiness", fields: [umbrellaBusinessId], references: [id])
+
+  @@map("employee_contracts")
+}
+
+model Employee {
+  id                          String                       @id @default(cuid())
+  email                       String?                      @unique
+  phone                       String
+  address                     String?
+  employmentStatus            String                       @default("active")
+  notes                       String?
+  compensationTypeId          String
+  createdAt                   DateTime                     @default(now())
+  createdBy                   String?
+  customResponsibilities      String?
+  dateOfBirth                 DateTime?
+  employeeNumber              String                       @unique
+  firstName                   String
+  fullName                    String
+  hireDate                    DateTime
+  idFormatTemplateId          String?
+  isActive                    Boolean                      @default(true)
+  jobTitleId                  String
+  lastName                    String
+  nationalId                  String                       @unique
+  primaryBusinessId           String
+  profilePhotoUrl             String?
+  startDate                   DateTime?
+  supervisorId                String?
+  terminationDate             DateTime?
+  updatedAt                   DateTime                     @default(now())
+  userId                      String?                      @unique
+  driverLicenseNumber         String?
+  driverLicenseTemplateId     String?
+  BusinessOrder               BusinessOrder[]
+  BusinessStockMovement       BusinessStockMovement[]
+  contractRenewals            ContractRenewal[]
+  disciplinaryActionsCreated  DisciplinaryAction[]         @relation("DisciplinaryActionCreatedBy")
+  disciplinaryActionsReceived DisciplinaryAction[]         @relation("DisciplinaryActionReceived")
+  approvedAllowances          EmployeeAllowance[]          @relation("EmployeeAllowanceApprover")
+  employeeAllowances          EmployeeAllowance[]
+  employeeAttendance          EmployeeAttendance[]
+  employeeBenefits            EmployeeBenefit[]
+  approvedBonuses             EmployeeBonus[]              @relation("EmployeeBonusApprover")
+  employeeBonuses             EmployeeBonus[]
+  employeeBusinessAssignments EmployeeBusinessAssignment[]
+  employeeContracts           EmployeeContract[]           @relation("EmployeeContractEmployee")
+  supervisedContracts         EmployeeContract[]           @relation("EmployeeContractSupervisor")
+  processedDeductionPayments  EmployeeDeductionPayment[]   @relation("EmployeeDeductionPaymentProcessor")
+  approvedDeductions          EmployeeDeduction[]          @relation("EmployeeDeductionApprover")
+  employeeDeductions          EmployeeDeduction[]
+  employeeLeaveBalances       EmployeeLeaveBalance[]
+  approvedLeaveRequests       EmployeeLeaveRequest[]       @relation("EmployeeLeaveApprover")
+  employeeLeaveRequests       EmployeeLeaveRequest[]
+  processedLoanPayments       EmployeeLoanPayment[]        @relation("EmployeeLoanPaymentProcessor")
+  approvedLoans               EmployeeLoan[]               @relation("EmployeeLoanApprover")
+  employeeLoans               EmployeeLoan[]
+  approvedSalaryIncreases     EmployeeSalaryIncrease[]     @relation("EmployeeSalaryIncreaseApprover")
+  employeeSalaryIncreases     EmployeeSalaryIncrease[]
+  employeeTimeTracking        EmployeeTimeTracking[]
+  compensationTypes           CompensationType             @relation("EmployeeCompensationType", fields: [compensationTypeId], references: [id])
+  driverLicenseTemplate       DriverLicenseTemplate?       @relation(fields: [driverLicenseTemplateId], references: [id])
+  idFormatTemplate            IdFormatTemplate?            @relation(fields: [idFormatTemplateId], references: [id])
+  jobTitles                   JobTitle                     @relation(fields: [jobTitleId], references: [id])
+  business                    Business                     @relation(fields: [primaryBusinessId], references: [id])
+  supervisor                  Employee?                    @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
+  subordinates                Employee[]                   @relation("EmployeeSupervisor")
+  users                       User?                        @relation(fields: [userId], references: [id])
+
+  @@map("employees")
+}
+
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  name      String
+  emoji     String?  @default("💰")
+  color     String   @default("#3B82F6")
+  createdAt DateTime @default(now())
+  isDefault Boolean  @default(false)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@map("expense_categories")
+}
+
+model FundSource {
+  id         String   @id @default(cuid())
+  name       String
+  emoji      String?  @default("💰")
+  createdAt  DateTime @default(now())
+  isDefault  Boolean  @default(false)
+  usageCount Int      @default(0)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@map("fund_sources")
+}
+
+model IdFormatTemplate {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  pattern     String
+  example     String
+  countryCode String?
+  createdAt   DateTime   @default(now())
+  isActive    Boolean    @default(true)
+  updatedAt   DateTime   @default(now())
+  employees   Employee[]
+  persons     Person[]
+
+  @@map("id_format_templates")
+}
+
+model DriverLicenseTemplate {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  pattern     String
+  example     String
+  countryCode String?
+  createdAt   DateTime   @default(now())
+  isActive    Boolean    @default(true)
+  updatedAt   DateTime   @default(now())
+  employees   Employee[]
+  persons     Person[]
+
+  @@map("driver_license_templates")
+}
+
+model JobTitle {
+  id                String             @id @default(cuid())
+  title             String             @unique
+  description       String?
+  responsibilities  String[]
+  department        String?
+  level             String?
+  createdAt         DateTime           @default(now())
+  isActive          Boolean            @default(true)
+  updatedAt         DateTime           @default(now())
+  employeeContracts EmployeeContract[]
+  employees         Employee[]
+
+  @@map("job_titles")
+}
+
+model MenuItem {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  category    String
+  barcode     String?
+  createdAt   DateTime    @default(now())
+  isAvailable Boolean     @default(true)
+  updatedAt   DateTime    @default(now())
+  orderItems  OrderItem[]
+
+  @@map("menu_items")
+}
+
+model OrderItem {
+  id         String    @id @default(cuid())
+  quantity   Int
+  price      Decimal   @db.Decimal(10, 2)
+  notes      String?
+  menuItemId String?
+  orderId    String?
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id])
+  order      Order?    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  total       Decimal     @db.Decimal(10, 2)
+  status      String      @default("pending")
+  createdAt   DateTime    @default(now())
+  createdBy   String?
+  orderNumber String      @unique
+  tableNumber String?
+  orderItems  OrderItem[]
+  user        User?       @relation(fields: [createdBy], references: [id])
+
+  @@map("orders")
+}
+
+model PermissionTemplate {
+  id                  String               @id @default(cuid())
+  name                String
+  permissions         Json                 @default("{}")
+  businessType        String
+  createdAt           DateTime             @default(now())
+  createdBy           String
+  isActive            Boolean              @default(true)
+  updatedAt           DateTime             @default(now())
+  businessMemberships BusinessMembership[]
+  user                User                 @relation(fields: [createdBy], references: [id])
+
+  @@map("permission_templates")
+}
+
+model PersonalBudget {
+  id          String   @id @default(cuid())
+  amount      Decimal  @db.Decimal(12, 2)
+  description String?
+  type        String   @default("deposit")
+  createdAt   DateTime @default(now())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@map("personal_budgets")
+}
+
+model PersonalExpense {
+  id                  String               @id @default(cuid())
+  category            String
+  description         String
+  amount              Decimal              @db.Decimal(12, 2)
+  date                DateTime
+  tags                String?
+  notes               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now()) @updatedAt
+  receiptUrl          String?
+  userId              String?
+  loanTransactions    LoanTransaction[]
+  user                User?                @relation(fields: [userId], references: [id])
+  projectTransactions ProjectTransaction[]
+
+  @@map("personal_expenses")
+}
+
+model Person {
+  id                      String                 @id @default(cuid())
+  email                   String?                @unique
+  phone                   String
+  address                 String?
+  notes                   String?
+  createdAt               DateTime               @default(now())
+  createdBy               String?
+  fullName                String
+  idFormatTemplateId      String?
+  isActive                Boolean                @default(true)
+  nationalId              String                 @unique
+  updatedAt               DateTime               @default(now())
+  driverLicenseNumber     String?
+  driverLicenseTemplateId String?
+  loansReceived           InterBusinessLoan[]    @relation("PersonLoansReceived")
+  user                    User?                  @relation(fields: [createdBy], references: [id])
+  driverLicenseTemplate   DriverLicenseTemplate? @relation(fields: [driverLicenseTemplateId], references: [id])
+  idFormatTemplate        IdFormatTemplate?      @relation(fields: [idFormatTemplateId], references: [id])
+  projectContractors      ProjectContractor[]
+  projectTransactions     ProjectTransaction[]
+
+  @@map("persons")
+}
+
+model ProjectContractor {
+  id                         String                      @id @default(cuid())
+  role                       String?
+  status                     String                      @default("active")
+  notes                      String?
+  createdAt                  DateTime                    @default(now())
+  endDate                    DateTime?
+  hourlyRate                 Decimal?                    @db.Decimal(12, 2)
+  isPrimary                  Boolean                     @default(false)
+  personId                   String
+  projectId                  String
+  constructionProjectId      String?                     // For backward compatibility
+  startDate                  DateTime?
+  totalContractAmount        Decimal?                    @db.Decimal(12, 2)
+  updatedAt                  DateTime                    @default(now())
+  person                     Person                      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  constructionProject        ConstructionProject?        @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  project                    Project?                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectTransactions        ProjectTransaction[]
+  stageContractorAssignments StageContractorAssignment[]
+
+  @@unique([projectId, personId])
+  @@map("project_contractors")
+}
+
+model ProjectStage {
+  id                         String                      @id @default(cuid())
+  name                       String
+  description                String?
+  status                     String                      @default("pending")
+  notes                      String?
+  completionDate             DateTime?
+  createdAt                  DateTime                    @default(now())
+  endDate                    DateTime?
+  estimatedAmount            Decimal?                    @db.Decimal(12, 2)
+  orderIndex                 Int                         @default(0)
+  projectId                  String
+  constructionProjectId      String?                     // For backward compatibility
+  startDate                  DateTime?
+  updatedAt                  DateTime                    @default(now())
+  constructionProject        ConstructionProject?        @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  project                    Project?                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectTransactions        ProjectTransaction[]
+  stageContractorAssignments StageContractorAssignment[]
+
+  @@map("project_stages")
+}
+
+model ProjectTransaction {
+  id                        String                     @id @default(cuid())
+  amount                    Decimal                    @db.Decimal(12, 2)
+  description               String
+  status                    String                     @default("pending")
+  notes                     String?
+  approvedAt                DateTime?
+  approvedBy                String?
+  createdAt                 DateTime                   @default(now())
+  createdBy                 String?
+  paidAt                    DateTime?
+  paymentCategory           String?
+  paymentMethod             String?
+  personalExpenseId         String
+  projectContractorId       String?
+  projectId                 String
+  constructionProjectId     String?                    // For backward compatibility
+  receiptUrl                String?
+  recipientPersonId         String?
+  referenceNumber           String?
+  stageAssignmentId         String?
+  stageId                   String?
+  transactionType           String
+  transactionSubType        String?                    // 'contractor_payment' | 'general_expense'
+  updatedAt                 DateTime                   @default(now())
+  approver                  User?                      @relation("ProjectTransactionApprover", fields: [approvedBy], references: [id])
+  creator                   User?                      @relation("ProjectTransactionCreator", fields: [createdBy], references: [id])
+  personalExpense           PersonalExpense            @relation(fields: [personalExpenseId], references: [id], onDelete: Cascade)
+  projectContractor         ProjectContractor?         @relation(fields: [projectContractorId], references: [id])
+  constructionProject       ConstructionProject?       @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  project                   Project?                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recipientPerson           Person?                    @relation(fields: [recipientPersonId], references: [id])
+  stageContractorAssignment StageContractorAssignment? @relation(fields: [stageAssignmentId], references: [id])
+  projectStage              ProjectStage?              @relation(fields: [stageId], references: [id])
+
+  @@map("project_transactions")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model StageContractorAssignment {
+  id                  String               @id @default(cuid())
+  notes               String?
+  createdAt           DateTime             @default(now())
+  depositAmount       Decimal?             @db.Decimal(12, 2)
+  depositPaidDate     DateTime?
+  depositPercentage   Decimal              @default(0.00) @db.Decimal(5, 2)
+  finalPaymentDate    DateTime?
+  isDepositPaid       Boolean              @default(false)
+  isFinalPaymentMade  Boolean              @default(false)
+  predeterminedAmount Decimal              @db.Decimal(12, 2)
+  projectContractorId String
+  stageId             String
+  updatedAt           DateTime             @default(now())
+  projectTransactions ProjectTransaction[]
+  projectContractor   ProjectContractor    @relation(fields: [projectContractorId], references: [id], onDelete: Cascade)
+  projectStage        ProjectStage         @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, projectContractorId])
+  @@map("stage_contractor_assignments")
+}
+
+model User {
+  id                            String                     @id @default(cuid())
+  email                         String                     @unique
+  passwordHash                  String
+  name                          String
+  role                          String                     @default("user")
+  permissions                   Json                       @default("{}")
+  isActive                      Boolean                    @default(true)
+  passwordResetRequired         Boolean                    @default(false)
+  deactivatedAt                 DateTime?
+  deactivatedBy                 String?
+  deactivationReason            String?
+  deactivationNotes             String?
+  reactivatedAt                 DateTime?
+  reactivatedBy                 String?
+  reactivationNotes             String?
+  createdAt                     DateTime                   @default(now())
+  updatedAt                     DateTime                   @default(now())
+  lastAccessedAt                DateTime?
+  lastAccessedBusinessId        String?
+  lastAccessedBusinessType      String?
+  accounts                      Account[]
+  auditLogs                     AuditLog[]
+  businessMemberships           BusinessMembership[]
+  chatMessages                  ChatMessage[]
+  chatParticipants              ChatParticipant[]
+  chatRooms                     ChatRoom[]
+  constructionExpenses          ConstructionExpense[]
+  constructionProjects          ConstructionProject[]
+  projects                      Project[]
+  driverAuthorizations          DriverAuthorization[]
+  employee                      Employee?
+  expenseCategories             ExpenseCategory[]
+  fundSources                   FundSource[]
+  createdLoans                  InterBusinessLoan[]        @relation("LoanCreator")
+  personalLoansGiven            InterBusinessLoan[]        @relation("PersonalLoansGiven")
+  createdLoanTransactions       LoanTransaction[]
+  orders                        Order[]
+  permissionTemplates           PermissionTemplate[]
+  personalBudgets               PersonalBudget[]
+  personalExpenses              PersonalExpense[]
+  persons                       Person[]
+  approvedProjectTransactions   ProjectTransaction[]       @relation("ProjectTransactionApprover")
+  createdProjectTransactions    ProjectTransaction[]       @relation("ProjectTransactionCreator")
+  sessions                      Session[]
+  vehicleDrivers                VehicleDriver[]
+  vehicleExpenses               VehicleExpense[]
+  vehicleMaintenanceRecords     VehicleMaintenanceRecord[]
+  vehicleReimbursementApprovals VehicleReimbursement[]     @relation("VehicleReimbursementApprover")
+  vehicleReimbursements         VehicleReimbursement[]
+  vehicles                      Vehicle[]
+  businessAccounts              BusinessAccount[]
+  businessTransactions          BusinessTransaction[]
+
+  @@map("users")
+}
+
+model BusinessAccount {
+  id          String               @id @default(cuid())
+  businessId  String               @unique
+  balance     Decimal              @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  createdBy   String?
+  business    Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator     User?                @relation(fields: [createdBy], references: [id])
+
+  @@map("business_accounts")
+}
+
+model BusinessTransaction {
+  id             String           @id @default(cuid())
+  businessId     String
+  amount         Decimal          @db.Decimal(12, 2)
+  type           String
+  description    String
+  referenceId    String?
+  referenceType  String?
+  balanceAfter   Decimal          @db.Decimal(12, 2)
+  createdAt      DateTime         @default(now())
+  createdBy      String
+  notes          String?
+  metadata       Json?
+  business       Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator        User             @relation(fields: [createdBy], references: [id])
+
+  @@map("business_transactions")
+}
+
+// NodeState: used by the sync system to keep track of node heartbeats and metadata
+model NodeState {
+  id         String   @id @default(cuid())
+  nodeId     String   @unique
+  nodeName   String
+  lastSeen   DateTime @default(now())
+  isOnline   Boolean  @default(false)
+  syncVersion String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("node_states")
+}
+
+model EmployeeLoan {
+  id               String                @id @default(cuid())
+  status           String                @default("active")
+  approvedAt       DateTime?
+  approvedBy       String?
+  createdAt        DateTime              @default(now())
+  employeeId       String
+  loanAmount       Decimal               @db.Decimal(12, 2)
+  monthlyDeduction Decimal               @db.Decimal(12, 2)
+  remainingBalance Decimal               @db.Decimal(12, 2)
+  remainingMonths  Int
+  totalMonths      Int
+  updatedAt        DateTime              @updatedAt
+  loanPayments     EmployeeLoanPayment[]
+  approver         Employee?             @relation("EmployeeLoanApprover", fields: [approvedBy], references: [id])
+  employee         Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_loans")
+}
+
+model EmployeeLoanPayment {
+  id          String       @id @default(cuid())
+  amount      Decimal      @db.Decimal(12, 2)
+  createdAt   DateTime     @default(now())
+  loanId      String
+  paymentDate DateTime
+  processedBy String?
+  loan        EmployeeLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  processor   Employee?    @relation("EmployeeLoanPaymentProcessor", fields: [processedBy], references: [id])
+
+  @@map("employee_loan_payments")
+}
+
+model EmployeeBonus {
+  id         String    @id @default(cuid())
+  amount     Decimal   @db.Decimal(12, 2)
+  approvedAt DateTime?
+  approvedBy String?
+  createdAt  DateTime  @default(now())
+  employeeId String
+  reason     String?
+  type       String
+  approver   Employee? @relation("EmployeeBonusApprover", fields: [approvedBy], references: [id])
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_bonuses")
+}
+
+model EmployeeDeduction {
+  id                String                     @id @default(cuid())
+  amount            Decimal                    @db.Decimal(12, 2)
+  approvedAt        DateTime?
+  approvedBy        String?
+  createdAt         DateTime                   @default(now())
+  employeeId        String
+  reason            String?
+  type              String
+  deductionPayments EmployeeDeductionPayment[]
+  approver          Employee?                  @relation("EmployeeDeductionApprover", fields: [approvedBy], references: [id])
+  employee          Employee                   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_deductions")
+}
+
+model EmployeeDeductionPayment {
+  id          String            @id @default(cuid())
+  amount      Decimal           @db.Decimal(12, 2)
+  createdAt   DateTime          @default(now())
+  deductionId String
+  paymentDate DateTime
+  processedBy String?
+  deduction   EmployeeDeduction @relation(fields: [deductionId], references: [id], onDelete: Cascade)
+  processor   Employee?         @relation("EmployeeDeductionPaymentProcessor", fields: [processedBy], references: [id])
+
+  @@map("employee_deduction_payments")
+}
+
+model EmployeeSalaryIncrease {
+  id              String    @id @default(cuid())
+  reason          String?
+  approvedAt      DateTime?
+  approvedBy      String?
+  createdAt       DateTime  @default(now())
+  effectiveDate   DateTime
+  employeeId      String
+  increaseAmount  Decimal   @db.Decimal(12, 2)
+  increasePercent Decimal   @db.Decimal(5, 2)
+  newSalary       Decimal   @db.Decimal(12, 2)
+  previousSalary  Decimal   @db.Decimal(12, 2)
+  approver        Employee? @relation("EmployeeSalaryIncreaseApprover", fields: [approvedBy], references: [id])
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_salary_increases")
+}
+
+model EmployeeAttendance {
+  id          String    @id @default(cuid())
+  date        DateTime
+  status      String    @default("present")
+  notes       String?
+  checkIn     DateTime?
+  checkOut    DateTime?
+  createdAt   DateTime  @default(now())
+  employeeId  String
+  hoursWorked Decimal?  @db.Decimal(4, 2)
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@map("employee_attendance")
+}
+
+model EmployeeLeaveBalance {
+  id              String   @id @default(cuid())
+  year            Int
+  annualLeaveDays Int      @default(0)
+  createdAt       DateTime @default(now())
+  employeeId      String
+  remainingAnnual Int      @default(0)
+  remainingSick   Int      @default(0)
+  sickLeaveDays   Int      @default(0)
+  updatedAt       DateTime @updatedAt
+  usedAnnualDays  Int      @default(0)
+  usedSickDays    Int      @default(0)
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year])
+  @@map("employee_leave_balance")
+}
+
+model EmployeeLeaveRequest {
+  id              String    @id @default(cuid())
+  reason          String?
+  status          String    @default("pending")
+  approvedAt      DateTime?
+  approvedBy      String?
+  createdAt       DateTime  @default(now())
+  daysRequested   Int
+  employeeId      String
+  endDate         DateTime
+  leaveType       String
+  rejectionReason String?
+  startDate       DateTime
+  updatedAt       DateTime  @updatedAt
+  approver        Employee? @relation("EmployeeLeaveApprover", fields: [approvedBy], references: [id])
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_leave_requests")
+}
+
+model EmployeeAllowance {
+  id           String    @id @default(cuid())
+  employeeId   String
+  type         String
+  amount       Decimal   @db.Decimal(12, 2)
+  description  String?
+  payrollMonth Int
+  payrollYear  Int
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  approver     Employee? @relation("EmployeeAllowanceApprover", fields: [approvedBy], references: [id])
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_allowances")
+}
+
+model EmployeeTimeTracking {
+  id            String   @id @default(cuid())
+  employeeId    String
+  year          Int
+  month         Int
+  workDays      Int      @default(0)
+  totalHours    Decimal? @db.Decimal(5, 2)
+  overtimeHours Decimal? @db.Decimal(5, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year, month])
+  @@map("employee_time_tracking")
+}
+
+model InterBusinessLoan {
+  id                 String            @id @default(cuid())
+  loanNumber         String            @unique
+  principalAmount    Decimal           @db.Decimal(12, 2)
+  interestRate       Decimal           @default(0) @db.Decimal(5, 2)
+  totalAmount        Decimal           @db.Decimal(12, 2)
+  remainingBalance   Decimal           @db.Decimal(12, 2)
+  lenderType         String
+  lenderUserId       String?
+  lenderBusinessId   String?
+  borrowerBusinessId String?
+  loanDate           DateTime
+  dueDate            DateTime?
+  status             String            @default("active")
+  terms              String?
+  notes              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  createdBy          String
+  borrowerPersonId   String?
+  borrowerType       String
+  borrowerBusiness   Business?         @relation("BusinessLoansReceived", fields: [borrowerBusinessId], references: [id])
+  borrowerPerson     Person?           @relation("PersonLoansReceived", fields: [borrowerPersonId], references: [id])
+  creator            User              @relation("LoanCreator", fields: [createdBy], references: [id])
+  lenderBusiness     Business?         @relation("BusinessLoansGiven", fields: [lenderBusinessId], references: [id])
+  lenderUser         User?             @relation("PersonalLoansGiven", fields: [lenderUserId], references: [id])
+  loanTransactions   LoanTransaction[]
+
+  @@map("inter_business_loans")
+}
+
+model LoanTransaction {
+  id                    String            @id @default(cuid())
+  loanId                String
+  transactionType       String
+  amount                Decimal           @db.Decimal(12, 2)
+  description           String?
+  transactionDate       DateTime
+  personalExpenseId     String?
+  businessTransactionId String?
+  isAutoGenerated       Boolean           @default(false)
+  autoGeneratedNote     String?
+  initiatedFrom         String?
+  balanceAfter          Decimal           @db.Decimal(12, 2)
+  createdAt             DateTime          @default(now())
+  createdBy             String
+  creator               User              @relation(fields: [createdBy], references: [id])
+  loan                  InterBusinessLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  personalExpense       PersonalExpense?  @relation(fields: [personalExpenseId], references: [id])
+
+  @@map("loan_transactions")
+}
+
+model BusinessCategory {
+  id           String             @id @default(cuid())
+  businessId   String
+  name         String
+  description  String?
+  parentId     String?
+  displayOrder Int                @default(0)
+  isActive     Boolean            @default(true)
+  businessType String
+  attributes   Json?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  business     Business           @relation(fields: [businessId], references: [id])
+  parent       BusinessCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     BusinessCategory[] @relation("CategoryHierarchy")
+  products     BusinessProduct[]
+
+  @@unique([businessId, name])
+  @@map("business_categories")
+}
+
+model BusinessBrand {
+  id           String            @id @default(cuid())
+  businessId   String
+  name         String
+  description  String?
+  logoUrl      String?
+  website      String?
+  isActive     Boolean           @default(true)
+  businessType String
+  attributes   Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  business     Business          @relation(fields: [businessId], references: [id])
+  products     BusinessProduct[]
+
+  @@unique([businessId, name])
+  @@map("business_brands")
+}
+
+model BusinessProduct {
+  id                  String                  @id @default(cuid())
+  businessId          String
+  name                String
+  description         String?
+  sku                 String?
+  barcode             String?
+  brandId             String?
+  categoryId          String
+  productType         ProductType             @default(PHYSICAL)
+  condition           ProductCondition        @default(NEW)
+  basePrice           Decimal                 @db.Decimal(10, 2)
+  costPrice           Decimal?                @db.Decimal(10, 2)
+  isActive            Boolean                 @default(true)
+  businessType        String
+  attributes          Json?
+  isAvailable         Boolean                 @default(true)
+  spiceLevel          Int?                    @default(0)
+  dietaryRestrictions String[]
+  allergens           String[]
+  preparationTime     Int?                    @default(0)
+  calories            Int?
+  isCombo             Boolean                 @default(false)
+  comboItemsData      Json?
+  originalPrice       Decimal?                @db.Decimal(10, 2)
+  discountPercent     Decimal?                @db.Decimal(5, 2)
+  discountAmount      Decimal?                @db.Decimal(10, 2)
+  promotionStartDate  DateTime?
+  promotionEndDate    DateTime?
+  promotionName       String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  brand               BusinessBrand?          @relation(fields: [brandId], references: [id])
+  business            Business                @relation(fields: [businessId], references: [id])
+  category            BusinessCategory        @relation(fields: [categoryId], references: [id])
+  stockMovements      BusinessStockMovement[]
+  menuComboItems      MenuComboItem[]
+  attributes_rel      ProductAttribute[]
+  images              ProductImage[]
+  variants            ProductVariant[]
+  supplierProducts    SupplierProduct[]
+
+  @@unique([businessId, sku])
+  @@map("business_products")
+}
+
+model ProductVariant {
+  id                String                  @id @default(cuid())
+  productId         String
+  name              String?
+  sku               String                  @unique
+  barcode           String?
+  price             Decimal?                @db.Decimal(10, 2)
+  stockQuantity     Int                     @default(0)
+  reorderLevel      Int                     @default(0)
+  isActive          Boolean                 @default(true)
+  attributes        Json?
+  isAvailable       Boolean                 @default(true)
+  originalPrice     Decimal?                @db.Decimal(10, 2)
+  discountPercent   Decimal?                @db.Decimal(5, 2)
+  discountAmount    Decimal?                @db.Decimal(10, 2)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  orderItems        BusinessOrderItem[]
+  stockMovements    BusinessStockMovement[]
+  variantComboItems MenuComboItem[]
+  product           BusinessProduct         @relation(fields: [productId], references: [id])
+
+  @@map("product_variants")
+}
+
+model ProductAttribute {
+  id           String            @id @default(cuid())
+  productId    String
+  key          String
+  value        String
+  dataType     AttributeDataType @default(TEXT)
+  displayOrder Int               @default(0)
+  createdAt    DateTime          @default(now())
+  product      BusinessProduct   @relation(fields: [productId], references: [id])
+
+  @@unique([productId, key])
+  @@map("product_attributes")
+}
+
+model BusinessCustomer {
+  id             String          @id @default(cuid())
+  businessId     String
+  customerNumber String
+  name           String
+  email          String?
+  phone          String?
+  dateOfBirth    DateTime?
+  address        String?
+  city           String?
+  country        String?
+  customerType   CustomerType    @default(INDIVIDUAL)
+  segment        String?
+  loyaltyPoints  Int             @default(0)
+  totalSpent     Decimal         @default(0) @db.Decimal(12, 2)
+  isActive       Boolean         @default(true)
+  businessType   String
+  attributes     Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  business       Business        @relation(fields: [businessId], references: [id])
+  orders         BusinessOrder[]
+
+  @@unique([businessId, customerNumber])
+  @@map("business_customers")
+}
+
+model BusinessOrder {
+  id             String              @id @default(cuid())
+  businessId     String
+  orderNumber    String
+  customerId     String?
+  employeeId     String?
+  orderType      OrderType           @default(SALE)
+  status         OrderStatus         @default(PENDING)
+  subtotal       Decimal             @db.Decimal(10, 2)
+  taxAmount      Decimal             @db.Decimal(10, 2)
+  discountAmount Decimal             @default(0) @db.Decimal(10, 2)
+  totalAmount    Decimal             @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod?
+  paymentStatus  PaymentStatus       @default(PENDING)
+  businessType   String
+  attributes     Json?
+  notes          String?
+  processedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  items          BusinessOrderItem[]
+  business       Business            @relation(fields: [businessId], references: [id])
+  customer       BusinessCustomer?   @relation(fields: [customerId], references: [id])
+  employee       Employee?           @relation(fields: [employeeId], references: [id])
+
+  @@unique([businessId, orderNumber])
+  @@map("business_orders")
+}
+
+model BusinessOrderItem {
+  id               String         @id @default(cuid())
+  orderId          String
+  productVariantId String
+  quantity         Int
+  unitPrice        Decimal        @db.Decimal(10, 2)
+  discountAmount   Decimal        @default(0) @db.Decimal(10, 2)
+  totalPrice       Decimal        @db.Decimal(10, 2)
+  attributes       Json?
+  createdAt        DateTime       @default(now())
+  order            BusinessOrder  @relation(fields: [orderId], references: [id])
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@map("business_order_items")
+}
+
+model BusinessSupplier {
+  id             String            @id @default(cuid())
+  businessId     String
+  supplierNumber String
+  name           String
+  contactPerson  String?
+  email          String?
+  phone          String?
+  address        String?
+  paymentTerms   String?
+  creditLimit    Decimal?          @db.Decimal(12, 2)
+  isActive       Boolean           @default(true)
+  businessType   String
+  attributes     Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  business       Business          @relation(fields: [businessId], references: [id])
+  products       SupplierProduct[]
+
+  @@unique([businessId, supplierNumber])
+  @@map("business_suppliers")
+}
+
+model SupplierProduct {
+  id            String           @id @default(cuid())
+  supplierId    String
+  productId     String
+  supplierSku   String?
+  supplierPrice Decimal          @db.Decimal(10, 2)
+  minimumOrder  Int              @default(1)
+  leadTimeDays  Int              @default(0)
+  isActive      Boolean          @default(true)
+  attributes    Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  product       BusinessProduct  @relation(fields: [productId], references: [id])
+  supplier      BusinessSupplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([supplierId, productId])
+  @@map("supplier_products")
+}
+
+model BusinessStockMovement {
+  id                String            @id @default(cuid())
+  businessId        String
+  productVariantId  String
+  movementType      StockMovementType
+  quantity          Int
+  unitCost          Decimal?          @db.Decimal(10, 2)
+  reference         String?
+  reason            String?
+  employeeId        String?
+  businessType      String
+  attributes        Json?
+  createdAt         DateTime          @default(now())
+  businessProductId String?
+  business          Business          @relation(fields: [businessId], references: [id])
+  BusinessProduct   BusinessProduct?  @relation(fields: [businessProductId], references: [id])
+  employee          Employee?         @relation(fields: [employeeId], references: [id])
+  productVariant    ProductVariant    @relation(fields: [productVariantId], references: [id])
+
+  @@map("business_stock_movements")
+}
+
+model ProductImage {
+  id           String          @id @default(cuid())
+  productId    String
+  imageUrl     String
+  altText      String?
+  isPrimary    Boolean         @default(false)
+  sortOrder    Int             @default(0)
+  imageSize    ImageSize       @default(MEDIUM)
+  businessType String
+  attributes   Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  product      BusinessProduct @relation(fields: [productId], references: [id])
+
+  @@map("product_images")
+}
+
+model MenuCombo {
+  id                 String          @id @default(cuid())
+  businessId         String
+  name               String
+  description        String?
+  totalPrice         Decimal         @db.Decimal(10, 2)
+  originalTotalPrice Decimal?        @db.Decimal(10, 2)
+  isActive           Boolean         @default(true)
+  isAvailable        Boolean         @default(true)
+  imageUrl           String?
+  preparationTime    Int             @default(0)
+  discountPercent    Decimal?        @db.Decimal(5, 2)
+  promotionStartDate DateTime?
+  promotionEndDate   DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  menuComboItems     MenuComboItem[]
+  business           Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("menu_combos")
+}
+
+model MenuComboItem {
+  id         String          @id @default(cuid())
+  comboId    String
+  productId  String
+  variantId  String?
+  quantity   Int             @default(1)
+  isRequired Boolean         @default(true)
+  sortOrder  Int             @default(0)
+  createdAt  DateTime        @default(now())
+  combo      MenuCombo       @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  product    BusinessProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant    ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@map("menu_combo_items")
+}
+
+model MenuPromotion {
+  id                   String        @id @default(cuid())
+  businessId           String
+  name                 String
+  description          String?
+  type                 PromotionType
+  value                Decimal       @db.Decimal(10, 2)
+  minOrderAmount       Decimal?      @db.Decimal(10, 2)
+  maxDiscountAmount    Decimal?      @db.Decimal(10, 2)
+  startDate            DateTime
+  endDate              DateTime?
+  startTime            String?
+  endTime              String?
+  daysOfWeek           String[]
+  isActive             Boolean       @default(true)
+  usageLimit           Int?
+  usageCount           Int           @default(0)
+  applicableCategories String[]
+  applicableProducts   String[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  business             Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("menu_promotions")
+}
+
+model Vehicle {
+  id                   String                     @id @default(cuid())
+  licensePlate         String                     @unique
+  vin                  String                     @unique
+  make                 String
+  model                String
+  year                 Int
+  color                String?
+  weight               Decimal?                   @db.Decimal(10, 2)
+  driveType            DriveType
+  ownershipType        OwnershipType
+  currentMileage       Int
+  businessId           String?
+  userId               String?
+  isActive             Boolean                    @default(true)
+  purchaseDate         DateTime?
+  purchasePrice        Decimal?                   @db.Decimal(12, 2)
+  notes                String?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  driverAuthorizations DriverAuthorization[]
+  expenseRecords       VehicleExpense[]
+  vehicleLicenses      VehicleLicense[]
+  maintenanceRecords   VehicleMaintenanceRecord[]
+  reimbursements       VehicleReimbursement[]
+  trips                VehicleTrip[]
+  business             Business?                  @relation(fields: [businessId], references: [id])
+  user                 User?                      @relation(fields: [userId], references: [id])
+
+  @@map("vehicles")
+}
+
+model VehicleDriver {
+  id               String                @id @default(cuid())
+  fullName         String
+  licenseNumber    String                @unique
+  licenseExpiry    DateTime
+  phoneNumber      String?
+  emailAddress     String?
+  emergencyContact String?
+  emergencyPhone   String?
+  userId           String?
+  isActive         Boolean               @default(true)
+  dateOfBirth      DateTime?
+  address          String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  authorizations   DriverAuthorization[]
+  user             User?                 @relation(fields: [userId], references: [id])
+  trips            VehicleTrip[]
+
+  @@map("vehicle_drivers")
+}
+
+model VehicleLicense {
+  id               String      @id @default(cuid())
+  vehicleId        String
+  licenseType      LicenseType
+  licenseNumber    String
+  issuingAuthority String?
+  issueDate        DateTime
+  expiryDate       DateTime
+  renewalCost      Decimal?    @db.Decimal(10, 2)
+  isActive         Boolean     @default(true)
+  documentUrl      String?
+  reminderDays     Int         @default(30)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  vehicle          Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_licenses")
+}
+
+model DriverAuthorization {
+  id                 String             @id @default(cuid())
+  driverId           String
+  vehicleId          String
+  authorizedBy       String
+  authorizedDate     DateTime
+  expiryDate         DateTime?
+  isActive           Boolean            @default(true)
+  authorizationLevel AuthorizationLevel @default(BASIC)
+  notes              String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  authorizer         User               @relation(fields: [authorizedBy], references: [id])
+  driver             VehicleDriver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle            Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  trips              VehicleTrip[]
+
+  @@unique([driverId, vehicleId])
+  @@map("driver_authorizations")
+}
+
+model VehicleTrip {
+  id              String              @id @default(cuid())
+  vehicleId       String
+  driverId        String
+  businessId      String?
+  startMileage    Int
+  endMileage      Int?
+  tripMileage     Int                 @default(0)
+  tripPurpose     String
+  tripType        TripType
+  startLocation   String?
+  endLocation     String?
+  startTime       DateTime
+  endTime         DateTime?
+  isCompleted     Boolean             @default(false)
+  notes           String?
+  gpsTrackingData Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  expenses        VehicleExpense[]
+  business        Business?           @relation(fields: [businessId], references: [id])
+  driver          VehicleDriver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  authorization   DriverAuthorization @relation(fields: [driverId, vehicleId], references: [driverId, vehicleId])
+  vehicle         Vehicle             @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_trips")
+}
+
+model VehicleExpense {
+  id                   String       @id @default(cuid())
+  vehicleId            String
+  tripId               String?
+  businessId           String?
+  expenseType          ExpenseType
+  expenseCategory      String?
+  amount               Decimal      @db.Decimal(10, 2)
+  currency             String       @default("USD")
+  expenseDate          DateTime
+  isBusinessDeductible Boolean      @default(false)
+  receiptUrl           String?
+  vendorName           String?
+  description          String?
+  mileageAtExpense     Int?
+  fuelQuantity         Decimal?     @db.Decimal(8, 2)
+  fuelType             FuelType?
+  createdBy            String
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  business             Business?    @relation(fields: [businessId], references: [id])
+  creator              User         @relation(fields: [createdBy], references: [id])
+  trip                 VehicleTrip? @relation(fields: [tripId], references: [id])
+  vehicle              Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_expenses")
+}
+
+model VehicleMaintenanceRecord {
+  id                 String      @id @default(cuid())
+  vehicleId          String
+  serviceType        ServiceType
+  serviceCategory    String?
+  serviceName        String
+  serviceDate        DateTime
+  mileageAtService   Int
+  nextServiceDue     DateTime?
+  nextServiceMileage Int?
+  serviceCost        Decimal     @db.Decimal(10, 2)
+  serviceProvider    String?
+  serviceLocation    String?
+  partsReplaced      Json?
+  warrantyInfo       String?
+  receiptUrl         String?
+  notes              String?
+  isScheduledService Boolean     @default(false)
+  createdBy          String
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  creator            User        @relation(fields: [createdBy], references: [id])
+  vehicle            Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_maintenance_records")
+}
+
+model VehicleReimbursement {
+  id                  String              @id @default(cuid())
+  userId              String
+  vehicleId           String
+  businessId          String
+  reimbursementPeriod String
+  totalMileage        Int
+  businessMileage     Int
+  personalMileage     Int
+  statutoryRate       Decimal             @db.Decimal(8, 4)
+  totalAmount         Decimal             @db.Decimal(10, 2)
+  status              ReimbursementStatus @default(PENDING)
+  submissionDate      DateTime
+  approvalDate        DateTime?
+  paymentDate         DateTime?
+  approvedBy          String?
+  notes               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  approver            User?               @relation("VehicleReimbursementApprover", fields: [approvedBy], references: [id])
+  business            Business            @relation(fields: [businessId], references: [id])
+  user                User                @relation(fields: [userId], references: [id])
+  vehicle             Vehicle             @relation(fields: [vehicleId], references: [id])
+
+  @@map("vehicle_reimbursements")
+}
+
+enum ProductType {
+  PHYSICAL
+  DIGITAL
+  SERVICE
+  COMBO
+}
+
+enum ProductCondition {
+  NEW
+  USED
+  REFURBISHED
+  DAMAGED
+  EXPIRED
+}
+
+enum OrderType {
+  SALE
+  RETURN
+  EXCHANGE
+  SERVICE
+  KITCHEN_TICKET
+  RENTAL
+  SUBSCRIPTION
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  READY
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  BUSINESS
+  CONTRACTOR
+  WHOLESALE
+  VIP
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE_MONEY
+  BANK_TRANSFER
+  STORE_CREDIT
+  LAYAWAY
+  NET_30
+  CHECK
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  REFUNDED
+  FAILED
+}
+
+enum StockMovementType {
+  PURCHASE_RECEIVED
+  SALE
+  RETURN_IN
+  RETURN_OUT
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  DAMAGE
+  THEFT
+  EXPIRED
+  PRODUCTION_IN
+  PRODUCTION_OUT
+}
+
+enum AttributeDataType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  LIST
+  JSON
+}
+
+enum ImageSize {
+  THUMBNAIL
+  SMALL
+  MEDIUM
+  LARGE
+  ORIGINAL
+}
+
+enum PromotionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  BUY_ONE_GET_ONE
+  COMBO_DEAL
+  HAPPY_HOUR
+  CATEGORY_DISCOUNT
+}
+
+enum DriveType {
+  LEFT_HAND
+  RIGHT_HAND
+}
+
+enum OwnershipType {
+  PERSONAL
+  BUSINESS
+}
+
+enum LicenseType {
+  REGISTRATION
+  RADIO
+  ROAD_USE
+  INSURANCE
+  INSPECTION
+}
+
+enum AuthorizationLevel {
+  BASIC
+  ADVANCED
+  EMERGENCY
+}
+
+enum TripType {
+  BUSINESS
+  PERSONAL
+  MIXED
+}
+
+enum ExpenseType {
+  FUEL
+  TOLL
+  PARKING
+  MAINTENANCE
+  INSURANCE
+  OTHER
+}
+
+enum FuelType {
+  GASOLINE
+  DIESEL
+  ELECTRIC
+  HYBRID
+}
+
+enum ServiceType {
+  OIL_CHANGE
+  TIRE_REPLACEMENT
+  BRAKE_SERVICE
+  INSPECTION
+  REPAIR
+  OTHER
+}
+
+enum ReimbursementStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}

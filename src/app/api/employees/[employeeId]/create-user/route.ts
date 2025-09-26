@@ -1,0 +1,209 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import { hash } from 'bcryptjs';
+import { prisma } from '@/lib/prisma';
+import { hasPermission } from '@/lib/permission-utils';
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { employeeId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check permissions
+    if (!hasPermission(session.user as any, 'canManageBusinessUsers')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const { employeeId } = await params;
+    const { email, password, role = 'user', sendInvite = false } = await req.json();
+
+    // Validate required fields
+    if (!email || (!password && !sendInvite)) {
+      return NextResponse.json(
+        { error: 'Email and password (or send invite) are required' },
+        { status: 400 }
+      );
+    }
+
+    // Get employee details including contract information
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: {
+        users: true,
+        business: true,
+        employeeBusinessAssignments: {
+          where: { isActive: true },
+          include: { business: true }
+        },
+        employeeContracts: {
+          where: { status: 'active' },
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
+      }
+    });
+
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    // Check if employee already has a user account
+    if (employee.users) {
+      return NextResponse.json(
+        { error: 'Employee already has a user account' },
+        { status: 400 }
+      );
+    }
+
+    // CRITICAL: Only allow user account creation for employees with SIGNED active contracts
+    if (employee.employmentStatus !== 'active') {
+      return NextResponse.json(
+        {
+          error: `Cannot create user account. Employee must have signed an active contract. Current status: ${employee.employmentStatus.replace('_', ' ').toUpperCase()}`,
+          currentStatus: employee.employmentStatus,
+          requiredStatus: 'active (signed contract)'
+        },
+        { status: 422 }
+      );
+    }
+
+    // Validate that employee has a signed active contract
+    const activeContract = employee.employeeContracts[0];
+    if (!activeContract) {
+      return NextResponse.json(
+        { error: 'Cannot create user account. Employee must have an active contract.' },
+        { status: 422 }
+      );
+    }
+
+    if (activeContract.status !== 'active' || !activeContract.employeeSignedAt) {
+      return NextResponse.json(
+        {
+          error: 'Cannot create user account. Employee contract must be signed and active.',
+          contractStatus: activeContract.status,
+          contractSigned: !!activeContract.employeeSignedAt,
+          requirement: 'Contract must be signed (employeeSignedAt) and status must be active'
+        },
+        { status: 422 }
+      );
+    }
+
+    // Check if email is already taken
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'Email address is already in use' },
+        { status: 409 }
+      );
+    }
+
+    // Generate temporary password if sending invite
+    const finalPassword = password || Math.random().toString(36).slice(-12);
+    const hashedPassword = await hash(finalPassword, 12);
+
+    // Create user account and link to employee
+    const newUser = await prisma.$transaction(async (tx) => {
+      // Create user
+      const user = await tx.user.create({
+        data: {
+          name: employee.fullName,
+          email,
+          passwordHash: hashedPassword,
+          role: role,
+          isActive: true,
+          passwordResetRequired: sendInvite,
+        }
+      });
+
+      // Link employee to user
+      await tx.employee.update({
+        where: { id: employeeId },
+        data: { userId: user.id }
+      });
+
+      // Create business memberships based on employee's business assignments
+      const businessMemberships = [];
+      
+      // Primary business membership
+      businessMemberships.push({
+        userId: user.id,
+        businessId: employee.primaryBusinessId,
+        role: 'employee',
+        permissions: {
+          // Basic employee permissions based on job role
+          canViewBusiness: true,
+          canViewEmployees: false,
+          canViewReports: false,
+        },
+        isActive: true,
+        invitedBy: session.user.id,
+        joinedAt: new Date(),
+        lastAccessedAt: new Date(),
+      });
+
+      // Additional business assignments
+      for (const assignment of employee.employeeBusinessAssignments) {
+        if (assignment.businessId !== employee.primaryBusinessId) {
+          businessMemberships.push({
+            userId: user.id,
+            businessId: assignment.businessId,
+            role: assignment.role || 'employee',
+            permissions: {
+              canViewBusiness: true,
+              canViewEmployees: false,
+              canViewReports: false,
+            },
+            isActive: true,
+            invitedBy: session.user.id,
+            joinedAt: new Date(),
+            lastAccessedAt: new Date(),
+          });
+        }
+      }
+
+      // Create all business memberships
+      await tx.businessMembership.createMany({
+        data: businessMemberships
+      });
+
+      return user;
+    });
+
+    const response: any = {
+      success: true,
+      message: 'User account created and linked to employee successfully',
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        employeeId: employeeId,
+        employeeName: employee.fullName,
+        employeeNumber: employee.employeeNumber,
+      }
+    };
+
+    if (sendInvite) {
+      response.temporaryPassword = finalPassword;
+      response.message += ' User will need to change password on first login.';
+    }
+
+    return NextResponse.json(response);
+
+  } catch (error) {
+    console.error('Error creating user from employee:', error);
+    return NextResponse.json(
+      { error: 'Failed to create user account' },
+      { status: 500 }
+    );
+  }
+}

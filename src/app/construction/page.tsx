@@ -1,8 +1,9 @@
 'use client'
 
-import { ProtectedRoute } from '@/components/auth/protected-route'
+import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { ContentLayout } from '@/components/layout/content-layout'
 
 interface Project {
   id: string
@@ -39,32 +40,37 @@ export default function ConstructionPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute module="construction">
+      <BusinessTypeRoute requiredBusinessType="construction">
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
         </div>
-      </ProtectedRoute>
+      </BusinessTypeRoute>
     )
   }
 
   return (
-    <ProtectedRoute module="construction">
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Construction Projects</h1>
+    <BusinessTypeRoute requiredBusinessType="construction">
+      <ContentLayout
+        title="🏗️ Construction Projects"
+        breadcrumb={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Construction', isActive: true }
+        ]}
+        headerActions={
           <Link
-            href="/construction/new"
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            href="/projects/new"
+            className="btn-primary"
           >
             New Project
           </Link>
-        </div>
+        }
+      >
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((project) => (
-            <div key={project.id} className="bg-white p-6 rounded-lg shadow">
-              <h3 className="text-lg font-semibold mb-2">{project.name}</h3>
-              <p className="text-gray-600 mb-4">{project.description}</p>
+            <div key={project.id} className="card p-6">
+              <h3 className="text-lg font-semibold mb-2 text-primary">{project.name}</h3>
+              <p className="text-secondary mb-4">{project.description}</p>
               
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -106,7 +112,7 @@ export default function ConstructionPage() {
             </div>
           )}
         </div>
-      </div>
-    </ProtectedRoute>
+      </ContentLayout>
+    </BusinessTypeRoute>
   )
 }

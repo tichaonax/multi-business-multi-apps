@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-09-06T23-33-00-118Z",
+  "version": "1.0.0",
+  "data": {
+    "users": [],
+    "businesses": [],
+    "audit_log": [],
+    "chat_rooms": [],
+    "chat_messages": [],
+    "chat_participants": []
+  }
+}

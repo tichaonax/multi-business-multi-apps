@@ -1,0 +1,395 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+// Validation schemas
+const CreateVehicleSchema = z.object({
+  licensePlate: z.string().min(1, 'License plate is required'),
+  vin: z.string().min(17, 'VIN must be 17 characters').max(17, 'VIN must be 17 characters'),
+  make: z.string().min(1, 'Make is required'),
+  model: z.string().min(1, 'Model is required'),
+  year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
+  color: z.string().optional(),
+  weight: z.number().optional(),
+  driveType: z.enum(['LEFT_HAND', 'RIGHT_HAND']),
+  ownershipType: z.enum(['PERSONAL', 'BUSINESS']),
+  currentMileage: z.number().int().min(0),
+  businessId: z.string().optional(),
+  userId: z.string().optional(),
+  purchaseDate: z.string().optional(),
+  purchasePrice: z.number().optional(),
+  notes: z.string().optional()
+})
+
+const UpdateVehicleSchema = z.object({
+  id: z.string().min(1),
+  licensePlate: z.string().min(1).optional(),
+  vin: z.string().length(17).optional(),
+  make: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
+  color: z.string().optional(),
+  weight: z.number().optional(),
+  driveType: z.enum(['LEFT_HAND', 'RIGHT_HAND']).optional(),
+  ownershipType: z.enum(['PERSONAL', 'BUSINESS']).optional(),
+  currentMileage: z.number().int().min(0).optional(),
+  businessId: z.string().optional(),
+  userId: z.string().optional(),
+  purchaseDate: z.string().optional(),
+  purchasePrice: z.number().optional(),
+  notes: z.string().optional(),
+  isActive: z.boolean().optional()
+})
+
+// GET - Fetch vehicles
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const businessId = searchParams.get('businessId')
+    const userId = searchParams.get('userId')
+    const ownershipType = searchParams.get('ownershipType')
+    const isActive = searchParams.get('isActive')
+    const includeLicenses = searchParams.get('includeLicenses') === 'true'
+    const includeTrips = searchParams.get('includeTrips') === 'true'
+    const includeMaintenance = searchParams.get('includeMaintenance') === 'true'
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
+    const skip = (page - 1) * limit
+
+    const where: any = {}
+
+    // Filter by business or user based on ownership
+    if (businessId) {
+      where.businessId = businessId
+    }
+    if (userId) {
+      where.userId = userId
+    }
+    if (ownershipType) {
+      where.ownershipType = ownershipType
+    }
+    if (isActive !== null && isActive !== undefined) {
+      where.isActive = isActive === 'true'
+    }
+
+    const [vehicles, totalCount] = await Promise.all([
+      prisma.vehicle.findMany({
+        where,
+        include: {
+          business: {
+            select: { id: true, name: true, type: true }
+          },
+          user: {
+            select: { id: true, name: true, email: true }
+          },
+          ...(includeLicenses && {
+            vehicleLicenses: {
+              where: { isActive: true },
+              orderBy: { expiryDate: 'asc' }
+            }
+          }),
+          ...(includeTrips && {
+            trips: {
+              take: 5,
+              orderBy: { startTime: 'desc' },
+              include: {
+                driver: {
+                  select: { id: true, fullName: true }
+                }
+              }
+            }
+          }),
+          ...(includeMaintenance && {
+            maintenanceRecords: {
+              take: 5,
+              orderBy: { serviceDate: 'desc' }
+            }
+          })
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.vehicle.count({ where })
+    ])
+
+    return NextResponse.json({
+      success: true,
+      data: vehicles,
+      meta: {
+        total: totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
+        hasMore: skip + vehicles.length < totalCount
+      }
+    })
+
+  } catch (error) {
+    console.error('Error fetching vehicles:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch vehicles', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST - Create new vehicle
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const validatedData = CreateVehicleSchema.parse(body)
+
+    // Check if license plate or VIN already exists
+    const existingVehicle = await prisma.vehicle.findFirst({
+      where: {
+        OR: [
+          { licensePlate: validatedData.licensePlate },
+          { vin: validatedData.vin }
+        ]
+      }
+    })
+
+    if (existingVehicle) {
+      return NextResponse.json(
+        { error: 'Vehicle with this license plate or VIN already exists' },
+        { status: 409 }
+      )
+    }
+
+    // Verify business exists if businessId is provided
+    if (validatedData.businessId) {
+      const business = await prisma.business.findUnique({
+        where: { id: validatedData.businessId }
+      })
+
+      if (!business) {
+        return NextResponse.json(
+          { error: 'Business not found' },
+          { status: 404 }
+        )
+      }
+    }
+
+    // Create vehicle
+    const vehicle = await prisma.vehicle.create({
+      data: {
+        ...validatedData,
+        purchaseDate: validatedData.purchaseDate ? new Date(validatedData.purchaseDate) : undefined
+      },
+      include: {
+        business: {
+          select: { id: true, name: true, type: true }
+        },
+        user: {
+          select: { id: true, name: true, email: true }
+        }
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: vehicle,
+      message: 'Vehicle created successfully'
+    }, { status: 201 })
+
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Error creating vehicle:', error)
+    return NextResponse.json(
+      { error: 'Failed to create vehicle', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Update vehicle
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const validatedData = UpdateVehicleSchema.parse(body)
+    const { id, ...updateData } = validatedData
+
+    // Verify vehicle exists
+    const existingVehicle = await prisma.vehicle.findUnique({
+      where: { id }
+    })
+
+    if (!existingVehicle) {
+      return NextResponse.json(
+        { error: 'Vehicle not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check for duplicate license plate or VIN if they're being updated
+    if (updateData.licensePlate || updateData.vin) {
+      const duplicateCheck = await prisma.vehicle.findFirst({
+        where: {
+          AND: [
+            { id: { not: id } },
+            {
+              OR: [
+                ...(updateData.licensePlate ? [{ licensePlate: updateData.licensePlate }] : []),
+                ...(updateData.vin ? [{ vin: updateData.vin }] : [])
+              ]
+            }
+          ]
+        }
+      })
+
+      if (duplicateCheck) {
+        return NextResponse.json(
+          { error: 'Vehicle with this license plate or VIN already exists' },
+          { status: 409 }
+        )
+      }
+    }
+
+    // Verify business exists if businessId is being updated
+    if (updateData.businessId) {
+      const business = await prisma.business.findUnique({
+        where: { id: updateData.businessId }
+      })
+
+      if (!business) {
+        return NextResponse.json(
+          { error: 'Business not found' },
+          { status: 404 }
+        )
+      }
+    }
+
+    // Update vehicle
+    const vehicle = await prisma.vehicle.update({
+      where: { id },
+      data: {
+        ...updateData,
+        purchaseDate: updateData.purchaseDate ? new Date(updateData.purchaseDate) : undefined
+      },
+      include: {
+        business: {
+          select: { id: true, name: true, type: true }
+        },
+        user: {
+          select: { id: true, name: true, email: true }
+        }
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: vehicle,
+      message: 'Vehicle updated successfully'
+    })
+
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Error updating vehicle:', error)
+    return NextResponse.json(
+      { error: 'Failed to update vehicle', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE - Delete vehicle
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const vehicleId = searchParams.get('id')
+
+    if (!vehicleId) {
+      return NextResponse.json(
+        { error: 'Vehicle ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Verify vehicle exists
+    const existingVehicle = await prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      include: {
+        trips: { take: 1 },
+        maintenanceRecords: { take: 1 },
+        expenseRecords: { take: 1 }
+      }
+    })
+
+    if (!existingVehicle) {
+      return NextResponse.json(
+        { error: 'Vehicle not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if vehicle has related records
+    const hasRelatedRecords = existingVehicle.trips.length > 0 ||
+                             existingVehicle.maintenanceRecords.length > 0 ||
+                             existingVehicle.expenseRecords.length > 0
+
+    if (hasRelatedRecords) {
+      // Soft delete - just mark as inactive
+      await prisma.vehicle.update({
+        where: { id: vehicleId },
+        data: { isActive: false }
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: 'Vehicle deactivated successfully (soft delete due to existing records)'
+      })
+    } else {
+      // Hard delete - no related records
+      await prisma.vehicle.delete({
+        where: { id: vehicleId }
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: 'Vehicle deleted successfully'
+      })
+    }
+
+  } catch (error) {
+    console.error('Error deleting vehicle:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete vehicle', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}

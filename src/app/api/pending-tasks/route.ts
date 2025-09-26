@@ -1,0 +1,312 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { isSystemAdmin, hasUserPermission, getCustomPermissionValue } from '@/lib/permission-utils'
+import { SessionUser } from '@/lib/permission-utils'
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = session.user as SessionUser
+    const { searchParams } = new URL(req.url)
+    const includeDetails = searchParams.get('details') === 'true'
+
+    // Get user's business memberships for filtering
+    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
+
+    let pendingTasks: any[] = []
+
+    // 1. Pending Orders (Restaurant business)
+    if (hasUserPermission(user, 'canViewOrders') || isSystemAdmin(user)) {
+      try {
+        const pendingOrders = await prisma.order.findMany({
+          where: {
+            status: 'pending'
+          },
+          select: {
+            id: true,
+            orderNumber: true,
+            total: true,
+            createdAt: true,
+            tableNumber: true,
+            user: {
+              select: {
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'asc'
+          }
+        })
+
+        pendingOrders.forEach(order => {
+          pendingTasks.push({
+            id: `order-${order.id}`,
+            type: 'order',
+            title: `Order #${order.orderNumber}`,
+            description: `Pending order${order.tableNumber ? ` for table ${order.tableNumber}` : ''} - $${Number(order.total).toFixed(2)}`,
+            createdAt: order.createdAt,
+            priority: 'high',
+            module: 'restaurant',
+            entityId: order.id,
+            details: includeDetails ? order : undefined
+          })
+        })
+      } catch (error) {
+        console.warn('Failed to fetch pending orders:', error)
+      }
+    }
+
+    // 2. Pending Project Stages
+    if (hasUserPermission(user, 'canViewProjects') ||
+        hasUserPermission(user, 'canCreatePersonalProjects') ||
+        hasUserPermission(user, 'canManagePersonalProjects') ||
+        isSystemAdmin(user)) {
+      try {
+        const whereClause: any = {
+          status: 'pending'
+        }
+
+        // Filter by user's business access if not system admin
+        if (!isSystemAdmin(user)) {
+          const canAccessCrossBusinessProjects = hasUserPermission(user, 'canAccessCrossBusinessProjects')
+
+          if (!canAccessCrossBusinessProjects) {
+            whereClause.OR = [
+              { project: { businessId: null } }, // Personal projects
+              { project: { businessId: { in: userBusinessIds } } } // Projects from user's businesses
+            ]
+          }
+        }
+
+        const pendingStages = await prisma.projectStage.findMany({
+          where: whereClause,
+          include: {
+            project: {
+              select: {
+                id: true,
+                name: true,
+                businessType: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'asc'
+          }
+        })
+
+        pendingStages.forEach(stage => {
+          pendingTasks.push({
+            id: `stage-${stage.id}`,
+            type: 'project_stage',
+            title: `Project Stage: ${stage.name}`,
+            description: `Pending stage in "${stage.project?.name}" project`,
+            createdAt: stage.createdAt,
+            priority: 'medium',
+            module: 'projects',
+            entityId: stage.id,
+            projectId: stage.projectId,
+            details: includeDetails ? stage : undefined
+          })
+        })
+      } catch (error) {
+        console.warn('Failed to fetch pending project stages:', error)
+      }
+    }
+
+    // 3. Pending Project Transactions (requiring approval)
+    if (hasUserPermission(user, 'canViewProjects') ||
+        hasUserPermission(user, 'canCreatePersonalProjects') ||
+        hasUserPermission(user, 'canManagePersonalProjects') ||
+        isSystemAdmin(user)) {
+      try {
+        const whereClause: any = {
+          status: 'pending'
+        }
+
+        // Filter by user's business access if not system admin
+        if (!isSystemAdmin(user)) {
+          const canAccessCrossBusinessProjects = hasUserPermission(user, 'canAccessCrossBusinessProjects')
+
+          if (!canAccessCrossBusinessProjects) {
+            whereClause.OR = [
+              { project: { businessId: null } }, // Personal projects
+              { project: { businessId: { in: userBusinessIds } } } // Projects from user's businesses
+            ]
+          }
+        }
+
+        const pendingTransactions = await prisma.projectTransaction.findMany({
+          where: whereClause,
+          include: {
+            project: {
+              select: {
+                id: true,
+                name: true,
+                businessType: true
+              }
+            },
+            creator: {
+              select: {
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'asc'
+          }
+        })
+
+        pendingTransactions.forEach(transaction => {
+          pendingTasks.push({
+            id: `transaction-${transaction.id}`,
+            type: 'project_transaction',
+            title: `Transaction Approval: $${Number(transaction.amount).toFixed(2)}`,
+            description: `${transaction.description} in "${transaction.project?.name}" project`,
+            createdAt: transaction.createdAt,
+            priority: 'high',
+            module: 'projects',
+            entityId: transaction.id,
+            projectId: transaction.projectId,
+            details: includeDetails ? transaction : undefined
+          })
+        })
+      } catch (error) {
+        console.warn('Failed to fetch pending project transactions:', error)
+      }
+    }
+
+    // 4. Pending Employee Leave Requests
+    if (hasUserPermission(user, 'canViewEmployees') ||
+        hasUserPermission(user, 'canManageEmployees') ||
+        isSystemAdmin(user)) {
+      try {
+        const pendingLeaveRequests = await prisma.employeeLeaveRequest.findMany({
+          where: {
+            status: 'pending'
+          },
+          include: {
+            employee: {
+              select: {
+                id: true,
+                fullName: true,
+                employeeNumber: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'asc'
+          }
+        })
+
+        pendingLeaveRequests.forEach(request => {
+          pendingTasks.push({
+            id: `leave-${request.id}`,
+            type: 'leave_request',
+            title: `Leave Request: ${request.employee?.fullName}`,
+            description: `${request.leaveType || 'Leave'} request${request.reason ? ` - ${request.reason}` : ''}`,
+            createdAt: request.createdAt,
+            priority: 'medium',
+            module: 'employees',
+            entityId: request.id,
+            employeeId: request.employeeId,
+            details: includeDetails ? request : undefined
+          })
+        })
+      } catch (error) {
+        console.warn('Failed to fetch pending leave requests:', error)
+      }
+    }
+
+    // 5. Pending Contract Renewals
+    if (hasUserPermission(user, 'canViewEmployees') ||
+        hasUserPermission(user, 'canManageEmployees') ||
+        isSystemAdmin(user)) {
+      try {
+        const pendingRenewals = await prisma.contractRenewal.findMany({
+          where: {
+            status: 'pending'
+          },
+          include: {
+            employee: {
+              select: {
+                id: true,
+                fullName: true,
+                employeeNumber: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'asc'
+          }
+        })
+
+        pendingRenewals.forEach(renewal => {
+          pendingTasks.push({
+            id: `renewal-${renewal.id}`,
+            type: 'contract_renewal',
+            title: `Contract Renewal: ${renewal.employee?.fullName}`,
+            description: `Employee contract renewal${renewal.notes ? ` - ${renewal.notes}` : ''}`,
+            createdAt: renewal.createdAt,
+            priority: 'medium',
+            module: 'employees',
+            entityId: renewal.id,
+            employeeId: renewal.employeeId,
+            details: includeDetails ? renewal : undefined
+          })
+        })
+      } catch (error) {
+        console.warn('Failed to fetch pending contract renewals:', error)
+      }
+    }
+
+    // Sort all tasks by priority and creation date
+    const priorityOrder = { high: 3, medium: 2, low: 1 }
+    pendingTasks.sort((a, b) => {
+      // First sort by priority
+      const priorityDiff = priorityOrder[b.priority as keyof typeof priorityOrder] - priorityOrder[a.priority as keyof typeof priorityOrder]
+      if (priorityDiff !== 0) return priorityDiff
+
+      // Then by creation date (oldest first)
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
+
+    // Calculate summary counts
+    const summary = {
+      total: pendingTasks.length,
+      byType: pendingTasks.reduce((acc, task) => {
+        acc[task.type] = (acc[task.type] || 0) + 1
+        return acc
+      }, {} as Record<string, number>),
+      byPriority: pendingTasks.reduce((acc, task) => {
+        acc[task.priority] = (acc[task.priority] || 0) + 1
+        return acc
+      }, {} as Record<string, number>),
+      byModule: pendingTasks.reduce((acc, task) => {
+        acc[task.module] = (acc[task.module] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)
+    }
+
+    return NextResponse.json({
+      tasks: pendingTasks,
+      summary,
+      count: pendingTasks.length
+    })
+
+  } catch (error) {
+    console.error('Pending tasks fetch error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch pending tasks' },
+      { status: 500 }
+    )
+  }
+}

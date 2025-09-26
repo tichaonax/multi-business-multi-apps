@@ -3,60 +3,67 @@
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { useState } from 'react'
-import { canAccessModule, BusinessModule } from '@/lib/rbac'
+import { canAccessModule, hasPermission, hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
-const modules: { name: string; path: string; module: BusinessModule; icon: string }[] = [
+const modules: { name: string; path: string; module: 'construction' | 'restaurant' | 'grocery' | 'clothing' | 'hardware' | 'vehicles'; icon: string }[] = [
   { name: 'Construction', path: '/construction', module: 'construction', icon: '🏗️' },
   { name: 'Restaurant', path: '/restaurant', module: 'restaurant', icon: '🍽️' },
   { name: 'Grocery', path: '/grocery', module: 'grocery', icon: '🛒' },
   { name: 'Clothing', path: '/clothing', module: 'clothing', icon: '👕' },
-  { name: 'Personal', path: '/personal', module: 'personal', icon: '💰' },
+  { name: 'Hardware', path: '/hardware', module: 'hardware', icon: '🔧' },
+  { name: 'Vehicles', path: '/vehicles', module: 'vehicles', icon: '🚗' },
 ]
 
 export function MobileSidebar() {
   const { data: session } = useSession()
   const [isOpen, setIsOpen] = useState(false)
 
-  if (!session) return null
+  if (!session?.user) return null
 
-  const userPermissions = session.user.permissions || {}
+  const user = session.user as SessionUser
 
   return (
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md"
+        className="lg:hidden fixed top-20 left-3 z-50 p-2 bg-gray-800 text-white rounded-md shadow-lg hover:bg-gray-700 transition-colors"
+        aria-label="Open menu"
       >
-        ☰
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
       </button>
 
       {isOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          <div className="fixed inset-0 bg-black opacity-50" onClick={() => setIsOpen(false)} />
-          
-          <div className="relative w-64 bg-gray-800 text-white p-4">
-            <div className="flex justify-between items-center mb-8">
-              <h1 className="text-xl font-bold">Business Hub</h1>
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsOpen(false)} />
+
+          <div className="relative w-64 sm:w-72 bg-gray-800 text-white p-4 overflow-y-auto max-h-full">
+            <div className="flex justify-between items-center mb-6 sm:mb-8">
+              <h1 className="text-lg sm:text-xl font-bold">Business Hub</h1>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-white"
+                className="text-white hover:text-gray-300 p-1"
+                aria-label="Close menu"
               >
-                ✕
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
             
             <nav className="space-y-2">
-              <Link 
-                href="/dashboard" 
+              <Link
+                href="/dashboard"
                 className="block px-4 py-3 rounded hover:bg-gray-700"
                 onClick={() => setIsOpen(false)}
               >
                 📊 Dashboard
               </Link>
-              
+
               {modules.map((module) => {
-                if (!canAccessModule(userPermissions, module.module)) return null
-                
+                if (!canAccessModule(user, module.module)) return null
+
                 return (
                   <Link
                     key={module.path}
@@ -68,39 +75,235 @@ export function MobileSidebar() {
                   </Link>
                 )
               })}
-              
-              <Link 
-                href="/chat" 
+
+              {/* Personal Finance - User-level permissions (business-agnostic) */}
+              {(hasUserPermission(user, 'canAccessPersonalFinance') || isSystemAdmin(user)) && (
+                <Link
+                  href="/personal"
+                  className="block px-4 py-3 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  💰 Personal Finance
+                </Link>
+              )}
+
+              {/* Fleet Management - User-level permissions (business-agnostic) */}
+              {(hasUserPermission(user, 'canAccessVehicles') || isSystemAdmin(user)) && (
+                <Link
+                  href="/vehicles"
+                  className="block px-4 py-3 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  🚗 Fleet Management
+                </Link>
+              )}
+
+              {/* Contractor Management - User-level permissions (business-agnostic) */}
+              {(hasUserPermission(user, 'canManagePersonalContractors') || isSystemAdmin(user)) && (
+                <Link
+                  href="/contractors"
+                  className="block px-4 py-3 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  👷 Contractor Management
+                </Link>
+              )}
+
+              <div className="pt-2 pb-1">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">Tools</div>
+              </div>
+
+              {/* Project Management - Cross-business functionality */}
+              {(isSystemAdmin(user) || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
+                <Link
+                  href="/projects"
+                  className="block px-4 py-3 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  📋 Project Management
+                </Link>
+              )}
+
+              <Link
+                href="/chat"
                 className="block px-4 py-3 rounded hover:bg-gray-700"
                 onClick={() => setIsOpen(false)}
               >
-                💬 Chat
+                💬 Team Chat
               </Link>
-              
-              <Link 
-                href="/reports" 
+
+              <Link
+                href="/reports"
                 className="block px-4 py-3 rounded hover:bg-gray-700"
                 onClick={() => setIsOpen(false)}
               >
                 📈 Reports
               </Link>
-              
-              {session.user.role === 'admin' && (
-                <Link 
-                  href="/admin" 
-                  className="block px-4 py-3 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  ⚙️ Admin
-                </Link>
+
+              {/* Employee Management Section */}
+              {(hasPermission(user, 'canViewEmployees') || hasPermission(user, 'canManageEmployees') || isSystemAdmin(user)) && (
+                <>
+                  <div className="pt-4 pb-1">
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">Employee Management</div>
+                  </div>
+
+                  <Link
+                    href="/employees"
+                    className="block px-4 py-3 rounded hover:bg-gray-700"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    👤 Employees
+                  </Link>
+
+                  {hasPermission(user, 'canManageJobTitles') && (
+                    <Link
+                      href="/admin/job-titles"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      💼 Job Titles
+                    </Link>
+                  )}
+
+                  {hasPermission(user, 'canEditEmployees') && (
+                    <Link
+                      href="/admin/hierarchy"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      🌳 Hierarchy
+                    </Link>
+                  )}
+
+                  {(hasPermission(user, 'canManageBenefitTypes') || hasPermission(user, 'canManageCompensationTypes')) && (
+                    <Link
+                      href="/admin/benefits"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      💰 Benefits & Compensation
+                    </Link>
+                  )}
+
+                  {hasPermission(user, 'canManageDisciplinaryActions') && (
+                    <Link
+                      href="/admin/disciplinary"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      ⚠️ Disciplinary Actions
+                    </Link>
+                  )}
+
+                  <Link
+                    href="/admin/reports"
+                    className="block px-4 py-3 rounded hover:bg-gray-700"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    📊 HR Reports
+                  </Link>
+                </>
               )}
-              
-              <button 
-                onClick={() => signOut()}
-                className="block w-full text-left px-4 py-3 rounded hover:bg-gray-700"
-              >
-                🚪 Sign Out
-              </button>
+
+              {(isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers') || hasPermission(user, 'canManageBusinessSettings')) && (
+                <>
+                  <div className="pt-4 pb-1">
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">Administration</div>
+                  </div>
+
+                  {isSystemAdmin(user) && (
+                    <Link
+                      href="/admin"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      🛠️ System Administration
+                    </Link>
+                  )}
+
+                  {isSystemAdmin(user) && (
+                    <Link
+                      href="/admin/personal-finance"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      💰 Global Finance
+                    </Link>
+                  )}
+
+                  {isSystemAdmin(user) && (
+                    <Link
+                      href="/admin/contractors"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      👷 Global Contractors
+                    </Link>
+                  )}
+
+                  {hasPermission(user, 'canManageBusinessUsers') && (
+                    <Link
+                      href="/admin/users"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      👥 User Management
+                    </Link>
+                  )}
+
+                  {hasPermission(user, 'canManageBusinessSettings') && (
+                    <Link
+                      href="/admin/settings"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      ⚙️ System Settings
+                    </Link>
+                  )}
+
+                  {(isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers')) && (
+                    <Link
+                      href="/business/manage"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      🏢 Business Management
+                    </Link>
+                  )}
+
+                  {(isSystemAdmin(user) || hasPermission(user, 'canAccessFinancialData')) && (
+                    <Link
+                      href="/business/manage/loans"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      💰 Business Loans
+                    </Link>
+                  )}
+
+                  {(isSystemAdmin(user) || hasPermission(user, 'canManageBusinessSettings')) && (
+                    <Link
+                      href="/admin/umbrella-business"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      🏢 Umbrella Business
+                    </Link>
+                  )}
+                </>
+              )}
+
+              <div className="pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => signOut({
+                    callbackUrl: `${window.location.origin}/auth/signin`,
+                    redirect: true
+                  })}
+                  className="block w-full text-left px-4 py-3 rounded hover:bg-gray-700"
+                >
+                  🚪 Sign Out
+                </button>
+              </div>
             </nav>
           </div>
         </div>

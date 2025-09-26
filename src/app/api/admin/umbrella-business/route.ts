@@ -1,0 +1,172 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user has permission to manage business settings
+    if (!isSystemAdmin(session.user) && !hasPermission(session.user, 'canManageBusinessSettings')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    // Find an existing umbrella business or any business to store umbrella settings
+    let umbrellaBusinessData = await prisma.business.findFirst({
+      where: {
+        isUmbrellaBusiness: true
+      },
+      select: {
+        id: true,
+        umbrellaBusinessName: true,
+        umbrellaBusinessAddress: true,
+        umbrellaBusinessPhone: true,
+        umbrellaBusinessEmail: true,
+        umbrellaBusinessRegistration: true,
+      }
+    })
+
+    // If no umbrella business exists, create one or use the first business
+    if (!umbrellaBusinessData) {
+      const firstBusiness = await prisma.business.findFirst({
+        select: {
+          id: true,
+          umbrellaBusinessName: true,
+          umbrellaBusinessAddress: true,
+          umbrellaBusinessPhone: true,
+          umbrellaBusinessEmail: true,
+          umbrellaBusinessRegistration: true,
+        }
+      })
+
+      if (firstBusiness) {
+        // Update the first business to be the umbrella business
+        umbrellaBusinessData = await prisma.business.update({
+          where: { id: firstBusiness.id },
+          data: {
+            isUmbrellaBusiness: true,
+            umbrellaBusinessName: firstBusiness.umbrellaBusinessName || 'Demo Umbrella Company'
+          },
+          select: {
+            id: true,
+            umbrellaBusinessName: true,
+            umbrellaBusinessAddress: true,
+            umbrellaBusinessPhone: true,
+            umbrellaBusinessEmail: true,
+            umbrellaBusinessRegistration: true,
+          }
+        })
+      } else {
+        // Create a new umbrella business
+        umbrellaBusinessData = await prisma.business.create({
+          data: {
+            name: 'Umbrella Business Settings',
+            type: 'umbrella',
+            isUmbrellaBusiness: true,
+            umbrellaBusinessName: 'Demo Umbrella Company',
+            isActive: true
+          },
+          select: {
+            id: true,
+            umbrellaBusinessName: true,
+            umbrellaBusinessAddress: true,
+            umbrellaBusinessPhone: true,
+            umbrellaBusinessEmail: true,
+            umbrellaBusinessRegistration: true,
+          }
+        })
+      }
+    }
+
+    return NextResponse.json(umbrellaBusinessData)
+  } catch (error) {
+    console.error('Error fetching umbrella business data:', error)
+    return NextResponse.json({ error: 'Failed to fetch umbrella business data' }, { status: 500 })
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user has permission to manage business settings
+    if (!isSystemAdmin(session.user) && !hasPermission(session.user, 'canManageBusinessSettings')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    const data = await req.json()
+    const {
+      umbrellaBusinessName,
+      umbrellaBusinessAddress,
+      umbrellaBusinessPhone,
+      umbrellaBusinessEmail,
+      umbrellaBusinessRegistration
+    } = data
+
+    if (!umbrellaBusinessName) {
+      return NextResponse.json({ error: 'Umbrella business name is required' }, { status: 400 })
+    }
+
+    // Find the umbrella business
+    let umbrellaBusinessRecord = await prisma.business.findFirst({
+      where: { isUmbrellaBusiness: true }
+    })
+
+    if (!umbrellaBusinessRecord) {
+      // Create umbrella business if it doesn't exist
+      umbrellaBusinessRecord = await prisma.business.create({
+        data: {
+          name: 'Umbrella Business Settings',
+          type: 'umbrella',
+          isUmbrellaBusiness: true,
+          umbrellaBusinessName,
+          umbrellaBusinessAddress,
+          umbrellaBusinessPhone,
+          umbrellaBusinessEmail,
+          umbrellaBusinessRegistration,
+          isActive: true
+        }
+      })
+    } else {
+      // Update existing umbrella business
+      umbrellaBusinessRecord = await prisma.business.update({
+        where: { id: umbrellaBusinessRecord.id },
+        data: {
+          umbrellaBusinessName,
+          umbrellaBusinessAddress,
+          umbrellaBusinessPhone,
+          umbrellaBusinessEmail,
+          umbrellaBusinessRegistration,
+          updatedAt: new Date()
+        }
+      })
+    }
+
+    // Also update all existing contracts with the new umbrella business name
+    await prisma.employeeContract.updateMany({
+      data: {
+        umbrellaBusinessName,
+      }
+    })
+
+    return NextResponse.json({
+      id: umbrellaBusinessRecord.id,
+      umbrellaBusinessName: umbrellaBusinessRecord.umbrellaBusinessName,
+      umbrellaBusinessAddress: umbrellaBusinessRecord.umbrellaBusinessAddress,
+      umbrellaBusinessPhone: umbrellaBusinessRecord.umbrellaBusinessPhone,
+      umbrellaBusinessEmail: umbrellaBusinessRecord.umbrellaBusinessEmail,
+      umbrellaBusinessRegistration: umbrellaBusinessRecord.umbrellaBusinessRegistration,
+    })
+  } catch (error) {
+    console.error('Error updating umbrella business data:', error)
+    return NextResponse.json({ error: 'Failed to update umbrella business data' }, { status: 500 })
+  }
+}
