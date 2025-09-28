@@ -327,7 +327,8 @@ export class InitialLoadManager extends EventEmitter {
       const totalChunks = chunks.length
 
       for (const chunk of chunks) {
-        if (session.status === 'CANCELLED') {
+        // Check if session was cancelled by external process
+        if ((session.status as string) === 'CANCELLED') {
           throw new Error('Transfer cancelled')
         }
 

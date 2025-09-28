@@ -32,6 +32,14 @@ Common flows
 
   npm run service:smoke-check
 
+PowerShell helper
+
+We added a small interactive helper to make administrator flows easier. Run it from an elevated PowerShell prompt:
+
+  .\scripts\install-service-windows.ps1
+
+It will prompt before running destructive actions (install/uninstall/update/rollback) unless you pass `-AutoConfirm`.
+
 Notes & mappings
 
 - The `service:*` scripts provide user-friendly aliases. They map as follows:
@@ -45,6 +53,10 @@ Notes & mappings
 - For CI usage that cannot access the database, use the SKIP_DB_PRECHECK environment variable:
 
   SKIP_DB_PRECHECK=true npm run service:smoke-check
+
+CI note
+
+The repository workflow `.github/workflows/smoke-check.yml` now runs `npm run service:smoke-check` and will fail the check if the smoke-check script exits non-zero. Provide `DATABASE_URL` as a secret if you want CI to validate DB connectivity as well.
 
 - If you prefer the raw sync-service commands (direct control), use the `sync-service:*` scripts:
   - `npm run sync-service:install`

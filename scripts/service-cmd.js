@@ -14,6 +14,7 @@ if (!cmd || ['help','-h','--help'].includes(cmd)) {
 }
 
 const projectRoot = path.resolve(__dirname, '..')
+const serviceNameHelper = require('../windows-service/service-name-helper')
 
 function runNodeScript(relPath, args=[]) {
   const scriptPath = path.join(projectRoot, relPath)
@@ -23,6 +24,23 @@ function runNodeScript(relPath, args=[]) {
     console.error('Command failed:', err.message)
     process.exit(1)
   }
+}
+
+// Get ordered candidate service names (internal id variants then display name)
+const candidateNames = serviceNameHelper.getCandidateServiceNames()
+
+function tryScCommand(cmdTemplate) {
+  // cmdTemplate should be a function that accepts a name and returns the command string
+  let lastErr
+  for (const name of candidateNames) {
+    try {
+      execSync(cmdTemplate(name), { stdio: 'inherit' })
+      return true
+    } catch (err) {
+      lastErr = err
+    }
+  }
+  throw lastErr
 }
 
 switch (cmd) {
@@ -38,7 +56,7 @@ switch (cmd) {
   case 'start':
     // Start Windows service via sc (requires Windows). For cross-platform recommend npm run service:start
     try {
-      execSync('sc start "Multi-Business Sync Service"', { stdio: 'inherit' })
+      tryScCommand((name) => `sc start "${name}"`)
     } catch (err) {
       console.error('Failed to start service via sc. Try: npm run service:start or run the service wrapper directly')
       process.exit(1)
@@ -47,7 +65,7 @@ switch (cmd) {
 
   case 'stop':
     try {
-      execSync('sc stop "Multi-Business Sync Service"', { stdio: 'inherit' })
+      tryScCommand((name) => `sc stop "${name}"`)
     } catch (err) {
       console.error('Failed to stop service via sc. Try: npm run service:stop')
       process.exit(1)
@@ -56,7 +74,7 @@ switch (cmd) {
 
   case 'status':
     try {
-      execSync('sc query "Multi-Business Sync Service"', { stdio: 'inherit' })
+      tryScCommand((name) => `sc query "${name}"`)
     } catch (err) {
       console.error('Failed to query service status via sc. Try: npm run sync-service:status')
       process.exit(1)

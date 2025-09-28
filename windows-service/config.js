@@ -7,7 +7,11 @@ const path = require('path');
 
 module.exports = {
   // Service identification
-  name: 'Multi-Business Sync Service',
+  // 'name' is the internal service name used by Windows (sc) and node-windows.
+  // Use a single-token identifier here (match daemon id) so sc queries behave predictably.
+  name: 'MultiBusinessSyncService',
+  // Human-friendly display name shown in Services.msc
+  displayName: 'Multi-Business Sync Service',
   description: 'Background database synchronization service for Multi-Business Management Platform with automatic peer discovery and conflict resolution',
 
   // Service executable
@@ -32,7 +36,7 @@ module.exports = {
     },
     {
       name: "SYNC_PORT",
-      value: process.env.SYNC_PORT || "3001"
+  value: process.env.SYNC_PORT || "8765"
     },
     {
       name: "SYNC_INTERVAL",

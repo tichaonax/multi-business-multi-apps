@@ -18,11 +18,14 @@ if (!fs.existsSync(serviceScript)) {
 }
 
 // Configuration
-const serviceName = 'Multi-Business Sync Service';
+// Internal service name (used by sc and node-windows). Keep short and matching daemon id.
+const serviceInternalName = 'multibusinesssyncservice.exe';
+const serviceDisplayName = 'Multi-Business Sync Service';
 const serviceDescription = 'Background database synchronization service for Multi-Business Management Platform';
 
 const svc = new Service({
-  name: serviceName,
+  name: serviceInternalName,
+  displayName: serviceDisplayName,
   description: serviceDescription,
   script: serviceScript,
   nodeOptions: [
@@ -40,7 +43,7 @@ const svc = new Service({
     },
     {
       name: "SYNC_PORT",
-      value: process.env.SYNC_PORT || "3001"
+  value: process.env.SYNC_PORT || "8765"
     },
     {
       name: "SYNC_INTERVAL",
@@ -78,7 +81,7 @@ svc.on('start', function() {
   console.log(`  Description: ${serviceDescription}`);
   console.log(`  Script: ${serviceScript}`);
   console.log(`  Registration Key: ${process.env.SYNC_REGISTRATION_KEY ? '***' : 'DEFAULT (CHANGE IN PRODUCTION)'}`);
-  console.log(`  Port: ${process.env.SYNC_PORT || '3001'}`);
+  console.log(`  Port: ${process.env.SYNC_PORT || '8765'}`);
   console.log(`  Sync Interval: ${process.env.SYNC_INTERVAL || '30000'}ms`);
   console.log(`  Log Level: ${process.env.LOG_LEVEL || 'info'}`);
   console.log('');
@@ -118,7 +121,7 @@ console.log('Configuration:');
 console.log(`  Service Name: ${serviceName}`);
 console.log(`  Script Path: ${serviceScript}`);
 console.log(`  Registration Key: ${process.env.SYNC_REGISTRATION_KEY ? '***' : 'DEFAULT (⚠️  CHANGE IN PRODUCTION)'}`);
-console.log(`  Port: ${process.env.SYNC_PORT || '3001'}`);
+console.log(`  Port: ${process.env.SYNC_PORT || '8765'}`);
 console.log(`  Sync Interval: ${process.env.SYNC_INTERVAL || '30000'}ms`);
 console.log(`  Log Level: ${process.env.LOG_LEVEL || 'info'}`);
 console.log('');

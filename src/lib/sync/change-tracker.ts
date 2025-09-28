@@ -20,7 +20,7 @@ export interface ChangeEvent {
   changeData: any
   beforeData?: any
   vectorClock: VectorClock
-  lamportClock: bigint
+  lamportClock: string
   checksum: string
   priority: number
   metadata?: any
@@ -52,7 +52,27 @@ export class DatabaseChangeTracker {
   constructor(prisma: PrismaClient, nodeId: string, registrationKey: string) {
     this.prisma = prisma
     this.nodeId = nodeId
-    this.registrationKey = registrationKey
+    // Ensure registrationKey is always a string to avoid runtime TypeErrors
+    if (!registrationKey || typeof registrationKey !== 'string') {
+      console.warn('ChangeTracker: registrationKey is missing or invalid; using empty key. Set SYNC_REGISTRATION_KEY to enable full security features.')
+      this.registrationKey = ''
+    } else {
+      this.registrationKey = registrationKey
+    }
+    // Detect whether the generated Prisma client exposes expected model methods
+    try {
+      // simple checks for a couple of core models
+      // @ts-ignore - runtime check
+      this['prismaReady'] = typeof this.prisma.sync_configurations?.upsert === 'function' && typeof this.prisma.sync_events?.create === 'function'
+    } catch (e) {
+      // @ts-ignore
+      this['prismaReady'] = false
+    }
+    // Warn once if prisma appears degraded
+    // @ts-ignore
+    if (!this['prismaReady']) {
+      console.warn('⚠️ Prisma client does not expose expected model methods; database change tracking will be degraded.')
+    }
     this.initializeVectorClock()
   }
 
@@ -64,7 +84,7 @@ export class DatabaseChangeTracker {
 
     // Load existing vector clock state from database
     try {
-      const syncConfig = await this.prisma.syncConfiguration.findUnique({
+      const syncConfig = await this.prisma.sync_configurations.findUnique({
         where: { nodeId: this.nodeId }
       })
 
@@ -115,7 +135,7 @@ export class DatabaseChangeTracker {
       changeData,
       beforeData,
       vectorClock: { ...this.vectorClock },
-      lamportClock: this.lamportClock,
+      lamportClock: this.lamportClock.toString(),
       checksum,
       priority,
       metadata: {
@@ -128,7 +148,7 @@ export class DatabaseChangeTracker {
 
     try {
       // Store the sync event
-      await this.prisma.syncEvent.create({
+      await this.prisma.sync_events.create({
         data: {
           eventId: changeEvent.eventId,
           sourceNodeId: changeEvent.sourceNodeId,
@@ -138,6 +158,7 @@ export class DatabaseChangeTracker {
           changeData: changeEvent.changeData,
           beforeData: changeEvent.beforeData,
           vectorClock: changeEvent.vectorClock,
+          // Prisma model expects lamportClock as a string
           lamportClock: changeEvent.lamportClock,
           checksum: changeEvent.checksum,
           priority: changeEvent.priority,
@@ -227,7 +248,9 @@ export class DatabaseChangeTracker {
    * Hash registration key for security verification
    */
   private hashRegistrationKey(): string {
-    return crypto.createHash('sha256').update(this.registrationKey + this.nodeId).digest('hex')
+    // Guard against undefined registrationKey; use empty string when not provided.
+    const key = this.registrationKey || ''
+    return crypto.createHash('sha256').update(key + this.nodeId).digest('hex')
   }
 
   /**
@@ -235,7 +258,15 @@ export class DatabaseChangeTracker {
    */
   private async updateVectorClockState(): Promise<void> {
     try {
-      await this.prisma.syncConfiguration.upsert({
+      // If Prisma client is missing generated model methods, skip updates
+      // to avoid runtime exceptions. This allows the service to run in a
+      // degraded mode while we investigate Prisma generation issues.
+      // @ts-ignore
+      if (!this['prismaReady']) {
+        console.warn('Skipping updateVectorClockState: Prisma client model methods unavailable')
+        return
+      }
+      await this.prisma.sync_configurations.upsert({
         where: { nodeId: this.nodeId },
         update: {
           lastConfigUpdate: new Date(),
@@ -245,6 +276,7 @@ export class DatabaseChangeTracker {
           }
         },
         create: {
+          id: uuidv4(),
           nodeId: this.nodeId,
           registrationKeyHash: this.hashRegistrationKey(),
           configMetadata: {
@@ -262,7 +294,12 @@ export class DatabaseChangeTracker {
    * Get unprocessed sync events for propagation
    */
   async getUnprocessedEvents(limit: number = 100): Promise<ChangeEvent[]> {
-    const events = await this.prisma.syncEvent.findMany({
+    // @ts-ignore
+    if (!this['prismaReady']) {
+      console.warn('getUnprocessedEvents: Prisma client model methods unavailable; returning empty list')
+      return []
+    }
+    const events = await this.prisma.sync_events.findMany({
       where: {
         processed: false,
         sourceNodeId: this.nodeId
@@ -274,16 +311,16 @@ export class DatabaseChangeTracker {
       take: limit
     })
 
-    return events.map(event => ({
+    return events.map((event: any) => ({
       eventId: event.eventId,
       sourceNodeId: event.sourceNodeId,
       tableName: event.tableName,
       recordId: event.recordId,
-      operation: event.operation,
+      operation: event.operation as SyncOperation,
       changeData: event.changeData,
       beforeData: event.beforeData,
       vectorClock: event.vectorClock as VectorClock,
-      lamportClock: event.lamportClock,
+      lamportClock: event.lamportClock.toString(),
       checksum: event.checksum,
       priority: event.priority,
       metadata: event.metadata
@@ -294,7 +331,12 @@ export class DatabaseChangeTracker {
    * Mark events as processed
    */
   async markEventsProcessed(eventIds: string[]): Promise<void> {
-    await this.prisma.syncEvent.updateMany({
+    // @ts-ignore
+    if (!this['prismaReady']) {
+      console.warn('markEventsProcessed: Prisma client model methods unavailable; skipping')
+      return
+    }
+    await this.prisma.sync_events.updateMany({
       where: {
         eventId: { in: eventIds }
       },
@@ -336,9 +378,14 @@ export class DatabaseChangeTracker {
   /**
    * Initialize node registration
    */
-  async initializeNode(nodeName: string, ipAddress: string, port: number = 3001): Promise<void> {
+  async initializeNode(nodeName: string, ipAddress: string, port: number = 8765): Promise<void> {
     try {
-      await this.prisma.syncNode.upsert({
+      // @ts-ignore
+      if (!this['prismaReady']) {
+        console.warn('initializeNode: Prisma client model methods unavailable; skipping node registration')
+        return
+      }
+      await this.prisma.sync_nodes.upsert({
         where: { nodeId: this.nodeId },
         update: {
           nodeName,
@@ -361,6 +408,7 @@ export class DatabaseChangeTracker {
           }
         },
         create: {
+          id: uuidv4(),
           nodeId: this.nodeId,
           nodeName,
           ipAddress,
@@ -385,6 +433,54 @@ export class DatabaseChangeTracker {
       })
     } catch (error) {
       console.error('Failed to initialize sync node:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Submit an already-constructed ChangeEvent (used by offline queue when coming online)
+   */
+  async submitEvent(event: ChangeEvent): Promise<string> {
+    // Ensure eventId exists
+    const eventId = event.eventId || uuidv4()
+
+    // Compute checksum if missing
+    const checksum = event.checksum || this.calculateChecksum(event.changeData)
+
+    const metadata = {
+      ...(event.metadata || {}),
+      registrationKeyHash: this.hashRegistrationKey(),
+      nodeVersion: process.env.npm_package_version || '1.0.0',
+      timestamp: (event.metadata && event.metadata.timestamp) || new Date().toISOString()
+    }
+
+    try {
+      await this.prisma.sync_events.create({
+        data: {
+          eventId,
+          sourceNodeId: event.sourceNodeId || this.nodeId,
+          tableName: event.tableName,
+          recordId: event.recordId,
+          operation: event.operation as any,
+          changeData: event.changeData,
+          beforeData: event.beforeData,
+          vectorClock: event.vectorClock,
+          lamportClock: (event.lamportClock as any) || this.lamportClock,
+          checksum,
+          priority: event.priority || 5,
+          metadata,
+          processed: false
+        }
+      })
+
+      // If this event originated from this node, update our stored vector clock state
+      if (event.sourceNodeId === this.nodeId) {
+        await this.updateVectorClockState()
+      }
+
+      return eventId
+    } catch (error) {
+      console.error('Failed to submit event:', error)
       throw error
     }
   }

@@ -7,11 +7,13 @@
 const HybridServiceManager = require('./hybrid-service-manager');
 const path = require('path');
 const fs = require('fs');
+const svcConfig = require('./config');
 
 class ServiceDiagnostics {
   constructor() {
     this.manager = new HybridServiceManager();
-    this.serviceName = 'Multi-Business Sync Service';
+    // Use canonical internal service id from config (matches daemon id)
+    this.serviceName = svcConfig.name || 'MultiBusinessSyncService';
   }
 
   /**
@@ -21,6 +23,25 @@ class ServiceDiagnostics {
     console.log('🔍 Multi-Business Sync Service - Comprehensive Diagnostics');
     console.log('='.repeat(65));
     console.log('');
+
+    // Print key config values for debugging (mirrors electricity-tokens style diagnostics)
+    try {
+      console.log('🧩 Service configuration (from config.js):');
+      const cfg = svcConfig || {};
+      console.log(`   name: ${cfg.name}`);
+      console.log(`   displayName: ${cfg.displayName}`);
+      console.log(`   script: ${cfg.script}`);
+      console.log(`   SC_COMMAND: ${cfg.commands && cfg.commands.SC_COMMAND}`);
+      console.log(`   nodeOptions: ${Array.isArray(cfg.nodeOptions) ? cfg.nodeOptions.join(' ') : cfg.nodeOptions}`);
+      // List explicit env entries from service config
+      if (Array.isArray(cfg.env)) {
+        console.log('   env entries from config:');
+        cfg.env.forEach(e => console.log(`     ${e.name}=${e.value ? '***' : ''}${e.value && String(e.value).length > 0 ? '(set)' : '(empty)'}`));
+      }
+      console.log('');
+    } catch (err) {
+      console.log('   Could not read service config:', err && err.message);
+    }
 
     // Basic service status
     await this.checkServiceStatus();
@@ -54,6 +75,12 @@ class ServiceDiagnostics {
     console.log('🔧 Service Status:');
 
     try {
+      // Show candidate names used to query sc
+      try {
+        const candidates = this.manager && this.manager.candidateNames;
+        console.log(`   Service name candidates: ${Array.isArray(candidates) ? candidates.join(', ') : candidates}`);
+      } catch (e) { /* ignore */ }
+
       const status = await this.manager.getServiceStatus();
 
       console.log(`   Windows Service: ${this.getStatusIcon(status.serviceStatus)} ${status.serviceStatus}`);
@@ -165,7 +192,7 @@ class ServiceDiagnostics {
   async checkNetwork() {
     console.log('🌐 Network:');
 
-    const syncPort = process.env.SYNC_PORT || 3001;
+  const syncPort = process.env.SYNC_PORT || 8765;
 
     try {
       // Check if sync port is in use
@@ -207,19 +234,79 @@ class ServiceDiagnostics {
    */
   async checkConfiguration() {
     console.log('⚙️  Configuration:');
-
     const config = {
       registrationKey: process.env.SYNC_REGISTRATION_KEY || 'default-registration-key-change-in-production',
-      port: process.env.SYNC_PORT || '3001',
+      port: process.env.SYNC_PORT || '8765',
       syncInterval: process.env.SYNC_INTERVAL || '30000',
       logLevel: process.env.LOG_LEVEL || 'info',
       dataDir: process.env.SYNC_DATA_DIR || './data/sync'
     };
 
-    const isDefaultKey = !process.env.SYNC_REGISTRATION_KEY ||
-                        process.env.SYNC_REGISTRATION_KEY === 'default-registration-key-change-in-production';
+    // Determine if registration key is set in any of the service config sources (env, svcConfig.env, config files)
+    let registrationKeyFound = null;
+    if (process.env.SYNC_REGISTRATION_KEY) registrationKeyFound = { source: 'process.env', value: process.env.SYNC_REGISTRATION_KEY };
 
-    console.log(`   Registration Key: ${isDefaultKey ? '⚠️  DEFAULT (CHANGE FOR PRODUCTION)' : '✅ Custom'}`);
+    try {
+      const cfg = svcConfig || {};
+      if (!registrationKeyFound && Array.isArray(cfg.env)) {
+        const e = cfg.env.find(x => String(x.name).toUpperCase() === 'SYNC_REGISTRATION_KEY');
+        if (e && e.value) registrationKeyFound = { source: 'svcConfig.env', value: e.value };
+      }
+
+      // read common env files (reuse the parsing logic from checkDatabase)
+      const loadEnvFile = (filePath) => {
+        try {
+          if (!fs.existsSync(filePath)) return {};
+          const txt = fs.readFileSync(filePath, 'utf8');
+          const lines = txt.split(/\r?\n/);
+          const out = {};
+          for (let line of lines) {
+            line = line.trim();
+            if (!line || line.startsWith('#')) continue;
+            const eq = line.indexOf('=');
+            if (eq === -1) continue;
+            const k = line.slice(0, eq).trim();
+            let v = line.slice(eq + 1).trim();
+            if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+              v = v.slice(1, -1);
+            }
+            out[k] = v;
+          }
+          return out;
+        } catch (e) {
+          return {};
+        }
+      };
+
+      const candidateEnvFiles = [
+        path.join(__dirname, '..', 'config', 'service.env'),
+        path.join(__dirname, '..', 'config', '.env'),
+        path.join(__dirname, '..', '.env')
+      ];
+
+      for (const f of candidateEnvFiles) {
+        if (registrationKeyFound) break;
+        const parsed = loadEnvFile(f);
+        if (parsed && parsed.SYNC_REGISTRATION_KEY) {
+          registrationKeyFound = { source: f, value: parsed.SYNC_REGISTRATION_KEY };
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    const isDefaultKey = !registrationKeyFound || registrationKeyFound.value === 'default-registration-key-change-in-production';
+    console.log(`   Registration Key: ${isDefaultKey ? '⚠️  DEFAULT (CHANGE FOR PRODUCTION)' : `✅ Custom (from ${registrationKeyFound.source})`}`);
+    // Debug: show where registration key was found (masked)
+    if (registrationKeyFound) {
+      const masked = String(registrationKeyFound.value).slice(0, 8) + '...';
+      console.log(`   Registration Key Source: ${registrationKeyFound.source} (value starts ${masked})`);
+    } else {
+      console.log('   Registration Key Source: not found in env, svcConfig, or common env files');
+    }
+
+    // Expose for recommendations
+    this.registrationKeyFound = registrationKeyFound;
     console.log(`   Port: ${config.port}`);
     console.log(`   Sync Interval: ${config.syncInterval}ms`);
     console.log(`   Log Level: ${config.logLevel}`);
@@ -239,11 +326,80 @@ class ServiceDiagnostics {
     console.log('🗄️  Database:');
 
     try {
-      // Check if DATABASE_URL is set
-      const dbUrl = process.env.DATABASE_URL;
-      console.log(`   DATABASE_URL: ${dbUrl ? '✅ Set' : '❌ Not set'}`);
+      // Look for DATABASE_URL from multiple sources: env, svcConfig.env, svcConfig fields, and common env files
+      const cfg = svcConfig || {};
+      const findings = [];
 
-      if (dbUrl) {
+      const dbUrlFromEnv = process.env.DATABASE_URL;
+      if (dbUrlFromEnv) findings.push({ source: 'process.env', value: dbUrlFromEnv });
+
+      // Check svcConfig.env array
+      if (Array.isArray(cfg.env)) {
+        const e = cfg.env.find(x => String(x.name).toUpperCase() === 'DATABASE_URL');
+        if (e && e.value) findings.push({ source: 'svcConfig.env', value: e.value });
+      }
+
+      // Check common config properties
+      const dbUrlFromConfig = cfg.databaseUrl || (cfg.database && cfg.database.url) || cfg.DATABASE_URL;
+      if (dbUrlFromConfig) findings.push({ source: 'svcConfig.direct', value: dbUrlFromConfig });
+
+      // Helper to read simple KEY=VALUE env files
+      const loadEnvFile = (filePath) => {
+        try {
+          if (!fs.existsSync(filePath)) return {};
+          const txt = fs.readFileSync(filePath, 'utf8');
+          const lines = txt.split(/\r?\n/);
+          const out = {};
+          for (let line of lines) {
+            line = line.trim();
+            if (!line || line.startsWith('#')) continue;
+            const eq = line.indexOf('=');
+            if (eq === -1) continue;
+            const k = line.slice(0, eq).trim();
+            let v = line.slice(eq + 1).trim();
+            // remove surrounding quotes
+            if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+              v = v.slice(1, -1);
+            }
+            out[k] = v;
+          }
+          return out;
+        } catch (e) {
+          return {};
+        }
+      };
+
+      // Check config/service.env, config/.env, project .env
+      const candidateEnvFiles = [
+        path.join(__dirname, '..', 'config', 'service.env'),
+        path.join(__dirname, '..', 'config', '.env'),
+        path.join(__dirname, '..', '.env'),
+        path.join(__dirname, '..', 'config', 'service.env.local')
+      ];
+
+      for (const f of candidateEnvFiles) {
+        const parsed = loadEnvFile(f);
+        if (parsed && parsed.DATABASE_URL) {
+          findings.push({ source: f, value: parsed.DATABASE_URL });
+        }
+      }
+
+      // Print summary of findings
+      const envFound = findings.length > 0;
+      console.log(`   DATABASE_URL (env): ${dbUrlFromEnv ? '✅ Set' : '❌ Not set'}`);
+      console.log(`   DATABASE_URL (svcConfig): ${dbUrlFromConfig ? '✅ Set' : '❌ Not set'}`);
+      if (envFound) {
+        console.log('   DATABASE_URL found in:');
+        findings.forEach(f => console.log(`     - ${f.source}`));
+      } else {
+        console.log('   DATABASE_URL not found in env, svcConfig, or common env files');
+      }
+
+      const dbUrl = findings.length > 0 ? findings[0].value : null;
+
+      if (!dbUrl) {
+        console.log('   Connection: ⚠️  Skipped (DATABASE_URL not configured in env or config)');
+      } else {
         // Basic URL validation
         try {
           const url = new URL(dbUrl);
@@ -251,21 +407,20 @@ class ServiceDiagnostics {
           console.log(`   Database Host: ${url.hostname}:${url.port || 'default'}`);
           console.log(`   Database Name: ${url.pathname.replace('/', '')}`);
         } catch (urlError) {
-          console.log(`   URL Format: ❌ Invalid`);
+          console.log('   URL Format: ❌ Invalid');
         }
-      }
 
-      // Try to test connection if Prisma is available
-      try {
-        const { PrismaClient } = require('@prisma/client');
-        const prisma = new PrismaClient();
+        // Try to test connection if Prisma is available
+        try {
+          const { PrismaClient } = require('@prisma/client');
+          const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
 
-        await prisma.$connect();
-        console.log(`   Connection: ✅ Successful`);
-
-        await prisma.$disconnect();
-      } catch (prismaError) {
-        console.log(`   Connection: ❌ Failed - ${prismaError.message}`);
+          await prisma.$connect();
+          console.log('   Connection: ✅ Successful');
+          await prisma.$disconnect();
+        } catch (prismaError) {
+          console.log(`   Connection: ❌ Failed - ${prismaError.message}`);
+        }
       }
     } catch (error) {
       console.log(`   Error: ❌ ${error.message}`);

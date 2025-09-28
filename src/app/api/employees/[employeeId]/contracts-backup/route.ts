@@ -136,7 +136,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Validate foreign key references
     const [jobTitle, compensationType, business, supervisor] = await Promise.all([
       prisma.jobTitle.findUnique({ where: { id: jobTitleId } }),
-      prisma.compensationType.findUnique({ where: { id: compensationTypeId } }),
+      prisma.compensation_types.findUnique({ where: { id: compensationTypeId } }),
       prisma.business.findUnique({ where: { id: primaryBusinessId } }),
       prisma.employee.findUnique({ where: { id: supervisorId } })
     ])

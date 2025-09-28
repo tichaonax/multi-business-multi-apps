@@ -4,15 +4,16 @@
  */
 
 import { EventEmitter } from 'events'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, SyncOperation } from '@prisma/client'
 import { ChangeEvent, VectorClock } from './change-tracker'
+import crypto from 'crypto'
 
 export interface OfflineQueueItem {
   id: string
   eventId: string
   tableName: string
   recordId: string
-  operation: 'CREATE' | 'UPDATE' | 'DELETE'
+  operation: SyncOperation
   changeData: any
   beforeData?: any
   queuedAt: Date
@@ -282,7 +283,7 @@ export class OfflineQueueManager extends EventEmitter {
         changeData: item.changeData,
         beforeData: item.beforeData,
         vectorClock: {}, // Will be populated by change tracker
-        lamportClock: BigInt(Date.now()),
+        lamportClock: BigInt(Date.now()).toString(),
         checksum: this.calculateChecksum(item.changeData),
         priority: item.priority,
         metadata: {

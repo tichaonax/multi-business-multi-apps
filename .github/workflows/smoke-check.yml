@@ -2,9 +2,9 @@ name: Smoke-check Service
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   smoke-check:
@@ -16,12 +16,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run smoke-check (skip DB in CI unless DATABASE_URL provided)
+      - name: Run smoke-check (fail fast if misconfigured)
         env:
           SKIP_DB_PRECHECK: ${{ env.SKIP_DB_PRECHECK || 'true' }}
         run: |
@@ -29,4 +29,10 @@ jobs:
           if [ -z "$DATABASE_URL" ]; then
             echo "No DATABASE_URL provided; skipping DB connectivity check"
           fi
-          npm run service:smoke-check
+          set -o pipefail
+          npm run service:smoke-check 2>&1 | tee smoke-check.log
+          rc=${PIPESTATUS[0]}
+          if [ $rc -ne 0 ]; then
+            echo "Smoke-check failed (exit code $rc). See smoke-check.log for details."
+            exit $rc
+          fi

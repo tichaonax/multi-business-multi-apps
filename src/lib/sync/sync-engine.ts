@@ -257,7 +257,7 @@ export class SyncEngine extends EventEmitter {
       const requestPayload = {
         type: 'sync_request',
         sessionId: session.sessionId,
-        requestorNodeId: this.options.nodeId,
+        sourceNodeId: this.options.nodeId,
         lastSyncTime: await this.getLastSyncTime(peer.nodeId),
         maxEvents: this.options.batchSize,
         timestamp: new Date().toISOString()
@@ -420,6 +420,10 @@ export class SyncEngine extends EventEmitter {
     try {
       const url = `http://${peer.ipAddress}:${peer.port}${endpoint}`
 
+      // Create fetch with timeout using AbortController
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -430,8 +434,10 @@ export class SyncEngine extends EventEmitter {
             .digest('hex')
         },
         body: JSON.stringify(payload),
-        timeout: 30000 // 30 second timeout
+        signal: controller.signal
       })
+
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -506,11 +512,8 @@ export class SyncEngine extends EventEmitter {
     try {
       const lastSession = await this.prisma.syncSession.findFirst({
         where: {
-          OR: [
-            { initiatorNodeId: this.options.nodeId },
-            { participantNodes: { has: this.options.nodeId } }
-          ],
-          participantNodes: { has: peerNodeId },
+          sourceNodeId: this.options.nodeId,
+          targetNodeId: peerNodeId,
           status: 'COMPLETED'
         },
         orderBy: { endTime: 'desc' }
@@ -530,17 +533,21 @@ export class SyncEngine extends EventEmitter {
     try {
       await this.prisma.syncSession.create({
         data: {
+          id: crypto.randomUUID(),
           sessionId: session.sessionId,
-          initiatorNodeId: this.options.nodeId,
-          participantNodes: [this.options.nodeId, session.targetNodeId],
-          sessionType: 'INCREMENTAL',
+          sourceNodeId: this.options.nodeId,
+          targetNodeId: session.targetNodeId,
           status: session.status === 'completed' ? 'COMPLETED' : 'FAILED',
-          startTime: session.startTime,
+          startedAt: session.startTime,
+          endedAt: new Date(),
           endTime: new Date(),
-          eventsTransferred: session.eventsTransferred,
-          conflictsDetected: session.conflictsDetected,
-          conflictsResolved: session.conflictsDetected, // Auto-resolved
-          lastActivity: session.lastActivity
+          // Persist extra session telemetry into the metadata JSON so schema stays stable
+          metadata: {
+            eventsTransferred: session.eventsTransferred,
+            conflictsDetected: session.conflictsDetected,
+            conflictsResolved: (session as any).conflictsResolved || session.conflictsDetected,
+            lastActivity: session.lastActivity
+          }
         }
       })
     } catch (error) {

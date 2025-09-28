@@ -4,7 +4,7 @@
  * Usage: node scripts/smoke-check-service.js
  * Environment:
  *   DATABASE_URL (required unless --skip-db)
- *   SYNC_PORT (optional, default 3001)
+ *   SYNC_PORT (optional, default 8765)
  *   SKIP_DB_PRECHECK=true to skip DB connectivity check
  */
 
@@ -50,7 +50,7 @@ async function checkDb() {
 }
 
 function checkPort() {
-  const port = parseInt(process.env.SYNC_PORT || '3001', 10)
+  const port = parseInt(process.env.SYNC_PORT || '8765', 10)
   const checkPort = port + 1 // health port
 
   return new Promise((resolve) => {

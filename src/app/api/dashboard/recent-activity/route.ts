@@ -391,7 +391,7 @@ export async function GET(req: NextRequest) {
         })
 
         // Load all expense categories for display mapping
-        const allCategories = await prisma.expenseCategory.findMany({
+        const allCategories = await prisma.expense_categories.findMany({
           select: {
             id: true,
             name: true,

@@ -18,6 +18,8 @@ import { PartitionRecoveryService, createPartitionRecoveryService } from './part
 import { InitialLoadManager, createInitialLoadManager } from './initial-load'
 import { InitialLoadReceiver, createInitialLoadReceiver } from './initial-load-receiver'
 import { SecurityManager, createSecurityManager } from './security-manager'
+import { SchemaVersionManager, createSchemaVersionManager } from './schema-version-manager'
+import { SyncCompatibilityGuard, createSyncCompatibilityGuard } from './sync-compatibility-guard'
 import { networkInterfaces } from 'os'
 import path from 'path'
 import fs from 'fs'
@@ -76,6 +78,8 @@ export class SyncService extends EventEmitter {
   private initialLoadManager: InitialLoadManager | null = null
   private initialLoadReceiver: InitialLoadReceiver | null = null
   private securityManager: SecurityManager | null = null
+  private schemaVersionManager: SchemaVersionManager | null = null
+  private compatibilityGuard: SyncCompatibilityGuard | null = null
 
   private isRunning = false
   private isOnline = true
@@ -165,6 +169,12 @@ export class SyncService extends EventEmitter {
 
       // Initialize security manager
       await this.initializeSecurityManager()
+
+      // Initialize schema version manager
+      await this.initializeSchemaVersionManager()
+
+      // Initialize compatibility guard
+      this.initializeCompatibilityGuard()
 
       // Start health monitoring
       this.startHealthMonitoring()
@@ -460,7 +470,13 @@ export class SyncService extends EventEmitter {
     if (!this.securityManager) {
       return false
     }
-    return await this.securityManager.rotateRegistrationKey(newKey, gracePeriodMs)
+    try {
+      await this.securityManager.rotateRegistrationKey()
+      return true
+    } catch (error) {
+      console.error('Failed to rotate registration key:', error)
+      return false
+    }
   }
 
   /**
@@ -554,6 +570,93 @@ export class SyncService extends EventEmitter {
   }
 
   /**
+   * Check schema compatibility with a remote node
+   */
+  async checkSchemaCompatibility(remoteNode: any): Promise<any> {
+    if (!this.schemaVersionManager) {
+      throw new Error('Schema version manager not initialized')
+    }
+    return await this.schemaVersionManager.checkCompatibility(remoteNode)
+  }
+
+  /**
+   * Get current schema version
+   */
+  getCurrentSchemaVersion(): any {
+    if (!this.schemaVersionManager) {
+      return null
+    }
+    return this.schemaVersionManager.getCurrentVersion()
+  }
+
+  /**
+   * Get schema compatibility report for all nodes
+   */
+  async getSchemaCompatibilityReport(): Promise<any> {
+    if (!this.schemaVersionManager) {
+      return {
+        totalNodes: 0,
+        compatibleNodes: 0,
+        incompatibleNodes: 0,
+        nodeDetails: []
+      }
+    }
+    return await this.schemaVersionManager.getCompatibilityReport()
+  }
+
+  /**
+   * Check if sync is allowed with a remote node
+   */
+  async isSyncAllowed(remoteNode: any): Promise<any> {
+    if (!this.compatibilityGuard) {
+      return {
+        allowed: false,
+        reason: 'Compatibility guard not initialized'
+      }
+    }
+    return await this.compatibilityGuard.isSyncAllowed(remoteNode)
+  }
+
+  /**
+   * Get sync attempt history
+   */
+  getSyncAttemptHistory(): any[] {
+    if (!this.compatibilityGuard) {
+      return []
+    }
+    return this.compatibilityGuard.getSyncAttemptHistory()
+  }
+
+  /**
+   * Get sync attempt statistics
+   */
+  getSyncAttemptStats(): any {
+    if (!this.compatibilityGuard) {
+      return {
+        totalAttempts: 0,
+        allowedAttempts: 0,
+        blockedAttempts: 0,
+        successRate: 0,
+        recentBlocks: []
+      }
+    }
+    return this.compatibilityGuard.getSyncAttemptStats()
+  }
+
+  /**
+   * Get compatibility issues summary
+   */
+  getCompatibilityIssuesSummary(): any {
+    if (!this.compatibilityGuard) {
+      return {
+        incompatibleNodes: [],
+        commonIssues: []
+      }
+    }
+    return this.compatibilityGuard.getCompatibilityIssuesSummary()
+  }
+
+  /**
    * Initialize database sync system
    */
   private async initializeDatabase(): Promise<void> {
@@ -585,7 +688,10 @@ export class SyncService extends EventEmitter {
         nodeId: this.nodeId,
         nodeName: this.config.nodeName,
         port: this.config.port,
-        registrationKey: this.config.registrationKey
+        registrationKey: this.config.registrationKey,
+        broadcastInterval: 30000, // 30 seconds
+        discoveryPort: 5353, // mDNS port
+        serviceName: 'multi-business-sync'
       })
 
       // Listen for peer events
@@ -772,26 +878,70 @@ export class SyncService extends EventEmitter {
     try {
       this.log('info', 'Initializing security manager...')
 
-      this.securityManager = createSecurityManager({
-        nodeId: this.nodeId,
-        registrationKey: this.config.registrationKey,
-        enableEncryption: this.config.security?.enableEncryption ?? true,
-        enableSignatures: this.config.security?.enableSignatures ?? true,
-        keyRotationEnabled: this.config.security?.keyRotationEnabled ?? false,
-        keyRotationInterval: this.config.security?.keyRotationInterval ?? 24 * 60 * 60 * 1000, // 24 hours
-        sessionTimeout: this.config.security?.sessionTimeout ?? 60 * 60 * 1000, // 1 hour
-        maxFailedAttempts: this.config.security?.maxFailedAttempts ?? 5,
-        rateLimitWindow: this.config.security?.rateLimitWindow ?? 60 * 1000, // 1 minute
-        rateLimitMaxRequests: this.config.security?.rateLimitMaxRequests ?? 100,
-        auditEnabled: true
-      })
+      // Create security manager instance with prisma and nodeId
+      this.securityManager = createSecurityManager(
+        this.prisma,
+        this.nodeId,
+        {
+          registrationKey: this.config.registrationKey,
+          enableEncryption: this.config.security?.enableEncryption ?? true,
+          enableSignatures: this.config.security?.enableSignatures ?? true,
+          keyRotationEnabled: this.config.security?.keyRotationEnabled ?? false,
+          keyRotationInterval: this.config.security?.keyRotationInterval ?? 24 * 60 * 60 * 1000, // 24 hours
+          sessionTimeout: this.config.security?.sessionTimeout ?? 60 * 60 * 1000, // 1 hour
+          maxFailedAttempts: this.config.security?.maxFailedAttempts ?? 5,
+          rateLimitWindow: this.config.security?.rateLimitWindow ?? 60 * 1000, // 1 minute
+          rateLimitMaxRequests: this.config.security?.rateLimitMaxRequests ?? 100
+        }
+      )
 
-      // Initialize the security manager
-      await this.securityManager.initialize()
+      // Start the security manager
+      await this.securityManager.start()
 
       this.log('info', 'Security manager initialized')
     } catch (error) {
       this.log('error', 'Failed to initialize security manager:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Initialize schema version manager
+   */
+  private async initializeSchemaVersionManager(): Promise<void> {
+    try {
+      this.log('info', 'Initializing schema version manager...')
+
+      // Create schema version manager instance
+      this.schemaVersionManager = createSchemaVersionManager(this.prisma, this.nodeId)
+
+      // Initialize schema version tracking
+      await this.schemaVersionManager.initialize()
+
+      this.log('info', 'Schema version manager initialized')
+    } catch (error) {
+      this.log('error', 'Failed to initialize schema version manager:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Initialize compatibility guard
+   */
+  private initializeCompatibilityGuard(): void {
+    if (!this.schemaVersionManager) {
+      throw new Error('Schema version manager must be initialized first')
+    }
+
+    try {
+      this.log('info', 'Initializing compatibility guard...')
+
+      // Create compatibility guard instance
+      this.compatibilityGuard = createSyncCompatibilityGuard(this.schemaVersionManager)
+
+      this.log('info', 'Compatibility guard initialized')
+    } catch (error) {
+      this.log('error', 'Failed to initialize compatibility guard:', error)
       throw error
     }
   }
@@ -951,7 +1101,7 @@ export function createSyncService(config: SyncServiceConfig): SyncService {
  */
 export function getDefaultSyncConfig(): Partial<SyncServiceConfig> {
   return {
-    port: 3001,
+    port: 8765,
     syncInterval: 30000, // 30 seconds
     enableAutoStart: true,
     logLevel: 'info',

@@ -71,7 +71,7 @@ export async function GET() {
     const categoryIds = [...new Set(expenses.map(expense => expense.category).filter(Boolean))]
 
     // Fetch category information
-    const categories = await prisma.expenseCategory.findMany({
+    const categories = await prisma.expense_categories.findMany({
       where: { id: { in: categoryIds } }
     })
 

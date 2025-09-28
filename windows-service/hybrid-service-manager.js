@@ -13,12 +13,62 @@ const execAsync = promisify(exec);
 
 class HybridServiceManager {
   constructor() {
-    this.serviceName = 'Multi-Business Sync Service';
+    // Use config-driven candidate names (internal id variants then display name)
+    const config = require('./config');
+    const nameHelper = require('./service-name-helper');
+    this.candidateNames = nameHelper.getCandidateServiceNames();
+    // default to first candidate for backward compatibility
+    this.serviceName = this.candidateNames[0] || (config && config.name) || 'Multi-Business Sync Service';
     this.daemonPath = path.join(__dirname, 'daemon');
     this.pidFile = path.join(this.daemonPath, 'service.pid');
     this.logFile = path.join(this.daemonPath, 'service.log');
     this.maxRetries = 3;
     this.retryDelay = 2000; // 2 seconds
+  }
+
+  async tryScCommand(cmdBuilder) {
+    // cmdBuilder is a function that takes a candidate name and returns the full command
+    let lastErr = null;
+    const config = require('./config');
+    const scCmd = (config.commands && config.commands.SC_COMMAND) || 'sc.exe';
+
+    function buildServiceExpectedName(name) {
+      if (!name) return name;
+      // If already ends with .exe, return as-is
+      if (/\.exe$/i.test(name)) return name;
+      // Remove spaces and ensure lowercase token, then append .exe
+      const token = String(name).replace(/\s+/g, '').toLowerCase();
+      return `${token}.exe`;
+    }
+
+    for (const name of this.candidateNames) {
+      try {
+        const expectedName = buildServiceExpectedName(name);
+        let cmd = cmdBuilder(expectedName);
+        // Normalize commands that start with 'sc ' or 'sc.exe ' to use configured scCmd
+        if (/^\s*sc(\.exe)?\s+/i.test(cmd)) {
+          cmd = cmd.replace(/^\s*sc(\.exe)?\s+/i, scCmd + ' ');
+        }
+
+        const { stdout, stderr } = await execAsync(cmd);
+        const out = (stdout || stderr || '').toString();
+        // small debug trace so diagnostics can tell which candidate and command worked
+        this.log(`sc command succeeded for candidate "${name}" using command: ${cmd}`);
+        return { name, out, cmd };
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr || new Error('sc command failed for all candidate names');
+  }
+
+  async runScQuery() {
+    try {
+      const res = await this.tryScCommand((name) => `sc query "${name}"`);
+      return res.out;
+    } catch (err) {
+      throw err;
+    }
   }
 
   /**
@@ -54,8 +104,8 @@ class HybridServiceManager {
         return true;
       }
 
-      // Use Windows service control to start
-      const result = await execAsync(`sc start "${this.serviceName}"`);
+  // Use Windows service control to start (try candidates)
+  await this.tryScCommand((name) => `sc start "${name}"`);
       this.log('Service start command executed');
 
       // Wait for service to start and get PID
@@ -80,7 +130,7 @@ class HybridServiceManager {
 
       // Try graceful shutdown via Windows service control
       try {
-        await execAsync(`sc stop "${this.serviceName}"`);
+  await this.tryScCommand((name) => `sc stop "${name}"`);
         this.log('Service stop command executed');
 
         // Wait for graceful shutdown
@@ -292,7 +342,8 @@ class HybridServiceManager {
     while (waited < maxWait) {
       try {
         // Check if service is running
-        const { stdout } = await execAsync(`sc query "${this.serviceName}"`);
+        const queryRes = await this.runScQuery();
+        const stdout = queryRes || '';
 
         if (stdout.includes('RUNNING')) {
           // Try to find and save the PID
@@ -347,28 +398,30 @@ class HybridServiceManager {
    * Get service status
    */
   async getServiceStatus() {
+    // Ported from electricity-tokens: use sc.exe and buildServiceExpectedName
+    const config = require('./config');
+    const scCmd = config.commands.SC_COMMAND || 'sc.exe';
+    // Use canonical internal service name
+    const serviceName = this.serviceName;
+    function buildServiceExpectedName(name) {
+      // If name ends with .exe, remove it
+      return name.replace(/\.exe$/i, '');
+    }
     try {
+      // Use runScQuery which will try candidate names and normalize to the expected .exe form
+      const stdout = await this.runScQuery();
+      let serviceStatus = 'UNKNOWN';
+      if (stdout && stdout.includes('RUNNING')) {
+        serviceStatus = 'RUNNING';
+      } else if (stdout && stdout.includes('STOPPED')) {
+        serviceStatus = 'STOPPED';
+      }
+      // PID logic unchanged
       const pid = this.getServicePid();
       let isRunning = false;
-      let serviceStatus = 'UNKNOWN';
-
-      // Check Windows service status
-      try {
-        const { stdout } = await execAsync(`sc query "${this.serviceName}"`);
-        if (stdout.includes('RUNNING')) {
-          serviceStatus = 'RUNNING';
-        } else if (stdout.includes('STOPPED')) {
-          serviceStatus = 'STOPPED';
-        }
-      } catch (error) {
-        serviceStatus = 'NOT_INSTALLED';
-      }
-
-      // Check if process is actually running
       if (pid) {
         isRunning = await this.isProcessRunning(pid);
       }
-
       return {
         serviceStatus,
         processRunning: isRunning,
@@ -377,14 +430,27 @@ class HybridServiceManager {
         synchronized: (serviceStatus === 'RUNNING') === isRunning
       };
     } catch (error) {
-      this.log(`Error getting service status: ${error.message}`, 'ERROR');
+      // If sc reports the service does not exist, treat as NOT_INSTALLED
+      const msg = error && error.message ? String(error.message) : String(error);
+      this.log(`Error getting service status: ${msg}`, 'ERROR');
+      if (msg.toLowerCase().includes('does not exist') || msg.toLowerCase().includes('1060')) {
+        return {
+          serviceStatus: 'NOT_INSTALLED',
+          processRunning: false,
+          pid: null,
+          hasService: false,
+          synchronized: false,
+          error: msg
+        };
+      }
+
       return {
         serviceStatus: 'ERROR',
         processRunning: false,
         pid: null,
         hasService: false,
         synchronized: false,
-        error: error.message
+        error: msg
       };
     }
   }
@@ -396,7 +462,7 @@ class HybridServiceManager {
     this.log('Running service diagnostics...');
 
     const status = await this.getServiceStatus();
-    const syncPort = process.env.SYNC_PORT || 3001;
+  const syncPort = process.env.SYNC_PORT || 8765;
     const portProcess = await this.findProcessByPort(syncPort);
     const allProcesses = await this.findServiceProcesses();
 

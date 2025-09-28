@@ -7,6 +7,7 @@ import { EventEmitter } from 'events'
 import { PrismaClient } from '@prisma/client'
 import { PeerInfo } from './peer-discovery'
 import { SyncUtils } from './sync-utils'
+import crypto from 'crypto'
 
 export interface PartitionInfo {
   partitionId: string
@@ -207,7 +208,9 @@ export class PartitionDetector extends EventEmitter {
           ipAddress: 'unknown',
           port: 0,
           lastSeen: health.lastSeen,
-          registrationKeyHash: ''
+          registrationKeyHash: '',
+          capabilities: [],
+          isAuthenticated: false
         }
 
         await this.detectPartitionForPeer(peerInfo, 'Peer unreachable timeout')
@@ -421,7 +424,7 @@ export class PartitionDetector extends EventEmitter {
   /**
    * Select recovery strategy
    */
-  private selectRecoveryStrategy(partition: PartitionInfo): string {
+  private selectRecoveryStrategy(partition: PartitionInfo): 'WAIT_RECONNECT' | 'FORCE_RESYNC' | 'MANUAL_INTERVENTION' | 'DATA_REBUILD' {
     switch (partition.partitionType) {
       case 'PEER_UNREACHABLE':
         return 'WAIT_RECONNECT'
@@ -561,7 +564,7 @@ export class PartitionDetector extends EventEmitter {
    */
   private async executeManualIntervention(partition: PartitionInfo): Promise<boolean> {
     // Mark as requiring manual intervention
-    await this.prisma.networkPartition.update({
+    await this.prisma.networkPartitions.update({
       where: { id: partition.partitionId },
       data: {
         partitionMetadata: {
@@ -585,7 +588,7 @@ export class PartitionDetector extends EventEmitter {
       console.log(`Data rebuild initiated for partition ${partition.partitionId}`)
 
       // Mark as requiring administrative action
-      await this.prisma.networkPartition.update({
+      await this.prisma.networkPartitions.update({
         where: { id: partition.partitionId },
         data: {
           partitionMetadata: {
@@ -608,7 +611,7 @@ export class PartitionDetector extends EventEmitter {
    */
   private async loadExistingPartitions(): Promise<void> {
     try {
-      const partitions = await this.prisma.networkPartition.findMany({
+      const partitions = await this.prisma.networkPartitions.findMany({
         where: {
           nodeId: this.nodeId,
           isResolved: false
@@ -675,7 +678,7 @@ export class PartitionDetector extends EventEmitter {
    */
   private async createPartitionRecord(partition: PartitionInfo): Promise<void> {
     try {
-      await this.prisma.networkPartition.create({
+      await this.prisma.networkPartitions.create({
         data: {
           id: partition.partitionId,
           nodeId: this.nodeId,
@@ -696,7 +699,7 @@ export class PartitionDetector extends EventEmitter {
    */
   private async markPartitionResolved(partitionId: string): Promise<void> {
     try {
-      await this.prisma.networkPartition.update({
+      await this.prisma.networkPartitions.update({
         where: { id: partitionId },
         data: {
           isResolved: true,

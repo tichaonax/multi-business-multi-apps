@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify project type exists and matches business type
-    const projectType = await prisma.projectType.findUnique({
+    const projectType = await prisma.project_types.findUnique({
       where: { id: projectTypeId }
     })
 

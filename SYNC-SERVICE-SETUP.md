@@ -54,8 +54,8 @@ Set environment variables for production use:
 # REQUIRED: Change from default for security
 set SYNC_REGISTRATION_KEY=your-secure-unique-key-here
 
-# Optional: Customize port (default: 3001)
-set SYNC_PORT=3001
+# Optional: Customize port (default: 8765)
+set SYNC_PORT=8765
 
 # Optional: Sync interval in milliseconds (default: 30000 = 30 seconds)
 set SYNC_INTERVAL=30000
@@ -187,7 +187,7 @@ If you want, run the smoke-check script and paste its output here and I'll help 
 The sync service requires these network permissions:
 
 - **Outbound UDP 5353**: mDNS peer discovery
-- **Inbound/Outbound TCP 3001**: HTTP sync communication (or custom port)
+- **Inbound/Outbound TCP 8765**: HTTP sync communication (or custom port)
 - **Multicast address 224.0.0.251**: mDNS multicast group
 
 ### Windows Firewall Setup
@@ -201,7 +201,7 @@ Or use PowerShell (as Administrator):
 
 ```powershell
 # Allow Node.js through firewall
-New-NetFirewallRule -DisplayName "Multi-Business Sync Service" -Direction Inbound -Protocol TCP -LocalPort 3001 -Action Allow
+New-NetFirewallRule -DisplayName "Multi-Business Sync Service" -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow
 New-NetFirewallRule -DisplayName "Multi-Business Sync Discovery" -Direction Inbound -Protocol UDP -LocalPort 5353 -Action Allow
 ```
 
@@ -244,7 +244,7 @@ Look for "Peers Connected" in the status output.
 
 ### Custom Port Configuration
 
-If port 3001 is already in use:
+If port 8765 is already in use:
 
 ```cmd
 set SYNC_PORT=3002
@@ -309,7 +309,7 @@ View logs in: `data/sync/sync-service.log`
    ```
 
 4. **Check firewall settings**:
-   - Ensure UDP 5353 and TCP 3001 are allowed
+   - Ensure UDP 5353 and TCP 8765 are allowed
 
 ### Sync Conflicts
 

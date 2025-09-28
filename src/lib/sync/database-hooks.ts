@@ -20,6 +20,12 @@ export function installSyncMiddleware(
   prisma: PrismaClient,
   options: SyncMiddlewareOptions
 ): void {
+  // Guard: some generated Prisma clients / runtimes may not expose $use (middleware)
+  // If $use is not available, don't attempt to install middleware to avoid runtime errors.
+  if (typeof (prisma as any).$use !== 'function') {
+    console.warn('⚠️ Prisma client does not expose $use(); sync middleware will be disabled.')
+    return
+  }
   const changeTracker = getChangeTracker(prisma, options.nodeId, options.registrationKey)
 
   prisma.$use(async (params, next) => {
@@ -44,25 +50,25 @@ export function installSyncMiddleware(
     // Handle different operations
     switch (action) {
       case 'create':
-        return handleCreate(params, next, changeTracker, model)
+        return handleCreate(params, next, changeTracker, model, prisma)
 
       case 'update':
-        return handleUpdate(params, next, changeTracker, model)
+        return handleUpdate(params, next, changeTracker, model, prisma)
 
       case 'upsert':
-        return handleUpsert(params, next, changeTracker, model)
+        return handleUpsert(params, next, changeTracker, model, prisma)
 
       case 'delete':
-        return handleDelete(params, next, changeTracker, model)
+        return handleDelete(params, next, changeTracker, model, prisma)
 
       case 'createMany':
-        return handleCreateMany(params, next, changeTracker, model)
+        return handleCreateMany(params, next, changeTracker, model, prisma)
 
       case 'updateMany':
-        return handleUpdateMany(params, next, changeTracker, model)
+        return handleUpdateMany(params, next, changeTracker, model, prisma)
 
       case 'deleteMany':
-        return handleDeleteMany(params, next, changeTracker, model)
+        return handleDeleteMany(params, next, changeTracker, model, prisma)
 
       default:
         return next(params)
@@ -77,7 +83,8 @@ async function handleCreate(
   params: any,
   next: any,
   changeTracker: any,
-  model: string
+  model: string,
+  prisma: PrismaClient
 ) {
   const result = await next(params)
 
@@ -104,13 +111,14 @@ async function handleUpdate(
   params: any,
   next: any,
   changeTracker: any,
-  model: string
+  model: string,
+  prisma: PrismaClient
 ) {
   // Get the record before update
   let beforeData = null
   try {
     if (params.where) {
-      beforeData = await (next as any).prisma[model.toLowerCase()].findUnique({
+      beforeData = await prisma[model.toLowerCase()].findUnique({
         where: params.where
       })
     }
@@ -144,13 +152,14 @@ async function handleUpsert(
   params: any,
   next: any,
   changeTracker: any,
-  model: string
+  model: string,
+  prisma: PrismaClient
 ) {
   // Check if record exists before upsert
   let existingRecord = null
   try {
     if (params.where) {
-      existingRecord = await (next as any).prisma[model.toLowerCase()].findUnique({
+      existingRecord = await prisma[model.toLowerCase()].findUnique({
         where: params.where
       })
     }
@@ -195,13 +204,14 @@ async function handleDelete(
   params: any,
   next: any,
   changeTracker: any,
-  model: string
+  model: string,
+  prisma: PrismaClient
 ) {
   // Get the record before deletion
   let beforeData = null
   try {
     if (params.where) {
-      beforeData = await (next as any).prisma[model.toLowerCase()].findUnique({
+      beforeData = await prisma[model.toLowerCase()].findUnique({
         where: params.where
       })
     }
@@ -234,7 +244,8 @@ async function handleCreateMany(
   params: any,
   next: any,
   changeTracker: any,
-  model: string
+  model: string,
+  prisma: PrismaClient
 ) {
   const result = await next(params)
 
@@ -270,13 +281,14 @@ async function handleUpdateMany(
   params: any,
   next: any,
   changeTracker: any,
-  model: string
+  model: string,
+  prisma: PrismaClient
 ) {
   // Get affected records before update
   let affectedRecords = []
   try {
     if (params.where) {
-      affectedRecords = await (next as any).prisma[model.toLowerCase()].findMany({
+      affectedRecords = await prisma[model.toLowerCase()].findMany({
         where: params.where
       })
     }
@@ -315,13 +327,14 @@ async function handleDeleteMany(
   params: any,
   next: any,
   changeTracker: any,
-  model: string
+  model: string,
+  prisma: PrismaClient
 ) {
   // Get affected records before deletion
   let affectedRecords = []
   try {
     if (params.where) {
-      affectedRecords = await (next as any).prisma[model.toLowerCase()].findMany({
+      affectedRecords = await prisma[model.toLowerCase()].findMany({
         where: params.where
       })
     }
@@ -408,7 +421,7 @@ export async function initializeSyncSystem(
     await changeTracker.initializeNode(
       options.nodeName,
       options.ipAddress,
-      options.port || 3001
+  options.port || 8765
     )
 
     console.log(`✅ Sync system initialized for node: ${options.nodeId}`)

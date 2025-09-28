@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         select: {
           id: true,
           name: true,
-          businessType: true,
+          type: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' }

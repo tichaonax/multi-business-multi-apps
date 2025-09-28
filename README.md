@@ -111,7 +111,7 @@ src/
 ```env
 DATABASE_URL=postgresql://username:password@localhost:5432/multi_business_db
 NEXTAUTH_SECRET=your-secret-key-here
-NEXTAUTH_URL=http://localhost:3001
+NEXTAUTH_URL=http://localhost:8765
 ```
 
 ## Available Scripts

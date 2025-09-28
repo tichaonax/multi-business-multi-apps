@@ -57,7 +57,7 @@ export async function GET(
     // Fetch category information if available
     let categoryObject = null
     if (expense.category) {
-      categoryObject = await prisma.expenseCategory.findUnique({
+      categoryObject = await prisma.expense_categories.findUnique({
         where: { id: expense.category }
       })
     }

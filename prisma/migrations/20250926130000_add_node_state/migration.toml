@@ -1,3 +1,0 @@
-[migration]
-id = "20250926130000_add_node_state"
-name = "add_node_state"

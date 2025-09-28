@@ -5,7 +5,14 @@ import path from 'path'
 
 // Use absolute path based on process.cwd() so Next's bundler can resolve the runtime script
 const restoreModulePath = path.join(process.cwd(), 'scripts', 'restore-from-backup')
-const { restore } = require(restoreModulePath)
+let restore: any
+try {
+  const restoreModule = require(restoreModulePath)
+  restore = restoreModule.restore
+} catch (error) {
+  console.warn('restore-from-backup module not available during build:', error)
+  restore = null
+}
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -20,6 +27,10 @@ export async function POST(request: NextRequest) {
   const confirmText = typeof body?.confirmText === 'string' ? body.confirmText : undefined
   if (!filename || !confirmed || !confirmText) return NextResponse.json({ error: 'filename and confirmation required' }, { status: 400 })
   if (!confirmText.startsWith('RESTORE-BACKUP-')) return NextResponse.json({ error: 'Invalid confirmation text' }, { status: 400 })
+
+  if (!restore) {
+    return NextResponse.json({ error: 'Restore functionality not available' }, { status: 503 })
+  }
 
   try {
     const abs = path.join(process.cwd(), 'scripts', filename)

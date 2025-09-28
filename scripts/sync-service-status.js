@@ -3,16 +3,28 @@
 // Prints a user-friendly summary and exits.
 
 const { spawnSync } = require('child_process');
-const serviceName = 'Multi-Business Sync Service';
+const serviceNameHelper = require('../windows-service/service-name-helper');
+const candidateNames = serviceNameHelper.getCandidateServiceNames();
 
 function runScQuery() {
   try {
-    const res = spawnSync('sc', ['query', '"' + serviceName + '"'], { encoding: 'utf8' });
-    if (res.error) {
-      console.error('Failed to run `sc query`. Are you on Windows or is `sc` unavailable?');
-      process.exit(2);
+    let lastOut = '';
+    for (const name of candidateNames) {
+      const res = spawnSync('sc', ['query', '"' + name + '"'], { encoding: 'utf8' });
+      if (res && (res.stdout || res.stderr)) {
+        lastOut = (res.stdout || res.stderr || '').toString();
+        // If output indicates the service exists or not, return it for parsing
+        if (lastOut && !/FAILED 1060/i.test(lastOut)) {
+          return lastOut;
+        }
+      }
     }
-    return res.stdout || res.stderr || '';
+
+    // If none of the queries returned a valid service, return the last output
+    if (lastOut) return lastOut;
+
+    console.error('Failed to run `sc query`. Are you on Windows or is `sc` unavailable?');
+    process.exit(2);
   } catch (err) {
     console.error('Error running sc query:', err.message || err);
     process.exit(2);
@@ -38,7 +50,7 @@ function parseScOutput(out) {
 
 const out = runScQuery();
 if (!out || /FAILED 1060/.test(out)) {
-  console.log('Service not installed: %s', serviceName);
+  console.log('Service not installed (checked names: %s)', candidateNames.join(', '));
   process.exit(0);
 }
 const parsed = parseScOutput(out);
@@ -108,7 +120,7 @@ function checkServiceScript() {
 function getServiceConfig() {
   return {
     registrationKey: process.env.SYNC_REGISTRATION_KEY || 'default-registration-key-change-in-production',
-    port: process.env.SYNC_PORT || '3001',
+  port: process.env.SYNC_PORT || '8765',
     syncInterval: process.env.SYNC_INTERVAL || '30000',
     logLevel: process.env.LOG_LEVEL || 'info',
     isDefaultKey: !process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === 'default-registration-key-change-in-production'
@@ -234,7 +246,7 @@ async function main() {
     console.log('🔐 Security Setup:');
     console.log('   Set environment variables for production:');
     console.log('   set SYNC_REGISTRATION_KEY=your-secure-key-here');
-    console.log('   set SYNC_PORT=3001');
+  console.log('   set SYNC_PORT=8765');
     console.log('   set SYNC_INTERVAL=30000');
     console.log('   set LOG_LEVEL=info');
     console.log('');

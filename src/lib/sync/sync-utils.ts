@@ -3,7 +3,7 @@
  * Helper functions for database synchronization
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, SyncOperation } from '@prisma/client'
 import { ChangeEvent, VectorClock } from './change-tracker'
 import crypto from 'crypto'
 
@@ -12,6 +12,8 @@ export interface SyncStats {
   processedEvents: number
   pendingEvents: number
   conflictCount: number
+  totalConflicts: number
+  totalEventsSynced: number
   lastSyncTime: Date | null
   peersConnected: number
 }
@@ -42,14 +44,14 @@ export class SyncUtils {
   async getSyncStats(): Promise<SyncStats> {
     try {
       const [totalEvents, processedEvents, conflictCount, lastEvent, peerCount] = await Promise.all([
-        this.prisma.syncEvent.count(),
-        this.prisma.syncEvent.count({ where: { processed: true } }),
-        this.prisma.conflictResolution.count(),
-        this.prisma.syncEvent.findFirst({
+        this.prisma.sync_events.count(),
+        this.prisma.sync_events.count({ where: { processed: true } }),
+        this.prisma.conflict_resolutions.count(),
+        this.prisma.sync_events.findFirst({
           orderBy: { createdAt: 'desc' },
           select: { createdAt: true }
         }),
-        this.prisma.syncNode.count({ where: { isActive: true, nodeId: { not: this.nodeId } } })
+        this.prisma.sync_nodes.count({ where: { isActive: true, nodeId: { not: this.nodeId } } })
       ])
 
       return {
@@ -57,6 +59,8 @@ export class SyncUtils {
         processedEvents,
         pendingEvents: totalEvents - processedEvents,
         conflictCount,
+        totalConflicts: conflictCount,
+        totalEventsSynced: processedEvents,
         lastSyncTime: lastEvent?.createdAt || null,
         peersConnected: peerCount
       }
@@ -72,7 +76,7 @@ export class SyncUtils {
   async detectConflicts(incomingEvent: ChangeEvent): Promise<ConflictDetectionResult> {
     try {
       // Find existing events for the same record
-      const existingEvents = await this.prisma.syncEvent.findMany({
+      const existingEvents = await this.prisma.sync_events.findMany({
         where: {
           tableName: incomingEvent.tableName,
           recordId: incomingEvent.recordId,
@@ -159,7 +163,7 @@ export class SyncUtils {
       }
 
       // Mark event as processed
-      await this.prisma.syncEvent.update({
+      await this.prisma.sync_events.update({
         where: { eventId: event.eventId },
         data: {
           processed: true,
@@ -172,11 +176,11 @@ export class SyncUtils {
       console.error('Failed to apply sync event:', error)
 
       // Mark event as failed
-      await this.prisma.syncEvent.update({
+      await this.prisma.sync_events.update({
         where: { eventId: event.eventId },
         data: {
           retryCount: { increment: 1 },
-          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+          processingError: error instanceof Error ? error.message : 'Unknown error'
         }
       }).catch(() => {}) // Ignore errors when updating error state
 
@@ -246,7 +250,7 @@ export class SyncUtils {
       if (a.priority !== b.priority) {
         return b.priority - a.priority // Higher priority wins
       }
-      return Number(b.lamportClock - a.lamportClock) // Later timestamp wins
+      return Number(BigInt(b.lamportClock) - BigInt(a.lamportClock)) // Later timestamp wins
     })
 
     const winningEvent = sortedEvents[0]
@@ -277,7 +281,7 @@ export class SyncUtils {
       const cutoffDate = new Date()
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
 
-      const result = await this.prisma.syncEvent.deleteMany({
+      const result = await this.prisma.sync_events.deleteMany({
         where: {
           processed: true,
           processedAt: {
@@ -297,26 +301,26 @@ export class SyncUtils {
    * Get failed sync events for retry
    */
   async getFailedEvents(maxRetries: number = 3): Promise<ChangeEvent[]> {
-    const events = await this.prisma.syncEvent.findMany({
+    const events = await this.prisma.sync_events.findMany({
       where: {
         processed: false,
         retryCount: { lt: maxRetries },
-        errorMessage: { not: null }
+        processingError: { not: null }
       },
       orderBy: { createdAt: 'asc' },
       take: 50
     })
 
-    return events.map(event => ({
+  return events.map((event: any) => ({
       eventId: event.eventId,
       sourceNodeId: event.sourceNodeId,
       tableName: event.tableName,
       recordId: event.recordId,
-      operation: event.operation,
+      operation: event.operation as SyncOperation,
       changeData: event.changeData,
       beforeData: event.beforeData,
       vectorClock: event.vectorClock as VectorClock,
-      lamportClock: event.lamportClock,
+      lamportClock: event.lamportClock.toString(),
       checksum: event.checksum,
       priority: event.priority,
       metadata: event.metadata
@@ -328,7 +332,7 @@ export class SyncUtils {
    */
   async updateNodeLastSeen(nodeId: string): Promise<void> {
     try {
-      await this.prisma.syncNode.update({
+      await this.prisma.sync_nodes.update({
         where: { nodeId },
         data: { lastSeen: new Date() }
       })
@@ -349,7 +353,7 @@ export class SyncUtils {
   }>> {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
 
-    const peers = await this.prisma.syncNode.findMany({
+    const peers = await this.prisma.sync_nodes.findMany({
       where: {
         isActive: true,
         nodeId: { not: this.nodeId },
@@ -387,7 +391,7 @@ export class SyncUtils {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
-      await this.prisma.syncMetrics.upsert({
+      await this.prisma.sync_metrics.upsert({
         where: {
           nodeId_metricDate: {
             nodeId: this.nodeId,
@@ -410,6 +414,7 @@ export class SyncUtils {
           peersDiscovered: metrics.peersDiscovered
         },
         create: {
+          id: crypto.randomUUID(),
           nodeId: this.nodeId,
           metricDate: today,
           eventsGenerated: metrics.eventsGenerated || 0,
@@ -420,13 +425,42 @@ export class SyncUtils {
           conflictsResolved: metrics.conflictsResolved || 0,
           syncLatencyMs: metrics.syncLatencyMs,
           networkLatencyMs: metrics.networkLatencyMs,
-          dataTransferredBytes: metrics.dataTransferredBytes || 0n,
+          dataTransferredBytes: metrics.dataTransferredBytes ? metrics.dataTransferredBytes : BigInt(0),
           peersConnected: metrics.peersConnected || 0,
           peersDiscovered: metrics.peersDiscovered || 0
         }
       })
     } catch (error) {
       console.warn('Failed to record sync metrics:', error)
+    }
+  }
+
+  /**
+   * Reset sync state for recovery scenarios
+   */
+  async resetSyncState(): Promise<void> {
+    try {
+      // Clear all unprocessed sync events
+      await this.prisma.sync_events.deleteMany({
+        where: {
+          processed: false
+        }
+      })
+
+      // Reset conflict resolutions (delete all - fields vary between deployments)
+      await this.prisma.conflict_resolutions.deleteMany({})
+
+      // Clear sync metrics for current node
+      await this.prisma.sync_metrics.deleteMany({
+        where: {
+          nodeId: this.nodeId
+        }
+      })
+
+      console.log('Sync state reset completed')
+    } catch (error) {
+      console.error('Failed to reset sync state:', error)
+      throw error
     }
   }
 }

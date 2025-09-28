@@ -254,7 +254,35 @@ export class PeerDiscoveryService extends EventEmitter {
    */
   private handleIncomingMessage(buffer: Buffer, remoteInfo: any): void {
     try {
-      const message = JSON.parse(buffer.toString())
+      // Validate buffer
+      if (!buffer || buffer.length === 0) {
+        return
+      }
+
+      // Convert to string and clean null bytes
+      let messageStr = buffer.toString('utf8').replace(/\0/g, '')
+
+      // Trim whitespace
+      messageStr = messageStr.trim()
+
+      // Skip empty messages
+      if (!messageStr) {
+        return
+      }
+
+      // Validate JSON format
+      if (!messageStr.startsWith('{') || !messageStr.endsWith('}')) {
+        console.warn('Invalid message format - not JSON object')
+        return
+      }
+
+      const message = JSON.parse(messageStr)
+
+      // Validate message structure
+      if (!message || typeof message !== 'object' || !message.type) {
+        console.warn('Invalid message structure - missing required fields')
+        return
+      }
 
       // Ignore our own messages
       if (message.nodeId === this.options.nodeId) {
@@ -282,7 +310,12 @@ export class PeerDiscoveryService extends EventEmitter {
           console.warn('Unknown message type:', message.type)
       }
     } catch (error) {
-      console.error('Error parsing discovery message:', error)
+      // Only log if it's not a common parsing error
+      if (error instanceof SyntaxError && error.message.includes('JSON')) {
+        console.warn('Received malformed JSON message, ignoring')
+      } else {
+        console.error('Error parsing discovery message:', error)
+      }
     }
   }
 

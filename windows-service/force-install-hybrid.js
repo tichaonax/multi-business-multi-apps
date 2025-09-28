@@ -10,6 +10,7 @@ const execAsync = promisify(exec);
 
 class ForceInstallManager {
   constructor() {
+    // config.name is the internal service id (multibusinesssyncservice.exe)
     this.serviceName = config.name;
     this.daemonPath = path.join(__dirname, 'daemon');
     this.hybridManager = new HybridServiceManager();
@@ -30,8 +31,14 @@ class ForceInstallManager {
   }
 
   async getServiceStatus() {
+    // Use configured sc command and buildServiceExpectedName to avoid PowerShell issues
+    const scCmd = (config.commands && config.commands.SC_COMMAND) || 'sc.exe';
+    function buildServiceExpectedName(name) {
+      return name.replace(/\.exe$/i, '');
+    }
+
     try {
-      const { stdout } = await execAsync(`sc query "${this.serviceName}"`);
+      const { stdout } = await execAsync(`${scCmd} query "${buildServiceExpectedName(this.serviceName)}"`);
 
       if (stdout.includes('RUNNING')) return 'RUNNING';
       if (stdout.includes('STOPPED')) return 'STOPPED';
@@ -40,7 +47,7 @@ class ForceInstallManager {
 
       return 'UNKNOWN';
     } catch (err) {
-      if (err.message.includes('does not exist')) {
+      if (err && String(err).includes('does not exist')) {
         return 'NOT_INSTALLED';
       }
       return 'ERROR';
@@ -94,7 +101,7 @@ class ForceInstallManager {
       this.log('Ensuring no related processes are running...');
 
       // Check for processes on sync port
-      const syncPort = process.env.SYNC_PORT || 3001;
+  const syncPort = process.env.SYNC_PORT || 8765;
       const portPID = await this.hybridManager.findProcessByPort(syncPort);
       if (portPID) {
         this.log(`Found process on port ${syncPort}: PID ${portPID}`);
@@ -212,6 +219,7 @@ class ForceInstallManager {
 
       const svc = new Service({
         name: config.name,
+        displayName: config.displayName || config.name,
         script: config.script,
       });
 
@@ -256,6 +264,7 @@ class ForceInstallManager {
 
       const svc = new Service({
         name: config.name,
+        displayName: config.displayName || config.name,
         description: config.description + ' (Hybrid Mode - Direct execution with PID management)',
         script: path.resolve(__dirname, 'service-wrapper-hybrid.js'),
         nodeOptions: config.nodeOptions,
@@ -277,10 +286,11 @@ class ForceInstallManager {
         console.log(`   Script: ${svc.script}`);
         console.log('');
         console.log('🚀 Usage:');
-        console.log('   Start:     npm run service:start');
-        console.log('   Stop:      npm run service:stop');
-        console.log('   Status:    npm run service:status');
-        console.log('   Diagnose:  npm run service:diagnose');
+        console.log('   Start:        npm run service:start');
+        console.log('   Force Build:  npm run service:start -- --force-build');
+        console.log('   Stop:         npm run service:stop');
+        console.log('   Status:       npm run service:status');
+        console.log('   Diagnose:     npm run service:diagnose');
         console.log('');
         console.log('💡 The hybrid service provides:');
         console.log('   • Direct sync service execution with PID management');
@@ -382,6 +392,7 @@ async function forceInstallHybrid() {
     console.log('');
     console.log('🎯 Next Steps:');
     console.log('   1. Start the service: npm run service:start');
+    console.log('      (Use --force-build flag to rebuild TypeScript: npm run service:start -- --force-build)');
     console.log('   2. Check status: npm run service:status');
     console.log('   3. View logs: npm run service:diagnose');
     console.log('');

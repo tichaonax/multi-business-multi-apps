@@ -17,8 +17,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Calculate recovery metrics
-    const sessions = await prisma.recoverySession.findMany({
+    // Calculate recovery metrics from sync sessions
+    const sessions = await prisma.sync_sessions.findMany({
+      where: {
+        metadata: {
+          path: ['partitionId'],
+          not: null
+        }
+      },
       orderBy: { startedAt: 'desc' }
     })
 
@@ -26,10 +32,10 @@ export async function GET(request: NextRequest) {
     const successful = sessions.filter(s => s.status === 'COMPLETED').length
     const failed = sessions.filter(s => s.status === 'FAILED').length
 
-    const completedSessions = sessions.filter(s => s.completedAt)
+    const completedSessions = sessions.filter(s => s.endedAt)
     const avgTime = completedSessions.length > 0
       ? completedSessions.reduce((sum, s) =>
-        sum + (s.completedAt!.getTime() - s.startedAt.getTime()), 0) / completedSessions.length
+        sum + (s.endedAt!.getTime() - s.startedAt.getTime()), 0) / completedSessions.length
       : 0
 
     // Analyze failure reasons

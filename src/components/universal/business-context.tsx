@@ -51,6 +51,19 @@ const BusinessContext = createContext<BusinessContextType | undefined>(undefined
 export function useBusinessContext() {
   const context = useContext(BusinessContext)
   if (context === undefined) {
+    // During build time (SSG/SSR), provide a fallback to prevent build errors
+    if (typeof window === 'undefined') {
+      return {
+        config: null,
+        loading: true,
+        error: null,
+        updateConfig: async () => {},
+        formatCurrency: (amount: number) => `$${amount.toFixed(2)}`,
+        formatDate: (date: Date | string) => new Date(date).toLocaleDateString(),
+        getBusinessFeature: () => null,
+        isBusinessType: () => false,
+      }
+    }
     throw new Error('useBusinessContext must be used within a BusinessProvider')
   }
   return context

@@ -4,7 +4,7 @@
  */
 
 import { SyncServiceConfig } from '../sync-service'
-import { SecurityManagerConfig } from '../security-manager'
+import { SecurityConfig } from '../security-manager'
 import { EventEmitter } from 'events'
 
 /**
@@ -38,9 +38,8 @@ export function createTestSyncConfig(overrides: Partial<SyncServiceConfig> = {})
 /**
  * Create a test configuration for security manager
  */
-export function createTestSecurityConfig(overrides: Partial<SecurityManagerConfig> = {}): SecurityManagerConfig {
+export function createTestSecurityConfig(overrides: Partial<SecurityConfig> = {}): SecurityConfig {
   return {
-    nodeId: 'test-security-node-' + Math.random().toString(36).substr(2, 9),
     registrationKey: 'test-security-key',
     enableEncryption: true,
     enableSignatures: true,
@@ -50,7 +49,6 @@ export function createTestSecurityConfig(overrides: Partial<SecurityManagerConfi
     maxFailedAttempts: 5,
     rateLimitWindow: 60 * 1000,
     rateLimitMaxRequests: 100,
-    auditEnabled: true,
     ...overrides
   }
 }

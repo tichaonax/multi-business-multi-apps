@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
         where: { id: { in: jobTitleIds } },
         select: { id: true, title: true, department: true, level: true }
       }) : [],
-      compensationTypeIds.length > 0 ? prisma.compensationType.findMany({
+      compensationTypeIds.length > 0 ? prisma.compensation_types.findMany({
         where: { id: { in: compensationTypeIds } },
         select: { id: true, name: true, type: true, frequency: true }
       }) : [],
@@ -278,7 +278,7 @@ export async function POST(req: NextRequest) {
     // Validate foreign key references (using correct table names)
     const [jobTitle, compensationType, business, supervisor, userAccount, idTemplate] = await Promise.all([
       prisma.jobTitle.findUnique({ where: { id: jobTitleId } }),
-      prisma.compensationType.findUnique({ where: { id: compensationTypeId } }),
+      prisma.compensation_types.findUnique({ where: { id: compensationTypeId } }),
       prisma.business.findUnique({ where: { id: primaryBusinessId } }),
       supervisorId ? prisma.employee.findUnique({ where: { id: supervisorId } }) : null,
       userId ? prisma.user.findUnique({ where: { id: userId } }) : null,

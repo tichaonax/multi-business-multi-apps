@@ -114,7 +114,7 @@ export function InitialLoadMonitor() {
         nodeId: 'target-node-001',
         nodeName: 'Target Node 1',
         ipAddress: '192.168.1.100',
-        port: 3001
+  port: 8765
       }
 
       const response = await fetch('/api/admin/sync/initial-load', {

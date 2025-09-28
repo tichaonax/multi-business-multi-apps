@@ -6,6 +6,7 @@
 import { EventEmitter } from 'events'
 import { PrismaClient } from '@prisma/client'
 import { PeerInfo } from './peer-discovery'
+import crypto from 'crypto'
 
 export interface SecurityConfig {
   registrationKey: string
@@ -495,7 +496,7 @@ export class SecurityManager extends EventEmitter {
    * Generate auth token
    */
   private async generateAuthToken(nodeId: string): Promise<string> {
-    const tokenId = crypto.randomUUID()
+    const tokenId = require('crypto').randomUUID()
     const now = new Date()
     const expiresAt = new Date(now.getTime() + this.TOKEN_VALIDITY_PERIOD)
 
@@ -686,6 +687,61 @@ export class SecurityManager extends EventEmitter {
    */
   private async storeRegistrationKey(key: string): Promise<void> {
     // Would implement secure key storage if needed
+  }
+
+  /**
+   * Shutdown security manager (alias for stop)
+   */
+  async shutdown(): Promise<void> {
+    this.stop()
+  }
+
+  /**
+   * Initialize security manager (alias for start)
+   */
+  async initialize(): Promise<void> {
+    await this.start()
+  }
+
+  /**
+   * Get audit logs
+   */
+  async getAuditLogs(limit: number = 100): Promise<SecurityAuditEntry[]> {
+    try {
+      const logs = await this.prisma.securityAudit.findMany({
+        where: { nodeId: this.nodeId },
+        orderBy: { timestamp: 'desc' },
+        take: limit
+      })
+
+      return logs.map(log => ({
+        auditId: log.auditId,
+        nodeId: log.nodeId,
+        eventType: log.eventType as SecurityAuditEntry['eventType'],
+        timestamp: log.timestamp,
+        sourceIp: log.sourceIp,
+        targetNodeId: log.targetNodeId || undefined,
+        errorMessage: log.errorMessage || undefined,
+        metadata: log.metadata
+      }))
+    } catch (error) {
+      console.error('Failed to get audit logs:', error)
+      return []
+    }
+  }
+
+  /**
+   * Revoke session
+   */
+  async revokeSession(sessionId: string): Promise<boolean> {
+    return await this.invalidateSession(sessionId)
+  }
+
+  /**
+   * Get active sessions
+   */
+  async getActiveSessions(): Promise<SecuritySession[]> {
+    return Array.from(this.activeSessions.values())
   }
 }
 

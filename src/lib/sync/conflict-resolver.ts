@@ -5,6 +5,7 @@
 
 import { PrismaClient, ConflictType, ResolutionStrategy } from '@prisma/client'
 import { ChangeEvent, VectorClock } from './change-tracker'
+import crypto from 'crypto'
 
 export interface ConflictResolutionRule {
   tableName: string
@@ -132,7 +133,7 @@ export class ConflictResolver {
   private async resolveByLastWriterWins(events: ChangeEvent[]): Promise<ConflictResolutionResult> {
     // Sort by Lamport clock (logical time), then by node priority as tiebreaker
     const sortedEvents = events.sort((a, b) => {
-      const timeDiff = Number(b.lamportClock - a.lamportClock)
+      const timeDiff = Number(BigInt(b.lamportClock) - BigInt(a.lamportClock))
       if (timeDiff !== 0) return timeDiff
 
       // Tiebreaker: use node priority
@@ -171,7 +172,7 @@ export class ConflictResolver {
       }
 
       // Same priority, use timestamp
-      return Number(b.lamportClock - a.lamportClock)
+      return Number(BigInt(b.lamportClock) - BigInt(a.lamportClock))
     })
 
     const winningEvent = sortedEvents[0]
@@ -200,7 +201,7 @@ export class ConflictResolver {
       return this.resolveByLastWriterWins(events)
     }
 
-    const [eventA, eventB] = events.sort((a, b) => Number(a.lamportClock - b.lamportClock))
+    const [eventA, eventB] = events.sort((a, b) => Number(BigInt(a.lamportClock) - BigInt(b.lamportClock)))
     const tableName = eventA.tableName
     const rule = this.resolutionRules.get(tableName)
 
@@ -305,7 +306,7 @@ export class ConflictResolver {
       if (a.score !== b.score) {
         return b.score - a.score
       }
-      return Number(b.event.lamportClock - a.event.lamportClock)
+      return Number(BigInt(b.event.lamportClock) - BigInt(a.event.lamportClock))
     })
 
     const winner = scoredEvents[0]
@@ -419,22 +420,23 @@ export class ConflictResolver {
     tableName: string
   ): Promise<void> {
     try {
-      await this.prisma.conflictResolution.create({
+      await this.prisma.conflict_resolutions.create({
         data: {
+          id: crypto.randomUUID(),
           conflictType,
-          tableName,
-          recordId: result.winningEvent.recordId,
-          winningEventId: result.winningEvent.eventId,
-          losingEventIds: result.losingEvents.map(e => e.eventId),
           resolutionStrategy: result.strategy,
-          resolvedByNodeId: this.nodeId,
-          resolutionData: result.mergedData || result.winningEvent.changeData,
-          autoResolved: !result.requiresHumanReview,
-          humanReviewed: false,
-          conflictMetadata: {
+          sourceEventId: result.winningEvent.eventId,
+          targetEventId: result.losingEvents[0]?.eventId,
+          resolvedData: result.mergedData || result.winningEvent.changeData,
+          resolvedBy: this.nodeId,
+          eventIds: result.losingEvents.map(e => e.eventId),
+          metadata: {
+            tableName,
+            recordId: result.winningEvent.recordId,
             confidence: result.confidence,
             resolutionNotes: result.resolutionNotes,
-            resolvedAt: new Date().toISOString()
+            autoResolved: !result.requiresHumanReview,
+            humanReviewed: false
           }
         }
       })
@@ -527,7 +529,7 @@ export class ConflictResolver {
    */
   async loadNodePriorities(): Promise<void> {
     try {
-      const nodes = await this.prisma.syncNode.findMany({
+      const nodes = await this.prisma.sync_nodes.findMany({
         where: { isActive: true },
         select: {
           nodeId: true,

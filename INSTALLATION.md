@@ -316,7 +316,7 @@ The Multi-Business Management Platform includes a sophisticated Windows service 
 2. **Set Environment Variables** (Important for Production):
    ```bash
    set SYNC_REGISTRATION_KEY=your-secure-production-key-here
-   set SYNC_PORT=3001
+   set SYNC_PORT=8765
    set SYNC_INTERVAL=30000
    set LOG_LEVEL=info
    set DATABASE_URL=postgresql://user:pass@host:5432/database
@@ -443,6 +443,158 @@ services:
     ports:
       - "3000:3000"
     environment:
+## Safe Windows Service Install (step-by-step)
+
+Important: the steps below modify Windows Services and should be run in a staging environment first. Commands that change system services require Administrator privileges.
+
+0) Open an elevated shell (PowerShell recommended)
+
+- Right-click Start → "Windows PowerShell (Admin)" or run:
+```powershell
+Start-Process PowerShell -Verb RunAs
+```
+
+1) Prepare environment variables and configuration
+
+PowerShell (temporary vars):
+```powershell
+$env:DATABASE_URL = "postgresql://user:pass@localhost:5432/mydb"
+$env:SYNC_REGISTRATION_KEY = "replace-with-secure-key"
+$env:SYNC_PORT = "8765"
+$env:HEALTH_PORT = "3002"
+```
+
+Bash (if you prefer):
+```bash
+export DATABASE_URL="postgresql://user:pass@localhost:5432/mydb"
+export SYNC_REGISTRATION_KEY="replace-with-secure-key"
+export SYNC_PORT=8765
+export HEALTH_PORT=3002
+```
+
+2) Backup DB and configs (SAFETY)
+
+Use the repository backup script if available:
+```bash
+npm run backup:database
+```
+
+Or create a pg_dump manually:
+```bash
+pg_dump "$DATABASE_URL" -F c -f ./backups/pre-install-$(date +%Y%m%d%H%M%S).dump
+```
+
+Also back up important config files:
+```bash
+cp config/service-config.json config/service-config.json.bak
+```
+
+3) Run non-destructive checks (safe)
+
+Skip DB precheck if you don't want to connect to the DB yet:
+```bash
+SKIP_DB_PRECHECK=true npm run service:smoke-check
+```
+
+Run the detailed diagnostic:
+```bash
+npm run service:diagnose
+# or via shim
+node scripts/service-cmd.js diagnose
+```
+
+4) Install the Windows service (Administrator required)
+
+Run this in the elevated PowerShell session:
+```powershell
+npm run service:install
+```
+
+What this does: registers the "Multi-Business Sync Service" and creates wrapper/daemon files. If it fails with permissions errors, make sure the shell is elevated.
+
+5) Verify installation and status (non-destructive)
+
+```bash
+npm run service:status
+# or
+npm run sync-service:status
+```
+
+Or use the Windows `sc` tool:
+```powershell
+sc query "Multi-Business Sync Service"
+```
+
+6) Start the service (Admin)
+
+```powershell
+npm run service:start
+# or
+sc start "Multi-Business Sync Service"
+```
+
+7) View logs
+
+PowerShell (tail):
+```powershell
+Get-Content -Path data\sync\sync-service.log -Tail 200 -Wait
+```
+
+Bash (tail):
+```bash
+tail -n 200 -f data/sync/sync-service.log
+```
+
+8) Stop and uninstall (Admin)
+
+```powershell
+npm run service:stop
+npm run service:uninstall
+```
+
+If the installer exposes `update`/`rollback` helpers, use them for safe updates:
+```bash
+npm run service:update
+# if needed
+npm run service:rollback
+```
+
+Troubleshooting quick checklist
+
+- If `service:install` fails: confirm Administrator privileges and check `Event Viewer` → Application/System logs.
+- If `sc start` fails: run `npm run service:diagnose` and inspect wrapper paths (`dist/service/sync-service-runner.js`).
+- If DB fails: verify `DATABASE_URL` and network connectivity, then run smoke-check without SKIP.
+
+Copyable summary (PowerShell elevated):
+```powershell
+# backup
+npm run backup:database
+
+# smoke-check
+$env:SKIP_DB_PRECHECK='true'; npm run service:smoke-check; Remove-Item Env:\SKIP_DB_PRECHECK
+
+# install (Admin)
+npm run service:install
+
+# status
+npm run service:status
+
+# start
+npm run service:start
+
+# view logs
+Get-Content -Path data\sync\sync-service.log -Tail 200 -Wait
+
+# stop
+npm run service:stop
+
+# uninstall (Admin)
+npm run service:uninstall
+```
+
+---
+
+If you'd like, I can add a PowerShell script `scripts/install-service-windows.ps1` that automates this flow (it would prompt for confirmation before each destructive step). I won't execute it without your go-ahead.
       - DATABASE_URL=postgresql://postgres:password@db:5432/business_platform
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=your-secret-key

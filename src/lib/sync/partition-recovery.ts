@@ -176,8 +176,8 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   async getRecoveryMetrics(): Promise<RecoveryMetrics> {
     try {
-      const sessions = await this.prisma.recoverySession.findMany({
-        where: { nodeId: this.nodeId },
+      const sessions = await this.prisma.sync_sessions.findMany({
+        where: { sourceNodeId: this.nodeId },
         orderBy: { startedAt: 'desc' }
       })
 
@@ -185,10 +185,10 @@ export class PartitionRecoveryService extends EventEmitter {
       const successful = sessions.filter(s => s.status === 'COMPLETED').length
       const failed = sessions.filter(s => s.status === 'FAILED').length
 
-      const completedSessions = sessions.filter(s => s.completedAt)
+      const completedSessions = sessions.filter(s => s.endedAt)
       const avgTime = completedSessions.length > 0
         ? completedSessions.reduce((sum, s) =>
-          sum + (s.completedAt!.getTime() - s.startedAt.getTime()), 0) / completedSessions.length
+          sum + (s.endedAt!.getTime() - s.startedAt.getTime()), 0) / completedSessions.length
         : 0
 
       // Analyze failure reasons
@@ -579,25 +579,26 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async loadActiveSessions(): Promise<void> {
     try {
-      const sessions = await this.prisma.recoverySession.findMany({
+      const sessions = await this.prisma.sync_sessions.findMany({
         where: {
-          nodeId: this.nodeId,
+          sourceNodeId: this.nodeId,
           status: 'RUNNING'
         }
       })
 
       for (const dbSession of sessions) {
+        const metadata = dbSession.metadata as any || {}
         const session: RecoverySession = {
           sessionId: dbSession.id,
-          partitionId: dbSession.partitionId,
-          strategy: dbSession.strategy,
+          partitionId: metadata.partitionId,
+          strategy: metadata.strategy,
           startedAt: dbSession.startedAt,
-          completedAt: dbSession.completedAt || undefined,
+          completedAt: dbSession.endedAt || undefined,
           status: dbSession.status as any,
-          progress: dbSession.progress,
-          currentStep: dbSession.currentStep,
+          progress: metadata.progress || 0,
+          currentStep: metadata.currentStep || '',
           errorMessage: dbSession.errorMessage || undefined,
-          recoveryMetrics: dbSession.recoveryMetrics as any || {
+          recoveryMetrics: metadata.recoveryMetrics || {
             eventsProcessed: 0,
             conflictsResolved: 0,
             dataRebuilt: 0,
@@ -617,17 +618,20 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async createRecoverySession(session: RecoverySession): Promise<void> {
     try {
-      await this.prisma.recoverySession.create({
+      await this.prisma.sync_sessions.create({
         data: {
           id: session.sessionId,
-          nodeId: this.nodeId,
-          partitionId: session.partitionId,
-          strategy: session.strategy,
+          sessionId: session.sessionId,
+          sourceNodeId: this.nodeId,
           startedAt: session.startedAt,
           status: session.status,
-          progress: session.progress,
-          currentStep: session.currentStep,
-          recoveryMetrics: session.recoveryMetrics
+          metadata: {
+            partitionId: session.partitionId,
+            strategy: session.strategy,
+            progress: session.progress,
+            currentStep: session.currentStep,
+            recoveryMetrics: session.recoveryMetrics
+          }
         }
       })
     } catch (error) {
@@ -640,15 +644,17 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async updateRecoverySession(session: RecoverySession): Promise<void> {
     try {
-      await this.prisma.recoverySession.update({
-        where: { id: session.sessionId },
+      await this.prisma.sync_sessions.update({
+        where: { sessionId: session.sessionId },
         data: {
           status: session.status,
-          progress: session.progress,
-          currentStep: session.currentStep,
-          completedAt: session.completedAt,
+          endedAt: session.completedAt,
           errorMessage: session.errorMessage,
-          recoveryMetrics: session.recoveryMetrics
+          metadata: {
+            progress: session.progress,
+            currentStep: session.currentStep,
+            recoveryMetrics: session.recoveryMetrics
+          }
         }
       })
     } catch (error) {

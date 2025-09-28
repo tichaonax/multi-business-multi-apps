@@ -156,7 +156,7 @@ async function main() {
   
   console.log(`\n🎉 Permission template creation complete!`);
   console.log(`📊 Total active templates: ${totalTemplates}`);
-  console.log(`🔗 Access templates at: http://localhost:3001/admin/permission-templates`);
+  console.log(`🔗 Access templates at: http://localhost:8765/admin/permission-templates`);
 }
 
 main()

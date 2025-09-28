@@ -108,12 +108,22 @@ class SyncSystemValidator {
 
   async validateSecurityManagerCreation(): Promise<void> {
     await this.runTest('SecurityManager Creation', async () => {
-      const securityManager = createSecurityManager({
-        nodeId: 'validation-security-node',
-        registrationKey: 'validation-security-key',
-        enableEncryption: true,
-        enableSignatures: true,
-      })
+      const prisma = new PrismaClient()
+      const securityManager = createSecurityManager(
+        prisma,
+        'validation-security-node',
+        {
+          registrationKey: 'validation-security-key',
+          enableEncryption: true,
+          enableSignatures: true,
+          keyRotationEnabled: false,
+          keyRotationInterval: 3600000,
+          sessionTimeout: 1800000,
+          maxFailedAttempts: 5,
+          rateLimitWindow: 60000,
+          rateLimitMaxRequests: 10
+        }
+      )
 
       if (!securityManager) {
         throw new Error('SecurityManager not created')
@@ -197,21 +207,35 @@ class SyncSystemValidator {
 
   async validateSecurityAuthentication(): Promise<void> {
     await this.runTest('Security Authentication', async () => {
-      const securityManager = createSecurityManager({
-        nodeId: 'auth-test-node',
-        registrationKey: 'auth-test-key',
-        enableEncryption: true,
-        enableSignatures: true,
-        auditEnabled: false, // Disable audit for this test
-      })
+      const prisma = new PrismaClient()
+      const securityManager = createSecurityManager(
+        prisma,
+        'auth-test-node',
+        {
+          registrationKey: 'auth-test-key',
+          enableEncryption: true,
+          enableSignatures: true,
+          keyRotationEnabled: false,
+          keyRotationInterval: 3600000,
+          sessionTimeout: 1800000,
+          maxFailedAttempts: 5,
+          rateLimitWindow: 60000,
+          rateLimitMaxRequests: 10
+        }
+      )
 
       await securityManager.initialize()
 
       // Test peer authentication with correct key
       const peer = {
         nodeId: 'test-peer',
-        address: '192.168.1.100',
-        port: 8080
+        nodeName: 'Test Peer',
+        ipAddress: '192.168.1.100',
+        port: 8080,
+        capabilities: [],
+        registrationKeyHash: '',
+        lastSeen: new Date(),
+        isAuthenticated: false
       }
 
       // Create correct key hash
@@ -241,13 +265,22 @@ class SyncSystemValidator {
 
   async validateDataEncryption(): Promise<void> {
     await this.runTest('Data Encryption', async () => {
-      const securityManager = createSecurityManager({
-        nodeId: 'encryption-test-node',
-        registrationKey: 'encryption-test-key',
-        enableEncryption: true,
-        enableSignatures: true,
-        auditEnabled: false,
-      })
+      const prisma = new PrismaClient()
+      const securityManager = createSecurityManager(
+        prisma,
+        'encryption-test-node',
+        {
+          registrationKey: 'encryption-test-key',
+          enableEncryption: true,
+          enableSignatures: true,
+          keyRotationEnabled: false,
+          keyRotationInterval: 3600000,
+          sessionTimeout: 1800000,
+          maxFailedAttempts: 5,
+          rateLimitWindow: 60000,
+          rateLimitMaxRequests: 10
+        }
+      )
 
       await securityManager.initialize()
 
@@ -261,19 +294,19 @@ class SyncSystemValidator {
 
       // Test encryption
       const encryptResult = await securityManager.encryptData(testData, sessionKey)
-      if (!encryptResult.success) {
-        throw new Error(`Encryption failed: ${encryptResult.errorMessage}`)
+      if (!encryptResult) {
+        throw new Error('Encryption failed: no result')
       }
 
-      if (!encryptResult.encryptedData || !encryptResult.signature) {
+      if (!encryptResult.encrypted || !encryptResult.signature) {
         throw new Error('Encrypted data or signature missing')
       }
 
       // Test decryption
       const decryptResult = await securityManager.decryptData(
-        encryptResult.encryptedData,
-        encryptResult.signature,
-        sessionKey
+        encryptResult.encrypted,
+        sessionKey,
+        encryptResult.signature
       )
 
       if (!decryptResult.success) {

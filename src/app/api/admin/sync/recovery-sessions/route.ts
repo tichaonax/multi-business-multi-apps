@@ -17,8 +17,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get recovery sessions
-    const sessions = await prisma.recoverySession.findMany({
+    // Get recovery sessions from sync sessions
+    const sessions = await prisma.sync_sessions.findMany({
+      where: {
+        metadata: {
+          path: ['partitionId'],
+          not: null
+        }
+      },
       orderBy: {
         startedAt: 'desc'
       },

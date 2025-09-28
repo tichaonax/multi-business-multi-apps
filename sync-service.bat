@@ -6,7 +6,7 @@ setlocal enabledelayedexpansion
 
 REM Set default environment variables if not already set
 if "%SYNC_REGISTRATION_KEY%"=="" set SYNC_REGISTRATION_KEY=default-registration-key-change-in-production
-if "%SYNC_PORT%"=="" set SYNC_PORT=3001
+if "%SYNC_PORT%"=="" set SYNC_PORT=8765
 if "%SYNC_INTERVAL%"=="" set SYNC_INTERVAL=30000
 if "%LOG_LEVEL%"=="" set LOG_LEVEL=info
 
@@ -81,7 +81,7 @@ echo   help     Show this help
 echo.
 echo Environment Variables:
 echo   SYNC_REGISTRATION_KEY  Registration key for secure peer discovery
-echo   SYNC_PORT              Port to run sync service on (default: 3001)
+echo   SYNC_PORT              Port to run sync service on (default: 8765)
 echo   SYNC_INTERVAL          Sync interval in milliseconds (default: 30000)
 echo   LOG_LEVEL              Log level: error, warn, info, debug (default: info)
 echo.

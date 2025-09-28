@@ -18,7 +18,7 @@ export async function GET(
     const user = session.user as SessionUser
     const { projectTypeId } = await params
 
-    const projectType = await prisma.projectType.findUnique({
+    const projectType = await prisma.project_types.findUnique({
       where: { id: projectTypeId }
     })
 
@@ -59,7 +59,7 @@ export async function PUT(
     const { name, description, isActive } = data
 
     // Find the existing project type
-    const existingProjectType = await prisma.projectType.findUnique({
+    const existingProjectType = await prisma.project_types.findUnique({
       where: { id: projectTypeId }
     })
 
@@ -97,7 +97,7 @@ export async function PUT(
 
     // Check for duplicate name (excluding current record)
     if (name !== existingProjectType.name) {
-      const duplicateProjectType = await prisma.projectType.findFirst({
+      const duplicateProjectType = await prisma.project_types.findFirst({
         where: {
           name,
           businessType: existingProjectType.businessType,
@@ -113,7 +113,7 @@ export async function PUT(
       }
     }
 
-    const updatedProjectType = await prisma.projectType.update({
+    const updatedProjectType = await prisma.project_types.update({
       where: { id: projectTypeId },
       data: {
         name,
@@ -155,7 +155,7 @@ export async function DELETE(
     const { projectTypeId } = await params
 
     // Find the existing project type
-    const existingProjectType = await prisma.projectType.findUnique({
+    const existingProjectType = await prisma.project_types.findUnique({
       where: { id: projectTypeId }
     })
 
@@ -203,7 +203,7 @@ export async function DELETE(
       }, { status: 400 })
     }
 
-    await prisma.projectType.delete({
+    await prisma.project_types.delete({
       where: { id: projectTypeId }
     })
 

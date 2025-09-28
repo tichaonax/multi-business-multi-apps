@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all unique category IDs for lookup
     const categoryIds = [...new Set(personalExpenses.map(expense => expense.category).filter(Boolean))]
-    const categories = await prisma.expenseCategory.findMany({
+    const categories = await prisma.expense_categories.findMany({
       where: { id: { in: categoryIds } }
     })
     const categoryMap = new Map(categories.map(cat => [cat.id, cat]))

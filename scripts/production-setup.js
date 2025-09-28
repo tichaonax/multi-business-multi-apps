@@ -77,9 +77,17 @@ function resolveModelName(modelName, remap = {}) {
   // Default internal remaps for legacy seeder names that no longer match
   // current Prisma model names. These can be overridden by --remap.
   const DEFAULT_MODEL_REMAP = {
-    phoneNumberTemplate: 'idFormatTemplate',
-    dateFormatTemplate: 'idFormatTemplate',
-    personalCategory: 'expenseCategory'
+    phoneNumberTemplate: 'id_format_templates',
+    dateFormatTemplate: 'id_format_templates',
+    personalCategory: 'expense_categories',
+    // Map camelCase model names to snake_case
+    idFormatTemplate: 'id_format_templates',
+    driverLicenseTemplate: 'driver_license_templates',
+    jobTitle: 'job_titles',
+    compensationType: 'compensation_types',
+    benefitType: 'benefit_types',
+    projectType: 'project_types',
+    expenseCategory: 'expense_categories'
   }
 
   if (DEFAULT_MODEL_REMAP[modelName]) return DEFAULT_MODEL_REMAP[modelName]

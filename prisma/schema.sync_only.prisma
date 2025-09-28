@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Sync subsystem models (minimal schema containing only sync models)
+
+model SyncEvent {
+  eventId       String   @id @default(uuid())
+  sourceNodeId  String
+  tableName     String
+  recordId      String
+  operation     String
+  changeData    Json
+  beforeData    Json?
+  vectorClock   Json?
+  lamportClock  String?
+  checksum      String?
+  priority      Int      @default(5)
+  metadata      Json?
+  processed     Boolean  @default(false)
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  @@map("sync_events")
+}
+
+model SyncConfiguration {
+  id                 String   @id @default(uuid())
+  nodeId             String   @unique
+  registrationKeyHash String?
+  lastConfigUpdate   DateTime?
+  configMetadata     Json?
+  createdAt          DateTime @default(now())
+
+  @@map("sync_configurations")
+}
+
+model SyncNode {
+  id               String  @id @default(uuid())
+  nodeId           String  @unique
+  nodeName         String
+  ipAddress        String?
+  port             Int?
+  registrationKey  String?
+  publicKey        String?
+  isActive         Boolean @default(true)
+  lastSeen         DateTime @default(now())
+  nodeVersion      String?
+  databaseVersion  String?
+  platformInfo     Json?
+  capabilities     Json?
+  createdAt        DateTime @default(now())
+
+  @@map("sync_nodes")
+}
+
+model SyncSession {
+  id          String   @id @default(uuid())
+  sourceNodeId String
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  status      String   @default("PENDING")
+  errorMessage String?
+  createdAt   DateTime @default(now())
+
+  @@map("sync_sessions")
+}
+
+model SyncMetrics {
+  id                 String   @id @default(uuid())
+  nodeId             String
+  metricDate         DateTime
+  eventsGenerated    Int      @default(0)
+  eventsReceived     Int      @default(0)
+  eventsProcessed    Int      @default(0)
+  eventsFailed       Int      @default(0)
+  conflictsDetected  Int      @default(0)
+  conflictsResolved  Int      @default(0)
+  syncLatencyMs      Int?
+  networkLatencyMs   Int?
+  dataTransferredBytes BigInt?
+  peersConnected     Int?     @default(0)
+  peersDiscovered    Int?     @default(0)
+  createdAt          DateTime @default(now())
+
+  @@unique([nodeId, metricDate], map: "nodeId_metricDate")
+  @@map("sync_metrics")
+}
+
+model NetworkPartition {
+  id                 String   @id
+  nodeId             String
+  partitionType      String
+  startTime          DateTime
+  detectedAt         DateTime
+  isResolved         Boolean  @default(false)
+  endTime            DateTime?
+  partitionMetadata  Json?
+  resolutionMetadata Json?
+  createdAt          DateTime @default(now())
+
+  @@map("network_partitions")
+}
+
+model OfflineQueue {
+  id          String  @id
+  nodeId      String
+  eventId     String
+  tableName   String
+  recordId    String
+  operation   String
+  changeData  Json
+  beforeData  Json?
+  queuedAt    DateTime @default(now())
+  priority    Int      @default(5)
+  retryCount  Int      @default(0)
+  lastAttempt DateTime?
+  errorMessage String?
+  dependencies Json?
+  isProcessed Boolean @default(false)
+
+  @@map("offline_queue")
+}
+
+model ConflictResolution {
+  id         String @id @default(uuid())
+  eventIds   String[]
+  resolution Json?
+  strategy   String?
+  createdAt  DateTime @default(now())
+
+  @@map("conflict_resolutions")
+}

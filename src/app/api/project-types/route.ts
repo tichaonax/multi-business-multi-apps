@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       whereClause.isActive = true
     }
 
-    const projectTypes = await prisma.projectType.findMany({
+    const projectTypes = await prisma.project_types.findMany({
       where: whereClause,
       orderBy: [
         { businessType: 'asc' },
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate name within the business type
-    const existingProjectType = await prisma.projectType.findFirst({
+    const existingProjectType = await prisma.project_types.findFirst({
       where: {
         name,
         businessType
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const newProjectType = await prisma.projectType.create({
+    const newProjectType = await prisma.project_types.create({
       data: {
         name,
         description: description || null,
