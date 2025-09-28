@@ -15,6 +15,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -44,3 +45,25 @@ next-env.d.ts
 logs
 *.log
 /generated/prisma
+
+# build artifacts and service files
+/dist
+/windows-service/daemon/*.exe
+/windows-service/daemon/*.pid
+/windows-service/daemon/*.log
+
+# environment and config files
+.env
+.env.local
+.env.production.local
+.env.development.local
+/.claude/settings.local.json
+
+# temporary and office files
+*.odt
+*.~lock.*
+/nul
+services_list.txt
+
+# SQL utility scripts (temporary)
+add_missing_sync_tables.sql
