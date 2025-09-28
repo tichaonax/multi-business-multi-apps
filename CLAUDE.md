@@ -1,5 +1,31 @@
 # Claude Code Workflow
 
+## Database ORM Policy
+
+**CRITICAL:** This project uses Prisma exclusively. Do NOT use Drizzle ORM.
+
+### Prisma Only
+- **Database Schema**: Use `prisma/schema.prisma` for all database models
+- **Database Client**: Use `@prisma/client` for all database operations
+- **Migrations**: Use `npx prisma migrate` commands only
+- **Code Generation**: Use `npx prisma generate` only
+
+### Prohibited: Drizzle ORM
+- ❌ Never use `drizzle-kit` commands
+- ❌ Never import from `drizzle-orm`
+- ❌ Never create `drizzle.config.ts` files
+- ❌ Never use Drizzle schema definitions
+
+### Available Scripts
+```bash
+npm run db:generate    # Prisma client generation
+npm run db:migrate     # Development migrations
+npm run db:deploy      # Production migrations
+npm run db:studio      # Database GUI
+npm run db:reset       # Reset database
+npm run db:pull        # Pull schema from database
+npm run db:push        # Push schema to database
+```
 ## Standard Workflow
 1. First think through the problem, read the codebase for relevant files, and write a plan to projectplan.md.
 2. The plan should have a list of todo items that you can check off as you complete them
@@ -16,7 +42,11 @@
 Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess -Force
 ```
 
-**Default development port:** 8080 (use this going forward to avoid conflicts with electricity-tokens app on port 3000/3001)
+**Default development port:** 8080 (use this going forward to avoid conflicts with other local apps)
+
+**Port notes:**
+- The electricity-tokens app commonly uses port 3000 (and in some setups 3001).
+- The sync service default was changed from 3001 to 8765 to avoid that conflict — prefer 8765 for the sync service when running locally or as a Windows service.
 
 **Note:** The PowerShell command only works on Windows. It kills ALL associated processes for the port automatically, which is much more effective than killing individual processes. For other platforms, use standard process management commands.
 

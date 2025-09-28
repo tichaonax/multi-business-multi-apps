@@ -5,11 +5,22 @@
  * Based on electricity-tokens service architecture
  */
 
+// Load environment variables from .env.local and .env files
+import dotenv from 'dotenv'
+import path from 'path'
+
+// Load .env.local first (higher priority), then .env
+dotenv.config({ path: path.join(process.cwd(), '.env.local') })
+dotenv.config({ path: path.join(process.cwd(), '.env') })
+
 import { createSyncService, getDefaultSyncConfig, SyncServiceConfig } from '../lib/sync/sync-service'
 import { generateNodeId } from '../lib/sync/database-hooks'
-import path from 'path'
 import fs from 'fs'
 import { hostname } from 'os'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 interface ServiceConfiguration extends SyncServiceConfig {
   autoRestart: boolean
@@ -38,7 +49,7 @@ class SyncServiceRunner {
       nodeId: generateNodeId(),
       nodeName: `sync-node-${hostname()}`,
       registrationKey: process.env.SYNC_REGISTRATION_KEY || 'default-registration-key-change-in-production',
-      port: parseInt(process.env.SYNC_PORT || '3001'),
+  port: parseInt(process.env.SYNC_PORT || '8765'),
       syncInterval: parseInt(process.env.SYNC_INTERVAL || '30000'),
       enableAutoStart: true,
       logLevel: (process.env.LOG_LEVEL as any) || 'info',
@@ -82,9 +93,72 @@ class SyncServiceRunner {
   }
 
   /**
+   * Run database migrations and seeding
+   */
+  private async runDatabaseSetup(): Promise<void> {
+    try {
+      console.log('🗄️  Running database migrations...')
+
+      // Run migrations
+      await execAsync('npx prisma migrate deploy', {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      })
+      console.log('✅ Database migrations completed')
+
+      // Verify critical tables exist before proceeding
+      await this.verifyDatabaseSchema()
+
+      // Run seeding
+      console.log('🌱 Seeding reference data...')
+      await execAsync('npm run seed:migration', {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      })
+      console.log('✅ Database seeding completed')
+
+    } catch (error) {
+      console.error('❌ Database setup failed:', error instanceof Error ? error.message : error)
+      console.log('💥 Sync service cannot start without a properly configured database')
+      throw new Error(`Database setup failed: ${error instanceof Error ? error.message : error}`)
+    }
+  }
+
+  /**
+   * Verify that critical database tables exist before starting sync service
+   */
+  private async verifyDatabaseSchema(): Promise<void> {
+    try {
+      console.log('🔍 Verifying database schema...')
+
+      // Try to access the sync_nodes table that the sync service requires
+      await execAsync('npx prisma db pull --force', {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      })
+
+      // Test that we can connect to the database and access key tables
+      const { PrismaClient } = await import('@prisma/client')
+      const prisma = new PrismaClient()
+
+      try {
+        // Try to query a critical table that sync service needs
+        await prisma.$queryRaw`SELECT 1 FROM information_schema.tables WHERE table_name = 'sync_nodes' LIMIT 1`
+        console.log('✅ Database schema verification completed')
+      } finally {
+        await prisma.$disconnect()
+      }
+
+    } catch (error) {
+      console.error('❌ Database schema verification failed:', error instanceof Error ? error.message : error)
+      throw new Error(`Database schema is not ready: ${error instanceof Error ? error.message : error}`)
+    }
+  }
+
+  /**
    * Start the sync service
    */
-  async start(): Promise<void> {
+  async start(options: { forceBuild?: boolean } = {}): Promise<void> {
     try {
       console.log(`Starting Sync Service: ${this.config.nodeName}`)
       console.log(`Node ID: ${this.config.nodeId}`)
@@ -94,6 +168,20 @@ class SyncServiceRunner {
 
       if (!this.config.registrationKey || this.config.registrationKey === 'default-registration-key-change-in-production') {
         console.warn('⚠️  WARNING: Using default registration key! Change SYNC_REGISTRATION_KEY environment variable for production.')
+      }
+
+      // Check if build is needed (with force-build override) - BEFORE database setup
+      if (await this.isBuildRequired(options.forceBuild)) {
+        await this.forceBuild()
+      }
+
+      // Run database setup after build
+      if (process.env.SKIP_SYNC_RUNNER_MIGRATIONS !== 'true') {
+        await this.runDatabaseSetup()
+      } else {
+        console.log('🔄 Skipping database setup (handled by service wrapper)')
+        // Still verify schema is ready
+        await this.verifyDatabaseSchema()
       }
 
       this.service = createSyncService(this.config)
@@ -269,6 +357,213 @@ class SyncServiceRunner {
       await this.service.forceSync()
     }
   }
+
+  /**
+   * Check if TypeScript build is required using git commit tracking
+   */
+  private async isBuildRequired(forceBuild: boolean = false): Promise<boolean> {
+    try {
+      console.log('🔍 Checking if build is required...')
+
+      // Force build flag overrides all checks
+      if (forceBuild) {
+        console.log('🔨 Force build requested - skipping build detection')
+        return true
+      }
+
+      const fs = require('fs')
+      const path = require('path')
+
+      // Check if dist directory exists
+      const distPath = path.join(process.cwd(), 'dist/service')
+      console.log(`🔍 Checking dist directory: ${distPath}`)
+      if (!fs.existsSync(distPath)) {
+        console.log('🔍 Build required: dist directory missing')
+        return true
+      }
+
+      // Check if main service file exists
+      const mainServiceFile = path.join(distPath, 'sync-service-runner.js')
+      console.log(`🔍 Checking main service file: ${mainServiceFile}`)
+      if (!fs.existsSync(mainServiceFile)) {
+        console.log('🔍 Build required: main service file missing')
+        return true
+      }
+
+      // Check for build info file
+      const buildInfoFile = path.join(distPath, 'build-info.json')
+      console.log(`🔍 Checking build info file: ${buildInfoFile}`)
+      if (!fs.existsSync(buildInfoFile)) {
+        console.log('🔍 Build required: no build info file found')
+        return true
+      }
+
+      // Get current git commit
+      const currentCommit = await this.getCurrentGitCommit()
+
+      // Get last build commit
+      const lastBuildCommit = this.getLastBuildCommit(buildInfoFile)
+
+      // If we can't determine current commit but have build info, be conservative
+      if (!currentCommit) {
+        if (lastBuildCommit) {
+          console.log('⚠️  Cannot determine current commit but build info exists - assuming build is current')
+          return false
+        } else {
+          console.log('🔍 Build required: no git access and no build commit info')
+          return true
+        }
+      }
+
+      // If we have current commit but no last build commit, rebuild
+      if (!lastBuildCommit) {
+        console.log('🔍 Build required: current commit detected but no last build commit info')
+        return true
+      }
+
+      // If commits are different, rebuild needed
+      if (currentCommit !== lastBuildCommit) {
+        console.log(`🔍 Build required: code changes detected ${lastBuildCommit.substring(0, 8)} → ${currentCommit.substring(0, 8)}`)
+        return true
+      }
+
+      // All checks passed - commits match
+      console.log(`✅ Build not required: both at commit ${currentCommit.substring(0, 8)}`)
+      return false
+    } catch (error) {
+      console.log('🔍 Build required: error checking build status, building to be safe')
+      return true
+    }
+  }
+
+  /**
+   * Get current git commit using multiple methods
+   */
+  private async getCurrentGitCommit(): Promise<string | null> {
+    try {
+      const fs = require('fs')
+      const path = require('path')
+
+      // Method 1: Try reading from .git/HEAD directly
+      const gitHeadFile = path.join(process.cwd(), '.git', 'HEAD')
+      if (fs.existsSync(gitHeadFile)) {
+        try {
+          const headContent = fs.readFileSync(gitHeadFile, 'utf8').trim()
+          if (headContent.startsWith('ref: ')) {
+            // It's a reference, read the actual commit
+            const refPath = headContent.substring(5)
+            const refFile = path.join(process.cwd(), '.git', refPath)
+            if (fs.existsSync(refFile)) {
+              const commit = fs.readFileSync(refFile, 'utf8').trim()
+              if (commit && commit.length === 40) {
+                return commit
+              }
+            }
+          } else if (headContent.length === 40) {
+            // It's a direct commit hash
+            return headContent
+          }
+        } catch (err) {
+          // Continue to other methods
+        }
+      }
+
+      // Method 2: Try git command
+      try {
+        const { execSync } = require('child_process')
+        const commit = execSync('git rev-parse HEAD', {
+          cwd: process.cwd(),
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim()
+
+        if (commit && commit.length === 40) {
+          return commit
+        }
+      } catch (err) {
+        // Git command failed, continue
+      }
+
+      return null
+    } catch (error) {
+      return null
+    }
+  }
+
+  /**
+   * Get last build commit from build info file
+   */
+  private getLastBuildCommit(buildInfoFile: string): string | null {
+    try {
+      const fs = require('fs')
+      if (fs.existsSync(buildInfoFile)) {
+        const buildInfo = JSON.parse(fs.readFileSync(buildInfoFile, 'utf8'))
+        return buildInfo.gitCommit
+      }
+    } catch (err) {
+      // Ignore errors
+    }
+    return null
+  }
+
+  /**
+   * Force TypeScript build compilation
+   */
+  async forceBuild(): Promise<void> {
+    try {
+      console.log('🔨 Building TypeScript files...')
+      await execAsync('npx tsc --project tsconfig.service.json', {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      })
+      console.log('✅ TypeScript build completed successfully')
+
+      // Create build-info.json to track build state
+      await this.createBuildInfo()
+
+    } catch (error) {
+      console.error('❌ TypeScript build failed:', error instanceof Error ? error.message : error)
+      throw new Error(`Build failed: ${error instanceof Error ? error.message : error}`)
+    }
+  }
+
+  /**
+   * Create build-info.json file with current git commit and timestamp
+   */
+  private async createBuildInfo(): Promise<void> {
+    try {
+      const fs = require('fs')
+      const path = require('path')
+
+      // Ensure dist/service directory exists
+      const distPath = path.join(process.cwd(), 'dist/service')
+      if (!fs.existsSync(distPath)) {
+        fs.mkdirSync(distPath, { recursive: true })
+        console.log('📁 Created dist/service directory')
+      }
+
+      // Get current git commit
+      const currentCommit = await this.getCurrentGitCommit()
+
+      // Create build info
+      const buildInfo = {
+        buildTimestamp: new Date().toISOString(),
+        gitCommit: currentCommit,
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch
+      }
+
+      const buildInfoFile = path.join(distPath, 'build-info.json')
+      fs.writeFileSync(buildInfoFile, JSON.stringify(buildInfo, null, 2))
+
+      console.log(`📝 Created build-info.json with commit: ${currentCommit ? currentCommit.substring(0, 8) : 'unknown'}`)
+
+    } catch (error) {
+      console.warn('⚠️  Warning: Could not create build-info.json:', error instanceof Error ? error.message : error)
+      // Don't fail the build if we can't create build info
+    }
+  }
 }
 
 // CLI Command handling
@@ -276,11 +571,17 @@ async function main() {
   const args = process.argv.slice(2)
   const command = args[0] || 'start'
 
+  // Parse flags
+  const flags = {
+    forceBuild: args.includes('--force-build') || args.includes('-f'),
+    verbose: args.includes('--verbose') || args.includes('-v')
+  }
+
   const runner = new SyncServiceRunner()
 
   switch (command) {
     case 'start':
-      await runner.start()
+      await runner.start({ forceBuild: flags.forceBuild })
       break
 
     case 'stop':
@@ -312,9 +613,14 @@ async function main() {
       console.log('Manual sync triggered')
       break
 
+    case 'build':
+      await runner.forceBuild()
+      console.log('TypeScript build completed')
+      break
+
     case 'help':
     default:
-      console.log('Usage: node sync-service-runner.js [command]')
+      console.log('Usage: node sync-service-runner.js [command] [flags]')
       console.log('')
       console.log('Commands:')
       console.log('  start    Start the sync service (default)')
@@ -322,11 +628,21 @@ async function main() {
       console.log('  restart  Restart the sync service')
       console.log('  status   Show service status')
       console.log('  sync     Force manual sync')
+      console.log('  build    Force TypeScript build compilation')
       console.log('  help     Show this help')
+      console.log('')
+      console.log('Flags:')
+      console.log('  --force-build, -f      Force TypeScript build before starting service')
+      console.log('  --verbose, -v          Enable verbose output')
+      console.log('')
+      console.log('Examples:')
+      console.log('  node sync-service-runner.js start --force-build')
+      console.log('  node sync-service-runner.js start -f')
+      console.log('  node sync-service-runner.js build')
       console.log('')
       console.log('Environment Variables:')
       console.log('  SYNC_REGISTRATION_KEY  Registration key for secure peer discovery')
-      console.log('  SYNC_PORT              Port to run sync service on (default: 3001)')
+      console.log('  SYNC_PORT              Port to run sync service on (default: 8765)')
       console.log('  SYNC_INTERVAL          Sync interval in milliseconds (default: 30000)')
       console.log('  LOG_LEVEL              Log level: error, warn, info, debug (default: info)')
       break
