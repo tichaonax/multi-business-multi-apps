@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { randomUUID } from 'crypto';
 
 export async function POST(_request: NextRequest) {
   try {
@@ -46,6 +47,7 @@ export async function POST(_request: NextRequest) {
       if (!existingBusiness) {
         const business = await prisma.business.create({
           data: {
+            id: randomUUID(),
             name: businessData.name,
             type: businessData.type || 'other',
             description: businessData.description || null,
@@ -78,6 +80,7 @@ export async function POST(_request: NextRequest) {
         const passwordHash = `seeded-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const user = await prisma.user.create({
           data: {
+            id: randomUUID(),
             name: userData.name,
             email: userData.email,
             role: userData.role || 'user',
@@ -108,6 +111,7 @@ export async function POST(_request: NextRequest) {
       if (!existingMembership) {
         await prisma.businessMembership.create({
           data: {
+            id: randomUUID(),
             userId: user.id,
             businessId: business.id,
             role: user.role,
@@ -160,6 +164,11 @@ export async function POST(_request: NextRequest) {
     ];
 
     let employeeCount = 0;
+    // Check for required reference data before creating employees (avoid FK failures)
+    const compType = await prisma.compensationType.findFirst();
+    const jobTitle = await prisma.jobTitle.findFirst();
+    const canCreateEmployees = Boolean(compType && jobTitle);
+
     for (let businessIndex = 0; businessIndex < businesses.length; businessIndex++) {
       const business = businesses[businessIndex];
 
@@ -185,41 +194,55 @@ export async function POST(_request: NextRequest) {
         });
 
         if (!existingEmployee) {
-          try {
-            const employee = await prisma.employee.create({
-              data: {
-                employeeNumber,
-                fullName: employeeData.fullName + ` ${employeeCount + 1}`,
-                email: uniqueEmail,
-                phone: employeeData.phone.slice(0, -3) + String(employeeCount + 100).slice(-3),
-                nationalId: employeeData.nationalId.slice(0, -3) + String(employeeCount + 100).slice(-3),
-                primaryBusinessId: business.id,
-                isActive: true,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }
-            });
-
-            // Try to create an employee contract but don't fail the whole seeding run if contract creation doesn't match schema
+          if (!canCreateEmployees) {
+            console.warn('Skipping employee creation; missing compensation types or job titles')
+          } else {
             try {
-              await prisma.employeeContract.create({
+              const [firstName, ...rest] = employeeData.fullName.split(' ')
+              const lastName = rest.join(' ') || ''
+              const employee = await prisma.employee.create({
                 data: {
-                  employeeId: employee.id,
-                  businessId: business.id,
-                  // Map to known field where possible; baseSalary is the property in schema
-                  baseSalary: employeeData.salary,
-                  startDate: new Date(),
-                  updatedAt: new Date(),
+                  id: randomUUID(),
+                  employeeNumber,
+                  fullName: employeeData.fullName + ` ${employeeCount + 1}`,
+                  firstName,
+                  lastName,
+                  email: uniqueEmail,
+                  phone: employeeData.phone.slice(0, -3) + String(employeeCount + 100).slice(-3),
+                  nationalId: employeeData.nationalId.slice(0, -3) + String(employeeCount + 100).slice(-3),
+                  primaryBusinessId: business.id,
+                  compensationTypeId: compType!.id,
+                  jobTitleId: jobTitle!.id,
+                  hireDate: new Date(),
+                  isActive: true,
                   createdAt: new Date(),
-                  contractStatus: 'active' as any,
+                  updatedAt: new Date(),
                 }
               });
-            } catch (contractErr) {
-              // Log and continue; some environments may have stricter schema constraints
-              console.warn('Skipping employee contract creation due to error:', contractErr?.message || contractErr);
+
+              // Create an employee contract with required FK references
+              try {
+                await prisma.employeeContract.create({
+                  data: {
+                    id: randomUUID(),
+                    employeeId: employee.id,
+                    primaryBusinessId: business.id,
+                    contractNumber: `CT-${employeeNumber}`,
+                    baseSalary: employeeData.salary,
+                    compensationTypeId: compType!.id,
+                    jobTitleId: jobTitle!.id,
+                    startDate: new Date(),
+                    updatedAt: new Date(),
+                    createdAt: new Date(),
+                    status: 'active',
+                  }
+                });
+              } catch (contractErr) {
+                console.warn('Skipping employee contract creation due to error:', String(contractErr));
+              }
+            } catch (empErr) {
+              console.warn('Skipping employee creation due to error:', String(empErr));
             }
-          } catch (empErr) {
-            console.warn('Skipping employee creation due to error:', empErr?.message || empErr);
           }
         }
 
@@ -243,10 +266,10 @@ export async function POST(_request: NextRequest) {
         contracts: totalContracts,
         memberships: totalMemberships,
         businessTypes: {
-          construction: await prisma.business.count({ where: { businessType: 'construction' } }),
-          restaurant: await prisma.business.count({ where: { businessType: 'restaurant' } }),
-          grocery: await prisma.business.count({ where: { businessType: 'grocery' } }),
-          clothing: await prisma.business.count({ where: { businessType: 'clothing' } }),
+          construction: await prisma.business.count({ where: { type: 'construction' } }),
+          restaurant: await prisma.business.count({ where: { type: 'restaurant' } }),
+          grocery: await prisma.business.count({ where: { type: 'grocery' } }),
+          clothing: await prisma.business.count({ where: { type: 'clothing' } }),
         }
       }
     });
