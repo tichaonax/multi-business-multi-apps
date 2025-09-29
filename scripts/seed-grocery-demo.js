@@ -2,10 +2,12 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 async function upsertCategory(businessId, name, description) {
+  const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '')
+  const id = `${businessId}-cat-${slug}`
   return prisma.businessCategory.upsert({
     where: { businessId_name: { businessId, name } },
     update: { description },
-    create: { businessId, name, description, businessType: 'grocery' }
+    create: { id, businessId, name, description, businessType: 'grocery', updatedAt: new Date() }
   })
 }
 
@@ -14,10 +16,12 @@ async function createProductWithStock(businessId, categoryId, productData, initi
 
   // Prefer upsert by sku (there is a unique constraint @@unique([businessId, sku]))
   if (productData.sku) {
+    const prodId = `${businessId}-prod-${productData.sku}`
     product = await prisma.businessProduct.upsert({
       where: { businessId_sku: { businessId, sku: productData.sku } },
       update: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {} },
       create: {
+        id: prodId,
         businessId,
         name: productData.name,
         description: productData.description || '',
@@ -28,9 +32,10 @@ async function createProductWithStock(businessId, categoryId, productData, initi
         costPrice: productData.costPrice || null,
         businessType: 'grocery',
         isActive: true,
-        attributes: productData.attributes || {}
+        attributes: productData.attributes || {},
+        updatedAt: new Date()
       },
-      include: { category: true }
+    include: { businessCategory: true }
     })
   } else {
     // No sku provided: try finding by businessId+name, then update or create
@@ -38,30 +43,36 @@ async function createProductWithStock(businessId, categoryId, productData, initi
     if (existing) {
       product = await prisma.businessProduct.update({ where: { id: existing.id }, data: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {} } })
     } else {
-      product = await prisma.businessProduct.create({ data: { businessId, name: productData.name, description: productData.description || '', sku: null, barcode: productData.barcode || null, categoryId: categoryId || undefined, basePrice: productData.basePrice, costPrice: productData.costPrice || null, businessType: 'grocery', isActive: true, attributes: productData.attributes || {} } })
+      const prodId = `${businessId}-prod-${productData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '')}`
+      product = await prisma.businessProduct.create({ data: { id: prodId, businessId, name: productData.name, description: productData.description || '', sku: null, barcode: productData.barcode || null, categoryId: categoryId || undefined, basePrice: productData.basePrice, costPrice: productData.costPrice || null, businessType: 'grocery', isActive: true, attributes: productData.attributes || {}, updatedAt: new Date() } })
     }
   }
 
   // Create default variant (idempotent by sku)
   const variantSku = productData.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-DFT`
+  const variantId = `${product.id}-variant-default`
   const variant = await prisma.productVariant.upsert({
     where: { sku: variantSku },
     update: { price: productData.basePrice, stockQuantity: initialStock || 0, isActive: true },
     create: {
+      id: variantId,
       productId: product.id,
       name: 'Default',
       sku: variantSku,
       barcode: productData.barcode || null,
       price: productData.basePrice,
       stockQuantity: initialStock || 0,
-      isActive: true
+      isActive: true,
+      updatedAt: new Date()
     }
   })
 
   // If initial stock specified, create a stock movement
   if (initialStock && initialStock > 0) {
-    await prisma.businessStockMovement.create({
-      data: {
+    const movementId = `${variant.id}-stock-1`
+    await prisma.businessStockMovement.createMany({
+      data: [{
+        id: movementId,
         businessId,
         productVariantId: variant.id,
         movementType: 'PURCHASE_RECEIVED',
@@ -70,19 +81,21 @@ async function createProductWithStock(businessId, categoryId, productData, initi
         reference: 'Seed initial stock',
         reason: 'Initial demo stock',
         businessType: 'grocery',
-        businessProductId: product.id
-      }
+        businessProductId: product.id,
+        createdAt: new Date()
+      }],
+      skipDuplicates: true
     })
 
     await prisma.productVariant.update({ where: { id: variant.id }, data: { stockQuantity: initialStock } })
   }
 
   // Create product attributes
-  if (productData.attributes) {
-    const attrData = Object.entries(productData.attributes).map(([key, value]) => ({ productId: product.id, key, value: String(value) }))
+    if (productData.attributes) {
+    const attrData = Object.entries(productData.attributes).map(([key, value], idx) => ({ id: `${product.id}-attr-${idx}-${key}`, productId: product.id, key, value: String(value) }))
     // Upsert naive: delete existing attributes for this product and recreate for idempotence
     await prisma.productAttribute.deleteMany({ where: { productId: product.id } }).catch(() => {})
-    if (attrData.length > 0) await prisma.productAttribute.createMany({ data: attrData })
+    if (attrData.length > 0) await prisma.productAttribute.createMany({ data: attrData, skipDuplicates: true })
   }
 
   return { product, variant }
@@ -94,11 +107,12 @@ async function seed() {
 
     console.log('Seeding grocery demo data for', businessId)
 
-    // Ensure business exists
-    const business = await prisma.business.findUnique({ where: { id: businessId } })
+    // Ensure business exists (create placeholder if missing)
+    let business = await prisma.business.findUnique({ where: { id: businessId } })
+    const now = new Date()
     if (!business) {
-      console.error('Business not found:', businessId)
-      process.exit(1)
+      business = await prisma.business.create({ data: { id: businessId, name: 'Grocery Demo', type: 'grocery', description: 'Auto-created for demo', isActive: true, createdAt: now, updatedAt: now } })
+      console.log('Created placeholder business for grocery demo:', businessId)
     }
 
     // Categories

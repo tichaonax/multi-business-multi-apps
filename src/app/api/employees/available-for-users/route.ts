@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
     if (businessId) {
       whereClause.OR = [
         { primaryBusinessId: businessId },
-        { 
-          employeeBusinessAssignments: {
+        {
+          employee_business_assignments: {
             some: {
               businessId: businessId,
               isActive: true
@@ -74,17 +74,17 @@ export async function GET(req: NextRequest) {
             level: true
           }
         },
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,
             type: true
           }
         },
-        employeeBusinessAssignments: {
+        employee_business_assignments: {
           where: { isActive: true },
           select: {
-            business: {
+            businesses: {
               select: {
                 id: true,
                 name: true,
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
         { fullName: 'asc' }
       ],
       take: limit
-    });
+    }) as any;
 
     // Format response
     const formattedEmployees = employees.map(employee => ({
@@ -116,17 +116,17 @@ export async function GET(req: NextRequest) {
       isActive: employee.isActive,
       hireDate: employee.hireDate,
       jobTitle: {
-        title: employee.jobTitles.title,
-        department: employee.jobTitles.department,
-        level: employee.jobTitles.level
+        title: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.title || null) : (employee.jobTitles?.title || null),
+        department: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.department || null) : (employee.jobTitles?.department || null),
+        level: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.level || null) : (employee.jobTitles?.level || null)
       },
       primaryBusiness: {
-        id: employee.business.id,
-        name: employee.business.name,
-        type: employee.business.type
+        id: Array.isArray(employee.businesses) ? (employee.businesses[0]?.id || null) : (employee.businesses?.id || null),
+        name: Array.isArray(employee.businesses) ? (employee.businesses[0]?.name || null) : (employee.businesses?.name || null),
+        type: Array.isArray(employee.businesses) ? (employee.businesses[0]?.type || null) : (employee.businesses?.type || null)
       },
-      businessAssignments: employee.employeeBusinessAssignments.map(assignment => ({
-        business: assignment.business,
+      businessAssignments: (employee.employee_business_assignments || []).map((assignment: any) => ({
+        business: assignment.businesses,
         role: assignment.role,
         isPrimary: assignment.isPrimary
       }))

@@ -109,7 +109,7 @@ async function createUser() {
         email,
         passwordHash: hashedPassword,
         role: 'user',
-        is_active: true,
+        isActive: true,
       }
     });
 
@@ -130,13 +130,13 @@ async function createUser() {
       // Create business membership
       const membership = await prisma.businessMembership.create({
         data: {
-          user_id: user.id,
-          business_id: business.id,
+          userId: user.id,
+          businessId: business.id,
           role: role,
           permissions: BUSINESS_PERMISSION_PRESETS[role] || BUSINESS_PERMISSION_PRESETS['employee'],
-          is_active: true,
-          joined_at: new Date(),
-          last_accessed_at: new Date(),
+          isActive: true,
+          joinedAt: new Date(),
+          lastAccessedAt: new Date(),
         }
       });
 
@@ -160,10 +160,10 @@ async function listBusinesses() {
         id: true,
         name: true,
         type: true,
-        is_active: true,
+        isActive: true,
       },
       where: {
-        is_active: true,
+        isActive: true,
       }
     });
 

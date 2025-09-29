@@ -42,12 +42,11 @@ export class PeerDiscoveryService extends EventEmitter {
 
   constructor(options: DiscoveryOptions) {
     super()
-    this.options = {
+    this.options = Object.assign({
       broadcastInterval: 30000, // 30 seconds
       discoveryPort: 5353, // mDNS port
-      serviceName: 'multi-business-sync',
-      ...options
-    }
+      serviceName: 'multi-business-sync'
+    }, options as any)
   }
 
   /**

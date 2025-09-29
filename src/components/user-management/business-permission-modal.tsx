@@ -166,7 +166,7 @@ export function BusinessPermissionModal({
                     <label key={permission.key} className="flex items-start space-x-3">
                       <input
                         type="checkbox"
-                        checked={permissions[permission.key as keyof BusinessPermissions] || false}
+                        checked={!!permissions[permission.key as keyof BusinessPermissions]}
                         onChange={(e) => updatePermission(permission.key, e.target.checked)}
                         className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
                       />
@@ -195,7 +195,7 @@ export function BusinessPermissionModal({
                     <label key={permission.key} className="flex items-start space-x-3">
                       <input
                         type="checkbox"
-                        checked={permissions[permission.key as keyof BusinessPermissions] || false}
+                        checked={!!permissions[permission.key as keyof BusinessPermissions]}
                         onChange={(e) => updatePermission(permission.key, e.target.checked)}
                         className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
                       />

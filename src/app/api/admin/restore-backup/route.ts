@@ -3,15 +3,35 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import path from 'path'
 
-// Use absolute path based on process.cwd() so Next's bundler can resolve the runtime script
+// Path to the runtime script (may only exist in development environments).
 const restoreModulePath = path.join(process.cwd(), 'scripts', 'restore-from-backup')
-let restore: any
-try {
-  const restoreModule = require(restoreModulePath)
-  restore = restoreModule.restore
-} catch (error) {
-  console.warn('restore-from-backup module not available during build:', error)
-  restore = null
+
+/**
+ * Dev scripts allowlist check. You can opt-in to enable dev scripts on non-dev
+ * hosts by setting `ALLOW_DEV_SCRIPTS=true` in the environment.
+ */
+function devScriptsAllowed() {
+  return process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_SCRIPTS === 'true'
+}
+
+/**
+ * Lazily load the restore module at request time. We avoid a top-level `require`
+ * so the Next bundler won't attempt to resolve dev-only scripts during the
+ * production build. Using eval('require') prevents static analysis from
+ * picking up the import path.
+ */
+function loadRestore(): ((filePath: string) => Promise<void>) | null {
+  if (!devScriptsAllowed()) return null
+
+  try {
+    // eslint-disable-next-line no-eval
+    const req = eval('require') as NodeRequire
+    const restoreModule = req(restoreModulePath)
+    return restoreModule?.restore ?? null
+  } catch (error) {
+    console.warn('restore-from-backup module not available at runtime:', error)
+    return null
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -28,6 +48,7 @@ export async function POST(request: NextRequest) {
   if (!filename || !confirmed || !confirmText) return NextResponse.json({ error: 'filename and confirmation required' }, { status: 400 })
   if (!confirmText.startsWith('RESTORE-BACKUP-')) return NextResponse.json({ error: 'Invalid confirmation text' }, { status: 400 })
 
+  const restore = loadRestore()
   if (!restore) {
     return NextResponse.json({ error: 'Restore functionality not available' }, { status: 503 })
   }

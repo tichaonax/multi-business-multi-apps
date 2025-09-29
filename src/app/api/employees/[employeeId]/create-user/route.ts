@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { hasPermission } from '@/lib/permission-utils';
 
 export async function POST(
@@ -36,10 +38,10 @@ export async function POST(
       where: { id: employeeId },
       include: {
         users: true,
-        business: true,
+        businesses: true,
         employeeBusinessAssignments: {
           where: { isActive: true },
-          include: { business: true }
+          include: { businesses: true }
         },
         employeeContracts: {
           where: { status: 'active' },
@@ -54,7 +56,7 @@ export async function POST(
     }
 
     // Check if employee already has a user account
-    if (employee.users) {
+    if ((employee as any).users) {
       return NextResponse.json(
         { error: 'Employee already has a user account' },
         { status: 400 }
@@ -74,7 +76,7 @@ export async function POST(
     }
 
     // Validate that employee has a signed active contract
-    const activeContract = employee.employeeContracts[0];
+    const activeContract = (employee as any).employeeContracts?.[0];
     if (!activeContract) {
       return NextResponse.json(
         { error: 'Cannot create user account. Employee must have an active contract.' },
@@ -113,15 +115,17 @@ export async function POST(
     // Create user account and link to employee
     const newUser = await prisma.$transaction(async (tx) => {
       // Create user
+      const userCreateData: Prisma.UserUncheckedCreateInput = {
+        id: randomUUID(),
+        name: employee.fullName,
+        email,
+        passwordHash: hashedPassword,
+        role: role,
+        isActive: true,
+        passwordResetRequired: sendInvite
+      }
       const user = await tx.user.create({
-        data: {
-          name: employee.fullName,
-          email,
-          passwordHash: hashedPassword,
-          role: role,
-          isActive: true,
-          passwordResetRequired: sendInvite,
-        }
+        data: userCreateData
       });
 
       // Link employee to user
@@ -151,14 +155,14 @@ export async function POST(
       });
 
       // Additional business assignments
-      for (const assignment of employee.employeeBusinessAssignments) {
+      for (const assignment of (employee as any).employeeBusinessAssignments || []) {
         if (assignment.businessId !== employee.primaryBusinessId) {
           businessMemberships.push({
             userId: user.id,
             businessId: assignment.businessId,
             role: assignment.role || 'employee',
             permissions: {
-              canViewBusiness: true,
+                canViewBusiness: true,
               canViewEmployees: false,
               canViewReports: false,
             },
@@ -187,8 +191,8 @@ export async function POST(
         email: newUser.email,
         role: newUser.role,
         employeeId: employeeId,
-        employeeName: employee.fullName,
-        employeeNumber: employee.employeeNumber,
+        employeeName: (employee as any).fullName,
+        employeeNumber: (employee as any).employeeNumber,
       }
     };
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { SessionUser, hasPermission } from '@/lib/permission-utils'
 
 // GET - Get salary increases for an employee
@@ -24,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { employeeId: 
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
       include: {
-        primaryBusiness: {
+        businesses: {
           select: {
             id: true,
             name: true
@@ -45,10 +47,8 @@ export async function GET(req: NextRequest, { params }: { params: { employeeId: 
           select: {
             id: true,
             fullName: true,
-            jobTitle: {
-              select: {
-                title: true
-              }
+            jobTitles: {
+              select: { title: true }
             }
           }
         }
@@ -56,12 +56,12 @@ export async function GET(req: NextRequest, { params }: { params: { employeeId: 
       orderBy: { createdAt: 'desc' }
     })
 
-    const formattedIncreases = salaryIncreases.map(increase => ({
+    const formattedIncreases = salaryIncreases.map((increase: any) => ({
       id: increase.id,
       previousSalary: Number(increase.previousSalary),
       newSalary: Number(increase.newSalary),
       increaseAmount: Number(increase.increaseAmount),
-      increasePercentage: Number(increase.increasePercentage),
+      increasePercentage: Number(increase.increasePercent),
       increaseType: increase.increaseType,
       effectiveDate: increase.effectiveDate,
       reason: increase.reason,
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: { employeeId: 
       approver: increase.approver ? {
         id: increase.approver.id,
         fullName: increase.approver.fullName,
-        jobTitle: increase.approver.jobTitle?.title
+        jobTitle: increase.approver.jobTitles?.title || null
       } : null,
       approvedAt: increase.approvedAt
     }))
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest, { params }: { params: { employeeId: 
       employee: {
         id: employee.id,
         fullName: employee.fullName,
-        businessName: employee.primaryBusiness?.name
+        businessName: employee.businesses?.name || null
       },
       salaryIncreases: formattedIncreases
     })
@@ -136,11 +136,11 @@ export async function POST(req: NextRequest, { params }: { params: { employeeId:
       )
     }
 
-    // Get employee with current contract
+    // Get employee with current contract (use canonical relation names)
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
       include: {
-        employeeContracts: {
+        employee_contracts_employee_contracts_employeeIdToemployees: {
           where: {
             status: { in: ['active', 'pending_approval'] }
           },
@@ -159,10 +159,11 @@ export async function POST(req: NextRequest, { params }: { params: { employeeId:
             endDate: true,
             customResponsibilities: true,
             additionalBusinesses: true,
-            notes: true
+            notes: true,
+            contractNumber: true
           }
         },
-        primaryBusiness: {
+        businesses: {
           select: {
             id: true,
             name: true
@@ -175,11 +176,11 @@ export async function POST(req: NextRequest, { params }: { params: { employeeId:
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
     }
 
-    if (!employee.employeeContracts[0]) {
+    if (!employee.employee_contracts_employee_contracts_employeeIdToemployees || !employee.employee_contracts_employee_contracts_employeeIdToemployees[0]) {
       return NextResponse.json({ error: 'No active contract found for employee' }, { status: 400 })
     }
 
-    const currentContract = employee.employeeContracts[0]
+    const currentContract = (employee.employee_contracts_employee_contracts_employeeIdToemployees as any)[0]
     const currentSalary = Number(currentContract.baseSalary)
     const increaseAmount = (currentSalary * Number(increasePercentage)) / 100
     const newSalary = currentSalary + increaseAmount
@@ -187,12 +188,12 @@ export async function POST(req: NextRequest, { params }: { params: { employeeId:
     // Create salary increase record and new contract in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create salary increase record
-      const salaryIncrease = await tx.employeeSalaryIncrease.create({
+      const salaryIncrease = await (tx.employeeSalaryIncrease.create as any)({
         data: {
           employeeId: employeeId,
-          previousSalary: currentSalary,
-          newSalary: newSalary,
-          increaseAmount: increaseAmount,
+          previousSalary: new Prisma.Decimal(String(currentSalary)),
+          newSalary: new Prisma.Decimal(String(newSalary)),
+          increaseAmount: new Prisma.Decimal(String(increaseAmount)),
           increasePercentage: Number(increasePercentage),
           increaseType: increaseType,
           effectiveDate: new Date(effectiveDate),
@@ -203,19 +204,7 @@ export async function POST(req: NextRequest, { params }: { params: { employeeId:
           status: 'approved',
           notes
         },
-        include: {
-          approver: {
-            select: {
-              id: true,
-              fullName: true,
-              jobTitle: {
-                select: {
-                  title: true
-                }
-              }
-            }
-          }
-        }
+        // do not include approver here to avoid strict include typing; we'll fetch it explicitly if needed
       })
 
       // Mark current contract as superseded
@@ -242,43 +231,46 @@ export async function POST(req: NextRequest, { params }: { params: { employeeId:
       const newContractNumber = `CTR${String(contractCount + 1).padStart(6, '0')}`
 
       // Create new contract with updated salary
-      const newContract = await tx.employeeContract.create({
-        data: {
-          contractNumber: newContractNumber,
-          version: currentContract.version + 1,
-          status: 'active',
-          employeeId: employeeId,
-          jobTitleId: currentContract.jobTitleId,
-          compensationTypeId: currentContract.compensationTypeId,
-          baseSalary: newSalary,
-          isCommissionBased: currentContract.isCommissionBased,
-          isSalaryBased: currentContract.isSalaryBased,
-          startDate: new Date(effectiveDate),
-          endDate: currentContract.endDate,
-          customResponsibilities: currentContract.customResponsibilities,
-          additionalBusinesses: currentContract.additionalBusinesses,
-          createdBy: user.id,
-          approvedBy: user.id,
-          approvedAt: new Date(),
-          employeeSignedAt: new Date(), // Auto-sign for salary increase
-          managerSignedAt: new Date(),
-          notes: (() => {
-            // Extract and preserve frequency from original contract
-            let frequency = 'monthly' // default
-            if (currentContract.notes) {
-              const frequencyMatch = currentContract.notes.match(/\[SALARY_FREQUENCY:(monthly|annual)\]/)
-              if (frequencyMatch) {
-                frequency = frequencyMatch[1]
-              }
+      const newContractData: Prisma.EmployeeContractUncheckedCreateInput = {
+        id: randomUUID(),
+        contractNumber: newContractNumber,
+        version: currentContract.version + 1,
+        status: 'active',
+        employeeId: employeeId,
+        jobTitleId: currentContract.jobTitleId,
+        compensationTypeId: currentContract.compensationTypeId,
+        baseSalary: new Prisma.Decimal(String(newSalary)),
+        isCommissionBased: currentContract.isCommissionBased,
+        isSalaryBased: currentContract.isSalaryBased,
+        startDate: new Date(effectiveDate),
+        endDate: currentContract.endDate,
+        customResponsibilities: currentContract.customResponsibilities,
+        additionalBusinesses: currentContract.additionalBusinesses,
+        primaryBusinessId: (employee as any).primaryBusinessId,
+        createdBy: user.id,
+        approvedBy: user.id,
+        approvedAt: new Date(),
+        employeeSignedAt: new Date(), // Auto-sign for salary increase
+        managerSignedAt: new Date(),
+        notes: (() => {
+          // Extract and preserve frequency from original contract
+          let frequency = 'monthly' // default
+          if (currentContract.notes) {
+            const frequencyMatch = currentContract.notes.match(/\[SALARY_FREQUENCY:(monthly|annual)\]/)
+            if (frequencyMatch) {
+              frequency = frequencyMatch[1]
             }
+          }
 
-            // Preserve frequency and add new contract notes
-            const frequencyTag = `[SALARY_FREQUENCY:${frequency}]`
-            const contractNotes = `Automatic contract generated from salary increase (${increasePercentage}% increase). Previous contract: ${currentContract.contractNumber}. Reason: ${reason}`
+          // Preserve frequency and add new contract notes
+          const frequencyTag = `[SALARY_FREQUENCY:${frequency}]`
+          const contractNotes = `Automatic contract generated from salary increase (${increasePercentage}% increase). Previous contract: ${currentContract.contractNumber}. Reason: ${reason}`
 
-            return `${frequencyTag}\n\n${contractNotes}`
-          })()
-        }
+          return `${frequencyTag}\n\n${contractNotes}`
+        })()
+      }
+      const newContract = await tx.employeeContract.create({
+        data: newContractData
       })
 
       // Copy benefits from old contract to new contract

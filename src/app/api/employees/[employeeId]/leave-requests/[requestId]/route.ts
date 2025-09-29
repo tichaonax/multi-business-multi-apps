@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 
 export async function PUT(
   request: NextRequest,
@@ -31,10 +33,17 @@ export async function PUT(
     const leaveRequest = await prisma.employeeLeaveRequest.findUnique({
       where: { id: requestId },
       include: {
-        employee: {
+        employees_employee_leave_requests_employeeIdToemployees: {
           select: {
             fullName: true,
             employeeNumber: true
+          }
+        },
+        employees_employee_leave_requests_approvedByToemployees: {
+          select: {
+            id: true,
+            fullName: true,
+            jobTitles: { select: { title: true } }
           }
         }
       }
@@ -54,20 +63,11 @@ export async function PUT(
         approvedAt: status === 'approved' ? new Date() : null
       },
       include: {
-        employee: {
-          select: {
-            fullName: true,
-            employeeNumber: true
-          }
+        employees_employee_leave_requests_employeeIdToemployees: {
+          select: { fullName: true, employeeNumber: true }
         },
-        approver: {
-          select: {
-            id: true,
-            fullName: true,
-            jobTitles: {
-              select: { title: true }
-            }
-          }
+        employees_employee_leave_requests_approvedByToemployees: {
+          select: { id: true, fullName: true, jobTitles: { select: { title: true } } }
         }
       }
     })
@@ -75,7 +75,7 @@ export async function PUT(
     // If approved, update leave balance
     if (status === 'approved' && leaveRequest.leaveType === 'annual') {
       const currentYear = new Date().getFullYear()
-      
+
       // Update or create leave balance
       await prisma.employeeLeaveBalance.upsert({
         where: {
@@ -90,9 +90,11 @@ export async function PUT(
           },
           remainingAnnual: {
             decrement: leaveRequest.daysRequested
-          }
+          },
+          updatedAt: new Date()
         },
         create: {
+          id: randomUUID(),
           employeeId,
           year: currentYear,
           annualLeaveDays: 21, // Default annual leave days
@@ -100,12 +102,13 @@ export async function PUT(
           remainingAnnual: 21 - leaveRequest.daysRequested,
           sickLeaveDays: 10, // Default sick leave days
           usedSickDays: 0,
-          remainingSick: 10
+          remainingSick: 10,
+          updatedAt: new Date()
         }
-      })
+      } as Prisma.EmployeeLeaveBalanceUpsertArgs)
     } else if (status === 'approved' && leaveRequest.leaveType === 'sick') {
       const currentYear = new Date().getFullYear()
-      
+
       // Update or create leave balance
       await prisma.employeeLeaveBalance.upsert({
         where: {
@@ -120,9 +123,11 @@ export async function PUT(
           },
           remainingSick: {
             decrement: leaveRequest.daysRequested
-          }
+          },
+          updatedAt: new Date()
         },
         create: {
+          id: randomUUID(),
           employeeId,
           year: currentYear,
           annualLeaveDays: 21,
@@ -130,19 +135,20 @@ export async function PUT(
           remainingAnnual: 21,
           sickLeaveDays: 10,
           usedSickDays: leaveRequest.daysRequested,
-          remainingSick: 10 - leaveRequest.daysRequested
+          remainingSick: 10 - leaveRequest.daysRequested,
+          updatedAt: new Date()
         }
-      })
+      } as Prisma.EmployeeLeaveBalanceUpsertArgs)
     }
 
     // Format the response
     const formattedResponse = {
       ...updatedRequest,
-      approver: updatedRequest.approver ? {
-        ...updatedRequest.approver,
-        jobTitle: updatedRequest.approver.jobTitles?.title || null,
-        jobTitles: undefined
-      } : null
+      approver: (updatedRequest as any).employees_employee_leave_requests_approvedByToemployees ? {
+        ...(updatedRequest as any).employees_employee_leave_requests_approvedByToemployees,
+        jobTitle: (updatedRequest as any).employees_employee_leave_requests_approvedByToemployees.jobTitles?.title || null
+      } : null,
+      employee: (updatedRequest as any).employees_employee_leave_requests_employeeIdToemployees || null
     }
 
     return NextResponse.json(formattedResponse)
@@ -179,8 +185,8 @@ export async function DELETE(
     }
 
     if (leaveRequest.status !== 'pending') {
-      return NextResponse.json({ 
-        error: 'Only pending leave requests can be deleted' 
+      return NextResponse.json({
+        error: 'Only pending leave requests can be deleted'
       }, { status: 400 })
     }
 

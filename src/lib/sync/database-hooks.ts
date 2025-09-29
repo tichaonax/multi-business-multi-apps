@@ -28,7 +28,7 @@ export function installSyncMiddleware(
   }
   const changeTracker = getChangeTracker(prisma, options.nodeId, options.registrationKey)
 
-  prisma.$use(async (params, next) => {
+  prisma.$use(async (params: any, next: any) => {
     // Skip if sync is disabled
     if (options.enabled === false) {
       return next(params)

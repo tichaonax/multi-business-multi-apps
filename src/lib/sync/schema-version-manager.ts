@@ -187,7 +187,7 @@ export class SchemaVersionManager {
 
       // Get latest migration
       const latestMigration = await this.prisma.$queryRaw`
-        SELECT migration_name, applied_steps_count, finished_at
+        SELECT migration_name AS migration_name, applied_steps_count AS applied_steps_count, finished_at AS finished_at
         FROM _prisma_migrations
         WHERE finished_at IS NOT NULL
         ORDER BY finished_at DESC
@@ -204,10 +204,14 @@ export class SchemaVersionManager {
 
       const migration = latestMigration[0]
 
+      // Map SQL result fields to camelCase used in the code
+  const migrationName = migration.migrationName || migration.migration_name
+  const finishedAt = migration.finishedAt || migration.finished_at
+
       return {
-        version: this.extractVersionFromMigrationName(migration.migration_name),
-        name: migration.migration_name,
-        appliedAt: new Date(migration.finished_at)
+        version: this.extractVersionFromMigrationName(migrationName),
+        name: migrationName,
+        appliedAt: new Date(finishedAt)
       }
     } catch (error) {
       console.error('Failed to get migration version:', error)
@@ -339,12 +343,12 @@ export class SchemaVersionManager {
       // Get all sync nodes
       const nodes = await this.prisma.$queryRaw`
         SELECT
-          node_id,
-          node_name,
-          schema_version,
-          schema_hash,
-          migration_name,
-          schema_applied_at
+          node_id AS node_id,
+          node_name AS node_name,
+          schema_version AS schema_version,
+          schema_hash AS schema_hash,
+          migration_name AS migration_name,
+          schema_applied_at AS schema_applied_at
         FROM sync_nodes
         WHERE enabled = true AND node_id != ${this.nodeId};
       ` as any[]
@@ -356,12 +360,17 @@ export class SchemaVersionManager {
       for (const node of nodes) {
         const compatibility = await this.checkCompatibility(node)
 
+        // Map DB row properties to camelCase
+  const nodeId = node.nodeId || node.node_id
+  const nodeName = node.nodeName || node.node_name
+  const version = node.schemaVersion || node.schema_version || 'unknown'
+
         nodeDetails.push({
-          nodeId: node.node_id,
-          nodeName: node.node_name,
+          nodeId,
+          nodeName,
           isCompatible: compatibility.isCompatible,
           compatibilityLevel: compatibility.compatibilityLevel,
-          version: node.schema_version || 'unknown',
+          version,
           reason: compatibility.reason
         })
 

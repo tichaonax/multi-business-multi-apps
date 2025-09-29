@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
 
 interface RouteParams {
@@ -37,28 +39,28 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const contracts = await prisma.employeeContract.findMany({
       where: { employeeId: id },
       include: {
-        jobTitle: true,
-        compensationType: true,
-        business: {
+        jobTitles: true,
+        compensationTypes: true,
+        businesses_employee_contracts_primaryBusinessIdTobusinesses: {
           select: {
             id: true,
             name: true,
             type: true
           }
         },
-        supervisor: {
+        employees_employee_contracts_supervisorIdToemployees: {
           select: {
             id: true,
             fullName: true,
-            jobTitle: true
+            jobTitles: true
           }
         },
-        benefits: {
+        contract_benefits: {
           include: {
             benefitType: true
           }
         },
-        originalRenewals: {
+        contract_renewals_contract_renewals_originalContractIdToemployee_contracts: {
           select: {
             id: true,
             status: true,
@@ -113,8 +115,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     } = data
 
     // Validation
-    if (!jobTitleId || !compensationTypeId || !baseSalary || !startDate || 
-        !primaryBusinessId || !supervisorId) {
+    if (!jobTitleId || !compensationTypeId || !baseSalary || !startDate ||
+      !primaryBusinessId || !supervisorId) {
       return NextResponse.json(
         { error: 'Missing required contract fields' },
         { status: 400 }
@@ -136,7 +138,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Validate foreign key references
     const [jobTitle, compensationType, business, supervisor] = await Promise.all([
       prisma.jobTitle.findUnique({ where: { id: jobTitleId } }),
-      prisma.compensation_types.findUnique({ where: { id: compensationTypeId } }),
+      prisma.compensationType.findUnique({ where: { id: compensationTypeId } }),
       prisma.business.findUnique({ where: { id: primaryBusinessId } }),
       prisma.employee.findUnique({ where: { id: supervisorId } })
     ])
@@ -161,39 +163,40 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Create the contract with all related data in a transaction
     const contract = await prisma.$transaction(async (tx) => {
-      // Create the contract
-      const newContract = await tx.employeeContract.create({
-        data: {
-          employeeId: id,
-          contractNumber,
-          version,
-          jobTitleId,
-          compensationTypeId,
-          baseSalary: parseFloat(baseSalary),
-          customResponsibilities: customResponsibilities || null,
-          startDate: new Date(startDate),
-          endDate: endDate ? new Date(endDate) : null,
-          probationPeriodMonths: probationPeriodMonths || null,
-          primaryBusinessId,
-          additionalBusinesses: Array.isArray(additionalBusinesses) ? additionalBusinesses : [],
-          supervisorId,
-          supervisorName: supervisor.fullName,
-          supervisorTitle: supervisor.jobTitle?.title || 'Manager',
-          isCommissionBased: isCommissionBased || false,
-          isSalaryBased: isSalaryBased !== false, // Default to true unless explicitly false
-          notes: notes || null,
-          createdBy: session.user.id
-        }
-      })
+      // Create the contract using unchecked input to allow direct IDs
+      const contractCreateData: any = {
+        id: randomUUID(),
+        employeeId: id,
+        contractNumber,
+        version,
+        jobTitleId,
+        compensationTypeId,
+        baseSalary: parseFloat(String(baseSalary)),
+        customResponsibilities: customResponsibilities || null,
+        startDate: new Date(startDate),
+        endDate: endDate ? new Date(endDate) : null,
+        probationPeriodMonths: probationPeriodMonths || null,
+        primaryBusinessId,
+        additionalBusinesses: Array.isArray(additionalBusinesses) ? additionalBusinesses : [],
+        supervisorId,
+        supervisorName: supervisor.fullName,
+        supervisorTitle: (supervisor as any)?.jobTitles?.[0]?.title || 'Manager',
+        isCommissionBased: !!isCommissionBased,
+        isSalaryBased: isSalaryBased !== false, // Default to true unless explicitly false
+        notes: notes || null,
+        createdBy: session.user.id
+      }
+      const newContract = await tx.employeeContract.create({ data: contractCreateData })
 
       // Create contract benefits if provided
       if (Array.isArray(benefits) && benefits.length > 0) {
         await tx.contractBenefit.createMany({
           data: benefits.map((benefit: any) => ({
+            id: randomUUID(),
             contractId: newContract.id,
             benefitTypeId: benefit.benefitTypeId,
-            amount: parseFloat(benefit.amount),
-            isPercentage: benefit.isPercentage || false,
+            amount: parseFloat(String(benefit.amount || 0)),
+            isPercentage: !!benefit.isPercentage,
             notes: benefit.notes || null
           }))
         })
@@ -206,32 +209,32 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const completeContract = await prisma.employeeContract.findUnique({
       where: { id: contract.id },
       include: {
-        employee: {
-          select: {
-            id: true,
-            fullName: true,
-            employeeNumber: true
-          }
-        },
-        jobTitle: true,
-        compensationType: true,
-        business: {
+        jobTitles: true,
+        compensationTypes: true,
+        businesses: {
           select: {
             id: true,
             name: true,
             type: true
           }
         },
-        supervisor: {
+        employees_employee_contracts_supervisorIdToemployees: {
           select: {
             id: true,
             fullName: true,
-            jobTitle: true
+            jobTitles: true
           }
         },
-        benefits: {
+        contract_benefits: {
           include: {
             benefitType: true
+          }
+        },
+        employees_employee_contracts_employeeIdToemployees: {
+          select: {
+            id: true,
+            fullName: true,
+            employeeNumber: true
           }
         }
       }
@@ -240,7 +243,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json(completeContract)
   } catch (error: any) {
     console.error('Employee contract creation error:', error)
-    
+
     // Handle unique constraint violations
     if (error.code === 'P2002') {
       const field = error.meta?.target?.[0]

@@ -56,15 +56,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Update last accessed timestamp
-    await prisma.businessMembership.update({
-      where: {
-        id: membership.id,
-      },
-      data: {
-        lastAccessedAt: new Date(),
-      },
-    });
+    // Update last accessed timestamp only for real memberships (admins won't have a DB membership id)
+    if (membership && membership.id) {
+      await prisma.businessMembership.update({
+        where: {
+          id: membership.id,
+        },
+        data: {
+          lastAccessedAt: new Date(),
+        },
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 

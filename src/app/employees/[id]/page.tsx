@@ -1,4 +1,4 @@
-'use client'
+ 'use client'
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -10,130 +10,19 @@ import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-c
 import { useDateFormat } from '@/contexts/settings-context'
 import { CreateUserModal } from '@/components/employees/create-user-modal'
 import { ManageUserAccountModal } from '@/components/employees/manage-user-account-modal'
-
-interface Employee {
-  id: string
-  employeeNumber: string
-  userId: string | null
-  firstName: string
-  lastName: string
-  fullName: string
-  email: string | null
-  phone: string
-  address: string | null
-  dateOfBirth: string | null
-  nationalId: string | null
-  driverLicense: string | null
-  passportNumber: string | null
-  emergencyContactName: string | null
-  emergencyContactPhone: string | null
-  emergencyContactRelation: string | null
-  hireDate: string
-  employmentStatus: string
-  terminationDate: string | null
-  terminationReason: string | null
-  isActive: boolean
-  notes: string | null
-  createdAt: string
-  updatedAt: string
-  user: {
-    id: string
-    name: string
-    email: string
-  } | null
-  jobTitle: {
-    id: string
-    title: string
-    department: string | null
-    level: string | null
-    description: string | null
-    responsibilities: string[]
-  }
-  compensationType: {
-    id: string
-    name: string
-    type: string
-    description: string | null
-  }
-  supervisor: {
-    id: string
-    fullName: string
-    jobTitle: {
-      title: string
-    }
-  } | null
-  primaryBusiness: {
-    id: string
-    name: string
-    type: string
-  }
-  businessAssignments: Array<{
-    business: {
-      id: string
-      name: string
-      type: string
-    }
-    role: string | null
-    isActive: boolean
-    assignedAt: string
-  }>
-  contracts: Array<{
-    id: string
-    contractNumber: string
-    version: number
-    status: string
-    startDate: string
-    endDate: string | null
-    baseSalary: number
-    isCommissionBased: boolean
-    isSalaryBased: boolean
-    notes: string | null
-    createdAt: string
-    benefits: Array<{
-      id: string
-      amount: number
-      isPercentage: boolean
-      notes: string | null
-      benefitType: {
-        name: string
-        type: string
-      }
-    }>
-  }>
-  disciplinaryActions: Array<{
-    id: string
-    type: string
-    severity: string
-    description: string
-    actionTaken: string
-    actionDate: string
-    followUpDate: string | null
-    isResolved: boolean
-  }>
-  subordinates: Array<{
-    id: string
-    fullName: string
-    jobTitle: {
-      title: string
-    }
-  }>
-  _count: {
-    subordinates: number
-    disciplinaryActions: number
-  }
-}
+import type { Employee } from '@/types/employee'
 
 const EMPLOYMENT_STATUS_COLORS = {
   active: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
   pendingContract: 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-200 font-semibold border border-purple-300',
-  on_leave: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
+  onLeave: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
   terminated: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
   suspended: 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200'
 }
 
 const CONTRACT_STATUS_COLORS = {
   active: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
-  pending_approval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
+  pendingApproval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
   expired: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
   terminated: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200'
@@ -594,24 +483,26 @@ export default function EmployeeDetailPage() {
                         </p>
                       </div>
                     </div>
-                    {employee.totalBenefits > 0 && (
+
+                    {employee.totalBenefits && employee.totalBenefits > 0 && (
                       <div>
                         <label className="block text-sm font-medium text-secondary">Total Benefits</label>
                         <p className="mt-1 text-lg font-semibold text-green-600 dark:text-green-400">
-                          ${employee.totalBenefits.toLocaleString(undefined, { maximumFractionDigits: 2 })}/month
+                          ${employee.totalBenefits!.toLocaleString(undefined, { maximumFractionDigits: 2 })}/month
                         </p>
-                        <p className="text-xs text-secondary">
-                          Percentage benefits calculated on monthly salary
+                        <p className="text-sm text-secondary">
+                          ({employee.currentSalary?.frequency} payments)
                         </p>
                       </div>
                     )}
-                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+
+                    <div>
                       <label className="block text-sm font-medium text-secondary">Total Remuneration</label>
                       <p className="mt-1 text-xl font-bold text-blue-600 dark:text-blue-400">
-                        {formatCurrency(employee.totalRemuneration)}/year
+                        {formatCurrency(employee.totalRemuneration ?? 0)}/year
                       </p>
                       <p className="text-sm text-secondary">
-                        ${employee.monthlyRemuneration?.toLocaleString(undefined, { maximumFractionDigits: 2 })}/month
+                        ${employee.monthlyRemuneration?.toLocaleString(undefined, { maximumFractionDigits: 2 }) ?? '0.00'}/month
                       </p>
                       <p className="text-xs text-secondary">
                         Salary + Benefits from active contract

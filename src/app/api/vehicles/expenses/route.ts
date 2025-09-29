@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       prisma.vehicleExpense.findMany({
         where,
         include: {
-          vehicle: {
+          vehicles: {
             select: {
               id: true,
               licensePlate: true,
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
               ownershipType: true
             }
           },
-          trip: {
+          vehicleTrips: {
             select: {
               id: true,
               tripPurpose: true,
@@ -115,14 +115,14 @@ export async function GET(request: NextRequest) {
               isCompleted: true
             }
           },
-          business: {
+          businesses: {
             select: {
               id: true,
               name: true,
               type: true
             }
           },
-          creator: {
+          users: {
             select: {
               id: true,
               name: true,
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
         createdBy: session.user.id
       },
       include: {
-        vehicle: {
+        vehicles: {
           select: {
             id: true,
             licensePlate: true,
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
             ownershipType: true
           }
         },
-        trip: {
+        vehicleTrips: {
           select: {
             id: true,
             tripPurpose: true,
@@ -255,14 +255,14 @@ export async function POST(request: NextRequest) {
             isCompleted: true
           }
         },
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,
             type: true
           }
         },
-        creator: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -281,7 +281,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -339,7 +339,7 @@ export async function PUT(request: NextRequest) {
         expenseDate: updateData.expenseDate ? new Date(updateData.expenseDate) : undefined
       },
       include: {
-        vehicle: {
+        vehicles: {
           select: {
             id: true,
             licensePlate: true,
@@ -349,7 +349,7 @@ export async function PUT(request: NextRequest) {
             ownershipType: true
           }
         },
-        trip: {
+        vehicleTrips: {
           select: {
             id: true,
             tripPurpose: true,
@@ -359,14 +359,14 @@ export async function PUT(request: NextRequest) {
             isCompleted: true
           }
         },
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,
             type: true
           }
         },
-        creator: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -385,7 +385,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }

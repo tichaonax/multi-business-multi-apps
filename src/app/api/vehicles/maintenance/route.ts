@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
 const CreateMaintenanceSchema = z.object({
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
       prisma.vehicleMaintenanceRecord.findMany({
         where,
         include: {
-          vehicle: {
+          vehicles: {
             select: {
               id: true,
               licensePlate: true,
@@ -144,7 +145,7 @@ export async function GET(request: NextRequest) {
               ownershipType: true
             }
           },
-          creator: {
+          users: {
             select: {
               id: true,
               name: true,
@@ -159,15 +160,22 @@ export async function GET(request: NextRequest) {
       prisma.vehicleMaintenanceRecord.count({ where })
     ])
 
+    // Remap Prisma relation field names back to the API shape expected by callers
+    const mapped = maintenanceRecords.map((r: any) => ({
+      ...r,
+      vehicle: r.vehicles ?? null,
+      creator: r.users ?? null
+    }))
+
     return NextResponse.json({
       success: true,
-      data: maintenanceRecords,
+      data: mapped,
       meta: {
         total: totalCount,
         page,
         limit,
         totalPages: Math.ceil(totalCount / limit),
-        hasMore: skip + maintenanceRecords.length < totalCount
+        hasMore: skip + mapped.length < totalCount
       }
     })
 
@@ -236,6 +244,7 @@ export async function POST(request: NextRequest) {
     // Create maintenance record (map front-end names to DB columns)
     const maintenanceRecord = await prisma.vehicleMaintenanceRecord.create({
       data: {
+        id: randomUUID(),
         vehicleId: validatedData.vehicleId,
   serviceType: validatedData.serviceType as any,
         serviceName: validatedData.serviceName,
@@ -250,10 +259,11 @@ export async function POST(request: NextRequest) {
         receiptUrl: validatedData.receiptUrl || null,
         notes: validatedData.notes || null,
         isScheduledService: !!validatedData.isCompleted,
-        createdBy: currentUser.id
+        createdBy: currentUser.id,
+        updatedAt: new Date()
       },
       include: {
-        vehicle: {
+        vehicles: {
           select: {
             id: true,
             licensePlate: true,
@@ -264,7 +274,7 @@ export async function POST(request: NextRequest) {
             ownershipType: true
           }
         },
-        creator: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -273,10 +283,16 @@ export async function POST(request: NextRequest) {
         }
       }
     })
+    // remap to legacy API field names
+    const created = {
+      ...maintenanceRecord,
+      vehicle: (maintenanceRecord as any).vehicles ?? null,
+      creator: (maintenanceRecord as any).users ?? null
+    }
 
     return NextResponse.json({
       success: true,
-      data: maintenanceRecord,
+      data: created,
       message: 'Vehicle maintenance record created successfully'
     }, { status: 201 })
 
@@ -312,7 +328,7 @@ export async function PUT(request: NextRequest) {
     const existingRecord = await prisma.vehicleMaintenanceRecord.findUnique({
       where: { id },
       include: {
-        vehicle: {
+        vehicles: {
           select: { currentMileage: true }
         }
       }
@@ -326,7 +342,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Validate mileage at service if being updated
-    if (updateData.mileageAtService && updateData.mileageAtService > existingRecord.vehicle.currentMileage) {
+    if (updateData.mileageAtService && updateData.mileageAtService > (existingRecord as any).vehicles.currentMileage) {
       return NextResponse.json(
         { error: 'Service mileage cannot be greater than current vehicle mileage' },
         { status: 400 }
@@ -373,7 +389,7 @@ export async function PUT(request: NextRequest) {
         isScheduledService: typeof updateData.isCompleted === 'boolean' ? updateData.isCompleted : undefined
       },
       include: {
-        vehicle: {
+        vehicles: {
           select: {
             id: true,
             licensePlate: true,
@@ -384,7 +400,7 @@ export async function PUT(request: NextRequest) {
             ownershipType: true
           }
         },
-        creator: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -394,9 +410,15 @@ export async function PUT(request: NextRequest) {
       }
     })
 
+    const updated = {
+      ...maintenanceRecord,
+      vehicle: (maintenanceRecord as any).vehicles ?? null,
+      creator: (maintenanceRecord as any).users ?? null
+    }
+
     return NextResponse.json({
       success: true,
-      data: maintenanceRecord,
+      data: updated,
       message: 'Vehicle maintenance record updated successfully'
     })
 

@@ -49,3 +49,18 @@ Notes
 
 Questions or additions
 - Want additional edge-case records (large costs, null fields, expired warranties)? Tell me which scenarios and I can add them to `seed-dev-data.js`.
+
+Runtime guards and bundler notes
+--------------------------------
+
+Some admin API routes call scripts under `scripts/` at runtime (for seeding, restore, etc.). Those scripts are developer-only and may not exist in production deployments. To avoid the Next.js bundler trying to resolve these modules at build-time (which previously caused warnings like "the request of a dependency is an expression" or MODULE_NOT_FOUND), several routes now use a runtime-only lazy loader pattern:
+
+- `eval('require')` or guarded loaders are used to require dev-only scripts at runtime only when `NODE_ENV !== 'production'` or when the files are present. This prevents the bundler from statically analyzing dev-only files.
+- If you deploy these scripts to a staging/CI host and want the endpoints to operate there, ensure the `scripts/` files are included in the deployment artifact and available at runtime.
+
+Prisma crosswalk helper
+------------------------
+
+There's also a small helper at `src/lib/prisma-crosswalk.ts` which loads `scripts/prisma-relation-renames-fuzzy-filtered.json` (if present) and provides a simple mapping API. Use it in scripts or admin tooling when you need to translate between physical DB table names (snake_case) and Prisma client names (camelCase) without renaming database objects.
+
+If you'd like, I can add a diagnostic script that lists which dev scripts are present on the current host. Note: there's an environment opt-in available — set `ALLOW_DEV_SCRIPTS=true` to allow runtime loading of dev scripts even when `NODE_ENV` is `production`. Use with care on staging/CI.

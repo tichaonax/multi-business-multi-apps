@@ -83,10 +83,10 @@ export async function GET(request: NextRequest) {
       prisma.vehicle.findMany({
         where,
         include: {
-          business: {
+          businesses: {
             select: { id: true, name: true, type: true }
           },
-          user: {
+          users: {
             select: { id: true, name: true, email: true }
           },
           ...(includeLicenses && {
@@ -96,18 +96,18 @@ export async function GET(request: NextRequest) {
             }
           }),
           ...(includeTrips && {
-            trips: {
+            vehicleTrips: {
               take: 5,
               orderBy: { startTime: 'desc' },
               include: {
-                driver: {
+                vehicleDrivers: {
                   select: { id: true, fullName: true }
                 }
               }
             }
           }),
           ...(includeMaintenance && {
-            maintenanceRecords: {
+            vehicleMaintenanceRecords: {
               take: 5,
               orderBy: { serviceDate: 'desc' }
             }
@@ -120,9 +120,18 @@ export async function GET(request: NextRequest) {
       prisma.vehicle.count({ where })
     ])
 
+    const normalizedVehicles = vehicles.map((v: any) => ({
+      ...v,
+      business: v.businesses || null,
+      user: v.users || null,
+      trips: v.vehicleTrips || [],
+      maintenanceRecords: v.vehicleMaintenanceRecords || [],
+      expenseRecords: v.vehicleExpenses || [],
+    }))
+
     return NextResponse.json({
       success: true,
-      data: vehicles,
+      data: normalizedVehicles,
       meta: {
         total: totalCount,
         page,
@@ -183,17 +192,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create vehicle
+    // Create vehicle (use a loose any-typed payload to avoid strict create input mismatches)
+    const createData: any = {
+      ...validatedData,
+      purchaseDate: validatedData.purchaseDate ? new Date(validatedData.purchaseDate) : undefined
+    }
+    if (!createData.businessId) delete createData.businessId
+    if (!createData.userId) delete createData.userId
+
     const vehicle = await prisma.vehicle.create({
-      data: {
-        ...validatedData,
-        purchaseDate: validatedData.purchaseDate ? new Date(validatedData.purchaseDate) : undefined
-      },
+      data: createData,
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
-        user: {
+        users: {
           select: { id: true, name: true, email: true }
         }
       }
@@ -208,7 +221,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -283,18 +296,22 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update vehicle
+    // Update vehicle (loose typing for update payload)
+    const updatePayload: any = {
+      ...updateData,
+      purchaseDate: updateData.purchaseDate ? new Date(updateData.purchaseDate) : undefined
+    }
+    if (updatePayload.businessId === undefined) delete updatePayload.businessId
+    if (updatePayload.userId === undefined) delete updatePayload.userId
+
     const vehicle = await prisma.vehicle.update({
       where: { id },
-      data: {
-        ...updateData,
-        purchaseDate: updateData.purchaseDate ? new Date(updateData.purchaseDate) : undefined
-      },
+      data: updatePayload,
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
-        user: {
+        users: {
           select: { id: true, name: true, email: true }
         }
       }
@@ -309,7 +326,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -344,9 +361,9 @@ export async function DELETE(request: NextRequest) {
     const existingVehicle = await prisma.vehicle.findUnique({
       where: { id: vehicleId },
       include: {
-        trips: { take: 1 },
-        maintenanceRecords: { take: 1 },
-        expenseRecords: { take: 1 }
+        vehicleTrips: { take: 1 },
+        vehicleMaintenanceRecords: { take: 1 },
+        vehicleExpenses: { take: 1 }
       }
     })
 
@@ -358,9 +375,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if vehicle has related records
-    const hasRelatedRecords = existingVehicle.trips.length > 0 ||
-                             existingVehicle.maintenanceRecords.length > 0 ||
-                             existingVehicle.expenseRecords.length > 0
+    const hasRelatedRecords = (existingVehicle as any).vehicleTrips.length > 0 ||
+                 (existingVehicle as any).vehicleMaintenanceRecords.length > 0 ||
+                 (existingVehicle as any).vehicleExpenses.length > 0
 
     if (hasRelatedRecords) {
       // Soft delete - just mark as inactive

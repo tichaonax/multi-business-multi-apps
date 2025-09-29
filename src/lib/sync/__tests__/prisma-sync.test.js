@@ -13,7 +13,7 @@ describe('Prisma sync tables smoke test', () => {
 
   test('insert and read sync_events', async () => {
     const eventId = require('crypto').randomUUID();
-    const created = await db.sync_events.create({
+    const created = await db.syncEvent.create({
       data: {
         eventId,
         sourceNodeId: 'test-node',
@@ -27,11 +27,11 @@ describe('Prisma sync tables smoke test', () => {
     expect(created).toBeDefined();
     expect(created.eventId).toBe(eventId);
 
-    const found = await db.sync_events.findUnique({ where: { eventId } });
+  const found = await db.syncEvent.findUnique({ where: { eventId } });
     expect(found).toBeDefined();
     expect(found.tableName).toBe('test_table');
 
     // clean up
-    await db.sync_events.delete({ where: { eventId } });
+  await db.syncEvent.delete({ where: { eventId } });
   }, 20000);
 });

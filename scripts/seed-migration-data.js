@@ -331,13 +331,7 @@ async function createAdminUser() {
   const adminEmail = 'admin@business.local'
 
   // Check if admin already exists
-  const usersClient = prisma.user || prisma.users;
-  if (!usersClient || typeof usersClient.findUnique !== 'function') {
-    console.warn('Prisma model User not available - skipping admin user creation');
-    return
-  }
-
-  const existingAdmin = await usersClient.findUnique({
+  const existingAdmin = await prisma.user.findUnique({
     where: { email: adminEmail }
   })
 
@@ -350,7 +344,7 @@ async function createAdminUser() {
   const hashedPassword = await bcrypt.hash('admin123', 12)
 
   // Create admin user
-  const adminUser = await usersClient.create({
+  const adminUser = await prisma.user.create({
     data: {
       id: require('crypto').randomUUID(),
       email: adminEmail,
@@ -377,12 +371,20 @@ async function main() {
   try {
     // Preflight: ensure critical tables exist before attempting upserts
     try {
-  // Cast regclass to text so Prisma can deserialize the value
-  const tableCheck = await prisma.$queryRaw`SELECT to_regclass('public.id_format_templates')::text as tbl`;
-  const exists = Array.isArray(tableCheck) ? tableCheck[0] && tableCheck[0].tbl : tableCheck && tableCheck.tbl;
-      if (!exists) {
-        throw new Error('Required table public.id_format_templates not found. Ensure database exists and run `npx prisma db push --force-reset` or apply migrations before seeding.')
-      }
+        // Cast regclass to text so Prisma can deserialize the value
+        const tableCheck = await prisma.$queryRaw`SELECT to_regclass('public.idFormatTemplates')::text as tbl`
+
+        // Normalize result shapes returned by Prisma: could be array of rows or single object
+        let exists = false
+        if (Array.isArray(tableCheck)) {
+          exists = !!(tableCheck[0] && (tableCheck[0].tbl || tableCheck[0].tbl === '')) && tableCheck[0].tbl !== null
+        } else if (tableCheck && typeof tableCheck === 'object') {
+          exists = !!(tableCheck.tbl || tableCheck.tbl === '')
+        }
+
+        if (!exists) {
+          throw new Error('Required table public.idFormatTemplates not found. Ensure database exists and run `npx prisma db push --force-reset` or apply migrations before seeding.')
+        }
     } catch (err) {
       console.error('❌ Preflight check failed:', err && err.message ? err.message : err)
       throw err

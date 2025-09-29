@@ -8,7 +8,8 @@ async function seed() {
     // Create a business entry for contractors demo if not exists
     const existing = await prisma.business.findUnique({ where: { id: businessId } })
     if (!existing) {
-      await prisma.business.create({ data: { id: businessId, name: 'Contractors Demo', businessType: 'services' } })
+      // Ensure Business.type is set; use a value consistent with the businessType
+      await prisma.business.create({ data: { id: businessId, name: 'Contractors Demo', type: 'services' } })
     }
 
     // Create some demo contractors (persons)

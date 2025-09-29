@@ -24,7 +24,7 @@ interface HardwareProduct {
     description: string
   }>
   stockQuantity: number
-  unit: 'each' | 'pair' | 'set' | 'box' | 'case' | 'ft' | 'sq_ft' | 'lb' | 'gal'
+  unit: 'each' | 'pair' | 'set' | 'box' | 'case' | 'ft' | 'sqFt' | 'lb' | 'gal'
   minOrderQuantity: number
   isRental?: boolean
   rentalPrice?: number
@@ -244,7 +244,7 @@ export function HardwareProductGrid({ businessId, selectedCategory }: HardwarePr
       box: 'box',
       case: 'case',
       ft: 'ft',
-      sq_ft: 'sq ft',
+      sqFt: 'sq ft',
       lb: 'lb',
       gal: 'gal'
     }

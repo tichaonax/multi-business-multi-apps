@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+
+interface Context {
+  params: {
+    businessId: string
+  }
+}
+
+export async function GET(req: NextRequest, { params }: Context) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // params may be a thenable in Next.js; await it before accessing properties
+  const resolvedParams = await (params as any)
+  const { businessId } = resolvedParams
+    const user = session.user as SessionUser
+
+    // System admins can view any business
+    if (isSystemAdmin(user)) {
+      const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, name: true, isActive: true, type: true } })
+      if (!business || !business.isActive) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return NextResponse.json({ success: true, business })
+    }
+
+    // Non-admins must be a member of the business
+    const membership = await prisma.businessMembership.findFirst({ where: { userId: session.user.id, businessId, isActive: true }, include: { business: { select: { id: true, name: true, isActive: true, type: true } } } })
+    if (!membership || !membership.business || !membership.business.isActive) return NextResponse.json({ error: 'Not found or access denied' }, { status: 404 })
+
+    return NextResponse.json({ success: true, business: membership.business })
+  } catch (error) {
+    console.error('Error fetching business by id:', error)
+    return NextResponse.json({ error: 'Failed to fetch business' }, { status: 500 })
+  }
+}

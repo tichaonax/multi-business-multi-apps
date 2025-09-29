@@ -11,7 +11,7 @@ export interface ValidationResult {
 interface BalanceValidationWarningProps {
   validation: ValidationResult | null
   businessName?: string
-  transactionType?: 'loan' | 'payment' | 'advance'
+  transactionType?: 'loan' | 'payment' | 'advance' | 'transaction'
   className?: string
 }
 

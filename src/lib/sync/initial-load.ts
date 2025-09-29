@@ -5,8 +5,12 @@
 
 import { EventEmitter } from 'events'
 import { PrismaClient } from '@prisma/client'
+import { getDbName } from '../db-names'
 import { PeerInfo } from './peer-discovery'
 import { SyncUtils } from './sync-utils'
+
+// use Node's crypto consistently inside this module
+const crypto = require('crypto')
 
 export interface InitialLoadSession {
   sessionId: string
@@ -16,10 +20,12 @@ export interface InitialLoadSession {
   completedAt?: Date
   status: 'PREPARING' | 'TRANSFERRING' | 'VALIDATING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
   progress: number // 0-100
-  currentStep: string
+  // currentStep may be undefined when loaded from DB
+  currentStep?: string
   totalRecords: number
   transferredRecords: number
-  transferredBytes: number
+  // transferredBytes may be BigInt in DB; allow number | bigint | null
+  transferredBytes: number | bigint | null
   estimatedTimeRemaining: number // seconds
   errorMessage?: string
   metadata: {
@@ -77,21 +83,22 @@ export class InitialLoadManager extends EventEmitter {
   private readonly VALIDATION_SAMPLE_SIZE = 100
 
   // Tables to include in initial load (excluding sync system tables)
+  // Use mapped physical DB names when available via getDbName
   private readonly CORE_TABLES = [
-    'users',
-    'businesses',
-    'business_memberships',
-    'employees',
-    'employee_contracts',
-    'job_titles',
-    'compensation_types',
-    'benefit_types',
-    'projects',
-    'project_contractors',
-    'project_stages',
-    'project_transactions',
-    'persons',
-    'id_format_templates',
+    getDbName('users'),
+    getDbName('businesses'),
+    getDbName('businessMemberships') || 'business_memberships',
+    getDbName('employees'),
+    getDbName('employeeContracts') || 'employee_contracts',
+    getDbName('jobTitles') || 'job_titles',
+    getDbName('compensationTypes') || 'compensation_types',
+    getDbName('benefitTypes') || 'benefit_types',
+    getDbName('projects'),
+    getDbName('projectContractors') || 'project_contractors',
+    getDbName('projectStages') || 'project_stages',
+    getDbName('projectTransactions') || 'project_transactions',
+    getDbName('persons') || 'persons',
+    getDbName('idFormatTemplates') || 'id_format_templates',
     'phone_format_templates',
     'date_format_templates'
   ]
@@ -167,12 +174,13 @@ export class InitialLoadManager extends EventEmitter {
         nodeId: this.nodeId,
         createdAt,
         totalRecords,
+        // keep totalSize in our runtime snapshot but persist into metadata to match Prisma schema
         totalSize,
         checksum,
         tables
       }
 
-      // Store snapshot metadata
+      // Store snapshot metadata (map to prisma fields)
       await this.storeSnapshotMetadata(snapshot)
 
       this.emit('snapshot_created', snapshot)
@@ -342,8 +350,10 @@ export class InitialLoadManager extends EventEmitter {
           `Transferred ${transferredChunks}/${totalChunks} chunks`
         )
 
-        session.transferredRecords += chunk.data.length
-        session.transferredBytes += this.calculateChunkSize(chunk)
+  session.transferredRecords += chunk.data.length
+  // ensure transferredBytes is a number and handle nulls
+  const prevBytes = Number(session.transferredBytes || 0)
+  session.transferredBytes = prevBytes + this.calculateChunkSize(chunk)
       }
 
       // Phase 4: Validation
@@ -550,9 +560,10 @@ export class InitialLoadManager extends EventEmitter {
     try {
       // Try to get from updatedAt or createdAt columns
       const result = await this.prisma.$queryRawUnsafe(
-        `SELECT MAX(COALESCE("updated_at", "created_at")) as last_modified FROM "${tableName}"`
+        `SELECT MAX(COALESCE("updated_at", "created_at", updatedAt, createdAt)) as last_modified FROM "${tableName}"`
       )
-      return new Date((result as any)[0]?.last_modified || Date.now())
+  const last = (result as any)[0]?.lastModified || (result as any)[0]?.last_modified || Date.now()
+      return new Date(last)
     } catch (error) {
       return new Date()
     }
@@ -590,8 +601,24 @@ export class InitialLoadManager extends EventEmitter {
    * Calculate data checksum
    */
   private calculateDataChecksum(data: any[]): string {
-    const crypto = require('crypto')
-    const dataString = JSON.stringify(data, Object.keys(data).sort())
+    // stable JSON stringify to ensure deterministic checksums across runs
+    const stableStringify = (value: any): string => {
+      const replacer = (_key: string, v: any) => {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          // produce an object with sorted keys
+          const ordered: any = {}
+          for (const k of Object.keys(v).sort()) {
+            ordered[k] = v[k]
+          }
+          return ordered
+        }
+        return v
+      }
+
+      return JSON.stringify(value, replacer)
+    }
+
+    const dataString = stableStringify(data)
     return crypto.createHash('sha256').update(dataString).digest('hex')
   }
 
@@ -616,16 +643,22 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async storeSnapshotMetadata(snapshot: DataSnapshot): Promise<void> {
     try {
-      await this.prisma.dataSnapshot.create({
+      // Prisma schema for DataSnapshot may differ between deployments. Write into
+      // snapshotData/metadata fields to ensure compatibility.
+      await (this.prisma as any).dataSnapshot.create({
         data: {
           id: snapshot.snapshotId,
           nodeId: snapshot.nodeId,
           createdAt: snapshot.createdAt,
           totalRecords: snapshot.totalRecords,
-          totalSize: snapshot.totalSize,
-          checksum: snapshot.checksum,
-          tableMetadata: snapshot.tables
-        }
+          // store tables and totalSize inside metadata to avoid schema mismatch
+          snapshotData: snapshot.tables,
+          metadata: {
+            totalSize: snapshot.totalSize,
+            checksum: snapshot.checksum
+          },
+          checksum: snapshot.checksum
+        } as any
       })
     } catch (error) {
       console.error('Failed to store snapshot metadata:', error)
@@ -637,7 +670,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async loadActiveSessions(): Promise<void> {
     try {
-      const sessions = await this.prisma.initialLoadSession.findMany({
+      const sessions = await (this.prisma as any).initialLoadSession.findMany({
         where: {
           OR: [
             { sourceNodeId: this.nodeId },
@@ -650,21 +683,22 @@ export class InitialLoadManager extends EventEmitter {
       })
 
       for (const dbSession of sessions) {
+        const s = dbSession as any
         const session: InitialLoadSession = {
-          sessionId: dbSession.id,
-          sourceNodeId: dbSession.sourceNodeId,
-          targetNodeId: dbSession.targetNodeId,
-          startedAt: dbSession.startedAt,
-          completedAt: dbSession.completedAt || undefined,
-          status: dbSession.status as any,
-          progress: dbSession.progress,
-          currentStep: dbSession.currentStep,
-          totalRecords: dbSession.totalRecords,
-          transferredRecords: dbSession.transferredRecords,
-          transferredBytes: dbSession.transferredBytes,
-          estimatedTimeRemaining: dbSession.estimatedTimeRemaining,
-          errorMessage: dbSession.errorMessage || undefined,
-          metadata: dbSession.metadata as any
+          sessionId: s.id,
+          sourceNodeId: s.sourceNodeId,
+          targetNodeId: s.targetNodeId,
+          startedAt: s.startedAt,
+          completedAt: s.completedAt || undefined,
+          status: s.status as any,
+          progress: s.progress,
+          currentStep: s.currentStep,
+          totalRecords: s.totalRecords,
+          transferredRecords: s.transferredRecords,
+          transferredBytes: s.transferredBytes,
+          estimatedTimeRemaining: s.estimatedTimeRemaining,
+          errorMessage: s.errorMessage || undefined,
+          metadata: s.metadata as any
         }
 
         this.activeSessions.set(session.sessionId, session)
@@ -679,7 +713,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async createInitialLoadSession(session: InitialLoadSession): Promise<void> {
     try {
-      await this.prisma.initialLoadSession.create({
+      await (this.prisma as any).initialLoadSession.create({
         data: {
           id: session.sessionId,
           sourceNodeId: session.sourceNodeId,
@@ -693,7 +727,7 @@ export class InitialLoadManager extends EventEmitter {
           transferredBytes: session.transferredBytes,
           estimatedTimeRemaining: session.estimatedTimeRemaining,
           metadata: session.metadata
-        }
+        } as any
       })
     } catch (error) {
       console.error('Failed to create initial load session:', error)
@@ -705,7 +739,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async updateInitialLoadSession(session: InitialLoadSession): Promise<void> {
     try {
-      await this.prisma.initialLoadSession.update({
+      await (this.prisma as any).initialLoadSession.update({
         where: { id: session.sessionId },
         data: {
           status: session.status,
@@ -718,7 +752,7 @@ export class InitialLoadManager extends EventEmitter {
           completedAt: session.completedAt,
           errorMessage: session.errorMessage,
           metadata: session.metadata
-        }
+        } as any
       })
     } catch (error) {
       console.error('Failed to update initial load session:', error)

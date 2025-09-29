@@ -5,24 +5,27 @@ async function seed() {
   try {
     const businessId = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
 
-    // Create business if not exists
+  // Create business if not exists
     const existing = await prisma.business.findUnique({ where: { id: businessId } })
     if (!existing) {
       // Use businessType to match other seed scripts and Prisma schema
-      await prisma.business.create({ data: { id: businessId, name: 'Hardware Demo Store', businessType: 'hardware' } })
+      // The Business model requires a 'type' scalar; set it to the same as businessType for demo businesses
+      await prisma.business.create({ data: { id: businessId, name: 'Hardware Demo Store', type: 'hardware' } })
     }
+
+  const now = new Date()
 
     // Categories
     const cat1 = await prisma.businessCategory.upsert({
       where: { id: `${businessId}-cat-fasteners` },
       update: {},
-      create: { id: `${businessId}-cat-fasteners`, businessId, businessType: 'hardware', name: 'Fasteners & Hardware' }
+      create: { id: `${businessId}-cat-fasteners`, businessId, businessType: 'hardware', name: 'Fasteners & Hardware', updatedAt: now }
     })
 
     const cat2 = await prisma.businessCategory.upsert({
       where: { id: `${businessId}-cat-tools` },
       update: {},
-      create: { id: `${businessId}-cat-tools`, businessId, businessType: 'hardware', name: 'Tools' }
+      create: { id: `${businessId}-cat-tools`, businessId, businessType: 'hardware', name: 'Tools', updatedAt: now }
     })
 
     // Suppliers
@@ -35,7 +38,8 @@ async function seed() {
         supplierNumber: `${businessId}-SUP-1`,
         name: 'Seed Hardware Supplies',
         email: 'seed+hardware@example.com',
-        businessType: 'hardware'
+        businessType: 'hardware',
+        updatedAt: now
       }
     })
 
@@ -52,6 +56,8 @@ async function seed() {
         basePrice: 0.12,
         categoryId: cat1.id,
         description: 'Standard hex bolt for general purpose'
+        ,
+        updatedAt: now
       }
     })
 
@@ -67,6 +73,8 @@ async function seed() {
         basePrice: 89.99,
         categoryId: cat2.id,
         description: 'Lightweight cordless drill for DIY tasks'
+        ,
+        updatedAt: now
       }
     })
 
@@ -74,13 +82,13 @@ async function seed() {
     const v1 = await prisma.productVariant.upsert({
       where: { id: `${p1.id}-variant-default` },
       update: {},
-      create: { id: `${p1.id}-variant-default`, productId: p1.id, sku: `${p1.sku}-STD`, price: p1.basePrice, stockQuantity: 500 }
+      create: { id: `${p1.id}-variant-default`, productId: p1.id, sku: `${p1.sku}-STD`, price: p1.basePrice, stockQuantity: 500, updatedAt: now }
     }).catch(() => null)
 
     const v2 = await prisma.productVariant.upsert({
       where: { id: `${p2.id}-variant-default` },
       update: {},
-      create: { id: `${p2.id}-variant-default`, productId: p2.id, sku: `${p2.sku}-STD`, price: p2.basePrice, stockQuantity: 25 }
+      create: { id: `${p2.id}-variant-default`, productId: p2.id, sku: `${p2.sku}-STD`, price: p2.basePrice, stockQuantity: 25, updatedAt: now }
     }).catch(() => null)
 
     await prisma.productImage.createMany({

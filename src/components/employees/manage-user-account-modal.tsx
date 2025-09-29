@@ -1,21 +1,8 @@
-'use client'
+ 'use client'
 
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/lib/permission-utils'
-
-interface Employee {
-  id: string
-  fullName: string
-  employeeNumber: string
-  employmentStatus: string
-  user?: {
-    id: string
-    name: string
-    email: string
-    isActive: boolean
-    role: string
-  } | null
-}
+import type { Employee } from '@/types/employee'
 
 interface AvailableUser {
   id: string

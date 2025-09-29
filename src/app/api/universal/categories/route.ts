@@ -10,7 +10,7 @@ const CreateCategorySchema = z.object({
   parentId: z.string().optional(),
   displayOrder: z.number().int().min(0).default(0),
   businessType: z.string().min(1),
-  attributes: z.record(z.any()).optional()
+  attributes: z.record(z.unknown()).optional()
 })
 
 const UpdateCategorySchema = CreateCategorySchema.partial().extend({
@@ -49,16 +49,16 @@ export async function GET(request: NextRequest) {
         business: {
           select: { name: true, type: true }
         },
-        parent: {
+        parentCategory: {
           select: { id: true, name: true }
         },
-        children: {
+        childCategories: {
           select: { id: true, name: true, displayOrder: true },
           where: { isActive: true },
           orderBy: { displayOrder: 'asc' }
         },
         ...(includeProducts && {
-          products: {
+          businessProducts: {
             select: {
               id: true,
               name: true,
@@ -73,11 +73,22 @@ export async function GET(request: NextRequest) {
       orderBy: { displayOrder: 'asc' }
     })
 
+    // Map canonical relation names back to legacy API shape (parent, children, products)
+    const mapped = (categories as any[]).map((c) => {
+      const { parentCategory, childCategories, businessProducts, ...rest } = c || {}
+      return {
+        ...rest,
+        parent: parentCategory ?? null,
+        children: childCategories ?? [],
+        products: businessProducts ?? []
+      }
+    })
+
     return NextResponse.json({
       success: true,
-      data: categories,
+      data: mapped,
       meta: {
-        total: categories.length,
+        total: mapped.length,
         businessId,
         businessType
       }
@@ -147,15 +158,15 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         businessType: validatedData.businessType || business.type
-      },
+      } as any,
       include: {
         business: {
           select: { name: true, type: true }
         },
-        parent: {
+        parentCategory: {
           select: { id: true, name: true }
         },
-        children: {
+        childCategories: {
           select: { id: true, name: true, displayOrder: true },
           where: { isActive: true },
           orderBy: { displayOrder: 'asc' }
@@ -172,7 +183,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -226,15 +237,15 @@ export async function PUT(request: NextRequest) {
 
     const category = await prisma.businessCategory.update({
       where: { id },
-      data: updateData,
+      data: updateData as any,
       include: {
         business: {
           select: { name: true, type: true }
         },
-        parent: {
+        parentCategory: {
           select: { id: true, name: true }
         },
-        children: {
+        childCategories: {
           select: { id: true, name: true, displayOrder: true },
           where: { isActive: true },
           orderBy: { displayOrder: 'asc' }
@@ -251,7 +262,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -281,11 +292,11 @@ export async function DELETE(request: NextRequest) {
     const categoryWithProducts = await prisma.businessCategory.findUnique({
       where: { id },
       include: {
-        products: {
+        businessProducts: {
           where: { isActive: true },
           select: { id: true }
         },
-        children: {
+        childCategories: {
           where: { isActive: true },
           select: { id: true }
         }
@@ -299,14 +310,14 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    if (categoryWithProducts.products.length > 0) {
+    if ((categoryWithProducts.businessProducts ?? []).length > 0) {
       return NextResponse.json(
         { error: 'Cannot delete category with active products. Move or deactivate products first.' },
         { status: 409 }
       )
     }
 
-    if (categoryWithProducts.children.length > 0) {
+    if ((categoryWithProducts.childCategories ?? []).length > 0) {
       return NextResponse.json(
         { error: 'Cannot delete category with active child categories. Move or deactivate child categories first.' },
         { status: 409 }

@@ -10,7 +10,7 @@ const CreateBrandSchema = z.object({
   logoUrl: z.string().url().optional(),
   website: z.string().url().optional(),
   businessType: z.string().min(1),
-  attributes: z.record(z.any()).optional()
+  attributes: z.record(z.string(), z.unknown()).optional()
 })
 
 const UpdateBrandSchema = CreateBrandSchema.partial().extend({
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
           select: { name: true, type: true }
         },
         ...(includeProducts && {
-          products: {
+          businessProducts: {
             select: {
               id: true,
               name: true,
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         }),
         _count: {
           select: {
-            products: {
+            businessProducts: {
               where: { isActive: true }
             }
           }
@@ -131,14 +131,14 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         businessType: validatedData.businessType || business.type
-      },
+      } as any,
       include: {
         business: {
           select: { name: true, type: true }
         },
         _count: {
           select: {
-            products: {
+            businessProducts: {
               where: { isActive: true }
             }
           }
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -208,14 +208,14 @@ export async function PUT(request: NextRequest) {
 
     const brand = await prisma.businessBrand.update({
       where: { id },
-      data: updateData,
+      data: updateData as any,
       include: {
         business: {
           select: { name: true, type: true }
         },
         _count: {
           select: {
-            products: {
+            businessProducts: {
               where: { isActive: true }
             }
           }
@@ -232,7 +232,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -262,7 +262,7 @@ export async function DELETE(request: NextRequest) {
     const brandWithProducts = await prisma.businessBrand.findUnique({
       where: { id },
       include: {
-        products: {
+        businessProducts: {
           where: { isActive: true },
           select: { id: true }
         }
@@ -276,11 +276,11 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    if (brandWithProducts.products.length > 0) {
+    if ((brandWithProducts.businessProducts ?? []).length > 0) {
       return NextResponse.json(
         {
           error: 'Cannot delete brand with active products. Move products to another brand or deactivate them first.',
-          productCount: brandWithProducts.products.length
+          productCount: (brandWithProducts.businessProducts ?? []).length
         },
         { status: 409 }
       )

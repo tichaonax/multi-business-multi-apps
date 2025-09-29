@@ -26,7 +26,7 @@ export async function DELETE(
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        employee: {
+        employees: {
           select: {
             id: true,
             fullName: true,
@@ -64,9 +64,9 @@ export async function DELETE(
       });
 
       // Unlink from employee (preserve employee record)
-      if (user.employee) {
+      if ((user as any).employees) {
         await tx.employee.update({
-          where: { id: user.employee.id },
+          where: { id: (user as any).employees.id },
           data: { userId: null }
         });
       }
@@ -82,16 +82,16 @@ export async function DELETE(
             targetUserId: userId,
             targetUserEmail: user.email,
             targetUserName: user.name,
-            linkedEmployeeId: user.employee?.id,
-            linkedEmployeeName: user.employee?.fullName,
+            linkedEmployeeId: (user as any).employees?.id,
+            linkedEmployeeName: (user as any).employees?.fullName,
             reason,
             notes,
             businessMemberships: user.businessMemberships.map(m => ({
               businessId: m.businessId,
-              businessName: m.business.name
+              businessName: (m as any).business?.name || null
             }))
           },
-          businessId: user.businessMemberships.find(m => m.isActive)?.businessId,
+          businessId: (user as any).businessMemberships.find((m: any) => m.isActive)?.businessId,
           timestamp: new Date(),
         }
       });
@@ -108,9 +108,9 @@ export async function DELETE(
         email: result.email,
         isActive: result.isActive,
         deactivatedAt: result.deactivatedAt,
-        employeePreserved: !!user.employee,
-        employeeId: user.employee?.id,
-        employeeName: user.employee?.fullName,
+  employeePreserved: !!(user as any).employees,
+  employeeId: (user as any).employees?.id,
+  employeeName: (user as any).employees?.fullName,
       }
     });
 
@@ -145,7 +145,7 @@ export async function POST(
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        employee: {
+        employees: {
           select: {
             id: true,
             fullName: true,
@@ -181,17 +181,17 @@ export async function POST(
       });
 
       // Relink to employee if employee exists and has no other user account
-      if (user.employee) {
+      if ((user as any).employees) {
         const employeeHasOtherUser = await tx.employee.findFirst({
           where: {
-            id: user.employee.id,
+            id: (user as any).employees.id,
             userId: { not: null }
           }
         });
 
         if (!employeeHasOtherUser) {
           await tx.employee.update({
-            where: { id: user.employee.id },
+            where: { id: (user as any).employees.id },
             data: { userId: userId }
           });
         }
@@ -208,8 +208,8 @@ export async function POST(
             targetUserId: userId,
             targetUserEmail: user.email,
             targetUserName: user.name,
-            linkedEmployeeId: user.employee?.id,
-            linkedEmployeeName: user.employee?.fullName,
+            linkedEmployeeId: (user as any).employees?.id,
+            linkedEmployeeName: (user as any).employees?.fullName,
             notes,
           },
           timestamp: new Date(),
@@ -228,9 +228,9 @@ export async function POST(
         email: result.email,
         isActive: result.isActive,
         reactivatedAt: result.reactivatedAt,
-        employeeLinked: !!user.employee,
-        employeeId: user.employee?.id,
-        employeeName: user.employee?.fullName,
+  employeeLinked: !!(user as any).employees,
+  employeeId: (user as any).employees?.id,
+  employeeName: (user as any).employees?.fullName,
       }
     });
 

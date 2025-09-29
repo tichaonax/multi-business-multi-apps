@@ -10,6 +10,13 @@ interface MenuItem {
   name: string
   price: number
   category: string
+  // optional/extended fields mapped from UniversalProduct
+  isAvailable?: boolean
+  originalPrice?: number | null
+  discountPercent?: number | null
+  spiceLevel?: number | null
+  preparationTime?: number | null
+  variants?: Array<{ id: string; name?: string; price?: number; isAvailable?: boolean }>
 }
 
 interface CartItem extends MenuItem {
@@ -18,6 +25,7 @@ interface CartItem extends MenuItem {
 
 export default function RestaurantPOS() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const submitInFlightRef = useRef<{ current: boolean } | any>({ current: false })
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
@@ -75,16 +83,16 @@ export default function RestaurantPOS() {
     })
   }
 
-  const handleProductScanned = (product: UniversalProduct, variantId?: string) => {
+  const handleProductScanned = (product: any, variantId?: string) => {
     // Check if product is available
-    if (!product.isAvailable) {
+    if (!(product as any).isAvailable) {
       alert(`${product.name} is currently unavailable`)
       return
     }
 
     // If variant is specified, check variant availability
-    const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined
-    if (variant && !variant.isAvailable) {
+    const variant = variantId ? (product.variants || []).find((v: any) => v.id === variantId) : undefined
+    if (variant && !(variant as any).isAvailable) {
       alert(`${product.name} (${variant.name}) is currently unavailable`)
       return
     }
@@ -96,10 +104,10 @@ export default function RestaurantPOS() {
       price: variant?.price || product.basePrice,
       category: 'scanned',
       isAvailable: true, // We've already checked availability
-      originalPrice: product.originalPrice,
-      discountPercent: product.discountPercent,
-      spiceLevel: product.spiceLevel,
-      preparationTime: product.preparationTime
+      originalPrice: (product as any).originalPrice,
+      discountPercent: (product as any).discountPercent,
+      spiceLevel: (product as any).spiceLevel,
+      preparationTime: (product as any).preparationTime
     }
 
     addToCart(menuItem)

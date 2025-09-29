@@ -60,6 +60,8 @@
     "test:coverage": "jest --coverage",
     "create-admin": "node scripts/create-admin.js",
     "init-business-balances": "node scripts/initialize-business-balances.js"
+  ,
+  "test:seed-clothing": "node tests/seed-clothing.test.js"
   },
   "keywords": [],
   "author": "",
@@ -97,6 +99,7 @@
     "recharts": "^3.1.2",
     "tailwind-merge": "^3.3.1",
     "typescript": "^5.9.2",
+    "uuid": "^13.0.0",
     "winston": "^3.17.0",
     "xlsx": "^0.18.5",
     "zod": "^4.1.5"

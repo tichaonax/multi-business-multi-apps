@@ -135,12 +135,12 @@ export async function GET(
         low: alerts.filter(a => a.priority === 'low').length
       },
       byType: {
-        low_stock: alerts.filter(a => a.alertType === 'low_stock').length,
-        out_of_stock: alerts.filter(a => a.alertType === 'out_of_stock').length,
-        expiring_soon: alerts.filter(a => a.alertType === 'expiring_soon').length,
+        lowStock: alerts.filter(a => a.alertType === 'low_stock').length,
+        outOfStock: alerts.filter(a => a.alertType === 'out_of_stock').length,
+        expiringSoon: alerts.filter(a => a.alertType === 'expiring_soon').length,
         expired: alerts.filter(a => a.alertType === 'expired').length,
         overstock: alerts.filter(a => a.alertType === 'overstock').length,
-        price_change: alerts.filter(a => a.alertType === 'price_change').length
+        priceChange: alerts.filter(a => a.alertType === 'price_change').length
       },
       totalValue: alerts
         .filter(a => a.value)

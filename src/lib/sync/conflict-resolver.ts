@@ -5,6 +5,7 @@
 
 import { PrismaClient, ConflictType, ResolutionStrategy } from '@prisma/client'
 import { ChangeEvent, VectorClock } from './change-tracker'
+import { getDbName } from '../db-names'
 import crypto from 'crypto'
 
 export interface ConflictResolutionRule {
@@ -211,8 +212,8 @@ export class ConflictResolver {
       let confidence = 70
 
       // Apply business rules for field-level merging
-      if (rule?.businessRules) {
-        for (const businessRule of rule.businessRules) {
+    if (rule?.businessRules && Array.isArray(rule.businessRules)) {
+      for (const businessRule of rule.businessRules) {
           const field = businessRule.field
           const oldValue = eventA.changeData[field]
           const newValue = eventB.changeData[field]
@@ -265,16 +266,13 @@ export class ConflictResolver {
     const tableName = events[0].tableName
     const rule = this.resolutionRules.get(tableName)
 
-    if (!rule?.businessRules) {
-      return this.resolveByLastWriterWins(events)
-    }
+    const businessRules = (rule?.businessRules && Array.isArray(rule.businessRules)) ? rule.businessRules : []
 
     // Score each event based on business rules
     const scoredEvents = events.map(event => {
       let score = 0
       const reasons: string[] = []
-
-      for (const businessRule of rule.businessRules) {
+      for (const businessRule of businessRules) {
         const fieldValue = event.changeData[businessRule.field]
 
         switch (businessRule.condition) {
@@ -420,7 +418,7 @@ export class ConflictResolver {
     tableName: string
   ): Promise<void> {
     try {
-      await this.prisma.conflict_resolutions.create({
+      await this.prisma.conflictResolution.create({
         data: {
           id: crypto.randomUUID(),
           conflictType,
@@ -450,8 +448,8 @@ export class ConflictResolver {
    */
   private initializeDefaultRules(): void {
     // Critical business data - use node priority
-    this.addResolutionRule('users', {
-      tableName: 'users',
+    this.addResolutionRule(getDbName('users'), {
+      tableName: getDbName('users'),
       strategy: 'NODE_PRIORITY',
       priority: 10,
       businessRules: [
@@ -461,8 +459,8 @@ export class ConflictResolver {
     })
 
     // Business orders - merge when possible
-    this.addResolutionRule('business_orders', {
-      tableName: 'business_orders',
+    this.addResolutionRule(getDbName('businessOrders'), {
+      tableName: getDbName('businessOrders'),
       strategy: 'MERGE_CHANGES',
       priority: 9,
       businessRules: [
@@ -473,8 +471,8 @@ export class ConflictResolver {
     })
 
     // Employee data - use business rules
-    this.addResolutionRule('employees', {
-      tableName: 'employees',
+    this.addResolutionRule(getDbName('employees'), {
+      tableName: getDbName('employees'),
       strategy: 'BUSINESS_RULE',
       priority: 8,
       businessRules: [
@@ -485,15 +483,15 @@ export class ConflictResolver {
     })
 
     // Product inventory - last writer wins
-    this.addResolutionRule('business_products', {
-      tableName: 'business_products',
+    this.addResolutionRule(getDbName('businessProducts'), {
+      tableName: getDbName('businessProducts'),
       strategy: 'LAST_WRITER_WINS',
       priority: 7
     })
 
     // Audit logs - keep both
-    this.addResolutionRule('audit_logs', {
-      tableName: 'audit_logs',
+    this.addResolutionRule(getDbName('auditLogs'), {
+      tableName: getDbName('auditLogs'),
       strategy: 'KEEP_BOTH',
       priority: 6
     })
@@ -529,7 +527,7 @@ export class ConflictResolver {
    */
   async loadNodePriorities(): Promise<void> {
     try {
-      const nodes = await this.prisma.sync_nodes.findMany({
+      const nodes = await this.prisma.syncNode.findMany({
         where: { isActive: true },
         select: {
           nodeId: true,

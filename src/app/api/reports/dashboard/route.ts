@@ -297,9 +297,9 @@ export async function GET(req: NextRequest) {
       benefitFinancials,
       benefitsByType
     ] = await Promise.all([
-      prisma.benefit_types.count(),
+      prisma.benefitType.count(),
       
-      prisma.benefit_types.count({
+      prisma.benefitType.count({
         where: { isActive: true }
       }),
 
@@ -308,7 +308,7 @@ export async function GET(req: NextRequest) {
         _count: true
       }),
 
-      prisma.benefit_types.groupBy({
+      prisma.benefitType.groupBy({
         by: ['type'],
         _count: true
       })

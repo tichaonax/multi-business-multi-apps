@@ -143,8 +143,16 @@ class SyncServiceRunner {
 
       try {
         // Try to query a critical table that sync service needs
-        await prisma.$queryRaw`SELECT 1 FROM information_schema.tables WHERE table_name = 'sync_nodes' LIMIT 1`
-        console.log('✅ Database schema verification completed')
+          const res = await prisma.$queryRaw`SELECT 1 as ok FROM information_schema.tables WHERE table_name = 'sync_nodes' LIMIT 1`
+
+          // Prisma raw results can vary; treat any non-empty array as success
+          const hasTable = Array.isArray(res) ? res.length > 0 : !!res
+
+          if (!hasTable) {
+            throw new Error('sync_nodes table not found')
+          }
+
+          console.log('✅ Database schema verification completed')
       } finally {
         await prisma.$disconnect()
       }

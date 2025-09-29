@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
 
 interface UniversalInventoryItem {
   id: string
@@ -93,7 +94,7 @@ export async function GET(
     }
 
     if (category && category !== 'all') {
-      where.category = {
+      where.businessCategory = {
         name: { contains: category, mode: 'insensitive' }
       }
     }
@@ -102,11 +103,11 @@ export async function GET(
     const products = await prisma.businessProduct.findMany({
       where,
       include: {
-        category: true,
-        brand: true,
-        variants: {
+        businessCategory: true,
+        businessBrand: true,
+        productVariants: {
           include: {
-            stockMovements: true
+            businessStockMovements: true
           }
         }
       },
@@ -120,12 +121,11 @@ export async function GET(
     // Transform to match the expected interface
     const items = products.map(product => {
       // Calculate current stock from stock movements
-      const currentStock = product.variants.reduce((total, variant) => {
-        const stockMovements = variant.stockMovements || []
+      // Sum stockQuantity from movements (movements may have positive/negative quantities)
+      const currentStock = product.productVariants.reduce((total, variant) => {
+        const stockMovements = variant.businessStockMovements || []
         const variantStock = stockMovements.reduce((sum, movement) => {
-          return movement.movementType === 'IN'
-            ? sum + movement.quantity
-            : sum - movement.quantity
+          return sum + Number(movement.quantity)
         }, 0)
         return total + variantStock
       }, 0)
@@ -137,10 +137,10 @@ export async function GET(
         name: product.name,
         sku: product.sku || '',
         description: product.description || '',
-        category: product.category?.name || 'Uncategorized',
+  category: product.businessCategory?.name || 'Uncategorized',
         currentStock,
         unit: 'units',
-        costPrice: parseFloat(product.costPrice?.toString() || '0'),
+  costPrice: parseFloat(product.costPrice?.toString() || '0'),
         sellPrice: parseFloat(product.basePrice?.toString() || '0'),
         supplier: '',
         location: '',
@@ -237,9 +237,11 @@ export async function POST(
         },
         update: {},
         create: {
+          id: randomUUID(),
           businessId,
           name: body.category,
-          businessType: business.type
+          businessType: business.type,
+          updatedAt: new Date()
         }
       })
       categoryId = category.id
@@ -248,6 +250,7 @@ export async function POST(
     // Create the product
     const product = await prisma.businessProduct.create({
       data: {
+        id: randomUUID(),
         businessId,
         name: body.name,
         description: body.description || '',
@@ -258,22 +261,25 @@ export async function POST(
         costPrice: body.costPrice ? parseFloat(body.costPrice) : null,
         businessType: business.type,
         isActive: body.isActive !== false,
-        attributes: body.attributes || {}
+        attributes: body.attributes || {},
+        updatedAt: new Date()
       },
       include: {
-        category: true
+        businessCategory: true
       }
     })
 
     // Create default variant
     const variant = await prisma.productVariant.create({
       data: {
+        id: randomUUID(),
         productId: product.id,
-        variantName: 'Default',
+        name: 'Default',
         sku: body.sku || product.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-001`,
-        currentStock: 0,
-        lowStockThreshold: body.lowStockThreshold || 10,
-        price: parseFloat(body.basePrice)
+        stockQuantity: 0,
+        reorderLevel: body.lowStockThreshold || 10,
+        price: parseFloat(body.basePrice),
+        updatedAt: new Date()
       }
     })
 
@@ -281,27 +287,30 @@ export async function POST(
     if (body.currentStock && parseFloat(body.currentStock) > 0) {
       await prisma.businessStockMovement.create({
         data: {
+          id: randomUUID(),
           businessId,
           productVariantId: variant.id,
-          movementType: 'IN',
+          movementType: 'PURCHASE_RECEIVED',
           quantity: parseInt(body.currentStock),
           unitCost: body.costPrice ? parseFloat(body.costPrice) : null,
           reference: 'Initial Stock',
           reason: 'Initial inventory setup',
-          businessType: business.type
+          businessType: business.type,
+          createdAt: new Date()
         }
       })
 
       // Update variant stock
       await prisma.productVariant.update({
         where: { id: variant.id },
-        data: { currentStock: parseInt(body.currentStock) }
+        data: { stockQuantity: parseInt(body.currentStock), updatedAt: new Date() }
       })
     }
 
     // Create attributes if provided
     if (body.attributes) {
       const attributeData = Object.entries(body.attributes).map(([key, value]) => ({
+        id: randomUUID(),
         productId: product.id,
         key,
         value: String(value)
@@ -321,8 +330,8 @@ export async function POST(
         name: product.name,
         sku: variant.sku,
         description: product.description,
-        category: product.category?.name || 'Uncategorized',
-        currentStock: variant.currentStock,
+  category: (product as any).businessCategory?.name || 'Uncategorized',
+  currentStock: (variant as any).stockQuantity,
         unit: 'units',
         costPrice: parseFloat(product.costPrice?.toString() || '0'),
         sellPrice: parseFloat(product.basePrice.toString()),
@@ -364,29 +373,8 @@ export async function PUT(
     }
 
     // Find and update item in mock database
-    const items = mockInventoryItems[businessId] || []
-    const itemIndex = items.findIndex(item => item.id === id)
-
-    if (itemIndex === -1) {
-      return NextResponse.json(
-        { error: 'Inventory item not found' },
-        { status: 404 }
-      )
-    }
-
-    // Update item
-    const updatedItem = {
-      ...items[itemIndex],
-      ...updates,
-      updatedAt: new Date().toISOString()
-    }
-
-    mockInventoryItems[businessId][itemIndex] = updatedItem
-
-    return NextResponse.json({
-      message: 'Inventory item updated successfully',
-      item: updatedItem
-    })
+    // PUT not implemented for inventory items via mock storage in this API.
+    return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
 
   } catch (error) {
     console.error('Error updating inventory item:', error)

@@ -37,6 +37,7 @@ async function seed() {
           year: 2022,
           driveType: 'LEFT_HAND',
           currentMileage: 10000,
+          updatedAt: new Date(),
           ownershipType: 'PERSONAL'
         }
       })
@@ -47,6 +48,7 @@ async function seed() {
 
     const record = await prisma.vehicleMaintenanceRecord.create({
       data: {
+        id: 'dev-vehicle-maintenance-1',
         vehicleId: vehicle.id,
         serviceType: 'OIL_CHANGE',
         serviceName: 'Dev seed - oil change',
@@ -60,7 +62,8 @@ async function seed() {
         receiptUrl: null,
         notes: 'Seeded via scripts/seed-test-maintenance.js',
         isScheduledService: false,
-        createdBy: user.id
+        createdBy: user.id,
+        updatedAt: new Date()
       }
     })
 

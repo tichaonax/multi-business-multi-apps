@@ -21,6 +21,7 @@ async function upsertVehicle(id, plate, vin) {
       year: 2022,
       driveType: 'LEFT_HAND',
       currentMileage: 10000,
+      updatedAt: new Date(),
       ownershipType: 'PERSONAL'
     }
   })
@@ -29,13 +30,16 @@ async function upsertVehicle(id, plate, vin) {
 async function upsertDriver(id, fullName, licenseNumber) {
   const existing = await prisma.vehicleDriver.findUnique({ where: { id } })
   if (existing) return existing
+  const now = new Date()
   return prisma.vehicleDriver.create({
     data: {
       id,
       fullName,
       licenseNumber,
       licenseExpiry: new Date('2026-12-31'),
-      isActive: true
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
     }
   })
 }
@@ -43,8 +47,10 @@ async function upsertDriver(id, fullName, licenseNumber) {
 async function ensureAuthorization(driverId, vehicleId, authorizerId) {
   const existing = await prisma.driverAuthorization.findUnique({ where: { driverId_vehicleId: { driverId, vehicleId } } }).catch(() => null)
   if (existing) return existing
+  const now = new Date()
   return prisma.driverAuthorization.create({
     data: {
+      id: `auth-${driverId}-${vehicleId}-${Date.now()}`,
       driverId,
       vehicleId,
       authorizedBy: authorizerId,
@@ -52,17 +58,37 @@ async function ensureAuthorization(driverId, vehicleId, authorizerId) {
       expiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
       authorizationLevel: 'BASIC',
       notes: 'Seeded authorization',
-      createdAt: new Date()
+      createdAt: now,
+      updatedAt: now
     }
   })
 }
 
 async function createMaintenance(data) {
-  return prisma.vehicleMaintenanceRecord.create({ data })
+  const now = new Date()
+  const id = data.id || `dev-maint-${Date.now()}-${Math.random().toString(36).slice(2,6)}`
+  return prisma.vehicleMaintenanceRecord.create({
+    data: {
+      id,
+      ...data,
+      updatedAt: data.updatedAt || now,
+      // createdAt has a default in schema, so only set if provided
+      createdAt: data.createdAt || data.createdAt
+    }
+  })
 }
 
 async function createTrip(data) {
-  return prisma.vehicleTrip.create({ data })
+  const now = new Date()
+  const id = data.id || `dev-trip-${Date.now()}-${Math.random().toString(36).slice(2,6)}`
+  return prisma.vehicleTrip.create({
+    data: {
+      id,
+      ...data,
+      updatedAt: data.updatedAt || now,
+      createdAt: data.createdAt || data.createdAt
+    }
+  })
 }
 
 async function seed() {
@@ -217,6 +243,7 @@ async function seed() {
 
     const vl1 = await prisma.vehicleLicense.create({
       data: {
+        id: `vl-${v1.id}-${Date.now()}`,
         vehicleId: v1.id,
         licenseType: 'REGISTRATION',
         licenseNumber: 'REG-DEV-1',
@@ -249,6 +276,7 @@ async function seed() {
         updatedAt: new Date()
       },
       create: {
+        id: `auth-${d3.id}-${v1.id}-${Date.now()}`,
         driverId: d3.id,
         vehicleId: v1.id,
         authorizedBy: user.id,

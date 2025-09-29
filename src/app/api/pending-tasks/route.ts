@@ -21,8 +21,8 @@ export async function GET(req: NextRequest) {
 
     let pendingTasks: any[] = []
 
-    // 1. Pending Orders (Restaurant business)
-    if (hasUserPermission(user, 'canViewOrders') || isSystemAdmin(user)) {
+  // 1. Pending Orders (Restaurant business)
+  if (hasUserPermission(user, 'canViewOrders' as any) || isSystemAdmin(user)) {
       try {
         const pendingOrders = await prisma.order.findMany({
           where: {
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
             total: true,
             createdAt: true,
             tableNumber: true,
-            user: {
+            users: {
               select: {
                 name: true,
                 email: true
@@ -65,10 +65,10 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Pending Project Stages
-    if (hasUserPermission(user, 'canViewProjects') ||
-        hasUserPermission(user, 'canCreatePersonalProjects') ||
-        hasUserPermission(user, 'canManagePersonalProjects') ||
-        isSystemAdmin(user)) {
+  if (hasUserPermission(user, 'canViewProjects' as any) ||
+    hasUserPermission(user, 'canCreatePersonalProjects' as any) ||
+    hasUserPermission(user, 'canManagePersonalProjects' as any) ||
+    isSystemAdmin(user)) {
       try {
         const whereClause: any = {
           status: 'pending'
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
 
         // Filter by user's business access if not system admin
         if (!isSystemAdmin(user)) {
-          const canAccessCrossBusinessProjects = hasUserPermission(user, 'canAccessCrossBusinessProjects')
+          const canAccessCrossBusinessProjects = hasUserPermission(user, 'canAccessCrossBusinessProjects' as any)
 
           if (!canAccessCrossBusinessProjects) {
             whereClause.OR = [
@@ -122,10 +122,10 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Pending Project Transactions (requiring approval)
-    if (hasUserPermission(user, 'canViewProjects') ||
-        hasUserPermission(user, 'canCreatePersonalProjects') ||
-        hasUserPermission(user, 'canManagePersonalProjects') ||
-        isSystemAdmin(user)) {
+  if (hasUserPermission(user, 'canViewProjects' as any) ||
+    hasUserPermission(user, 'canCreatePersonalProjects' as any) ||
+    hasUserPermission(user, 'canManagePersonalProjects' as any) ||
+    isSystemAdmin(user)) {
       try {
         const whereClause: any = {
           status: 'pending'
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
 
         // Filter by user's business access if not system admin
         if (!isSystemAdmin(user)) {
-          const canAccessCrossBusinessProjects = hasUserPermission(user, 'canAccessCrossBusinessProjects')
+          const canAccessCrossBusinessProjects = hasUserPermission(user, 'canAccessCrossBusinessProjects' as any)
 
           if (!canAccessCrossBusinessProjects) {
             whereClause.OR = [
@@ -153,7 +153,7 @@ export async function GET(req: NextRequest) {
                 businessType: true
               }
             },
-            creator: {
+            users_project_transactions_createdByTousers: {
               select: {
                 name: true,
                 email: true
@@ -166,6 +166,8 @@ export async function GET(req: NextRequest) {
         })
 
         pendingTransactions.forEach(transaction => {
+          // Remap Prisma-generated relation name to legacy `creator` expected by UI
+          ;(transaction as any).creator = (transaction as any).users_project_transactions_createdByTousers ?? null
           pendingTasks.push({
             id: `transaction-${transaction.id}`,
             type: 'project_transaction',
@@ -185,16 +187,16 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Pending Employee Leave Requests
-    if (hasUserPermission(user, 'canViewEmployees') ||
-        hasUserPermission(user, 'canManageEmployees') ||
-        isSystemAdmin(user)) {
+  if (hasUserPermission(user, 'canViewEmployees' as any) ||
+    hasUserPermission(user, 'canManageEmployees' as any) ||
+    isSystemAdmin(user)) {
       try {
         const pendingLeaveRequests = await prisma.employeeLeaveRequest.findMany({
           where: {
             status: 'pending'
           },
           include: {
-            employee: {
+            employees_employee_leave_requests_employeeIdToemployees: {
               select: {
                 id: true,
                 fullName: true,
@@ -208,17 +210,19 @@ export async function GET(req: NextRequest) {
         })
 
         pendingLeaveRequests.forEach(request => {
+          // Map heavy Prisma relation name to friendly `employee` key expected by UI
+          const employee = (request as any).employees_employee_leave_requests_employeeIdToemployees
           pendingTasks.push({
             id: `leave-${request.id}`,
             type: 'leave_request',
-            title: `Leave Request: ${request.employee?.fullName}`,
+            title: `Leave Request: ${employee?.fullName}`,
             description: `${request.leaveType || 'Leave'} request${request.reason ? ` - ${request.reason}` : ''}`,
             createdAt: request.createdAt,
             priority: 'medium',
             module: 'employees',
             entityId: request.id,
             employeeId: request.employeeId,
-            details: includeDetails ? request : undefined
+            details: includeDetails ? { ...request, employee } : undefined
           })
         })
       } catch (error) {
@@ -227,16 +231,16 @@ export async function GET(req: NextRequest) {
     }
 
     // 5. Pending Contract Renewals
-    if (hasUserPermission(user, 'canViewEmployees') ||
-        hasUserPermission(user, 'canManageEmployees') ||
-        isSystemAdmin(user)) {
+  if (hasUserPermission(user, 'canViewEmployees' as any) ||
+    hasUserPermission(user, 'canManageEmployees' as any) ||
+    isSystemAdmin(user)) {
       try {
         const pendingRenewals = await prisma.contractRenewal.findMany({
           where: {
             status: 'pending'
           },
           include: {
-            employee: {
+            employees: {
               select: {
                 id: true,
                 fullName: true,
@@ -250,17 +254,18 @@ export async function GET(req: NextRequest) {
         })
 
         pendingRenewals.forEach(renewal => {
+          const employee = (renewal as any).employees
           pendingTasks.push({
             id: `renewal-${renewal.id}`,
             type: 'contract_renewal',
-            title: `Contract Renewal: ${renewal.employee?.fullName}`,
+            title: `Contract Renewal: ${employee?.fullName}`,
             description: `Employee contract renewal${renewal.notes ? ` - ${renewal.notes}` : ''}`,
             createdAt: renewal.createdAt,
             priority: 'medium',
             module: 'employees',
             entityId: renewal.id,
             employeeId: renewal.employeeId,
-            details: includeDetails ? renewal : undefined
+            details: includeDetails ? { ...renewal, employee } : undefined
           })
         })
       } catch (error) {

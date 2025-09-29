@@ -76,16 +76,20 @@ function generateAuditHash(entry: AuditLogEntry, timestamp: Date): string {
 export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
   try {
     const timestamp = new Date();
-    const hash = generateAuditHash(entry, timestamp);
+  const hash = generateAuditHash(entry, timestamp);
+  // Use the hash as deterministic id for audit entries when not provided
+  const id = hash
 
     await prisma.auditLog.create({
       data: {
+        id,
         userId: entry.userId,
         action: entry.action,
         entityType: entry.entityType,
         entityId: entry.entityId,
-        oldValues: entry.oldValues || null,
-        newValues: entry.newValues || null,
+        // Prisma JSON fields prefer undefined over null for optional values
+        oldValues: entry.oldValues ?? undefined,
+        newValues: entry.newValues ?? undefined,
         timestamp,
         metadata: {
           ...entry.metadata,
@@ -97,7 +101,7 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
         tableName: getTableNameFromEntityType(entry.entityType),
         recordId: entry.entityId,
         changes: entry.oldValues && entry.newValues ?
-          generateChangeLog(entry.oldValues, entry.newValues) : null,
+          generateChangeLog(entry.oldValues, entry.newValues) : undefined,
         details: {
           action: entry.action,
           entityType: entry.entityType,
@@ -293,7 +297,7 @@ export async function getEntityAuditTrail(
       entityId,
     },
     include: {
-      user: {
+      users: {
         select: {
           id: true,
           name: true,
@@ -320,7 +324,7 @@ export async function detectSuspiciousActivity(timeWindowHours: number = 24): Pr
   const timeThreshold = new Date(Date.now() - timeWindowHours * 60 * 60 * 1000);
 
   // Multiple failed logins from same IP
-  const multipleFailedLogins = await prisma.$queryRaw`
+  const multipleFailedLogins = (await prisma.$queryRaw`
     SELECT
       JSON_EXTRACT(metadata, '$.ipAddress') as ipAddress,
       COUNT(*) as failedAttempts,
@@ -333,10 +337,10 @@ export async function detectSuspiciousActivity(timeWindowHours: number = 24): Pr
     GROUP BY JSON_EXTRACT(metadata, '$.ipAddress')
     HAVING COUNT(*) >= 5
     ORDER BY failedAttempts DESC
-  `;
+  `) as any[];
 
   // Bulk operations (many actions by same user in short time)
-  const bulkOperations = await prisma.$queryRaw`
+  const bulkOperations = (await prisma.$queryRaw`
     SELECT
       user_id as userId,
       action,
@@ -348,10 +352,10 @@ export async function detectSuspiciousActivity(timeWindowHours: number = 24): Pr
     FROM audit_logs
     WHERE timestamp > ${timeThreshold}
       AND action IN ('CREATE', 'UPDATE', 'DELETE', 'DATA_EXPORT', 'DATA_IMPORT')
-    GROUP BY user_id, action, entity_type
+    GROUP BY userId, action, entity_type
     HAVING COUNT(*) >= 10
     ORDER BY actionCount DESC
-  `;
+  `) as any[];
 
   // Unusual permission changes
   const unusualPermissionChanges = await prisma.auditLog.findMany({
@@ -362,7 +366,7 @@ export async function detectSuspiciousActivity(timeWindowHours: number = 24): Pr
       },
     },
     include: {
-      user: {
+      users: {
         select: {
           id: true,
           name: true,
@@ -386,7 +390,7 @@ export async function detectSuspiciousActivity(timeWindowHours: number = 24): Pr
       },
     },
     include: {
-      user: {
+      users: {
         select: {
           id: true,
           name: true,
@@ -523,7 +527,7 @@ export async function getAuditLogs(options: {
   if (search) {
     where.OR = [
       {
-        user: {
+        users: {
           name: {
             contains: search,
             mode: 'insensitive'
@@ -531,7 +535,7 @@ export async function getAuditLogs(options: {
         }
       },
       {
-        user: {
+        users: {
           email: {
             contains: search,
             mode: 'insensitive'
@@ -557,7 +561,7 @@ export async function getAuditLogs(options: {
     prisma.auditLog.findMany({
       where,
       include: {
-        user: {
+        users: {
           select: {
             id: true,
             name: true,

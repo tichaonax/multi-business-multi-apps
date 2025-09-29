@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
@@ -24,7 +26,7 @@ export async function GET(
     const leaveRequests = await prisma.employeeLeaveRequest.findMany({
       where: { employeeId },
       include: {
-        approver: {
+        employees_employee_leave_requests_approvedByToemployees: {
           select: {
             id: true,
             fullName: true,
@@ -38,14 +40,23 @@ export async function GET(
     })
 
     // Convert Decimal amounts to numbers for JSON serialization
-    const formattedRequests = leaveRequests.map(request => ({
-      ...request,
-      approver: request.approver ? {
-        ...request.approver,
-        jobTitle: request.approver.jobTitles?.title || null,
-        jobTitles: undefined
-      } : null
-    }))
+    const formattedRequests = leaveRequests.map((r: any) => {
+      const req: any = { ...r }
+      const approver = req.employees_employee_leave_requests_approvedByToemployees
+      if (approver) {
+        req.approver = {
+          id: approver.id,
+          fullName: approver.fullName,
+          jobTitle: approver.jobTitles?.title || null
+        }
+      } else {
+        req.approver = null
+      }
+
+      // remove internal relation key
+      delete req.employees_employee_leave_requests_approvedByToemployees
+      return req
+    })
 
     return NextResponse.json(formattedRequests)
   } catch (error) {
@@ -124,17 +135,21 @@ export async function POST(
       }
     }
 
-    // Create leave request
+    // Create leave request using Unchecked input to satisfy Prisma input types
+    const leaveRequestData: Prisma.EmployeeLeaveRequestUncheckedCreateInput = {
+      id: randomUUID(),
+      employeeId,
+      leaveType,
+      startDate: start,
+      endDate: end,
+      daysRequested: Number(daysRequested),
+      reason: reason || null,
+      status: 'pending',
+      updatedAt: new Date()
+    }
+
     const leaveRequest = await prisma.employeeLeaveRequest.create({
-      data: {
-        employeeId,
-        leaveType,
-        startDate: start,
-        endDate: end,
-        daysRequested: Number(daysRequested),
-        reason: reason || null,
-        status: 'pending'
-      },
+      data: leaveRequestData,
       include: {
         employee: {
           select: {

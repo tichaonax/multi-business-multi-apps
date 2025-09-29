@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     // If filtering by vehicle, only get authorized drivers
     if (vehicleId) {
-      where.authorizations = {
+      where.driverAuthorizations = {
         some: {
           vehicleId: vehicleId,
           isActive: true
@@ -71,51 +71,66 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Align include keys with Prisma schema relation names and remap later
     const [drivers, totalCount] = await Promise.all([
       prisma.vehicleDriver.findMany({
         where,
-        include: {
-          user: {
-            select: { id: true, name: true, email: true }
+        include: Object.assign(
+          {
+            users: {
+              select: { id: true, name: true, email: true }
+            }
           },
-          ...(includeAuthorizations && {
-            authorizations: {
-              where: { isActive: true },
-              include: {
-                vehicle: {
-                  select: { id: true, licensePlate: true, make: true, model: true }
+          includeAuthorizations
+            ? {
+                driverAuthorizations: {
+                  where: { isActive: true },
+                  include: {
+                    vehicles: {
+                      select: { id: true, licensePlate: true, make: true, model: true }
+                    }
+                  }
                 }
               }
-            }
-          }),
-          ...(includeTrips && {
-            trips: {
-              take: 5,
-              orderBy: { startTime: 'desc' },
-              include: {
-                vehicle: {
-                  select: { id: true, licensePlate: true, make: true, model: true }
+            : {},
+          includeTrips
+            ? {
+                vehicleTrips: {
+                  take: 5,
+                  orderBy: { startTime: 'desc' as const },
+                  include: {
+                    vehicles: {
+                      select: { id: true, licensePlate: true, make: true, model: true }
+                    }
+                  }
                 }
               }
-            }
-          })
-        },
-        orderBy: { fullName: 'asc' },
+            : {}
+        ),
+  orderBy: { fullName: 'asc' as const },
         skip,
         take: limit
       }),
       prisma.vehicleDriver.count({ where })
     ])
 
+    // Remap drivers relations to original API shape (authorizations -> authorizations, trips -> trips)
+    const mappedDrivers = drivers.map((d: any) => ({
+      ...d,
+      authorizations: d.driverAuthorizations ?? [],
+      trips: d.vehicleTrips ?? [],
+      user: d.users ?? null
+    }))
+
     return NextResponse.json({
       success: true,
-      data: drivers,
+      data: mappedDrivers,
       meta: {
         total: totalCount,
         page,
         limit,
         totalPages: Math.ceil(totalCount / limit),
-        hasMore: skip + drivers.length < totalCount
+        hasMore: skip + mappedDrivers.length < totalCount
       }
     })
 
@@ -166,20 +181,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Create driver
-    const driver = await prisma.vehicleDriver.create({
-      data: {
-        ...validatedData,
+      // Create driver: build explicit payload so optional userId is handled correctly
+      const createPayload: any = {
+        fullName: validatedData.fullName,
+        licenseNumber: validatedData.licenseNumber,
+        licenseExpiry: new Date(validatedData.licenseExpiry),
         phoneNumber: normalizePhoneInput(validatedData.phoneNumber || ''),
         emergencyPhone: normalizePhoneInput(validatedData.emergencyPhone || ''),
-        licenseExpiry: new Date(validatedData.licenseExpiry),
-        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : undefined
-      },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true }
-        }
+        emailAddress: validatedData.emailAddress || undefined,
+        emergencyContact: validatedData.emergencyContact || undefined,
+        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : undefined,
+        address: validatedData.address || undefined
       }
-    })
+
+      if (validatedData.userId) createPayload.userId = validatedData.userId
+
+      const driver = await prisma.vehicleDriver.create({
+        data: createPayload,
+        include: {
+          users: {
+            select: { id: true, name: true, email: true }
+          }
+        }
+      })
 
     return NextResponse.json({
       success: true,
@@ -274,7 +298,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
       data: normalizedUpdate,
       include: {
-        user: {
+        users: {
           select: { id: true, name: true, email: true }
         }
       }
@@ -324,8 +348,8 @@ export async function DELETE(request: NextRequest) {
     const existingDriver = await prisma.vehicleDriver.findUnique({
       where: { id: driverId },
       include: {
-        trips: { take: 1 },
-        authorizations: { take: 1 }
+        vehicleTrips: { take: 1 },
+        driverAuthorizations: { take: 1 }
       }
     })
 
@@ -337,8 +361,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if driver has related records
-    const hasRelatedRecords = existingDriver.trips.length > 0 ||
-                             existingDriver.authorizations.length > 0
+  const hasRelatedRecords = (existingDriver.vehicleTrips && existingDriver.vehicleTrips.length > 0) ||
+               (existingDriver.driverAuthorizations && existingDriver.driverAuthorizations.length > 0)
 
     if (hasRelatedRecords) {
       // Soft delete - just mark as inactive

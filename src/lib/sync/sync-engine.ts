@@ -52,17 +52,19 @@ export class SyncEngine extends EventEmitter {
     super()
     this.prisma = prisma
     this.peerDiscovery = peerDiscovery
-    this.options = {
+    this.options = Object.assign({
       syncInterval: 30000, // 30 seconds
       batchSize: 50,
       retryAttempts: 3,
       compressionEnabled: true,
-      encryptionEnabled: true,
-      ...options
-    }
+      encryptionEnabled: true
+    }, options)
 
     this.changeTracker = getChangeTracker(prisma, options.nodeId, options.registrationKey)
     this.syncUtils = new SyncUtils(prisma, options.nodeId)
+  // Ensure options.nodeId exists on merged options
+  if (!this.options.nodeId) this.options.nodeId = options.nodeId
+  if (!this.options.registrationKey) this.options.registrationKey = options.registrationKey
 
     // Listen for peer discovery events
     this.peerDiscovery.on('peer_discovered', this.handlePeerDiscovered.bind(this))
@@ -228,7 +230,7 @@ export class SyncEngine extends EventEmitter {
 
       if (sent) {
         // Mark events as processed
-        const eventIds = events.map(e => e.eventId)
+  const eventIds = events.map((e: any) => e.eventId)
         await this.changeTracker.markEventsProcessed(eventIds)
 
         session.eventsTransferred += events.length
@@ -340,7 +342,8 @@ export class SyncEngine extends EventEmitter {
   ): Promise<void> {
     try {
       // Record the conflict
-      await this.prisma.conflictResolution.create({
+      // Prisma types for conflictResolution may vary between deployments; cast to any to avoid strict typing errors here
+      await (this.prisma.conflictResolution as any).create({
         data: {
           conflictType: conflictResult.conflictType,
           tableName: conflictResult.winningEvent.tableName,
@@ -357,7 +360,7 @@ export class SyncEngine extends EventEmitter {
             strategy: conflictResult.resolutionStrategy
           }
         }
-      })
+      } as any)
 
       // Apply the winning event
       await this.syncUtils.applySyncEvent(conflictResult.winningEvent)
@@ -372,6 +375,11 @@ export class SyncEngine extends EventEmitter {
       throw error
     }
   }
+
+  /**
+   * Factory helper to create a SyncEngine instance (exported for tests and external callers)
+   */
+  // factory moved outside class to avoid being declared inside the class body
 
   /**
    * Start periodic sync with all discovered peers
@@ -568,4 +576,11 @@ export class SyncEngine extends EventEmitter {
   async getSyncStats(): Promise<any> {
     return this.syncUtils.getSyncStats()
   }
+}
+
+/**
+ * Factory helper to create a SyncEngine instance (exported for tests and external callers)
+ */
+export function createSyncEngine(prisma: PrismaClient, peerDiscovery: any, options: SyncEngineOptions): SyncEngine {
+  return new SyncEngine(prisma, peerDiscovery, options)
 }

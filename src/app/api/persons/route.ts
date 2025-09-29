@@ -33,11 +33,11 @@ export async function GET(req: NextRequest) {
     const persons = await prisma.person.findMany({
       where,
       include: {
-        idFormatTemplate: true,
-        driverLicenseTemplate: true,
+        idFormatTemplates: true,
+        driverLicenseTemplates: true,
         projectContractors: {
           include: {
-            constructionProject: {
+            constructionProjects: {
               select: {
                 id: true,
                 name: true,
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       ...person,
       projectContractors: person.projectContractors.map(contractor => ({
         ...contractor,
-        project: contractor.constructionProject
+        project: (contractor as any).constructionProjects
       }))
     }))
 
@@ -171,23 +171,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const createData: any = {
+      fullName,
+      email: email || null,
+      phone,
+      nationalId,
+      idFormatTemplateId: idFormatTemplateId || null,
+      driverLicenseNumber: driverLicenseNumber || null,
+      driverLicenseTemplateId: driverLicenseTemplateId || null,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+      address: address || null,
+      notes: notes || null,
+      createdBy: session.user.id,
+    }
+
     const newPerson = await prisma.person.create({
-      data: {
-        fullName,
-        email: email || null,
-        phone,
-        nationalId,
-        idFormatTemplateId: idFormatTemplateId || null,
-        driverLicenseNumber: driverLicenseNumber || null,
-        driverLicenseTemplateId: driverLicenseTemplateId || null,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        address: address || null,
-        notes: notes || null,
-        createdBy: session.user.id,
-      },
+      data: createData as any,
       include: {
-        idFormatTemplate: true,
-        driverLicenseTemplate: true
+        idFormatTemplates: true,
+        driverLicenseTemplates: true
       }
     })
 

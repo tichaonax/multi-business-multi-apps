@@ -13,6 +13,8 @@ interface Props {
 export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm }: Props) {
   if (!isOpen) return null
   const [processing, setProcessing] = useState(false)
+  const [step, setStep] = useState<'choose' | 'confirm'>('choose')
+  const [selectedAction, setSelectedAction] = useState<'single' | 'full' | null>(null)
 
   const modalContent = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4">
@@ -26,38 +28,74 @@ export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm }:
         </div>
 
         <div className="mt-4 space-y-3">
-          <div className="text-sm text-secondary">Actions</div>
-          <div className="flex gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  setProcessing(true)
-                  await onConfirm(true)
-                } finally {
-                  setProcessing(false)
-                }
-              }}
-              disabled={processing}
-              className={`px-3 py-2 ${processing ? 'opacity-60 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-md text-sm`}
-            >
-              {processing ? 'Seeding...' : 'Create single demo business'}
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  setProcessing(true)
-                  await onConfirm(false)
-                } finally {
-                  setProcessing(false)
-                }
-              }}
-              disabled={processing}
-              className={`px-3 py-2 ${processing ? 'opacity-60 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white rounded-md text-sm`}
-            >
-              {processing ? 'Seeding full dataset...' : 'Create full dev dataset'}
-            </button>
-            <button onClick={onClose} disabled={processing} className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-md">Cancel</button>
-          </div>
+          {step === 'choose' && (
+            <>
+              <div className="text-sm text-secondary">Actions</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setSelectedAction('single')
+                    setStep('confirm')
+                  }}
+                  className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
+                >
+                  Create single demo business
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedAction('full')
+                    setStep('confirm')
+                  }}
+                  className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
+                >
+                  Create full dev dataset
+                </button>
+                <button onClick={onClose} className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-md">Cancel</button>
+              </div>
+            </>
+          )}
+
+          {step === 'confirm' && selectedAction && (
+            <div className="p-3 border rounded-md bg-gray-50 dark:bg-gray-700">
+              <div className="text-sm font-semibold mb-2">Confirm action</div>
+              <div className="text-sm text-secondary mb-3">
+                {selectedAction === 'single' ? (
+                  <>This will create a single demo business with sample data. You will be returned to the admin page once complete.</>
+                ) : (
+                  <>This will create the full developer dataset (many demo businesses, employees, and reference data). This operation is destructive to any existing demo data for the same businesses.</>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      setProcessing(true)
+                      await onConfirm(selectedAction === 'single')
+                    } finally {
+                      setProcessing(false)
+                      setStep('choose')
+                      setSelectedAction(null)
+                      onClose()
+                    }
+                  }}
+                  disabled={processing}
+                  className={`px-3 py-2 ${processing ? 'opacity-60 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white rounded-md text-sm`}
+                >
+                  {processing ? 'Seeding...' : 'Confirm and start'}
+                </button>
+                <button
+                  onClick={() => {
+                    setStep('choose')
+                    setSelectedAction(null)
+                  }}
+                  disabled={processing}
+                  className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-md"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 text-xs text-gray-500">Only administrators can perform this operation.</div>

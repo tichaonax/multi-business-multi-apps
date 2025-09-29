@@ -16,7 +16,7 @@ interface EmployeeMetrics {
   averageTenure: number
   employeesByStatus: {
     active: number
-    on_leave: number
+    onLeave: number
     terminated: number
     suspended: number
   }
@@ -39,7 +39,7 @@ interface ContractMetrics {
   drafts: number
   contractsByStatus: {
     active: number
-    pending_approval: number
+    pendingApproval: number
     draft: number
     expired: number
     terminated: number

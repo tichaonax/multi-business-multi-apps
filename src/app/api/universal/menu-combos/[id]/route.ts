@@ -70,7 +70,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
             include: {
               product: {
                 include: {
-                  category: true,
+                  businessCategory: true,
                   images: true,
                   variants: true
                 }

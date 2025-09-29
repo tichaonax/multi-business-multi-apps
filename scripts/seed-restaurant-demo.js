@@ -2,10 +2,14 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 async function upsertCategory(businessId, name, description) {
+  // create a stable id for category so upserts are idempotent
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  const id = `${businessId}-cat-${slug}`
+  const now = new Date()
   return prisma.businessCategory.upsert({
     where: { businessId_name: { businessId, name } },
-    update: { description },
-    create: { businessId, name, description, businessType: 'restaurant' }
+    update: { description, updatedAt: now },
+    create: { id, businessId, name, description, businessType: 'restaurant', createdAt: now, updatedAt: now }
   })
 }
 
@@ -15,8 +19,9 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   if (itemData.sku) {
     product = await prisma.businessProduct.upsert({
       where: { businessId_sku: { businessId, sku: itemData.sku } },
-      update: { description: itemData.description || '', basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, attributes: itemData.attributes || {} },
+      update: { description: itemData.description || '', basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, attributes: itemData.attributes || {}, updatedAt: new Date() },
       create: {
+        id: `${businessId}-prod-${itemData.sku}`,
         businessId,
         name: itemData.name,
         description: itemData.description || '',
@@ -27,7 +32,9 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
         costPrice: itemData.costPrice || null,
         businessType: 'restaurant',
         isActive: true,
-        attributes: itemData.attributes || {}
+        attributes: itemData.attributes || {},
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
     })
   } else {
@@ -35,7 +42,7 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
     if (existing) {
       product = await prisma.businessProduct.update({ where: { id: existing.id }, data: { description: itemData.description || '', basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, attributes: itemData.attributes || {} } })
     } else {
-      product = await prisma.businessProduct.create({ data: { businessId, name: itemData.name, description: itemData.description || '', sku: null, barcode: itemData.barcode || null, categoryId: categoryId || undefined, basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, businessType: 'restaurant', isActive: true, attributes: itemData.attributes || {} } })
+      product = await prisma.businessProduct.create({ data: { id: `${businessId}-prod-${itemData.name.replace(/\s+/g,'-').toUpperCase()}`, businessId, name: itemData.name, description: itemData.description || '', sku: null, barcode: itemData.barcode || null, categoryId: categoryId || undefined, basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, businessType: 'restaurant', isActive: true, attributes: itemData.attributes || {}, createdAt: new Date(), updatedAt: new Date() } })
     }
   }
 
@@ -43,15 +50,18 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   const variantSku = itemData.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-DFT`
   const variant = await prisma.productVariant.upsert({
     where: { sku: variantSku },
-    update: { price: itemData.basePrice, stockQuantity: initialStock || 0, isActive: true },
+    update: { price: itemData.basePrice, stockQuantity: initialStock || 0, isActive: true, updatedAt: new Date() },
     create: {
+      id: `${product.id}-variant-${variantSku}`,
       productId: product.id,
       name: 'Default',
       sku: variantSku,
       barcode: itemData.barcode || null,
       price: itemData.basePrice,
       stockQuantity: initialStock || 0,
-      isActive: true
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
     }
   })
 
@@ -69,8 +79,8 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
       const price = Math.round((itemData.basePrice * s.factor + Number.EPSILON) * 100) / 100
       await prisma.productVariant.upsert({
         where: { sku },
-        update: { price, stockQuantity: initialStock || 0, isActive: true, name: s.name },
-        create: { productId: product.id, name: s.name, sku, barcode: itemData.barcode || null, price, stockQuantity: initialStock || 0, isActive: true }
+        update: { price, stockQuantity: initialStock || 0, isActive: true, name: s.name, updatedAt: new Date() },
+        create: { id: `${product.id}-variant-${sku}`, productId: product.id, name: s.name, sku, barcode: itemData.barcode || null, price, stockQuantity: initialStock || 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }
       })
     }
   }
@@ -78,6 +88,7 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   if (initialStock && initialStock > 0) {
     await prisma.businessStockMovement.create({
       data: {
+          id: `${businessId}-stock-${variant.id}-${Date.now()}`,
         businessId,
         productVariantId: variant.id,
         movementType: 'PURCHASE_RECEIVED',
@@ -94,7 +105,7 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   }
 
   if (itemData.attributes) {
-    const attrData = Object.entries(itemData.attributes).map(([key, value]) => ({ productId: product.id, key, value: String(value) }))
+    const attrData = Object.entries(itemData.attributes).map(([key, value], idx) => ({ id: `${product.id}-attr-${idx}-${key}`, productId: product.id, key, value: String(value), createdAt: new Date() }))
     await prisma.productAttribute.deleteMany({ where: { productId: product.id } }).catch(() => {})
     if (attrData.length > 0) await prisma.productAttribute.createMany({ data: attrData })
   }
@@ -170,13 +181,16 @@ async function seed() {
           await prisma.productImage.deleteMany({ where: { productId: product.id } }).catch(() => {})
 
           const imgData = sampleImages.map((url, idx) => ({
+            id: `${product.id}-img-${idx}`,
             productId: product.id,
             imageUrl: url,
             altText: `${product.name} image ${idx + 1}`,
             isPrimary: idx === 0,
             sortOrder: idx,
             imageSize: 'MEDIUM',
-            businessType: 'restaurant'
+            businessType: 'restaurant',
+            createdAt: new Date(),
+            updatedAt: new Date()
           }))
 
           await prisma.productImage.createMany({ data: imgData })
@@ -212,7 +226,7 @@ async function seed() {
             attributes: { demoSeed: true }
           }
 
-          const order = await prisma.businessOrder.upsert({ where: { businessId_orderNumber: { businessId, orderNumber: o.orderNumber } }, update: orderData, create: orderData })
+          const order = await prisma.businessOrder.upsert({ where: { businessId_orderNumber: { businessId, orderNumber: o.orderNumber } }, update: { ...orderData, updatedAt: new Date() }, create: { ...orderData, id: `${businessId}-order-${o.orderNumber}`, createdAt: new Date(), updatedAt: new Date() } })
 
           // Build order items by looking up product variants (prefer Regular variant if exists)
           let subtotal = 0
@@ -227,7 +241,7 @@ async function seed() {
             const unitPrice = Number(chosen.price || prod.basePrice || 0)
             const totalPrice = Math.round((unitPrice * it.qty + Number.EPSILON) * 100) / 100
             subtotal += totalPrice
-            await prisma.businessOrderItem.create({ data: { orderId: order.id, productVariantId: chosen.id, quantity: it.qty, unitPrice, totalPrice } })
+            await prisma.businessOrderItem.create({ data: { id: `${order.id}-item-${chosen.id}-${Math.random().toString(36).slice(2,8)}`, orderId: order.id, productVariantId: chosen.id, quantity: it.qty, unitPrice, totalPrice, createdAt: new Date() } })
           }
 
           const tax = Math.round((subtotal * 0.15 + Number.EPSILON) * 100) / 100
@@ -254,7 +268,7 @@ async function seed() {
             attributes: { parentOrderId: order.id, ticketStatus: 'OPEN', ticketType: 'KITCHEN', demoSeed: true }
           }
 
-          await prisma.businessOrder.upsert({ where: { businessId_orderNumber: { businessId, orderNumber: ticketNumber } }, update: ticketData, create: ticketData })
+          await prisma.businessOrder.upsert({ where: { businessId_orderNumber: { businessId, orderNumber: ticketNumber } }, update: { ...ticketData, updatedAt: new Date() }, create: { ...ticketData, id: `${businessId}-order-${ticketNumber}`, createdAt: new Date(), updatedAt: new Date() } })
           console.log('Created kitchen ticket for', order.orderNumber)
         }
       }

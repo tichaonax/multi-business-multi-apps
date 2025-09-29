@@ -11,7 +11,8 @@ async function createSimpleRestaurantOrders() {
     })
 
     if (!hxiEats) {
-      throw new Error('HXI EATS restaurant not found')
+      console.warn('HXI EATS restaurant not found; skipping simple restaurant orders creation')
+      return []
     }
 
     console.log('✅ Found HXI EATS restaurant:', hxiEats.id)

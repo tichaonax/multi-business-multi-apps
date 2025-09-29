@@ -7,59 +7,7 @@ import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { DateInput } from '@/components/ui/date-input'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
-
-interface Expense {
-  id: string
-  category: string
-  categoryObject?: {
-    id: string
-    name: string
-    emoji?: string
-    color?: string
-  } | null
-  description: string
-  amount: number
-  date: string
-  tags: string
-  notes: string
-  userId: string
-  createdAt: string
-  updatedAt: string
-  projectTransactions?: Array<{
-    id: string
-    paymentType: string
-    notes: string
-    projectId: string
-    project?: { 
-      id: string
-      name: string 
-    }
-    projectContractor?: {
-      id: string
-      projectId: string
-      person: { 
-        name?: string
-        fullName?: string
-        phone?: string
-        email?: string
-      }
-    }
-  }>
-  loanTransactions?: Array<{
-    id: string
-    transactionType: string
-    amount: number
-    description: string
-    loan: {
-      id: string
-      loanNumber: string
-      borrowerType: string
-      borrowerBusiness?: { name: string }
-      borrowerPerson?: { fullName: string; phone?: string }
-      lenderBusiness?: { name: string }
-    }
-  }>
-}
+import type { Expense } from '@/types/expense'
 
 interface ExpenseDetailModalProps {
   expense: Expense | null

@@ -17,7 +17,7 @@ const UpdateProductSchema = z.object({
   discountPercent: z.number().min(0).max(100).nullable().optional(),
   costPrice: z.number().min(0).optional(),
   businessType: z.string().optional(),
-  attributes: z.record(z.any()).optional(),
+  attributes: z.record(z.string(), z.any()).optional(),
   isActive: z.boolean().optional(),
   isAvailable: z.boolean().optional(),
   preparationTime: z.number().int().min(0).nullable().optional(),
@@ -34,6 +34,23 @@ const UpdateProductSchema = z.object({
   })).optional()
 })
 
+// Normalize a product record returned by Prisma to the legacy API shape
+function normalizeProduct(product: any) {
+  if (!product) return product
+  product.brand = product.brand || (product.businessBrand ? { id: product.businessBrand.id, name: product.businessBrand.name } : null)
+  product.category = product.category || (product.businessCategory ? { id: product.businessCategory.id, name: product.businessCategory.name } : null)
+  product.variants = product.variants || product.productVariants || []
+  product.images = product.images || product.productImages || []
+  product.business = product.business || null
+
+  delete product.businessBrand
+  delete product.businessCategory
+  delete product.productVariants
+  delete product.productImages
+
+  return product
+}
+
 // GET - Get single product by ID
 export async function GET(
   request: NextRequest,
@@ -48,17 +65,13 @@ export async function GET(
         business: {
           select: { name: true, type: true }
         },
-        brand: {
-          select: { id: true, name: true }
-        },
-        category: {
-          select: { id: true, name: true }
-        },
-        variants: {
+        businessBrand: { select: { id: true, name: true } },
+        businessCategory: { select: { id: true, name: true } },
+        productVariants: {
           where: { isActive: true },
           orderBy: { name: 'asc' }
         },
-        images: {
+        productImages: {
           orderBy: [
             { isPrimary: 'desc' },
             { sortOrder: 'asc' }
@@ -76,7 +89,7 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: product
+      data: normalizeProduct(product as any)
     })
 
   } catch (error) {
@@ -105,9 +118,9 @@ export async function PUT(
     const existingProduct = await prisma.businessProduct.findUnique({
       where: { id },
       include: {
-        variants: true,
-        images: true
-      }
+          productVariants: true,
+          productImages: true
+        }
     })
 
     if (!existingProduct) {
@@ -160,13 +173,13 @@ export async function PUT(
         },
         include: {
           business: { select: { name: true, type: true } },
-          brand: { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } },
-          variants: {
+          businessBrand: { select: { id: true, name: true } },
+          businessCategory: { select: { id: true, name: true } },
+          productVariants: {
             where: { isActive: true },
             orderBy: { name: 'asc' }
           },
-          images: {
+          productImages: {
             orderBy: [
               { isPrimary: 'desc' },
               { sortOrder: 'asc' }
@@ -187,14 +200,14 @@ export async function PUT(
 
     return NextResponse.json({
       success: true,
-      data: result,
+      data: normalizeProduct(result as any),
       message: 'Product updated successfully'
     })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -219,11 +232,11 @@ export async function DELETE(
     const productWithOrders = await prisma.businessProduct.findUnique({
       where: { id },
       include: {
-        variants: {
+        productVariants: {
           include: {
-            orderItems: {
+            businessOrderItems: {
               include: {
-                order: {
+                businessOrder: {
                   select: { id: true, status: true }
                 }
               }
@@ -241,9 +254,9 @@ export async function DELETE(
     }
 
     // Check for active orders
-    const hasActiveOrders = productWithOrders.variants.some(variant =>
-      variant.orderItems.some(orderItem =>
-        !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(orderItem.order.status)
+    const hasActiveOrders = productWithOrders.productVariants.some((variant: any) =>
+      variant.businessOrderItems.some((orderItem: any) =>
+        !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(orderItem.businessOrder.status)
       )
     )
 

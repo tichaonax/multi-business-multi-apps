@@ -351,11 +351,11 @@ describe('SecurityManager', () => {
       const data = { message: 'secret data', value: 123 }
       const sessionKey = 'session-encryption-key'
 
-      const result = await securityManager.encryptData(data, sessionKey)
+  const result = await securityManager.encryptData(data, sessionKey)
 
-      expect(result.success).toBe(true)
-      expect(result.encryptedData).toBeDefined()
-      expect(result.signature).toBeDefined()
+  expect(result.success).toBe(true)
+  expect(result.encryptedData).toBeDefined()
+  expect(result.signature).toBeDefined()
       expect(mockCrypto.createCipher).toHaveBeenCalled()
       expect(mockCrypto.createHmac).toHaveBeenCalled()
     })
@@ -365,10 +365,10 @@ describe('SecurityManager', () => {
       const signature = 'mock-signature'
       const sessionKey = 'session-encryption-key'
 
-      const result = await securityManager.decryptData(encryptedData, signature, sessionKey)
+  const result = await securityManager.decryptData(encryptedData, signature, sessionKey)
 
-      expect(result.success).toBe(true)
-      expect(result.data).toBeDefined()
+  expect(result.success).toBe(true)
+  expect(result.data).toBeDefined()
       expect(mockCrypto.createDecipher).toHaveBeenCalled()
       expect(mockCrypto.createHmac).toHaveBeenCalled()
     })

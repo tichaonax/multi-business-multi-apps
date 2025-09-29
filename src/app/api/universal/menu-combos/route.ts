@@ -22,14 +22,14 @@ export async function GET(request: NextRequest) {
       include: {
         menuComboItems: {
           include: {
-            product: {
+            businessProducts: {
               include: {
-                category: true,
-                images: true,
-                variants: true
+                businessCategory: true,
+                productImages: true,
+                productVariants: true
               }
             },
-            variant: true
+            productVariants: true
           },
           orderBy: {
             sortOrder: 'asc'
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Transform the data to match our interface
-    const transformedCombos = combos.map(combo => ({
+    const transformedCombos = (combos as any[]).map(combo => ({
       id: combo.id,
       name: combo.name,
       description: combo.description,
@@ -55,15 +55,19 @@ export async function GET(request: NextRequest) {
       discountPercent: combo.discountPercent,
       promotionStartDate: combo.promotionStartDate?.toISOString(),
       promotionEndDate: combo.promotionEndDate?.toISOString(),
-      comboItems: combo.menuComboItems.map(item => ({
+      comboItems: (combo.menuComboItems ?? []).map((item: any) => ({
         id: item.id,
         productId: item.productId,
         variantId: item.variantId,
         quantity: item.quantity,
         isRequired: item.isRequired,
         sortOrder: item.sortOrder,
-        product: item.product,
-        variant: item.variant
+        product: item.businessProducts ? {
+          ...item.businessProducts,
+          images: item.businessProducts.productImages ?? [],
+          variants: item.businessProducts.productVariants ?? []
+        } : null,
+        variant: item.productVariants ?? null
       }))
     }))
 
@@ -165,26 +169,40 @@ export async function POST(request: NextRequest) {
         include: {
           menuComboItems: {
             include: {
-              product: {
+              businessProducts: {
                 include: {
-                  category: true,
-                  images: true,
-                  variants: true
+                  businessCategory: true,
+                  productImages: true,
+                  productVariants: true
                 }
               },
-              variant: true
+              productVariants: true
             },
             orderBy: {
               sortOrder: 'asc'
             }
           }
         }
-      })
+      }) as any
     })
+
+    // Map the created combo to the same transformed shape as GET
+    const resp = combo ? {
+      ...combo,
+      menuComboItems: (combo.menuComboItems ?? []).map((item: any) => ({
+        ...item,
+        product: item.businessProducts ? {
+          ...item.businessProducts,
+          images: item.businessProducts.productImages ?? [],
+          variants: item.businessProducts.productVariants ?? []
+        } : null,
+        variant: item.productVariants ?? null
+      }))
+    } : null
 
     return NextResponse.json({
       success: true,
-      data: combo
+      data: resp
     })
 
   } catch (error) {

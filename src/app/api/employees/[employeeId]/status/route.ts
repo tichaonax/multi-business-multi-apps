@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { hasPermission } from '@/lib/permission-utils';
 
 export async function PUT(
@@ -28,27 +29,17 @@ export async function PUT(
       }, { status: 400 });
     }
 
-    // Get employee with user relationship and contract information
+    // Get employee basic fields and linked user separately to avoid complex include typing
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
-      include: {
-        users: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            isActive: true
-          }
-        },
-        employeeContracts: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: {
-            id: true,
-            status: true,
-            endDate: true
-          }
-        }
+      select: {
+        id: true,
+        fullName: true,
+        employeeNumber: true,
+        employmentStatus: true,
+        isActive: true,
+        primaryBusinessId: true,
+        userId: true
       }
     });
 
@@ -56,8 +47,21 @@ export async function PUT(
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    // Check if employee has a suspended contract
-    const currentContract = employee.employeeContracts[0];
+    // Fetch linked user (if any)
+    const linkedUser = employee.userId
+      ? await prisma.user.findUnique({
+        where: { id: employee.userId },
+        select: { id: true, name: true, email: true, isActive: true }
+      })
+      : null;
+
+    // Fetch the most recent contract for the employee (if any)
+    const currentContract = await prisma.employeeContract.findFirst({
+      where: { employeeId: employeeId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true, endDate: true }
+    });
+
     const hasSuspendedContract = currentContract && currentContract.status === 'suspended';
 
     // If employee has suspended contract and trying to change status, block it
@@ -113,20 +117,20 @@ export async function PUT(
       let updatedUser = null;
 
       // Sync user account status if linked
-      if (employee.users) {
-        const shouldDeactivateUser = 
-          employmentStatus === 'terminated' || 
-          employmentStatus === 'suspended' || 
+      if (linkedUser) {
+        const shouldDeactivateUser =
+          employmentStatus === 'terminated' ||
+          employmentStatus === 'suspended' ||
           isActive === false;
 
-        const shouldActivateUser = 
+        const shouldActivateUser =
           (employmentStatus === 'active' || isActive === true) &&
-          employee.users.isActive === false;
+          linkedUser.isActive === false;
 
-        if (shouldDeactivateUser && employee.users.isActive) {
+        if (shouldDeactivateUser && linkedUser.isActive) {
           // Deactivate user account
           updatedUser = await tx.user.update({
-            where: { id: employee.users.id },
+            where: { id: linkedUser.id },
             data: {
               isActive: false,
               deactivatedAt: new Date(),
@@ -138,7 +142,7 @@ export async function PUT(
 
           // Deactivate business memberships
           await tx.businessMembership.updateMany({
-            where: { userId: employee.users.id },
+            where: { userId: linkedUser.id },
             data: { isActive: false }
           });
 
@@ -165,8 +169,8 @@ export async function PUT(
               newStatus: employmentStatus,
               oldActive: employee.isActive,
               newActive: isActive,
-              linkedUserId: employee.users.id,
-              linkedUserEmail: employee.users.email,
+              linkedUserId: linkedUser.id,
+              linkedUserEmail: linkedUser.email,
               userSyncAction,
               reason,
               notes
@@ -199,9 +203,9 @@ export async function PUT(
     if (result.userSyncAction) {
       response.userSync = {
         action: result.userSyncAction,
-        userId: employee.users?.id,
-        userEmail: employee.users?.email,
-        message: result.userSyncAction === 'deactivated' 
+        userId: linkedUser?.id,
+        userEmail: linkedUser?.email,
+        message: result.userSyncAction === 'deactivated'
           ? 'Linked user account has been deactivated'
           : 'Linked user account requires manual reactivation review'
       };

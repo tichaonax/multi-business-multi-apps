@@ -304,11 +304,11 @@ async function handleExistingLoanPayment(
       OR: [
         { lenderUserId: data.userId },
         {
-          borrowerBusinessId: {
+            borrowerBusinessId: {
             in: (await tx.businessMembership.findMany({
               where: { userId: data.userId, isActive: true },
               select: { businessId: true }
-            })).map(m => m.businessId)
+            })).map((m: { businessId: string }) => m.businessId)
           }
         }
       ]

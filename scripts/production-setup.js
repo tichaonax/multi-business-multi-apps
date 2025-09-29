@@ -34,7 +34,6 @@ function log(message, color = colors.cyan) {
 function success(message) {
   log(`✅ ${message}`, colors.green)
 }
-
 function warning(message) {
   log(`⚠️ ${message}`, colors.yellow)
 }
@@ -77,17 +76,18 @@ function resolveModelName(modelName, remap = {}) {
   // Default internal remaps for legacy seeder names that no longer match
   // current Prisma model names. These can be overridden by --remap.
   const DEFAULT_MODEL_REMAP = {
-    phoneNumberTemplate: 'id_format_templates',
-    dateFormatTemplate: 'id_format_templates',
-    personalCategory: 'expense_categories',
-    // Map camelCase model names to snake_case
-    idFormatTemplate: 'id_format_templates',
-    driverLicenseTemplate: 'driver_license_templates',
-    jobTitle: 'job_titles',
-    compensationType: 'compensation_types',
-    benefitType: 'benefit_types',
-    projectType: 'project_types',
-    expenseCategory: 'expense_categories'
+    // Legacy or alternate seeder names -> current Prisma model names (camelCase)
+    // Phone number and date templates were merged into the ID/format template model
+    phoneNumberTemplate: 'idFormatTemplate',
+    dateFormatTemplate: 'idFormatTemplate',
+    personalCategory: 'expenseCategory',
+    idFormatTemplate: 'idFormatTemplate',
+    driverLicenseTemplate: 'driverLicenseTemplate',
+    jobTitle: 'jobTitle',
+    compensationType: 'compensationType',
+    benefitType: 'benefitType',
+    projectType: 'projectType',
+    expenseCategory: 'expenseCategory'
   }
 
   if (DEFAULT_MODEL_REMAP[modelName]) return DEFAULT_MODEL_REMAP[modelName]
@@ -1072,92 +1072,48 @@ async function createSystemAdmin(options = {}) {
     // Hash password
     const hashedPassword = await bcrypt.hash(adminPassword, 12)
 
-    // Create admin user
-    const admin = await prisma.user.create({
-      data: {
-        id: 'system-admin-001',
-        email: adminEmail,
-        name: 'System Administrator',
-        hashedPassword: hashedPassword,
-        role: 'admin',
-        isActive: true,
-        permissions: {
-          // System Admin has all permissions
-          canManageUsers: true,
-          canManageBusinesses: true,
-          canAccessReports: true,
-          canManageSystem: true,
-          canViewAuditLogs: true,
-          canManagePermissions: true,
-          canAccessAllBusinesses: true,
-          canCreateProjects: true,
-          canAddPersonalExpenses: true,
-          canManagePersonalCategories: true,
-          canManagePersonalContractors: true,
-          canViewPersonalReports: true,
-          canManagePersonalBudgets: true,
-          canManagePersonalLoans: true,
-          // Business type permissions
-          construction: {
-            canView: true,
-            canCreate: true,
-            canEdit: true,
-            canDelete: true,
-            canManageProjects: true,
-            canManageContractors: true,
-            canViewReports: true,
-            canCreateProjects: true
-          },
-          restaurant: {
-            canView: true,
-            canCreate: true,
-            canEdit: true,
-            canDelete: true,
-            canManageMenu: true,
-            canManageOrders: true,
-            canViewReports: true,
-            canCreateProjects: true
-          },
-          grocery: {
-            canView: true,
-            canCreate: true,
-            canEdit: true,
-            canDelete: true,
-            canManageInventory: true,
-            canManageProducts: true,
-            canViewReports: true,
-            canCreateProjects: true
-          },
-          clothing: {
-            canView: true,
-            canCreate: true,
-            canEdit: true,
-            canDelete: true,
-            canManageInventory: true,
-            canManageProducts: true,
-            canViewReports: true,
-            canCreateProjects: true
-          },
-          hardware: {
-            canView: true,
-            canCreate: true,
-            canEdit: true,
-            canDelete: true,
-            canManageInventory: true,
-            canManageTools: true,
-            canViewReports: true,
-            canCreateProjects: true
-          }
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    })
+    // Build admin payload
+    const adminPayload = {
+      id: 'system-admin-001',
+      email: adminEmail,
+      name: 'System Administrator',
+      passwordHash: hashedPassword,
+      role: 'admin',
+      isActive: true,
+      permissions: {
+        canManageUsers: true,
+        canManageBusinesses: true,
+        canAccessReports: true,
+        canManageSystem: true,
+        canViewAuditLogs: true,
+        canManagePermissions: true,
+        canAccessAllBusinesses: true,
+        canCreateProjects: true,
+        canAddPersonalExpenses: true,
+        canManagePersonalCategories: true,
+        canManagePersonalContractors: true,
+        canViewPersonalReports: true,
+        canManagePersonalBudgets: true,
+        canManagePersonalLoans: true,
+        construction: { canView: true, canCreate: true, canEdit: true, canDelete: true, canManageProjects: true, canManageContractors: true, canViewReports: true, canCreateProjects: true },
+        restaurant: { canView: true, canCreate: true, canEdit: true, canDelete: true, canManageMenu: true, canManageOrders: true, canViewReports: true, canCreateProjects: true },
+        grocery: { canView: true, canCreate: true, canEdit: true, canDelete: true, canManageInventory: true, canManageProducts: true, canViewReports: true, canCreateProjects: true },
+        clothing: { canView: true, canCreate: true, canEdit: true, canDelete: true, canManageInventory: true, canManageProducts: true, canViewReports: true, canCreateProjects: true },
+        hardware: { canView: true, canCreate: true, canEdit: true, canDelete: true, canManageInventory: true, canManageTools: true, canViewReports: true, canCreateProjects: true }
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
 
-    success(`System administrator created successfully`)
-    log(`  📧 Email: ${adminEmail}`)
-    log(`  🔑 Password: ${adminPassword}`)
-    warning(`⚠️  Please change the default password after first login!`)
+    try {
+      await safeUpsert('user', { email: adminEmail }, { ...adminPayload }, adminPayload, options)
+      success(`System administrator upserted successfully`)
+      log(`  📧 Email: ${adminEmail}`)
+      log(`  🔑 Password: ${adminPassword}`)
+      warning(`⚠️  Please change the default password after first login!`)
+    } catch (err) {
+      error(`Failed to upsert system administrator: ${err.message}`)
+    }
 
   } catch (err) {
     error(`Failed to create system administrator: ${err.message}`)
@@ -1210,10 +1166,14 @@ async function runProductionSetup(options = { createAdmin: true, dryRun: false, 
 
   log('Starting production database setup and seeding...')
 
-  // Check database connection
-  if (!await checkDatabaseConnection()) {
-    error('Cannot proceed without database connection')
-    return false
+  // Check database connection unless this is a dry-run
+  if (!options.dryRun) {
+    if (!await checkDatabaseConnection()) {
+      error('Cannot proceed without database connection')
+      return false
+    }
+  } else {
+    log('(dry-run) Skipping database connection check')
   }
 
   try {
@@ -1233,14 +1193,19 @@ async function runProductionSetup(options = { createAdmin: true, dryRun: false, 
       await createSystemAdmin(options)
     }
 
-    // Verify setup
+    // Verify setup (skip during dry-run since we did not connect to DB)
     let setupValid = true
-    try {
-      setupValid = await verifySetup(options)
-    } catch (err) {
-      // If verifySetup throws due to missing models, log and continue
-      warning('Verification step failed: ' + err.message)
+    if (options.dryRun) {
+      log('(dry-run) Skipping verification step')
       setupValid = false
+    } else {
+      try {
+        setupValid = await verifySetup(options)
+      } catch (err) {
+        // If verifySetup throws due to missing models, log and continue
+        warning('Verification step failed: ' + err.message)
+        setupValid = false
+      }
     }
 
     if (setupValid) {

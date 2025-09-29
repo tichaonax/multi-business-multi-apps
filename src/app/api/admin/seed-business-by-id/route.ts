@@ -5,6 +5,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
+import { prisma } from '@/lib/prisma'
 
 async function runScript(scriptPath: string, args: string[] = []) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
@@ -60,37 +61,75 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not implemented', message: `No targeted seed script available for ${chosen}` }, { status: 501 })
   }
 
-  // Try running the script in-process by importing and calling exported `seed` if available.
+  // Ensure the target business exists. If it doesn't, create a minimal placeholder so
+  // downstream seed scripts that rely on the businessId won't create dangling children.
+  let createdPlaceholder = false
   try {
-    const fileUrl = pathToFileURL(absPath).href
-    let imported: any = null
-    try {
-      imported = await import(fileUrl)
-    } catch (e) {
-      // dynamic import of CJS may fail; fall back to spawning a node process
-      imported = null
-    }
+    const existingBusiness = await prisma.business.findUnique({ where: { id: businessId } })
+    if (!existingBusiness) {
+      const now = new Date()
+      const name = `Demo - ${businessId}`
+      await prisma.business.create({ data: { id: businessId, name, type: type || 'demo', description: `Auto-created for seed: ${businessId}`, isActive: true, createdAt: now, updatedAt: now } })
+      createdPlaceholder = true
 
-    // Resolve seed function if exported as named or default
-    const seedFn = imported?.seed ?? imported?.default?.seed ?? imported?.default ?? null
-
-    if (typeof seedFn === 'function') {
-      // Call exported seed in-process. Some seed functions accept a businessId param.
+      // Also create a membership for the requesting admin so they can switch to the new business
       try {
-        const maybePromise = seedFn(businessId)
-        if (maybePromise && typeof maybePromise.then === 'function') await maybePromise
-        return NextResponse.json({ success: true, ranInProcess: true })
-      } catch (err: any) {
-        return NextResponse.json({ error: 'In-process seed failed', message: err?.message || String(err) }, { status: 500 })
+        const existingMembership = await prisma.businessMembership.findFirst({ where: { userId: currentUser.id, businessId } })
+        if (!existingMembership) {
+          const membershipId = `${currentUser.id}-${businessId}`
+          await prisma.businessMembership.create({ data: { id: membershipId, userId: currentUser.id, businessId, role: 'business-owner', isActive: true, permissions: {}, joinedAt: now } as any })
+        }
+      } catch (err2) {
+        console.warn('Failed to create membership for seeded business:', String(err2))
       }
     }
+  } catch (err) {
+    // Non-fatal: if we cannot create the placeholder business, continue and let the seed script handle the error.
+    console.warn('Failed to ensure business exists prior to seeding:', String(err))
+  }
+
+  // Try running the script in-process by importing and calling exported `seed` if available.
+    try {
+      function devScriptsAllowed() {
+        return process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_SCRIPTS === 'true'
+      }
+
+      // Avoid dynamic `import(fileUrl)` because bundlers emit a "request of a
+      // dependency is an expression" warning for non-literal imports. Instead
+      // use a runtime-only CommonJS require via eval('require') which the
+      // bundler won't statically analyze. Only attempt to load when dev scripts
+      // are allowed.
+      let imported: any = null
+      if (devScriptsAllowed()) {
+        try {
+          // eslint-disable-next-line no-eval
+          const req = eval('require') as NodeRequire
+          imported = req(absPath)
+        } catch (err) {
+          imported = null
+        }
+      }
+
+      // Resolve seed function if exported as named or default
+      const seedFn = imported?.seed ?? imported?.default?.seed ?? imported?.default ?? null
+
+  if (typeof seedFn === 'function') {
+        // Call exported seed in-process. Some seed functions accept a businessId param.
+        try {
+          const maybePromise = seedFn(businessId)
+          if (maybePromise && typeof maybePromise.then === 'function') await maybePromise
+          return NextResponse.json({ success: true, ranInProcess: true, createdBusiness: createdPlaceholder ? businessId : undefined })
+        } catch (err: any) {
+          return NextResponse.json({ error: 'In-process seed failed', message: err?.message || String(err) }, { status: 500 })
+        }
+      }
 
     // If we couldn't import a callable seed function, spawn a node process as a safe fallback.
     const result = await runScript(absPath, [businessId])
     if (result.code !== 0) {
       return NextResponse.json({ error: 'Seed script failed', stdout: result.stdout, stderr: result.stderr }, { status: 500 })
     }
-    return NextResponse.json({ success: true, stdout: result.stdout, ranInProcess: false })
+    return NextResponse.json({ success: true, stdout: result.stdout, ranInProcess: false, createdBusiness: createdPlaceholder ? businessId : undefined })
   } catch (err: any) {
     return NextResponse.json({ error: 'Failed to run seed script', message: err?.message || String(err) }, { status: 500 })
   }

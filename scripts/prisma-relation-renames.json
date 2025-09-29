@@ -1,0 +1,370 @@
+[
+  {
+    "from": "chat_rooms",
+    "to": null
+  },
+  {
+    "from": "chat_rooms",
+    "to": null
+  },
+  {
+    "from": "construction_projects",
+    "to": null
+  },
+  {
+    "from": "construction_expenses",
+    "to": null
+  },
+  {
+    "from": "vehicle_drivers",
+    "to": null
+  },
+  {
+    "from": "benefit_types",
+    "to": null
+  },
+  {
+    "from": "contract_benefits",
+    "to": null
+  },
+  {
+    "from": "compensation_types",
+    "to": null
+  },
+  {
+    "from": "job_titles",
+    "to": null
+  },
+  {
+    "from": "employee_deductions",
+    "to": null
+  },
+  {
+    "from": "employee_deduction_payments",
+    "to": null
+  },
+  {
+    "from": "employee_loans",
+    "to": null
+  },
+  {
+    "from": "employee_loan_payments",
+    "to": null
+  },
+  {
+    "from": "business_orders",
+    "to": null
+  },
+  {
+    "from": "business_stock_movements",
+    "to": null
+  },
+  {
+    "from": "contract_renewals",
+    "to": null
+  },
+  {
+    "from": "employee_attendance",
+    "to": null
+  },
+  {
+    "from": "employee_benefits",
+    "to": null
+  },
+  {
+    "from": "employee_business_assignments",
+    "to": null
+  },
+  {
+    "from": "employee_deduction_payments",
+    "to": null
+  },
+  {
+    "from": "employee_leave_balance",
+    "to": null
+  },
+  {
+    "from": "employee_loan_payments",
+    "to": null
+  },
+  {
+    "from": "employee_time_tracking",
+    "to": null
+  },
+  {
+    "from": "compensation_types",
+    "to": null
+  },
+  {
+    "from": "driver_license_templates",
+    "to": null
+  },
+  {
+    "from": "id_format_templates",
+    "to": null
+  },
+  {
+    "from": "job_titles",
+    "to": null
+  },
+  {
+    "from": "other_employees",
+    "to": null
+  },
+  {
+    "from": "loan_transactions",
+    "to": null
+  },
+  {
+    "from": "inter_business_loans",
+    "to": null
+  },
+  {
+    "from": "personal_expenses",
+    "to": null
+  },
+  {
+    "from": "order_items",
+    "to": null
+  },
+  {
+    "from": "menu_items",
+    "to": null
+  },
+  {
+    "from": "order_items",
+    "to": null
+  },
+  {
+    "from": "loan_transactions",
+    "to": null
+  },
+  {
+    "from": "inter_business_loans",
+    "to": null
+  },
+  {
+    "from": "driver_license_templates",
+    "to": null
+  },
+  {
+    "from": "id_format_templates",
+    "to": null
+  },
+  {
+    "from": "project_contractors",
+    "to": null
+  },
+  {
+    "from": "project_transactions",
+    "to": null
+  },
+  {
+    "from": "business_products",
+    "to": null
+  },
+  {
+    "from": "business_products",
+    "to": null
+  },
+  {
+    "from": "business_order_items",
+    "to": null
+  },
+  {
+    "from": "business_stock_movements",
+    "to": null
+  },
+  {
+    "from": "menu_combo_items",
+    "to": null
+  },
+  {
+    "from": "business_products",
+    "to": null
+  },
+  {
+    "from": "construction_projects",
+    "to": null
+  },
+  {
+    "from": "stage_contractor_assignments",
+    "to": null
+  },
+  {
+    "from": "construction_projects",
+    "to": null
+  },
+  {
+    "from": "project_transactions",
+    "to": null
+  },
+  {
+    "from": "stage_contractor_assignments",
+    "to": null
+  },
+  {
+    "from": "construction_projects",
+    "to": null
+  },
+  {
+    "from": "personal_expenses",
+    "to": null
+  },
+  {
+    "from": "project_contractors",
+    "to": null
+  },
+  {
+    "from": "stage_contractor_assignments",
+    "to": null
+  },
+  {
+    "from": "project_stages",
+    "to": null
+  },
+  {
+    "from": "construction_projects",
+    "to": null
+  },
+  {
+    "from": "project_contractors",
+    "to": null
+  },
+  {
+    "from": "project_stages",
+    "to": null
+  },
+  {
+    "from": "project_types",
+    "to": null
+  },
+  {
+    "from": "project_contractors",
+    "to": null
+  },
+  {
+    "from": "project_stages",
+    "to": null
+  },
+  {
+    "from": "business_products",
+    "to": null
+  },
+  {
+    "from": "business_suppliers",
+    "to": null
+  },
+  {
+    "from": "audit_logs",
+    "to": null
+  },
+  {
+    "from": "chat_messages",
+    "to": null
+  },
+  {
+    "from": "chat_participants",
+    "to": null
+  },
+  {
+    "from": "chat_rooms",
+    "to": null
+  },
+  {
+    "from": "construction_expenses",
+    "to": null
+  },
+  {
+    "from": "construction_projects",
+    "to": null
+  },
+  {
+    "from": "driver_authorizations",
+    "to": null
+  },
+  {
+    "from": "expense_categories",
+    "to": null
+  },
+  {
+    "from": "fund_sources",
+    "to": null
+  },
+  {
+    "from": "loan_transactions",
+    "to": null
+  },
+  {
+    "from": "permission_templates",
+    "to": null
+  },
+  {
+    "from": "personal_budgets",
+    "to": null
+  },
+  {
+    "from": "personal_expenses",
+    "to": null
+  },
+  {
+    "from": "vehicle_drivers",
+    "to": null
+  },
+  {
+    "from": "vehicle_expenses",
+    "to": null
+  },
+  {
+    "from": "vehicle_maintenance_records",
+    "to": null
+  },
+  {
+    "from": "driver_authorizations",
+    "to": null
+  },
+  {
+    "from": "vehicle_trips",
+    "to": null
+  },
+  {
+    "from": "vehicle_trips",
+    "to": null
+  },
+  {
+    "from": "vehicle_expenses",
+    "to": null
+  },
+  {
+    "from": "vehicle_drivers",
+    "to": null
+  },
+  {
+    "from": "driver_authorizations",
+    "to": null
+  },
+  {
+    "from": "driver_authorizations",
+    "to": null
+  },
+  {
+    "from": "vehicle_expenses",
+    "to": null
+  },
+  {
+    "from": "vehicle_licenses",
+    "to": null
+  },
+  {
+    "from": "vehicle_maintenance_records",
+    "to": null
+  },
+  {
+    "from": "vehicle_reimbursements",
+    "to": null
+  },
+  {
+    "from": "vehicle_trips",
+    "to": null
+  }
+]

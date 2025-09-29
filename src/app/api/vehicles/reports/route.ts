@@ -140,15 +140,17 @@ async function generateFleetOverviewReport(vehicleId?: string, businessId?: stri
     driverFilter.authorizations = { some: { vehicleId: vehicleId, isActive: true } }
   } else if (businessId) {
     // Drivers authorized for any vehicle belonging to the business
-    driverFilter.authorizations = { some: { vehicle: { businessId: businessId }, isActive: true } }
+    // relation name in Prisma schema is 'vehicles' on DriverAuthorization
+    driverFilter.authorizations = { some: { vehicles: { businessId: businessId }, isActive: true } }
   }
 
   const [vehicles, totalTrips, totalExpenses, maintenanceRecords, totalDrivers, activeDrivers] = await Promise.all([
     prisma.vehicle.findMany({
       where: vehicleFilter,
       include: {
-        business: { select: { name: true, type: true } },
-        user: { select: { name: true, email: true } }
+        // schema relation names are pluralized
+        businesses: { select: { name: true, type: true } },
+        users: { select: { name: true, email: true } }
       }
     }),
     prisma.vehicleTrip.count({ where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {} }),
@@ -197,13 +199,22 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
   const trips = await prisma.vehicleTrip.findMany({
     where: tripFilter,
     include: {
-      vehicle: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },
-      driver: { select: { fullName: true } },
-      business: { select: { name: true } }
+      vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },
+      // relation on VehicleTrip for driver is 'vehicleDrivers'
+      vehicleDrivers: { select: { fullName: true } },
+      businesses: { select: { name: true } }
     }
   })
 
-  const summary = trips.reduce((acc, trip) => {
+  // remap to legacy keys expected by callers (vehicle, driver, business)
+  const normalizedTrips = trips.map(t => ({
+    ...t,
+    vehicle: (t as any).vehicles,
+    driver: (t as any).vehicleDrivers,
+    business: (t as any).businesses
+  }))
+
+  const summary = normalizedTrips.reduce((acc, trip) => {
     acc.totalMileage += trip.tripMileage
     acc.businessMileage += trip.tripType === 'BUSINESS' ? trip.tripMileage : 0
     acc.personalMileage += trip.tripType === 'PERSONAL' ? trip.tripMileage : 0
@@ -217,7 +228,7 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
     totalTrips: trips.length
   })
 
-  return { summary, trips }
+  return { summary, trips: normalizedTrips }
 }
 
 // Expense Summary Report
@@ -230,12 +241,13 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
   const expenses = await prisma.vehicleExpense.findMany({
     where: expenseFilter,
     include: {
-      vehicle: { select: { licensePlate: true, make: true, model: true } },
-      business: { select: { name: true } }
+      vehicles: { select: { licensePlate: true, make: true, model: true } },
+      businesses: { select: { name: true } }
     }
   })
+  const normalizedExpenses = expenses.map(e => ({ ...e, vehicle: (e as any).vehicles, business: (e as any).businesses }))
 
-  const summary = expenses.reduce((acc, expense) => {
+  const summary = normalizedExpenses.reduce((acc, expense) => {
     const amt = Number(expense.amount ?? 0)
     acc.totalAmount += amt
     acc.businessDeductible += expense.isBusinessDeductible ? amt : 0
@@ -248,7 +260,7 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
     byType: {} as Record<string, number>
   })
 
-  return { summary, expenses }
+  return { summary, expenses: normalizedExpenses }
 }
 
 // Maintenance Schedule Report
@@ -267,7 +279,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
         }
       },
       include: {
-        vehicle: { select: { licensePlate: true, make: true, model: true, currentMileage: true } }
+          vehicles: { select: { licensePlate: true, make: true, model: true, currentMileage: true } }
       }
     }),
     // Overdue maintenance
@@ -279,7 +291,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
         }
       },
       include: {
-        vehicle: { select: { licensePlate: true, make: true, model: true, currentMileage: true } }
+          vehicles: { select: { licensePlate: true, make: true, model: true, currentMileage: true } }
       }
     }),
     // Recent maintenance (last 90 days)
@@ -291,11 +303,14 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
         }
       },
       include: {
-        vehicle: { select: { licensePlate: true, make: true, model: true } }
+          vehicles: { select: { licensePlate: true, make: true, model: true } }
       },
       orderBy: { serviceDate: 'desc' }
     })
   ])
+
+    // normalize maintenance entries to expose legacy 'vehicle' key
+    const normalizeMaintenance = (m: any) => ({ ...m, vehicle: m.vehicles })
 
   return {
     summary: {
@@ -303,9 +318,9 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
       overdueCount: overdueMaintenance.length,
       recentCount: recentMaintenance.length
     },
-    upcomingMaintenance,
-    overdueMaintenance,
-    recentMaintenance
+    upcomingMaintenance: upcomingMaintenance.map(normalizeMaintenance),
+    overdueMaintenance: overdueMaintenance.map(normalizeMaintenance),
+    recentMaintenance: recentMaintenance.map(normalizeMaintenance)
   }
 }
 
@@ -321,7 +336,8 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
     // Vehicle licenses expiring in 60 days
     prisma.vehicleLicense.findMany({
       where: {
-        vehicle: vehicleFilter,
+        // relation name is 'vehicles' on VehicleLicense
+        vehicles: vehicleFilter,
         isActive: true,
         expiryDate: {
           gte: new Date(),
@@ -329,7 +345,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
         }
       },
       include: {
-        vehicle: { select: { licensePlate: true, make: true, model: true } }
+          vehicles: { select: { licensePlate: true, make: true, model: true } }
       }
     }),
     // Driver licenses expiring in 60 days
@@ -346,7 +362,8 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
     // Expired or inactive driver authorizations
     prisma.driverAuthorization.findMany({
       where: {
-        driver: driverFilter,
+        // relation name is 'vehicleDrivers' on DriverAuthorization
+        vehicleDrivers: driverFilter,
         OR: [
           { isActive: false },
           {
@@ -357,21 +374,26 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
         ]
       },
       include: {
-        driver: { select: { fullName: true } },
-        vehicle: { select: { licensePlate: true, make: true, model: true } }
+        // relation field name for driver on DriverAuthorization is 'vehicleDrivers'
+        vehicleDrivers: { select: { fullName: true } },
+        vehicles: { select: { licensePlate: true, make: true, model: true } }
       }
     })
   ])
 
+  // remap legacy keys
+  const remapExpiringLicenses = expiringLicenses.map(e => ({ ...e, vehicle: (e as any).vehicles }))
+  const remapInactiveAuths = inactiveAuthorizations.map(a => ({ ...a, driver: (a as any).vehicleDrivers, vehicle: (a as any).vehicles }))
+
   return {
     summary: {
-      expiringLicensesCount: expiringLicenses.length,
+      expiringLicensesCount: remapExpiringLicenses.length,
       expiringDriverLicensesCount: expiringDriverLicenses.length,
-      inactiveAuthorizationsCount: inactiveAuthorizations.length
+      inactiveAuthorizationsCount: remapInactiveAuths.length
     },
-    expiringLicenses,
+    expiringLicenses: remapExpiringLicenses,
     expiringDriverLicenses,
-    inactiveAuthorizations
+    inactiveAuthorizations: remapInactiveAuths
   }
 }
 
@@ -385,18 +407,18 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
   const driverActivity = await prisma.vehicleDriver.findMany({
     where: driverId ? { id: driverId } : { isActive: true },
     include: {
-      trips: {
+      vehicleTrips: {
         where: {
           startTime: dateFilter
         },
         include: {
-          vehicle: { select: { licensePlate: true, make: true, model: true } }
+          vehicles: { select: { licensePlate: true, make: true, model: true } }
         }
       },
-      authorizations: {
+      driverAuthorizations: {
         where: { isActive: true },
         include: {
-          vehicle: { select: { licensePlate: true, make: true, model: true } }
+          vehicles: { select: { licensePlate: true, make: true, model: true } }
         }
       }
     }
@@ -409,12 +431,13 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
       licenseNumber: driver.licenseNumber
     },
     summary: {
-      totalTrips: driver.trips.length,
-      totalMileage: driver.trips.reduce((sum, trip) => sum + trip.tripMileage, 0),
-      authorizedVehicles: driver.authorizations.length
+      totalTrips: (driver as any).vehicleTrips?.length || 0,
+      totalMileage: ((driver as any).vehicleTrips || []).reduce((sum: number, trip: any) => sum + (trip.tripMileage || 0), 0),
+      authorizedVehicles: (driver as any).driverAuthorizations?.length || 0
     },
-    trips: driver.trips,
-    authorizations: driver.authorizations
+    // normalize nested vehicle keys for callers
+    trips: ((driver as any).vehicleTrips || []).map((t: any) => ({ ...t, vehicle: t.vehicles })),
+    authorizations: ((driver as any).driverAuthorizations || []).map((a: any) => ({ ...a, vehicle: a.vehicles }))
   }))
 }
 
@@ -428,13 +451,14 @@ async function generateBusinessAttributionReport(dateFilter?: any, businessId?: 
   const businessTrips = await prisma.vehicleTrip.findMany({
     where: tripFilter,
     include: {
-      vehicle: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },
-      business: { select: { name: true, type: true } },
-      expenses: true
+      vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },
+      businesses: { select: { name: true, type: true } },
+      vehicle_expenses: true
     }
   })
+  const normalizedBusinessTrips = businessTrips.map(t => ({ ...t, vehicle: (t as any).vehicles, business: (t as any).businesses, expenses: (t as any).vehicle_expenses }))
 
-  const businessSummary = businessTrips.reduce((acc, trip) => {
+  const businessSummary = normalizedBusinessTrips.reduce((acc, trip) => {
     const businessName = trip.business?.name || 'Unassigned'
     if (!acc[businessName]) {
       acc[businessName] = {
@@ -445,13 +469,13 @@ async function generateBusinessAttributionReport(dateFilter?: any, businessId?: 
     }
     acc[businessName].totalTrips++
     acc[businessName].totalMileage += trip.tripMileage
-  acc[businessName].totalExpenses += trip.expenses.reduce((sum, exp) => sum + Number(exp.amount ?? 0), 0)
+    acc[businessName].totalExpenses += (trip.expenses || []).reduce((sum: number, exp: any) => sum + Number(exp.amount ?? 0), 0)
     return acc
   }, {} as Record<string, any>)
 
   return {
     summary: businessSummary,
-    trips: businessTrips
+    trips: normalizedBusinessTrips
   }
 }
 
@@ -465,25 +489,27 @@ async function generateReimbursementSummaryReport(dateFilter?: any, businessId?:
   const reimbursements = await prisma.vehicleReimbursement.findMany({
     where: reimbursementFilter,
     include: {
-      user: { select: { name: true, email: true } },
-      vehicle: { select: { licensePlate: true, make: true, model: true } },
-      business: { select: { name: true } }
+      // use generated relation name for user relation and plural relation names
+      users_vehicle_reimbursements_userIdTousers: { select: { name: true, email: true } },
+      vehicles: { select: { licensePlate: true, make: true, model: true } },
+      businesses: { select: { name: true } }
     }
   })
+  const normalizedReimbursements = reimbursements.map(r => ({ ...r, user: (r as any).users_vehicle_reimbursements_userIdTousers, vehicle: (r as any).vehicles, business: (r as any).businesses }))
 
-  const summary = reimbursements.reduce((acc, reimb) => {
+  const summary = normalizedReimbursements.reduce((acc, reimb) => {
     acc.totalAmount += Number(reimb.totalAmount ?? 0)
-    acc.totalMileage += reimb.totalMileage
-    acc.businessMileage += reimb.businessMileage
+    acc.totalMileage += reimb.totalMileage || 0
+    acc.businessMileage += reimb.businessMileage || 0
     acc.byStatus[reimb.status] = (acc.byStatus[reimb.status] || 0) + 1
     return acc
   }, {
     totalAmount: 0,
     totalMileage: 0,
     businessMileage: 0,
-    totalReimbursements: reimbursements.length,
+    totalReimbursements: normalizedReimbursements.length,
     byStatus: {} as Record<string, number>
   })
 
-  return { summary, reimbursements }
+  return { summary, reimbursements: normalizedReimbursements }
 }

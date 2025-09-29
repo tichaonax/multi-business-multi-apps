@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     // Get all persons (global contractor pool) with usage statistics
     const contractors = await prisma.person.findMany({
       include: {
-        idFormatTemplate: {
+        // schema relation name is `idFormatTemplates` (plural)
+        idFormatTemplates: {
           select: {
             name: true,
             countryCode: true
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
         },
         projectContractors: {
           include: {
-            constructionProject: {
+            constructionProjects: {
               select: {
                 id: true,
                 name: true,
@@ -40,14 +41,14 @@ export async function GET(req: NextRequest) {
         },
         projectTransactions: {
           include: {
-            personalExpense: {
+            personalExpenses: {
               select: {
                 amount: true,
                 date: true,
                 userId: true
               }
             },
-            projectStage: {
+            projectStages: {
               select: {
                 name: true
               }
@@ -72,30 +73,28 @@ export async function GET(req: NextRequest) {
     })
 
     // Calculate analytics for each contractor
-    const contractorAnalytics = contractors.map(contractor => {
+    const contractorAnalytics = contractors.map((contractor: any) => {
       // Calculate total payments received
-      const totalPayments = contractor.projectTransactions.reduce((sum, transaction) => {
-        return sum + Number(transaction.personalExpense?.amount || 0)
+      const totalPayments = (contractor.projectTransactions || []).reduce((sum: number, transaction: any) => {
+        const amt = transaction.personalExpenses?.amount || transaction.personalExpenses?.amount?.toNumber?.() || 0
+        return sum + Number(amt)
       }, 0)
 
       // Get unique projects worked on
-      const uniqueProjects = contractor.projectContractors.map(pc => pc.constructionProject)
+      const uniqueProjects = (contractor.projectContractors || []).map((pc: any) => pc.constructionProjects)
 
       // Get unique users who have paid this contractor
       const uniquePayingUsers = [...new Set(
-        contractor.projectTransactions
-          .map(t => t.personalExpense?.userId)
-          .filter(Boolean)
+        (contractor.projectTransactions || []).map((t: any) => t.personalExpenses?.userId).filter(Boolean)
       )]
 
       // Calculate business type diversity (based on projects)
-      const businessTypes = [...new Set(
-        contractor.projectContractors.map(pc => 'construction') // All project contractors are construction
-      )]
+      const businessTypes = [...new Set((contractor.projectContractors || []).map(() => 'construction'))]
 
       // Recent activity
-      const recentTransaction = contractor.projectTransactions
-        .sort((a, b) => new Date(b.personalExpense?.date || 0).getTime() - new Date(a.personalExpense?.date || 0).getTime())[0]
+      const recentTransaction = (contractor.projectTransactions || [])
+        .slice()
+        .sort((a: any, b: any) => new Date(b.personalExpenses?.date || 0).getTime() - new Date(a.personalExpenses?.date || 0).getTime())[0]
 
       return {
         id: contractor.id,
@@ -103,24 +102,25 @@ export async function GET(req: NextRequest) {
         email: contractor.email,
         phone: contractor.phone,
         nationalId: contractor.nationalId,
-        idFormatTemplate: contractor.idFormatTemplate,
+  // preserve legacy response shape expected by frontend
+  idFormatTemplate: (contractor as any).idFormatTemplates || null,
         isActive: contractor.isActive,
         createdAt: contractor.createdAt,
 
-        // Analytics
-        totalProjects: contractor._count.projectContractors,
-        totalPayments: totalPayments,
-        totalTransactions: contractor._count.projectTransactions,
-        averagePayment: contractor._count.projectTransactions > 0 ? totalPayments / contractor._count.projectTransactions : 0,
-        uniquePayingUsers: uniquePayingUsers.length,
-        businessTypesWorked: businessTypes.length,
+  // Analytics
+  totalProjects: (contractor._count?.projectContractors) || 0,
+  totalPayments: totalPayments,
+  totalTransactions: (contractor._count?.projectTransactions) || 0,
+  averagePayment: ((contractor._count?.projectTransactions) || 0) > 0 ? totalPayments / ((contractor._count?.projectTransactions) || 1) : 0,
+  uniquePayingUsers: uniquePayingUsers.length,
+  businessTypesWorked: businessTypes.length,
 
         // Usage details
         projects: uniqueProjects,
         recentActivity: recentTransaction ? {
-          date: recentTransaction.personalExpense?.date,
-          amount: recentTransaction.personalExpense?.amount,
-          stage: recentTransaction.projectStage?.name
+          date: recentTransaction.personalExpenses?.date,
+          amount: recentTransaction.personalExpenses?.amount,
+          stage: recentTransaction.projectStages?.name
         } : null
       }
     })

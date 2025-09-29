@@ -2,6 +2,7 @@
 
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { useState, useEffect } from 'react'
+import type { Expense } from '@/types/expense'
 import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { ExpenseDetailModal } from '@/components/personal/expense-detail-modal'
@@ -12,40 +13,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { useNavigation } from '@/contexts/navigation-context'
 import { canDeletePersonalExpense } from '@/lib/expense-deletion-utils'
 
-interface Expense {
-  id: string
-  category: string
-  categoryObject?: {
-    id: string
-    name: string
-    emoji?: string
-    color?: string
-  } | null
-  description: string
-  amount: number
-  date: string
-  tags: string
-  notes: string
-  userId: string
-  createdAt: string
-  updatedAt: string
-  projectPayments?: Array<{
-    id: string
-    paymentType: string
-    notes: string
-    project?: { name: string }
-    contractor?: { name: string }
-  }>
-  projectTransactions?: Array<{
-    id: string
-    paymentType: string
-    notes: string
-    project?: { name: string }
-    projectContractor?: {
-      person: { name: string }
-    }
-  }>
-}
+// use shared Expense type from src/types/expense.ts
 
 interface BudgetData {
   balance: number
@@ -270,10 +238,11 @@ export default function PersonalPage() {
       .catch((error) => {
         console.error('Failed to fetch expenses:', error)
         // Fallback to static data if API fails
-        const fallbackExpenses = [
-          { id: '1', category: 'Food', description: 'Grocery shopping', amount: 150.00, date: '2024-01-15', tags: 'weekly', notes: 'Weekly grocery run' },
-          { id: '2', category: 'Transport', description: 'Gas station', amount: 65.00, date: '2024-01-14', tags: 'fuel', notes: 'Fuel for work trips' },
-          { id: '3', category: 'Utilities', description: 'Electricity bill', amount: 120.00, date: '2024-01-12', tags: 'monthly', notes: 'Monthly utility payment' },
+        const nowIso = new Date().toISOString()
+        const fallbackExpenses: Expense[] = [
+          { id: '1', category: 'Food', description: 'Grocery shopping', amount: 150.0, date: '2024-01-15', tags: 'weekly', notes: 'Weekly grocery run', userId: null, createdAt: nowIso, updatedAt: nowIso },
+          { id: '2', category: 'Transport', description: 'Gas station', amount: 65.0, date: '2024-01-14', tags: 'fuel', notes: 'Fuel for work trips', userId: null, createdAt: nowIso, updatedAt: nowIso },
+          { id: '3', category: 'Utilities', description: 'Electricity bill', amount: 120.0, date: '2024-01-12', tags: 'monthly', notes: 'Monthly utility payment', userId: null, createdAt: nowIso, updatedAt: nowIso },
         ]
         setExpenses(fallbackExpenses)
         calculateThisMonthTotal(fallbackExpenses)

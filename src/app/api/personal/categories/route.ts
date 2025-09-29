@@ -19,7 +19,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
-    const categories = await prisma.expense_categories.findMany({
+    const categories = await prisma.expenseCategory.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: 'asc' }
     })
@@ -40,7 +40,7 @@ export async function GET() {
 
       const createdCategories = await Promise.all(
         defaultCategories.map(cat => 
-          prisma.expense_categories.create({
+          prisma.expenseCategory.create({
             data: {
               userId: session.user.id,
               name: cat.name,
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name and emoji are required' }, { status: 400 })
     }
 
-    const category = await prisma.expense_categories.create({
+    const category = await prisma.expenseCategory.create({
       data: {
         userId: session.user.id,
         name,

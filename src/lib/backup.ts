@@ -1,5 +1,6 @@
 import { db } from './db'
 import { createAuditLog } from './audit'
+import { getDbName } from './db-names'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -26,19 +27,19 @@ export async function createBackup(
       data: {} as Record<string, any>,
     }
 
-    const tables = ['users', 'businesses']
-    
+    const tables = [getDbName('users'), getDbName('businesses')]
+
     if (options.includeAuditLog) {
-      tables.push('audit_log')
+      tables.push(getDbName('auditLog') || 'audit_log')
     }
-    
+
     if (options.includeChat) {
-      tables.push('chat_rooms', 'chat_messages', 'chat_participants')
+      tables.push(getDbName('chatRooms') || 'chat_rooms', getDbName('chatMessages') || 'chat_messages', getDbName('chatParticipants') || 'chat_participants')
     }
 
     for (const table of tables) {
       try {
-        const result = await db.execute(`SELECT * FROM ${table}`)
+  const result = await db.execute(`SELECT * FROM "${table}"`)
         backup.data[table] = result.rows
       } catch (error) {
         console.warn(`Failed to backup table ${table}:`, error)
@@ -50,7 +51,9 @@ export async function createBackup(
 
     await createAuditLog({
       userId,
-      action: 'BACKUP',
+      action: 'BACKUP_CREATED',
+      entityType: 'Backup',
+      entityId: backupFile,
       metadata: { backupFile, tables },
     })
 
@@ -75,17 +78,18 @@ export async function restoreBackup(
 
     for (const [tableName, tableData] of Object.entries(backup.data)) {
       if (Array.isArray(tableData) && tableData.length > 0) {
-        await db.execute(`TRUNCATE TABLE ${tableName} RESTART IDENTITY CASCADE`)
-        
+        await db.execute(`TRUNCATE TABLE "${tableName}" RESTART IDENTITY CASCADE`)
+
         const columns = Object.keys(tableData[0]).join(', ')
-        const placeholders = tableData[0] 
+        const placeholders = tableData[0]
           ? Object.keys(tableData[0]).map((_, i) => `$${i + 1}`).join(', ')
           : ''
-        
+
         for (const row of tableData) {
           const values = Object.values(row)
           await db.execute(
-            `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders})`
+            `INSERT INTO "${tableName}" (${columns}) VALUES (${placeholders})`,
+            values
           )
         }
       }
@@ -93,7 +97,9 @@ export async function restoreBackup(
 
     await createAuditLog({
       userId,
-      action: 'RESTORE',
+      action: 'BACKUP_RESTORED',
+      entityType: 'Backup',
+      entityId: backupFile,
       metadata: { backupFile, timestamp: backup.timestamp },
     })
   } catch (error) {

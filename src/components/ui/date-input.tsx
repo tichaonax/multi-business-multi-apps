@@ -5,6 +5,7 @@ import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, getCountryByCode, formatDateByForm
 import { useDateFormat } from '@/contexts/settings-context'
 
 interface DateInputProps {
+  id?: string
   value: string // ISO date string (YYYY-MM-DD)
   onChange: (isoDate: string, countryCode: string) => void
   label?: string
@@ -15,20 +16,24 @@ interface DateInputProps {
   disabled?: boolean
   showCountrySelector?: boolean
   defaultCountryCode?: string
+  compact?: boolean
 }
 
-export function DateInput({
-  value,
-  onChange,
-  label = 'Date',
-  placeholder,
-  required = false,
-  className = '',
-  error,
-  disabled = false,
-  showCountrySelector = false, // Hide by default when using global format
-  defaultCountryCode = DEFAULT_COUNTRY_CODE
-}: DateInputProps) {
+export const DateInput = /*#__PURE__*/ (function () {
+  const Component = ({
+    id,
+    value,
+    onChange,
+    label = 'Date',
+    placeholder,
+    required = false,
+    className = '',
+    error,
+    disabled = false,
+    showCountrySelector = false, // Hide by default when using global format
+    defaultCountryCode = DEFAULT_COUNTRY_CODE,
+    compact = false
+  }: DateInputProps) => {
   const { format: globalDateFormat, defaultCountry } = useDateFormat()
   const [selectedCountry, setSelectedCountry] = useState<CountryCode>()
   const [displayValue, setDisplayValue] = useState('')
@@ -106,7 +111,7 @@ export function DateInput({
     }
   }
 
-  return (
+    return (
     <div className={className}>
       {label && (
         <label className="block text-sm font-medium text-secondary mb-2">
@@ -199,6 +204,7 @@ export function DateInput({
 
           {/* Hidden Native Date Picker */}
           <input
+            id={id}
             ref={hiddenDateInputRef}
             type="date"
             value={value}
@@ -221,3 +227,6 @@ export function DateInput({
     </div>
   )
 }
+
+  return Component
+})()

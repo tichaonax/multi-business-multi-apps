@@ -13,23 +13,28 @@ export interface SessionUser {
   email?: string | null
   name?: string | null
   role?: string
-  permissions?: Record<string, any>
+  // permissions can come from Prisma as JsonValue or as a plain object; allow any here for compatibility
+  permissions?: any
   // businessMemberships may be absent on some session payloads (e.g. minimal next-auth session)
   businessMemberships?: {
     businessId: string
     businessName: string
+    businessType?: string
     role: string
-    permissions?: Record<string, any>
+    permissions?: any
     isActive?: boolean
     joinedAt?: string | Date
     lastAccessedAt?: string | Date | null
   }[]
 }
+// Exported type for user-level permission keys
+export type PermissionKey = keyof UserLevelPermissions
+
 
 /**
  * Get effective permissions for a user in a specific business context
  */
-export function getEffectivePermissions(user: SessionUser, businessId?: string): BusinessPermissions {
+export function getEffectivePermissions(user: SessionUser | null | undefined, businessId?: string): BusinessPermissions {
   // Handle undefined/null user
   if (!user) {
     return {} as BusinessPermissions
@@ -104,7 +109,7 @@ function getPersonalOnlyPermissions(): BusinessPermissions {
     canAddMoney: true,
     canViewPersonalReports: true,
     canExportPersonalData: true,
-  }
+  } as BusinessPermissions
 }
 
 /**
@@ -117,15 +122,15 @@ function getNoAccessPermissions(): BusinessPermissions {
 /**
  * Check if user has a specific permission (optionally in a specific business context)
  */
-export function hasPermission(user: SessionUser, permission: keyof BusinessPermissions, businessId?: string): boolean {
+export function hasPermission(user: SessionUser | null | undefined, permission: string | keyof BusinessPermissions, businessId?: string): boolean {
   const effectivePermissions = getEffectivePermissions(user, businessId)
-  return effectivePermissions[permission] === true
+  return (effectivePermissions as any)[permission] === true
 }
 
 /**
  * Check if user has a custom permission (nested permission object)
  */
-export function hasCustomPermission(user: SessionUser, permissionPath: string, businessId?: string): boolean {
+export function hasCustomPermission(user: SessionUser | null | undefined, permissionPath: string, businessId?: string): boolean {
   // Handle undefined/null user
   if (!user) {
     return false
@@ -152,7 +157,7 @@ export function hasCustomPermission(user: SessionUser, permissionPath: string, b
 /**
  * Get custom permission value (for non-boolean permissions like limits)
  */
-export function getCustomPermissionValue(user: SessionUser, permissionPath: string, businessId?: string, defaultValue: any = null): any {
+export function getCustomPermissionValue(user: SessionUser | null | undefined, permissionPath: string, businessId?: string, defaultValue: any = null): any {
   // Handle undefined/null user
   if (!user) {
     return defaultValue
@@ -178,7 +183,7 @@ export function getCustomPermissionValue(user: SessionUser, permissionPath: stri
 /**
  * Check if user can access a business module
  */
-export function canAccessModule(user: SessionUser, module: 'construction' | 'restaurant' | 'grocery' | 'clothing' | 'hardware' | 'personal' | 'vehicles'): boolean {
+export function canAccessModule(user: SessionUser | null | undefined, module: 'construction' | 'restaurant' | 'grocery' | 'clothing' | 'hardware' | 'personal' | 'vehicles'): boolean {
   // System admins have access to all modules
   if (isSystemAdmin(user)) {
     return true
@@ -229,14 +234,14 @@ export function canAccessModule(user: SessionUser, module: 'construction' | 'res
 /**
  * Check if user is a system admin
  */
-export function isSystemAdmin(user: SessionUser): boolean {
+export function isSystemAdmin(user: SessionUser | null | undefined): boolean {
   return user?.role === 'admin'
 }
 
 /**
  * Check if user is a business owner of any business
  */
-export function isBusinessOwner(user: SessionUser): boolean {
+export function isBusinessOwner(user: SessionUser | null | undefined): boolean {
   if (!user) return false
   const activeBusinessMemberships = user.businessMemberships?.filter(m => m.isActive) || []
   return activeBusinessMemberships.some(m => m.role === 'business-owner')
@@ -245,7 +250,7 @@ export function isBusinessOwner(user: SessionUser): boolean {
 /**
  * Get user's active business memberships
  */
-export function getActiveBusinessMemberships(user: SessionUser) {
+export function getActiveBusinessMemberships(user: SessionUser | null | undefined) {
   // Handle undefined/null user
   if (!user) {
     return []
@@ -256,7 +261,8 @@ export function getActiveBusinessMemberships(user: SessionUser) {
 /**
  * Get user's role in a specific business
  */
-export function getUserRoleInBusiness(user: SessionUser, businessId: string): string | null {
+export function getUserRoleInBusiness(user: SessionUser | null | undefined, businessId: string): string | null {
+  if (!user) return null
   const membership = user.businessMemberships?.find(m => m.businessId === businessId && m.isActive)
   return membership?.role || null
 }
@@ -264,7 +270,7 @@ export function getUserRoleInBusiness(user: SessionUser, businessId: string): st
 /**
  * Check if user has access to multiple businesses
  */
-export function hasMultiBusinessAccess(user: SessionUser): boolean {
+export function hasMultiBusinessAccess(user: SessionUser | null | undefined): boolean {
   const activeBusinesses = getActiveBusinessMemberships(user)
   return activeBusinesses.length > 1
 }
@@ -272,28 +278,28 @@ export function hasMultiBusinessAccess(user: SessionUser): boolean {
 /**
  * Get businesses where user has a specific role
  */
-export function getBusinessesByRole(user: SessionUser, role: string) {
+export function getBusinessesByRole(user: SessionUser | null | undefined, role: string) {
   return getActiveBusinessMemberships(user).filter(m => m.role === role)
 }
 
 /**
  * Get businesses where user has specific permission
  */
-export function getBusinessesWithPermission(user: SessionUser, permission: keyof BusinessPermissions) {
+export function getBusinessesWithPermission(user: SessionUser | null | undefined, permission: string | keyof BusinessPermissions) {
   return getActiveBusinessMemberships(user).filter(membership => {
     const permissions = getMembershipPermissions(membership)
-    return permissions[permission] === true
+    return (permissions as any)[permission] === true
   })
 }
 
 /**
  * Check if user has permission in ANY of their businesses
  */
-export function hasPermissionInAnyBusiness(user: SessionUser, permission: keyof BusinessPermissions): boolean {
+export function hasPermissionInAnyBusiness(user: SessionUser | null | undefined, permission: string | keyof BusinessPermissions): boolean {
   const activeBusinesses = getActiveBusinessMemberships(user)
   return activeBusinesses.some(membership => {
     const permissions = getMembershipPermissions(membership)
-    return permissions[permission] === true
+    return (permissions as any)[permission] === true
   })
 }
 
@@ -304,33 +310,51 @@ export function hasPermissionInAnyBusiness(user: SessionUser, permission: keyof 
 /**
  * Check if user has a specific user-level permission (stored in User.permissions)
  */
-export function hasUserPermission(user: SessionUser, permission: keyof UserLevelPermissions): boolean {
+// Type-safe wrapper to convert string literals to PermissionKey at call sites
+export function asUserPermission(permission: string): PermissionKey | null {
+  const allowedKeys = Object.keys(DEFAULT_USER_PERMISSIONS) as string[]
+  return allowedKeys.includes(permission) ? (permission as PermissionKey) : null
+}
+
+export function hasUserPermission(user: SessionUser | null | undefined, permission: string | keyof UserLevelPermissions): boolean {
   // Handle undefined/null user
   if (!user) {
     return false
   }
 
+  // Normalize permission: if a string is provided, try to map to PermissionKey
+  let key: PermissionKey | null
+  if (typeof permission === 'string') {
+    key = asUserPermission(permission)
+    if (!key) {
+      // Unknown permission string - be conservative and return false
+      return false
+    }
+  } else {
+    key = permission
+  }
+
   // System admins always have full user-level permissions
   if (user.role === 'admin') {
-    return ADMIN_USER_PERMISSIONS[permission] === true
+    return ADMIN_USER_PERMISSIONS[key] === true
   }
 
   // Check user-level permissions directly from User.permissions
   const userPermissions = user.permissions as Partial<UserLevelPermissions>
-  return userPermissions[permission] === true
+  return userPermissions[key] === true
 }
 
 /**
  * Get effective user-level permissions for a user
  */
-export function getUserLevelPermissions(user: SessionUser): UserLevelPermissions {
+export function getUserLevelPermissions(user: SessionUser | null | undefined): UserLevelPermissions {
   // System admins get full user-level permissions
-  if (user.role === 'admin') {
+  if (user?.role === 'admin') {
     return ADMIN_USER_PERMISSIONS
   }
 
   // Merge user's permissions with defaults
-  const userPermissions = user.permissions as Partial<UserLevelPermissions>
+  const userPermissions = (user?.permissions as Partial<UserLevelPermissions>) || {}
   return {
     ...DEFAULT_USER_PERMISSIONS,
     ...userPermissions,
@@ -356,7 +380,7 @@ export function setUserLevelPermissions(
  * This is useful for permissions that can be granted at either level
  */
 export function hasEitherPermission(
-  user: SessionUser,
+  user: SessionUser | null | undefined,
   userLevelPermission: keyof UserLevelPermissions,
   businessLevelPermission: keyof BusinessPermissions,
   businessId?: string
@@ -377,21 +401,21 @@ export function hasEitherPermission(
 /**
  * Check if user can create personal projects (user-level permission)
  */
-export function canCreatePersonalProjects(user: SessionUser): boolean {
+export function canCreatePersonalProjects(user: SessionUser | null | undefined): boolean {
   return hasUserPermission(user, 'canCreatePersonalProjects')
 }
 
 /**
  * Check if user can create business projects (user-level permission + business membership)
  */
-export function canCreateBusinessProjects(user: SessionUser): boolean {
+export function canCreateBusinessProjects(user: SessionUser | null | undefined): boolean {
   return hasUserPermission(user, 'canCreateBusinessProjects')
 }
 
 /**
  * Check if user can create projects for a specific business type
  */
-export function canCreateProjectsForBusinessType(user: SessionUser, businessType: string): boolean {
+export function canCreateProjectsForBusinessType(user: SessionUser | null | undefined, businessType: string): boolean {
   // System admins can create projects for any business type
   if (isSystemAdmin(user)) {
     return true
@@ -410,7 +434,7 @@ export function canCreateProjectsForBusinessType(user: SessionUser, businessType
 /**
  * Get available business types for project creation based on user permissions
  */
-export function getAvailableBusinessTypesForProjects(user: SessionUser): Array<{value: string, label: string}> {
+export function getAvailableBusinessTypesForProjects(user: SessionUser | null | undefined): Array<{value: string, label: string}> {
   const businessTypes = [
     { value: 'personal', label: 'Personal' },
     { value: 'construction', label: 'Construction' },
@@ -426,7 +450,7 @@ export function getAvailableBusinessTypesForProjects(user: SessionUser): Array<{
 /**
  * Get user's active businesses where they can create projects
  */
-export function getBusinessesForProjectCreation(user: SessionUser): Array<{id: string, name: string, type: string}> {
+export function getBusinessesForProjectCreation(user: SessionUser | null | undefined): Array<{id: string, name: string, type: string}> {
   if (!canCreateBusinessProjects(user)) {
     return []
   }
@@ -450,18 +474,18 @@ export function getBusinessesForProjectCreation(user: SessionUser): Array<{id: s
  */
 
 // Example: Check if user can view a specific report type in a business
-export function canViewReportType(user: SessionUser, reportType: string, businessId: string): boolean {
+export function canViewReportType(user: SessionUser | null | undefined, businessId: string, reportType: string): boolean {
   return hasCustomPermission(user, `reports.canView${reportType}Reports`, businessId)
 }
 
 // Example: Check if user can approve expenses up to a certain amount
-export function canApproveExpense(user: SessionUser, amount: number, businessId?: string): boolean {
+export function canApproveExpense(user: SessionUser | null | undefined, businessId: string | undefined, amount: number): boolean {
   const maxApprovalAmount = getCustomPermissionValue(user, 'financialLimits.canApproveExpensesUpTo', businessId, 0)
   return amount <= maxApprovalAmount
 }
 
 // Example: Check if user can work at current time (time-based permissions)
-export function canWorkAtCurrentTime(user: SessionUser, businessId?: string): boolean {
+export function canWorkAtCurrentTime(user?: SessionUser | null, businessId?: string): boolean {
   const timeRestrictions = getCustomPermissionValue(user, 'timeRestrictions', businessId, null)
   if (!timeRestrictions) return true // No restrictions
   

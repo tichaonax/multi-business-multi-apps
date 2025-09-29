@@ -41,7 +41,7 @@ export default function AdminPage() {
   const [adminUserConfirmText, setAdminUserConfirmText] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [modalBusinessId, setModalBusinessId] = useState<string | null>(null)
-  const [modalAction, setModalAction] = useState<null | { endpoint: string; label: string; method?: string; body?: any }> (null)
+  const [modalAction, setModalAction] = useState<null | { endpoint: string; label: string; method?: string; body?: any }>(null)
   const toast = useToastContext()
 
   const handleSeedTestData = async () => {
@@ -157,29 +157,29 @@ export default function AdminPage() {
               Manage Data
             </a>
           </div>
-          
+
           <div className="card p-6">
             <h3 className="text-lg font-semibold mb-4 text-primary">Business Management</h3>
             <p className="text-secondary mb-4">Create and manage all businesses in the system</p>
-            <a 
-              href="/admin/businesses" 
+            <a
+              href="/admin/businesses"
               className="btn-primary inline-block"
             >
               Manage Businesses
             </a>
           </div>
-          
+
           <div className="card p-6">
             <h3 className="text-lg font-semibold mb-4 text-primary">User Management</h3>
             <p className="text-secondary mb-4">Manage system users and business access</p>
-            <a 
-              href="/admin/users" 
+            <a
+              href="/admin/users"
               className="btn-primary inline-block"
             >
               Manage Users
             </a>
           </div>
-          
+
           <div className="card p-6">
             <h3 className="text-lg font-semibold mb-4 text-primary">Sync Management</h3>
             <p className="text-secondary mb-4">Monitor and control database synchronization</p>
@@ -287,12 +287,12 @@ export default function AdminPage() {
               <br />
               • Bulk operations
             </div>
-              <Link
-                href="/employees"
-                className="btn-primary inline-block"
-              >
-                Manage Employees
-              </Link>
+            <Link
+              href="/employees"
+              className="btn-primary inline-block"
+            >
+              Manage Employees
+            </Link>
           </div>
 
           {/* System Reports Card */}
@@ -401,11 +401,14 @@ export default function AdminPage() {
 
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-grocery', label: 'Seed Grocery Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Grocery Demo</button>
 
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-clothing', label: 'Seed Clothing Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Clothing Demo</button>
+
               {/* Unseed buttons */}
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/unseed-contractors', label: 'Unseed Contractors Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Contractors Demo</button>
 
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/unseed-grocery', label: 'Unseed Grocery Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Grocery Demo</button>
 
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/unseed-clothing', label: 'Unseed Clothing Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Clothing Demo</button>
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/unseed-hardware', label: 'Unseed Hardware Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Hardware Demo</button>
 
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/cleanup-dev-data', label: 'Unseed Restaurant Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Restaurant Demo</button>
@@ -466,7 +469,7 @@ export default function AdminPage() {
                 <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">Quick Actions</h3>
               </div>
             </div>
-              <div className="space-y-3">
+            <div className="space-y-3">
               <div className="bg-white dark:bg-gray-800 p-3 rounded-md border border-blue-200 dark:border-blue-700">
                 <div className="flex items-center justify-between mb-2">
                   <div>
@@ -501,7 +504,7 @@ export default function AdminPage() {
                 </div>
               </div>
               {/* Removed the Dev Seed Controls block here; moved into a dedicated card below for clarity */}
-                <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">Restaurant demo seed includes multi-size variants (Small/Regular/Large), POS attributes (posCategory, printToKitchen), and sample kitchen tickets to exercise POS & kitchen flows.</div>
+              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">Restaurant demo seed includes multi-size variants (Small/Regular/Large), POS attributes (posCategory, printToKitchen), and sample kitchen tickets to exercise POS & kitchen flows.</div>
               <div className="bg-white dark:bg-gray-800 p-3 rounded-md border border-blue-200 dark:border-blue-700">
                 {!showSeedTestConfirm ? (
                   <div className="flex items-center justify-between">

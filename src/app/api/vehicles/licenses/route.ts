@@ -74,15 +74,9 @@ export async function GET(request: NextRequest) {
       prisma.vehicleLicense.findMany({
         where,
         include: {
-          vehicle: {
-            select: {
-              id: true,
-              licensePlate: true,
-              make: true,
-              model: true,
-              year: true,
-              ownershipType: true
-            }
+          // schema relation name is `vehicles`
+          vehicles: {
+            select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true }
           }
         },
         orderBy: { expiryDate: 'asc' },
@@ -92,17 +86,9 @@ export async function GET(request: NextRequest) {
       prisma.vehicleLicense.count({ where })
     ])
 
-    return NextResponse.json({
-      success: true,
-      data: licenses,
-      meta: {
-        total: totalCount,
-        page,
-        limit,
-        totalPages: Math.ceil(totalCount / limit),
-        hasMore: skip + licenses.length < totalCount
-      }
-    })
+    const normalized = licenses.map(l => ({ ...l, vehicle: (l as any).vehicles || null }))
+
+    return NextResponse.json({ success: true, data: normalized, meta: { total: totalCount, page, limit, totalPages: Math.ceil(totalCount / limit), hasMore: skip + licenses.length < totalCount } })
 
   } catch (error) {
     console.error('Error fetching vehicle licenses:', error)
@@ -154,37 +140,17 @@ export async function POST(request: NextRequest) {
 
     // Create license
     const license = await prisma.vehicleLicense.create({
-      data: {
-        ...validatedData,
-        issueDate: new Date(validatedData.issueDate),
-        expiryDate: new Date(validatedData.expiryDate)
-      },
-      include: {
-        vehicle: {
-          select: {
-            id: true,
-            licensePlate: true,
-            make: true,
-            model: true,
-            year: true,
-            ownershipType: true
-          }
-        }
-      }
+      data: { ...validatedData, issueDate: new Date(validatedData.issueDate), expiryDate: new Date(validatedData.expiryDate) } as any,
+      include: { vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } } }
     })
 
-    return NextResponse.json({
-      success: true,
-      data: license,
-      message: 'Vehicle license created successfully'
-    }, { status: 201 })
+    const normalizedLicense = { ...license, vehicle: (license as any).vehicles || null }
+
+    return NextResponse.json({ success: true, data: normalizedLicense, message: 'Vehicle license created successfully' }, { status: 201 })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Validation error', details: error.issues }, { status: 400 })
     }
 
     console.error('Error creating vehicle license:', error)
@@ -243,37 +209,17 @@ export async function PUT(request: NextRequest) {
     // Update license
     const license = await prisma.vehicleLicense.update({
       where: { id },
-      data: {
-        ...updateData,
-        issueDate: updateData.issueDate ? new Date(updateData.issueDate) : undefined,
-        expiryDate: updateData.expiryDate ? new Date(updateData.expiryDate) : undefined
-      },
-      include: {
-        vehicle: {
-          select: {
-            id: true,
-            licensePlate: true,
-            make: true,
-            model: true,
-            year: true,
-            ownershipType: true
-          }
-        }
-      }
+      data: { ...updateData, issueDate: updateData.issueDate ? new Date(updateData.issueDate) : undefined, expiryDate: updateData.expiryDate ? new Date(updateData.expiryDate) : undefined } as any,
+      include: { vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } } }
     })
 
-    return NextResponse.json({
-      success: true,
-      data: license,
-      message: 'Vehicle license updated successfully'
-    })
+    const normalizedUpdated = { ...license, vehicle: (license as any).vehicles || null }
+
+    return NextResponse.json({ success: true, data: normalizedUpdated, message: 'Vehicle license updated successfully' })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Validation error', details: error.issues }, { status: 400 })
     }
 
     console.error('Error updating vehicle license:', error)

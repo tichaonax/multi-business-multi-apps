@@ -1,0 +1,438 @@
+#!/usr/bin/env node
+/**
+ * Script to automatically fix common snake_case to camelCase/PascalCase conversions
+ * in Prisma-related code. Use with caution - always review changes before committing.
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+class PrismaSnakeCaseFixer {
+  constructor() {
+    this.dryRun = true;
+    this.changesCount = 0;
+    this.filesChanged = 0;
+    
+    // Common model name mappings (snake_case -> PascalCase)
+    this.modelMappings = {
+      'user_accounts': 'UserAccounts',
+      'business_members': 'BusinessMembers',
+      'employee_assignments': 'EmployeeAssignments',
+      'job_titles': 'JobTitles',
+      'benefit_types': 'BenefitTypes',
+      'compensation_types': 'CompensationTypes',
+      'disciplinary_actions': 'DisciplinaryActions',
+      'permission_templates': 'PermissionTemplates',
+      'project_types': 'ProjectTypes',
+      'fund_sources': 'FundSources',
+      'expense_categories': 'ExpenseCategories',
+      // Normalize sync models to singular PascalCase (SyncEvent, SyncConfiguration, ...)
+      'sync_events': 'SyncEvent',
+      'sync_configurations': 'SyncConfiguration',
+      'sync_sessions': 'SyncSession',
+      'sync_metrics': 'SyncMetric',
+      'network_partitions': 'NetworkPartition',
+      'offline_queue': 'OfflineQueue',
+      'conflict_resolutions': 'ConflictResolution',
+      'data_snapshots': 'DataSnapshot',
+      'initial_load_sessions': 'InitialLoadSession'
+    };
+
+    // Common field name mappings (snake_case -> camelCase)
+    this.fieldMappings = {
+      'first_name': 'firstName',
+      'last_name': 'lastName',
+      'phone_number': 'phoneNumber',
+      'date_of_birth': 'dateOfBirth',
+      'job_title': 'jobTitle',
+      'start_date': 'startDate',
+      'end_date': 'endDate',
+      'hourly_rate': 'hourlyRate',
+      'business_id': 'businessId',
+      'employee_id': 'employeeId',
+      'user_id': 'userId',
+      'project_id': 'projectId',
+      'created_at': 'createdAt',
+      'updated_at': 'updatedAt',
+      'is_active': 'isActive',
+      'is_admin': 'isAdmin',
+      'sync_node_id': 'syncNodeId',
+      'event_type': 'eventType',
+      'table_name': 'tableName',
+      'record_id': 'recordId',
+      'conflict_type': 'conflictType',
+      'resolution_strategy': 'resolutionStrategy'
+    };
+
+    // Tokens we must never attempt to rewrite - SQL system identifiers, Postgres functions, or third-party libs
+    this.skipTokens = new Set([
+      'information_schema',
+      'pg_terminate_backend',
+      'pg_backend_pid',
+      'to_regclass',
+      'XLSX',
+      'XLSX.utils',
+      // Common XLSX.utils function names we must not alter
+      'book_new',
+      'aoa_to_sheet',
+      'decode_range',
+      'encode_cell',
+      'book_append_sheet',
+      'sheet_to_csv',
+      // npm env token
+      'npm_package_version'
+    ]);
+  }
+
+  /**
+   * Set dry run mode
+   */
+  setDryRun(dryRun) {
+    this.dryRun = dryRun;
+    return this;
+  }
+
+  /**
+   * Convert snake_case to singular PascalCase (following User model pattern)
+   */
+  toPascalCase(str) {
+    // Convert to PascalCase first
+    let pascalCase = str.split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join('');
+    
+    // Convert to singular form (remove common plural endings)
+    if (pascalCase.endsWith('ies')) {
+      pascalCase = pascalCase.slice(0, -3) + 'y';
+    } else if (pascalCase.endsWith('es') && pascalCase.length > 3) {
+      // Check for special cases like "boxes" -> "box", "classes" -> "class"  
+      const withoutEs = pascalCase.slice(0, -2);
+      if (withoutEs.endsWith('x') || withoutEs.endsWith('s') || withoutEs.endsWith('sh') || withoutEs.endsWith('ch')) {
+        pascalCase = withoutEs;
+      } else {
+        pascalCase = pascalCase.slice(0, -1); // Just remove 's'
+      }
+    } else if (pascalCase.endsWith('s') && pascalCase.length > 2) {
+      // Simple case: remove trailing 's'
+      pascalCase = pascalCase.slice(0, -1);
+    }
+    
+    return pascalCase;
+  }
+
+  /**
+   * Convert snake_case to singular camelCase (following User model pattern)
+   */
+  toCamelCase(str) {
+    // Convert to camelCase first
+    let camelCase = str.replace(/_./g, (match) => match.charAt(1).toUpperCase());
+    
+    // Convert to singular form (remove common plural endings)
+    if (camelCase.endsWith('ies')) {
+      camelCase = camelCase.slice(0, -3) + 'y';
+    } else if (camelCase.endsWith('es') && camelCase.length > 3) {
+      // Check for special cases like "boxes" -> "box", "classes" -> "class"
+      const withoutEs = camelCase.slice(0, -2);
+      if (withoutEs.endsWith('x') || withoutEs.endsWith('s') || withoutEs.endsWith('sh') || withoutEs.endsWith('ch')) {
+        camelCase = withoutEs;
+      } else {
+        camelCase = camelCase.slice(0, -1); // Just remove 's'
+      }
+    } else if (camelCase.endsWith('s') && camelCase.length > 2) {
+      // Simple case: remove trailing 's'
+      camelCase = camelCase.slice(0, -1);
+    }
+    
+    return camelCase;
+  }
+
+  /**
+   * Fix Prisma model queries (prisma.modelName -> prisma.modelNameCamelCase)
+   */
+  fixPrismaQueries(content) {
+    let modified = content;
+    let changesMade = 0;
+
+    // Fix prisma.model_name patterns
+    Object.entries(this.modelMappings).forEach(([snakeCase, pascalCase]) => {
+      const camelCase = pascalCase.charAt(0).toLowerCase() + pascalCase.slice(1);
+      const regex = new RegExp(`\\bprisma\\.${snakeCase}\\b`, 'g');
+      const newContent = modified.replace(regex, `prisma.${camelCase}`);
+      if (newContent !== modified) {
+        changesMade++;
+        modified = newContent;
+      }
+    });
+
+    return { content: modified, changes: changesMade };
+  }
+
+  /**
+   * Fix field access patterns (object keys and property access to camelCase)
+   */
+  fixFieldAccess(content) {
+    let modified = content;
+    let changesMade = 0;
+
+    Object.entries(this.fieldMappings).forEach(([snakeCase, camelCase]) => {
+      // Match field access patterns like .snake_case or { snake_case: value }
+      const patterns = [
+        new RegExp(`\\.${snakeCase}\\b`, 'g'), // .snake_case
+        new RegExp(`\\b${snakeCase}\\s*:`, 'g'), // snake_case:
+        new RegExp(`\\{\\s*${snakeCase}\\s*\\}`, 'g'), // { snake_case }
+        new RegExp(`\\b${snakeCase}\\s*,`, 'g') // snake_case,
+      ];
+
+      patterns.forEach((regex, index) => {
+        const replacement = index === 0 ? `.${camelCase}` :
+                          index === 1 ? `${camelCase}:` :
+                          index === 2 ? `{ ${camelCase} }` :
+                          `${camelCase},`;
+        
+        const newContent = modified.replace(regex, replacement);
+        if (newContent !== modified) {
+          changesMade++;
+          modified = newContent;
+        }
+      });
+    });
+
+    return { content: modified, changes: changesMade };
+  }
+
+  /**
+   * Fix type references in comments and simple type annotations
+   */
+  fixTypeReferences(content) {
+    let modified = content;
+    let changesMade = 0;
+
+    Object.entries(this.modelMappings).forEach(([snakeCase, pascalCase]) => {
+      // Fix type references like : snake_case or <snake_case>
+      const patterns = [
+        new RegExp(`:\\s*${snakeCase}\\b`, 'g'),
+        new RegExp(`<${snakeCase}>`, 'g'),
+        new RegExp(`\\b${snakeCase}\\[\\]`, 'g') // Arrays
+      ];
+
+      patterns.forEach((regex, index) => {
+        const replacement = index === 0 ? `: ${pascalCase}` :
+                          index === 1 ? `<${pascalCase}>` :
+                          `${pascalCase}[]`;
+        
+        const newContent = modified.replace(regex, replacement);
+        if (newContent !== modified) {
+          changesMade++;
+          modified = newContent;
+        }
+      });
+    });
+
+    return { content: modified, changes: changesMade };
+  }
+
+  /**
+   * Process a single file
+   */
+  async processFile(filePath) {
+    try {
+      const originalContent = fs.readFileSync(filePath, 'utf8');
+      let modifiedContent = originalContent;
+      let totalChanges = 0;
+
+      // Conservative generic scan (dry-run only): propose replacements for common snake_case patterns
+      // This won't write changes - it only augments the dry-run report so you can see all potential fixes.
+      if (this.dryRun) {
+        const generic = this.scanForGenericFixes(modifiedContent);
+        modifiedContent = generic.content;
+        totalChanges += generic.changes;
+      }
+
+      // Apply fixes
+      const prismaResult = this.fixPrismaQueries(modifiedContent);
+      modifiedContent = prismaResult.content;
+      totalChanges += prismaResult.changes;
+
+      const fieldResult = this.fixFieldAccess(modifiedContent);
+      modifiedContent = fieldResult.content;
+      totalChanges += fieldResult.changes;
+
+      const typeResult = this.fixTypeReferences(modifiedContent);
+      modifiedContent = typeResult.content;
+      totalChanges += typeResult.changes;
+
+      // If changes were made
+      if (totalChanges > 0) {
+        this.changesCount += totalChanges;
+        
+        if (this.dryRun) {
+          console.log(`📝 ${filePath}: ${totalChanges} potential fixes`);
+          
+          // Show a sample of changes
+          const diff = this.showDiff(originalContent, modifiedContent, 3);
+          if (diff) {
+            console.log(diff);
+          }
+        } else {
+          fs.writeFileSync(filePath, modifiedContent, 'utf8');
+          console.log(`✅ Fixed ${filePath}: ${totalChanges} changes`);
+          this.filesChanged++;
+        }
+      }
+
+    } catch (error) {
+      console.error(`❌ Error processing ${filePath}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Conservative generic fixer for dry-run: find snake_case tokens and suggest camelCase/PascalCase
+   * This method is intentionally conservative and only runs in dry-run mode to surface additional candidates.
+   */
+  scanForGenericFixes(content) {
+    let modified = content;
+    let changesMade = 0;
+
+    // Match model declarations: model sync_events {  -> model SyncEvent {
+    modified = modified.replace(/\bmodel\s+([a-z]+_[a-z0-9_]+)\b/g, (m, token) => {
+      if (this.skipTokens.has(token)) return m;
+      const replacement = this.toPascalCase(token);
+      if (replacement !== token) changesMade++;
+      return `model ${replacement}`;
+    });
+
+    // Match prisma.<snake_case>
+    modified = modified.replace(/\bprisma\.([a-z]+_[a-z0-9_]+)\b/g, (m, token) => {
+      if (this.skipTokens.has(token)) return m;
+      const replacement = this.toCamelCase(token);
+      if (replacement !== token) changesMade++;
+      return `prisma.${replacement}`;
+    });
+
+    // Match field access: .snake_case -> .camelCase
+    modified = modified.replace(/\.([a-z]+_[a-z0-9_]+)\b/g, (m, token) => {
+      if (this.skipTokens.has(token)) return m;
+      const replacement = `.${this.toCamelCase(token)}`;
+      if (replacement !== m) changesMade++;
+      return replacement;
+    });
+
+    // Match object keys: { snake_case:  -> { camelCase:
+    modified = modified.replace(/\{\s*([a-z]+_[a-z0-9_]+)\s*:/g, (m, token) => {
+      if (this.skipTokens.has(token)) return m;
+      const replacement = `{ ${this.toCamelCase(token)}:`;
+      if (replacement !== m) changesMade++;
+      return replacement;
+    });
+
+    return { content: modified, changes: changesMade };
+  }
+
+  /**
+   * Show diff between original and modified content
+   */
+  showDiff(original, modified, maxLines = 5) {
+    const originalLines = original.split('\n');
+    const modifiedLines = modified.split('\n');
+    const differences = [];
+    let diffCount = 0;
+
+    for (let i = 0; i < Math.max(originalLines.length, modifiedLines.length) && diffCount < maxLines; i++) {
+      const origLine = originalLines[i] || '';
+      const modLine = modifiedLines[i] || '';
+      
+      if (origLine !== modLine) {
+        differences.push(`   Line ${i + 1}:`);
+        differences.push(`   - ${origLine}`);
+        differences.push(`   + ${modLine}`);
+        differences.push('');
+        diffCount++;
+      }
+    }
+
+    return differences.length > 0 ? differences.join('\n') : null;
+  }
+
+  /**
+   * Process directory recursively
+   */
+  async processDirectory(dirPath, fileExtensions = ['.ts', '.tsx', '.js', '.jsx']) {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      
+      // Skip certain directories
+      if (entry.isDirectory()) {
+        const skipDirs = ['node_modules', '.git', '.next', 'dist/service/daemon'];
+        if (!skipDirs.some(skip => fullPath.includes(skip))) {
+          await this.processDirectory(fullPath, fileExtensions);
+        }
+      } else if (entry.isFile()) {
+        const hasValidExt = fileExtensions.some(ext => entry.name.endsWith(ext));
+        if (hasValidExt) {
+          await this.processFile(fullPath);
+        }
+      }
+    }
+  }
+
+  /**
+   * Run the fixer
+   */
+  async run(directories = ['src/', 'prisma/', 'scripts/'], options = {}) {
+    this.dryRun = options.dryRun !== false; // Default to dry run
+
+    console.log('🔧 Prisma Snake Case Auto-Fixer');
+    console.log('=' .repeat(40));
+    console.log(`Mode: ${this.dryRun ? '🔍 DRY RUN (no changes made)' : '✏️  WRITE MODE (files will be modified)'}`);
+    console.log('');
+
+    if (this.dryRun) {
+      console.log('ℹ️  This is a dry run. To apply changes, run with --fix flag');
+      console.log('');
+    }
+
+    for (const dir of directories) {
+      if (fs.existsSync(dir)) {
+        console.log(`📁 Processing ${dir}...`);
+        await this.processDirectory(dir);
+      }
+    }
+
+    console.log('\n📊 SUMMARY');
+    console.log('-'.repeat(20));
+    console.log(`Total potential changes: ${this.changesCount}`);
+    console.log(`Files that would be modified: ${this.filesChanged}`);
+
+    if (this.dryRun && this.changesCount > 0) {
+      console.log('\n🚀 To apply these changes, run:');
+      console.log('node scripts/fix-prisma-snake-case.js --fix');
+      console.log('\n⚠️  IMPORTANT: Review changes carefully and test thoroughly!');
+    }
+  }
+}
+
+// CLI handling
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const shouldFix = args.includes('--fix');
+  const directories = args.filter(arg => !arg.startsWith('--') && fs.existsSync(arg));
+  
+  const fixer = new PrismaSnakeCaseFixer();
+  
+  if (shouldFix) {
+    console.log('⚠️  WARNING: This will modify files! Make sure you have backups.');
+    console.log('Press Ctrl+C to cancel, or wait 3 seconds to continue...');
+    
+    setTimeout(() => {
+      fixer.run(directories.length > 0 ? directories : undefined, { dryRun: false })
+            .catch(console.error);
+    }, 3000);
+  } else {
+    fixer.run(directories.length > 0 ? directories : undefined, { dryRun: true })
+          .catch(console.error);
+  }
+}
+
+module.exports = PrismaSnakeCaseFixer;

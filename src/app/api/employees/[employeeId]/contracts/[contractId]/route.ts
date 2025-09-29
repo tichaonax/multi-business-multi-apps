@@ -23,27 +23,27 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const contract = await prisma.employeeContract.findUnique({
-      where: { 
+      where: {
         id: contractId,
-        employeeId: employeeId 
+        employeeId: employeeId
       },
       include: {
-        jobTitle: true,
-        compensationType: true,
-        business: {
+        jobTitles: true,
+        compensationTypes: true,
+        businesses_employee_contracts_primaryBusinessIdTobusinesses: {
           select: {
             id: true,
             name: true,
             type: true
           }
         },
-        supervisor: {
+        employees_employee_contracts_supervisorIdToemployees: {
           select: {
             id: true,
             fullName: true
           }
         },
-        contractBenefits: {
+        contract_benefits: {
           include: {
             benefitType: {
               select: {
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        employee: {
+        employees_employee_contracts_employeeIdToemployees: {
           select: {
             id: true,
             fullName: true,
@@ -71,7 +71,22 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    return NextResponse.json(contract)
+    // Map Prisma relation keys to legacy-friendly response shape
+    const mapped = {
+      ...contract,
+      employee: contract.employees_employee_contracts_employeeIdToemployees || null,
+      supervisor: contract.employees_employee_contracts_supervisorIdToemployees || null,
+      business: contract.businesses_employee_contracts_primaryBusinessIdTobusinesses || null,
+      contractBenefits: contract.contract_benefits || []
+    }
+
+    // Remove internal relation keys
+    delete (mapped as any).employees_employee_contracts_employeeIdToemployees
+    delete (mapped as any).employees_employee_contracts_supervisorIdToemployees
+    delete (mapped as any).businesses
+    delete (mapped as any).contract_benefits
+
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Contract fetch error:', error)
     return NextResponse.json(
@@ -97,16 +112,13 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     // Verify contract exists and belongs to the employee
     const existingContract = await prisma.employeeContract.findUnique({
-      where: { 
+      where: {
         id: contractId,
-        employeeId: employeeId 
+        employeeId: employeeId
       },
       include: {
-        employee: {
-          select: {
-            fullName: true,
-            employeeNumber: true
-          }
+        employees_employee_contracts_employeeIdToemployees: {
+          select: { fullName: true, employeeNumber: true }
         }
       }
     })
@@ -136,17 +148,17 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       where: { id: contractId }
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: 'Contract deleted successfully',
       deletedContract: {
         id: contractId,
         contractNumber: existingContract.contractNumber,
-        employeeName: existingContract.employee.fullName
+        employeeName: (existingContract as any).employees_employee_contracts_employeeIdToemployees?.fullName
       }
     })
   } catch (error: any) {
     console.error('Contract deletion error:', error)
-    
+
     // Handle specific database constraint errors
     if (error.code === 'P2003') {
       return NextResponse.json(
@@ -290,7 +302,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             error: `Invalid contract status transition. Signed contracts can only be changed to: ${allowedContractStatuses.join(', ')}`,
             currentStatus: existingContract.status,
             allowedStatuses: allowedContractStatuses,
-            note: 'Contract status is separate from employee status. Use employee status for on_leave.'
+            note: 'Contract status is separate from employee status. Use employee status for onLeave.'
           },
           { status: 400 }
         )
@@ -310,28 +322,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           updatedAt: new Date()
         },
         include: {
-          jobTitle: true,
-          compensationType: true,
-          business: {
-            select: {
-              id: true,
-              name: true,
-              type: true
-            }
+          jobTitles: true,
+          compensationTypes: true,
+          businesses_employee_contracts_primaryBusinessIdTobusinesses: {
+            select: { id: true, name: true, type: true }
           },
-          supervisor: {
-            select: {
-              id: true,
-              fullName: true
-            }
-          },
-          employee: {
-            select: {
-              id: true,
-              fullName: true,
-              employeeNumber: true
-            }
-          }
+          employees_employee_contracts_supervisorIdToemployees: { select: { id: true, fullName: true } },
+          employees_employee_contracts_employeeIdToemployees: { select: { id: true, fullName: true, employeeNumber: true } }
         }
       })
 
@@ -403,7 +400,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       return contract
     })
 
-    return NextResponse.json(updatedContract)
+    // Map updatedContract to legacy-friendly shape before returning
+    const mappedUpdated = {
+      ...updatedContract,
+      jobTitle: (updatedContract as any).jobTitles || null,
+      compensationType: (updatedContract as any).compensationTypes || null,
+      business: (updatedContract as any).businesses_employee_contracts_primaryBusinessIdTobusinesses || null,
+      supervisor: (updatedContract as any).employees_employee_contracts_supervisorIdToemployees || null,
+      employee: (updatedContract as any).employees_employee_contracts_employeeIdToemployees || null
+    }
+
+    return NextResponse.json(mappedUpdated)
   } catch (error) {
     console.error('Contract update error:', error)
     return NextResponse.json(

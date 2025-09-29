@@ -42,7 +42,7 @@ async function run() {
       process.exit(1)
     }
 
-    const products = await prisma.businessProduct.findMany({ where: { businessId: BUSINESS_ID }, include: { category: true } })
+  const products = await prisma.businessProduct.findMany({ where: { businessId: BUSINESS_ID }, include: { businessCategory: true } })
     console.log('Products count for business:', products.length)
 
     if (products.length > 0) {
@@ -55,7 +55,7 @@ async function run() {
         name: p.name,
         sku: p.sku || '',
         description: p.description || '',
-        category: p.category?.name || 'Uncategorized',
+  category: p.businessCategory?.name || 'Uncategorized',
         currentStock,
         unit: 'units',
         costPrice: parseFloat(p.costPrice?.toString() || '0'),
@@ -74,7 +74,7 @@ async function run() {
       itemId: product.id,
       itemName: product.name,
       itemSku: product.sku || '',
-      category: product.category?.name || 'General',
+  category: product.businessCategory?.name || 'General',
       currentStock: 5,
       threshold: 10,
       unit: 'units',

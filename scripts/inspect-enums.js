@@ -12,9 +12,9 @@ async function inspect() {
 
     const map = {}
     for (const row of enums) {
-      const name = row.enum_name
+  const name = row.enumName || row.enum_name
       map[name] = map[name] || []
-      map[name].push(row.enum_label)
+  map[name].push(row.enumLabel || row.enum_label)
     }
 
     console.log('Detected enums:')

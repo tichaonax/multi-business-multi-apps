@@ -298,15 +298,15 @@ class SyncSystemValidator {
         throw new Error('Encryption failed: no result')
       }
 
-      if (!encryptResult.encrypted || !encryptResult.signature) {
+      if (!encryptResult.encryptedData || !encryptResult.signature) {
         throw new Error('Encrypted data or signature missing')
       }
 
       // Test decryption
       const decryptResult = await securityManager.decryptData(
-        encryptResult.encrypted,
-        sessionKey,
-        encryptResult.signature
+        encryptResult.encryptedData,
+        encryptResult.signature,
+        sessionKey
       )
 
       if (!decryptResult.success) {

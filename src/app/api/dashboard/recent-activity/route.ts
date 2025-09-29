@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
     console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
     // Determine filtering based on scope and permissions
-    let targetUserId = session.user.id // Default to current user
-    let targetBusinessIds = userBusinessIds // Default to user's businesses
+  let targetUserId: string | null = session.user.id // Default to current user
+  let targetBusinessIds: string[] | null = userBusinessIds // Default to user's businesses
     let shouldReturnEmptyResults = false // Flag to return empty results when required selection is missing
 
     if (filterScope === 'all' && isSystemAdmin(user)) {
@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
           const hasBusinessAccess = isSystemAdmin(user) || (order.businessId && userBusinessIds.includes(order.businessId))
 
           // Track financial data for owned businesses only
-          if (canViewFinancials && order.status === 'completed') {
+          if (canViewFinancials && order.status === 'COMPLETED') {
             financialSummary.totalRevenue += orderAmount
           } else if (!canViewFinancials && order.businessId) {
             financialSummary.hasRestrictedData = true
@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
             id: `order-${order.id}`,
             type: 'order',
             title: `Order #${order.orderNumber}`,
-            description: `${order.status} order${order.tableNumber ? ` for table ${order.tableNumber}` : ''}`,
+            description: `${order.status} order`,
             createdAt: order.createdAt,
             module: order.business ? `restaurant(${order.business.name})` : 'restaurant',
             icon: '🍽️',
@@ -296,6 +296,7 @@ export async function GET(req: NextRequest) {
         const recentTransactions = await prisma.projectTransaction.findMany({
           where: transactionWhereClause,
           include: {
+            // relation name in schema is `project` (singular)
             project: {
               select: {
                 id: true,
@@ -346,12 +347,12 @@ export async function GET(req: NextRequest) {
           // For business filtering, only include expenses that are actually linked to business projects
           // Personal expenses are only business-related if they have ProjectTransactions linking to business projects
           const businessProjectTransactions = await prisma.projectTransaction.findMany({
-            where: {
+            where: ({
               project: {
                 businessId: { in: targetBusinessIds }
               },
               personalExpenseId: { not: null }
-            },
+            } as any),
             select: { personalExpenseId: true }
           })
           const businessExpenseIds = businessProjectTransactions
@@ -391,7 +392,7 @@ export async function GET(req: NextRequest) {
         })
 
         // Load all expense categories for display mapping
-        const allCategories = await prisma.expense_categories.findMany({
+        const allCategories = await prisma.expenseCategory.findMany({
           select: {
             id: true,
             name: true,
@@ -406,7 +407,7 @@ export async function GET(req: NextRequest) {
         recentExpenses.forEach(expense => {
           // Resolve category ID to display name
           const categoryDisplay = categoryMap.get(expense.category) || expense.category
-          const isIncome = expense.amount > 0 && (
+          const isIncome = Number(expense.amount) > 0 && (
             expense.category?.toLowerCase().includes('income') ||
             expense.category?.toLowerCase().includes('salary') ||
             expense.category?.toLowerCase().includes('revenue')
@@ -508,7 +509,7 @@ export async function GET(req: NextRequest) {
         // })
 
         recentBusinessOrders.forEach(order => {
-          const businessType = order.business?.businessType || 'business'
+          const businessType = order.business?.type || 'business'
           const businessIcon = businessType === 'grocery' ? '🛒' :
                               businessType === 'clothing' ? '👕' :
                               businessType === 'hardware' ? '🔧' : '🏪'
@@ -517,7 +518,7 @@ export async function GET(req: NextRequest) {
             id: `business-order-${order.id}`,
             type: 'business_order',
             title: `${businessType.charAt(0).toUpperCase() + businessType.slice(1)} Order`,
-            description: `${order.status} order from ${order.business?.name || 'Business'} - $${Number(order.subtotal).toFixed(2)}`,
+            description: `${order.status} order from ${order.business?.name || 'Business'} - $${Number(order.totalAmount).toFixed(2)}`,
             createdAt: order.createdAt,
             module: businessType,
             icon: businessIcon,

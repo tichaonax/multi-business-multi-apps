@@ -19,7 +19,8 @@ export async function GET() {
     if (isSystemAdmin(user)) {
       const users = await prisma.user.findMany({
         include: {
-          employee: {
+          // relation from User -> Employee in schema is `employees`
+          employees: {
             select: {
               id: true,
               fullName: true,
@@ -75,7 +76,7 @@ export async function GET() {
     // Get all users in the current business
     const users = await prisma.user.findMany({
       include: {
-        employee: {
+        employees: {
           select: {
             id: true,
             fullName: true,
@@ -94,7 +95,8 @@ export async function GET() {
                 name: true,
               },
             },
-            template: {
+            // relation name is permissionTemplate
+            permissionTemplate: {
               select: {
                 id: true,
                 name: true,

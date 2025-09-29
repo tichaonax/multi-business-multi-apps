@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       prisma.driverAuthorization.findMany({
         where,
         include: {
-          driver: {
+          vehicleDrivers: {
             select: {
               id: true,
               fullName: true,
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
               emailAddress: true
             }
           },
-          vehicle: {
+          vehicles: {
             select: {
               id: true,
               licensePlate: true,
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
               ownershipType: true
             }
           },
-          authorizer: {
+          users: {
             select: {
               id: true,
               name: true,
@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }

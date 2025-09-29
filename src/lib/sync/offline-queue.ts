@@ -401,12 +401,12 @@ export class OfflineQueueManager extends EventEmitter {
           recordId: dbItem.recordId,
           operation: dbItem.operation as any,
           changeData: dbItem.changeData,
-          beforeData: dbItem.beforeData,
+          beforeData: dbItem.beforeData ?? undefined,
           queuedAt: dbItem.queuedAt,
           priority: dbItem.priority,
           retryCount: dbItem.retryCount,
-          lastAttempt: dbItem.lastAttempt,
-          errorMessage: dbItem.errorMessage,
+          lastAttempt: dbItem.lastAttempt ?? undefined,
+          errorMessage: dbItem.errorMessage ?? undefined,
           dependencies: (dbItem.dependencies as string[]) || [],
           isProcessed: dbItem.isProcessed
         }

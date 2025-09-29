@@ -176,7 +176,7 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   async getRecoveryMetrics(): Promise<RecoveryMetrics> {
     try {
-      const sessions = await this.prisma.sync_sessions.findMany({
+      const sessions = await this.prisma.syncSession.findMany({
         where: { sourceNodeId: this.nodeId },
         orderBy: { startedAt: 'desc' }
       })
@@ -579,7 +579,7 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async loadActiveSessions(): Promise<void> {
     try {
-      const sessions = await this.prisma.sync_sessions.findMany({
+      const sessions = await this.prisma.syncSession.findMany({
         where: {
           sourceNodeId: this.nodeId,
           status: 'RUNNING'
@@ -618,7 +618,7 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async createRecoverySession(session: RecoverySession): Promise<void> {
     try {
-      await this.prisma.sync_sessions.create({
+      await this.prisma.syncSession.create({
         data: {
           id: session.sessionId,
           sessionId: session.sessionId,
@@ -644,7 +644,7 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async updateRecoverySession(session: RecoverySession): Promise<void> {
     try {
-      await this.prisma.sync_sessions.update({
+      await this.prisma.syncSession.update({
         where: { sessionId: session.sessionId },
         data: {
           status: session.status,

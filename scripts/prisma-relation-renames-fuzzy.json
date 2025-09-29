@@ -1,0 +1,796 @@
+[
+  {
+    "from": "chat_rooms",
+    "to": "chatRooms",
+    "method": "existing",
+    "score": 1
+  [ ]
+      "allowances",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "benefit_types",
+    "to": "benefitTypes",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "employees_employee_bonuses_approvedByToemployees",
+    "to": "employees_employee_bonuses_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "bonuses",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employees_employee_bonuses_employeeIdToemployees",
+    "to": "employees_employee_bonuses_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "bonuses",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "contract_renewals_contract_renewals_newContractIdToemployee_contracts",
+    "to": "employee_contracts_contract_renewals_newContractIdToemployee_contracts",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "contract",
+      "renewals",
+      "contract",
+      "renewals",
+      "new",
+      "contract",
+      "id",
+      "toemployee",
+      "contracts"
+    ]
+  },
+  {
+    "from": "contract_renewals_contract_renewals_originalContractIdToemployee_contracts",
+    "to": "employee_contracts_contract_renewals_originalContractIdToemployee_contracts",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "contract",
+      "renewals",
+      "contract",
+      "renewals",
+      "original",
+      "contract",
+      "id",
+      "toemployee",
+      "contracts"
+    ]
+  },
+  {
+    "from": "compensation_types",
+    "to": "compensationTypes",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "employees_employee_contracts_employeeIdToemployees",
+    "to": "employees_employee_contracts_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "contracts",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "job_titles",
+    "to": "jobTitles",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "businesses_employee_contracts_primaryBusinessIdTobusinesses",
+    "to": "businesses_employee_contracts_primaryBusinessIdTobusinesses",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "businesses",
+      "employee",
+      "contracts",
+      "primary",
+      "business",
+      "id",
+      "tobusinesses"
+    ]
+  },
+  {
+    "from": "employees_employee_contracts_supervisorIdToemployees",
+    "to": "employees_employee_contracts_supervisorIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "contracts",
+      "supervisor",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "businesses_employee_contracts_umbrellaBusinessIdTobusinesses",
+    "to": "businesses_employee_contracts_umbrellaBusinessIdTobusinesses",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "businesses",
+      "employee",
+      "contracts",
+      "umbrella",
+      "business",
+      "id",
+      "tobusinesses"
+    ]
+  },
+  {
+    "from": "employee_deductions",
+    "to": "employeeDeductions",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "employees_employee_deductions_approvedByToemployees",
+    "to": "employees_employee_deductions_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "deductions",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employees_employee_deductions_employeeIdToemployees",
+    "to": "employees_employee_deductions_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "deductions",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employees_employee_leave_requests_approvedByToemployees",
+    "to": "employees_employee_leave_requests_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "leave",
+      "requests",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employees_employee_leave_requests_employeeIdToemployees",
+    "to": "employees_employee_leave_requests_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "leave",
+      "requests",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_loans",
+    "to": "employeeLoans",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "employees_employee_loans_approvedByToemployees",
+    "to": "employees_employee_loans_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "loans",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employees_employee_loans_employeeIdToemployees",
+    "to": "employees_employee_loans_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "loans",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employees_employee_salary_increases_approvedByToemployees",
+    "to": "employees_employee_salary_increases_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "salary",
+      "increases",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employees_employee_salary_increases_employeeIdToemployees",
+    "to": "employees_employee_salary_increases_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employees",
+      "employee",
+      "salary",
+      "increases",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "disciplinary_actions_disciplinary_actions_createdByToemployees",
+    "to": "employees_disciplinary_actions_createdByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "disciplinary",
+      "actions",
+      "disciplinary",
+      "actions",
+      "created",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "disciplinary_actions_disciplinary_actions_employeeIdToemployees",
+    "to": "employees_disciplinary_actions_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "disciplinary",
+      "actions",
+      "disciplinary",
+      "actions",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_allowances_employee_allowances_approvedByToemployees",
+    "to": "employees_employee_allowances_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "allowances",
+      "employee",
+      "allowances",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_allowances_employee_allowances_employeeIdToemployees",
+    "to": "employees_employee_allowances_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "allowances",
+      "employee",
+      "allowances",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_bonuses_employee_bonuses_approvedByToemployees",
+    "to": "employees_employee_bonuses_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "bonuses",
+      "employee",
+      "bonuses",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_bonuses_employee_bonuses_employeeIdToemployees",
+    "to": "employees_employee_bonuses_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "bonuses",
+      "employee",
+      "bonuses",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_contracts_employee_contracts_employeeIdToemployees",
+    "to": "employees_employee_contracts_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "contracts",
+      "employee",
+      "contracts",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_contracts_employee_contracts_supervisorIdToemployees",
+    "to": "employees_employee_contracts_supervisorIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "contracts",
+      "employee",
+      "contracts",
+      "supervisor",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_deductions_employee_deductions_approvedByToemployees",
+    "to": "employees_employee_deductions_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "deductions",
+      "employee",
+      "deductions",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_deductions_employee_deductions_employeeIdToemployees",
+    "to": "employees_employee_deductions_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "deductions",
+      "employee",
+      "deductions",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_leave_requests_employee_leave_requests_approvedByToemployees",
+    "to": "employees_employee_leave_requests_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "leave",
+      "requests",
+      "employee",
+      "leave",
+      "requests",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_leave_requests_employee_leave_requests_employeeIdToemployees",
+    "to": "employees_employee_leave_requests_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "leave",
+      "requests",
+      "employee",
+      "leave",
+      "requests",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_loans_employee_loans_approvedByToemployees",
+    "to": "employees_employee_loans_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "loans",
+      "employee",
+      "loans",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_loans_employee_loans_employeeIdToemployees",
+    "to": "employees_employee_loans_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "loans",
+      "employee",
+      "loans",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_salary_increases_employee_salary_increases_approvedByToemployees",
+    "to": "employees_employee_salary_increases_approvedByToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "salary",
+      "increases",
+      "employee",
+      "salary",
+      "increases",
+      "approved",
+      "by",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "employee_salary_increases_employee_salary_increases_employeeIdToemployees",
+    "to": "employees_employee_salary_increases_employeeIdToemployees",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "employee",
+      "salary",
+      "increases",
+      "employee",
+      "salary",
+      "increases",
+      "employee",
+      "id",
+      "toemployees"
+    ]
+  },
+  {
+    "from": "driver_license_templates",
+    "to": "driverLicenseTemplates",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "id_format_templates",
+    "to": "idFormatTemplates",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "other_employees",
+    "to": "otherEmployees",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "businesses_inter_business_loans_borrowerBusinessIdTobusinesses",
+    "to": "businesses_inter_business_loans_borrowerBusinessIdTobusinesses",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "businesses",
+      "inter",
+      "business",
+      "loans",
+      "borrower",
+      "business",
+      "id",
+      "tobusinesses"
+    ]
+  },
+  {
+    "from": "users_inter_business_loans_createdByTousers",
+    "to": "users_inter_business_loans_createdByTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "users",
+      "inter",
+      "business",
+      "loans",
+      "created",
+      "by",
+      "tousers"
+    ]
+  },
+  {
+    "from": "businesses_inter_business_loans_lenderBusinessIdTobusinesses",
+    "to": "businesses_inter_business_loans_lenderBusinessIdTobusinesses",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "businesses",
+      "inter",
+      "business",
+      "loans",
+      "lender",
+      "business",
+      "id",
+      "tobusinesses"
+    ]
+  },
+  {
+    "from": "users_inter_business_loans_lenderUserIdTousers",
+    "to": "users_inter_business_loans_lenderUserIdTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "users",
+      "inter",
+      "business",
+      "loans",
+      "lender",
+      "user",
+      "id",
+      "tousers"
+    ]
+  },
+  {
+    "from": "inter_business_loans",
+    "to": "interBusinessLoans",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "personal_expenses",
+    "to": "personalExpenses",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "menu_items",
+    "to": "menuItems",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "business_products",
+    "to": "businessProducts",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "users_project_transactions_approvedByTousers",
+    "to": "users_project_transactions_approvedByTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "users",
+      "project",
+      "transactions",
+      "approved",
+      "by",
+      "tousers"
+    ]
+  },
+  {
+    "from": "users_project_transactions_createdByTousers",
+    "to": "users_project_transactions_createdByTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "users",
+      "project",
+      "transactions",
+      "created",
+      "by",
+      "tousers"
+    ]
+  },
+  {
+    "from": "project_contractors",
+    "to": "projectContractors",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "stage_contractor_assignments",
+    "to": "stageContractorAssignments",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "project_stages",
+    "to": "projectStages",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "project_types",
+    "to": "projectTypes",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "business_suppliers",
+    "to": "businessSuppliers",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "inter_business_loans_inter_business_loans_createdByTousers",
+    "to": "users_inter_business_loans_createdByTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "inter",
+      "business",
+      "loans",
+      "inter",
+      "business",
+      "loans",
+      "created",
+      "by",
+      "tousers"
+    ]
+  },
+  {
+    "from": "inter_business_loans_inter_business_loans_lenderUserIdTousers",
+    "to": "users_inter_business_loans_lenderUserIdTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "inter",
+      "business",
+      "loans",
+      "inter",
+      "business",
+      "loans",
+      "lender",
+      "user",
+      "id",
+      "tousers"
+    ]
+  },
+  {
+    "from": "vehicle_reimbursements_vehicle_reimbursements_approvedByTousers",
+    "to": "vehicle_reimbursements_vehicle_reimbursements_approvedByTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "vehicle",
+      "reimbursements",
+      "vehicle",
+      "reimbursements",
+      "approved",
+      "by",
+      "tousers"
+    ]
+  },
+  {
+    "from": "vehicle_reimbursements_vehicle_reimbursements_userIdTousers",
+    "to": "vehicle_reimbursements_vehicle_reimbursements_userIdTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "vehicle",
+      "reimbursements",
+      "vehicle",
+      "reimbursements",
+      "user",
+      "id",
+      "tousers"
+    ]
+  },
+  {
+    "from": "vehicle_trips",
+    "to": "vehicleTrips",
+    "method": "existing",
+    "score": 1
+  },
+  {
+    "from": "users_vehicle_reimbursements_approvedByTousers",
+    "to": "users_vehicle_reimbursements_approvedByTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "users",
+      "vehicle",
+      "reimbursements",
+      "approved",
+      "by",
+      "tousers"
+    ]
+  },
+  {
+    "from": "users_vehicle_reimbursements_userIdTousers",
+    "to": "users_vehicle_reimbursements_userIdTousers",
+    "method": "fuzzy",
+    "score": 1,
+    "common": [
+      "users",
+      "vehicle",
+      "reimbursements",
+      "user",
+      "id",
+      "tousers"
+    ]
+  },
+  {
+    "from": "driver_authorizations",
+    "to": "driverAuthorizations",
+    "method": "existing",
+    "score": 1
+  }
+]

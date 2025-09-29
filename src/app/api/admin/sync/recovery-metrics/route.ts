@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate recovery metrics from sync sessions
-    const sessions = await prisma.sync_sessions.findMany({
+    const sessions = await prisma.syncSession.findMany({
       where: {
         metadata: {
           path: ['partitionId'],

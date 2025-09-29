@@ -25,6 +25,7 @@ interface SelectProps {
   value?: string
   onValueChange?: (value: string) => void
   defaultValue?: string
+  disabled?: boolean
 }
 
 const Select = ({ children, value, onValueChange, defaultValue }: SelectProps) => {

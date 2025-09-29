@@ -60,6 +60,14 @@ export interface CoreBusinessPermissions {
   canBackupBusiness: boolean;
   canRestoreBusiness: boolean;
 
+  // Financial Management (common fields used across role presets)
+  canAccessFinancialData: boolean;
+  canManageProjectBudgets: boolean;
+  canManageProjectPayments: boolean;
+  canViewCostReports: boolean;
+  canApproveBudgetChanges: boolean;
+  canViewProfitabilityReports: boolean;
+
   // Employee Management
   canViewEmployees: boolean;
   canCreateEmployees: boolean;
@@ -176,6 +184,7 @@ export interface ConstructionPermissions {
   canViewResourceReports: boolean;
   
   // Financial Management
+  // Added financial permissions used by role presets
   canAccessFinancialData: boolean;
   canManageProjectBudgets: boolean;
   canManageProjectPayments: boolean;
@@ -800,6 +809,13 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canExportEmployeeData: true,
   canApproveSalaryIncreases: true,
   canProcessSalaryIncreases: true,
+  // Financial Management - Full access for system admins
+  canAccessFinancialData: true,
+  canManageProjectBudgets: true,
+  canManageProjectPayments: true,
+  canViewCostReports: true,
+  canApproveBudgetChanges: true,
+  canViewProfitabilityReports: true,
 };
 
 // User-Level Permission Presets

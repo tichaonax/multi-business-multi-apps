@@ -10,73 +10,32 @@ import { AddEmployeeModal } from '@/components/employees/add-employee-modal'
 
 interface Employee {
   id: string
-  employeeNumber: string
-  fullName: string
-  firstName: string
-  lastName: string
-  email: string | null
-  phone: string
-  nationalId: string
-  driverLicense: string | null
-  hireDate: string
-  employmentStatus: string
-  isActive: boolean
-  user: {
-    id: string
-    name: string
-    email: string
-  } | null
-  jobTitle: {
-    title: string
-    department: string | null
-    level: string | null
-  }
-  compensationType: {
-    name: string
-    type: string
-  }
-  supervisor: {
-    id: string
-    fullName: string
-    jobTitle: string
-  } | null
+  employeeNumber?: string
+  fullName?: string
+  firstName?: string
+  lastName?: string
+  email?: string | null
+  phone?: string
+  nationalId?: string
+  driverLicense?: string | null
+  hireDate?: string
+  employmentStatus?: string
+  isActive?: boolean
+  // Backend is being canonicalized; allow legacy or canonical user shapes
+  user?: any | null
+  // jobTitle/compensationType may come in different shapes during migration
+  jobTitle?: any
+  compensationType?: any
+  supervisor?: any | null
   subordinates?: Employee[]
-  primaryBusiness: {
-    id: string
-    name: string
-    type: string
-  }
-  businessAssignments?: Array<{
-    business: {
-      id: string
-      name: string
-      type: string
-    }
-    role: string | null
-    isPrimary: boolean
-  }>
-  employeeContracts?: Array<{
-    id: string
-    status: string
-    startDate: string
-    endDate: string | null
-    baseSalary: number
-    employeeSignedAt: string | null
-  }>
-  leaveBalance: {
-    annualLeaveDays: number
-    sickLeaveDays: number
-    remainingAnnual: number
-    remainingSick: number
-  }
-  currentContract: {
-    id: string
-    status: string
-    startDate: string
-    endDate: string | null
-    baseSalary: number
-  } | null
-  contractCount: number
+  primaryBusiness?: any
+  businessAssignments?: any[]
+  // contracts may be returned as `contracts` (legacy) or `employeeContracts` (canonical)
+  contracts?: any[]
+  employeeContracts?: any[]
+  leaveBalance?: any
+  currentContract?: any | null
+  contractCount?: number
 }
 
 interface EmployeesResponse {
@@ -92,14 +51,14 @@ interface EmployeesResponse {
 const EMPLOYMENT_STATUS_COLORS = {
   active: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
   pendingContract: 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-200 font-semibold border border-purple-300',
-  on_leave: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
+  onLeave: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
   terminated: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
   suspended: 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200'
 }
 
 const CONTRACT_STATUS_COLORS = {
   active: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
-  pending_approval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
+  pendingApproval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
   expired: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
   terminated: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200'
@@ -135,8 +94,8 @@ export default function EmployeesPage() {
   const canCreateEmployees = currentUser && hasPermission(currentUser, 'canCreateEmployees')
   const canEditEmployees = currentUser && hasPermission(currentUser, 'canEditEmployees')
   const canApproveSalaryIncreases = currentUser && hasPermission(currentUser, 'canApproveSalaryIncreases')
-  const canExportPayroll = currentUser && hasPermission(currentUser, 'canExportEmployeeData') && 
-                          hasPermission(currentUser, 'canViewEmployeeReports')
+  const canExportPayroll = currentUser && hasPermission(currentUser, 'canExportEmployeeData') &&
+    hasPermission(currentUser, 'canViewEmployeeReports')
 
   useEffect(() => {
     if (canViewEmployees) {
@@ -313,7 +272,7 @@ export default function EmployeesPage() {
       headerActions={
         <div className="flex space-x-3">
           {canCreateEmployees && (
-            <button 
+            <button
               className="btn-primary"
               onClick={() => setAddEmployeeModal(true)}
             >
@@ -322,7 +281,7 @@ export default function EmployeesPage() {
             </button>
           )}
           {canExportPayroll && (
-            <button 
+            <button
               className="btn-secondary"
               onClick={() => setPayrollExportModal(true)}
             >
@@ -523,17 +482,16 @@ export default function EmployeesPage() {
 
                       {/* Status Badges */}
                       <div className="flex flex-wrap gap-2">
-                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
-                          employee.employmentStatus === 'pendingContract'
+                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${employee.employmentStatus === 'pendingContract'
                             ? 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-200 font-semibold border border-purple-300'
                             : EMPLOYMENT_STATUS_COLORS[employee.employmentStatus as keyof typeof EMPLOYMENT_STATUS_COLORS] ||
-                              'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-                        }`}>
+                            'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                          }`}>
                           {currentContract?.employeeSignedAt ?
-                           `CONTRACT SIGNED` :
-                           currentContract?.status === 'active' && employee.isActive ? 'ACTIVE' :
-                           employee.employmentStatus === 'pending_contract' ? 'PENDING CONTRACT' :
-                           employee.employmentStatus.replace('_', ' ').toUpperCase()}
+                            `CONTRACT SIGNED` :
+                            currentContract?.status === 'active' && employee.isActive ? 'ACTIVE' :
+                              employee.employmentStatus === 'pending_contract' ? 'PENDING CONTRACT' :
+                                employee.employmentStatus.replace('_', ' ').toUpperCase()}
                         </span>
 
                         {(employee.contractCount > 0 || contracts.length > 0) && (
@@ -613,192 +571,191 @@ export default function EmployeesPage() {
                       </th>
                     </tr>
                   </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {employees.map((employee) => {
-                    const contracts = employee.contracts || employee.employeeContracts || []
-                    const activeContract = contracts.find(c => c.status === 'active')
-                    const pendingContract = contracts.find(c => c.status === 'pending_approval') || contracts.find(c => c.status === 'draft')
-                    const currentContract = activeContract || pendingContract || contracts[0]
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {employees.map((employee) => {
+                      const contracts = employee.contracts || employee.employeeContracts || []
+                      const activeContract = contracts.find(c => c.status === 'active')
+                      const pendingContract = contracts.find(c => c.status === 'pendingApproval') || contracts.find(c => c.status === 'draft')
+                      const currentContract = activeContract || pendingContract || contracts[0]
 
-                    return (
-                      <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center">
-                              <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm">
-                                {employee.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                              </span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="flex items-center gap-2">
-                                <div className="text-sm font-medium text-primary">{employee.fullName}</div>
-                                {employee.user && (
-                                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded border border-green-300">
-                                    👤
-                                  </span>
+                      return (
+                        <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center">
+                                <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm">
+                                  {employee.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                </span>
+                              </div>
+                              <div className="ml-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-medium text-primary">{employee.fullName}</div>
+                                  {employee.user && (
+                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded border border-green-300">
+                                      👤
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-secondary">{employee.employeeNumber}</div>
+                                {employee.email && (
+                                  <div className="text-xs text-secondary">{employee.email}</div>
                                 )}
                               </div>
-                              <div className="text-sm text-secondary">{employee.employeeNumber}</div>
-                              {employee.email && (
-                                <div className="text-xs text-secondary">{employee.email}</div>
-                              )}
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-primary">{employee.jobTitle.title}</div>
-                          {employee.jobTitle.department && (
-                            <div className="text-xs text-secondary">{employee.jobTitle.department}</div>
-                          )}
-                          {employee.jobTitle.level && (
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded">
-                              {employee.jobTitle.level}
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-primary">{employee.primaryBusiness.name}</div>
-                          <div className="text-xs text-secondary capitalize">{employee.primaryBusiness.type}</div>
-                          {employee.businessAssignments && employee.businessAssignments.length > 0 && (
-                            <div className="mt-1">
-                              {employee.businessAssignments.slice(0, 2).map((assignment, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 rounded mr-1 mb-1"
-                                >
-                                  {assignment.business?.name || assignment.businessName || 'Unknown Business'}
-                                </span>
-                              ))}
-                              {employee.businessAssignments.length > 2 && (
-                                <span className="text-xs text-secondary">+{employee.businessAssignments.length - 2} more</span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-col space-y-1">
-                            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
-                              employee.employmentStatus === 'pendingContract'
-                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-200 font-semibold border border-purple-300'
-                                : EMPLOYMENT_STATUS_COLORS[employee.employmentStatus as keyof typeof EMPLOYMENT_STATUS_COLORS] ||
-                                  'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-                            }`}>
-                              {currentContract?.employeeSignedAt ?
-                               `CONTRACT SIGNED` :
-                               currentContract?.status === 'active' && employee.isActive ? 'ACTIVE' :
-                               employee.employmentStatus === 'pending_contract' ? 'PENDING CONTRACT' :
-                               employee.employmentStatus.replace('_', ' ').toUpperCase()}
-                            </span>
-                            {(employee.contractCount > 0 || contracts.length > 0) && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded">
-                                {employee.contractCount || contracts.length || 0} Contract{(employee.contractCount || contracts.length || 0) !== 1 ? 's' : ''}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-primary">{employee.jobTitle.title}</div>
+                            {employee.jobTitle.department && (
+                              <div className="text-xs text-secondary">{employee.jobTitle.department}</div>
+                            )}
+                            {employee.jobTitle.level && (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded">
+                                {employee.jobTitle.level}
                               </span>
                             )}
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="px-6 py-4">
-                          {employee.supervisor ? (
-                            <div>
-                              <div className="text-sm text-primary">{employee.supervisor.fullName}</div>
-                              <div className="text-xs text-secondary">{employee.supervisor.jobTitle}</div>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-primary">{employee.primaryBusiness.name}</div>
+                            <div className="text-xs text-secondary capitalize">{employee.primaryBusiness.type}</div>
+                            {employee.businessAssignments && employee.businessAssignments.length > 0 && (
+                              <div className="mt-1">
+                                {employee.businessAssignments.slice(0, 2).map((assignment, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 rounded mr-1 mb-1"
+                                  >
+                                    {assignment.business?.name || assignment.businessName || 'Unknown Business'}
+                                  </span>
+                                ))}
+                                {employee.businessAssignments.length > 2 && (
+                                  <span className="text-xs text-secondary">+{employee.businessAssignments.length - 2} more</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-col space-y-1">
+                              <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${employee.employmentStatus === 'pendingContract'
+                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-200 font-semibold border border-purple-300'
+                                  : EMPLOYMENT_STATUS_COLORS[employee.employmentStatus as keyof typeof EMPLOYMENT_STATUS_COLORS] ||
+                                  'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                                }`}>
+                                {currentContract?.employeeSignedAt ?
+                                  `CONTRACT SIGNED` :
+                                  currentContract?.status === 'active' && employee.isActive ? 'ACTIVE' :
+                                    employee.employmentStatus === 'pending_contract' ? 'PENDING CONTRACT' :
+                                      employee.employmentStatus.replace('_', ' ').toUpperCase()}
+                              </span>
+                              {(employee.contractCount > 0 || contracts.length > 0) && (
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded">
+                                  {employee.contractCount || contracts.length || 0} Contract{(employee.contractCount || contracts.length || 0) !== 1 ? 's' : ''}
+                                </span>
+                              )}
                             </div>
-                          ) : (
-                            <span className="text-xs text-secondary">No supervisor</span>
-                          )}
-                        </td>
+                          </td>
 
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end space-x-2">
-                            <button
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                              onClick={() => window.location.href = `/employees/${employee.id}`}
-                            >
-                              View
-                            </button>
-                            {canEditEmployees && (
-                              <button
-                                className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-                                onClick={() => window.location.href = `/employees/${employee.id}/edit`}
-                              >
-                                Edit
-                              </button>
+                          <td className="px-6 py-4">
+                            {employee.supervisor ? (
+                              <div>
+                                <div className="text-sm text-primary">{employee.supervisor.fullName}</div>
+                                <div className="text-xs text-secondary">{employee.supervisor.jobTitle}</div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-secondary">No supervisor</span>
                             )}
-                            {canApproveSalaryIncreases && (
-                              <button
-                                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                onClick={() => handleSalaryIncrease(employee)}
-                                title="Salary Increase"
-                              >
-                                💰
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          </td>
 
-            {/* Pagination */}
-            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between sm:px-6">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-primary bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
-                  disabled={currentPage >= pagination.totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-primary bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                onClick={() => window.location.href = `/employees/${employee.id}`}
+                              >
+                                View
+                              </button>
+                              {canEditEmployees && (
+                                <button
+                                  className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                  onClick={() => window.location.href = `/employees/${employee.id}/edit`}
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {canApproveSalaryIncreases && (
+                                <button
+                                  className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                  onClick={() => handleSalaryIncrease(employee)}
+                                  title="Salary Increase"
+                                >
+                                  💰
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-secondary">
-                    Showing <span className="font-medium">{((currentPage - 1) * pagination.limit) + 1}</span> to{' '}
-                    <span className="font-medium">{Math.min(currentPage * pagination.limit, pagination.total)}</span> of{' '}
-                    <span className="font-medium">{pagination.total}</span> employees
-                  </p>
+              {/* Pagination */}
+              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between sm:px-6">
+                <div className="flex-1 flex justify-between sm:hidden">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-primary bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
+                    disabled={currentPage >= pagination.totalPages}
+                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-primary bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
                 </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                    <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-secondary hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="sr-only">Previous</span>
-                      ← Previous
-                    </button>
 
-                    <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-primary">
-                      Page {currentPage} of {pagination.totalPages}
-                    </span>
+                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-secondary">
+                      Showing <span className="font-medium">{((currentPage - 1) * pagination.limit) + 1}</span> to{' '}
+                      <span className="font-medium">{Math.min(currentPage * pagination.limit, pagination.total)}</span> of{' '}
+                      <span className="font-medium">{pagination.total}</span> employees
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                      <button
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-secondary hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="sr-only">Previous</span>
+                        ← Previous
+                      </button>
 
-                    <button
-                      onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
-                      disabled={currentPage >= pagination.totalPages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-secondary hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="sr-only">Next</span>
-                      Next →
-                    </button>
-                  </nav>
+                      <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-primary">
+                        Page {currentPage} of {pagination.totalPages}
+                      </span>
+
+                      <button
+                        onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
+                        disabled={currentPage >= pagination.totalPages}
+                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-secondary hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="sr-only">Next</span>
+                        Next →
+                      </button>
+                    </nav>
+                  </div>
                 </div>
               </div>
-            </div>
             </>
           )}
         </div>
@@ -806,11 +763,10 @@ export default function EmployeesPage() {
 
       {/* Success/Error Message */}
       {message && (
-        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
-          message.type === 'success' 
-            ? 'bg-green-100 border border-green-400 text-green-700 dark:bg-green-900 dark:border-green-600 dark:text-green-200' 
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${message.type === 'success'
+            ? 'bg-green-100 border border-green-400 text-green-700 dark:bg-green-900 dark:border-green-600 dark:text-green-200'
             : 'bg-red-100 border border-red-400 text-red-700 dark:bg-red-900 dark:border-red-600 dark:text-red-200'
-        }`}>
+          }`}>
           <div className="flex items-center">
             <span className="mr-2">
               {message.type === 'success' ? '✅' : '❌'}

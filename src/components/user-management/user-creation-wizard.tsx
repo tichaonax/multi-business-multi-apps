@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { SessionUser, getActiveBusinessMemberships, isSystemAdmin } from '@/lib/permission-utils'
-import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions, BusinessType, CORE_PERMISSIONS, BUSINESS_TYPE_MODULES } from '@/types/permissions'
+import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions, BusinessType, CORE_PERMISSIONS, BUSINESS_TYPE_MODULES, USER_LEVEL_PERMISSIONS } from '@/types/permissions'
 
 interface UserCreationWizardProps {
   currentUser: SessionUser
@@ -70,18 +70,19 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
       const response = await fetch('/api/admin/businesses')
       if (response.ok) {
         const businesses = await response.json()
-        const mappedBusinesses = businesses.map(b => ({
+        const mappedBusinesses = businesses.map((b: any) => ({
           businessId: b.id,
           businessName: b.name,
-          businessType: b.type
+          businessType: b.type || 'other'
         }))
         setAvailableBusinesses(mappedBusinesses)
       } else {
         const error = await response.text()
         onError('Failed to load businesses: ' + error)
       }
-    } catch (error) {
-      onError('Error loading businesses')
+      } catch (error) {
+        const message = error && typeof error === 'object' && 'message' in error ? (error as any).message : String(error)
+        onError('Error loading businesses: ' + message)
     } finally {
       setLoadingBusinesses(false)
     }
@@ -162,11 +163,11 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
         const response = await fetch('/api/admin/businesses')
         if (response.ok) {
           const businesses = await response.json()
-          businessesToUse = businesses.map(b => ({
-            businessId: b.id,
-            businessName: b.name,
-            businessType: b.type
-          }))
+              businessesToUse = businesses.map((b: any) => ({
+                businessId: b.id,
+                businessName: b.name,
+                businessType: b.type || 'other'
+              }))
           setAvailableBusinesses(businessesToUse)
         } else {
           const errorText = await response.text()
@@ -174,7 +175,8 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
           return
         }
       } catch (error) {
-        onError('Error loading businesses: ' + error.message)
+        const message = (error && typeof (error as any).message === 'string') ? (error as any).message : String(error)
+        onError('Error loading businesses: ' + message)
         return
       } finally {
         setLoadingBusinesses(false)
@@ -315,7 +317,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                   <select
                     className="input-field"
                     value={basicInfo.systemRole}
-                    onChange={(e) => setBasicInfo({ ...basicInfo, systemRole: e.target.value as any })}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setBasicInfo({ ...basicInfo, systemRole: e.target.value as UserCreationStep1Data['systemRole'] })}
                   >
                     <option value="user">User</option>
                     <option value="employee">Employee</option>
@@ -333,7 +335,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                   type="checkbox"
                   id="linkToEmployee"
                   checked={basicInfo.linkToEmployee}
-                  onChange={async (e) => {
+                  onChange={async (e: React.ChangeEvent<HTMLInputElement>) => {
                     const isLinking = e.target.checked
                     setBasicInfo({ ...basicInfo, linkToEmployee: isLinking, selectedEmployeeId: '', name: '', email: '' })
                     if (isLinking && availableEmployees.length === 0) {
@@ -367,10 +369,10 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                       />
                       <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md">
                         {availableEmployees.filter(emp => 
-                          emp.fullName.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-                          emp.employeeNumber.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-                          (emp.email && emp.email.toLowerCase().includes(employeeSearch.toLowerCase()))
-                        ).map(employee => (
+                            (emp.fullName || '').toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                            (emp.employeeNumber || '').toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                            ((emp.email || '').toLowerCase().includes(employeeSearch.toLowerCase()))
+                          ).map(employee => (
                           <div
                             key={employee.id}
                             onClick={() => handleEmployeeSelection(employee.id)}
@@ -382,7 +384,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                               <input
                                 type="radio"
                                 checked={basicInfo.selectedEmployeeId === employee.id}
-                                onChange={() => handleEmployeeSelection(employee.id)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleEmployeeSelection(employee.id)}
                                 className="mr-3"
                                 onClick={(e) => e.stopPropagation()}
                               />
@@ -398,7 +400,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                                   </span>
                                   {employee.jobTitle && (
                                     <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 px-2 py-1 rounded">
-                                      {employee.jobTitle.title}
+                                      {typeof employee.jobTitle === 'string' ? employee.jobTitle : (employee.jobTitle?.title || '')}
                                     </span>
                                   )}
                                 </div>
@@ -407,10 +409,10 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                           </div>
                         ))}
                         {availableEmployees.filter(emp => 
-                          emp.fullName.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-                          emp.employeeNumber.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-                          (emp.email && emp.email.toLowerCase().includes(employeeSearch.toLowerCase()))
-                        ).length === 0 && (
+                            (emp.fullName || '').toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                            (emp.employeeNumber || '').toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                            ((emp.email || '').toLowerCase().includes(employeeSearch.toLowerCase()))
+                          ).length === 0 && (
                           <div className="p-3 text-center text-gray-500">
                             {employeeSearch ? 'No employees match your search' : 'No employees available for linking'}
                           </div>
@@ -425,13 +427,13 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
               )}
 
               <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="sendInvite"
-                  checked={basicInfo.sendInvite}
-                  onChange={(e) => setBasicInfo({ ...basicInfo, sendInvite: e.target.checked })}
-                  className="rounded"
-                />
+                  <input
+                    type="checkbox"
+                    id="sendInvite"
+                    checked={basicInfo.sendInvite}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBasicInfo({ ...basicInfo, sendInvite: e.target.checked })}
+                    className="rounded"
+                  />
                 <label htmlFor="sendInvite" className="text-sm text-gray-700 dark:text-gray-300">
                   Send invitation email (generates temporary password)
                 </label>
@@ -787,12 +789,12 @@ function CustomPermissionsEditor({ permissions, businessType, onChange }: Custom
   // Core permissions (always shown)
   const corePermissionGroups = [
     { title: 'Business Management', permissions: CORE_PERMISSIONS.coreBusinessManagement },
-    { title: 'Personal Finance', permissions: CORE_PERMISSIONS.personalFinance },
+    { title: 'Personal Finance', permissions: USER_LEVEL_PERMISSIONS.personalFinance.permissions },
     { title: 'User Management', permissions: CORE_PERMISSIONS.userManagement },
     { title: 'Employee Management', permissions: CORE_PERMISSIONS.employeeManagement },
-    { title: 'Vehicle Management', permissions: CORE_PERMISSIONS.vehicleManagement },
+    { title: 'Vehicle Management', permissions: USER_LEVEL_PERMISSIONS.vehicleManagement.permissions },
     { title: 'Data Management', permissions: CORE_PERMISSIONS.dataManagement },
-    { title: 'System Administration', permissions: CORE_PERMISSIONS.systemAdministration },
+    { title: 'System Administration', permissions: USER_LEVEL_PERMISSIONS.systemAdministration.permissions },
   ]
 
   const allPermissionGroups = [
@@ -806,19 +808,20 @@ function CustomPermissionsEditor({ permissions, businessType, onChange }: Custom
         <div key={group.title} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium text-gray-900 dark:text-white">{group.title}</h4>
-            {businessTypeModules.includes(group) && (
+            {businessTypeModules.some(m => m.title === group.title) && (
               <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 rounded-full">
                 {businessType.charAt(0).toUpperCase() + businessType.slice(1)} Specific
               </span>
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {group.permissions.map((permission) => (
+            {group.permissions.map((permission: { key: string; label: string }) => (
               <label key={permission.key} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  checked={permissions[permission.key as keyof BusinessPermissions] || false}
-                  onChange={(e) => updatePermission(permission.key, e.target.checked)}
+                  checked={!!(permissions as any)[permission.key]
+                    || false}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updatePermission(permission.key, e.target.checked)}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">{permission.label}</span>

@@ -33,8 +33,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             isActive: true
           }
         },
-        jobTitles: true,
-        compensationTypes: true,
+  jobTitles: true,
+  compensationTypes: true,
         business: {
           select: {
             id: true,
@@ -141,16 +141,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Format response to match expected structure
+    // Format response to match expected structure (use any casts to bridge generated Prisma types -> legacy API shape)
+    const e: any = employee as any
     const formattedEmployee = {
-      ...employee,
-      user: employee.users,
-      jobTitle: employee.jobTitles,
-      compensationType: employee.compensationTypes,
-      primaryBusiness: employee.business,
-      supervisor: employee.supervisor,
-      subordinates: employee.subordinates || [],
-      contracts: employee.employeeContracts?.map(contract => ({
+      ...e,
+      user: e.users,
+      jobTitle: Array.isArray(e.jobTitles) ? e.jobTitles[0] : e.jobTitles,
+      compensationType: Array.isArray(e.compensationTypes) ? e.compensationTypes[0] : e.compensationTypes,
+      primaryBusiness: e.business || e.primaryBusiness || null,
+      supervisor: e.supervisor || null,
+      subordinates: e.subordinates || e.otherEmployees || [],
+  contracts: e.employeeContracts?.map((contract: any) => ({
         id: contract.id,
         contractNumber: contract.contractNumber,
         version: contract.version,
@@ -163,7 +164,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         isSalaryBased: contract.isSalaryBased,
         notes: contract.notes,
         createdAt: contract.createdAt,
-        benefits: contract.contractBenefits?.map(benefit => ({
+  benefits: contract.contractBenefits?.map((benefit: any) => ({
           id: benefit.id,
           amount: benefit.amount,
           isPercentage: benefit.isPercentage,
@@ -174,13 +175,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           }
         })) || []
       })) || [],
-      businessAssignments: employee.employeeBusinessAssignments?.map(assignment => ({
+      businessAssignments: e.employeeBusinessAssignments?.map((assignment: any) => ({
         business: assignment.business,
         role: assignment.role,
         isActive: assignment.isActive,
         assignedAt: assignment.assignedAt
       })) || [],
-      disciplinaryActions: employee.disciplinaryActionsReceived?.map(action => ({
+      disciplinaryActions: e.disciplinaryActionsReceived?.map((action: any) => ({
         id: action.id,
         type: action.actionType,
         severity: action.severity,
@@ -190,11 +191,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         followUpDate: null,
         isResolved: action.isActive
       })) || [],
-      _count: employee._count || { subordinates: 0, disciplinaryActions: 0 }
+      _count: e._count || { subordinates: 0, disciplinaryActions: 0 }
     }
 
     // Calculate latest salary, benefits, and total remuneration
-    const activeContract = employee.employeeContracts?.find(contract => contract.status === 'active')
+  const activeContract = (e.employeeContracts || []).find((contract: any) => contract.status === 'active')
 
     if (activeContract) {
       // Extract frequency from contract notes (priority) or fallback to compensation type
@@ -224,7 +225,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
       // Calculate total benefits from active contract
       // Note: All percentage-based benefits calculated against MONTHLY salary
-      const totalBenefits = activeContract.contractBenefits?.reduce((total, benefit) => {
+      const totalBenefits = activeContract.contractBenefits?.reduce((total: number, benefit: any) => {
         const benefitAmount = Number(benefit.amount)
         if (benefit.isPercentage) {
           // Calculate percentage of MONTHLY salary (as specified)
@@ -355,7 +356,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     // Validate foreign key references
     const [jobTitle, compensationType, business, supervisor, user, idTemplate] = await Promise.all([
       prisma.jobTitle.findUnique({ where: { id: jobTitleId } }),
-      prisma.compensation_types.findUnique({ where: { id: compensationTypeId } }),
+      prisma.compensationType.findUnique({ where: { id: compensationTypeId } }),
       prisma.business.findUnique({ where: { id: primaryBusinessId } }),
       supervisorId && supervisorId !== employeeId ? prisma.employee.findUnique({ where: { id: supervisorId } }) : null,
       userId ? prisma.user.findUnique({ where: { id: userId } }) : null,
@@ -520,14 +521,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     })
 
     // Format response to match expected structure
+    const ue: any = result.updatedEmployee as any
     const formattedEmployee = {
-      ...result.updatedEmployee,
-      user: result.updatedEmployee.users,
-      jobTitle: result.updatedEmployee.jobTitles,
-      compensationType: result.updatedEmployee.compensationTypes,
-      primaryBusiness: result.updatedEmployee.business,
-      supervisor: null, // Simplified for now
-      subordinates: [] // Simplified for now
+      ...ue,
+      user: ue.users,
+      jobTitle: ue.jobTitles || null,
+      compensationType: ue.compensationTypes || null,
+      primaryBusiness: ue.business || ue.primaryBusiness || null,
+      supervisor: null,
+      subordinates: []
     }
 
     const response: any = {
@@ -592,8 +594,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       where: { id: employeeId },
       include: {
         employeeContracts: true,
-        disciplinaryActionsReceived: true,
-        employeeBenefits: true,
+        disciplinary_actions_disciplinary_actions_employeeIdToemployees: true,
+        employee_benefits: true,
         otherEmployees: true
       }
     })

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
 
 export async function GET(
@@ -108,7 +110,27 @@ export async function POST(
       calculatedHours = (checkOutTime.getTime() - checkInTime.getTime()) / (1000 * 60 * 60)
     }
 
-    // Create or update attendance record
+    // Create or update attendance record using Unchecked types to satisfy Prisma generated input types
+    const attendanceCreateData: Prisma.EmployeeAttendanceUncheckedCreateInput = {
+      id: randomUUID(),
+      employeeId,
+      date: new Date(date),
+      status,
+      checkIn: checkIn ? new Date(`${date}T${checkIn}`) : null,
+      checkOut: checkOut ? new Date(`${date}T${checkOut}`) : null,
+      hoursWorked: calculatedHours ? new Prisma.Decimal(Number(calculatedHours)) : null,
+      notes: notes || null,
+      createdAt: new Date()
+    }
+
+    const attendanceUpdateData: Prisma.EmployeeAttendanceUncheckedUpdateInput = {
+      status: status || undefined,
+      checkIn: checkIn ? new Date(`${date}T${checkIn}`) : undefined,
+      checkOut: checkOut ? new Date(`${date}T${checkOut}`) : undefined,
+      hoursWorked: calculatedHours ? new Prisma.Decimal(Number(calculatedHours)) : undefined,
+      notes: notes || undefined
+    }
+
     const attendanceRecord = await prisma.employeeAttendance.upsert({
       where: {
         employeeId_date: {
@@ -116,22 +138,8 @@ export async function POST(
           date: new Date(date)
         }
       },
-      update: {
-        status,
-        checkIn: checkIn ? new Date(`${date}T${checkIn}`) : null,
-        checkOut: checkOut ? new Date(`${date}T${checkOut}`) : null,
-        hoursWorked: calculatedHours ? Number(calculatedHours) : null,
-        notes: notes || null
-      },
-      create: {
-        employeeId,
-        date: new Date(date),
-        status,
-        checkIn: checkIn ? new Date(`${date}T${checkIn}`) : null,
-        checkOut: checkOut ? new Date(`${date}T${checkOut}`) : null,
-        hoursWorked: calculatedHours ? Number(calculatedHours) : null,
-        notes: notes || null
-      }
+      update: attendanceUpdateData as any,
+      create: attendanceCreateData as any
     })
 
     // Convert Decimal fields for JSON response

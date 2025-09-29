@@ -88,6 +88,14 @@ export default function ContractorsPage() {
     idFormatTemplateId: ''
   })
 
+  // All hooks must be called before any conditional returns (Rules of Hooks)
+  useEffect(() => {
+    // Only fetch if user has permission
+    if (session?.user && hasUserPermission(session.user, 'canManagePersonalContractors')) {
+      fetchContractors()
+    }
+  }, [session?.user])
+
   // Check if user has permission to manage contractors
   if (!session?.user || !hasUserPermission(session.user, 'canManagePersonalContractors')) {
     return (
@@ -117,10 +125,6 @@ export default function ContractorsPage() {
       </ProtectedRoute>
     )
   }
-
-  useEffect(() => {
-    fetchContractors()
-  }, [])
 
   const fetchContractors = async () => {
     try {

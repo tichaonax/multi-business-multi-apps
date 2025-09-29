@@ -20,7 +20,6 @@ interface SaleItem {
 }
 
 interface StockMovementData {
-  businessId: string
   itemId: string
   itemName: string
   itemSku: string

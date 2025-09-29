@@ -32,6 +32,8 @@ interface User {
       name: string
       type: string
     }
+    joinedAt?: string | Date
+    lastAccessedAt?: string | Date
   }>
 }
 

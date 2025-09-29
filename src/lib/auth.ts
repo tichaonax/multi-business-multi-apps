@@ -3,6 +3,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
+import { SessionUser } from './permission-utils'
 
 console.log('🔐 Auth configuration loading at:', new Date().toISOString())
 console.log('🔑 NEXTAUTH_SECRET configured:', !!process.env.NEXTAUTH_SECRET)
@@ -41,7 +42,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
-  trustHost: true,
+  // 'trustHost' is intentionally omitted because it's not part of NextAuthOptions
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -49,7 +50,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' }
       },
-      async authorize(credentials) {
+    async authorize(credentials, req) {
         console.log('🔐 Authorization attempt for:', credentials?.email)
 
         if (!credentials?.email || !credentials?.password) {
@@ -58,28 +59,31 @@ export const authOptions: NextAuthOptions = {
         }
 
         console.log('🔍 Searching for user in database...')
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
-          include: {
-            businessMemberships: {
-              where: {
-                isActive: true,
-              },
-              include: {
-                business: true,
-              },
-            },
-          },
-        })
+        // Fetch user without include to avoid generated Prisma include typing mismatches
+        const dbUser = await prisma.user.findUnique({ where: { email: credentials.email } }) as any
+
+        if (!dbUser) {
+          console.log('❌ User not found:', credentials.email)
+          return null
+        }
+
+        // Fetch active business memberships separately (typed as any to avoid strict client shape differences)
+        const businessMemberships = await prisma.businessMembership.findMany({
+          where: { userId: dbUser.id, isActive: true },
+          include: { business: true }
+        }) as any[]
+
+        const user = {
+          ...dbUser,
+          businessMemberships
+        } as any
 
         if (!user) {
           console.log('❌ User not found:', credentials.email)
           return null
         }
 
-        console.log('👤 User found:', { id: user.id, email: user.email, isActive: user.isActive, memberships: user.businessMemberships.length })
+  console.log('👤 User found:', { id: user.id, email: user.email, isActive: user.isActive, memberships: user.businessMemberships?.length || 0 })
 
         if (!user.isActive) {
           console.log('❌ User account is inactive')
@@ -100,11 +104,14 @@ export const authOptions: NextAuthOptions = {
         console.log('✅ Authentication successful for:', user.email)
 
         // Transform business memberships for session
-        const transformedMemberships = user.businessMemberships.map(membership => ({
-          businessId: membership.business.id,
-          businessName: membership.business.name,
+        // Map membership shapes coming from prisma (which include a nested business) into the
+        // lightweight session-friendly shape. Use `any` for the incoming items to avoid mismatches
+        // against the SessionUser type definitions.
+        const transformedMemberships = (user.businessMemberships || [] as any[]).map((membership: any) => ({
+          businessId: membership.business?.id || membership.businessId,
+          businessName: membership.business?.name || membership.businessName,
           role: membership.role,
-          permissions: membership.permissions as Record<string, any>,
+          permissions: (membership.permissions || {}) as Record<string, any>,
           isActive: membership.isActive,
           joinedAt: membership.joinedAt,
           lastAccessedAt: membership.lastAccessedAt,
@@ -113,32 +120,39 @@ export const authOptions: NextAuthOptions = {
         console.log('🔑 User business memberships:', transformedMemberships.length)
         console.log('🎭 User system role:', user.role)
 
+        // Return a shape compatible with SessionUser for downstream helpers
+        // Return `any` to satisfy the provider's expected User shape while keeping our
+        // richer SessionUser information available at runtime.
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
-          permissions: user.permissions as Record<string, any> || {},
+          permissions: (user.permissions || {}) as Record<string, any>,
           businessMemberships: transformedMemberships,
-        }
+        } as any
       }
     })
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role
-        token.permissions = user.permissions
-        token.businessMemberships = user.businessMemberships
+        const t: any = token
+        t.role = (user as any).role
+        t.permissions = (user as any).permissions
+        t.businessMemberships = (user as any).businessMemberships
       }
       return token
     },
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.sub!
-        session.user.role = token.role
-        session.user.permissions = token.permissions
-        session.user.businessMemberships = token.businessMemberships
+        const s: any = session
+        const t: any = token
+        s.user = s.user || {}
+        s.user.id = t.sub || s.user.id
+        s.user.role = t.role
+        s.user.permissions = t.permissions
+        s.user.businessMemberships = t.businessMemberships
       }
       return session
     },

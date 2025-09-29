@@ -85,8 +85,10 @@ export async function GET(request: NextRequest) {
 
     // Build include object explicitly to avoid spreading non-objects and
     // make it easier to reason about the query shape.
+    // Use actual Prisma relation field names from schema and then remap
     const include: any = {
-      vehicle: {
+      // relation field for Vehicle is `vehicles` in schema
+      vehicles: {
         select: {
           id: true,
           licensePlate: true,
@@ -96,7 +98,8 @@ export async function GET(request: NextRequest) {
           ownershipType: true
         }
       },
-      driver: {
+      // relation field for driver is `vehicleDrivers`
+      vehicleDrivers: {
         select: {
           id: true,
           fullName: true,
@@ -104,7 +107,8 @@ export async function GET(request: NextRequest) {
           phoneNumber: true
         }
       },
-      business: {
+      // relation field for business is `businesses`
+      businesses: {
         select: {
           id: true,
           name: true,
@@ -114,27 +118,29 @@ export async function GET(request: NextRequest) {
     }
 
     if (includeExpenses) {
-      include.expenses = { orderBy: { expenseDate: 'desc' } }
+      // relation field name for expenses on VehicleTrip is `vehicle_expenses`
+      include.vehicle_expenses = { orderBy: { expenseDate: 'desc' } }
     }
 
     const [trips, totalCount] = await Promise.all([
-      prisma.vehicleTrip.findMany({
-        where,
-        include,
-        orderBy: { startTime: 'desc' },
-        skip,
-        take: limit
-      }),
+      prisma.vehicleTrip.findMany({ where, include, orderBy: { startTime: 'desc' }, skip, take: limit }),
       prisma.vehicleTrip.count({ where })
     ])
 
     // Calculate trip mileage for completed trips
-    const tripsWithCalculatedData = trips.map(trip => ({
-      ...trip,
-      tripMileage: trip.isCompleted && trip.endMileage
-        ? trip.endMileage - trip.startMileage
-        : trip.tripMileage || 0
-    }))
+    // Remap relation fields to the expected API shape (vehicle, driver, business, expenses)
+    const tripsWithCalculatedData = trips.map((trip: any) => {
+      const vehicle = trip.vehicles ?? null
+      const driver = trip.vehicleDrivers ?? null
+      const business = trip.businesses ?? null
+      const expenses = trip.vehicle_expenses ?? []
+      const base = { ...trip, vehicle, driver, business, expenses }
+
+      return {
+        ...base,
+        tripMileage: trip.isCompleted && trip.endMileage ? trip.endMileage - trip.startMileage : trip.tripMileage || 0
+      }
+    })
 
     return NextResponse.json({
       success: true,
@@ -166,7 +172,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const validatedData = CreateTripSchema.parse(body)
+  const validatedData = CreateTripSchema.parse(body)
 
     // Verify vehicle exists
     const vehicle = await prisma.vehicle.findUnique({
@@ -256,33 +262,11 @@ export async function POST(request: NextRequest) {
     }
 
     const trip = await prisma.vehicleTrip.create({
-      data: createData,
+      data: createData as any,
       include: {
-        vehicle: {
-          select: {
-            id: true,
-            licensePlate: true,
-            make: true,
-            model: true,
-            year: true,
-            ownershipType: true
-          }
-        },
-        driver: {
-          select: {
-            id: true,
-            fullName: true,
-            licenseNumber: true,
-            phoneNumber: true
-          }
-        },
-        business: {
-          select: {
-            id: true,
-            name: true,
-            type: true
-          }
-        }
+        vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
+        vehicleDrivers: { select: { id: true, fullName: true, licenseNumber: true, phoneNumber: true } },
+        businesses: { select: { id: true, name: true, type: true } }
       }
     })
 
@@ -294,11 +278,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({
-      success: true,
-      data: trip,
-      message: 'Vehicle trip created successfully'
-    }, { status: 201 })
+    // normalize created trip to legacy API shape
+    const normalized = { ...trip, vehicle: (trip as any).vehicles || null, driver: (trip as any).vehicleDrivers || null, business: (trip as any).businesses || null }
+
+    return NextResponse.json({ success: true, data: normalized, message: 'Vehicle trip created successfully' }, { status: 201 })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -359,38 +342,11 @@ export async function PUT(request: NextRequest) {
     // Update trip
     const trip = await prisma.vehicleTrip.update({
       where: { id },
-      data: {
-        ...updateData,
-        endTime: updateData.endTime ? new Date(updateData.endTime) : undefined,
-        tripMileage,
-        isCompleted
-      },
+      data: { ...updateData, endTime: updateData.endTime ? new Date(updateData.endTime) : undefined, tripMileage, isCompleted } as any,
       include: {
-        vehicle: {
-          select: {
-            id: true,
-            licensePlate: true,
-            make: true,
-            model: true,
-            year: true,
-            ownershipType: true
-          }
-        },
-        driver: {
-          select: {
-            id: true,
-            fullName: true,
-            licenseNumber: true,
-            phoneNumber: true
-          }
-        },
-        business: {
-          select: {
-            id: true,
-            name: true,
-            type: true
-          }
-        }
+        vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
+        vehicleDrivers: { select: { id: true, fullName: true, licenseNumber: true, phoneNumber: true } },
+        businesses: { select: { id: true, name: true, type: true } }
       }
     })
 
@@ -402,11 +358,9 @@ export async function PUT(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({
-      success: true,
-      data: trip,
-      message: 'Vehicle trip updated successfully'
-    })
+    const normalizedTrip = { ...trip, vehicle: (trip as any).vehicles || null, driver: (trip as any).vehicleDrivers || null, business: (trip as any).businesses || null }
+
+    return NextResponse.json({ success: true, data: normalizedTrip, message: 'Vehicle trip updated successfully' })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -443,12 +397,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify trip exists
-    const existingTrip = await prisma.vehicleTrip.findUnique({
-      where: { id: tripId },
-      include: {
-        expenses: { take: 1 }
-      }
-    })
+    const existingTrip = await prisma.vehicleTrip.findUnique({ where: { id: tripId }, include: { vehicle_expenses: { take: 1 } } })
 
     if (!existingTrip) {
       return NextResponse.json(
@@ -458,7 +407,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if trip has related expenses
-    const hasRelatedExpenses = existingTrip.expenses.length > 0
+  const hasRelatedExpenses = (existingTrip as any).vehicle_expenses?.length > 0
 
     if (hasRelatedExpenses) {
       return NextResponse.json(

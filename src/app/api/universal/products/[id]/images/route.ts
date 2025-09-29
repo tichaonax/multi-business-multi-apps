@@ -68,20 +68,29 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const productWithImages = await prisma.businessProduct.findUnique({
       where: { id: productId },
       include: {
-        images: {
+        productImages: {
           orderBy: [
             { isPrimary: 'desc' },
             { sortOrder: 'asc' }
           ]
         },
-        variants: {
+        productVariants: {
           where: { isActive: true },
           orderBy: { name: 'asc' }
         }
       }
     })
 
-    return NextResponse.json({ success: true, data: productWithImages })
+    // Normalize to the legacy API shape expected by the client
+    const normalized = productWithImages
+      ? {
+          ...productWithImages,
+          images: (productWithImages as any).productImages || [],
+          variants: (productWithImages as any).productVariants || []
+        }
+      : null
+
+    return NextResponse.json({ success: true, data: normalized })
   } catch (error) {
     console.error('Product image upload error:', error)
     return NextResponse.json({ success: false, error: 'Failed to upload images' }, { status: 500 })

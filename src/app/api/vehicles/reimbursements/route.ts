@@ -76,14 +76,11 @@ export async function GET(request: NextRequest) {
       prisma.vehicleReimbursement.findMany({
         where,
         include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
+          // schema relation names (remap below to legacy keys)
+          users_vehicle_reimbursements_userIdTousers: {
+            select: { id: true, name: true, email: true }
           },
-          vehicle: {
+          vehicles: {
             select: {
               id: true,
               licensePlate: true,
@@ -93,19 +90,11 @@ export async function GET(request: NextRequest) {
               ownershipType: true
             }
           },
-          business: {
-            select: {
-              id: true,
-              name: true,
-              type: true
-            }
+          businesses: {
+            select: { id: true, name: true, type: true }
           },
-          approver: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
+          users_vehicle_reimbursements_approvedByTousers: {
+            select: { id: true, name: true, email: true }
           }
         },
         orderBy: { submissionDate: 'desc' },
@@ -115,9 +104,18 @@ export async function GET(request: NextRequest) {
       prisma.vehicleReimbursement.count({ where })
     ])
 
+    // normalize reimbursements to legacy API shape
+    const normalizedList = reimbursements.map(r => ({
+      ...r,
+      user: (r as any).users_vehicle_reimbursements_userIdTousers || null,
+      vehicle: (r as any).vehicles || null,
+      business: (r as any).businesses || null,
+      approver: (r as any).users_vehicle_reimbursements_approvedByTousers || null
+    }))
+
     return NextResponse.json({
       success: true,
-      data: reimbursements,
+      data: normalizedList,
       meta: {
         total: totalCount,
         page,
@@ -223,50 +221,34 @@ export async function POST(request: NextRequest) {
 
     // Create reimbursement
     const reimbursement = await prisma.vehicleReimbursement.create({
+      // cast to any to avoid strict typed create errors (schema expects id/updatedAt values in some generator configs)
       data: {
         ...validatedData,
         totalAmount,
         status: 'PENDING',
         submissionDate: new Date()
-      },
+      } as any,
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        vehicle: {
-          select: {
-            id: true,
-            licensePlate: true,
-            make: true,
-            model: true,
-            year: true,
-            ownershipType: true
-          }
-        },
-        business: {
-          select: {
-            id: true,
-            name: true,
-            type: true
-          }
-        }
+        users_vehicle_reimbursements_userIdTousers: { select: { id: true, name: true, email: true } },
+        vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
+        businesses: { select: { id: true, name: true, type: true } }
       }
     })
 
-    return NextResponse.json({
-      success: true,
-      data: reimbursement,
-      message: 'Vehicle reimbursement created successfully'
-    }, { status: 201 })
+    // normalize response to legacy API shape expected by frontend
+    const normalized = {
+      ...reimbursement,
+      user: (reimbursement as any).users_vehicle_reimbursements_userIdTousers || null,
+      vehicle: (reimbursement as any).vehicles || null,
+      business: (reimbursement as any).businesses || null
+    }
+
+    return NextResponse.json({ success: true, data: normalized, message: 'Vehicle reimbursement created successfully' }, { status: 201 })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -334,54 +316,28 @@ export async function PUT(request: NextRequest) {
     // Update reimbursement
     const reimbursement = await prisma.vehicleReimbursement.update({
       where: { id },
-      data: statusUpdateData,
+      data: statusUpdateData as any,
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        vehicle: {
-          select: {
-            id: true,
-            licensePlate: true,
-            make: true,
-            model: true,
-            year: true,
-            ownershipType: true
-          }
-        },
-        business: {
-          select: {
-            id: true,
-            name: true,
-            type: true
-          }
-        },
-        approver: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
+        users_vehicle_reimbursements_userIdTousers: { select: { id: true, name: true, email: true } },
+        vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
+        businesses: { select: { id: true, name: true, type: true } },
+        users_vehicle_reimbursements_approvedByTousers: { select: { id: true, name: true, email: true } }
       }
     })
 
-    return NextResponse.json({
-      success: true,
-      data: reimbursement,
-      message: 'Vehicle reimbursement updated successfully'
-    })
+    const normalized = {
+      ...reimbursement,
+      user: (reimbursement as any).users_vehicle_reimbursements_userIdTousers || null,
+      vehicle: (reimbursement as any).vehicles || null,
+      business: (reimbursement as any).businesses || null,
+      approver: (reimbursement as any).users_vehicle_reimbursements_approvedByTousers || null
+    }
+
+    return NextResponse.json({ success: true, data: normalized, message: 'Vehicle reimbursement updated successfully' })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Validation error', details: error.issues }, { status: 400 })
     }
 
     console.error('Error updating vehicle reimbursement:', error)

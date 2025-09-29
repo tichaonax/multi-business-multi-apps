@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
 
 interface RouteParams {
@@ -122,8 +124,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       include: { jobTitles: true }
     }) : null
 
-    // Use transaction to terminate previous contracts and create new one
-    const contract = await prisma.$transaction(async (tx) => {
+  // Use transaction to terminate previous contracts and create new one
+  const contract = await prisma.$transaction(async (tx) => {
       // Terminate all existing contracts for this employee (any status except terminated)
       await tx.employeeContract.updateMany({
         where: {
@@ -146,29 +148,31 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       })
 
       // Create new contract with pending_signature status (becomes active only when signed)
-      return await tx.employeeContract.create({
-        data: {
-          employeeId,
-          contractNumber: 'CON' + Date.now(),
-          version: 1,
-          jobTitleId,
-          compensationTypeId,
-          baseSalary: parseFloat(baseSalary),
-          startDate: new Date(startDate),
-          primaryBusinessId,
-          ...(supervisorId && { supervisorId }),
-          supervisorName: supervisor?.fullName || null,
-          supervisorTitle: supervisor?.jobTitles?.title || null,
-          isCommissionBased: false,
-          isSalaryBased: true,
-          createdBy: session.user.id,
-          status: 'pending_signature', // Contract starts as pending signature, becomes active when signed
-          pdfGenerationData: pdfContractData,
-          umbrellaBusinessId: umbrellaBusinessId || null,
-          umbrellaBusinessName: umbrellaBusinessData?.umbrellaBusinessName || 'Demo Umbrella Company',
-          businessAssignments: businessAssignments || null
-        }
-      })
+      const contractCreateData: Prisma.EmployeeContractUncheckedCreateInput = {
+        id: randomUUID(),
+        employeeId,
+        contractNumber: 'CON' + Date.now().toString(),
+        version: 1,
+        jobTitleId,
+        compensationTypeId,
+        baseSalary: new Prisma.Decimal(parseFloat(baseSalary)),
+        startDate: new Date(startDate),
+        primaryBusinessId,
+        supervisorId: supervisorId || null,
+        supervisorName: supervisor?.fullName || null,
+        supervisorTitle: supervisor?.jobTitles?.title || null,
+        isCommissionBased: false,
+        isSalaryBased: true,
+        createdBy: session.user.id,
+        status: 'pending_signature', // Contract starts as pending signature, becomes active when signed
+        pdfGenerationData: pdfContractData,
+        umbrellaBusinessId: umbrellaBusinessId || null,
+        umbrellaBusinessName: umbrellaBusinessData?.umbrellaBusinessName || 'Demo Umbrella Company',
+        businessAssignments: businessAssignments || null,
+        // updatedAt has a default in the schema; not required here
+      }
+
+      return await tx.employeeContract.create({ data: contractCreateData })
     })
 
 

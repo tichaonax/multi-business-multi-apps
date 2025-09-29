@@ -27,9 +27,9 @@ export async function GET() {
       include: {
         projectTransactions: {
           include: {
-            projectContractor: {
+            projectContractors: {
               include: {
-                person: {
+                persons: {
                   select: {
                     id: true,
                     fullName: true,
@@ -39,7 +39,7 @@ export async function GET() {
                 }
               }
             },
-            constructionProject: {
+            constructionProjects: {
               select: {
                 id: true,
                 name: true
@@ -49,11 +49,11 @@ export async function GET() {
         },
         loanTransactions: {
           include: {
-            loan: {
+            interBusinessLoans: {
               include: {
-                borrowerBusiness: { select: { name: true } },
-                borrowerPerson: { select: { fullName: true } },
-                lenderBusiness: { select: { name: true } }
+                businesses_inter_business_loans_borrowerBusinessIdTobusinesses: { select: { name: true } },
+                persons: { select: { fullName: true } },
+                businesses_inter_business_loans_lenderBusinessIdTobusinesses: { select: { name: true } }
               }
             }
           }
@@ -71,7 +71,7 @@ export async function GET() {
     const categoryIds = [...new Set(expenses.map(expense => expense.category).filter(Boolean))]
 
     // Fetch category information
-    const categories = await prisma.expense_categories.findMany({
+    const categories = await prisma.expenseCategory.findMany({
       where: { id: { in: categoryIds } }
     })
 
@@ -79,25 +79,25 @@ export async function GET() {
     const categoryMap = new Map(categories.map(cat => [cat.id, cat]))
 
     // Convert Decimal amounts to numbers for JSON serialization
-    const expensesWithConvertedAmounts = expenses.map(expense => ({
+    const expensesWithConvertedAmounts = (expenses as any[]).map(expense => ({
       ...expense,
       amount: expense.amount ? Number(expense.amount) : 0,
       // Add category object with name, emoji, and color
       categoryObject: expense.category ? categoryMap.get(expense.category) || null : null,
-      projectTransactions: expense.projectTransactions.map(pt => ({
+      projectTransactions: (expense.projectTransactions || []).map((pt: any) => ({
         ...pt,
         amount: Number(pt.amount)
       })),
-      loanTransactions: expense.loanTransactions.map(lt => ({
+      loanTransactions: (expense.loanTransactions || []).map((lt: any) => ({
         ...lt,
         amount: Number(lt.amount),
-        loan: {
-          ...lt.loan,
-          principalAmount: Number(lt.loan.principalAmount),
-          remainingBalance: Number(lt.loan.remainingBalance),
-          totalAmount: Number(lt.loan.totalAmount),
-          interestRate: Number(lt.loan.interestRate)
-        }
+        interBusinessLoans: lt.interBusinessLoans ? {
+          ...lt.interBusinessLoans,
+          principalAmount: Number(lt.interBusinessLoans.principalAmount),
+          remainingBalance: Number(lt.interBusinessLoans.remainingBalance),
+          totalAmount: Number(lt.interBusinessLoans.totalAmount),
+          interestRate: Number(lt.interBusinessLoans.interestRate)
+        } : null
       }))
     }))
 

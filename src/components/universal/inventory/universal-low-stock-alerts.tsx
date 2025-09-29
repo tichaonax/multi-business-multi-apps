@@ -188,9 +188,9 @@ export function UniversalLowStockAlerts({
       high: alerts.filter(a => a.priority === 'high').length,
       totalValue: alerts.filter(a => a.value).reduce((sum, a) => sum + (a.value || 0), 0),
       byType: {
-        low_stock: alerts.filter(a => a.alertType === 'low_stock').length,
-        out_of_stock: alerts.filter(a => a.alertType === 'out_of_stock').length,
-        expiring_soon: alerts.filter(a => a.alertType === 'expiring_soon').length,
+        lowStock: alerts.filter(a => a.alertType === 'low_stock').length,
+        outOfStock: alerts.filter(a => a.alertType === 'out_of_stock').length,
+        expiringSoon: alerts.filter(a => a.alertType === 'expiring_soon').length,
         expired: alerts.filter(a => a.alertType === 'expired').length
       }
     }
@@ -453,7 +453,7 @@ export function UniversalLowStockAlerts({
               </div>
               <div className="text-sm text-orange-600">
                 {summary.critical > 0 && `${summary.critical} critical, `}
-                {summary.byType.out_of_stock > 0 && `${summary.byType.out_of_stock} out of stock`}
+                {summary.byType.outOfStock > 0 && `${summary.byType.outOfStock} out of stock`}
               </div>
             </div>
             <button

@@ -77,8 +77,8 @@ export async function GET(request: NextRequest) {
 
         // Reference data
         backupData.jobTitles = await prisma.jobTitle.findMany();
-        backupData.compensationTypes = await prisma.compensation_types.findMany();
-        backupData.benefitTypes = await prisma.benefit_types.findMany();
+        backupData.compensationTypes = await prisma.compensationType.findMany();
+        backupData.benefitTypes = await prisma.benefitType.findMany();
         backupData.idFormatTemplates = await prisma.idFormatTemplate.findMany();
         backupData.driverLicenseTemplates = await prisma.driverLicenseTemplate.findMany();
         backupData.permissionTemplates = await prisma.permissionTemplate.findMany();
@@ -180,8 +180,8 @@ export async function GET(request: NextRequest) {
       case 'reference-data':
         // Reference data only
         backupData.jobTitles = await prisma.jobTitle.findMany();
-        backupData.compensationTypes = await prisma.compensation_types.findMany();
-        backupData.benefitTypes = await prisma.benefit_types.findMany();
+        backupData.compensationTypes = await prisma.compensationType.findMany();
+        backupData.benefitTypes = await prisma.benefitType.findMany();
         backupData.idFormatTemplates = await prisma.idFormatTemplate.findMany();
         backupData.driverLicenseTemplates = await prisma.driverLicenseTemplate.findMany();
         backupData.permissionTemplates = await prisma.permissionTemplate.findMany();

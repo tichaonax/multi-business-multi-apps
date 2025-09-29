@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { buildEmployeeQueryFilter, canUserPerformEmployeeAction } from '@/lib/employee-access-control'
 import { SessionUser } from '@/lib/permission-utils'
 
@@ -90,25 +92,9 @@ export async function GET(req: NextRequest) {
               email: true
             }
           },
-          // Include active contract data for salary increase functionality
-          employeeContracts: {
-            where: {
-              status: 'active'
-            },
-            select: {
-              id: true,
-              status: true,
-              baseSalary: true,
-              employeeSignedAt: true,
-              notes: true
-            },
-            take: 1
-          },
-          _count: {
-            select: {
-              employeeContracts: true
-            }
-          }
+          // Note: employee contracts relation uses a generated/prisma-specific relation name in the schema.
+          // To avoid brittle include/select errors when the schema relation name changes, we fetch
+          // active contracts in a lightweight follow-up query and map them into the response below.
         },
         orderBy,
         skip,
@@ -127,7 +113,7 @@ export async function GET(req: NextRequest) {
         where: { id: { in: jobTitleIds } },
         select: { id: true, title: true, department: true, level: true }
       }) : [],
-      compensationTypeIds.length > 0 ? prisma.compensation_types.findMany({
+      compensationTypeIds.length > 0 ? prisma.compensationType.findMany({
         where: { id: { in: compensationTypeIds } },
         select: { id: true, name: true, type: true, frequency: true }
       }) : [],
@@ -141,6 +127,23 @@ export async function GET(req: NextRequest) {
     const jobTitleMap = new Map(jobTitles.map(jt => [jt.id, jt]))
     const compensationTypeMap = new Map(compensationTypes.map(ct => [ct.id, ct]))
     const businessMap = new Map(businesses.map(b => [b.id, b]))
+
+    // Fetch active employee contracts separately to avoid relying on fragile relation include names
+    const employeeIds = employees.map(e => e.id)
+    const contracts = employeeIds.length > 0 ? await prisma.employeeContract.findMany({
+      where: {
+        employeeId: { in: employeeIds },
+        status: 'active'
+      },
+      select: { id: true, employeeId: true, status: true, baseSalary: true, employeeSignedAt: true, notes: true }
+    }) : []
+
+    const contractsByEmployee = new Map<string, any[]>()
+    for (const c of contracts) {
+      const arr = contractsByEmployee.get(c.employeeId) || []
+      arr.push(c)
+      contractsByEmployee.set(c.employeeId, arr)
+    }
 
     // OPTIMIZED: Format response data using lookup maps
     const formattedEmployees = employees.map(employee => {
@@ -176,9 +179,9 @@ export async function GET(req: NextRequest) {
           name: business.name,
           type: business.type
         } : null,
-        // Include active contract data for salary increase functionality
-        employeeContracts: employee.employeeContracts || [],
-        contractCount: employee._count.employeeContracts
+  // Include active contract data for salary increase functionality
+  employeeContracts: contractsByEmployee.get(employee.id) || [],
+  contractCount: (contractsByEmployee.get(employee.id) || []).length
       }
     })
 
@@ -278,7 +281,7 @@ export async function POST(req: NextRequest) {
     // Validate foreign key references (using correct table names)
     const [jobTitle, compensationType, business, supervisor, userAccount, idTemplate] = await Promise.all([
       prisma.jobTitle.findUnique({ where: { id: jobTitleId } }),
-      prisma.compensation_types.findUnique({ where: { id: compensationTypeId } }),
+      prisma.compensationType.findUnique({ where: { id: compensationTypeId } }),
       prisma.business.findUnique({ where: { id: primaryBusinessId } }),
       supervisorId ? prisma.employee.findUnique({ where: { id: supervisorId } }) : null,
       userId ? prisma.user.findUnique({ where: { id: userId } }) : null,
@@ -312,32 +315,38 @@ export async function POST(req: NextRequest) {
 
     // Create employee in transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Build an Unchecked create input to satisfy Prisma's generated types while
+      // allowing direct FK fields (faster migration path). We'll use the
+      // UncheckedCreateInput type to avoid nested create typing here.
+      const employeeCreateData: Prisma.EmployeeUncheckedCreateInput = {
+        id: randomUUID(),
+        employeeNumber: employeeNumber,
+        userId: userId || null,
+        firstName: firstName,
+        lastName: lastName,
+        fullName: `${firstName} ${lastName}`,
+        email: email || null,
+        phone: phone,
+        nationalId: nationalId,
+        idFormatTemplateId: idFormatTemplateId || null,
+        address: address || null,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        jobTitleId: jobTitleId,
+        compensationTypeId: compensationTypeId,
+        supervisorId: supervisorId || null,
+        primaryBusinessId: primaryBusinessId,
+        hireDate: new Date(hireDate),
+        startDate: startDate ? new Date(startDate) : new Date(hireDate),
+        customResponsibilities: customResponsibilities || null,
+        notes: notes || null,
+        createdBy: user.id,
+        isActive: false,
+        employmentStatus: employmentStatus
+      }
+
       // Create employee
       const newEmployee = await tx.employee.create({
-        data: {
-          employeeNumber: employeeNumber,
-          userId: userId,
-          firstName: firstName,
-          lastName: lastName,
-          fullName: `${firstName} ${lastName}`,
-          email: email || null,
-          phone,
-          nationalId: nationalId,
-          idFormatTemplateId: idFormatTemplateId || null,
-          address: address || null,
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-          jobTitleId: jobTitleId,
-          compensationTypeId: compensationTypeId,
-          supervisorId: supervisorId || null,
-          primaryBusinessId: primaryBusinessId,
-          hireDate: new Date(hireDate),
-          startDate: startDate ? new Date(startDate) : new Date(hireDate),
-          customResponsibilities: customResponsibilities || null,
-          notes: notes || null,
-          createdBy: user.id,
-          isActive: false,
-          employmentStatus: employmentStatus
-        },
+        data: employeeCreateData,
         include: {
           users: {
             select: {
@@ -348,7 +357,8 @@ export async function POST(req: NextRequest) {
           },
           jobTitles: true,
           compensationTypes: true,
-          subordinates: {
+          // canonical relation name for subordinate employees on Employee model
+          otherEmployees: {
             select: {
               id: true,
               fullName: true,
@@ -359,14 +369,15 @@ export async function POST(req: NextRequest) {
               }
             }
           },
-          business: {
+          // canonical relation name for primary business on Employee model
+          businesses: {
             select: {
               id: true,
               name: true,
               type: true
             }
           },
-          idFormatTemplate: true
+          idFormatTemplates: true
         }
       })
 

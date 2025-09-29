@@ -1,48 +1,8 @@
-'use client'
+ 'use client'
 
 import { useState } from 'react'
 import { SessionUser } from '@/lib/permission-utils'
-
-interface Employee {
-  id: string
-  fullName: string
-  firstName: string
-  lastName: string
-  employeeNumber: string
-  email: string | null
-  phone: string
-  employmentStatus: string
-  isActive: boolean
-  currentContract?: {
-    id: string
-    status: string
-    employeeSignedAt: string | null
-  } | null
-  contracts?: Array<{
-    id: string
-    status: string
-    employeeSignedAt: string | null
-  }>
-  jobTitle: {
-    title: string
-    department: string | null
-    level: string | null
-  }
-  primaryBusiness: {
-    id: string
-    name: string
-    type: string
-  }
-  businessAssignments: Array<{
-    business: {
-      id: string
-      name: string
-      type: string
-    }
-    role: string | null
-    isPrimary: boolean
-  }>
-}
+import type { Employee } from '@/types/employee'
 
 interface CreateUserModalProps {
   employee: Employee

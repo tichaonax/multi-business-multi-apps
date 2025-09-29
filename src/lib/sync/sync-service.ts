@@ -92,14 +92,15 @@ export class SyncService extends EventEmitter {
   constructor(config: SyncServiceConfig) {
     super()
 
-    this.config = {
+    const baseConfig: Partial<SyncServiceConfig> = {
       syncInterval: 30000, // 30 seconds
       enableAutoStart: true,
       logLevel: 'info',
       maxLogSize: 10 * 1024 * 1024, // 10MB
-      maxLogFiles: 5,
-      ...config
+      maxLogFiles: 5
     }
+
+    this.config = Object.assign({}, baseConfig, config) as SyncServiceConfig
 
     this.nodeId = config.nodeId || generateNodeId()
     this.prisma = new PrismaClient()
@@ -684,7 +685,7 @@ export class SyncService extends EventEmitter {
    */
   private async initializePeerDiscovery(): Promise<void> {
     try {
-      this.peerDiscovery = createPeerDiscovery({
+      this.peerDiscovery = createPeerDiscovery(Object.assign({
         nodeId: this.nodeId,
         nodeName: this.config.nodeName,
         port: this.config.port,
@@ -692,7 +693,7 @@ export class SyncService extends EventEmitter {
         broadcastInterval: 30000, // 30 seconds
         discoveryPort: 5353, // mDNS port
         serviceName: 'multi-business-sync'
-      })
+      }, {} as any))
 
       // Listen for peer events
       this.peerDiscovery.on('peer_discovered', (peer) => {

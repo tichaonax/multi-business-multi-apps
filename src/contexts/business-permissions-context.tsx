@@ -138,6 +138,38 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
         // If the user is an admin, offer to create dev/demo data for them via a nicer modal
         const isAdmin = session?.user?.role === 'admin';
         if (isAdmin) {
+          // For admins, first check if the business exists on the server. If it does, try to set it
+          // as the current business (server will allow admin switches). Only show the seed modal
+          // if the business truly does not exist.
+          try {
+            const check = await fetch(`/api/businesses/${businessId}`)
+            if (check.ok) {
+              // Attempt to set current business on server (admin path).
+              await fetch('/api/user/set-current-business', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ businessId })
+              })
+
+              // Refresh memberships in background (may or may not include admin-created membership)
+              try {
+                const r2 = await fetch('/api/user/business-memberships')
+                if (r2.ok) {
+                  const refreshed2: BusinessMembership[] = await r2.json()
+                  setBusinesses(refreshed2)
+                }
+              } catch (e) {
+                // ignore
+              }
+
+              // Update current business id locally and return
+              setCurrentBusinessId(businessId)
+              return
+            }
+          } catch (e) {
+            // network error or 404 — fall through to show seed modal
+          }
+
           // Show modal and allow user to pick targeted seed or full dev dataset
           setSeedTargetBusiness(businessId)
           setShowSeedModal(true)
@@ -210,7 +242,9 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
         if (res.status === 501) {
           // Targeted seeding not implemented on server for this script; fall back to full dev seed
           toast.push('Targeted seed not available, falling back to full dev dataset...')
-          const fallback = await fetch('/api/admin/seed-dev-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true, confirmText: 'AUTO-SEED' }) })
+          const nowSuffix = Date.now().toString().slice(-6)
+          const confirmText = `CREATE-DEV-SEED-${nowSuffix}`
+          const fallback = await fetch('/api/admin/seed-dev-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true, confirmText }) })
           const json = await fallback.json().catch(() => ({}))
           if (!fallback.ok) {
             toast.push(json?.message || 'Fallback dev seed failed')
@@ -225,13 +259,33 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
           }
 
           // Success: show whether it ran in-process or via node
-          if (json?.ranInProcess) toast.push('Targeted seed completed (in-process)')
-          else toast.push('Targeted seed completed')
+            if (json?.ranInProcess) toast.push('Targeted seed completed (in-process)')
+            else toast.push('Targeted seed completed')
+
+            // If server auto-created the target business placeholder, refresh memberships and switch to it
+            if (json?.createdBusiness) {
+              try {
+                const r2 = await fetch('/api/user/business-memberships')
+                if (r2.ok) {
+                  const refreshed2: BusinessMembership[] = await r2.json()
+                  setBusinesses(refreshed2)
+                  const found = refreshed2.find((b) => b.businessId === json.createdBusiness && b.isActive)
+                  if (found) {
+                    setCurrentBusinessId(json.createdBusiness)
+                    toast.push('Switched to newly-created business')
+                  }
+                }
+              } catch (err) {
+                // ignore
+              }
+            }
         }
       } else {
         // Full dev dataset
         toast.push('Seeding full dev dataset...')
-        const res = await fetch('/api/admin/seed-dev-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true, confirmText: 'AUTO-SEED' }) })
+        const nowSuffix = Date.now().toString().slice(-6)
+        const confirmText = `CREATE-DEV-SEED-${nowSuffix}`
+        const res = await fetch('/api/admin/seed-dev-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true, confirmText }) })
         const json = await res.json().catch(() => ({}))
         if (!res.ok) {
           toast.push(json?.message || 'Dev seed failed')
@@ -243,20 +297,42 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
       // Refresh memberships and try to switch to newly-created business
       toast.push('Refreshing businesses...')
       try {
-        const r2 = await fetch('/api/user/business-memberships')
-        if (r2.ok) {
-          const refreshed2: BusinessMembership[] = await r2.json()
-          setBusinesses(refreshed2)
-          const found = refreshed2.find((b) => b.businessId === seedTargetBusiness && b.isActive)
-          if (found) {
-            setCurrentBusinessId(seedTargetBusiness)
-            toast.push('Switched to newly-seeded business')
-          } else {
-            toast.push('Demo seed completed but requested business still not found')
+        // Helper: attempt to refresh memberships multiple times with a short delay
+        const attemptRefresh = async (attempts = 4, delayMs = 1500) => {
+          for (let i = 0; i < attempts; i++) {
+            try {
+              const r = await fetch('/api/user/business-memberships')
+              if (!r.ok) continue
+              const refreshed: BusinessMembership[] = await r.json()
+              setBusinesses(refreshed)
+              const found = refreshed.find((b) => b.businessId === seedTargetBusiness && b.isActive)
+              if (found) return found
+            } catch (e) {
+              // ignore and retry
+            }
+            // wait before next attempt to give server time to finish background creation
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((res) => setTimeout(res, delayMs))
           }
+          return undefined
+        }
+
+        const found = await attemptRefresh(5, 1500)
+        if (found) {
+          setCurrentBusinessId(seedTargetBusiness)
+          toast.push('Switched to newly-seeded business')
+        } else {
+          // Give one final, actionable notice and log details for debugging
+          const msg = `Demo seed completed but business ${seedTargetBusiness} not found after retries`
+          toast.push(msg)
+          toast.push('Try refreshing memberships, check server seed logs, or re-run the targeted seed')
+          // Helpful console output for admins/developers checking the browser console
+          // (keeps visibility when toast may be missed)
+          // eslint-disable-next-line no-console
+          console.warn('Seed finished but target business not found:', { businessId: seedTargetBusiness })
         }
       } catch (err) {
-        // ignore
+        // ignore network/other transient errors here
       }
     } catch (err: any) {
       toast.push('Seeding failed: ' + (err?.message || String(err)))

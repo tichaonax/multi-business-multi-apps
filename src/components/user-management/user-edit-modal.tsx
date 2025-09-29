@@ -31,7 +31,7 @@ interface User {
     business: {
       id: string
       name: string
-      type: string
+      type?: string
     }
   }>
 }
@@ -47,7 +47,7 @@ interface UserEditModalProps {
 interface BusinessMembershipEdit {
   businessId: string
   businessName: string
-  businessType?: string
+  businessType?: BusinessType
   role: keyof typeof BUSINESS_PERMISSION_PRESETS
   isActive: boolean
   useCustomPermissions: boolean
@@ -92,7 +92,7 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
       const response = await fetch('/api/admin/businesses')
       if (response.ok) {
         const businesses = await response.json()
-        const mappedBusinesses = businesses.map(b => ({
+        const mappedBusinesses = businesses.map((b: any) => ({
           businessId: b.id,
           businessName: b.name,
           businessType: b.type
@@ -130,16 +130,16 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
       const roleKey = membership.role as keyof typeof BUSINESS_PERMISSION_PRESETS
       const defaultPermissions = BUSINESS_PERMISSION_PRESETS[roleKey] || BUSINESS_PERMISSION_PRESETS.employee
       const currentPermissions = membership.permissions as Partial<BusinessPermissions>
-      
+
       // Check if current permissions differ from default role permissions
       // or if a template is assigned (which indicates custom permissions)
-      const hasCustomPermissions = membership.templateId || 
+      const hasCustomPermissions = !!membership.templateId ||
         JSON.stringify(currentPermissions) !== JSON.stringify(defaultPermissions)
-      
+
       return {
         businessId: membership.businessId,
         businessName: membership.business.name,
-        businessType: membership.business.type || 'other',
+        businessType: (membership.business.type as BusinessType) || 'other',
         role: roleKey,
         isActive: membership.isActive,
         useCustomPermissions: hasCustomPermissions,
@@ -808,7 +808,7 @@ function CustomPermissionsEditor({ permissions, businessType, onChange }: Custom
               <label key={permission.key} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  checked={permissions[permission.key as keyof BusinessPermissions] || false}
+                  checked={!!permissions[permission.key as keyof BusinessPermissions]}
                   onChange={(e) => updatePermission(permission.key, e.target.checked)}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2"
                 />

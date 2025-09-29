@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
 
 export async function GET(
@@ -50,17 +52,22 @@ export async function GET(
 
     // If no balance exists, create default balance
     if (!leaveBalance) {
+      const { Prisma } = require('@prisma/client')
+      const { randomUUID } = require('crypto')
+      const leaveBalanceData: Prisma.EmployeeLeaveBalanceUncheckedCreateInput = {
+        id: randomUUID(),
+        employeeId,
+        year,
+        annualLeaveDays: 21,
+        usedAnnualDays: 0,
+        remainingAnnual: 21,
+        sickLeaveDays: 10,
+        usedSickDays: 0,
+        remainingSick: 10,
+        updatedAt: new Date()
+      }
       leaveBalance = await prisma.employeeLeaveBalance.create({
-        data: {
-          employeeId,
-          year,
-          annualLeaveDays: 21, // Default annual leave days
-          usedAnnualDays: 0,
-          remainingAnnual: 21,
-          sickLeaveDays: 10, // Default sick leave days
-          usedSickDays: 0,
-          remainingSick: 10
-        }
+        data: leaveBalanceData
       })
     }
 
@@ -115,6 +122,29 @@ export async function PUT(
     const remainingSick = Math.max(0, (sickLeaveDays || 0) - (usedSickDays || 0))
 
     // Update or create leave balance
+    const { Prisma } = require('@prisma/client')
+    const { randomUUID } = require('crypto')
+    const upsertCreate: Prisma.EmployeeLeaveBalanceUncheckedCreateInput = {
+      id: randomUUID(),
+      employeeId,
+      year: parseInt(year),
+      annualLeaveDays: annualLeaveDays || 21,
+      sickLeaveDays: sickLeaveDays || 10,
+      usedAnnualDays: usedAnnualDays || 0,
+      usedSickDays: usedSickDays || 0,
+      remainingAnnual,
+      remainingSick,
+      updatedAt: new Date()
+    }
+    const upsertUpdate: Prisma.EmployeeLeaveBalanceUncheckedUpdateInput = {
+      annualLeaveDays: annualLeaveDays || 21,
+      sickLeaveDays: sickLeaveDays || 10,
+      usedAnnualDays: usedAnnualDays || 0,
+      usedSickDays: usedSickDays || 0,
+      remainingAnnual,
+      remainingSick,
+      updatedAt: new Date()
+    }
     const leaveBalance = await prisma.employeeLeaveBalance.upsert({
       where: {
         employeeId_year: {
@@ -122,24 +152,8 @@ export async function PUT(
           year: parseInt(year)
         }
       },
-      update: {
-        annualLeaveDays: annualLeaveDays || 21,
-        sickLeaveDays: sickLeaveDays || 10,
-        usedAnnualDays: usedAnnualDays || 0,
-        usedSickDays: usedSickDays || 0,
-        remainingAnnual,
-        remainingSick
-      },
-      create: {
-        employeeId,
-        year: parseInt(year),
-        annualLeaveDays: annualLeaveDays || 21,
-        sickLeaveDays: sickLeaveDays || 10,
-        usedAnnualDays: usedAnnualDays || 0,
-        usedSickDays: usedSickDays || 0,
-        remainingAnnual,
-        remainingSick
-      }
+      update: upsertUpdate,
+      create: upsertCreate
     })
 
     return NextResponse.json(leaveBalance)

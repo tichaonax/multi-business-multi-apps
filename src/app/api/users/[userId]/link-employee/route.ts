@@ -31,7 +31,7 @@ export async function PUT(
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        employee: true,
+        employees: true,
         businessMemberships: { include: { business: true } }
       }
     });
@@ -41,7 +41,7 @@ export async function PUT(
     }
 
     // Check if user already linked to an employee
-    if (user.employee) {
+    if ((user as any).employees) {
       return NextResponse.json({
         error: 'User is already linked to an employee'
       }, { status: 400 });
@@ -52,10 +52,10 @@ export async function PUT(
       where: { id: employeeId },
       include: {
         users: true,
-        business: true,
+        businesses: true,
         employeeBusinessAssignments: {
           where: { isActive: true },
-          include: { business: true }
+          include: { businesses: true }
         }
       }
     });
@@ -65,7 +65,7 @@ export async function PUT(
     }
 
     // Check if employee already linked to a user
-    if (employee.users) {
+    if ((employee as any).users) {
       return NextResponse.json({
         error: 'Employee is already linked to a user account'
       }, { status: 400 });
@@ -79,7 +79,7 @@ export async function PUT(
       });
 
       // Sync business memberships from employee business assignments
-      const existingMemberships = user.businessMemberships.map(m => m.businessId);
+  const existingMemberships = (user as any).businessMemberships.map((m: any) => m.businessId);
 
       // Add primary business if not already a member
       if (!existingMemberships.includes(employee.primaryBusinessId)) {
@@ -102,7 +102,7 @@ export async function PUT(
       }
 
       // Add additional business assignments
-      for (const assignment of employee.employeeBusinessAssignments) {
+      for (const assignment of (employee as any).employeeBusinessAssignments || []) {
         if (!existingMemberships.includes(assignment.businessId) && 
             assignment.businessId !== employee.primaryBusinessId) {
           await tx.businessMembership.create({
@@ -139,11 +139,11 @@ export async function PUT(
             employeeName: employee.fullName,
             employeeNumber: employee.employeeNumber,
             primaryBusinessId: employee.primaryBusinessId,
-            businessAssignments: employee.employeeBusinessAssignments.map(a => ({
-              businessId: a.businessId,
-              businessName: a.business.name,
-              role: a.role
-            }))
+                                  businessAssignments: (employee as any).employeeBusinessAssignments?.map((a: any) => ({
+                                          businessId: a.businessId,
+                                          businessName: (a as any).businesses?.name || null,
+                                          role: a.role
+                                        }))
           },
           businessId: employee.primaryBusinessId,
           timestamp: new Date(),
@@ -163,8 +163,8 @@ export async function PUT(
         employeeId: employeeId,
         employeeName: employee.fullName,
         employeeNumber: employee.employeeNumber,
-        primaryBusiness: employee.business.name,
-        additionalBusinesses: employee.employeeBusinessAssignments.length
+        primaryBusiness: (employee as any).businesses?.name || null,
+        additionalBusinesses: ((employee as any).employeeBusinessAssignments || []).length
       }
     });
 
@@ -197,22 +197,22 @@ export async function DELETE(
     // Get user details
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            fullName: true,
-            employeeNumber: true
+        include: {
+          employees: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeNumber: true
+            }
           }
         }
-      }
     });
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (!user.employee) {
+      if (!user.employees) {
       return NextResponse.json({
         error: 'User is not linked to any employee'
       }, { status: 400 });
@@ -220,8 +220,8 @@ export async function DELETE(
 
     const result = await prisma.$transaction(async (tx) => {
       // Unlink user from employee
-      await tx.employee.update({
-        where: { id: user.employee.id },
+        await tx.employee.update({
+          where: { id: user.employees!.id },
         data: { userId: null }
       });
 
@@ -236,15 +236,15 @@ export async function DELETE(
             userId: userId,
             userName: user.name,
             userEmail: user.email,
-            employeeId: user.employee.id,
-            employeeName: user.employee.fullName,
-            employeeNumber: user.employee.employeeNumber,
+              employeeId: user.employees!.id,
+              employeeName: user.employees!.fullName,
+              employeeNumber: user.employees!.employeeNumber,
           },
           timestamp: new Date(),
         }
       });
 
-      return user.employee;
+        return user.employees!;
     });
 
     return NextResponse.json({

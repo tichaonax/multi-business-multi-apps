@@ -9,27 +9,8 @@ export { UniversalInventoryStats } from './universal-inventory-stats'
 export { InventoryDashboardWidget } from './inventory-dashboard-widget'
 export { CrossBusinessAnalytics } from './cross-business-analytics'
 
-// Re-export types for convenience
-export type {
-  UniversalInventoryItem,
-  UniversalInventoryGridProps
-} from './universal-inventory-grid'
-
-export type {
-  UniversalInventoryFormProps
-} from './universal-inventory-form'
-
-export type {
-  StockMovement,
-  UniversalStockMovementsProps
-} from './universal-stock-movements'
-
-export type {
-  LowStockAlert,
-  UniversalLowStockAlertsProps
-} from './universal-low-stock-alerts'
-
-export type {
-  InventoryStats,
-  UniversalInventoryStatsProps
-} from './universal-inventory-stats'
+// Note: individual components declare many local interfaces but do not export
+// them. Re-exporting those types from this barrel file caused type errors
+// when the underlying modules didn't export the named types. If you need
+// any of these type shapes for external usage, export them from their
+// implementation files and re-add them here.

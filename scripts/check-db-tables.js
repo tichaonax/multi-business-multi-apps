@@ -17,7 +17,11 @@ const { Client } = require('pg');
       console.log('No user tables found in database.');
     } else {
       console.log('Found tables:');
-      res.rows.forEach(r => console.log(`${r.table_schema}.${r.table_name}`));
+      res.rows.forEach(r => {
+        const schema = r.schema || r.table_schema || r.schemaName || 'public'
+        const name = r.tableName || r.tableName || r.name || '<unknown>'
+        console.log(`${schema}.${name}`)
+      });
     }
   } catch (err) {
     console.error('Error querying database:', err.message || err);

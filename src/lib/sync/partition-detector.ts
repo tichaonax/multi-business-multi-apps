@@ -268,7 +268,7 @@ export class PartitionDetector extends EventEmitter {
   /**
    * Detect partition for specific peer
    */
-  private async detectPartitionForPeer(peer: PeerInfo, reason: string): Promise<void> {
+  private async detectPartitionForPeer(peer: PeerInfo, reason?: string): Promise<void> {
     const partitionId = crypto.randomUUID()
 
     const partition: PartitionInfo = {
@@ -281,7 +281,7 @@ export class PartitionDetector extends EventEmitter {
       severity: 'MEDIUM',
       metadata: {
         failureCount: this.peerHealthMap.get(peer.nodeId)?.failureCount || 0,
-        errorMessages: [reason],
+        errorMessages: [reason || 'Peer unreachable'],
         networkStatus: await this.getNetworkStatus()
       }
     }

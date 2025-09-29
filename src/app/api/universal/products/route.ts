@@ -16,7 +16,7 @@ const CreateProductSchema = z.object({
   basePrice: z.number().min(0),
   costPrice: z.number().min(0).optional(),
   businessType: z.string().min(1),
-  attributes: z.record(z.any()).optional(),
+  attributes: z.record(z.string(), z.any()).optional(),
   variants: z.array(z.object({
     name: z.string().optional(),
     sku: z.string().min(1),
@@ -24,13 +24,31 @@ const CreateProductSchema = z.object({
     price: z.number().min(0).optional(),
     stockQuantity: z.number().int().min(0).default(0),
     reorderLevel: z.number().int().min(0).default(0),
-    attributes: z.record(z.any()).optional()
+  attributes: z.record(z.string(), z.any()).optional()
   })).optional()
 })
 
 const UpdateProductSchema = CreateProductSchema.partial().extend({
   id: z.string().min(1)
 })
+
+// Normalize a product record returned by Prisma to the legacy API shape
+function normalizeProduct(product: any) {
+  // map schema relation names back to legacy keys expected by the frontend
+  product.brand = product.brand || (product.businessBrand ? { id: product.businessBrand.id, name: product.businessBrand.name } : null)
+  product.category = product.category || (product.businessCategory ? { id: product.businessCategory.id, name: product.businessCategory.name } : null)
+  product.variants = product.variants || product.productVariants || []
+  product.images = product.images || product.productImages || []
+  product.business = product.business || null
+
+  // remove internal/plural fields so responses match previous shape
+  delete product.businessBrand
+  delete product.businessCategory
+  delete product.productVariants
+  delete product.productImages
+
+  return product
+}
 
 // GET - Fetch products for a business
 export async function GET(request: NextRequest) {
@@ -96,20 +114,20 @@ export async function GET(request: NextRequest) {
           business: {
             select: { name: true, type: true }
           },
-          brand: {
+          businessBrand: {
             select: { id: true, name: true }
           },
-          category: {
+          businessCategory: {
             select: { id: true, name: true }
           },
           ...(includeVariants && {
-            variants: {
+            productVariants: {
               where: { isActive: true },
               orderBy: { name: 'asc' }
             }
           }),
           ...(includeImages && {
-            images: {
+            productImages: {
               orderBy: [
                 { isPrimary: 'desc' },
                 { sortOrder: 'asc' }
@@ -126,15 +144,18 @@ export async function GET(request: NextRequest) {
       prisma.businessProduct.count({ where })
     ])
 
+    // normalize products to legacy API shape
+    const normalizedProducts = products.map(normalizeProduct)
+
     return NextResponse.json({
       success: true,
-      data: products,
+      data: normalizedProducts,
       meta: {
         total: totalCount,
         page,
         limit,
         totalPages: Math.ceil(totalCount / limit),
-        hasMore: skip + products.length < totalCount
+        hasMore: skip + normalizedProducts.length < totalCount
       }
     })
 
@@ -218,21 +239,21 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       // Create the product
       const product = await tx.businessProduct.create({
-        data: {
-          ...productData,
-          businessType: productData.businessType || business.type
-        },
-        include: {
-          business: { select: { name: true, type: true } },
-          brand: { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } }
-        }
+          data: {
+            ...productData,
+            businessType: productData.businessType || business.type
+          },
+          include: {
+            business: { select: { name: true, type: true } },
+            businessBrand: { select: { id: true, name: true } },
+            businessCategory: { select: { id: true, name: true } }
+          }
       })
 
       // Create variants if provided
       if (variants && variants.length > 0) {
         // Check for duplicate variant SKUs
-        const variantSkus = variants.map(v => v.sku)
+        const variantSkus = variants.map((v: any) => v.sku)
         const existingVariants = await tx.productVariant.findMany({
           where: {
             sku: { in: variantSkus }
@@ -244,7 +265,7 @@ export async function POST(request: NextRequest) {
         }
 
         const createdVariants = await Promise.all(
-          variants.map(variant =>
+          variants.map((variant: any) =>
             tx.productVariant.create({
               data: {
                 ...variant,
@@ -263,16 +284,19 @@ export async function POST(request: NextRequest) {
       return product
     })
 
+    // normalize before returning
+    const normalizedResult = normalizeProduct(result as any)
+
     return NextResponse.json({
       success: true,
-      data: result,
+      data: normalizedResult,
       message: 'Product created successfully'
     }, { status: 201 })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -296,7 +320,7 @@ export async function PUT(request: NextRequest) {
     // Verify product exists
     const existingProduct = await prisma.businessProduct.findUnique({
       where: { id },
-      include: { variants: true }
+      include: { productVariants: true }
     })
 
     if (!existingProduct) {
@@ -327,12 +351,13 @@ export async function PUT(request: NextRequest) {
     // Update product
     const product = await prisma.businessProduct.update({
       where: { id },
-      data: updateData,
+      // cast to any to keep incremental changes small; we'll tighten types later
+      data: updateData as any,
       include: {
         business: { select: { name: true, type: true } },
-        brand: { select: { id: true, name: true } },
-        category: { select: { id: true, name: true } },
-        variants: {
+        businessBrand: { select: { id: true, name: true } },
+        businessCategory: { select: { id: true, name: true } },
+        productVariants: {
           where: { isActive: true },
           orderBy: { name: 'asc' }
         }
@@ -341,14 +366,14 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: product,
+      data: normalizeProduct(product as any),
       message: 'Product updated successfully'
     })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -378,11 +403,11 @@ export async function DELETE(request: NextRequest) {
     const productWithOrders = await prisma.businessProduct.findUnique({
       where: { id },
       include: {
-        variants: {
+        productVariants: {
           include: {
-            orderItems: {
+            businessOrderItems: {
               include: {
-                order: {
+                businessOrder: {
                   select: { id: true, status: true }
                 }
               }
@@ -400,9 +425,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check for active orders
-    const hasActiveOrders = productWithOrders.variants.some(variant =>
-      variant.orderItems.some(orderItem =>
-        !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(orderItem.order.status)
+    const hasActiveOrders = productWithOrders.productVariants.some((variant: any) =>
+      variant.businessOrderItems.some((orderItem: any) =>
+        !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(orderItem.businessOrder.status)
       )
     )
 
