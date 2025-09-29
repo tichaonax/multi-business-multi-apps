@@ -62,6 +62,7 @@ logs
 # temporary and office files
 *.odt
 *.~lock.*
+*.bak
 /nul
 services_list.txt
 
