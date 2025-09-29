@@ -57,7 +57,7 @@ logs
 .env.local
 .env.production.local
 .env.development.local
-/.claude/settings.local.json
+/.claude/
 
 # temporary and office files
 *.odt
