@@ -109,15 +109,21 @@ export function BarcodeScanner({
           description: `Demo product for barcode ${trimmedBarcode}`,
           basePrice: getDemoPrice(productMapping.productId),
           businessType: getBusinessTypeFromPath(),
-          category: 'Demo Category',
+          productType: 'PHYSICAL',
+          condition: 'NEW',
+          category: {
+            id: 'demo-category',
+            name: 'Demo Category'
+          },
           sku: `SKU-${productMapping.productId}`,
           isActive: true,
           variants: productMapping.variantId ? [{
             id: productMapping.variantId,
             name: getDemoVariantName(productMapping.variantId),
+            sku: `SKU-${productMapping.variantId}`,
             price: getDemoPrice(productMapping.productId),
-            attributes: getDemoAttributes(productMapping.variantId),
-            isActive: true
+            stockQuantity: 100,
+            attributes: getDemoAttributes(productMapping.variantId)
           }] : undefined
         }
 

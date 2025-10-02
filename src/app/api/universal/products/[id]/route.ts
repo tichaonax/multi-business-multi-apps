@@ -54,8 +54,11 @@ function normalizeProduct(product: any) {
 // GET - Get single product by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+)
+ {
+
+    const { id } = await params
   try {
     const { id } = await params
 
@@ -104,8 +107,11 @@ export async function GET(
 // PUT - Update single product
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+)
+ {
+
+    const { id } = await params
   try {
     const { id } = await params
     const body = await request.json()
@@ -223,8 +229,11 @@ export async function PUT(
 // DELETE - Delete single product
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+)
+ {
+
+    const { id } = await params
   try {
     const { id } = await params
 

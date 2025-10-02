@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const confirmed = !!body.confirm
     const confirmText = typeof body.confirmText === 'string' ? body.confirmText : undefined
     if (!confirmed || !confirmText) return NextResponse.json({ error: 'Confirmation required' }, { status: 400 })
-    if (!confirmText.startsWith('UNSEED-CLOTHING-')) return NextResponse.json({ error: 'Invalid confirmation text' }, { status: 400 })
+        if (!confirmText.startsWith('UNSEED-CLOTHING-') && !confirmText.startsWith('UNSEED-')) return NextResponse.json({ error: 'Invalid confirmation text' }, { status: 400 })
 
     try {
         const { prisma } = await import('@/lib/prisma')

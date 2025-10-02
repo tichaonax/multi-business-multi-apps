@@ -11,6 +11,7 @@ interface SystemSettings {
   globalDateFormat: string
   defaultCountryCode: string
   defaultIdFormatTemplateId: string
+  defaultMileageUnit: string
 }
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   defaultCountryCode: 'ZW',
   // Use seeded stable ID for the default template
   defaultIdFormatTemplateId: 'zw-national-id',
+  defaultMileageUnit: 'km',
 }
 
 interface SettingsContextType {
@@ -95,4 +97,10 @@ export function useDateFormat() {
     format: settings.globalDateFormat,
     defaultCountry: settings.defaultCountryCode
   }
+}
+
+// Helper hook to get the default mileage unit
+export function useDefaultMileageUnit() {
+  const { settings } = useSettings()
+  return settings.defaultMileageUnit
 }

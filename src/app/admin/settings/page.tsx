@@ -15,6 +15,7 @@ interface SystemSettings {
   globalDateFormat: string
   defaultCountryCode: string
   defaultIdFormatTemplateId: string
+  defaultMileageUnit: string
 }
 
 export default function AdminSettingsPage() {
@@ -314,6 +315,36 @@ export default function AdminSettingsPage() {
                     </p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Vehicle Settings */}
+          <div className="card p-6">
+            <h2 className="text-lg font-semibold mb-4 text-primary">Vehicle Settings</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-primary mb-2">
+                  Default Mileage Unit
+                </label>
+                <select
+                  className="input-field max-w-xs"
+                  value={settings?.defaultMileageUnit || 'km'}
+                  onChange={(e) => updateSettings({ defaultMileageUnit: e.target.value })}
+                >
+                  <option value="km">Kilometers (km)</option>
+                  <option value="miles">Miles</option>
+                </select>
+                <p className="text-sm text-gray-600 mt-1">
+                  Default unit for vehicle mileage. Can be overridden for individual vehicles during creation.
+                  Once a vehicle has mileage entries, the unit becomes readonly (admin-only changes).
+                </p>
+                <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                    <strong>Note:</strong> Different vehicles can use different units. No automatic conversion
+                    is performed when changing units - existing values are assumed to be correct.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

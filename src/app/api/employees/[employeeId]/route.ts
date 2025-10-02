@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { hasPermission } from '@/lib/permission-utils'
 
 interface RouteParams {
@@ -35,51 +36,53 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
   jobTitles: true,
   compensationTypes: true,
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,
             type: true
           }
         },
-        idFormatTemplate: true,
-        driverLicenseTemplate: true,
-        employeeContracts: {
-          include: {
-            business: {
-              select: {
-                id: true,
-                name: true,
-                type: true
-              }
+  idFormatTemplates: true,
+  driverLicenseTemplates: true,
+        // Prisma generated relation name for employee contracts
+        employee_contracts_employee_contracts_employeeIdToemployees: {
+          select: ( {
+            id: true,
+            contractNumber: true,
+            version: true,
+            status: true,
+            baseSalary: true,
+            startDate: true,
+            endDate: true,
+            employeeSignedAt: true,
+            createdAt: true,
+            pdfGenerationData: true,
+            businesses_employee_contracts_primaryBusinessIdTobusinesses: {
+              select: { id: true, name: true, type: true }
             },
-            jobTitle: {
-              select: {
-                id: true,
-                title: true,
-                department: true
-              }
+            // include the previous contract relation for quick lookup
+            previousContract: {
+              select: { id: true, contractNumber: true }
             },
-            supervisor: {
-              select: {
-                id: true,
-                fullName: true
-              }
+            // relation on EmployeeContract is named `jobTitles`
+            jobTitles: {
+              select: { id: true, title: true, department: true }
             },
-            contractBenefits: {
+            // supervisor relation on EmployeeContract uses generated name
+            employees_employee_contracts_supervisorIdToemployees: {
+              select: { id: true, fullName: true }
+            },
+            contract_benefits: {
               include: {
-                benefitType: {
-                  select: {
-                    name: true,
-                    type: true
-                  }
-                }
+                benefitType: { select: { name: true, type: true } }
               }
             }
-          },
+          } as Prisma.EmployeeContractSelect ),
           orderBy: { createdAt: 'desc' }
         },
-        supervisor: {
+        // supervisor relation on Employee model is named `employees` (supervisor link)
+        employees: {
           select: {
             id: true,
             fullName: true,
@@ -90,7 +93,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        subordinates: {
+        // relation name is `otherEmployees` in the Prisma schema
+        otherEmployees: {
           select: {
             id: true,
             fullName: true,
@@ -101,18 +105,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        employeeBusinessAssignments: {
+        // generated relation name for business assignments
+        employee_business_assignments: {
           include: {
-            business: {
-              select: {
-                id: true,
-                name: true,
-                type: true
-              }
-            }
+            // relation on EmployeeBusinessAssignment is `businesses`
+            businesses: { select: { id: true, name: true, type: true } }
           }
         },
-        disciplinaryActionsReceived: {
+        // generated relation name for disciplinary actions where employeeId is the target
+        disciplinary_actions_disciplinary_actions_employeeIdToemployees: {
           select: {
             id: true,
             actionType: true,
@@ -127,8 +128,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         _count: {
           select: {
-            subordinates: true,
-            disciplinaryActionsReceived: true
+            otherEmployees: true,
+            disciplinary_actions_disciplinary_actions_employeeIdToemployees: true
           }
         }
       }
@@ -143,45 +144,123 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     // Format response to match expected structure (use any casts to bridge generated Prisma types -> legacy API shape)
     const e: any = employee as any
+
+    // Normalize supervisor: Prisma returns generated relation `employees` which may be an array
+    let supervisorObj: any = null
+    if (Array.isArray(e.employees)) {
+      const s = e.employees[0]
+      if (s) {
+        supervisorObj = {
+          id: s.id,
+          fullName: s.fullName,
+          jobTitle: (s.jobTitles && Array.isArray(s.jobTitles)) ? s.jobTitles[0] : (s.jobTitles || null)
+        }
+      }
+    } else if (e.employees) {
+      const s = e.employees
+      supervisorObj = {
+        id: s.id,
+        fullName: s.fullName,
+        jobTitle: (s.jobTitles && Array.isArray(s.jobTitles)) ? s.jobTitles[0] : (s.jobTitles || null)
+      }
+    }
+
+    // Normalize subordinates similarly (map to include singular jobTitle)
+    const subordinates = (Array.isArray(e.otherEmployees) ? e.otherEmployees : (Array.isArray(e.subordinates) ? e.subordinates : [])).map((sub: any) => ({
+      id: sub.id,
+      fullName: sub.fullName,
+      jobTitle: (sub.jobTitles && Array.isArray(sub.jobTitles)) ? sub.jobTitles[0] : (sub.jobTitles || null)
+    }))
+
     const formattedEmployee = {
       ...e,
       user: e.users,
       jobTitle: Array.isArray(e.jobTitles) ? e.jobTitles[0] : e.jobTitles,
       compensationType: Array.isArray(e.compensationTypes) ? e.compensationTypes[0] : e.compensationTypes,
-      primaryBusiness: e.business || e.primaryBusiness || null,
-      supervisor: e.supervisor || null,
-      subordinates: e.subordinates || e.otherEmployees || [],
-  contracts: e.employeeContracts?.map((contract: any) => ({
-        id: contract.id,
-        contractNumber: contract.contractNumber,
-        version: contract.version,
-        status: contract.status,
-        employeeSignedAt: contract.employeeSignedAt,
-        startDate: contract.startDate,
-        endDate: contract.endDate,
-        baseSalary: contract.baseSalary,
-        isCommissionBased: contract.isCommissionBased,
-        isSalaryBased: contract.isSalaryBased,
-        notes: contract.notes,
-        createdAt: contract.createdAt,
-  benefits: contract.contractBenefits?.map((benefit: any) => ({
-          id: benefit.id,
-          amount: benefit.amount,
-          isPercentage: benefit.isPercentage,
-          notes: benefit.notes,
-          benefitType: {
-            name: benefit.benefitType.name,
-            type: benefit.benefitType.type
+      primaryBusiness: e.businesses || e.primaryBusiness || null,
+      supervisor: supervisorObj,
+      subordinates,
+      contracts: (e.employee_contracts_employee_contracts_employeeIdToemployees || e.employeeContracts || []).map((contract: any) => {
+        // Determine salary frequency for this contract (contract notes override employee compensation type)
+        let contractFrequency = e.compensationTypes?.frequency || 'monthly'
+        if (contract.notes) {
+          const frequencyMatch = contract.notes.match(/\[SALARY_FREQUENCY:(monthly|annual)\]/)
+          if (frequencyMatch) {
+            contractFrequency = frequencyMatch[1]
           }
-        })) || []
-      })) || [],
-      businessAssignments: e.employeeBusinessAssignments?.map((assignment: any) => ({
-        business: assignment.business,
+        }
+
+        const baseSalary = Number(contract.baseSalary || 0)
+        let monthlySalary = 0
+        if (contractFrequency === 'monthly') {
+          monthlySalary = baseSalary
+        } else {
+          monthlySalary = baseSalary / 12
+        }
+
+        // Choose benefits source: DB relation preferred, fallback to pdfGenerationData.benefits
+        let benefitsSource: any[] = []
+        if (Array.isArray(contract.contract_benefits) && contract.contract_benefits.length > 0) {
+          benefitsSource = contract.contract_benefits
+        } else if (contract.pdfGenerationData && Array.isArray(contract.pdfGenerationData.benefits)) {
+          benefitsSource = contract.pdfGenerationData.benefits
+        }
+
+        // Compute monthly benefits: fixed amounts added directly; percentage benefits calculated against monthlySalary
+        const monthlyBenefits = (benefitsSource || []).reduce((total: number, benefit: any) => {
+          const amt = Number(benefit.amount || 0)
+          if (benefit.isPercentage) {
+            return total + (monthlySalary * amt / 100)
+          }
+          return total + amt
+        }, 0)
+
+        return {
+          id: contract.id,
+          contractNumber: contract.contractNumber,
+          version: contract.version,
+          status: contract.status,
+          employeeSignedAt: contract.employeeSignedAt,
+          // Include stored PDF generation payload so clients that use the employee endpoint
+          // (instead of fetching the separate contracts endpoint) receive the JSON used
+          // by the PDF generator.
+          pdfGenerationData: contract.pdfGenerationData || null,
+          startDate: contract.startDate,
+          endDate: contract.endDate,
+          baseSalary: contract.baseSalary,
+          isCommissionBased: contract.isCommissionBased,
+          isSalaryBased: contract.isSalaryBased,
+          notes: contract.notes,
+          createdAt: contract.createdAt,
+          // Normalized benefits list (if using pdfGenerationData the shape may be different)
+          benefits: (benefitsSource || []).map((benefit: any) => ({
+            id: benefit.id || null,
+            amount: benefit.amount,
+            isPercentage: benefit.isPercentage,
+            notes: benefit.notes || null,
+            benefitType: {
+              name: benefit.benefitType?.name || benefit.name || null,
+              type: benefit.benefitType?.type || null
+            }
+          })),
+          // Expose a normalized previousContract when available from the DB relation
+          previousContract: (contract.previousContract && contract.previousContract.id)
+            ? { id: contract.previousContract.id, contractNumber: contract.previousContract.contractNumber }
+            : null,
+          // Computed values for client convenience
+          _computed: {
+            frequency: contractFrequency,
+            monthlySalary,
+            monthlyBenefits
+          }
+        }
+      }) || [],
+      businessAssignments: (e.employee_business_assignments || e.employeeBusinessAssignments || []).map((assignment: any) => ({
         role: assignment.role,
         isActive: assignment.isActive,
         assignedAt: assignment.assignedAt
       })) || [],
-      disciplinaryActions: e.disciplinaryActionsReceived?.map((action: any) => ({
+      disciplinaryActions: (e.disciplinary_actions_disciplinary_actions_employeeIdToemployees || e.disciplinaryActionsReceived || []).map((action: any) => ({
         id: action.id,
         type: action.actionType,
         severity: action.severity,
@@ -191,68 +270,35 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         followUpDate: null,
         isResolved: action.isActive
       })) || [],
-      _count: e._count || { subordinates: 0, disciplinaryActions: 0 }
+      _count: (() => {
+        const c = e._count || {}
+        return { subordinates: c.otherEmployees || c.subordinates || 0, disciplinaryActions: c.disciplinary_actions_disciplinary_actions_employeeIdToemployees || c.disciplinaryActionsReceived || 0 }
+      })()
     }
 
     // Calculate latest salary, benefits, and total remuneration
-  const activeContract = (e.employeeContracts || []).find((contract: any) => contract.status === 'active')
+  // Use the normalized/formatted contracts for active contract totals (they include computed monthly values)
+  const formattedContracts = formattedEmployee.contracts || []
+  const activeContract = formattedContracts.find((c: any) => c.status === 'active')
 
-    if (activeContract) {
-      // Extract frequency from contract notes (priority) or fallback to compensation type
-      let frequency = employee.compensationTypes?.frequency || 'monthly'
+  if (activeContract) {
+    const monthlySalary = Number(activeContract._computed?.monthlySalary || 0)
+    const totalBenefits = Number(activeContract._computed?.monthlyBenefits || 0)
 
-      // Check if contract has frequency specified in notes
-      if (activeContract.notes) {
-        const frequencyMatch = activeContract.notes.match(/\[SALARY_FREQUENCY:(monthly|annual)\]/)
-        if (frequencyMatch) {
-          frequency = frequencyMatch[1]
-        }
-      }
+    const monthlyRemuneration = monthlySalary + totalBenefits
+    const annualRemuneration = monthlyRemuneration * 12
 
-      const baseSalary = Number(activeContract.baseSalary)
-
-      // Calculate annual and monthly salary
-      let annualSalary: number
-      let monthlySalary: number
-
-      if (frequency === 'monthly') {
-        annualSalary = baseSalary * 12
-        monthlySalary = baseSalary
-      } else {
-        annualSalary = baseSalary
-        monthlySalary = baseSalary / 12
-      }
-
-      // Calculate total benefits from active contract
-      // Note: All percentage-based benefits calculated against MONTHLY salary
-      const totalBenefits = activeContract.contractBenefits?.reduce((total: number, benefit: any) => {
-        const benefitAmount = Number(benefit.amount)
-        if (benefit.isPercentage) {
-          // Calculate percentage of MONTHLY salary (as specified)
-          return total + (monthlySalary * benefitAmount / 100)
-        } else {
-          // Fixed amount benefit (assumed to be monthly)
-          return total + benefitAmount
-        }
-      }, 0) || 0
-
-      // Calculate total remuneration (monthly salary + monthly benefits)
-      // Then convert to annual for display
-      const monthlyRemuneration = monthlySalary + totalBenefits
-      const annualRemuneration = monthlyRemuneration * 12
-
-      // Add calculated fields to the formatted employee
-      formattedEmployee.currentSalary = {
-        frequency: frequency,
-        baseSalary: baseSalary,
-        annualSalary: annualSalary,
-        monthlySalary: monthlySalary
-      }
-
-      formattedEmployee.totalBenefits = totalBenefits
-      formattedEmployee.totalRemuneration = annualRemuneration
-      formattedEmployee.monthlyRemuneration = monthlyRemuneration
+    formattedEmployee.currentSalary = {
+      frequency: activeContract._computed?.frequency || e.compensationTypes?.frequency || 'monthly',
+      baseSalary: Number(activeContract.baseSalary || 0),
+      annualSalary: monthlySalary * 12,
+      monthlySalary
     }
+
+    formattedEmployee.totalBenefits = totalBenefits
+    formattedEmployee.totalRemuneration = annualRemuneration
+    formattedEmployee.monthlyRemuneration = monthlyRemuneration
+  }
 
     return NextResponse.json(formattedEmployee)
   } catch (error) {
@@ -455,14 +501,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           },
           jobTitles: true,
           compensationTypes: true,
-          business: {
+          businesses: {
             select: {
               id: true,
               name: true,
               type: true
             }
           },
-          idFormatTemplate: true
+          idFormatTemplates: true
         }
       })
 
@@ -527,7 +573,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       user: ue.users,
       jobTitle: ue.jobTitles || null,
       compensationType: ue.compensationTypes || null,
-      primaryBusiness: ue.business || ue.primaryBusiness || null,
+      primaryBusiness: ue.businesses || ue.primaryBusiness || null,
       supervisor: null,
       subordinates: []
     }
@@ -593,7 +639,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const existingEmployee = await prisma.employee.findUnique({
       where: { id: employeeId },
       include: {
-        employeeContracts: true,
+        // use generated relation name for contracts
+        employee_contracts_employee_contracts_employeeIdToemployees: true,
         disciplinary_actions_disciplinary_actions_employeeIdToemployees: true,
         employee_benefits: true,
         otherEmployees: true
@@ -608,8 +655,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if employee has active contracts
-    const activeContracts = existingEmployee.employeeContracts.filter(
-      contract => contract.status === 'active'
+    const activeContracts = ((existingEmployee as any).employee_contracts_employee_contracts_employeeIdToemployees || (existingEmployee as any).employeeContracts || []).filter(
+      (contract: any) => contract.status === 'active'
     )
 
     if (activeContracts.length > 0) {
@@ -620,7 +667,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if employee has subordinates
-    if (existingEmployee.otherEmployees.length > 0) {
+    if ((existingEmployee as any).otherEmployees.length > 0) {
       return NextResponse.json(
         { error: 'Cannot delete employee who supervises other employees. Please reassign subordinates first.' },
         { status: 400 }

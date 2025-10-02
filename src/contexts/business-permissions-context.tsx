@@ -262,16 +262,17 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
             if (json?.ranInProcess) toast.push('Targeted seed completed (in-process)')
             else toast.push('Targeted seed completed')
 
-            // If server auto-created the target business placeholder, refresh memberships and switch to it
-            if (json?.createdBusiness) {
+            // If server auto-created the target business placeholder or membership, refresh memberships and switch to it
+            if (json?.createdBusiness || json?.createdMembership) {
               try {
                 const r2 = await fetch('/api/user/business-memberships')
                 if (r2.ok) {
                   const refreshed2: BusinessMembership[] = await r2.json()
                   setBusinesses(refreshed2)
-                  const found = refreshed2.find((b) => b.businessId === json.createdBusiness && b.isActive)
+                  const targetId = json?.createdBusiness || seedTargetBusiness
+                  const found = refreshed2.find((b) => b.businessId === targetId && b.isActive)
                   if (found) {
-                    setCurrentBusinessId(json.createdBusiness)
+                    setCurrentBusinessId(targetId)
                     toast.push('Switched to newly-created business')
                   }
                 }
@@ -344,7 +345,14 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
   return (
     <BusinessPermissionsContext.Provider value={contextValue}>
       {children}
-      <AdminSeedPromptModal isOpen={showSeedModal} onClose={() => setShowSeedModal(false)} businessId={seedTargetBusiness} onConfirm={handleSeedConfirm} />
+      <AdminSeedPromptModal
+        isOpen={showSeedModal}
+        onClose={() => setShowSeedModal(false)}
+        businessId={seedTargetBusiness}
+        actionLabel={seedTargetBusiness ? `Seed business ${seedTargetBusiness}` : undefined}
+        isUnseed={false}
+        onConfirm={handleSeedConfirm}
+      />
     </BusinessPermissionsContext.Provider>
   )
 }

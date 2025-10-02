@@ -6,8 +6,11 @@ import { UniversalSupplier } from '@/types/supplier'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { supplierId: string } }
-) {
+  { params }: { params: Promise<{ supplierId: string }> }
+)
+ {
+
+    const { supplierId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -32,7 +35,7 @@ export async function GET(
 
     // Get suppliers from business metadata
     const suppliers = (business.metadata as any)?.suppliers || []
-    const supplier = suppliers.find((s: UniversalSupplier) => s.id === params.supplierId)
+    const supplier = suppliers.find((s: UniversalSupplier) => s.id === supplierId)
 
     if (!supplier) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 })
@@ -47,8 +50,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { supplierId: string } }
-) {
+  { params }: { params: Promise<{ supplierId: string }> }
+)
+ {
+
+    const { supplierId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -73,7 +79,7 @@ export async function PUT(
     // Get suppliers from business metadata
     const currentMetadata = business.metadata as any || {}
     const suppliers = currentMetadata.suppliers || []
-    const supplierIndex = suppliers.findIndex((s: UniversalSupplier) => s.id === params.supplierId)
+    const supplierIndex = suppliers.findIndex((s: UniversalSupplier) => s.id === supplierId)
 
     if (supplierIndex === -1) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 })
@@ -83,7 +89,7 @@ export async function PUT(
     const updatedSupplier = {
       ...suppliers[supplierIndex],
       ...supplierData,
-      id: params.supplierId, // Ensure ID doesn't change
+      id: supplierId, // Ensure ID doesn't change
       updatedAt: new Date().toISOString(),
       lastUpdatedBy: session.user.id
     }
@@ -110,8 +116,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { supplierId: string } }
-) {
+  { params }: { params: Promise<{ supplierId: string }> }
+)
+ {
+
+    const { supplierId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -137,7 +146,7 @@ export async function DELETE(
     // Get suppliers from business metadata
     const currentMetadata = business.metadata as any || {}
     const suppliers = currentMetadata.suppliers || []
-    const supplierIndex = suppliers.findIndex((s: UniversalSupplier) => s.id === params.supplierId)
+    const supplierIndex = suppliers.findIndex((s: UniversalSupplier) => s.id === supplierId)
 
     if (supplierIndex === -1) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 })

@@ -1188,6 +1188,16 @@ async function runProductionSetup(options = { createAdmin: true, dryRun: false, 
     await seedProjectTypes(options)
     await seedDefaultPersonalCategories(options)
 
+    // Run targeted contract seed (if available)
+    try {
+      const { seedContractCTEMP1009 } = require('./seed-contract-CT-EMP1009')
+      await seedContractCTEMP1009(options)
+      success('  ✓ CT-EMP1009 seed executed')
+    } catch (err) {
+      // Non-fatal if file missing — log and continue
+      warning('  ⚠ CT-EMP1009 seeder not executed: ' + String(err.message))
+    }
+
     // Create system admin (optional)
     if (options.createAdmin !== false) {
       await createSystemAdmin(options)
@@ -1293,4 +1303,15 @@ module.exports = {
   seedDefaultPersonalCategories,
   createSystemAdmin,
   verifySetup
+}
+
+// Attempt to export the targeted CT-EMP1009 seeder if present so callers can import it
+try {
+  // Require lazily to avoid hard failures when the optional seeder file is not present
+  const maybe = require('./seed-contract-CT-EMP1009')
+  if (maybe && typeof maybe.seedContractCTEMP1009 === 'function') {
+    module.exports.seedContractCTEMP1009 = maybe.seedContractCTEMP1009
+  }
+} catch (err) {
+  // Ignore missing optional seeder
 }

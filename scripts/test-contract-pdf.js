@@ -101,30 +101,28 @@ async function createTestEmployeeWithContract() {
       }
     })
     
-    if (!contract) {
-      contract = await prisma.employeeContract.create({
-        data: {
-          employeeId: employee.id,
-          contractNumber: `CONTRACT-${employee.employeeNumber}-2024`,
-          jobTitleId: jobTitle.id,
+      try {
+        const { createContractViaApiOrDb } = require('../src/lib/services/contract-service')
+        const { getOrCreateDevManager } = require('../src/lib/dev/dev-manager')
+        const devMgr = await getOrCreateDevManager(prisma)
+
+        const created = await createContractViaApiOrDb(employee.id, {
+          contractNumber: `TEST-${Date.now()}`,
+          version: 1,
+          baseSalary: 500.00,
           compensationTypeId: compensationType.id,
-          baseSalary: 5500.00, // Different from compensation base to test actual contract values
-          livingAllowance: 800.00, // Living allowance as per Hwanda template
-          commissionAmount: 275.00, // 5% commission on base
-          contractDurationMonths: 12, // Specified duration
-          startDate: new Date('2024-01-15'),
-          endDate: new Date('2025-01-14'), // 12 month contract
-          primaryBusinessId: business.id,
-          supervisorId: employee.id, // Using same employee as supervisor for test purposes
-          supervisorName: 'Sarah Johnson',
-          supervisorTitle: 'Operations Manager',
+          jobTitleId: jobTitle.id,
+          startDate: new Date().toISOString(),
+          supervisorId: employee.supervisorId || devMgr?.id || null,
           status: 'active',
-          createdBy: 'system-test'
-        }
-      })
-      console.log(`✅ Created contract: $${contract.baseSalary} + $${contract.livingAllowance} living + $${contract.commissionAmount} commission`)
-    } else {
-      console.log(`✅ Found existing active contract: $${contract.baseSalary} + $${contract.livingAllowance} living + $${contract.commissionAmount} commission`)
+          createdBy: 'test-script',
+          pdfGenerationData,
+          primaryBusinessId: business.id
+        })
+
+        console.log('Created contract', created.id || created.contractNumber)
+      } catch (err) {
+        console.error('\u274c Failed to create contract via helper:', err && err.message ? err.message : err)
     }
     
     // Create some time tracking data

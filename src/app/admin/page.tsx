@@ -381,10 +381,11 @@ export default function AdminPage() {
                 Create Dev Seed
               </button>
 
-              <button
+                <button
                 onClick={() => {
                   setModalBusinessId(null)
                   setModalAction({ endpoint: '/api/admin/cleanup-dev-data', label: 'Remove Dev Seed', method: 'POST', body: { confirm: true } })
+                  // mark as unseed so modal shows unseed messaging
                   setModalOpen(true)
                 }}
                 className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded"
@@ -400,6 +401,8 @@ export default function AdminPage() {
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-contractors', label: 'Seed Contractors Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Contractors Demo</button>
 
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-grocery', label: 'Seed Grocery Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Grocery Demo</button>
+
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/regenerate-contract-pdfs', label: 'Regenerate Contract PDFs', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">Regenerate Contract PDFs</button>
 
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-clothing', label: 'Seed Clothing Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Clothing Demo</button>
 
@@ -418,6 +421,8 @@ export default function AdminPage() {
                 isOpen={modalOpen}
                 onClose={() => { setModalOpen(false); setModalAction(null) }}
                 businessId={modalBusinessId}
+                actionLabel={modalAction.label}
+                isUnseed={modalAction.endpoint?.includes('unseed') || modalAction.endpoint?.includes('cleanup')}
                 onConfirm={async (_useTargeted: boolean) => {
                   // execute the pending action
                   setModalOpen(false)

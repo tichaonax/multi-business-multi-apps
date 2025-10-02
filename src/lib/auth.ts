@@ -47,23 +47,28 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'credentials',
       credentials: {
-        email: { label: 'Email', type: 'email' },
+        identifier: { label: 'Email or Username', type: 'text' },
         password: { label: 'Password', type: 'password' }
       },
     async authorize(credentials, req) {
-        console.log('🔐 Authorization attempt for:', credentials?.email)
+        console.log('🔐 Authorization attempt for:', credentials?.identifier)
 
-        if (!credentials?.email || !credentials?.password) {
+        if (!credentials?.identifier || !credentials?.password) {
           console.log('❌ Missing credentials')
           return null
         }
 
         console.log('🔍 Searching for user in database...')
-        // Fetch user without include to avoid generated Prisma include typing mismatches
-        const dbUser = await prisma.user.findUnique({ where: { email: credentials.email } }) as any
+        // Try to find user by email first, then by username
+        let dbUser = await prisma.user.findUnique({ where: { email: credentials.identifier } }) as any
 
         if (!dbUser) {
-          console.log('❌ User not found:', credentials.email)
+          // If not found by email, try finding by username
+          dbUser = await prisma.user.findUnique({ where: { username: credentials.identifier } }) as any
+        }
+
+        if (!dbUser) {
+          console.log('❌ User not found:', credentials.identifier)
           return null
         }
 
@@ -141,6 +146,12 @@ export const authOptions: NextAuthOptions = {
         t.role = (user as any).role
         t.permissions = (user as any).permissions
         t.businessMemberships = (user as any).businessMemberships
+
+        // Add unique session identifier and login timestamp
+        t.sessionId = `${(user as any).id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        t.loginTime = Date.now()
+
+        console.log('🔑 New session created:', t.sessionId, 'for user:', (user as any).email)
       }
       return token
     },
@@ -153,8 +164,27 @@ export const authOptions: NextAuthOptions = {
         s.user.role = t.role
         s.user.permissions = t.permissions
         s.user.businessMemberships = t.businessMemberships
+        s.sessionId = t.sessionId
+        s.loginTime = t.loginTime
       }
       return session
+    },
+  },
+  events: {
+    async signIn({ user, account, profile, isNewUser }) {
+      console.log('✅ Sign-in event:', {
+        userId: (user as any).id,
+        email: (user as any).email,
+        isNewUser,
+        timestamp: new Date().toISOString()
+      })
+    },
+    async signOut({ token, session }) {
+      console.log('🚪 Sign-out event:', {
+        sessionId: (token as any)?.sessionId || (session as any)?.sessionId,
+        userId: (token as any)?.sub || (session as any)?.user?.id,
+        timestamp: new Date().toISOString()
+      })
     },
   },
   pages: {

@@ -12,7 +12,7 @@ interface TemplateUpdateRequest {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -21,7 +21,7 @@ export async function PATCH(
     }
 
     const user = session.user as SessionUser
-    const templateId = params.templateId
+    const { templateId } = await params
 
     if (!templateId) {
       return NextResponse.json({ error: 'Template ID is required' }, { status: 400 })
@@ -108,7 +108,7 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -117,7 +117,7 @@ export async function DELETE(
     }
 
     const user = session.user as SessionUser
-    const templateId = params.templateId
+    const { templateId } = await params
 
     if (!templateId) {
       return NextResponse.json({ error: 'Template ID is required' }, { status: 400 })

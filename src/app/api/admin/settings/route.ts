@@ -14,6 +14,7 @@ interface SystemSettings {
   globalDateFormat: string;
   defaultCountryCode: string;
   defaultIdFormatTemplateId: string;
+  defaultMileageUnit: string;
 }
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   globalDateFormat: 'dd/mm/yyyy',
   defaultCountryCode: 'ZW',
   defaultIdFormatTemplateId: 'cmfm8wyzp00001pek06cu95hb', // Zimbabwe National ID
+  defaultMileageUnit: 'km',
 };
 
 export async function GET() {

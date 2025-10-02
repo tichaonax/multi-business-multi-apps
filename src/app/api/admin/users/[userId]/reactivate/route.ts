@@ -6,8 +6,11 @@ import { isSystemAdmin } from '@/lib/permission-utils'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { userId: string } }
-) {
+  { params }: { params: Promise<{ userId: string }> }
+)
+ {
+
+    const { userId } = await params
   try {
     const session = await getServerSession(authOptions)
     

@@ -3,9 +3,12 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> })
+ {
+
+    const { id } = await params
   try {
-    const promotionId = params.id
+    const promotionId = id
     const data = await request.json()
 
     const promotion = await prisma.menuPromotion.update({
@@ -32,9 +35,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> })
+ {
+
+    const { id } = await params
   try {
-    const promotionId = params.id
+    const promotionId = id
 
     await prisma.menuPromotion.delete({
       where: { id: promotionId }

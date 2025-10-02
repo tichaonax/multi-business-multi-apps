@@ -60,6 +60,18 @@ export function getEffectivePermissions(user: SessionUser | null | undefined, bu
 
   // No specific business - get highest level permissions across all businesses
   if (activeBusinessMemberships.length === 0) {
+    // Special case: Check if this is a driver-only user (has only driver permissions)
+    const userPermissions = user.permissions || {}
+    const isDriverOnly = userPermissions.canLogDriverTrips &&
+                        userPermissions.canLogDriverMaintenance &&
+                        !userPermissions.canAccessPersonalFinance &&
+                        !userPermissions.canManageVehicles
+
+    if (isDriverOnly) {
+      // Drivers get NO business-level permissions, only their specific user-level permissions
+      return getDriverOnlyPermissions()
+    }
+
     return getPersonalOnlyPermissions()
   }
 
@@ -94,6 +106,87 @@ function getMembershipPermissions(membership: any): BusinessPermissions {
   return {
     ...presetPermissions,
     ...customPermissions
+  } as BusinessPermissions
+}
+
+/**
+ * Get permissions for driver-only users (no business-level permissions)
+ */
+function getDriverOnlyPermissions(): BusinessPermissions {
+  return {
+    // User-level permissions - drivers only get trip/maintenance logging
+    canLogDriverTrips: true,
+    canLogDriverMaintenance: true,
+
+    // All business-level permissions are false for drivers
+    canViewBusiness: false,
+    canEditBusiness: false,
+    canDeleteBusiness: false,
+    canManageBusinessUsers: false,
+    canManageBusinessSettings: false,
+    canViewUsers: false,
+    canInviteUsers: false,
+    canEditUserPermissions: false,
+    canRemoveUsers: false,
+    canViewAuditLogs: false,
+    canExportBusinessData: false,
+    canImportBusinessData: false,
+    canBackupBusiness: false,
+    canRestoreBusiness: false,
+    canViewEmployees: false,
+    canCreateEmployees: false,
+    canEditEmployees: false,
+    canDeleteEmployees: false,
+    canManageEmployees: false,
+    canViewEmployeeContracts: false,
+    canCreateEmployeeContracts: false,
+    canEditEmployeeContracts: false,
+    canDeleteEmployeeContracts: false,
+    canManageJobTitles: false,
+    canManageBenefitTypes: false,
+    canManageCompensationTypes: false,
+    canManageDisciplinaryActions: false,
+    canViewEmployeeReports: false,
+    canExportEmployeeData: false,
+    canApproveSalaryIncreases: false,
+    canProcessSalaryIncreases: false,
+    canAccessFinancialData: false,
+    canManageProjectBudgets: false,
+    canManageProjectPayments: false,
+    canViewCostReports: false,
+    canApproveBudgetChanges: false,
+    canViewProfitabilityReports: false,
+
+    // Personal finance and other user-level permissions - all false for drivers
+    canAccessPersonalFinance: false,
+    canAddPersonalExpenses: false,
+    canEditPersonalExpenses: false,
+    canDeletePersonalExpenses: false,
+    canAddMoney: false,
+    canManagePersonalCategories: false,
+    canManagePersonalContractors: false,
+    canManagePersonalProjects: false,
+    canViewPersonalReports: false,
+    canExportPersonalData: false,
+    canViewProjects: false,
+    canCreatePersonalProjects: false,
+    canCreateBusinessProjects: false,
+    canEditProjects: false,
+    canDeleteProjects: false,
+    canManageProjectTypes: false,
+    canViewProjectReports: false,
+    canAccessCrossBusinessProjects: false,
+    canAccessVehicles: false,
+    canViewVehicles: false,
+    canManageVehicles: false,
+    canManageDrivers: false,
+    canManageTrips: false,
+    canManageVehicleMaintenance: false,
+    canViewVehicleReports: false,
+    canExportVehicleData: false,
+    canManageSystemSettings: false,
+    canViewSystemLogs: false,
+    canManageAllBusinesses: false,
   } as BusinessPermissions
 }
 

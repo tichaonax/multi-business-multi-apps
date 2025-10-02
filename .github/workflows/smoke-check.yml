@@ -36,3 +36,7 @@ jobs:
             echo "Smoke-check failed (exit code $rc). See smoke-check.log for details."
             exit $rc
           fi
+      - name: Run seed verification tests
+        run: |
+          # Run the specific Jest test that validates seeded employee/contract data
+          npx jest src/lib/seed/__tests__/seed-contact-ct-emp1009.test.js --runInBand

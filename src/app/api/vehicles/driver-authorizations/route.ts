@@ -9,18 +9,18 @@ const CreateAuthorizationSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
   authorizedBy: z.string().min(1, 'Authorizer ID is required'),
   authorizedDate: z.string().min(1, 'Authorization date is required'),
-  expiryDate: z.string().optional(),
+  expiryDate: z.string().optional().nullable(),
   authorizationLevel: z.enum(['BASIC', 'ADVANCED', 'EMERGENCY']).default('BASIC'),
-  notes: z.string().optional()
+  notes: z.string().optional().nullable()
 })
 
 const UpdateAuthorizationSchema = z.object({
   id: z.string().min(1),
   authorizedBy: z.string().optional(),
   authorizedDate: z.string().optional(),
-  expiryDate: z.string().optional(),
+  expiryDate: z.string().optional().nullable(),
   authorizationLevel: z.enum(['BASIC', 'ADVANCED', 'EMERGENCY']).optional(),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable(),
   isActive: z.boolean().optional()
 })
 
@@ -191,15 +191,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Generate unique ID for the authorization
+    const authorizationId = `auth-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
     // Create authorization
     const authorization = await prisma.driverAuthorization.create({
       data: {
+        id: authorizationId,
         ...validatedData,
         authorizedDate: new Date(validatedData.authorizedDate),
-        expiryDate: validatedData.expiryDate ? new Date(validatedData.expiryDate) : null
+        expiryDate: validatedData.expiryDate ? new Date(validatedData.expiryDate) : null,
+        updatedAt: new Date()
       },
       include: {
-        driver: {
+        vehicleDrivers: {
           select: {
             id: true,
             fullName: true,
@@ -208,7 +213,7 @@ export async function POST(request: NextRequest) {
             emailAddress: true
           }
         },
-        vehicle: {
+        vehicles: {
           select: {
             id: true,
             licensePlate: true,
@@ -218,7 +223,7 @@ export async function POST(request: NextRequest) {
             ownershipType: true
           }
         },
-        authorizer: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -297,7 +302,7 @@ export async function PUT(request: NextRequest) {
         expiryDate: updateData.expiryDate ? new Date(updateData.expiryDate) : undefined
       },
       include: {
-        driver: {
+        vehicleDrivers: {
           select: {
             id: true,
             fullName: true,
@@ -306,7 +311,7 @@ export async function PUT(request: NextRequest) {
             emailAddress: true
           }
         },
-        vehicle: {
+        vehicles: {
           select: {
             id: true,
             licensePlate: true,
@@ -316,7 +321,7 @@ export async function PUT(request: NextRequest) {
             ownershipType: true
           }
         },
-        authorizer: {
+        users: {
           select: {
             id: true,
             name: true,

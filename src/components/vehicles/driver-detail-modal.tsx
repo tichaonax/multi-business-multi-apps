@@ -8,6 +8,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { useSession } from 'next-auth/react'
 import { VehicleDriver } from '@/types/vehicle'
 import { hasPermission, isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { Car, Calendar, Shield } from 'lucide-react'
 
  interface DriverDetailModalProps {
    driver: VehicleDriver | null
@@ -29,6 +30,10 @@ import { hasPermission, isSystemAdmin, hasUserPermission } from '@/lib/permissio
   const [editing, setEditing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [licenseTemplates, setLicenseTemplates] = useState<any[]>([])
+
+  // Vehicle assignments state
+  const [vehicleAssignments, setVehicleAssignments] = useState<any[]>([])
+  const [loadingAssignments, setLoadingAssignments] = useState(false)
 
   const [formData, setFormData] = useState<Record<string, string>>({
      fullName: driver.fullName || '',
@@ -58,6 +63,26 @@ import { hasPermission, isSystemAdmin, hasUserPermission } from '@/lib/permissio
     })
   }, [driver, globalDateFormat])
 
+  // Load vehicle assignments
+  const loadVehicleAssignments = async () => {
+    if (!driver) return
+
+    setLoadingAssignments(true)
+    try {
+      const response = await fetch(`/api/vehicles/driver-authorizations?driverId=${driver.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.data) {
+          setVehicleAssignments(data.data)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load vehicle assignments:', error)
+    } finally {
+      setLoadingAssignments(false)
+    }
+  }
+
   useEffect(() => {
     // Fetch license templates to enable formatted display using the saved template
     let mounted = true
@@ -73,6 +98,12 @@ import { hasPermission, isSystemAdmin, hasUserPermission } from '@/lib/permissio
     })()
     return () => { mounted = false }
   }, [])
+
+  useEffect(() => {
+    if (driver) {
+      loadVehicleAssignments()
+    }
+  }, [driver])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -218,6 +249,73 @@ import { hasPermission, isSystemAdmin, hasUserPermission } from '@/lib/permissio
              </div>
            </div>
          )}
+
+         {/* Vehicle Assignments Section */}
+         <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+           <div className="flex items-center gap-2 mb-4">
+             <Car className="h-5 w-5 text-blue-600" />
+             <h3 className="text-lg font-medium text-primary">Vehicle Assignments</h3>
+           </div>
+
+           {loadingAssignments ? (
+             <div className="text-center py-4">
+               <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+               <p className="text-sm text-secondary mt-2">Loading assignments...</p>
+             </div>
+           ) : vehicleAssignments.length === 0 ? (
+             <p className="text-secondary text-sm">No vehicles assigned to this driver</p>
+           ) : (
+             <div className="space-y-3">
+               {vehicleAssignments.map((assignment: any) => (
+                 <div
+                   key={`${assignment.driverId}-${assignment.vehicleId}`}
+                   className="border border-gray-200 dark:border-gray-700 rounded-lg p-3"
+                 >
+                   <div className="flex items-start justify-between">
+                     <div className="flex-1">
+                       <div className="flex items-center gap-3 mb-2">
+                         <h4 className="font-medium text-primary">
+                           {assignment.vehicles?.licensePlate} - {assignment.vehicles?.make} {assignment.vehicles?.model}
+                         </h4>
+                         <span className={`px-2 py-1 text-xs rounded ${
+                           assignment.authorizationLevel === 'EMERGENCY'
+                             ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                             : assignment.authorizationLevel === 'ADVANCED'
+                             ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                             : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                         }`}>
+                           <Shield className="h-3 w-3 inline mr-1" />
+                           {assignment.authorizationLevel}
+                         </span>
+                         {!assignment.isActive && (
+                           <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                             Inactive
+                           </span>
+                         )}
+                       </div>
+                       <div className="text-sm text-secondary space-y-1">
+                         <div>
+                           <strong>Authorized:</strong> {new Date(assignment.authorizedDate).toLocaleDateString()}
+                         </div>
+                         {assignment.expiryDate && (
+                           <div className="flex items-center gap-1">
+                             <Calendar className="h-4 w-4" />
+                             <strong>Expires:</strong> {new Date(assignment.expiryDate).toLocaleDateString()}
+                           </div>
+                         )}
+                         {assignment.notes && (
+                           <div>
+                             <strong>Notes:</strong> {assignment.notes}
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+               ))}
+             </div>
+           )}
+         </div>
 
          <div className="mt-6 flex justify-end gap-2">
            {canEdit && !editing && (

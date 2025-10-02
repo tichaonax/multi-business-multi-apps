@@ -381,7 +381,7 @@ export function MaintenanceList({ onMaintenanceSelect, onAddMaintenance, vehicle
                           </div>
                           <div className="flex flex-wrap items-center gap-1">
                             <span className="font-medium text-primary">Mileage:</span>
-                            <span>{record.mileageAtService?.toLocaleString() || 'N/A'} miles</span>
+                            <span>{record.mileageAtService?.toLocaleString() || 'N/A'} {record.vehicle?.mileageUnit || 'km'}</span>
                           </div>
                         </div>
 
@@ -399,7 +399,7 @@ export function MaintenanceList({ onMaintenanceSelect, onAddMaintenance, vehicle
                               <span className="font-medium text-primary flex-shrink-0">Next Service:</span>
                               <span className="text-secondary">
                                 {record.nextServiceDate && formatDate(record.nextServiceDate)}
-                                {record.nextServiceMileage && ` at ${record.nextServiceMileage.toLocaleString()} miles`}
+                                {record.nextServiceMileage && ` at ${record.nextServiceMileage.toLocaleString()} ${record.vehicle?.mileageUnit || 'km'}`}
                               </span>
                             </div>
                           )}

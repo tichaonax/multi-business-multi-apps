@@ -36,8 +36,11 @@ const mockInventoryItems: Record<string, any[]> = {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { businessId: string; itemId: string } }
-) {
+  { params }: { params: Promise<{ businessId: string; itemId: string }> }
+)
+ {
+
+    const { businessId, itemId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
@@ -83,8 +86,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { businessId: string; itemId: string } }
-) {
+  { params }: { params: Promise<{ businessId: string; itemId: string }> }
+)
+ {
+
+    const { businessId, itemId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
@@ -130,8 +136,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { businessId: string; itemId: string } }
-) {
+  { params }: { params: Promise<{ businessId: string; itemId: string }> }
+)
+ {
+
+    const { businessId, itemId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {

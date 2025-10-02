@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function POST(request: NextRequest, { params }: { params: { id: string; imageId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> })
+ {
+
+    const { id, imageId } = await params
   try {
     const { id: productId, imageId } = params
 

@@ -14,14 +14,17 @@ export async function POST(request: NextRequest) {
   const confirmed = !!body.confirm
   const confirmText = typeof body.confirmText === 'string' ? body.confirmText : undefined
   if (!confirmed || !confirmText) return NextResponse.json({ error: 'Confirmation required' }, { status: 400 })
-  if (!confirmText.startsWith('UNSEED-RESTAURANT-')) return NextResponse.json({ error: 'Invalid confirmation text' }, { status: 400 })
+  if (!confirmText.startsWith('UNSEED-RESTAURANT-') && !confirmText.startsWith('UNSEED-')) return NextResponse.json({ error: 'Invalid confirmation text' }, { status: 400 })
 
   try {
     const { prisma } = await import('@/lib/prisma')
   const demoBusinessId = 'restaurant-demo'
 
     // Delete order items -> orders -> stock movements -> variants -> attributes -> products -> categories -> business
-    await prisma.businessOrderItem.deleteMany({ where: { order: { businessId: demoBusinessId } } }).catch(() => {})
+    const demoOrderIds = await prisma.businessOrder.findMany({ where: { businessId: demoBusinessId }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => [])
+    if (demoOrderIds.length > 0) {
+      await prisma.businessOrderItem.deleteMany({ where: { orderId: { in: demoOrderIds } } }).catch(() => {})
+    }
     await prisma.businessOrder.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
     await prisma.businessStockMovement.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
 

@@ -276,7 +276,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
         className="flex items-center space-x-3 text-sm rounded-md p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       >
         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-          {getInitials(user.name || user.email)}
+          {getInitials(user.name || user.email || 'User')}
         </div>
         <div className="hidden md:block text-left">
           <p className="text-gray-900 dark:text-white font-medium">{user.name}</p>
@@ -303,7 +303,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
               <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                Role: {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)}
+                Role: {user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User'}
               </p>
             </div>
             

@@ -28,6 +28,8 @@ export interface UserLevelPermissions {
   canManageVehicles: boolean;
   canManageDrivers: boolean;
   canManageTrips: boolean;
+  canLogDriverTrips: boolean; // Limited permission for drivers to log basic trip information
+  canLogDriverMaintenance: boolean; // Limited permission for drivers to log basic maintenance services
   canManageVehicleMaintenance: boolean;
   canViewVehicleReports: boolean;
   canExportVehicleData: boolean;
@@ -513,6 +515,8 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canManageVehicles', label: 'Manage Vehicles' },
       { key: 'canManageDrivers', label: 'Manage Drivers' },
       { key: 'canManageTrips', label: 'Manage Trips' },
+      { key: 'canLogDriverTrips', label: 'Log Driver Trips' },
+      { key: 'canLogDriverMaintenance', label: 'Log Driver Maintenance' },
       { key: 'canManageVehicleMaintenance', label: 'Manage Maintenance' },
       { key: 'canViewVehicleReports', label: 'View Reports' },
       { key: 'canExportVehicleData', label: 'Export Data' },
@@ -848,6 +852,8 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canManageVehicles: false,
   canManageDrivers: false,
   canManageTrips: false,
+  canLogDriverTrips: false,
+  canLogDriverMaintenance: false,
   canManageVehicleMaintenance: false,
   canViewVehicleReports: false,
   canExportVehicleData: false,
@@ -887,6 +893,8 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canManageVehicles: true,
   canManageDrivers: true,
   canManageTrips: true,
+  canLogDriverTrips: true,
+  canLogDriverMaintenance: true,
   canManageVehicleMaintenance: true,
   canViewVehicleReports: true,
   canExportVehicleData: true,
@@ -895,6 +903,48 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canManageSystemSettings: true,
   canViewSystemLogs: true,
   canManageAllBusinesses: true,
+};
+
+// Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
+export const DRIVER_PERMISSIONS: UserLevelPermissions = {
+  // Personal Finance - No access
+  canAccessPersonalFinance: false,
+  canAddPersonalExpenses: false,
+  canEditPersonalExpenses: false,
+  canDeletePersonalExpenses: false,
+  canAddMoney: false,
+  canManagePersonalCategories: false,
+  canManagePersonalContractors: false,
+  canManagePersonalProjects: false,
+  canViewPersonalReports: false,
+  canExportPersonalData: false,
+
+  // Project Management - No access
+  canViewProjects: false,
+  canCreatePersonalProjects: false,
+  canCreateBusinessProjects: false,
+  canEditProjects: false,
+  canDeleteProjects: false,
+  canManageProjectTypes: false,
+  canViewProjectReports: false,
+  canAccessCrossBusinessProjects: false,
+
+  // Vehicle Management - ONLY trip logging
+  canAccessVehicles: false,
+  canViewVehicles: false,
+  canManageVehicles: false,
+  canManageDrivers: false,
+  canManageTrips: false,
+  canLogDriverTrips: true,  // Driver trip logging permission
+  canLogDriverMaintenance: true,  // Driver maintenance logging permission
+  canManageVehicleMaintenance: false,
+  canViewVehicleReports: false,
+  canExportVehicleData: false,
+
+  // System Administration - No access
+  canManageSystemSettings: false,
+  canViewSystemLogs: false,
+  canManageAllBusinesses: false,
 };
 
 // Permission presets for easy management

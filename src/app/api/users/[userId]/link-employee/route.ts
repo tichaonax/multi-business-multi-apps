@@ -6,8 +6,11 @@ import { hasPermission } from '@/lib/permission-utils';
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { userId: string } }
-) {
+  { params }: { params: Promise<{ userId: string }> }
+)
+ {
+
+    const { userId } = await params
   try {
     const session = await getServerSession(authOptions);
     const currentUser = session?.user as any
@@ -179,8 +182,11 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { userId: string } }
-) {
+  { params }: { params: Promise<{ userId: string }> }
+)
+ {
+
+    const { userId } = await params
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {

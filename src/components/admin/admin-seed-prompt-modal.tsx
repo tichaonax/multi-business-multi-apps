@@ -8,9 +8,11 @@ interface Props {
   onClose: () => void
   businessId: string | null
   onConfirm: (useTargeted: boolean) => Promise<void>
+  actionLabel?: string
+  isUnseed?: boolean
 }
 
-export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm }: Props) {
+export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm, actionLabel, isUnseed }: Props) {
   if (!isOpen) return null
   const [processing, setProcessing] = useState(false)
   const [step, setStep] = useState<'choose' | 'confirm'>('choose')
@@ -21,8 +23,20 @@ export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm }:
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-primary">Create demo business</h3>
-            <p className="text-sm text-secondary">The business you requested ({businessId}) was not found. As an administrator you can create demo data to continue. Choose whether to create a single demo business (if available) or the full dev dataset.</p>
+            <h3 className="text-lg font-semibold text-primary">{actionLabel || (isUnseed ? 'Remove demo data' : 'Create demo business')}</h3>
+            {isUnseed ? (
+              businessId ? (
+                <p className="text-sm text-secondary">You are about to remove demo data for the business <span className="font-mono">{businessId}</span>. This will delete demo businesses, employees, and related demo records for that business. Choose whether to unseed the single business (if available) or the full developer dataset.</p>
+              ) : (
+                <p className="text-sm text-secondary">No specific business was selected. You are about to remove demo data. Choose whether to unseed a single demo business (when applicable) or the full developer dataset.</p>
+              )
+            ) : (
+              businessId ? (
+                <p className="text-sm text-secondary">The business you requested (<span className="font-mono">{businessId}</span>) was not found. As an administrator you can create demo data to continue. Choose whether to create a single demo business (if available) or the full developer dataset.</p>
+              ) : (
+                <p className="text-sm text-secondary">No specific business was selected. As an administrator you can create demo data to continue. Choose whether to create a single demo business (when applicable) or the full developer dataset.</p>
+              )
+            )}
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
         </div>
@@ -39,7 +53,7 @@ export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm }:
                   }}
                   className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
                 >
-                  Create single demo business
+                  {isUnseed ? 'Unseed single demo business' : 'Create single demo business'}
                 </button>
                 <button
                   onClick={() => {
@@ -48,7 +62,7 @@ export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm }:
                   }}
                   className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
                 >
-                  Create full dev dataset
+                  {isUnseed ? 'Unseed full dev dataset' : 'Create full dev dataset'}
                 </button>
                 <button onClick={onClose} className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-md">Cancel</button>
               </div>

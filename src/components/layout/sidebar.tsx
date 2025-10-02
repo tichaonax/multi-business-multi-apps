@@ -255,53 +255,57 @@ export function Sidebar() {
           <span>Dashboard</span>
         </Link>
         
-        {/* Universal Hierarchical Business Navigation */}
-        <div className="pt-4 pb-2">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Business Types</h3>
-        </div>
+        {/* Universal Hierarchical Business Navigation - Only for managers and admins, NOT promoted drivers */}
+        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canManageEmployees') || hasPermission(currentUser, 'canEditEmployees') || hasPermission(currentUser, 'canAccessFinancialData')) && (
+          <>
+            <div className="pt-4 pb-2">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Business Types</h3>
+            </div>
 
-        {businessGroups.map((group) => (
-          <div key={group.type} className="mb-1">
-            {/* Business Type Header - Collapsible */}
-            <button
-              onClick={() => toggleBusinessType(group.type)}
-              className="w-full sidebar-link flex items-center space-x-3 justify-between hover:bg-gray-800 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <span className="text-lg">{group.icon}</span>
-                <span className="capitalize">{group.type}</span>
-                <span className="text-xs text-gray-400">({group.businesses.length})</span>
-              </div>
-              <span className="text-sm text-gray-400">
-                {expandedBusinessTypes.has(group.type) ? '▼' : '▶'}
-              </span>
-            </button>
+            {businessGroups.map((group) => (
+              <div key={group.type} className="mb-1">
+                {/* Business Type Header - Collapsible */}
+                <button
+                  onClick={() => toggleBusinessType(group.type)}
+                  className="w-full sidebar-link flex items-center space-x-3 justify-between hover:bg-gray-800 transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <span className="text-lg">{group.icon}</span>
+                    <span className="capitalize">{group.type}</span>
+                    <span className="text-xs text-gray-400">({group.businesses.length})</span>
+                  </div>
+                  <span className="text-sm text-gray-400">
+                    {expandedBusinessTypes.has(group.type) ? '▼' : '▶'}
+                  </span>
+                </button>
 
-            {/* Business List - Show when expanded */}
-            {expandedBusinessTypes.has(group.type) && (
-              <div className="ml-6 mt-1 space-y-1">
-                {group.businesses.map((business) => (
-                  <button
-                    key={business.id}
-                    onClick={() => handleBusinessClick(business)}
-                    className={`w-full text-left text-sm px-3 py-2 rounded transition-colors ${
-                      currentBusiness?.businessId === business.id
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="truncate">{business.name}</span>
-                      {currentBusiness?.businessId === business.id && (
-                        <span className="text-xs">✓</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                {/* Business List - Show when expanded */}
+                {expandedBusinessTypes.has(group.type) && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {group.businesses.map((business) => (
+                      <button
+                        key={business.id}
+                        onClick={() => handleBusinessClick(business)}
+                        className={`w-full text-left text-sm px-3 py-2 rounded transition-colors ${
+                          currentBusiness?.businessId === business.id
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="truncate">{business.name}</span>
+                          {currentBusiness?.businessId === business.id && (
+                            <span className="text-xs">✓</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+            ))}
+          </>
+        )}
 
         {loadingBusinesses && (
           <div className="text-gray-400 text-sm px-3 py-2">
@@ -323,10 +327,19 @@ export function Sidebar() {
         )}
 
         {/* Fleet Management - User-level permissions (business-agnostic) */}
-  {(hasUserPermission(currentUser, 'canAccessVehicles') || isSystemAdmin(currentUser)) && (
+  {(hasUserPermission(currentUser, 'canAccessVehicles') || hasUserPermission(currentUser, 'canLogDriverTrips') || hasUserPermission(currentUser, 'canLogDriverMaintenance') || isSystemAdmin(currentUser)) && (
           <div className="pt-1">
             <button
-              onClick={() => navigateTo('/vehicles')}
+              onClick={() => {
+                // Drivers go to driver portal, others go to full vehicle management
+                const isDriver = currentUser &&
+                  hasUserPermission(currentUser, 'canLogDriverTrips') &&
+                  hasUserPermission(currentUser, 'canLogDriverMaintenance') &&
+                  !hasUserPermission(currentUser, 'canAccessPersonalFinance') &&
+                  !isSystemAdmin(currentUser)
+
+                navigateTo(isDriver ? '/driver' : '/vehicles')
+              }}
               className={getLinkClasses('/vehicles')}
             >
               <span className="text-lg">🚗</span>
@@ -347,7 +360,42 @@ export function Sidebar() {
             </button>
           </div>
         )}
-        
+
+        {/* Individual Access Items - Only for actual managers and system admins, NOT promoted drivers */}
+
+        {/* Employees - Only for users with management permissions, not just viewing */}
+        {(hasPermission(currentUser, 'canManageEmployees') || hasPermission(currentUser, 'canEditEmployees') || hasPermission(currentUser, 'canManageBusinessUsers') || isSystemAdmin(currentUser)) && (
+          <Link
+            href="/employees"
+            className="sidebar-link flex items-center space-x-3"
+          >
+            <span className="text-lg">👤</span>
+            <span>Employees</span>
+          </Link>
+        )}
+
+        {/* Reports - Only for managers and admins, not drivers */}
+        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canAccessFinancialData')) && (
+          <Link
+            href="/reports"
+            className="sidebar-link flex items-center space-x-3"
+          >
+            <span className="text-lg">📈</span>
+            <span>Reports</span>
+          </Link>
+        )}
+
+        {/* HR Reports - Only for users with actual employee management permissions */}
+        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageEmployees') || hasPermission(currentUser, 'canEditEmployees')) && (
+          <Link
+            href="/admin/reports"
+            className="sidebar-link flex items-center space-x-3"
+          >
+            <span className="text-lg">📊</span>
+            <span>HR Reports</span>
+          </Link>
+        )}
+
         <div className="pt-4 pb-2">
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tools</h3>
         </div>
@@ -371,76 +419,58 @@ export function Sidebar() {
           <span>Team Chat</span>
         </Link>
 
-        <Link
-          href="/reports"
-          className="sidebar-link flex items-center space-x-3"
-        >
-          <span className="text-lg">📈</span>
-          <span>Reports</span>
-        </Link>
-        
-        {/* Employee Management Section */}
-  {(hasPermission(currentUser, 'canViewEmployees') || hasPermission(currentUser, 'canManageEmployees') || isSystemAdmin(currentUser)) && (
+        {/* Employee Management Section - Only for users with actual management permissions */}
+        {(hasPermission(currentUser, 'canManageEmployees') ||
+          hasPermission(currentUser, 'canManageJobTitles') ||
+          hasPermission(currentUser, 'canEditEmployees') ||
+          hasPermission(currentUser, 'canManageBenefitTypes') ||
+          hasPermission(currentUser, 'canManageCompensationTypes') ||
+          hasPermission(currentUser, 'canManageDisciplinaryActions') ||
+          isSystemAdmin(currentUser)) && (
           <>
             <div className="pt-4 pb-2">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Employee Management</h3>
             </div>
-            
-            <Link 
-              href="/employees" 
-              className="sidebar-link flex items-center space-x-3"
-            >
-              <span className="text-lg">👤</span>
-              <span>Employees</span>
-            </Link>
-            
+
             {hasPermission(currentUser, 'canManageJobTitles') && (
-              <Link 
-                href="/admin/job-titles" 
+              <Link
+                href="/admin/job-titles"
                 className="sidebar-link flex items-center space-x-3"
               >
                 <span className="text-lg">💼</span>
                 <span>Job Titles</span>
               </Link>
             )}
-            
+
             {hasPermission(currentUser, 'canEditEmployees') && (
-              <Link 
-                href="/admin/hierarchy" 
+              <Link
+                href="/admin/hierarchy"
                 className="sidebar-link flex items-center space-x-3"
               >
                 <span className="text-lg">🌳</span>
                 <span>Hierarchy</span>
               </Link>
             )}
-            
+
             {(hasPermission(currentUser, 'canManageBenefitTypes') || hasPermission(currentUser, 'canManageCompensationTypes')) && (
-              <Link 
-                href="/admin/benefits" 
+              <Link
+                href="/admin/benefits"
                 className="sidebar-link flex items-center space-x-3"
               >
                 <span className="text-lg">💰</span>
                 <span>Benefits & Compensation</span>
               </Link>
             )}
-            
+
             {hasPermission(currentUser, 'canManageDisciplinaryActions') && (
-              <Link 
-                href="/admin/disciplinary" 
+              <Link
+                href="/admin/disciplinary"
                 className="sidebar-link flex items-center space-x-3"
               >
                 <span className="text-lg">⚠️</span>
                 <span>Disciplinary Actions</span>
               </Link>
             )}
-            
-            <Link 
-              href="/admin/reports" 
-              className="sidebar-link flex items-center space-x-3"
-            >
-              <span className="text-lg">📊</span>
-              <span>HR Reports</span>
-            </Link>
           </>
         )}
         

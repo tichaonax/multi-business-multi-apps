@@ -37,7 +37,7 @@ interface ComboItem {
   isRequired: boolean
   sortOrder: number
   product?: MenuItem
-  variant?: MenuItem['variants'][0]
+  variant?: NonNullable<MenuItem['variants']>[number]
 }
 
 interface Combo {

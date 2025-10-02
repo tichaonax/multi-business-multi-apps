@@ -4,14 +4,14 @@ import { authOptions } from '@/lib/auth'
 import fs from 'fs'
 import path from 'path'
 
-export async function GET(request: NextRequest, { params }: { params: { filename: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ filename: string }> }) {
   const session = await getServerSession(authOptions)
   const currentUser = session?.user as any
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const filename = params.filename
+  const { filename } = await params
   const base = path.join(process.cwd(), 'scripts')
   const abs = path.join(base, filename)
   if (!fs.existsSync(abs)) return NextResponse.json({ error: 'Not found' }, { status: 404 })

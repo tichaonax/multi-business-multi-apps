@@ -6,8 +6,11 @@ import { hasPermission } from '@/lib/permission-utils'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string; contractorId: string } }
-) {
+  { params }: { params: Promise<{ projectId: string; contractorId: string }> }
+)
+ {
+
+    const { projectId, contractorId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -21,7 +24,7 @@ export async function GET(
 
     // First verify the project exists and user has access
     const project = await prisma.constructionProject.findUnique({
-      where: { id: params.projectId }
+      where: { id: projectId }
     })
 
     if (!project) {
@@ -31,8 +34,8 @@ export async function GET(
     // Get contractor details with all related information
     const contractor = await prisma.projectContractor.findFirst({
       where: {
-        id: params.contractorId,
-        projectId: params.projectId
+        id: contractorId,
+        projectId: projectId
       },
       include: {
         person: {

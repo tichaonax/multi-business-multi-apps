@@ -14,6 +14,10 @@ interface EmployeeContract {
   startDate: string
   endDate: string | null
   isActive: boolean
+  isRenewal?: boolean
+  renewalCount?: number
+  originalContractId?: string
+  previousContractId?: string
   jobTitle: {
     title: string
   }
@@ -36,19 +40,44 @@ export function EmployeeContractViewer() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [downloadingContract, setDownloadingContract] = useState<string | null>(null)
+  const [employeeId, setEmployeeId] = useState<string | null>(null)
 
   useEffect(() => {
     loadEmployeeContracts()
   }, [session])
 
   const loadEmployeeContracts = async () => {
-    if (!session?.user?.employee?.id) {
+    if (!session?.user?.id) {
       setLoading(false)
       return
     }
 
     try {
-      const response = await fetch(`/api/employees/${session.user.employee.id}/contracts`)
+      // First, find the employee record for the current user
+      const employeeResponse = await fetch('/api/employees', {
+        method: 'GET',
+        credentials: 'include',
+      })
+
+      if (!employeeResponse.ok) {
+        setError('Unable to access employee data')
+        setLoading(false)
+        return
+      }
+
+      const employeeData = await employeeResponse.json()
+      const currentUserEmployee = employeeData.employees?.find((emp: any) => emp.user?.id === session.user.id)
+
+      if (!currentUserEmployee) {
+        setError('No employee record found for your user account')
+        setLoading(false)
+        return
+      }
+
+      setEmployeeId(currentUserEmployee.id)
+
+      // Now fetch contracts for this employee
+      const response = await fetch(`/api/employees/${currentUserEmployee.id}/contracts`)
       if (response.ok) {
         const data = await response.json()
         setContracts(data || [])
@@ -63,9 +92,14 @@ export function EmployeeContractViewer() {
   }
 
   const downloadContract = async (contractId: string, contractNumber: string) => {
+    if (!employeeId) {
+      alert('Unable to download contract: Employee ID not found')
+      return
+    }
+
     setDownloadingContract(contractId)
     try {
-      const response = await fetch(`/api/employees/${session?.user?.employee?.id}/contracts`, {
+      const response = await fetch(`/api/employees/${employeeId}/contracts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contractId })
@@ -107,7 +141,20 @@ export function EmployeeContractViewer() {
     })
   }
 
-  if (!session?.user?.employee?.id) {
+  if (error) {
+    return (
+      <div className="card">
+        <div className="p-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            Employment Contracts
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!loading && !employeeId) {
     return (
       <div className="card">
         <div className="p-6">
@@ -184,12 +231,17 @@ export function EmployeeContractViewer() {
                         Version {contract.version}
                       </span>
                       <span className={`px-2 py-1 text-xs rounded ${
-                        contract.isActive 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                        contract.isActive
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
                       }`}>
                         {contract.isActive ? 'Active' : 'Inactive'}
                       </span>
+                      {contract.isRenewal && (
+                        <span className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 font-medium">
+                          🔄 RENEWED {contract.renewalCount && contract.renewalCount > 0 ? `(#${contract.renewalCount})` : ''}
+                        </span>
+                      )}
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -255,7 +307,7 @@ export function EmployeeContractViewer() {
                         </>
                       ) : (
                         <>
-                          📄 Download PDF
+                          {contract.isRenewal ? '🔄' : '📄'} Download PDF
                         </>
                       )}
                     </button>

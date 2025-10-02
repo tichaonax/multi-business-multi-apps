@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import crypto from 'crypto'
 
 const CreateLicenseSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if license already exists for this vehicle and type
+    // Check if an active license exists for this vehicle and type
     const existingLicense = await prisma.vehicleLicense.findFirst({
       where: {
         vehicleId: validatedData.vehicleId,
@@ -131,20 +132,117 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    const now = new Date()
+
     if (existingLicense) {
+      // If the existing active license is expired, automatically deactivate it and create the new license
+      if (existingLicense.expiryDate && new Date(existingLicense.expiryDate) < now) {
+        const newLicenseId = crypto.randomUUID()
+
+        // Do the deactivation + creation transactionally
+        const [deactivated, created] = await prisma.$transaction([
+          prisma.vehicleLicense.update({ where: { id: existingLicense.id }, data: { isActive: false } }),
+          prisma.vehicleLicense.create({
+            data: {
+              id: newLicenseId,
+              ...validatedData,
+              issueDate: new Date(validatedData.issueDate),
+              expiryDate: new Date(validatedData.expiryDate),
+              updatedAt: now
+            },
+            include: { vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } } }
+          })
+        ])
+
+        // Audit deactivation
+        try {
+          await prisma.auditLog.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: session.user.id,
+              action: 'DEACTIVATE',
+              entityType: 'VehicleLicense',
+              entityId: deactivated.id,
+              oldValues: existingLicense as any,
+              newValues: deactivated as any,
+              metadata: undefined,
+              tableName: 'vehicle_licenses',
+              recordId: deactivated.id,
+              details: 'Auto-deactivated expired license to allow replacement'
+            }
+          })
+        } catch (e) {
+          console.error('Failed to write audit log for vehicle license deactivation', e)
+        }
+
+        // Audit creation
+        try {
+          const normalizedCreated = { ...created, vehicle: (created as any).vehicles || null }
+          await prisma.auditLog.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: session.user.id,
+              action: 'CREATE',
+              entityType: 'VehicleLicense',
+              entityId: created.id,
+              oldValues: undefined,
+              newValues: normalizedCreated as any,
+              metadata: undefined,
+              tableName: 'vehicle_licenses',
+              recordId: created.id,
+              details: 'Created vehicle license after auto-deactivating expired one'
+            }
+          })
+        } catch (e) {
+          console.error('Failed to write audit log for vehicle license create (post-transaction)', e)
+        }
+
+        const normalizedLicense = { ...created, vehicle: (created as any).vehicles || null }
+        return NextResponse.json({ success: true, data: normalizedLicense, message: 'Vehicle license created successfully' }, { status: 201 })
+      }
+
+      // Existing active license is not expired — reject
       return NextResponse.json(
         { error: `Active ${validatedData.licenseType.toLowerCase().replace('_', ' ')} license already exists for this vehicle` },
         { status: 409 }
       )
     }
 
-    // Create license
+    // No active license exists — create normally
     const license = await prisma.vehicleLicense.create({
-      data: { ...validatedData, issueDate: new Date(validatedData.issueDate), expiryDate: new Date(validatedData.expiryDate) } as any,
+      data: {
+        id: crypto.randomUUID(),
+        ...validatedData,
+        issueDate: new Date(validatedData.issueDate),
+        expiryDate: new Date(validatedData.expiryDate),
+        updatedAt: now
+      },
       include: { vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } } }
     })
 
     const normalizedLicense = { ...license, vehicle: (license as any).vehicles || null }
+
+    // Audit log for creation
+    try {
+      await prisma.auditLog.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: session.user.id,
+          action: 'CREATE',
+          entityType: 'VehicleLicense',
+          entityId: license.id,
+          // Prisma JSON fields accept undefined rather than null for optional values
+          oldValues: undefined,
+          newValues: normalizedLicense as any,
+          metadata: undefined,
+          tableName: 'vehicle_licenses',
+          recordId: license.id,
+          details: 'Created vehicle license'
+        }
+      })
+    } catch (e) {
+      console.error('Failed to write audit log for vehicle license create', e)
+    }
 
     return NextResponse.json({ success: true, data: normalizedLicense, message: 'Vehicle license created successfully' }, { status: 201 })
 
@@ -215,6 +313,27 @@ export async function PUT(request: NextRequest) {
 
     const normalizedUpdated = { ...license, vehicle: (license as any).vehicles || null }
 
+    // Audit log for update
+    try {
+      await prisma.auditLog.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: session.user.id,
+          action: 'UPDATE',
+          entityType: 'VehicleLicense',
+          entityId: license.id,
+          oldValues: existingLicense as any,
+          newValues: normalizedUpdated as any,
+          metadata: undefined,
+          tableName: 'vehicle_licenses',
+          recordId: license.id,
+          details: 'Updated vehicle license'
+        }
+      })
+    } catch (e) {
+      console.error('Failed to write audit log for vehicle license update', e)
+    }
+
     return NextResponse.json({ success: true, data: normalizedUpdated, message: 'Vehicle license updated successfully' })
 
   } catch (error) {
@@ -238,38 +357,74 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
+    // Support bulk delete via JSON body: { ids: string[] }
+    const url = new URL(request.url)
+    const searchParams = url.searchParams
     const licenseId = searchParams.get('id')
 
-    if (!licenseId) {
-      return NextResponse.json(
-        { error: 'License ID is required' },
-        { status: 400 }
-      )
+    let body: any = null
+    try {
+      body = await request.json().catch(() => null)
+    } catch (e) {
+      body = null
     }
 
-    // Verify license exists
-    const existingLicense = await prisma.vehicleLicense.findUnique({
-      where: { id: licenseId }
-    })
-
-    if (!existingLicense) {
-      return NextResponse.json(
-        { error: 'Vehicle license not found' },
-        { status: 404 }
-      )
+    const idsToDelete: string[] = []
+    if (body && Array.isArray(body.ids) && body.ids.length > 0) {
+      idsToDelete.push(...body.ids)
+    } else if (licenseId) {
+      idsToDelete.push(licenseId)
+    } else {
+      return NextResponse.json({ error: 'License ID(s) required' }, { status: 400 })
     }
 
-    // Soft delete - mark as inactive
-    await prisma.vehicleLicense.update({
-      where: { id: licenseId },
-      data: { isActive: false }
-    })
+    // Validate all ids exist and belong to the same vehicle (prevent cross-vehicle accidental deletes)
+    const licenses = await prisma.vehicleLicense.findMany({ where: { id: { in: idsToDelete } } })
+    if (licenses.length !== idsToDelete.length) {
+      return NextResponse.json({ error: 'One or more licenses not found' }, { status: 404 })
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Vehicle license deactivated successfully'
-    })
+    const vehicleIds = Array.from(new Set(licenses.map(l => l.vehicleId)))
+    if (vehicleIds.length > 1) {
+      return NextResponse.json({ error: 'Selected licenses belong to multiple vehicles; please select licenses for a single vehicle' }, { status: 400 })
+    }
+
+    // If caller provided a vehicleId, ensure it matches the licenses' vehicleId
+    const providedVehicleId = body && body.vehicleId ? String(body.vehicleId) : null
+    if (providedVehicleId && providedVehicleId !== vehicleIds[0]) {
+      return NextResponse.json({ error: 'Provided vehicleId does not match selected licenses' }, { status: 400 })
+    }
+
+    // Soft delete all selected licenses in a transaction and return deactivated ids
+    const updates = idsToDelete.map(id => prisma.vehicleLicense.update({ where: { id }, data: { isActive: false } }))
+    const results = await prisma.$transaction(updates)
+    const deactivatedIds = results.map(r => (r as any).id)
+
+    // Audit logs for deactivation
+    try {
+      for (const r of results) {
+        const rec: any = r
+        await prisma.auditLog.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: session.user.id,
+            action: 'DEACTIVATE',
+            entityType: 'VehicleLicense',
+            entityId: rec.id,
+            oldValues: undefined,
+            newValues: { ...rec, isActive: false } as any,
+            metadata: undefined,
+            tableName: 'vehicle_licenses',
+            recordId: rec.id,
+            details: 'Deactivated vehicle license'
+          }
+        })
+      }
+    } catch (e) {
+      console.error('Failed to write audit logs for vehicle license deactivation', e)
+    }
+
+    return NextResponse.json({ success: true, message: `${deactivatedIds.length} license(s) deactivated successfully`, deactivatedIds })
 
   } catch (error) {
     console.error('Error deleting vehicle license:', error)

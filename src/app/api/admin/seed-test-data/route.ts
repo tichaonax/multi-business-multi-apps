@@ -4,15 +4,19 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
 
+// Small runtime type-guard to avoid casting session.user to `any` inline
+function isAdmin(session: unknown): boolean {
+  if (!session || typeof session !== 'object') return false;
+  const maybeUser = (session as any).user;
+  return !!maybeUser && typeof maybeUser.role === 'string' && maybeUser.role === 'admin';
+}
+
 export async function POST(_request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user || session.user.role !== 'admin') {
-      return NextResponse.json(
-        { message: 'Admin access required' },
-        { status: 401 }
-      );
+    if (!isAdmin(session)) {
+      return NextResponse.json({ message: 'Admin access required' }, { status: 401 });
     }
 
     // Create sample businesses if they don't exist

@@ -7,8 +7,11 @@ import { hasPermission } from '@/lib/permission-utils';
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { employeeId: string } }
-) {
+  { params }: { params: Promise<{ employeeId: string }> }
+)
+ {
+
+    const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -225,8 +228,11 @@ export async function PUT(
 // Get employee status and linked user information
 export async function GET(
   req: NextRequest,
-  { params }: { params: { employeeId: string } }
-) {
+  { params }: { params: Promise<{ employeeId: string }> }
+)
+ {
+
+    const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {

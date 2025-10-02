@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
   // Ensure the target business exists. If it doesn't, create a minimal placeholder so
   // downstream seed scripts that rely on the businessId won't create dangling children.
   let createdPlaceholder = false
+  let createdMembership = false
   try {
     const existingBusiness = await prisma.business.findUnique({ where: { id: businessId } })
     if (!existingBusiness) {
@@ -78,9 +79,17 @@ export async function POST(request: NextRequest) {
         if (!existingMembership) {
           const membershipId = `${currentUser.id}-${businessId}`
           await prisma.businessMembership.create({ data: { id: membershipId, userId: currentUser.id, businessId, role: 'business-owner', isActive: true, permissions: {}, joinedAt: now } as any })
+          createdMembership = true
         }
       } catch (err2) {
         console.warn('Failed to create membership for seeded business:', String(err2))
+      }
+    } else if (!existingBusiness.isActive) {
+      // If the business exists but is inactive, activate it so seed scripts can attach children
+      try {
+        await prisma.business.update({ where: { id: businessId }, data: { isActive: true, updatedAt: new Date() } })
+      } catch (err3) {
+        console.warn('Failed to activate existing business prior to seeding:', String(err3))
       }
     }
   } catch (err) {
@@ -113,12 +122,12 @@ export async function POST(request: NextRequest) {
       // Resolve seed function if exported as named or default
       const seedFn = imported?.seed ?? imported?.default?.seed ?? imported?.default ?? null
 
-  if (typeof seedFn === 'function') {
+        if (typeof seedFn === 'function') {
         // Call exported seed in-process. Some seed functions accept a businessId param.
         try {
           const maybePromise = seedFn(businessId)
           if (maybePromise && typeof maybePromise.then === 'function') await maybePromise
-          return NextResponse.json({ success: true, ranInProcess: true, createdBusiness: createdPlaceholder ? businessId : undefined })
+          return NextResponse.json({ success: true, ranInProcess: true, createdBusiness: createdPlaceholder ? businessId : undefined, createdMembership: createdMembership || undefined })
         } catch (err: any) {
           return NextResponse.json({ error: 'In-process seed failed', message: err?.message || String(err) }, { status: 500 })
         }
@@ -129,7 +138,7 @@ export async function POST(request: NextRequest) {
     if (result.code !== 0) {
       return NextResponse.json({ error: 'Seed script failed', stdout: result.stdout, stderr: result.stderr }, { status: 500 })
     }
-    return NextResponse.json({ success: true, stdout: result.stdout, ranInProcess: false, createdBusiness: createdPlaceholder ? businessId : undefined })
+    return NextResponse.json({ success: true, stdout: result.stdout, ranInProcess: false, createdBusiness: createdPlaceholder ? businessId : undefined, createdMembership: createdMembership || undefined })
   } catch (err: any) {
     return NextResponse.json({ error: 'Failed to run seed script', message: err?.message || String(err) }, { status: 500 })
   }

@@ -427,7 +427,6 @@ model ConflictResolution {
   resolution         Json?
   strategy           String?
   metadata           Json?
-  tableName          String?
   createdAt          DateTime           @default(now())
 
   @@map("conflict_resolutions")
@@ -519,7 +518,6 @@ model DataSnapshot {
   tableName    String
   recordId     String
   snapshotData Json
-  totalRecords Int?
   vectorClock  Json?
   checksum     String?
   createdAt    DateTime @default(now())
@@ -712,7 +710,16 @@ model EmployeeContract {
   supervisorId                                                               String?
   supervisorName                                                             String?
   supervisorTitle                                                            String?
+  // Link to a previous contract this one was based on
+  previousContractId                                                         String?
+  previousContract                                                           EmployeeContract? @relation("contract_previous", fields: [previousContractId], references: [id])
+  previousContractChildren                                                   EmployeeContract[] @relation("contract_previous")
   updatedAt                                                                  DateTime          @default(now())
+  // Renewal tracking fields
+  isRenewal                                                                  Boolean           @default(false)
+  renewalCount                                                               Int               @default(0)
+  originalContractId                                                         String?
+  copiedFromContractId                                                       String?
   commissionAmount                                                           Decimal?          @db.Decimal(12, 2)
   contractDurationMonths                                                     Int?
   livingAllowance                                                            Decimal?          @db.Decimal(12, 2)
@@ -978,26 +985,21 @@ model IdFormatTemplate {
 }
 
 model InitialLoadSession {
-  id                     String    @id
-  sessionId              String    @unique
-  sourceNodeId           String
-  targetNodeId           String
-  tableName              String
-  totalRecords           Int       @default(0)
-  processedRecords       Int       @default(0)
-  transferredRecords     Int       @default(0)
-  transferredBytes       BigInt?   @db.BigInt
-  progress               Int       @default(0)
-  currentStep            String?
-  estimatedTimeRemaining Int?
-  status                 String    @default("PENDING")
-  startedAt              DateTime  @default(now())
-  completedAt            DateTime?
-  errorMessage           String?
-  batchSize              Int       @default(1000)
-  currentBatch           Int       @default(0)
-  metadata               Json?
-  createdAt              DateTime  @default(now())
+  id               String    @id
+  sessionId        String    @unique
+  sourceNodeId     String
+  targetNodeId     String
+  tableName        String
+  totalRecords     Int       @default(0)
+  processedRecords Int       @default(0)
+  status           String    @default("PENDING")
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  errorMessage     String?
+  batchSize        Int       @default(1000)
+  currentBatch     Int       @default(0)
+  metadata         Json?
+  createdAt        DateTime  @default(now())
 
   @@map("initial_load_sessions")
 }
@@ -1627,6 +1629,7 @@ model SyncSession {
 model User {
   id                                                              String                     @id
   email                                                           String                     @unique
+  username                                                        String?                    @unique
   passwordHash                                                    String
   name                                                            String
   role                                                            String                     @default("user")
@@ -1744,7 +1747,7 @@ model VehicleLicense {
   documentUrl      String?
   reminderDays     Int         @default(30)
   createdAt        DateTime    @default(now())
-  updatedAt        DateTime
+  updatedAt        DateTime    @updatedAt
   vehicles         Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
   @@map("vehicle_licenses")
@@ -1773,6 +1776,7 @@ model VehicleMaintenanceRecord {
   updatedAt          DateTime
   users              User        @relation(fields: [createdBy], references: [id])
   vehicles           Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  services           VehicleMaintenanceService[]
 
   @@map("vehicle_maintenance_records")
 }
@@ -1844,6 +1848,8 @@ model Vehicle {
   driveType                 DriveType
   ownershipType             OwnershipType
   currentMileage            Int
+  mileageUnit               String                     @default("km")
+  hasInitialMileage         Boolean                    @default(false)
   businessId                String?
   userId                    String?
   isActive                  Boolean                    @default(true)
@@ -2057,4 +2063,45 @@ enum TripType {
   BUSINESS
   PERSONAL
   MIXED
+}
+
+model VehicleMaintenanceService {
+  id                     String                           @id
+  maintenanceRecordId    String
+  serviceName            String
+  serviceType            String
+  cost                   Decimal                          @db.Decimal(10, 2)
+  currency               String                           @default("USD")
+  serviceProvider        String?
+  description            String?
+  isScheduledService     Boolean                          @default(false)
+  warrantyUntil          String?
+  receiptUrl            String?
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+
+  // Relations
+  maintenanceRecord     VehicleMaintenanceRecord         @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+  expenses              VehicleMaintenanceServiceExpense[]
+
+  @@map("vehicle_maintenance_services")
+}
+
+model VehicleMaintenanceServiceExpense {
+  id                    String                     @id
+  serviceId             String
+  expenseType           String
+  amount                Decimal                    @db.Decimal(10, 2)
+  currency              String                     @default("USD")
+  description           String?
+  vendorName            String?
+  isBusinessDeductible  Boolean                    @default(false)
+  receiptUrl           String?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  // Relations
+  service              VehicleMaintenanceService   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_maintenance_service_expenses")
 }

@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function SignIn() {
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,7 +18,7 @@ export default function SignIn() {
 
     try {
       const result = await signIn('credentials', {
-        email,
+        identifier,
         password,
         redirect: false,
       })
@@ -53,18 +53,18 @@ export default function SignIn() {
         <div className="card p-8">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-primary mb-2">
-                Email Address
+              <label htmlFor="identifier" className="block text-sm font-medium text-primary mb-2">
+                Email or Username
               </label>
               <input
-                id="email"
-                name="email"
-                type="email"
+                id="identifier"
+                name="identifier"
+                type="text"
                 required
                 className="input-field"
-                placeholder="admin@business.local"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@business.local or username"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
               />
             </div>
             
@@ -118,8 +118,9 @@ export default function SignIn() {
             </div>
             <div className="text-center text-sm text-gray-500">
               <p className="mb-2">Demo Credentials:</p>
-              <p><strong>Email:</strong> admin@business.local</p>
+              <p><strong>Login:</strong> admin@business.local</p>
               <p><strong>Password:</strong> admin123</p>
+              <p className="mt-2 text-xs">Note: You can login with email or username</p>
             </div>
           </div>
         </div>

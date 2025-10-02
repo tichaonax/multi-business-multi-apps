@@ -21,8 +21,11 @@ interface InventoryCategory {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
-) {
+  { params }: { params: Promise<{ businessId: string }> }
+)
+ {
+
+    const { businessId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
@@ -87,8 +90,11 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
-) {
+  { params }: { params: Promise<{ businessId: string }> }
+)
+ {
+
+    const { businessId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {

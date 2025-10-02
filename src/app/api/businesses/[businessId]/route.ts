@@ -5,9 +5,9 @@ import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
 interface Context {
-  params: {
+  params: Promise<{
     businessId: string
-  }
+  }>
 }
 
 export async function GET(req: NextRequest, { params }: Context) {
@@ -15,9 +15,7 @@ export async function GET(req: NextRequest, { params }: Context) {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // params may be a thenable in Next.js; await it before accessing properties
-  const resolvedParams = await (params as any)
-  const { businessId } = resolvedParams
+    const { businessId } = await params
     const user = session.user as SessionUser
 
     // System admins can view any business

@@ -177,7 +177,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
         category: expense.category || '',
         amount: expense.amount?.toString() || '',
         date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : '',
-        tags: shouldDisplayTags(expense.tags) ? expense.tags || '' : '',
+        tags: shouldDisplayTags(expense.tags || null) ? expense.tags || '' : '',
         paymentType: paymentType,
         projectId: transaction?.projectId || '',
         contractorId: transaction?.projectContractor?.id || ''
@@ -270,7 +270,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
           category: updatedExpense.category || '',
           amount: updatedExpense.amount?.toString() || '',
           date: updatedExpense.date ? new Date(updatedExpense.date).toISOString().split('T')[0] : '',
-          tags: shouldDisplayTags(updatedExpense.tags) ? updatedExpense.tags || '' : '',
+          tags: shouldDisplayTags(updatedExpense.tags || null) ? updatedExpense.tags || '' : '',
           paymentType: paymentType,
           projectId: transaction?.projectId || '',
           contractorId: transaction?.projectContractor?.id || ''
@@ -302,7 +302,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
       category: expense.category || '',
       amount: expense.amount?.toString() || '',
       date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : '',
-      tags: shouldDisplayTags(expense.tags) ? expense.tags || '' : '',
+      tags: shouldDisplayTags(expense.tags || null) ? expense.tags || '' : '',
       paymentType: paymentType,
       projectId: transaction?.projectId || '',
       contractorId: transaction?.projectContractor?.id || ''
@@ -493,7 +493,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
               )}
 
               {/* Only show Tags field for regular category expenses or if user has custom tags */}
-              {(editForm.paymentType === 'category' || shouldDisplayTags(expense?.tags) || editForm.tags) && (
+              {(editForm.paymentType === 'category' || shouldDisplayTags(expense?.tags || null) || editForm.tags) && (
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Tags
@@ -710,7 +710,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                 </div>
               )}
 
-              {shouldDisplayTags(expense.tags) && (
+              {shouldDisplayTags(expense.tags || null) && (
                 <div>
                   <h3 className="text-sm font-medium text-secondary mb-1">Tags</h3>
                   <p className="text-primary">{expense.tags}</p>

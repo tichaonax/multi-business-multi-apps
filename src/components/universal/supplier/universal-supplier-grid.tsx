@@ -141,7 +141,7 @@ export function UniversalSupplierGrid({
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
-  const [sortField, setSortField] = useState<keyof UniversalSupplier>('name')
+  const [sortField, setSortField] = useState<keyof UniversalSupplier | 'performance.onTimeDeliveryPercent' | 'performance.qualityScore'>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Initialize suppliers (use prop suppliers or generate sample data)
@@ -180,8 +180,8 @@ export function UniversalSupplierGrid({
 
     // Sorting
     filtered.sort((a, b) => {
-      let aValue: any = a[sortField]
-      let bValue: any = b[sortField]
+      let aValue: any
+      let bValue: any
 
       // Handle nested fields
       if (sortField === 'performance.onTimeDeliveryPercent') {
@@ -190,6 +190,9 @@ export function UniversalSupplierGrid({
       } else if (sortField === 'performance.qualityScore') {
         aValue = a.performance.qualityScore
         bValue = b.performance.qualityScore
+      } else {
+        aValue = a[sortField as keyof UniversalSupplier]
+        bValue = b[sortField as keyof UniversalSupplier]
       }
 
       if (typeof aValue === 'string') {

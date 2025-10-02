@@ -1,0 +1,74 @@
+[
+  {
+    "contractId": "8f74d561-b359-4aab-98b2-8aeef20e3695",
+    "employeeNumber": "EMP1001",
+    "employeeName": "Jane Smith 2",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  },
+  {
+    "contractId": "cdf8dcd2-c26a-4d11-a6d7-8363e568cef0",
+    "employeeNumber": "EMP1002",
+    "employeeName": "Mike Johnson 3",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  },
+  {
+    "contractId": "4c0efe4f-d18e-4c35-a7ce-0b4bdf2bbf4b",
+    "employeeNumber": "EMP1003",
+    "employeeName": "Sarah Wilson 4",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  },
+  {
+    "contractId": "a0190aaf-2568-4e9c-b326-970201e1e335",
+    "employeeNumber": "EMP1004",
+    "employeeName": "John Doe 5",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  },
+  {
+    "contractId": "f2107ff5-ef2c-4226-b9fb-bfbe972c3a6a",
+    "employeeNumber": "EMP1005",
+    "employeeName": "Jane Smith 6",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  },
+  {
+    "contractId": "d7d04988-95dc-43d4-86c2-8058343fffc8",
+    "employeeNumber": "EMP1000",
+    "employeeName": "John Doe 1",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  },
+  {
+    "contractId": "7a1399a5-591b-4b97-beac-9f21cc7e5d00",
+    "employeeNumber": "EMP1006",
+    "employeeName": "Mike Johnson 7",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  },
+  {
+    "contractId": "a3d1510d-1b9f-4cd4-be7a-16b3ec7ac379",
+    "employeeNumber": "EMP1008",
+    "employeeName": "John Doe 9",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  },
+  {
+    "contractId": "1ee2f4f8-1880-4bd3-9a28-788cd9b2f495",
+    "employeeNumber": "EMP1007",
+    "employeeName": "Sarah Wilson 8",
+    "missing": [
+      "supervisorId (required for non-management role)"
+    ]
+  }
+]

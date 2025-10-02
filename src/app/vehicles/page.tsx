@@ -1,12 +1,16 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import { VehicleForm } from '@/components/vehicles/vehicle-form'
 import { VehicleList } from '@/components/vehicles/vehicle-list'
+import { VehicleDetailModal } from '@/components/vehicles/vehicle-detail-modal'
 import { DriverForm } from '@/components/vehicles/driver-form'
 import { DriverList } from '@/components/vehicles/driver-list'
 import { DriverDetailModal } from '@/components/vehicles/driver-detail-modal'
@@ -20,6 +24,26 @@ import { VehicleReports } from '@/components/vehicles/vehicle-reports'
 import { Vehicle, VehicleDriver, VehicleTrip, VehicleMaintenanceRecord } from '@/types/vehicle'
 
 export default function VehiclesPage() {
+  const { data: session } = useSession()
+  const router = useRouter()
+  const currentUser = session?.user as SessionUser
+
+  // Check if user is a driver and redirect to driver portal
+  useEffect(() => {
+    if (currentUser) {
+      const isDriver = currentUser &&
+        hasUserPermission(currentUser, 'canLogDriverTrips') &&
+        hasUserPermission(currentUser, 'canLogDriverMaintenance') &&
+        !hasUserPermission(currentUser, 'canAccessPersonalFinance') &&
+        !isSystemAdmin(currentUser)
+
+      if (isDriver) {
+        router.push('/driver')
+        return
+      }
+    }
+  }, [currentUser, router])
+
   const [activeTab, setActiveTab] = useState<'overview' | 'vehicles' | 'drivers' | 'trips' | 'maintenance' | 'reports'>('overview')
   const [showVehicleForm, setShowVehicleForm] = useState(false)
   const [showDriverForm, setShowDriverForm] = useState(false)
@@ -31,15 +55,49 @@ export default function VehiclesPage() {
   const [selectedMaintenance, setSelectedMaintenance] = useState<VehicleMaintenanceRecord | null>(null)
   // simple refresh counter to signal children to re-fetch
   const [refreshCounter, setRefreshCounter] = useState(0)
+  // For narrow single-vehicle refreshes: id + sequence to allow same id updates
+  const [lastUpdatedVehicleId, setLastUpdatedVehicleId] = useState<string | null>(null)
+  const [lastUpdateSeq, setLastUpdateSeq] = useState(0)
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: '🚗', description: 'Fleet summary' },
-    { id: 'vehicles', label: 'Vehicles', icon: '🚙', description: 'Manage fleet' },
-    { id: 'drivers', label: 'Drivers', icon: '👤', description: 'Driver management' },
-    { id: 'trips', label: 'Trips', icon: '🛣️', description: 'Trip logging' },
-    { id: 'maintenance', label: 'Maintenance', icon: '🔧', description: 'Service records' },
-    { id: 'reports', label: 'Reports', icon: '📊', description: 'Analytics reports' }
+  // Filter tabs based on user permissions
+  const allTabs = [
+    { id: 'overview', label: 'Overview', icon: '🚗', description: 'Fleet summary', permission: 'canAccessVehicles' },
+    { id: 'vehicles', label: 'Vehicles', icon: '🚙', description: 'Manage fleet', permission: 'canManageVehicles' },
+    { id: 'drivers', label: 'Drivers', icon: '👤', description: 'Driver management', permission: 'canManageDrivers' },
+    { id: 'trips', label: 'Trips', icon: '🛣️', description: 'Trip logging', permission: 'canManageTrips' },
+    { id: 'maintenance', label: 'Maintenance', icon: '🔧', description: 'Service records', permission: 'canManageVehicleMaintenance' },
+    { id: 'reports', label: 'Reports', icon: '📊', description: 'Analytics reports', permission: 'canViewVehicleReports' }
   ]
+
+  const tabs = allTabs.filter(tab => {
+    if (isSystemAdmin(currentUser)) return true
+    return hasUserPermission(currentUser, tab.permission)
+  })
+
+  // Ensure the active tab is valid for current user permissions
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.find(tab => tab.id === activeTab)) {
+      setActiveTab(tabs[0].id as any)
+    }
+  }, [tabs, activeTab])
+
+  // If no tabs available, show access denied
+  if (tabs.length === 0) {
+    return (
+      <ProtectedRoute>
+        <ContentLayout
+          title="Access Denied"
+          subtitle="You don't have permission to access vehicle management features."
+        >
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🚫</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
+            <p className="text-gray-500">You don't have the required permissions to view this page.</p>
+          </div>
+        </ContentLayout>
+      </ProtectedRoute>
+    )
+  }
 
   // Fleet summary fetched from reports API (FLEET_OVERVIEW)
   const [fleetSummary, setFleetSummary] = useState<{
@@ -444,18 +502,22 @@ export default function VehiclesPage() {
                           >
                             Refresh
                           </button>
-                          <button
-                            onClick={() => setShowVehicleForm(true)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                          >
-                            Add Vehicle
-                          </button>
-                          <button
-                            onClick={() => setShowDriverForm(true)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                          >
-                            Add Driver
-                          </button>
+                          {(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageVehicles')) && (
+                            <button
+                              onClick={() => setShowVehicleForm(true)}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                              Add Vehicle
+                            </button>
+                          )}
+                          {(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageDrivers')) && (
+                            <button
+                              onClick={() => setShowDriverForm(true)}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                            >
+                              Add Driver
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -604,7 +666,10 @@ export default function VehiclesPage() {
                   ) : (
                     <VehicleList
                       onVehicleSelect={(vehicle) => setSelectedVehicle(vehicle)}
-                      onAddVehicle={() => setShowVehicleForm(true)}
+                      onAddVehicle={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageVehicles')) ? () => setShowVehicleForm(true) : undefined}
+                      refreshSignal={refreshCounter}
+                      updatedVehicleId={lastUpdatedVehicleId}
+                      updateSeq={lastUpdateSeq}
                     />
                   )}
                 </div>
@@ -625,11 +690,29 @@ export default function VehiclesPage() {
                   ) : (
                     <DriverList
                       onDriverSelect={(driver) => setSelectedDriver(driver)}
-                      onAddDriver={() => setShowDriverForm(true)}
+                      onAddDriver={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageDrivers')) ? () => setShowDriverForm(true) : undefined}
                       refreshSignal={refreshCounter}
                     />
                   )}
                 </div>
+              )}
+
+              {/* Vehicle Detail Modal */}
+              {selectedVehicle && (
+                <VehicleDetailModal
+                  vehicle={selectedVehicle}
+                  onClose={() => setSelectedVehicle(null)}
+                  onUpdate={(updated) => {
+                    // Update local selection and refresh overview data
+                    setSelectedVehicle(updated)
+                    // bump refresh counter to signal lists to re-fetch
+                    setRefreshCounter(c => c + 1)
+                    refreshAll()
+                    // Narrow refresh: signal the specific updated vehicle (increment seq so repeated updates still trigger)
+                    setLastUpdatedVehicleId(updated.id)
+                    setLastUpdateSeq(s => s + 1)
+                  }}
+                />
               )}
 
               {/* Driver Detail Modal (render above layout when selected) */}
@@ -662,7 +745,7 @@ export default function VehiclesPage() {
                   ) : (
                     <TripList
                       onTripSelect={(trip) => setSelectedTrip(trip)}
-                      onAddTrip={() => setShowTripForm(true)}
+                      onAddTrip={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageTrips')) ? () => setShowTripForm(true) : undefined}
                     />
                   )}
                 </div>
@@ -691,7 +774,7 @@ export default function VehiclesPage() {
                   ) : (
                     <MaintenanceList
                       onMaintenanceSelect={(maintenance) => setSelectedMaintenance(maintenance)}
-                      onAddMaintenance={() => setShowMaintenanceForm(true)}
+                      onAddMaintenance={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageVehicleMaintenance')) ? () => setShowMaintenanceForm(true) : undefined}
                     />
                   )}
                 </div>

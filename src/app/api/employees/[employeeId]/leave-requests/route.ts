@@ -8,8 +8,11 @@ import { hasPermission } from '@/lib/permission-utils'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { employeeId: string } }
-) {
+  { params }: { params: Promise<{ employeeId: string }> }
+)
+ {
+
+    const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -67,8 +70,11 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { employeeId: string } }
-) {
+  { params }: { params: Promise<{ employeeId: string }> }
+)
+ {
+
+    const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {

@@ -8,6 +8,7 @@ import { hasPermission } from '@/lib/permission-utils'
 import { generateComprehensiveContract, previewContractPDF, downloadComprehensiveContractPDF } from '@/lib/contract-pdf-generator'
 import { ContractTemplate } from '@/components/contracts/contract-template'
 import { DateInput } from '@/components/ui/date-input'
+import { EmployeeContractSelector } from '@/components/contracts/employee-contract-selector'
 
 interface Employee {
   id: string
@@ -137,6 +138,14 @@ export default function NewContractPage() {
     notes: ''
   })
 
+  // Keep track of the contract we prefilled from so we can show a readonly reference
+  const [previousContract, setPreviousContract] = useState<any>(null)
+
+  // Copy mode state
+  const [copyMode, setCopyMode] = useState(false)
+  const [selectedSourceEmployee, setSelectedSourceEmployee] = useState<any>(null)
+  const [loadingTemplate, setLoadingTemplate] = useState(false)
+
   const canCreateEmployeeContracts = currentUser && hasPermission(currentUser, 'canCreateEmployeeContracts')
 
   const validateForm = () => {
@@ -193,6 +202,52 @@ export default function NewContractPage() {
     }
   }
 
+  // Function to copy contract template from another employee
+  const copyContractTemplate = async (contractId: string) => {
+    try {
+      setLoadingTemplate(true)
+      const response = await fetch(`/api/contracts/template/${contractId}`)
+      const result = await response.json()
+
+      if (result.success) {
+        const template = result.data
+
+        // Populate form with template data
+        setFormData(prev => ({
+          ...prev,
+          jobTitleId: template.jobTitleId,
+          compensationTypeId: template.compensationTypeId,
+          baseSalary: template.baseSalary,
+          customResponsibilities: template.customResponsibilities || '',
+          probationPeriodMonths: template.probationPeriodMonths?.toString() || '3',
+          primaryBusinessId: template.primaryBusinessId,
+          supervisorId: template.supervisorId,
+          isCommissionBased: template.isCommissionBased,
+          isSalaryBased: template.isSalaryBased,
+          benefits: template.benefits || [],
+          notes: template.notes || '',
+          // Reset employee-specific fields
+          startDate: '',
+          endDate: ''
+        }))
+
+        // Store reference to template source
+        setPreviousContract({
+          ...template.templateMetadata,
+          sourceEmployee: template.sourceEmployee
+        })
+
+        console.log('Contract template copied successfully from:', template.sourceEmployee.fullName)
+      } else {
+        console.error('Failed to copy contract template:', result.error)
+      }
+    } catch (error) {
+      console.error('Error copying contract template:', error)
+    } finally {
+      setLoadingTemplate(false)
+    }
+  }
+
   const getAvailableBenefitTypes = (currentIndex: number) => {
     const selectedBenefitIds = formData.benefits
       .map((benefit, index) => index !== currentIndex ? benefit.benefitTypeId : null)
@@ -226,14 +281,14 @@ export default function NewContractPage() {
 
   useEffect(() => {
     if (employee) {
-      // Pre-populate form with employee data
+      // Pre-populate form with employee data but do not overwrite fields that are already populated
       setFormData(prev => ({
         ...prev,
-        jobTitleId: employee.jobTitle?.id || '',
-        compensationTypeId: employee.compensationType?.id || '',
-        primaryBusinessId: employee.primaryBusiness?.id || '',
-        supervisorId: employee.supervisor?.id || '',
-        startDate: new Date().toISOString().split('T')[0]
+        jobTitleId: prev.jobTitleId || employee.jobTitle?.id || '',
+        compensationTypeId: prev.compensationTypeId || employee.compensationType?.id || '',
+        primaryBusinessId: prev.primaryBusinessId || employee.primaryBusiness?.id || '',
+        supervisorId: prev.supervisorId || employee.supervisor?.id || '',
+        startDate: prev.startDate || new Date().toISOString().split('T')[0]
       }))
     }
   }, [employee])
@@ -257,26 +312,98 @@ export default function NewContractPage() {
         fetch('/api/employees')
       ])
 
-      if (employeeRes.ok) setEmployee(await employeeRes.json())
-      if (jobTitlesRes.ok) setJobTitles(await jobTitlesRes.json())
-      if (compensationTypesRes.ok) setCompensationTypes(await compensationTypesRes.json())
-      if (benefitTypesRes.ok) setBenefitTypes(await benefitTypesRes.json())
+      // Parse all responses into variables so we can prefill form based on latest contract
+      let employeeData: any = null
+      let jobTitlesData: any = []
+      let compensationTypesData: any = []
+      let benefitTypesData: any = []
+      let businessesDataList: any = []
+      let employeesDataList: any = []
+
+      if (employeeRes.ok) employeeData = await employeeRes.json()
+      if (jobTitlesRes.ok) jobTitlesData = await jobTitlesRes.json()
+      if (compensationTypesRes.ok) compensationTypesData = await compensationTypesRes.json()
+      if (benefitTypesRes.ok) benefitTypesData = await benefitTypesRes.json()
       if (businessesRes.ok) {
-        const businessesData = await businessesRes.json()
-        // Handle paginated response - extract businesses array
-        const businessesList = businessesData.businesses || businessesData
-        setBusinesses(businessesList)
+        const b = await businessesRes.json()
+        businessesDataList = b.businesses || b
       }
       if (employeesRes.ok) {
-        const employeesData = await employeesRes.json()
-        // Handle paginated response - extract employees array
-        const employeesList = employeesData.employees || employeesData
-        setEmployees(employeesList)
+        const em = await employeesRes.json()
+        employeesDataList = em.employees || em
+      }
+
+      // Apply fetched data to state
+      if (employeeData) setEmployee(employeeData)
+      if (jobTitlesData) setJobTitles(jobTitlesData)
+      if (compensationTypesData) setCompensationTypes(compensationTypesData)
+      if (benefitTypesData) setBenefitTypes(benefitTypesData)
+      if (businessesDataList) setBusinesses(businessesDataList)
+      if (employeesDataList) setEmployees(employeesDataList)
+
+      // Prefill form from latest contract if available
+      if (employeeData && Array.isArray(employeeData.contracts) && employeeData.contracts.length > 0) {
+        prefillFromLatestContract(employeeData.contracts, benefitTypesData || [])
       }
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const prefillFromLatestContract = (contracts: any[], benefitTypesList: any[]) => {
+    if (!contracts || contracts.length === 0) return
+
+    // Find latest contract by createdAt (contracts from API are ordered desc but be defensive)
+    const sorted = [...contracts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    const latest = sorted[0]
+    if (!latest) return
+
+    // Build benefits for form from latest contract benefits or pdfGenerationData
+    const benefitsSource = Array.isArray(latest.benefits) && latest.benefits.length > 0
+      ? latest.benefits
+      : ((latest as any).pdfGenerationData && Array.isArray((latest as any).pdfGenerationData.benefits))
+        ? (latest as any).pdfGenerationData.benefits
+        : []
+
+    const mappedBenefits = (benefitsSource || []).map((b: any) => {
+      // Try to find matching benefit type id by name if id not present
+      let benefitTypeId = b.benefitType?.id || b.benefitTypeId || ''
+      if (!benefitTypeId && b.benefitType && b.benefitType.name) {
+        const match = benefitTypesList.find((t: any) => t.name === b.benefitType.name)
+        if (match) benefitTypeId = match.id
+      }
+
+      return {
+        benefitTypeId: benefitTypeId || '',
+        amount: (b.amount != null) ? String(b.amount) : '',
+        isPercentage: !!b.isPercentage,
+        notes: b.notes || ''
+      }
+    })
+
+    setFormData(prev => ({
+      ...prev,
+      // Only override if fields are not already set
+      jobTitleId: prev.jobTitleId || (latest.jobTitles && latest.jobTitles[0]?.id) || prev.jobTitleId,
+      compensationTypeId: prev.compensationTypeId || prev.compensationTypeId || '',
+      baseSalary: prev.baseSalary || (latest.baseSalary != null ? String(latest.baseSalary) : prev.baseSalary),
+      salaryFrequency: prev.salaryFrequency || (latest._computed?.frequency || prev.salaryFrequency),
+      supervisorId: prev.supervisorId || (latest.employees_employee_contracts_supervisorIdToemployees?.id || prev.supervisorId),
+      primaryBusinessId: prev.primaryBusinessId || (latest.businesses_employee_contracts_primaryBusinessIdTobusinesses?.id || prev.primaryBusinessId),
+      isCommissionBased: typeof prev.isCommissionBased === 'boolean' ? prev.isCommissionBased : !!latest.isCommissionBased,
+      isSalaryBased: typeof prev.isSalaryBased === 'boolean' ? prev.isSalaryBased : (latest.isSalaryBased !== undefined ? !!latest.isSalaryBased : true),
+      benefits: mappedBenefits.length > 0 ? mappedBenefits : prev.benefits,
+      customResponsibilities: prev.customResponsibilities || latest.customResponsibilities || prev.customResponsibilities,
+      notes: prev.notes || (latest.notes ? String(latest.notes) : prev.notes)
+    }))
+
+    // Store the latest contract info for readonly UI reference and to send when creating
+    try {
+      setPreviousContract({ id: latest.id, baseSalary: latest.baseSalary ?? (latest._computed && latest._computed.monthlySalary), contractNumber: latest.contractNumber })
+    } catch (err) {
+      // ignore
     }
   }
 
@@ -334,6 +461,8 @@ export default function NewContractPage() {
         },
         body: JSON.stringify({
           ...formData,
+              // If we prefilling from a previous contract, include its id so server can track the linkage
+              previousContractId: previousContract?.id || null,
           supervisorId: formData.supervisorId || null,
           baseSalary: parseFloat(formData.baseSalary),
           probationPeriodMonths: formData.probationPeriodMonths ? parseInt(formData.probationPeriodMonths) : null,
@@ -666,6 +795,86 @@ export default function NewContractPage() {
         </div>
       </div>
 
+      {/* Copy Mode Toggle */}
+      <div className="mb-6 card p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-primary">Contract Creation Mode</h3>
+            <p className="text-sm text-secondary">Choose how to create this contract</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="contractMode"
+                value="new"
+                checked={!copyMode}
+                onChange={() => {
+                  setCopyMode(false)
+                  setSelectedSourceEmployee(null)
+                  setPreviousContract(null)
+                }}
+                className="text-blue-600"
+              />
+              <span className="text-sm">Create New</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="contractMode"
+                value="copy"
+                checked={copyMode}
+                onChange={() => setCopyMode(true)}
+                className="text-blue-600"
+              />
+              <span className="text-sm">Copy from Employee</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Employee Contract Selector */}
+        {copyMode && (
+          <div className="mt-4 border-t pt-4">
+            <EmployeeContractSelector
+              onEmployeeSelect={setSelectedSourceEmployee}
+              onContractSelect={copyContractTemplate}
+              selectedEmployeeId={selectedSourceEmployee?.id}
+              excludeEmployeeId={employeeId}
+              selectedEmployee={selectedSourceEmployee}
+              onClearSelection={() => {
+                setSelectedSourceEmployee(null)
+                setPreviousContract(null)
+              }}
+            />
+            {loadingTemplate && (
+              <div className="mt-4 text-center">
+                <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <p className="text-sm text-secondary mt-2">Loading contract template...</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Template Source Info */}
+        {previousContract && previousContract.sourceEmployee && (
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-600">📋</span>
+              <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                Template copied from: {previousContract.sourceEmployee.fullName}
+              </span>
+              <span className="text-xs text-blue-600">
+                ({previousContract.sourceEmployee.isActive ? 'Active' : 'Inactive'})
+              </span>
+            </div>
+            <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+              Original Contract: {previousContract.originalContractNumber} •
+              Created: {new Date(previousContract.createdAt).toLocaleDateString()}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Contract Form */}
         <div className="space-y-6">
@@ -678,6 +887,12 @@ export default function NewContractPage() {
             />
             <div className="card p-6">
               <h3 className="text-lg font-semibold text-primary mb-4">Employment Details</h3>
+              {previousContract && (
+                <p className="text-sm text-secondary mb-3">
+                  Previous base salary: {previousContract.baseSalary != null ? ('$' + Number(previousContract.baseSalary).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '—'}
+                  {previousContract.contractNumber ? ` — Contract #${previousContract.contractNumber}` : ''}
+                </p>
+              )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1054,18 +1269,8 @@ export default function NewContractPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      // Auto-scroll to top and show preview
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                      setTimeout(() => {
-                        setShowPreview(true);
-                        // Focus on the preview area after scroll completes
-                        setTimeout(() => {
-                          const previewSection = document.querySelector('.space-y-4');
-                          if (previewSection) {
-                            previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                          }
-                        }, 300);
-                      }, 500);
+                      // Just show the preview without scrolling
+                      setShowPreview(true)
                     }}
                     className="btn-secondary"
                     disabled={!contractData}

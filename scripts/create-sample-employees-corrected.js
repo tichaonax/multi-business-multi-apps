@@ -110,8 +110,8 @@ async function createSampleEmployeesCorrected() {
         )
       }
 
-      // Create employee with transaction
-      const employee = await prisma.$transaction(async (tx) => {
+  // Create employee with transaction
+  const employee = await prisma.$transaction(async (tx) => {
         // Create employee
         const newEmployee = await tx.employee.create({
           data: {
@@ -137,24 +137,72 @@ async function createSampleEmployeesCorrected() {
           }
         })
 
-        // Create active contract
-        await tx.employeeContract.create({
-          data: {
-            id: crypto.randomUUID(),
-            employeeId: newEmployee.id,
-            jobTitleId: jobTitle.id,
-            compensationTypeId: compensationType.id,
-            baseSalary: employeeData.baseSalary,
-            startDate: employeeData.hireDate,
-            status: 'active',
-            contractNumber: `EMP-${String(Math.floor(Math.random() * 9999) + 1000)}-${new Date().getFullYear()}`,
-            primaryBusinessId: business.id,
-            supervisorId: supervisor?.id || newEmployee.id,
-            supervisorName: supervisor ? `${supervisor.firstName} ${supervisor.lastName}` : `${employeeData.firstName} ${employeeData.lastName}`,
-            supervisorTitle: supervisor ? 'Manager' : jobTitle.title,
-            createdBy: 'SYSTEM'
+        // Create active contract via Contracts API if SEED_API_KEY is configured,
+        // otherwise create directly in DB. Using the API ensures consistent
+        // server-side behavior (validation, nested writes, PDF data handling).
+        const seedApiKey = process.env.SEED_API_KEY
+        const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:3000'
+        let apiSucceeded = false
+
+        if (seedApiKey) {
+          try {
+            const payload = {
+              jobTitleId: jobTitle.id,
+              compensationTypeId: compensationType.id,
+              baseSalary: employeeData.baseSalary,
+              startDate: employeeData.hireDate,
+              primaryBusinessId: business.id,
+              // Provide supervisorId when possible; fall back to the created supervisor
+              // or the dev manager if none available. This helps the contracts API accept
+              // seeded posts for non-management roles which require a supervisor.
+              supervisorId: supervisor?.id || null,
+              pdfContractData: undefined,
+              umbrellaBusinessId: null,
+              businessAssignments: null
+            }
+
+            const res = await fetch(`${seedApiBase}/api/employees/${newEmployee.id}/contracts`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-seed-api-key': seedApiKey },
+              body: JSON.stringify(payload)
+            })
+
+            if (res.ok) {
+              apiSucceeded = true
+            } else {
+              const body = await res.text().catch(() => '')
+              console.warn('Contracts API returned non-OK status:', res.status, body)
+            }
+          } catch (err) {
+            console.warn('Failed to POST to contracts API, falling back to DB create:', err?.message || err)
           }
-        })
+        }
+
+        if (!apiSucceeded) {
+          try {
+            const { createContractViaApiOrDb } = require('../src/lib/services/contract-service')
+            // Determine a supervisor fallback (prefer explicit supervisor, then dev manager)
+            const { getOrCreateDevManager } = require('../src/lib/dev/dev-manager')
+            const devMgr = await getOrCreateDevManager(prisma)
+
+            await createContractViaApiOrDb(newEmployee.id, {
+              contractNumber: `EMP-${String(Math.floor(Math.random() * 9999) + 1000)}-${new Date().getFullYear()}`,
+              jobTitleId: jobTitle.id,
+              compensationTypeId: compensationType.id,
+              baseSalary: employeeData.baseSalary,
+              startDate: employeeData.hireDate,
+              status: 'active',
+              primaryBusinessId: business.id,
+              supervisorId: supervisor?.id || devMgr?.id || null,
+              supervisorName: supervisor ? `${supervisor.firstName} ${supervisor.lastName}` : (devMgr ? devMgr.fullName : `${employeeData.firstName} ${employeeData.lastName}`),
+              supervisorTitle: supervisor ? 'Manager' : (devMgr ? 'Dev Manager' : jobTitle.title),
+              createdBy: 'SYSTEM'
+            })
+          } catch (err) {
+            console.error('\u274c Failed to create contract via helper during employee creation:', err && err.message ? err.message : err)
+            throw err
+          }
+        }
 
         // Create leave balance for current year
         const currentYear = new Date().getFullYear()

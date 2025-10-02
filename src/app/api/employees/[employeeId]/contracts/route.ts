@@ -32,6 +32,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         employeeSignedAt: true,
         createdAt: true,
         pdfGenerationData: true,
+        isRenewal: true,
+        renewalCount: true,
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -55,17 +57,27 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Check for a dev-only seed API key header. When running seeds locally we
+    // allow bypassing normal auth/permission checks so seeders can call this
+    // endpoint to create contracts in the same way the UI does. The header is
+    // only honored when NODE_ENV !== 'production' and SEED_API_KEY is set.
+    const seedHeader = req.headers.get('x-seed-api-key')
+    const isSeedRequest = process.env.NODE_ENV !== 'production' && seedHeader && process.env.SEED_API_KEY && seedHeader === process.env.SEED_API_KEY
+
+    let session: any = null
+    if (!isSeedRequest) {
+      session = await getServerSession(authOptions)
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      if (!hasPermission(session.user, 'canCreateEmployeeContracts')) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
     }
 
     const { employeeId } = await params
     const data = await req.json()
-
-    if (!hasPermission(session.user, 'canCreateEmployeeContracts')) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
 
     const {
       jobTitleId,
@@ -75,6 +87,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       primaryBusinessId,
       supervisorId,
       pdfContractData,
+      previousContractId,
       umbrellaBusinessId,
       businessAssignments
     } = data
@@ -124,31 +137,45 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       include: { jobTitles: true }
     }) : null
 
-  // Use transaction to terminate previous contracts and create new one
-  const contract = await prisma.$transaction(async (tx) => {
-      // Terminate all existing contracts for this employee (any status except terminated)
-      await tx.employeeContract.updateMany({
-        where: {
-          employeeId,
-          status: { not: 'terminated' }
-        },
-        data: {
-          status: 'terminated',
-          endDate: new Date() // Set end date to now when terminating
-        }
-      })
+    // Use transaction to create the new contract. When called via seed API key
+    // we avoid terminating existing contracts and mark the created contract as
+    // active so the seeded contract behaves like a normal created-and-signed
+    // contract for testing purposes.
+    const creatingUserId = isSeedRequest ? 'seed-script' : session.user.id
 
-      // Update employee status to pending_contract until they sign the new contract
-      await tx.employee.update({
-        where: { id: employeeId },
-        data: {
-          employmentStatus: 'pending_contract',
-          isActive: false // Employee remains inactive until contract is signed
-        }
-      })
+    const contract = await prisma.$transaction(async (tx) => {
+      if (!isSeedRequest) {
+        // Terminate all existing contracts for this employee (any status except terminated)
+        await tx.employeeContract.updateMany({
+          where: {
+            employeeId,
+            status: { not: 'terminated' }
+          },
+          data: {
+            status: 'terminated',
+            endDate: new Date() // Set end date to now when terminating
+          }
+        })
 
-      // Create new contract with pending_signature status (becomes active only when signed)
-      const contractCreateData: Prisma.EmployeeContractUncheckedCreateInput = {
+        // Update employee status to pending_contract until they sign the new contract
+        await tx.employee.update({
+          where: { id: employeeId },
+          data: {
+            employmentStatus: 'pending_contract',
+            isActive: false // Employee remains inactive until contract is signed
+          }
+        })
+      }
+
+      // Create new contract (active when seeding, otherwise pending_signature)
+      // We intentionally do NOT write previousContractId into pdfGenerationData or notes anymore.
+      // The previousContractId is stored in the dedicated DB column only.
+      const pdfGenerationDataValue = pdfContractData ? (pdfContractData as any) : null
+      const notesValue = data.notes || ''
+
+      // Use a flexible any-typed payload to avoid mismatches with generated Prisma types
+      // in environments where Prisma Client wasn't regenerated yet.
+      const contractCreateData: any = {
         id: randomUUID(),
         employeeId,
         contractNumber: 'CON' + Date.now().toString(),
@@ -161,14 +188,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         supervisorId: supervisorId || null,
         supervisorName: supervisor?.fullName || null,
         supervisorTitle: supervisor?.jobTitles?.title || null,
+        previousContractId: previousContractId || null,
         isCommissionBased: false,
         isSalaryBased: true,
-        createdBy: session.user.id,
-        status: 'pending_signature', // Contract starts as pending signature, becomes active when signed
-        pdfGenerationData: pdfContractData,
+        createdBy: creatingUserId,
+        status: isSeedRequest ? 'active' : 'pending_signature',
+  pdfGenerationData: pdfGenerationDataValue,
         umbrellaBusinessId: umbrellaBusinessId || null,
         umbrellaBusinessName: umbrellaBusinessData?.umbrellaBusinessName || 'Demo Umbrella Company',
         businessAssignments: businessAssignments || null,
+        notes: notesValue,
         // updatedAt has a default in the schema; not required here
       }
 

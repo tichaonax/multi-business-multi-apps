@@ -28,7 +28,10 @@ export async function POST(request: NextRequest) {
   const confirmed = !!body.confirm
   const confirmText = typeof body.confirmText === 'string' ? body.confirmText : undefined
   if (!confirmed || !confirmText) return NextResponse.json({ error: 'Confirmation required' }, { status: 400 })
-  if (!confirmText.startsWith('DELETE-DEV-DATA-')) return NextResponse.json({ error: 'Invalid confirmation text' }, { status: 400 })
+
+  // Accept either the legacy DELETE-DEV-DATA- token or the UI-generated UNSEED-RESTAURANT- token
+  const validPrefix = confirmText.startsWith('DELETE-DEV-DATA-') || confirmText.startsWith('UNSEED-RESTAURANT-') || confirmText.startsWith('UNSEED-')
+  if (!validPrefix) return NextResponse.json({ error: 'Invalid confirmation text' }, { status: 400 })
 
   try {
     // Set CLEANUP_CONFIRM so the script actually performs deletes

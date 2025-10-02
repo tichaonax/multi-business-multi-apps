@@ -6,10 +6,13 @@ import { hasPermission } from '@/lib/rbac'
 // GET - Get specific employee
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+)
+ {
+
+    const { id } = await params
   try {
-    const employeeId = params.id
+    const employeeId = id
 
     // Mock employee data - replace with actual database query
     const mockEmployee = {
@@ -63,12 +66,15 @@ export async function GET(
 // PUT - Update employee
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+)
+ {
   const session = await getServerSession(authOptions)
 
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { id } = await params
   }
 
   const userPermissions = session.user.permissions || {}
@@ -77,7 +83,7 @@ export async function PUT(
   }
 
   try {
-    const employeeId = params.id
+    const employeeId = id
     const updateData = await request.json()
 
     // TODO: Update employee in database
@@ -107,12 +113,15 @@ export async function PUT(
 // DELETE - Delete employee
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+)
+ {
   const session = await getServerSession(authOptions)
 
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { id } = await params
   }
 
   const userPermissions = session.user.permissions || {}
@@ -121,7 +130,7 @@ export async function DELETE(
   }
 
   try {
-    const employeeId = params.id
+    const employeeId = id
 
     // TODO: Delete employee from database
     // For now, return mock success response

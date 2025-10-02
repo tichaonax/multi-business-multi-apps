@@ -6,11 +6,11 @@ import { hasPermission } from '@/lib/permission-utils'
 
 export async function GET(
   request: Request,
-  { params }: { params: { jobTitleId: string } }
+  { params }: { params: Promise<{ jobTitleId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -20,8 +20,9 @@ export async function GET(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
+    const { jobTitleId } = await params
     const jobTitle = await prisma.jobTitle.findUnique({
-      where: { id: params.jobTitleId },
+      where: { id: jobTitleId },
       include: {
         _count: {
           select: {
@@ -45,11 +46,11 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { jobTitleId: string } }
+  { params }: { params: Promise<{ jobTitleId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -59,11 +60,12 @@ export async function PUT(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
+    const { jobTitleId } = await params
     const data = await request.json()
     const { title, description, responsibilities, department, level, isActive } = data
 
     const jobTitle = await prisma.jobTitle.update({
-      where: { id: params.jobTitleId },
+      where: { id: jobTitleId },
       data: {
         title,
         description,
@@ -83,11 +85,11 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { jobTitleId: string } }
+  { params }: { params: Promise<{ jobTitleId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -97,9 +99,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
+    const { jobTitleId } = await params
     // Check if job title is being used
     const jobTitleInUse = await prisma.jobTitle.findUnique({
-      where: { id: params.jobTitleId },
+      where: { id: jobTitleId },
       include: {
         _count: {
           select: {

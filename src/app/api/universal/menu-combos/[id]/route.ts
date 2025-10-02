@@ -3,9 +3,10 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const comboId = params.id
+    const { id } = await params
+    const comboId = id
     const data = await request.json()
 
     const {
@@ -99,9 +100,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const comboId = params.id
+    const { id } = await params
+    const comboId = id
 
     // Delete combo and its items (cascade should handle items automatically)
     await prisma.menuCombo.delete({

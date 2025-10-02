@@ -7,9 +7,9 @@ import { isSystemAdmin } from '@/lib/permission-utils';
 import { SessionUser } from '@/lib/permission-utils';
 
 interface Context {
-  params: {
+  params: Promise<{
     businessId: string;
-  };
+  }>;
 }
 
 export async function GET(req: NextRequest, { params }: Context) {

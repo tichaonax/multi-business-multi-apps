@@ -61,7 +61,8 @@ export function MobileSidebar() {
                 📊 Dashboard
               </Link>
 
-              {modules.map((module) => {
+              {/* Business modules - Only for managers and admins, NOT promoted drivers */}
+              {(isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers') || hasPermission(user, 'canManageEmployees') || hasPermission(user, 'canEditEmployees') || hasPermission(user, 'canAccessFinancialData')) && modules.map((module) => {
                 if (!canAccessModule(user, module.module)) return null
 
                 return (
@@ -88,14 +89,21 @@ export function MobileSidebar() {
               )}
 
               {/* Fleet Management - User-level permissions (business-agnostic) */}
-              {(hasUserPermission(user, 'canAccessVehicles') || isSystemAdmin(user)) && (
-                <Link
-                  href="/vehicles"
-                  className="block px-4 py-3 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
+              {(hasUserPermission(user, 'canAccessVehicles') || hasUserPermission(user, 'canLogDriverTrips') || hasUserPermission(user, 'canLogDriverMaintenance') || isSystemAdmin(user)) && (
+                <button
+                  onClick={() => {
+                    const isDriver = user &&
+                      hasUserPermission(user, 'canLogDriverTrips') &&
+                      hasUserPermission(user, 'canLogDriverMaintenance') &&
+                      !hasUserPermission(user, 'canAccessPersonalFinance') &&
+                      !isSystemAdmin(user)
+                    window.location.href = isDriver ? '/driver' : '/vehicles'
+                    setIsOpen(false)
+                  }}
+                  className="block w-full text-left px-4 py-3 rounded hover:bg-gray-700"
                 >
                   🚗 Fleet Management
-                </Link>
+                </button>
               )}
 
               {/* Contractor Management - User-level permissions (business-agnostic) */}
@@ -106,6 +114,41 @@ export function MobileSidebar() {
                   onClick={() => setIsOpen(false)}
                 >
                   👷 Contractor Management
+                </Link>
+              )}
+
+              {/* Individual Items - Only for actual managers and system admins, NOT promoted drivers */}
+
+              {/* Employees - Only for users with management permissions, not just viewing */}
+              {(hasPermission(user, 'canManageEmployees') || hasPermission(user, 'canEditEmployees') || hasPermission(user, 'canManageBusinessUsers') || isSystemAdmin(user)) && (
+                <Link
+                  href="/employees"
+                  className="block px-4 py-3 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  👤 Employees
+                </Link>
+              )}
+
+              {/* Reports - Only for managers and admins, not drivers */}
+              {(isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers') || hasPermission(user, 'canAccessFinancialData')) && (
+                <Link
+                  href="/reports"
+                  className="block px-4 py-3 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  📈 Reports
+                </Link>
+              )}
+
+              {/* HR Reports - Only for users with actual employee management permissions */}
+              {(isSystemAdmin(user) || hasPermission(user, 'canManageEmployees') || hasPermission(user, 'canEditEmployees')) && (
+                <Link
+                  href="/admin/reports"
+                  className="block px-4 py-3 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  📊 HR Reports
                 </Link>
               )}
 
@@ -132,28 +175,18 @@ export function MobileSidebar() {
                 💬 Team Chat
               </Link>
 
-              <Link
-                href="/reports"
-                className="block px-4 py-3 rounded hover:bg-gray-700"
-                onClick={() => setIsOpen(false)}
-              >
-                📈 Reports
-              </Link>
-
-              {/* Employee Management Section */}
-              {(hasPermission(user, 'canViewEmployees') || hasPermission(user, 'canManageEmployees') || isSystemAdmin(user)) && (
+              {/* Employee Management Section - Only for actual managers */}
+              {(hasPermission(user, 'canManageEmployees') ||
+                hasPermission(user, 'canManageJobTitles') ||
+                hasPermission(user, 'canEditEmployees') ||
+                hasPermission(user, 'canManageBenefitTypes') ||
+                hasPermission(user, 'canManageCompensationTypes') ||
+                hasPermission(user, 'canManageDisciplinaryActions') ||
+                isSystemAdmin(user)) && (
                 <>
                   <div className="pt-4 pb-1">
                     <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">Employee Management</div>
                   </div>
-
-                  <Link
-                    href="/employees"
-                    className="block px-4 py-3 rounded hover:bg-gray-700"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    👤 Employees
-                  </Link>
 
                   {hasPermission(user, 'canManageJobTitles') && (
                     <Link
@@ -194,14 +227,6 @@ export function MobileSidebar() {
                       ⚠️ Disciplinary Actions
                     </Link>
                   )}
-
-                  <Link
-                    href="/admin/reports"
-                    className="block px-4 py-3 rounded hover:bg-gray-700"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    📊 HR Reports
-                  </Link>
                 </>
               )}
 

@@ -12,6 +12,8 @@ export interface Vehicle {
   driveType: 'LEFT_HAND' | 'RIGHT_HAND'
   ownershipType: 'PERSONAL' | 'BUSINESS'
   currentMileage: number
+  mileageUnit: 'km' | 'miles'
+  hasInitialMileage: boolean
   businessId?: string
   userId?: string
   isActive: boolean
@@ -254,6 +256,7 @@ export interface CreateVehicleData {
   driveType: 'LEFT_HAND' | 'RIGHT_HAND'
   ownershipType: 'PERSONAL' | 'BUSINESS'
   currentMileage: number
+  mileageUnit: 'km' | 'miles'
   businessId?: string
   userId?: string
   purchaseDate?: string

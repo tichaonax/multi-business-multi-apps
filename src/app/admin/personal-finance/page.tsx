@@ -326,13 +326,13 @@ export default function AdminPersonalFinancePage() {
 
   // Helper function to check if payment type indicates contractor payment
   const isContractorPaymentType = (transaction: PersonalExpense): boolean => {
-    const paymentType = getPaymentType(transaction).toLowerCase()
+    const paymentType = (getPaymentType(transaction) || 'category').toLowerCase()
 
     // Check if payment type contains contractor-related keywords
     return paymentType.includes('contractor') ||
            paymentType.includes('person payment') ||
            paymentType.includes('project payment') ||
-           (transaction.projectTransactions && transaction.projectTransactions.length > 0)
+           Boolean(transaction.projectTransactions && transaction.projectTransactions.length > 0)
   }
 
   // Function to show project details modal
@@ -686,7 +686,7 @@ export default function AdminPersonalFinancePage() {
                                     // Project-related payment
                                     return (
                                       <button
-                                        onClick={() => showProjectDetails(transaction.projectTransactions[0].constructionProject!.id)}
+                                        onClick={() => showProjectDetails(transaction.projectTransactions?.[0]?.constructionProject?.id || '')}
                                         className="capitalize text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline cursor-pointer transition-colors"
                                         title="View project details"
                                       >
@@ -737,11 +737,11 @@ export default function AdminPersonalFinancePage() {
                                     )}
                                     {projectTransaction.recipientPerson && (
                                       <button
-                                        onClick={() => showContractorDetails(projectTransaction.recipientPerson.id)}
+                                        onClick={() => showContractorDetails(projectTransaction.recipientPerson?.id || '')}
                                         className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors cursor-pointer mr-1 mb-1"
-                                        title={`View person: ${projectTransaction.recipientPerson.fullName}`}
+                                        title={`View person: ${projectTransaction.recipientPerson?.fullName || 'Unknown'}`}
                                       >
-                                        👤 {projectTransaction.recipientPerson.fullName}
+                                        👤 {projectTransaction.recipientPerson?.fullName}
                                       </button>
                                     )}
                                     {projectTransaction.projectStage && (
@@ -856,7 +856,7 @@ export default function AdminPersonalFinancePage() {
                         // Project-related payment
                         return (
                           <button
-                            onClick={() => showProjectDetails(editingExpense.projectTransactions[0].constructionProject!.id)}
+                            onClick={() => showProjectDetails(editingExpense.projectTransactions?.[0]?.constructionProject?.id || '')}
                             className="capitalize text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline cursor-pointer transition-colors"
                             title="View project details"
                           >

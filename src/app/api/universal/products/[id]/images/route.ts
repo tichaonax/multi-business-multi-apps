@@ -4,7 +4,10 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 import { prisma } from '@/lib/prisma'
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> })
+ {
+
+    const { id } = await params
   try {
     const { id: productId } = await params
     // verify product exists
@@ -97,7 +100,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> })
+ {
+
+    const { id } = await params
   try {
     const { id: productId } = await params
     const body = await request.json().catch(() => ({}))

@@ -1,20 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DateInput } from '@/components/ui/date-input'
-import { useDateFormat } from '@/contexts/settings-context'
+import { useDateFormat, useDefaultMileageUnit } from '@/contexts/settings-context'
 import { useSession } from 'next-auth/react'
-import { CreateVehicleData } from '@/types/vehicle'
+import { CreateVehicleData, Vehicle } from '@/types/vehicle'
+import { getMileageUnitOptions, getMileageUnitWarning, canChangeMileageUnit, type MileageUnit } from '@/lib/mileage-utils'
+import { isSystemAdmin, type SessionUser } from '@/lib/permission-utils'
 
 interface VehicleFormProps {
+  vehicle?: Vehicle // If provided, form is in edit mode
   onSuccess?: () => void
   onCancel?: () => void
 }
 
-export function VehicleForm({ onSuccess, onCancel }: VehicleFormProps) {
+export function VehicleForm({ vehicle, onSuccess, onCancel }: VehicleFormProps) {
   const { data: session } = useSession()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  const defaultMileageUnit = useDefaultMileageUnit()
+  const isEdit = !!vehicle
+  const userIsAdmin = isSystemAdmin(session?.user as SessionUser)
 
   const [formData, setFormData] = useState<CreateVehicleData>({
     licensePlate: '',
@@ -27,6 +34,7 @@ export function VehicleForm({ onSuccess, onCancel }: VehicleFormProps) {
     driveType: 'LEFT_HAND',
     ownershipType: 'PERSONAL',
     currentMileage: 0,
+    mileageUnit: defaultMileageUnit as MileageUnit,
     businessId: '',
     userId: session?.user?.id || '',
     purchaseDate: '',
@@ -34,7 +42,36 @@ export function VehicleForm({ onSuccess, onCancel }: VehicleFormProps) {
     notes: ''
   })
 
+  // Populate form data if editing
+  useEffect(() => {
+    if (vehicle) {
+      setFormData({
+        licensePlate: vehicle.licensePlate,
+        vin: vehicle.vin,
+        make: vehicle.make,
+        model: vehicle.model,
+        year: vehicle.year,
+        color: vehicle.color || '',
+        weight: vehicle.weight || 0,
+        driveType: vehicle.driveType,
+        ownershipType: vehicle.ownershipType,
+        currentMileage: vehicle.currentMileage,
+        mileageUnit: vehicle.mileageUnit,
+        businessId: vehicle.businessId || '',
+        userId: vehicle.userId || session?.user?.id || '',
+        purchaseDate: vehicle.purchaseDate || '',
+        purchasePrice: vehicle.purchasePrice || 0,
+        notes: vehicle.notes || ''
+      })
+    }
+  }, [vehicle, session?.user?.id])
+
   const { format: globalDateFormat } = useDateFormat()
+  const mileageUnitOptions = getMileageUnitOptions()
+
+  // Check if mileage unit can be changed
+  const canChangeMileage = canChangeMileageUnit(vehicle?.hasInitialMileage || false, userIsAdmin)
+  const mileageWarning = getMileageUnitWarning(vehicle?.hasInitialMileage || false, userIsAdmin)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
@@ -50,18 +87,22 @@ export function VehicleForm({ onSuccess, onCancel }: VehicleFormProps) {
     setError('')
 
     try {
-      const response = await fetch('/api/vehicles', {
-        method: 'POST',
+      const url = isEdit ? '/api/vehicles' : '/api/vehicles'
+      const method = isEdit ? 'PUT' : 'POST'
+      const body = isEdit ? { id: vehicle?.id, ...formData } : formData
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       })
 
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create vehicle')
+        throw new Error(result.error || `Failed to ${isEdit ? 'update' : 'create'} vehicle`)
       }
 
       if (onSuccess) {
@@ -77,7 +118,9 @@ export function VehicleForm({ onSuccess, onCancel }: VehicleFormProps) {
   return (
     <div className="card p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-primary">Register New Vehicle</h2>
+        <h2 className="text-xl font-semibold text-primary">
+          {isEdit ? 'Edit Vehicle' : 'Register New Vehicle'}
+        </h2>
         {onCancel && (
           <button
             onClick={onCancel}
@@ -241,8 +284,36 @@ export function VehicleForm({ onSuccess, onCancel }: VehicleFormProps) {
               value={formData.currentMileage}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Miles or Kilometers"
+              placeholder={`Current mileage in ${formData.mileageUnit}`}
             />
+          </div>
+
+          {/* Mileage Unit */}
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-1">
+              Mileage Unit *
+            </label>
+            <select
+              name="mileageUnit"
+              required
+              value={formData.mileageUnit}
+              onChange={handleInputChange}
+              disabled={!canChangeMileage}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                !canChangeMileage ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-75' : ''
+              }`}
+            >
+              {mileageUnitOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label} ({option.abbreviation})
+                </option>
+              ))}
+            </select>
+            {mileageWarning && (
+              <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+                ⚠️ {mileageWarning}
+              </p>
+            )}
           </div>
 
           {/* Weight */}
@@ -321,7 +392,10 @@ export function VehicleForm({ onSuccess, onCancel }: VehicleFormProps) {
             disabled={isSubmitting}
             className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto"
           >
-            {isSubmitting ? 'Registering...' : 'Register Vehicle'}
+            {isSubmitting
+              ? (isEdit ? 'Updating...' : 'Registering...')
+              : (isEdit ? 'Update Vehicle' : 'Register Vehicle')
+            }
           </button>
         </div>
       </form>

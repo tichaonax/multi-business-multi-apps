@@ -66,6 +66,7 @@ interface ContractData {
   basicSalary: number
   livingAllowance?: number
   commission?: number
+  compensationType?: string
   isCommissionBased?: boolean
   isSalaryBased?: boolean
   benefits?: Array<{
@@ -108,6 +109,11 @@ interface ContractData {
     role?: string
     startDate?: string
   }>
+  // Renewal tracking fields
+  isRenewal?: boolean
+  renewalCount?: number
+  renewalNote?: string
+  originalContractNumber?: string
 }
 
 // New comprehensive function combining ContractTemplate format with legal language
@@ -186,7 +192,7 @@ export function generateComprehensiveContract(data: ContractData): jsPDF {
 
   const addFooter = () => {
     const footerY = pdf.internal.pageSize.height - 15
-    const currentPageNum = pdf.internal.getCurrentPageInfo().pageNumber
+    const currentPageNum = pdf.getCurrentPageInfo().pageNumber
     const totalPages = pdf.getNumberOfPages()
 
     // Save current font settings
@@ -197,19 +203,46 @@ export function generateComprehensiveContract(data: ContractData): jsPDF {
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(PDF_CONSTANTS.FONT_SIZE.SMALL)
 
-    // Left side: Contract type and number
-    const leftText = `Employment Contract - ${data.contractNumber || 'DRAFT'}`
+    // Left side: Contract number only (shortened to save space)
+    const leftText = `${data.contractNumber || 'DRAFT'}`
+    const leftTextWidth = pdf.getTextWidth(leftText)
     pdf.text(leftText, margin, footerY)
-
-    // Center: Employee name
-    const centerText = `${data.employeeName}`
-    const centerX = (pageWidth - pdf.getTextWidth(centerText)) / 2
-    pdf.text(centerText, centerX, footerY)
 
     // Right side: Page number
     const rightText = `Page ${currentPageNum} of ${totalPages}`
-    const rightX = pageWidth - margin - pdf.getTextWidth(rightText)
+    const rightTextWidth = pdf.getTextWidth(rightText)
+    const rightX = pageWidth - margin - rightTextWidth
     pdf.text(rightText, rightX, footerY)
+
+    // Center: Employee name with ==RENEWED== marker if applicable
+    // Calculate available space between left and right text
+    let centerText = `${data.employeeName}`
+    if (data.isRenewal) {
+      centerText += ` ==RENEWED==`
+      if (data.renewalCount && data.renewalCount > 0) {
+        centerText += ` (#${data.renewalCount})`
+      }
+    }
+
+    const centerTextWidth = pdf.getTextWidth(centerText)
+    const leftEdge = margin + leftTextWidth + 5 // 5 units padding
+    const rightEdge = rightX - 5 // 5 units padding
+    const availableWidth = rightEdge - leftEdge
+
+    // Calculate center position, but ensure it doesn't overlap
+    let centerX = (pageWidth - centerTextWidth) / 2
+
+    // If center position would overlap with left text, move it right
+    if (centerX < leftEdge) {
+      centerX = leftEdge
+    }
+
+    // If text would overflow into right side, truncate or move left
+    if (centerX + centerTextWidth > rightEdge) {
+      centerX = Math.max(leftEdge, rightEdge - centerTextWidth)
+    }
+
+    pdf.text(centerText, centerX, footerY)
 
     // Restore original font settings
     pdf.setFont(currentFont.fontName, currentFont.fontStyle)
@@ -566,9 +599,33 @@ export function generateComprehensiveContract(data: ContractData): jsPDF {
   }
 
   addLabelValue('Start Date', data.contractStartDate)
-  addLabelValue('Base Salary', `$${data.basicSalary} per month`)
 
+  // Enhanced salary display with compensation type information
+  let salaryText = `$${data.basicSalary}`
   if (data.compensationType) {
+    // Check if compensation type indicates frequency
+    const lowerCompType = data.compensationType.toLowerCase()
+    if (lowerCompType.includes('monthly') || lowerCompType.includes('salary')) {
+      salaryText += ' per month'
+    } else if (lowerCompType.includes('annually') || lowerCompType.includes('annual')) {
+      salaryText += ' per annum'
+    } else if (lowerCompType.includes('hourly')) {
+      salaryText += ' per hour'
+    } else {
+      salaryText += ' per month' // default to monthly
+    }
+
+    // Add compensation type details
+    if (lowerCompType.includes('commission')) {
+      salaryText += ` (${data.compensationType})`
+    }
+  } else {
+    salaryText += ' per month' // default fallback
+  }
+
+  addLabelValue('Base Salary', salaryText)
+
+  if (data.compensationType && !data.compensationType.toLowerCase().includes('salary') && !data.compensationType.toLowerCase().includes('monthly')) {
     addLabelValue('Compensation Type', data.compensationType)
   }
 

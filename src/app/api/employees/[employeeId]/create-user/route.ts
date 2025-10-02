@@ -9,8 +9,11 @@ import { hasPermission } from '@/lib/permission-utils';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { employeeId: string } }
-) {
+  { params }: { params: Promise<{ employeeId: string }> }
+)
+ {
+
+    const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {

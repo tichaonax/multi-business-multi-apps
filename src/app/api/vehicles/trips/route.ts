@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
 const CreateTripSchema = z.object({
@@ -250,10 +251,14 @@ export async function POST(request: NextRequest) {
     // Ensure optional foreign keys are not empty strings (which would violate FK)
     const createData: any = {
       ...validatedData,
+      // ensure a primary key id is present (schema requires id without default)
+      id: randomUUID(),
       startTime: new Date(validatedData.startTime),
       endTime: validatedData.endTime ? new Date(validatedData.endTime) : null,
       tripMileage,
-      isCompleted
+      isCompleted,
+      // updatedAt is required by the schema (many models don't have a DB default)
+      updatedAt: new Date()
     }
 
     if (!createData.businessId) {

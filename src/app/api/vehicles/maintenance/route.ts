@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { ServiceType } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
@@ -241,12 +242,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Map incoming serviceType (frontend) to Prisma ServiceType enum
+    const SERVICE_TYPE_MAP: Record<string, ServiceType> = {
+      ROUTINE: ServiceType.OTHER,
+      REPAIR: ServiceType.REPAIR,
+      INSPECTION: ServiceType.INSPECTION,
+      EMERGENCY: ServiceType.REPAIR,
+      WARRANTY: ServiceType.OTHER,
+      UPGRADE: ServiceType.OTHER
+    }
+
+    const prismaServiceType = SERVICE_TYPE_MAP[validatedData.serviceType]
+    if (!prismaServiceType) {
+      return NextResponse.json({ error: 'Invalid serviceType' }, { status: 400 })
+    }
+
     // Create maintenance record (map front-end names to DB columns)
     const maintenanceRecord = await prisma.vehicleMaintenanceRecord.create({
       data: {
         id: randomUUID(),
         vehicleId: validatedData.vehicleId,
-  serviceType: validatedData.serviceType as any,
+        serviceType: prismaServiceType,
         serviceName: validatedData.serviceName,
         serviceProvider: validatedData.serviceProvider || null,
         serviceDate: new Date(validatedData.serviceDate),
@@ -371,11 +387,21 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Map incoming serviceType to Prisma enum
+    const SERVICE_TYPE_MAP: Record<string, ServiceType> = {
+      ROUTINE: ServiceType.OTHER,
+      REPAIR: ServiceType.REPAIR,
+      INSPECTION: ServiceType.INSPECTION,
+      EMERGENCY: ServiceType.REPAIR,
+      WARRANTY: ServiceType.OTHER,
+      UPGRADE: ServiceType.OTHER
+    }
+
     // Update maintenance record (map front-end fields to DB columns)
     const maintenanceRecord = await prisma.vehicleMaintenanceRecord.update({
       where: { id },
       data: {
-        serviceType: updateData.serviceType ? (updateData.serviceType as any) : undefined,
+        serviceType: updateData.serviceType ? SERVICE_TYPE_MAP[updateData.serviceType as string] ?? undefined : undefined,
         serviceName: updateData.serviceName ?? undefined,
         serviceProvider: updateData.serviceProvider ?? undefined,
         serviceDate: updateData.serviceDate ? new Date(updateData.serviceDate) : undefined,

@@ -8,8 +8,11 @@ import { randomUUID } from 'crypto'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { employeeId: string; requestId: string } }
-) {
+  { params }: { params: Promise<{ employeeId: string; requestId: string }> }
+)
+ {
+
+    const { employeeId, requestId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -160,8 +163,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { employeeId: string; requestId: string } }
-) {
+  { params }: { params: Promise<{ employeeId: string; requestId: string }> }
+)
+ {
+
+    const { employeeId, requestId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {

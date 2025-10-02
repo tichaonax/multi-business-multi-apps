@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Vehicle, VehicleApiResponse } from '@/types/vehicle'
+import { LicenseStatusIndicator } from './license-status-indicator'
 
 interface VehicleListProps {
   onVehicleSelect?: (vehicle: Vehicle) => void
   onAddVehicle?: () => void
+  refreshSignal?: number
+  updatedVehicleId?: string | null
+  updateSeq?: number
 }
 
-export function VehicleList({ onVehicleSelect, onAddVehicle }: VehicleListProps) {
+export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, updatedVehicleId, updateSeq }: VehicleListProps) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -29,7 +33,7 @@ export function VehicleList({ onVehicleSelect, onAddVehicle }: VehicleListProps)
 
     try {
       setLoading(true)
-      const response = await fetch(`/api/vehicles?page=${page}&limit=20`, { signal })
+      const response = await fetch(`/api/vehicles?page=${page}&limit=20&includeLicenses=true`, { signal })
 
       if (!response.ok) {
         throw new Error('Failed to fetch vehicles')
@@ -61,7 +65,36 @@ export function VehicleList({ onVehicleSelect, onAddVehicle }: VehicleListProps)
     return () => {
       controllerRef.current?.abort()
     }
-  }, [page])
+    // include refreshSignal so parent can trigger a reload (e.g., after edits)
+  }, [page, refreshSignal])
+
+  // Narrow refresh: when parent signals a single vehicle update, fetch only that vehicle and patch it into the list
+  useEffect(() => {
+    if (!updatedVehicleId) return
+
+    const controller = new AbortController()
+    const signal = controller.signal
+
+    const fetchSingle = async () => {
+      try {
+        const res = await fetch(`/api/vehicles?id=${updatedVehicleId}&includeLicenses=true`, { signal })
+        if (!res.ok) return
+        const body = await res.json()
+        if (!body?.success || !Array.isArray(body.data) || body.data.length === 0) return
+        const updatedVehicle: Vehicle = body.data[0]
+
+        setVehicles(prev => prev.map(v => v.id === updatedVehicle.id ? updatedVehicle : v))
+      } catch (err) {
+        if ((err as any)?.name === 'AbortError') return
+        console.error('Failed to fetch single updated vehicle', err)
+      }
+    }
+
+    fetchSingle()
+
+    return () => controller.abort()
+    // Trigger when the sequence increments (so same id repeated will still refetch)
+  }, [updatedVehicleId, updateSeq])
 
   const handleDelete = async (vehicleId: string) => {
     if (!confirm('Are you sure you want to delete this vehicle?')) {
@@ -154,8 +187,7 @@ export function VehicleList({ onVehicleSelect, onAddVehicle }: VehicleListProps)
               {vehicles.map((vehicle) => (
                 <div
                   key={vehicle.id}
-                  className="card border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer relative z-[9998] pointer-events-auto"
-                  onClick={() => onVehicleSelect?.(vehicle)}
+                  className="card border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
                 >
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                     <div className="flex-1 min-w-0">
@@ -183,13 +215,13 @@ export function VehicleList({ onVehicleSelect, onAddVehicle }: VehicleListProps)
                           <span className="font-medium">License:</span> {vehicle.licensePlate}
                         </div>
                         <div>
-                          <span className="font-medium">Mileage:</span> {vehicle.currentMileage.toLocaleString()}
+                          <span className="font-medium">VIN:</span> {vehicle.vin}
+                        </div>
+                        <div>
+                          <span className="font-medium">Mileage:</span> {vehicle.currentMileage.toLocaleString()} {vehicle.mileageUnit.toUpperCase()}
                         </div>
                         <div>
                           <span className="font-medium">Color:</span> {vehicle.color || 'N/A'}
-                        </div>
-                        <div>
-                          <span className="font-medium">Drive:</span> {vehicle.driveType.replace('_', ' ')}
                         </div>
                       </div>
 
@@ -205,6 +237,16 @@ export function VehicleList({ onVehicleSelect, onAddVehicle }: VehicleListProps)
                         </div>
                       )}
 
+                      {/* License Status */}
+                      {vehicle.vehicleLicenses && vehicle.vehicleLicenses.length > 0 && (
+                        <div className="mt-2">
+                          <LicenseStatusIndicator
+                            licenses={vehicle.vehicleLicenses}
+                            compact={true}
+                          />
+                        </div>
+                      )}
+
                       {vehicle.notes && (
                         <div className="mt-2 text-sm text-secondary">
                           <span className="font-medium">Notes:</span> {vehicle.notes}
@@ -212,22 +254,24 @@ export function VehicleList({ onVehicleSelect, onAddVehicle }: VehicleListProps)
                       )}
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 sm:ml-4 w-full sm:w-auto relative z-[9999]">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 sm:ml-4 w-full sm:w-auto">
                       <button
                         onClick={(e) => {
+                          e.preventDefault()
                           e.stopPropagation()
                           onVehicleSelect?.(vehicle)
                         }}
-                        className="w-full sm:w-auto px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-center relative z-[9999] pointer-events-auto"
+                        className="w-full sm:w-auto px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-center cursor-pointer"
                       >
                         View
                       </button>
                       <button
                         onClick={(e) => {
+                          e.preventDefault()
                           e.stopPropagation()
                           handleDelete(vehicle.id)
                         }}
-                        className="w-full sm:w-auto px-3 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-center relative z-[9999] pointer-events-auto"
+                        className="w-full sm:w-auto px-3 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-center cursor-pointer"
                       >
                         Delete
                       </button>

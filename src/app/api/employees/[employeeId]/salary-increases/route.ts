@@ -7,7 +7,10 @@ import { randomUUID } from 'crypto'
 import { SessionUser, hasPermission } from '@/lib/permission-utils'
 
 // GET - Get salary increases for an employee
-export async function GET(req: NextRequest, { params }: { params: { employeeId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ employeeId: string }> })
+ {
+
+    const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -96,7 +99,10 @@ export async function GET(req: NextRequest, { params }: { params: { employeeId: 
 }
 
 // POST - Create a new salary increase request
-export async function POST(req: NextRequest, { params }: { params: { employeeId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ employeeId: string }> })
+ {
+
+    const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {

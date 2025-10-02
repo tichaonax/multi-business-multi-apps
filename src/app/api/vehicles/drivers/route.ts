@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
         include: Object.assign(
           {
             users: {
-              select: { id: true, name: true, email: true }
+              select: { id: true, name: true, email: true, isActive: true }
             }
           },
           includeAuthorizations

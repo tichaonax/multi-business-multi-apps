@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client')
+const { randomUUID } = require('crypto')
 const prisma = new PrismaClient()
 
 async function createSampleEmployees() {
@@ -105,6 +106,9 @@ async function createSampleEmployees() {
         continue
       }
 
+      // Ensure we provide an id if the model requires it (some environments
+      // don't auto-generate string UUIDs). Use a UUID when missing.
+      empData.id = empData.id || randomUUID()
       const employee = await prisma.employee.create({
         data: empData
       })
@@ -113,7 +117,6 @@ async function createSampleEmployees() {
       createdEmployees.push(employee)
     }
 
-    // Set up supervisor relationships
     const manager = createdEmployees.find(e => e.employeeNumber === 'EMP001')
     if (manager) {
       await prisma.employee.updateMany({
@@ -122,6 +125,10 @@ async function createSampleEmployees() {
       })
       console.log('✅ Set up supervisor relationships')
     }
+
+    // Ensure we have a stable dev manager available to use as a fallback
+    const { getOrCreateDevManager } = require('../src/lib/dev/dev-manager')
+    const devManager = await getOrCreateDevManager(prisma)
 
     // Create sample contracts
     console.log('📋 Creating sample contracts...')
@@ -184,11 +191,49 @@ async function createSampleEmployees() {
       const contractCount = await prisma.employeeContract.count()
       const contractNumber = `CON${String(contractCount + 1).padStart(6, '0')}`
 
-      // Create contract with transaction
-      const contract = await prisma.$transaction(async (tx) => {
-        const newContract = await tx.employeeContract.create({
-          data: {
-            employeeId: employee.id,
+      // Try to create contract via the application's contracts API so seeded
+      // contracts run through the same server-side logic as user-created ones.
+      const seedApiKey = process.env.SEED_API_KEY
+      const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:3000'
+      let apiSucceeded = false
+
+      if (seedApiKey) {
+        try {
+          const payload = {
+            jobTitleId: employee.jobTitleId,
+            compensationTypeId: employee.compensationTypeId,
+            baseSalary: contractData.baseSalary,
+            startDate: contractData.startDate,
+            primaryBusinessId: employee.primaryBusinessId,
+            supervisorId: employee.supervisorId || manager?.id || devManager?.id || null,
+            pdfContractData: undefined,
+            umbrellaBusinessId: null,
+            businessAssignments: null
+          }
+
+          const res = await fetch(`${seedApiBase}/api/employees/${employee.id}/contracts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-seed-api-key': seedApiKey },
+            body: JSON.stringify(payload)
+          })
+
+          if (res.ok) {
+            const jr = await res.json().catch(() => null)
+            console.log(`345 Contracts API created contract for ${employee.fullName}`, jr?.contractNumber || jr?.id || '')
+            apiSucceeded = true
+          } else {
+            const body = await res.text().catch(() => '')
+            console.warn('Contracts API returned non-OK status:', res.status, body)
+          }
+        } catch (err) {
+          console.warn('Failed to POST to contracts API, falling back to direct DB create:', err?.message || err)
+        }
+      }
+
+      if (!apiSucceeded) {
+        try {
+          const { createContractViaApiOrDb } = require('../src/lib/services/contract-service')
+          const created = await createContractViaApiOrDb(employee.id, {
             contractNumber,
             version: 1,
             jobTitleId: employee.jobTitleId,
@@ -196,36 +241,23 @@ async function createSampleEmployees() {
             baseSalary: contractData.baseSalary,
             startDate: contractData.startDate,
             primaryBusinessId: employee.primaryBusinessId,
-            supervisorId: employee.supervisorId,
+            supervisorId: employee.supervisorId || manager?.id || devManager?.id || null,
             supervisorName: manager?.fullName || 'Manager',
             supervisorTitle: managerJobTitle.title,
             isCommissionBased: contractData.isCommissionBased || false,
             isSalaryBased: true,
             status: 'active',
-            createdBy: 'system'
-          }
-        })
+            // createdBy must reference an existing employee id (FK to employees)
+            // prefer the manager who owns these employees, fall back to the dev manager
+            createdBy: manager?.id || devManager?.id || employee.id,
+            contractBenefits: contractData.benefits || null
+          })
 
-        // Create benefits
-        if (contractData.benefits) {
-          for (const benefit of contractData.benefits) {
-            if (benefit.benefitTypeId) {
-              await tx.contractBenefit.create({
-                data: {
-                  contractId: newContract.id,
-                  benefitTypeId: benefit.benefitTypeId,
-                  amount: benefit.amount,
-                  isPercentage: benefit.isPercentage || false
-                }
-              })
-            }
-          }
+          console.log(`345 Created contract ${created.contractNumber || created.id} for ${employee.fullName}`)
+        } catch (err) {
+          console.error('\u274c Failed to create contract via helper:', err && err.message ? err.message : err)
         }
-
-        return newContract
-      })
-
-      console.log(`✅ Created contract ${contract.contractNumber} for ${employee.fullName}`)
+      }
     }
 
     // Create a sample disciplinary action
@@ -238,15 +270,29 @@ async function createSampleEmployees() {
       if (!existingAction) {
         await prisma.disciplinaryAction.create({
           data: {
+            id: randomUUID(),
             employeeId: sampleEmployee.id,
-            type: 'Attendance',
-            severity: 'low',
+            actionType: 'Attendance',
+            violationType: 'Late Arrival',
+            title: 'Late arrivals',
             description: 'Late arrival on three occasions in the past month',
-            actionTaken: 'Verbal warning given and attendance policy reviewed',
+            incidentDate: new Date(2024, 9, 25),
             actionDate: new Date(2024, 10, 1),
+            severity: 'low',
+            isActive: true,
+            improvementPlan: null,
             followUpDate: new Date(2024, 11, 1),
-            isResolved: false,
-            createdBy: 'system'
+            followUpNotes: 'Monitor attendance over the next month',
+            // createdBy must reference an existing employee id (FK to employees)
+            createdBy: manager?.id || devManager?.id || sampleEmployee.id,
+            hrReviewed: false,
+            hrReviewedBy: null,
+            hrReviewedAt: null,
+            hrNotes: null,
+            employeeAcknowledged: false,
+            employeeResponse: null,
+            employeeSignedAt: null,
+            attachments: []
           }
         })
         console.log('✅ Created sample disciplinary action')

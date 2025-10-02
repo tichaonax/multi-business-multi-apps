@@ -7,6 +7,9 @@ const {
   seedDriverLicenseTemplates
 } = require('./production-setup')
 
+// targeted contract seeder
+const { seedContractCTEMP1009 } = require('./seed-contract-CT-EMP1009')
+
 async function seedAllEmployeeData() {
   console.log("🚀 Starting comprehensive employee data seeding...")
   
@@ -26,6 +29,14 @@ async function seedAllEmployeeData() {
 
     await seedBenefitTypes()
     console.log("✅ Benefit types completed")
+
+    // Ensure the targeted contract is present for UI testing
+    try {
+      await seedContractCTEMP1009()
+      console.log('✅ Seeded CT-EMP1009 contract')
+    } catch (err) {
+      console.warn('⚠️  Failed to seed CT-EMP1009:', String(err))
+    }
 
     console.log("🎉 ALL EMPLOYEE DATA SEEDING COMPLETED SUCCESSFULLY!")
     console.log("📊 Summary:")

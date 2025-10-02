@@ -12,6 +12,7 @@ import { ProjectDetailModal } from '@/components/construction/project-detail-mod
 import { TransactionDetailModal } from '@/components/construction/transaction-detail-modal'
 import { BusinessOrderDetailModal } from '@/components/business/business-order-detail-modal'
 import { UserEditModal } from '@/components/user-management/user-edit-modal'
+import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
 export default function Dashboard() {
   const { data: session } = useSession()
@@ -365,16 +366,81 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [session])
 
+  // Check if user is a driver (only has driver trip/maintenance permissions)
+  const isDriver = currentUser &&
+    hasUserPermission(currentUser, 'canLogDriverTrips') &&
+    hasUserPermission(currentUser, 'canLogDriverMaintenance') &&
+    !hasUserPermission(currentUser, 'canAccessPersonalFinance') &&
+    !isSystemAdmin(currentUser)
+
   return (
     <ProtectedRoute>
       <MainLayout>
         <ContentLayout
           title={`🏠 Welcome back, ${session?.user?.name}!`}
-          subtitle="Here's what's happening across your business operations today."
+          subtitle={isDriver
+            ? "Your driver dashboard - log trips and maintenance for your authorized vehicles."
+            : "Here's what's happening across your business operations today."
+          }
         >
-        
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+
+        {isDriver ? (
+          // Driver-specific dashboard
+          <>
+            {/* Driver Quick Actions */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+              <Link href="/driver/trips" className="card p-6 hover:shadow-lg transition-shadow text-center">
+                <div className="text-4xl mb-3">🚗</div>
+                <h3 className="text-lg font-semibold text-primary mb-2">Log Trip</h3>
+                <p className="text-sm text-secondary">Record a new trip for your assigned vehicle</p>
+              </Link>
+
+              <Link href="/driver/maintenance" className="card p-6 hover:shadow-lg transition-shadow text-center">
+                <div className="text-4xl mb-3">🔧</div>
+                <h3 className="text-lg font-semibold text-primary mb-2">Log Maintenance</h3>
+                <p className="text-sm text-secondary">Report maintenance needs or completed services</p>
+              </Link>
+
+              <Link href="/driver" className="card p-6 hover:shadow-lg transition-shadow text-center">
+                <div className="text-4xl mb-3">📋</div>
+                <h3 className="text-lg font-semibold text-primary mb-2">Driver Portal</h3>
+                <p className="text-sm text-secondary">Access your authorized vehicles and portal</p>
+              </Link>
+            </div>
+
+            {/* Driver Info */}
+            <div className="card p-6 mb-6">
+              <h3 className="text-lg font-semibold text-primary mb-4">Driver Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-secondary mb-1">Driver Name</p>
+                  <p className="font-medium text-primary">{session?.user?.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-secondary mb-1">Account Type</p>
+                  <p className="font-medium text-primary">Driver Account</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Team Chat Section */}
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-primary">Team Chat</h3>
+                <Link href="/chat" className="btn-primary">
+                  Open Chat
+                </Link>
+              </div>
+              <p className="text-secondary">
+                Stay connected with your team. Report issues, ask questions, or coordinate with fleet managers.
+              </p>
+            </div>
+          </>
+        ) : (
+          // Regular dashboard for non-drivers
+          <>
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div
             className="card p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => {
@@ -784,6 +850,8 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+            </>
+          )}
         </ContentLayout>
       </MainLayout>
 

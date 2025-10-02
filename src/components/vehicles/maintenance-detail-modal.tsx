@@ -15,7 +15,6 @@ export function MaintenanceDetailModal({ maintenance, onClose }: MaintenanceDeta
   const [mounted, setMounted] = useState(false)
   const elRef = useRef<HTMLDivElement | null>(null)
   const portalRootRef = useRef<Element | null>(null)
-
   useEffect(() => {
     // Create container for portal on first mount
     elRef.current = document.createElement('div')
@@ -30,11 +29,12 @@ export function MaintenanceDetailModal({ maintenance, onClose }: MaintenanceDeta
     }
   }, [])
 
-  if (!maintenance) return null
-  if (!mounted || !elRef.current) return null
-
+  // Call context hooks before any early returns to maintain stable hooks order
   const { format: globalDateFormat } = useDateFormat()
   const formatDate = (d?: string) => (d ? formatDateByFormat(d, globalDateFormat) : 'N/A')
+
+  if (!maintenance) return null
+  if (!mounted || !elRef.current) return null
 
   const content = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4 overflow-auto">

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { isSystemAdmin, type SessionUser } from '@/lib/permission-utils'
 
 // Validation schemas
 const CreateVehicleSchema = z.object({
@@ -16,6 +17,7 @@ const CreateVehicleSchema = z.object({
   driveType: z.enum(['LEFT_HAND', 'RIGHT_HAND']),
   ownershipType: z.enum(['PERSONAL', 'BUSINESS']),
   currentMileage: z.number().int().min(0),
+  mileageUnit: z.enum(['km', 'miles']),
   businessId: z.string().optional(),
   userId: z.string().optional(),
   purchaseDate: z.string().optional(),
@@ -35,6 +37,7 @@ const UpdateVehicleSchema = z.object({
   driveType: z.enum(['LEFT_HAND', 'RIGHT_HAND']).optional(),
   ownershipType: z.enum(['PERSONAL', 'BUSINESS']).optional(),
   currentMileage: z.number().int().min(0).optional(),
+  mileageUnit: z.enum(['km', 'miles']).optional(),
   businessId: z.string().optional(),
   userId: z.string().optional(),
   purchaseDate: z.string().optional(),
@@ -52,7 +55,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const businessId = searchParams.get('businessId')
+  const businessId = searchParams.get('businessId')
+  const id = searchParams.get('id')
     const userId = searchParams.get('userId')
     const ownershipType = searchParams.get('ownershipType')
     const isActive = searchParams.get('isActive')
@@ -65,7 +69,10 @@ export async function GET(request: NextRequest) {
 
     const where: any = {}
 
-    // Filter by business or user based on ownership
+    // Filter by id, business or user based on ownership
+    if (id) {
+      where.id = id
+    }
     if (businessId) {
       where.businessId = businessId
     }
@@ -195,6 +202,8 @@ export async function POST(request: NextRequest) {
     // Create vehicle (use a loose any-typed payload to avoid strict create input mismatches)
     const createData: any = {
       ...validatedData,
+      // Set hasInitialMileage to true if currentMileage is greater than 0
+      hasInitialMileage: validatedData.currentMileage > 0,
       purchaseDate: validatedData.purchaseDate ? new Date(validatedData.purchaseDate) : undefined
     }
     if (!createData.businessId) delete createData.businessId
@@ -292,6 +301,18 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json(
           { error: 'Business not found' },
           { status: 404 }
+        )
+      }
+    }
+
+    // Check if user is trying to change mileage unit
+    const userIsAdmin = isSystemAdmin(session.user as SessionUser)
+    if (updateData.mileageUnit && updateData.mileageUnit !== existingVehicle.mileageUnit) {
+      // If vehicle has initial mileage and user is not admin, prevent change
+      if (existingVehicle.hasInitialMileage && !userIsAdmin) {
+        return NextResponse.json(
+          { error: 'Mileage unit cannot be changed after initial mileage entries. Contact an administrator.' },
+          { status: 403 }
         )
       }
     }
