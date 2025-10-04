@@ -67,133 +67,65 @@ export function ClothingCustomerList({
       setLoading(true)
       setError(null)
 
-      // Sample customer data for clothing business
-      const sampleCustomers: Customer[] = [
-        {
-          id: 'cust1',
-          firstName: 'Sarah',
-          lastName: 'Johnson',
-          email: 'sarah.j@email.com',
-          phone: '+1-555-0123',
-          dateOfBirth: '1985-03-15',
-          segment: 'style',
-          totalSpent: 2450.00,
-          orderCount: 15,
-          avgOrderValue: 163.33,
-          lastOrderDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-          preferences: {
-            sizes: ['M', 'L'],
-            colors: ['Black', 'Navy', 'White'],
-            brands: ['Zara', 'H&M'],
-            categories: ['Tops', 'Dresses'],
-            priceRange: 'mid'
-          },
-          address: {
-            street: '123 Main St',
-            city: 'New York',
-            state: 'NY',
-            zipCode: '10001',
-            country: 'USA'
-          },
-          notes: 'Prefers trendy styles, responsive to email campaigns',
-          tags: ['VIP', 'Fashion Forward', 'Email Subscriber'],
-          status: 'VIP'
-        },
-        {
-          id: 'cust2',
-          firstName: 'Michael',
-          lastName: 'Chen',
-          email: 'm.chen@email.com',
-          phone: '+1-555-0456',
-          segment: 'quality',
-          totalSpent: 1890.50,
-          orderCount: 12,
-          avgOrderValue: 157.54,
-          lastOrderDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date(Date.now() - 280 * 24 * 60 * 60 * 1000).toISOString(),
-          preferences: {
-            sizes: ['L', 'XL'],
-            colors: ['Navy', 'Gray', 'Brown'],
-            brands: ['Levi\'s', 'LL Bean'],
-            categories: ['Pants', 'Jackets'],
-            priceRange: 'mid'
-          },
-          notes: 'Values quality over trends, prefers classic styles',
-          tags: ['Quality Focused', 'Repeat Customer'],
-          status: 'ACTIVE'
-        },
-        {
-          id: 'cust3',
-          firstName: 'Emma',
-          lastName: 'Rodriguez',
-          email: 'emma.r@email.com',
-          phone: '+1-555-0789',
-          segment: 'conspicuous',
-          totalSpent: 3675.25,
-          orderCount: 8,
-          avgOrderValue: 459.41,
-          lastOrderDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date(Date.now() - 150 * 24 * 60 * 60 * 1000).toISOString(),
-          preferences: {
-            sizes: ['S', 'M'],
-            colors: ['Black', 'Red', 'Gold'],
-            brands: ['Gucci', 'Prada', 'Louis Vuitton'],
-            categories: ['Handbags', 'Shoes', 'Accessories'],
-            priceRange: 'luxury'
-          },
-          notes: 'High-value customer, prefers luxury brands and exclusive items',
-          tags: ['VIP', 'Luxury', 'High Spender'],
-          status: 'VIP'
-        },
-        {
-          id: 'cust4',
-          firstName: 'David',
-          lastName: 'Thompson',
-          email: 'd.thompson@email.com',
-          segment: 'price',
-          totalSpent: 234.50,
-          orderCount: 8,
-          avgOrderValue: 29.31,
-          lastOrderDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
-          preferences: {
-            sizes: ['M'],
-            colors: ['Blue', 'Gray'],
-            brands: ['Target', 'Walmart Fashion'],
-            categories: ['Basic Tees', 'Jeans'],
-            priceRange: 'budget'
-          },
-          notes: 'Price-sensitive, shops during sales',
-          tags: ['Budget Conscious', 'Sale Shopper'],
-          status: 'ACTIVE'
-        },
-        {
-          id: 'cust5',
-          firstName: 'Lisa',
-          lastName: 'Park',
-          email: 'lisa.park@email.com',
-          phone: '+1-555-0321',
-          segment: 'style',
-          totalSpent: 1245.80,
-          orderCount: 18,
-          avgOrderValue: 69.21,
-          lastOrderDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date(Date.now() - 320 * 24 * 60 * 60 * 1000).toISOString(),
-          preferences: {
-            sizes: ['XS', 'S'],
-            colors: ['Pink', 'Purple', 'White'],
-            brands: ['ASOS', 'Forever 21'],
-            categories: ['Dresses', 'Tops'],
-            priceRange: 'mid'
-          },
-          notes: 'Frequent purchaser, follows fashion trends',
-          tags: ['Trendsetter', 'Frequent Buyer'],
-          status: 'ACTIVE'
-        }
-      ]
+      // Fetch real customers from universal customer API
+      const params = new URLSearchParams({
+        businessId,
+        limit: '100'
+      })
 
-      setCustomers(sampleCustomers)
+      if (selectedSegment) {
+        params.append('segment', selectedSegment)
+      }
+
+      const response = await fetch(`/api/customers?${params}`)
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch customers')
+      }
+
+      const data = await response.json()
+
+      // Transform universal customers to clothing customer format
+      const transformedCustomers: Customer[] = data.customers.map((uc: any) => {
+        const divisionAccount = uc.divisionAccounts?.[0] || {}
+        const preferences = divisionAccount.preferences || {}
+
+        return {
+          id: uc.id,
+          firstName: uc.firstName || '',
+          lastName: uc.lastName || '',
+          email: uc.primaryEmail || '',
+          phone: uc.primaryPhone || '',
+          dateOfBirth: uc.dateOfBirth || undefined,
+          segment: preferences.segment || 'price',
+          totalSpent: divisionAccount.totalSpent || 0,
+          orderCount: uc._count?.divisionAccounts || 0,
+          avgOrderValue: divisionAccount.totalSpent > 0 && uc._count?.divisionAccounts > 0
+            ? divisionAccount.totalSpent / uc._count.divisionAccounts
+            : 0,
+          lastOrderDate: divisionAccount.lastPurchaseDate || undefined,
+          createdAt: uc.createdAt,
+          preferences: {
+            sizes: preferences.sizes || [],
+            colors: preferences.colors || [],
+            brands: preferences.brands || [],
+            categories: preferences.categories || [],
+            priceRange: preferences.priceRange || 'mid'
+          },
+          address: uc.address ? {
+            street: uc.address,
+            city: uc.city || '',
+            state: uc.state || '',
+            zipCode: uc.postalCode || '',
+            country: uc.country || 'Zimbabwe'
+          } : undefined,
+          notes: divisionAccount.preferences?.notes || '',
+          tags: uc.tags || [],
+          status: uc.isActive ? (divisionAccount.loyaltyPoints > 1000 ? 'VIP' : 'ACTIVE') : 'INACTIVE'
+        }
+      })
+
+      setCustomers(transformedCustomers)
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred')
@@ -285,20 +217,20 @@ export function ClothingCustomerList({
   return (
     <div className="space-y-6">
       {/* Filters and Search */}
-      <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <input
             type="text"
             placeholder="🔍 Search customers..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-primary"
           />
 
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-primary"
           >
             <option value="lastOrder">Last Order</option>
             <option value="name">Name</option>
@@ -309,7 +241,7 @@ export function ClothingCustomerList({
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-primary"
           >
             <option value="all">All Status</option>
             <option value="ACTIVE">Active</option>
@@ -317,7 +249,7 @@ export function ClothingCustomerList({
             <option value="INACTIVE">Inactive</option>
           </select>
 
-          <div className="text-sm text-gray-600 flex items-center">
+          <div className="text-sm text-secondary flex items-center">
             Showing {filteredCustomers.length} of {customers.length} customers
           </div>
         </div>
@@ -328,8 +260,8 @@ export function ClothingCustomerList({
         {paginatedCustomers.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">👥</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Customers Found</h3>
-            <p className="text-gray-600">No customers match your current filters.</p>
+            <h3 className="text-lg font-medium text-primary mb-2">No Customers Found</h3>
+            <p className="text-secondary">No customers match your current filters.</p>
           </div>
         ) : (
           paginatedCustomers.map((customer) => {
@@ -337,7 +269,7 @@ export function ClothingCustomerList({
             const statusConfig = getStatusConfig(customer.status)
 
             return (
-              <div key={customer.id} className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div key={customer.id} className="card p-4 hover:shadow-lg transition-shadow">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     {/* Avatar */}
@@ -350,7 +282,7 @@ export function ClothingCustomerList({
                     {/* Customer Info */}
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">
+                        <h3 className="font-semibold text-primary">
                           {customer.firstName} {customer.lastName}
                         </h3>
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
@@ -361,9 +293,9 @@ export function ClothingCustomerList({
                         </span>
                       </div>
 
-                      <p className="text-sm text-gray-600 mb-1">{customer.email}</p>
+                      <p className="text-sm text-secondary mb-1">{customer.email}</p>
 
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="flex items-center gap-4 text-sm text-secondary">
                         <span>Total: {formatCurrency(customer.totalSpent)}</span>
                         <span>Orders: {customer.orderCount}</span>
                         <span>Avg: {formatCurrency(customer.avgOrderValue)}</span>
@@ -375,9 +307,9 @@ export function ClothingCustomerList({
                       {/* Preferences */}
                       {customer.preferences.sizes.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
-                          <span className="text-xs text-gray-500">Sizes:</span>
+                          <span className="text-xs text-secondary">Sizes:</span>
                           {customer.preferences.sizes.slice(0, 3).map((size) => (
-                            <span key={size} className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-700">
+                            <span key={size} className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
                               {size}
                             </span>
                           ))}
@@ -388,7 +320,7 @@ export function ClothingCustomerList({
                       {customer.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {customer.tags.slice(0, 3).map((tag) => (
-                            <span key={tag} className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-50 text-blue-700">
+                            <span key={tag} className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                               {tag}
                             </span>
                           ))}
@@ -401,7 +333,7 @@ export function ClothingCustomerList({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => onCustomerView(customer.id)}
-                      className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                      className="px-3 py-1 text-sm text-secondary hover:text-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                     >
                       View
                     </button>
@@ -425,19 +357,19 @@ export function ClothingCustomerList({
           <button
             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-primary"
           >
             Previous
           </button>
 
-          <span className="px-3 py-1 text-sm text-gray-600">
+          <span className="px-3 py-1 text-sm text-secondary">
             Page {currentPage} of {totalPages}
           </span>
 
           <button
             onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
             disabled={currentPage === totalPages}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-primary"
           >
             Next
           </button>

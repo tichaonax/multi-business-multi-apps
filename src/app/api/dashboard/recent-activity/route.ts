@@ -242,7 +242,7 @@ export async function GET(req: NextRequest) {
         console.log('  - filterScope:', filterScope)
         console.log('  - filterBusinessId:', filterBusinessId)
 
-        const recentProjects = await prisma.project.findMany({
+        const recentProjects = await prisma.constructionProject.findMany({
           where: whereClause,
           select: {
             id: true,

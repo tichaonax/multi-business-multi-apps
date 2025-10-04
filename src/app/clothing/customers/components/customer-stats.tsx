@@ -46,54 +46,102 @@ export function ClothingCustomerStats({ businessId }: ClothingCustomerStatsProps
         setLoading(true)
         setError(null)
 
-        // This would fetch real customer stats
-        // For now, using comprehensive sample data
-        const sampleStats: CustomerStats = {
-          totalCustomers: 1247,
-          newCustomersThisMonth: 87,
-          totalRevenue: 234567.89,
-          averageOrderValue: 89.45,
-          repeatCustomerRate: 67.3,
-          segmentBreakdown: {
-            price: 342,      // Price-conscious customers
-            quality: 298,    // Quality-focused customers
-            style: 367,      // Style-conscious customers
-            conspicuous: 240 // Status/brand-conscious customers
-          },
-          topSpendingCustomers: [
-            {
-              id: 'cust1',
-              name: 'Sarah Johnson',
-              email: 'sarah.j@email.com',
-              totalSpent: 2450.00,
-              orderCount: 15,
-              lastOrderDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: 'cust2',
-              name: 'Michael Chen',
-              email: 'm.chen@email.com',
-              totalSpent: 1890.50,
-              orderCount: 12,
-              lastOrderDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: 'cust3',
-              name: 'Emma Rodriguez',
-              email: 'emma.r@email.com',
-              totalSpent: 1675.25,
-              orderCount: 18,
-              lastOrderDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+        // Fetch real customer data from API
+        const response = await fetch(`/api/customers?businessId=${businessId}&limit=1000`)
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch customers')
+        }
+
+        const data = await response.json()
+        const customers = data.customers || []
+
+        // Calculate stats from real data
+        const totalCustomers = customers.length
+
+        // New customers this month
+        const oneMonthAgo = new Date()
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+        const newCustomersThisMonth = customers.filter((c: any) =>
+          new Date(c.createdAt) >= oneMonthAgo
+        ).length
+
+        // Calculate revenue and order stats
+        let totalRevenue = 0
+        let totalOrders = 0
+        const segmentCounts = { price: 0, quality: 0, style: 0, conspicuous: 0 }
+
+        customers.forEach((customer: any) => {
+          const divisionAccount = customer.divisionAccounts?.[0]
+          if (divisionAccount) {
+            totalRevenue += Number(divisionAccount.totalSpent || 0)
+            totalOrders += customer._count?.divisionAccounts || 0
+
+            const segment = divisionAccount.preferences?.segment || 'price'
+            if (segment in segmentCounts) {
+              segmentCounts[segment as keyof typeof segmentCounts]++
             }
-          ],
+          }
+        })
+
+        const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
+
+        // Top spending customers
+        const sortedBySpending = [...customers]
+          .sort((a: any, b: any) => {
+            const aSpent = a.divisionAccounts?.[0]?.totalSpent || 0
+            const bSpent = b.divisionAccounts?.[0]?.totalSpent || 0
+            return Number(bSpent) - Number(aSpent)
+          })
+          .slice(0, 3)
+          .map((c: any) => ({
+            id: c.id,
+            name: c.fullName,
+            email: c.primaryEmail || '',
+            totalSpent: Number(c.divisionAccounts?.[0]?.totalSpent || 0),
+            orderCount: c._count?.divisionAccounts || 0,
+            lastOrderDate: c.divisionAccounts?.[0]?.lastPurchaseDate || c.createdAt
+          }))
+
+        // Calculate retention (simplified - based on recent activity)
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        const sixtyDaysAgo = new Date()
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+        const ninetyDaysAgo = new Date()
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
+        const activeIn30Days = customers.filter((c: any) => {
+          const lastPurchase = c.divisionAccounts?.[0]?.lastPurchaseDate
+          return lastPurchase && new Date(lastPurchase) >= thirtyDaysAgo
+        }).length
+
+        const activeIn60Days = customers.filter((c: any) => {
+          const lastPurchase = c.divisionAccounts?.[0]?.lastPurchaseDate
+          return lastPurchase && new Date(lastPurchase) >= sixtyDaysAgo
+        }).length
+
+        const activeIn90Days = customers.filter((c: any) => {
+          const lastPurchase = c.divisionAccounts?.[0]?.lastPurchaseDate
+          return lastPurchase && new Date(lastPurchase) >= ninetyDaysAgo
+        }).length
+
+        const calculatedStats: CustomerStats = {
+          totalCustomers,
+          newCustomersThisMonth,
+          totalRevenue,
+          averageOrderValue,
+          repeatCustomerRate: totalCustomers > 0 ? (activeIn30Days / totalCustomers) * 100 : 0,
+          segmentBreakdown: segmentCounts,
+          topSpendingCustomers: sortedBySpending,
           customerRetention: {
-            thirtyDays: 85.2,
-            sixtyDays: 72.8,
-            ninetyDays: 64.5
+            thirtyDays: totalCustomers > 0 ? (activeIn30Days / totalCustomers) * 100 : 0,
+            sixtyDays: totalCustomers > 0 ? (activeIn60Days / totalCustomers) * 100 : 0,
+            ninetyDays: totalCustomers > 0 ? (activeIn90Days / totalCustomers) * 100 : 0
           }
         }
 
-        setStats(sampleStats)
+        setStats(calculatedStats)
 
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error occurred')
@@ -181,12 +229,12 @@ export function ClothingCustomerStats({ businessId }: ClothingCustomerStatsProps
       {/* Main Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {mainStatCards.map((card) => (
-          <div key={card.title} className="bg-white p-6 rounded-lg shadow-sm border">
+          <div key={card.title} className="card p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">{card.title}</p>
+                <p className="text-sm font-medium text-secondary">{card.title}</p>
                 <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
-                <p className="text-xs text-gray-500 mt-1">{card.subtitle}</p>
+                <p className="text-xs text-secondary mt-1">{card.subtitle}</p>
               </div>
               <div className="text-3xl opacity-20">{card.icon}</div>
             </div>
@@ -197,8 +245,8 @@ export function ClothingCustomerStats({ businessId }: ClothingCustomerStatsProps
       {/* Detailed Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Customer Segmentation */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Segments</h3>
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">Customer Segments</h3>
           <div className="space-y-3">
             {Object.entries(stats.segmentBreakdown).map(([segment, count]) => (
               <div key={segment} className="flex justify-between items-center">
@@ -208,8 +256,8 @@ export function ClothingCustomerStats({ businessId }: ClothingCustomerStatsProps
                   </span>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium">{count}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-sm font-medium text-primary">{count}</div>
+                  <div className="text-xs text-secondary">
                     {((count / stats.totalCustomers) * 100).toFixed(1)}%
                   </div>
                 </div>
@@ -219,23 +267,23 @@ export function ClothingCustomerStats({ businessId }: ClothingCustomerStatsProps
         </div>
 
         {/* Top Customers */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Customers</h3>
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">Top Customers</h3>
           <div className="space-y-3">
             {stats.topSpendingCustomers.map((customer, index) => (
               <div key={customer.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium">
+                  <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-sm font-medium text-primary">
                     {index + 1}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{customer.name}</p>
-                    <p className="text-xs text-gray-500">{customer.orderCount} orders</p>
+                    <p className="text-sm font-medium text-primary">{customer.name}</p>
+                    <p className="text-xs text-secondary">{customer.orderCount} orders</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium">{formatCurrency(customer.totalSpent)}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-sm font-medium text-primary">{formatCurrency(customer.totalSpent)}</div>
+                  <div className="text-xs text-secondary">
                     {formatDate(new Date(customer.lastOrderDate))}
                   </div>
                 </div>
@@ -245,43 +293,43 @@ export function ClothingCustomerStats({ businessId }: ClothingCustomerStatsProps
         </div>
 
         {/* Retention Rates */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Retention</h3>
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">Customer Retention</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">30 Days</span>
+              <span className="text-sm text-secondary">30 Days</span>
               <div className="flex items-center gap-2">
-                <div className="w-20 bg-gray-200 rounded-full h-2">
+                <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div
                     className="bg-green-600 h-2 rounded-full"
                     style={{ width: `${stats.customerRetention.thirtyDays}%` }}
                   ></div>
                 </div>
-                <span className="text-sm font-medium">{stats.customerRetention.thirtyDays}%</span>
+                <span className="text-sm font-medium text-primary">{stats.customerRetention.thirtyDays}%</span>
               </div>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">60 Days</span>
+              <span className="text-sm text-secondary">60 Days</span>
               <div className="flex items-center gap-2">
-                <div className="w-20 bg-gray-200 rounded-full h-2">
+                <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div
                     className="bg-orange-600 h-2 rounded-full"
                     style={{ width: `${stats.customerRetention.sixtyDays}%` }}
                   ></div>
                 </div>
-                <span className="text-sm font-medium">{stats.customerRetention.sixtyDays}%</span>
+                <span className="text-sm font-medium text-primary">{stats.customerRetention.sixtyDays}%</span>
               </div>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">90 Days</span>
+              <span className="text-sm text-secondary">90 Days</span>
               <div className="flex items-center gap-2">
-                <div className="w-20 bg-gray-200 rounded-full h-2">
+                <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div
                     className="bg-red-600 h-2 rounded-full"
                     style={{ width: `${stats.customerRetention.ninetyDays}%` }}
                   ></div>
                 </div>
-                <span className="text-sm font-medium">{stats.customerRetention.ninetyDays}%</span>
+                <span className="text-sm font-medium text-primary">{stats.customerRetention.ninetyDays}%</span>
               </div>
             </div>
           </div>
