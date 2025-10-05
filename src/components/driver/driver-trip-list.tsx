@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -88,6 +89,7 @@ export function DriverTripList({ onEditTrip }: DriverTripListProps) {
   const [totalTrips, setTotalTrips] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [deletingTripId, setDeletingTripId] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const fetchTrips = async (page = 1) => {
     try {
@@ -133,7 +135,7 @@ export function DriverTripList({ onEditTrip }: DriverTripListProps) {
 
     // Admin or managers can always edit
     if (hasUserPermission(session.user, 'isSystemAdmin') ||
-        hasUserPermission(session.user, 'isBusinessManager')) {
+      hasUserPermission(session.user, 'isBusinessManager')) {
       return true
     }
 
@@ -173,9 +175,8 @@ export function DriverTripList({ onEditTrip }: DriverTripListProps) {
   }
 
   const handleDeleteTrip = async (tripId: string) => {
-    if (!confirm('Are you sure you want to delete this trip? This action cannot be undone.')) {
-      return
-    }
+    const ok = await confirm({ title: 'Delete trip', description: 'Are you sure you want to delete this trip? This action cannot be undone.', confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
 
     setDeletingTripId(tripId)
 
@@ -471,17 +472,17 @@ export function DriverTripList({ onEditTrip }: DriverTripListProps) {
                                 })
                               }
                               return acc
-                            }, [] as Array<{type: string, total: number, count: number, icon: string}>)
-                            .map((expenseGroup) => (
-                              <Badge
-                                key={expenseGroup.type}
-                                variant="secondary"
-                                className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200"
-                              >
-                                {expenseGroup.icon} {expenseGroup.type.toLowerCase()}: ${expenseGroup.total.toFixed(2)}
-                                {expenseGroup.count > 1 && ` (${expenseGroup.count})`}
-                              </Badge>
-                            ))}
+                            }, [] as Array<{ type: string, total: number, count: number, icon: string }>)
+                              .map((expenseGroup) => (
+                                <Badge
+                                  key={expenseGroup.type}
+                                  variant="secondary"
+                                  className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200"
+                                >
+                                  {expenseGroup.icon} {expenseGroup.type.toLowerCase()}: ${expenseGroup.total.toFixed(2)}
+                                  {expenseGroup.count > 1 && ` (${expenseGroup.count})`}
+                                </Badge>
+                              ))}
                           </div>
                         </div>
                       )}

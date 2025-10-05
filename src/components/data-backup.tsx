@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button';
 import {
   Download,
@@ -44,6 +45,7 @@ export function DataBackup() {
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const confirm = useConfirm()
 
   const handleBackup = async () => {
     try {
@@ -99,11 +101,8 @@ export function DataBackup() {
   const handleRestore = async () => {
     if (!restoreFile) return;
 
-    const confirmed = window.confirm(
-      'Are you sure you want to restore from this backup? This will overwrite existing data and cannot be undone.'
-    );
-
-    if (!confirmed) return;
+    const ok = await confirm({ title: 'Restore backup', description: 'Are you sure you want to restore from this backup? This will overwrite existing data and cannot be undone.', confirmText: 'Restore', cancelText: 'Cancel' })
+    if (!ok) return
 
     try {
       setLoading(true);
@@ -186,11 +185,10 @@ export function DataBackup() {
             return (
               <div
                 key={type.id}
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  backupOptions.type === type.id
+                className={`p-4 border rounded-lg cursor-pointer transition-colors ${backupOptions.type === type.id
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
                     : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                }`}
+                  }`}
                 onClick={() =>
                   setBackupOptions({ ...backupOptions, type: type.id })
                 }
@@ -290,11 +288,10 @@ export function DataBackup() {
           />
 
           <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-              restoreFile
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${restoreFile
                 ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950'
                 : 'border-slate-300 hover:border-slate-400 dark:border-slate-600 dark:hover:border-slate-500'
-            }`}
+              }`}
           >
             {restoreFile ? (
               <div className="space-y-2">

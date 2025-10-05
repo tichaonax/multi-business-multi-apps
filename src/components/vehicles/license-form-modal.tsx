@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { VehicleLicense } from '@/types/vehicle'
 import { DateInput } from '@/components/ui/date-input'
 import { X } from 'lucide-react'
+import { useToastContext } from '@/components/ui/toast'
+import fetchWithValidation from '@/lib/fetchWithValidation'
 
 interface LicenseFormModalProps {
   vehicleId: string
@@ -33,6 +35,7 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const toast = useToastContext()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,29 +66,29 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
 
     // Check for overlapping licenses of the same type
     try {
-      const checkResponse = await fetch(`/api/vehicles/licenses?vehicleId=${vehicleId}&licenseType=${formData.licenseType}`)
-      const checkResult = await checkResponse.json()
+      const checkBody = await fetchWithValidation(`/api/vehicles/licenses?vehicleId=${vehicleId}&licenseType=${formData.licenseType}`)
 
-      if (checkResponse.ok && checkResult.success) {
-        const existingLicenses = checkResult.data.filter((l: any) =>
-          license ? l.id !== license.id : true // Exclude current license if editing
-        )
+      if (checkBody?.success) {
+        const existingLicenses = checkBody.data.filter((l: any) => license ? l.id !== license.id : true)
 
         const hasOverlap = existingLicenses.some((existingLicense: any) => {
           const existingStart = new Date(existingLicense.issueDate)
           const existingEnd = new Date(existingLicense.expiryDate)
 
-          // Check if dates overlap
           return (effectiveDate <= existingEnd && expiryDate >= existingStart)
         })
 
         if (hasOverlap) {
-          setError(`A ${formData.licenseType.replace('_', ' ')} license already exists for this period. Please check the dates.`)
+          const msg = `A ${formData.licenseType.replace('_', ' ')} license already exists for this period. Please check the dates.`
+          setError(msg)
+          try { toast.push(msg) } catch (e) {}
           return
         }
       }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error checking for overlapping licenses'
       console.error('Error checking for overlapping licenses:', err)
+      try { toast.push(msg) } catch (e) {}
       // Continue with submission if check fails
     }
 
@@ -99,27 +102,20 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
 
       const method = license ? 'PUT' : 'POST'
 
-      const response = await fetch(url, {
+      const body = await fetchWithValidation(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          vehicleId
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, vehicleId })
       })
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || `Failed to ${license ? 'update' : 'create'} license`)
-      }
-
+      const successMsg = body?.message || (license ? 'License updated' : 'License created')
+      try { toast.push(successMsg) } catch (e) {}
       onSave()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const msg = err instanceof Error ? err.message : 'An error occurred'
+      setError(msg)
+      try { toast.push(msg) } catch (e) {}
     } finally {
       setLoading(false)
     }

@@ -46,17 +46,18 @@ model AuditLog {
 }
 
 model BenefitType {
-  id               String            @id
-  name             String            @unique
-  description      String?
-  type             String
-  createdAt        DateTime          @default(now())
-  defaultAmount    Decimal?          @db.Decimal(12, 2)
-  isActive         Boolean           @default(true)
-  isPercentage     Boolean           @default(false)
-  updatedAt        DateTime          @default(now())
-  contractBenefits ContractBenefit[]
-  employeeBenefits EmployeeBenefit[]
+  id                   String                @id
+  name                 String                @unique
+  description          String?
+  type                 String
+  createdAt            DateTime              @default(now())
+  defaultAmount        Decimal?              @db.Decimal(12, 2)
+  isActive             Boolean               @default(true)
+  isPercentage         Boolean               @default(false)
+  updatedAt            DateTime              @default(now())
+  contractBenefits     ContractBenefit[]
+  employeeBenefits     EmployeeBenefit[]
+  payrollEntryBenefits PayrollEntryBenefit[]
 
   @@map("benefit_types")
 }
@@ -357,6 +358,7 @@ model Business {
   vehicleReimbursements        VehicleReimbursement[]
   vehicleTrips                 VehicleTrip[]
   vehicles                     Vehicle[]
+  payrollPeriods               PayrollPeriod[]
 
   @@map("businesses")
 }
@@ -513,17 +515,24 @@ model ContractRenewal {
 }
 
 model DataSnapshot {
-  id           String   @id
-  nodeId       String
-  tableName    String
-  recordId     String
-  snapshotData Json
-  vectorClock  Json?
-  checksum     String?
-  createdAt    DateTime @default(now())
-  metadata     Json?
+  id                  String   @id
+  nodeId              String
+  tableName           String
+  recordId            String
+  snapshotData        Json
+  loanDeductions      Decimal  @default(0) @db.Decimal(12, 2)
+  loanBreakdown       Json?
+  advanceDeductions   Decimal  @default(0) @db.Decimal(12, 2)
+  advanceBreakdown    Json?
+  deductionsBreakdown Json?
+  totalDeductions     Decimal  @default(0) @db.Decimal(12, 2)
+  isProRata           Boolean?
+  proRataReason       String?
+  proRataCalculation  Json?
+  expectedWorkDays    Int?
+  hasAdjustments      Boolean?
+  processedBy         String?
 
-  @@unique([nodeId, tableName, recordId])
   @@map("data_snapshots")
 }
 
@@ -682,24 +691,24 @@ model EmployeeBusinessAssignment {
 }
 
 model EmployeeContract {
-  id                                                                         String            @id
-  version                                                                    Int               @default(1)
-  status                                                                     String            @default("draft")
+  id                                                                         String             @id
+  version                                                                    Int                @default(1)
+  status                                                                     String             @default("draft")
   notes                                                                      String?
   additionalBusinesses                                                       String[]
   approvedAt                                                                 DateTime?
   approvedBy                                                                 String?
-  baseSalary                                                                 Decimal           @db.Decimal(12, 2)
+  baseSalary                                                                 Decimal            @db.Decimal(12, 2)
   compensationTypeId                                                         String
-  contractNumber                                                             String            @unique
-  createdAt                                                                  DateTime          @default(now())
+  contractNumber                                                             String             @unique
+  createdAt                                                                  DateTime           @default(now())
   createdBy                                                                  String?
   customResponsibilities                                                     String?
   employeeId                                                                 String
   employeeSignedAt                                                           DateTime?
   endDate                                                                    DateTime?
-  isCommissionBased                                                          Boolean           @default(false)
-  isSalaryBased                                                              Boolean           @default(true)
+  isCommissionBased                                                          Boolean            @default(false)
+  isSalaryBased                                                              Boolean            @default(true)
   jobTitleId                                                                 String
   managerSignedAt                                                            DateTime?
   pdfUrl                                                                     String?
@@ -712,30 +721,30 @@ model EmployeeContract {
   supervisorTitle                                                            String?
   // Link to a previous contract this one was based on
   previousContractId                                                         String?
-  previousContract                                                           EmployeeContract? @relation("contract_previous", fields: [previousContractId], references: [id])
+  previousContract                                                           EmployeeContract?  @relation("contract_previous", fields: [previousContractId], references: [id])
   previousContractChildren                                                   EmployeeContract[] @relation("contract_previous")
-  updatedAt                                                                  DateTime          @default(now())
+  updatedAt                                                                  DateTime           @default(now())
   // Renewal tracking fields
-  isRenewal                                                                  Boolean           @default(false)
-  renewalCount                                                               Int               @default(0)
+  isRenewal                                                                  Boolean            @default(false)
+  renewalCount                                                               Int                @default(0)
   originalContractId                                                         String?
   copiedFromContractId                                                       String?
-  commissionAmount                                                           Decimal?          @db.Decimal(12, 2)
+  commissionAmount                                                           Decimal?           @db.Decimal(12, 2)
   contractDurationMonths                                                     Int?
-  livingAllowance                                                            Decimal?          @db.Decimal(12, 2)
+  livingAllowance                                                            Decimal?           @db.Decimal(12, 2)
   pdfGenerationData                                                          Json?
   umbrellaBusinessId                                                         String?
-  umbrellaBusinessName                                                       String?           @default("Demo Umbrella Company")
+  umbrellaBusinessName                                                       String?            @default("Demo Umbrella Company")
   businessAssignments                                                        Json?
   contract_benefits                                                          ContractBenefit[]
-  contract_renewals_contract_renewals_newContractIdToemployee_contracts      ContractRenewal[] @relation("contract_renewals_newContractIdToemployee_contracts")
-  contract_renewals_contract_renewals_originalContractIdToemployee_contracts ContractRenewal[] @relation("contract_renewals_originalContractIdToemployee_contracts")
-  compensationTypes                                                          CompensationType  @relation(fields: [compensationTypeId], references: [id])
-  employees_employee_contracts_employeeIdToemployees                         Employee          @relation("employee_contracts_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-  jobTitles                                                                  JobTitle          @relation(fields: [jobTitleId], references: [id])
-  businesses_employee_contracts_primaryBusinessIdTobusinesses                Business          @relation("employee_contracts_primaryBusinessIdTobusinesses", fields: [primaryBusinessId], references: [id])
-  employees_employee_contracts_supervisorIdToemployees                       Employee?         @relation("employee_contracts_supervisorIdToemployees", fields: [supervisorId], references: [id])
-  businesses_employee_contracts_umbrellaBusinessIdTobusinesses               Business?         @relation("employee_contracts_umbrellaBusinessIdTobusinesses", fields: [umbrellaBusinessId], references: [id])
+  contract_renewals_contract_renewals_newContractIdToemployee_contracts      ContractRenewal[]  @relation("contract_renewals_newContractIdToemployee_contracts")
+  contract_renewals_contract_renewals_originalContractIdToemployee_contracts ContractRenewal[]  @relation("contract_renewals_originalContractIdToemployee_contracts")
+  compensationTypes                                                          CompensationType   @relation(fields: [compensationTypeId], references: [id])
+  employees_employee_contracts_employeeIdToemployees                         Employee           @relation("employee_contracts_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  jobTitles                                                                  JobTitle           @relation(fields: [jobTitleId], references: [id])
+  businesses_employee_contracts_primaryBusinessIdTobusinesses                Business           @relation("employee_contracts_primaryBusinessIdTobusinesses", fields: [primaryBusinessId], references: [id])
+  employees_employee_contracts_supervisorIdToemployees                       Employee?          @relation("employee_contracts_supervisorIdToemployees", fields: [supervisorId], references: [id])
+  businesses_employee_contracts_umbrellaBusinessIdTobusinesses               Business?          @relation("employee_contracts_umbrellaBusinessIdTobusinesses", fields: [umbrellaBusinessId], references: [id])
 
   @@map("employee_contracts")
 }
@@ -938,6 +947,7 @@ model Employee {
   employees                                                                 Employee?                    @relation("employeesToemployees", fields: [supervisorId], references: [id])
   otherEmployees                                                            Employee[]                   @relation("employeesToemployees")
   users                                                                     User?                        @relation(fields: [userId], references: [id])
+  payrollEntries                                                            PayrollEntry[]
 
   @@map("employees")
 }
@@ -1680,6 +1690,11 @@ model User {
   vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursement[]     @relation("vehicle_reimbursements_approvedByTousers")
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursement[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicle[]
+  payrollPeriodsCreated                                           PayrollPeriod[]            @relation("PayrollPeriodCreator")
+  payrollPeriodsApproved                                          PayrollPeriod[]            @relation("PayrollPeriodApprover")
+  payrollEntriesProcessed                                         PayrollEntry[]             @relation("PayrollEntryProcessor")
+  payrollAdjustmentsCreated                                       PayrollAdjustment[]        @relation("PayrollAdjustmentCreator")
+  payrollAdjustmentsApproved                                      PayrollAdjustment[]        @relation("PayrollAdjustmentApprover")
 
   @@map("users")
 }
@@ -1754,7 +1769,7 @@ model VehicleLicense {
 }
 
 model VehicleMaintenanceRecord {
-  id                 String      @id
+  id                 String                      @id
   vehicleId          String
   serviceType        ServiceType
   serviceCategory    String?
@@ -1763,19 +1778,19 @@ model VehicleMaintenanceRecord {
   mileageAtService   Int
   nextServiceDue     DateTime?
   nextServiceMileage Int?
-  serviceCost        Decimal     @db.Decimal(10, 2)
+  serviceCost        Decimal                     @db.Decimal(10, 2)
   serviceProvider    String?
   serviceLocation    String?
   partsReplaced      Json?
   warrantyInfo       String?
   receiptUrl         String?
   notes              String?
-  isScheduledService Boolean     @default(false)
+  isScheduledService Boolean                     @default(false)
   createdBy          String
-  createdAt          DateTime    @default(now())
+  createdAt          DateTime                    @default(now())
   updatedAt          DateTime
-  users              User        @relation(fields: [createdBy], references: [id])
-  vehicles           Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  users              User                        @relation(fields: [createdBy], references: [id])
+  vehicles           Vehicle                     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   services           VehicleMaintenanceService[]
 
   @@map("vehicle_maintenance_records")
@@ -2066,42 +2081,171 @@ enum TripType {
 }
 
 model VehicleMaintenanceService {
-  id                     String                           @id
-  maintenanceRecordId    String
-  serviceName            String
-  serviceType            String
-  cost                   Decimal                          @db.Decimal(10, 2)
-  currency               String                           @default("USD")
-  serviceProvider        String?
-  description            String?
-  isScheduledService     Boolean                          @default(false)
-  warrantyUntil          String?
-  receiptUrl            String?
-  createdAt             DateTime                         @default(now())
-  updatedAt             DateTime                         @updatedAt
+  id                  String   @id
+  maintenanceRecordId String
+  serviceName         String
+  serviceType         String
+  cost                Decimal  @db.Decimal(10, 2)
+  currency            String   @default("USD")
+  serviceProvider     String?
+  description         String?
+  isScheduledService  Boolean  @default(false)
+  warrantyUntil       String?
+  receiptUrl          String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   // Relations
-  maintenanceRecord     VehicleMaintenanceRecord         @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
-  expenses              VehicleMaintenanceServiceExpense[]
+  maintenanceRecord VehicleMaintenanceRecord           @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+  expenses          VehicleMaintenanceServiceExpense[]
 
   @@map("vehicle_maintenance_services")
 }
 
 model VehicleMaintenanceServiceExpense {
-  id                    String                     @id
-  serviceId             String
-  expenseType           String
-  amount                Decimal                    @db.Decimal(10, 2)
-  currency              String                     @default("USD")
-  description           String?
-  vendorName            String?
-  isBusinessDeductible  Boolean                    @default(false)
+  id                   String   @id
+  serviceId            String
+  expenseType          String
+  amount               Decimal  @db.Decimal(10, 2)
+  currency             String   @default("USD")
+  description          String?
+  vendorName           String?
+  isBusinessDeductible Boolean  @default(false)
   receiptUrl           String?
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   // Relations
-  service              VehicleMaintenanceService   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  service VehicleMaintenanceService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@map("vehicle_maintenance_service_expenses")
+}
+
+// ===================================
+// PAYROLL SYSTEM MODELS
+// ===================================
+
+model PayrollPeriod {
+  id              String    @id
+  businessId      String
+  year            Int
+  month           Int
+  periodStart     DateTime?
+  periodEnd       DateTime?
+  status          String    @default("draft")
+  totalEmployees  Int       @default(0)
+  totalGrossPay   Decimal   @default(0) @db.Decimal(12, 2)
+  totalDeductions Decimal   @default(0) @db.Decimal(12, 2)
+  totalNetPay     Decimal   @default(0) @db.Decimal(12, 2)
+  createdBy       String?
+  approvedBy      String?
+  approvedAt      DateTime?
+  exportedAt      DateTime?
+  closedAt        DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now())
+
+  // Relations
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator        User?          @relation("PayrollPeriodCreator", fields: [createdBy], references: [id])
+  approver       User?          @relation("PayrollPeriodApprover", fields: [approvedBy], references: [id])
+  payrollEntries PayrollEntry[]
+
+  @@unique([businessId, year, month], name: "businessId_year_month")
+  @@index([businessId])
+  @@index([year, month])
+  @@map("payroll_periods")
+}
+
+model PayrollEntry {
+  id                String    @id
+  payrollPeriodId   String?
+  employeeId        String?
+  employeeNumber    String?
+  employeeName      String?
+  nationalId        String?
+  dateOfBirth       DateTime? @map("date_of_birth")
+  hireDate          DateTime? @map("hire_date")
+  terminationDate   DateTime? @map("termination_date")
+  workDays          Int       @default(0) @map("work_days")
+  sickDays          Int       @default(0) @map("sick_days")
+  leaveDays         Int       @default(0) @map("leave_days")
+  absenceDays       Int       @default(0) @map("absence_days")
+  overtimeHours     Decimal   @default(0) @db.Decimal(10, 2)
+  baseSalary        Decimal   @default(0) @db.Decimal(12, 2)
+  commission        Decimal   @default(0) @db.Decimal(12, 2)
+  livingAllowance   Decimal   @default(0) @db.Decimal(12, 2)
+  vehicleAllowance  Decimal   @default(0) @db.Decimal(12, 2)
+  travelAllowance   Decimal   @default(0) @db.Decimal(12, 2)
+  overtimePay       Decimal   @default(0) @db.Decimal(12, 2)
+  adjustmentsTotal  Decimal   @default(0) @db.Decimal(12, 2)
+  benefitsTotal     Decimal   @default(0) @db.Decimal(12, 2)
+  benefitsBreakdown Json?
+  grossPay          Decimal   @default(0) @db.Decimal(12, 2)
+  advanceDeductions Decimal   @default(0) @db.Decimal(12, 2)
+  advanceBreakdown  Json?
+  loanDeductions    Decimal   @default(0) @db.Decimal(12, 2)
+  miscDeductions    Decimal   @default(0) @db.Decimal(12, 2)
+  totalDeductions   Decimal   @default(0) @db.Decimal(12, 2)
+  netPay            Decimal   @default(0) @db.Decimal(12, 2)
+  processedBy       String?   @map("processed_by")
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now())
+
+  // Relations
+  payrollPeriod        PayrollPeriod?        @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+  employee             Employee?             @relation(fields: [employeeId], references: [id])
+  processor            User?                 @relation("PayrollEntryProcessor", fields: [processedBy], references: [id])
+  payrollEntryBenefits PayrollEntryBenefit[]
+  payrollAdjustments   PayrollAdjustment[]
+
+  @@unique([payrollPeriodId, employeeId])
+  @@index([payrollPeriodId])
+  @@index([employeeId])
+  @@map("payroll_entries")
+}
+
+model PayrollEntryBenefit {
+  id                String   @id
+  payrollEntryId    String
+  benefitTypeId     String
+  benefitName       String
+  amount            Decimal  @db.Decimal(12, 2)
+  isActive          Boolean  @default(true)
+  deactivatedReason String?
+  source            String   @default("contract")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now())
+
+  // Relations
+  payrollEntry PayrollEntry @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+  benefitType  BenefitType  @relation(fields: [benefitTypeId], references: [id], onDelete: Cascade)
+
+  @@index([payrollEntryId])
+  @@index([benefitTypeId])
+  @@map("payroll_entry_benefits")
+}
+
+model PayrollAdjustment {
+  id             String    @id
+  payrollEntryId String?
+  adjustmentType String?
+  amount         Decimal   @db.Decimal(12, 2)
+  reason         String?
+  createdBy      String?
+  approvedBy     String?   @map("approved_by")
+  approvedAt     DateTime? @map("approved_at")
+  status         String    @default("pending")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now())
+
+  // Relations
+  payrollEntry PayrollEntry? @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+  creator      User?         @relation("PayrollAdjustmentCreator", fields: [createdBy], references: [id])
+  approver     User?         @relation("PayrollAdjustmentApprover", fields: [approvedBy], references: [id])
+
+  @@index([payrollEntryId])
+  @@map("payroll_adjustments")
 }

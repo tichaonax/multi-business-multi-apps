@@ -199,10 +199,14 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
   const trips = await prisma.vehicleTrip.findMany({
     where: tripFilter,
     include: {
-      vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },
+      vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true, mileageUnit: true } },
       // relation on VehicleTrip for driver is 'vehicleDrivers'
       vehicleDrivers: { select: { fullName: true } },
-      businesses: { select: { name: true } }
+      businesses: { select: { name: true } },
+      vehicle_expenses: {
+        where: { expenseType: 'FUEL' },
+        select: { amount: true, fuelQuantity: true, fuelType: true }
+      }
     }
   })
 
@@ -211,22 +215,80 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
     ...t,
     vehicle: (t as any).vehicles,
     driver: (t as any).vehicleDrivers,
-    business: (t as any).businesses
+    business: (t as any).businesses,
+    fuelExpenses: (t as any).vehicle_expenses
   }))
 
   const summary = normalizedTrips.reduce((acc, trip) => {
-    acc.totalMileage += trip.tripMileage
-    acc.businessMileage += trip.tripType === 'BUSINESS' ? trip.tripMileage : 0
-    acc.personalMileage += trip.tripType === 'PERSONAL' ? trip.tripMileage : 0
-    acc.mixedMileage += trip.tripType === 'MIXED' ? trip.tripMileage : 0
+    const mileage = trip.tripMileage || 0
+    acc.totalMileage += mileage
+    acc.businessMileage += trip.tripType === 'BUSINESS' ? mileage : 0
+    acc.personalMileage += trip.tripType === 'PERSONAL' ? mileage : 0
+    acc.mixedMileage += trip.tripType === 'MIXED' ? mileage : 0
+
+    // Calculate fuel efficiency metrics
+    const fuelExpenses = trip.fuelExpenses || []
+    const totalFuelQty = fuelExpenses.reduce((sum: number, exp: any) => sum + (Number(exp.fuelQuantity) || 0), 0)
+    const totalFuelCost = fuelExpenses.reduce((sum: number, exp: any) => sum + (Number(exp.amount) || 0), 0)
+
+    if (totalFuelQty > 0 && mileage > 0) {
+      acc.fuelEfficiency.totalFuelConsumed += totalFuelQty
+      acc.fuelEfficiency.totalFuelCost += totalFuelCost
+      acc.fuelEfficiency.tripsWithFuelData++
+
+      // Track by fuel type
+      fuelExpenses.forEach((exp: any) => {
+        if (exp.fuelQuantity && exp.fuelType) {
+          if (!acc.fuelEfficiency.byFuelType[exp.fuelType]) {
+            acc.fuelEfficiency.byFuelType[exp.fuelType] = {
+              totalQuantity: 0,
+              totalCost: 0,
+              totalMileage: 0,
+              trips: 0
+            }
+          }
+          acc.fuelEfficiency.byFuelType[exp.fuelType].totalQuantity += Number(exp.fuelQuantity)
+          acc.fuelEfficiency.byFuelType[exp.fuelType].totalCost += Number(exp.amount)
+          acc.fuelEfficiency.byFuelType[exp.fuelType].totalMileage += mileage
+          acc.fuelEfficiency.byFuelType[exp.fuelType].trips++
+        }
+      })
+    }
+
     return acc
   }, {
     totalMileage: 0,
     businessMileage: 0,
     personalMileage: 0,
     mixedMileage: 0,
-    totalTrips: trips.length
+    totalTrips: trips.length,
+    fuelEfficiency: {
+      totalFuelConsumed: 0,
+      totalFuelCost: 0,
+      tripsWithFuelData: 0,
+      byFuelType: {} as Record<string, {
+        totalQuantity: number
+        totalCost: number
+        totalMileage: number
+        trips: number
+      }>
+    }
   })
+
+  // Calculate average fuel efficiency (distance per unit of fuel)
+  if (summary.fuelEfficiency.totalFuelConsumed > 0) {
+    (summary.fuelEfficiency as any).avgEfficiency = summary.totalMileage / summary.fuelEfficiency.totalFuelConsumed;
+    (summary.fuelEfficiency as any).avgCostPerDistance = summary.fuelEfficiency.totalFuelCost / summary.totalMileage;
+
+    // Calculate per fuel type efficiency
+    Object.keys(summary.fuelEfficiency.byFuelType).forEach(fuelType => {
+      const data = summary.fuelEfficiency.byFuelType[fuelType]
+      if (data.totalQuantity > 0 && data.totalMileage > 0) {
+        (data as any).avgEfficiency = data.totalMileage / data.totalQuantity;
+        (data as any).avgCostPerDistance = data.totalCost / data.totalMileage;
+      }
+    })
+  }
 
   return { summary, trips: normalizedTrips }
 }
@@ -242,23 +304,71 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
     where: expenseFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true } },
-      businesses: { select: { name: true } }
+      businesses: { select: { name: true } },
+      vehicleTrips: { select: { tripPurpose: true, tripType: true, tripMileage: true } }
     }
   })
-  const normalizedExpenses = expenses.map(e => ({ ...e, vehicle: (e as any).vehicles, business: (e as any).businesses }))
+  const normalizedExpenses = expenses.map(e => ({
+    ...e,
+    vehicle: (e as any).vehicles,
+    business: (e as any).businesses,
+    trip: (e as any).vehicleTrips
+  }))
 
+  // Enhanced summary with detailed expense breakdown
   const summary = normalizedExpenses.reduce((acc, expense) => {
     const amt = Number(expense.amount ?? 0)
     acc.totalAmount += amt
     acc.businessDeductible += expense.isBusinessDeductible ? amt : 0
+    acc.personalExpenses += !expense.isBusinessDeductible ? amt : 0
+
+    // Expense type breakdown
     acc.byType[expense.expenseType] = (acc.byType[expense.expenseType] || 0) + amt
+
+    // Expense category breakdown (for detailed categories like FOOD, TIRE, OIL)
+    const category = expense.expenseCategory || expense.expenseType
+    if (!acc.byCategory[category]) {
+      acc.byCategory[category] = { count: 0, totalAmount: 0 }
+    }
+    acc.byCategory[category].count++
+    acc.byCategory[category].totalAmount += amt
+
+    // Fuel tracking
+    if (expense.expenseType === 'FUEL' && expense.fuelQuantity) {
+      acc.fuelMetrics.totalQuantity += Number(expense.fuelQuantity || 0)
+      acc.fuelMetrics.totalCost += amt
+      acc.fuelMetrics.transactions++
+
+      // Track by fuel type
+      const fuelType = expense.fuelType || 'UNKNOWN'
+      if (!acc.fuelMetrics.byType[fuelType]) {
+        acc.fuelMetrics.byType[fuelType] = { quantity: 0, cost: 0, transactions: 0 }
+      }
+      acc.fuelMetrics.byType[fuelType].quantity += Number(expense.fuelQuantity || 0)
+      acc.fuelMetrics.byType[fuelType].cost += amt
+      acc.fuelMetrics.byType[fuelType].transactions++
+    }
+
     return acc
   }, {
     totalAmount: 0,
     businessDeductible: 0,
+    personalExpenses: 0,
     totalExpenses: expenses.length,
-    byType: {} as Record<string, number>
+    byType: {} as Record<string, number>,
+    byCategory: {} as Record<string, { count: number; totalAmount: number }>,
+    fuelMetrics: {
+      totalQuantity: 0,
+      totalCost: 0,
+      transactions: 0,
+      byType: {} as Record<string, { quantity: number; cost: number; transactions: number }>
+    }
   })
+
+  // Calculate average fuel cost per unit
+  if (summary.fuelMetrics.totalQuantity > 0) {
+    (summary.fuelMetrics as any).avgCostPerUnit = summary.fuelMetrics.totalCost / summary.fuelMetrics.totalQuantity
+  }
 
   return { summary, expenses: normalizedExpenses }
 }
@@ -268,7 +378,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
   const maintenanceFilter: any = {}
   if (vehicleId) maintenanceFilter.vehicleId = vehicleId
 
-  const [upcomingMaintenance, overdueMaintenance, recentMaintenance] = await Promise.all([
+  const [upcomingMaintenance, overdueMaintenance, recentMaintenance, maintenanceServices] = await Promise.all([
     // Upcoming maintenance (next 30 days)
     prisma.vehicleMaintenanceRecord.findMany({
       where: {
@@ -279,11 +389,16 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
         }
       },
       include: {
-          vehicles: { select: { licensePlate: true, make: true, model: true, currentMileage: true } }
+        vehicles: { select: { licensePlate: true, make: true, model: true, currentMileage: true } },
+        services: {
+          include: {
+            expenses: true
+          }
+        }
       }
     }),
     // Overdue maintenance
-    prisma.vehicleMaintenanceRecord.findMany({
+  prisma.vehicleMaintenanceRecord.findMany({
       where: {
         ...maintenanceFilter,
         nextServiceDue: {
@@ -291,11 +406,16 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
         }
       },
       include: {
-          vehicles: { select: { licensePlate: true, make: true, model: true, currentMileage: true } }
+        vehicles: { select: { licensePlate: true, make: true, model: true, currentMileage: true } },
+        services: {
+          include: {
+            expenses: true
+          }
+        }
       }
     }),
     // Recent maintenance (last 90 days)
-    prisma.vehicleMaintenanceRecord.findMany({
+  prisma.vehicleMaintenanceRecord.findMany({
       where: {
         ...maintenanceFilter,
         serviceDate: {
@@ -303,20 +423,78 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
         }
       },
       include: {
-          vehicles: { select: { licensePlate: true, make: true, model: true } }
+        vehicles: { select: { licensePlate: true, make: true, model: true } },
+        services: {
+          include: {
+            expenses: true
+          }
+        }
       },
       orderBy: { serviceDate: 'desc' }
+    }),
+    // Get all maintenance services for detailed breakdown
+    prisma.vehicleMaintenanceService.findMany({
+      where: {
+        maintenanceRecord: maintenanceFilter
+      },
+      include: {
+        expenses: true,
+        maintenanceRecord: {
+          include: {
+            vehicles: { select: { licensePlate: true, make: true, model: true } }
+          }
+        }
+      }
     })
   ])
 
-    // normalize maintenance entries to expose legacy 'vehicle' key
-    const normalizeMaintenance = (m: any) => ({ ...m, vehicle: m.vehicles })
+  // Calculate service type breakdown
+  const serviceTypeBreakdown = maintenanceServices.reduce((acc, service) => {
+    const type = service.serviceType || 'OTHER'
+    if (!acc[type]) {
+      acc[type] = { count: 0, totalCost: 0, services: [] }
+    }
+    acc[type].count++
+    acc[type].totalCost += Number(service.cost || 0)
+    acc[type].services.push(service.serviceName)
+    return acc
+  }, {} as Record<string, any>)
+
+  // Calculate expense category breakdown
+  const expenseCategoryBreakdown = maintenanceServices.flatMap(s => s.expenses || []).reduce((acc, expense) => {
+    const type = expense.expenseType
+    if (!acc[type]) {
+      acc[type] = { count: 0, totalAmount: 0 }
+    }
+    acc[type].count++
+    acc[type].totalAmount += Number(expense.amount || 0)
+    return acc
+  }, {} as Record<string, any>)
+
+  // Calculate warranty tracking
+  const servicesUnderWarranty = maintenanceServices.filter(s =>
+    s.warrantyUntil && new Date(s.warrantyUntil) > new Date()
+  )
+
+  // normalize maintenance entries to expose legacy 'vehicle' key
+  const normalizeMaintenance = (m: any) => ({
+    ...m,
+    vehicle: m.vehicles,
+    services: m.services?.map((s: any) => ({
+      ...s,
+      expenses: s.expenses || []
+    })) || []
+  })
 
   return {
     summary: {
       upcomingCount: upcomingMaintenance.length,
       overdueCount: overdueMaintenance.length,
-      recentCount: recentMaintenance.length
+      recentCount: recentMaintenance.length,
+      totalServices: maintenanceServices.length,
+      servicesUnderWarranty: servicesUnderWarranty.length,
+      serviceTypeBreakdown,
+      expenseCategoryBreakdown
     },
     upcomingMaintenance: upcomingMaintenance.map(normalizeMaintenance),
     overdueMaintenance: overdueMaintenance.map(normalizeMaintenance),
@@ -385,15 +563,60 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
   const remapExpiringLicenses = expiringLicenses.map(e => ({ ...e, vehicle: (e as any).vehicles }))
   const remapInactiveAuths = inactiveAuthorizations.map(a => ({ ...a, driver: (a as any).vehicleDrivers, vehicle: (a as any).vehicles }))
 
+  // Vehicle license breakdown by type
+  const licenseByType = expiringLicenses.reduce((acc, license) => {
+    const type = license.licenseType || 'UNKNOWN'
+    if (!acc[type]) {
+      acc[type] = { count: 0, licenses: [] }
+    }
+    acc[type].count++
+    acc[type].licenses.push({
+      id: license.id,
+      licenseNumber: license.licenseNumber,
+      vehicleLicensePlate: (license as any).vehicles?.licensePlate,
+      expiryDate: license.expiryDate
+    })
+    return acc
+  }, {} as Record<string, { count: number; licenses: any[] }>)
+
+  // Driver license expiry breakdown
+  const driverLicensesByUrgency = expiringDriverLicenses.reduce((acc, driver) => {
+    if (!driver.licenseExpiry) return acc
+
+    const daysUntilExpiry = Math.floor((new Date(driver.licenseExpiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+
+    let urgency: string
+    if (daysUntilExpiry <= 7) urgency = 'CRITICAL'
+    else if (daysUntilExpiry <= 30) urgency = 'HIGH'
+    else urgency = 'MEDIUM'
+
+    if (!acc[urgency]) {
+      acc[urgency] = { count: 0, drivers: [] }
+    }
+    acc[urgency].count++
+    acc[urgency].drivers.push({
+      id: driver.id,
+      fullName: driver.fullName,
+      licenseNumber: driver.licenseNumber,
+      licenseExpiry: driver.licenseExpiry,
+      daysUntilExpiry
+    })
+    return acc
+  }, {} as Record<string, { count: number; drivers: any[] }>)
+
   return {
     summary: {
       expiringLicensesCount: remapExpiringLicenses.length,
       expiringDriverLicensesCount: expiringDriverLicenses.length,
-      inactiveAuthorizationsCount: remapInactiveAuths.length
+      inactiveAuthorizationsCount: remapInactiveAuths.length,
+      licenseTypeBreakdown: Object.keys(licenseByType).length,
+      driverLicenseUrgencies: Object.keys(driverLicensesByUrgency).length
     },
     expiringLicenses: remapExpiringLicenses,
     expiringDriverLicenses,
-    inactiveAuthorizations: remapInactiveAuths
+    inactiveAuthorizations: remapInactiveAuths,
+    licenseByType,
+    driverLicensesByUrgency
   }
 }
 
@@ -416,29 +639,81 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
         }
       },
       driverAuthorizations: {
-        where: { isActive: true },
         include: {
-          vehicles: { select: { licensePlate: true, make: true, model: true } }
+          vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },
+          users: { select: { name: true, email: true } }
         }
       }
     }
   })
 
-  return driverActivity.map(driver => ({
-    driver: {
-      id: driver.id,
-      fullName: driver.fullName,
-      licenseNumber: driver.licenseNumber
-    },
-    summary: {
-      totalTrips: (driver as any).vehicleTrips?.length || 0,
-      totalMileage: ((driver as any).vehicleTrips || []).reduce((sum: number, trip: any) => sum + (trip.tripMileage || 0), 0),
-      authorizedVehicles: (driver as any).driverAuthorizations?.length || 0
-    },
-    // normalize nested vehicle keys for callers
-    trips: ((driver as any).vehicleTrips || []).map((t: any) => ({ ...t, vehicle: t.vehicles })),
-    authorizations: ((driver as any).driverAuthorizations || []).map((a: any) => ({ ...a, vehicle: a.vehicles }))
-  }))
+  return driverActivity.map(driver => {
+    const trips = (driver as any).vehicleTrips || []
+    const authorizations = (driver as any).driverAuthorizations || []
+
+    // Authorization level breakdown
+    const authByLevel = authorizations.reduce((acc: any, auth: any) => {
+      const level = auth.authorizationLevel || 'BASIC'
+      if (!acc[level]) acc[level] = 0
+      acc[level]++
+      return acc
+    }, {})
+
+    // Check for expiring authorizations (within 30 days)
+    const expiringAuthorizations = authorizations.filter((auth: any) =>
+      auth.expiryDate &&
+      new Date(auth.expiryDate) > new Date() &&
+      new Date(auth.expiryDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    )
+
+    // Check for expired authorizations
+    const expiredAuthorizations = authorizations.filter((auth: any) =>
+      auth.expiryDate && new Date(auth.expiryDate) < new Date()
+    )
+
+    // Check for license expiry
+    const daysUntilLicenseExpiry = driver.licenseExpiry ?
+      Math.floor((new Date(driver.licenseExpiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null
+
+    return {
+      driver: {
+        id: driver.id,
+        fullName: driver.fullName,
+        licenseNumber: driver.licenseNumber,
+        licenseExpiry: driver.licenseExpiry,
+        daysUntilLicenseExpiry,
+        isActive: driver.isActive,
+        phoneNumber: driver.phoneNumber,
+        emailAddress: driver.emailAddress
+      },
+      summary: {
+        totalTrips: trips.length,
+        totalMileage: trips.reduce((sum: number, trip: any) => sum + (trip.tripMileage || 0), 0),
+        authorizedVehicles: authorizations.filter((a: any) => a.isActive).length,
+        totalAuthorizations: authorizations.length,
+        activeAuthorizations: authorizations.filter((a: any) => a.isActive).length,
+        inactiveAuthorizations: authorizations.filter((a: any) => !a.isActive).length,
+        expiringAuthorizations: expiringAuthorizations.length,
+        expiredAuthorizations: expiredAuthorizations.length,
+        authByLevel
+      },
+      // normalize nested vehicle keys for callers
+      trips: trips.map((t: any) => ({ ...t, vehicle: t.vehicles })),
+      authorizations: authorizations.map((a: any) => ({
+        ...a,
+        vehicle: a.vehicles,
+        authorizedBy: a.users
+      })),
+      expiringAuthorizations: expiringAuthorizations.map((a: any) => ({
+        ...a,
+        vehicle: a.vehicles
+      })),
+      expiredAuthorizations: expiredAuthorizations.map((a: any) => ({
+        ...a,
+        vehicle: a.vehicles
+      }))
+    }
+  })
 }
 
 // Business Attribution Report

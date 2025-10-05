@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { randomUUID } from 'crypto'
 
 const prisma = new PrismaClient()
 
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
 
     const promotion = await prisma.menuPromotion.create({
       data: {
+        id: randomUUID(),
         businessId,
         name,
         description,
@@ -101,7 +103,8 @@ export async function POST(request: NextRequest) {
         usageLimit,
         usageCount: 0,
         applicableCategories: applicableCategories || [],
-        applicableProducts: applicableProducts || []
+        applicableProducts: applicableProducts || [],
+        updatedAt: new Date()
       }
     })
 

@@ -300,9 +300,9 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
                     <div key={item.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
                       <div className="flex-1">
                         <p className="font-medium text-primary">{item.name}</p>
-                        <p className="text-sm text-secondary">Qty: {item.quantity} × ${item.price.toFixed(2)}</p>
+                        <p className="text-sm text-secondary">Qty: {item.quantity} × ${typeof item.price === 'number' ? item.price.toFixed(2) : '0.00'}</p>
                       </div>
-                      <p className="font-medium text-primary">${item.total.toFixed(2)}</p>
+                      <p className="font-medium text-primary">${typeof item.total === 'number' ? item.total.toFixed(2) : '0.00'}</p>
                     </div>
                   ))}
                 </div>

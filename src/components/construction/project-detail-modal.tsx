@@ -131,10 +131,20 @@ export function ProjectDetailModal({ projectId, isOpen, onClose, onUpdate }: Pro
         const data = await response.json()
         setProject(data)
       } else {
-        console.error('Failed to fetch project details')
+        // Try to read JSON body for more details, but fallback to text
+        let body: any = null
+        try {
+          body = await response.json()
+        } catch (e) {
+          try { body = await response.text() } catch (e) { body = null }
+        }
+        console.error('Failed to fetch project details', { status: response.status, body })
+        // Optionally set project to null to show error UI
+        setProject(null)
       }
     } catch (error) {
       console.error('Error fetching project:', error)
+      setProject(null)
     } finally {
       setLoading(false)
     }

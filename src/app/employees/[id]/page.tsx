@@ -11,6 +11,8 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { CreateUserModal } from '@/components/employees/create-user-modal'
 import { ManageUserAccountModal } from '@/components/employees/manage-user-account-modal'
 import { ContractRenewalModal } from '@/components/contracts/contract-renewal-modal'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 import type { Employee } from '@/types/employee'
 
 const EMPLOYMENT_STATUS_COLORS = {
@@ -34,6 +36,8 @@ export default function EmployeeDetailPage() {
   const currentUser = session?.user as any
   const params = useParams()
   const router = useRouter()
+  const confirm = useConfirm()
+  const toast = useToastContext()
   const employeeId = params.id as string
   const { format: globalDateFormat } = useDateFormat()
   
@@ -179,23 +183,26 @@ export default function EmployeeDetailPage() {
         return
       }
 
-      alert('Contract PDF data not available. This contract may be from an older version.')
+      toast.push('Contract PDF data not available. This contract may be from an older version.')
     } catch (error) {
       console.error('Error generating contract PDF:', error)
-      alert('Failed to generate contract PDF. Please try again.')
+      toast.push('Failed to generate contract PDF. Please try again.')
     }
   }
   const handleDeleteContract = async (contractId: string, contractNumber: string) => {
     if (!canDeleteContracts) {
-      alert('You do not have permission to delete contracts.')
+      toast.push('You do not have permission to delete contracts.')
       return
     }
 
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete contract ${contractNumber}?\n\nThis action cannot be undone and will permanently remove the contract from the system.`
-    )
+    const ok = await confirm({
+      title: `Delete contract ${contractNumber}?`,
+      description: `This action cannot be undone and will permanently remove the contract from the system.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
 
-    if (!confirmDelete) return
+    if (!ok) return
 
     try {
       setDeletingContract(contractId)
@@ -211,10 +218,10 @@ export default function EmployeeDetailPage() {
 
       // Refresh employee data to update contracts list
       await fetchEmployee()
-      alert('Contract deleted successfully.')
+      toast.push('Contract deleted successfully.')
     } catch (error: any) {
       console.error('Error deleting contract:', error)
-      alert(error.message || 'Failed to delete contract. Please try again.')
+      toast.push(error.message || 'Failed to delete contract. Please try again.')
     } finally {
       setDeletingContract(null)
     }
@@ -280,12 +287,12 @@ export default function EmployeeDetailPage() {
 
     // Validation
     if (!statusChangeData.status) {
-      alert('Please select a status')
+      toast.push('Please select a status')
       return
     }
 
     if (statusChangeData.status === 'terminated' && !statusChangeData.terminationReason) {
-      alert('Termination reason is required when terminating a contract')
+      toast.push('Termination reason is required when terminating a contract')
       return
     }
 
@@ -299,7 +306,14 @@ export default function EmployeeDetailPage() {
         `Are you absolutely sure you want to terminate contract ${selectedContractForStatusChange.contractNumber}?`
       : `Are you sure you want to change contract ${selectedContractForStatusChange.contractNumber} status to ${statusChangeData.status}?`
 
-    if (!window.confirm(confirmMessage)) return
+    const ok = await confirm({
+      title: statusChangeData.status === 'terminated' ? 'Terminate contract' : 'Change contract status',
+      description: confirmMessage,
+      confirmText: statusChangeData.status === 'terminated' ? 'Terminate' : 'Change',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       const response = await fetch(
@@ -858,9 +872,9 @@ export default function EmployeeDetailPage() {
                             <h4 className="text-lg font-semibold text-primary">
                               Contract #{contract.contractNumber} (v{contract.version})
                             </h4>
-                            {contract.isRenewal && (
+                            {(contract as any).isRenewal && (
                               <span className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 font-medium">
-                                🔄 RENEWED {contract.renewalCount && contract.renewalCount > 0 ? `(#${contract.renewalCount})` : ''}
+                                🔄 RENEWED {(contract as any).renewalCount && (contract as any).renewalCount > 0 ? `(#${(contract as any).renewalCount})` : ''}
                               </span>
                             )}
                           </div>
@@ -880,9 +894,9 @@ export default function EmployeeDetailPage() {
                             className="btn-secondary text-sm px-3 py-1"
                             title="Download Contract PDF"
                           >
-                            {contract.isRenewal ? '🔄' : '📄'} PDF
+                            {(contract as any).isRenewal ? '🔄' : '📄'} PDF
                           </button>
-                          {canEditEmployeeContracts && contract.status === 'active' && contract.status !== 'terminated' && (
+                          {canEditEmployeeContracts && (contract as any).status === 'active' && (contract as any).status !== 'terminated' && (
                             <button
                               onClick={() => handleChangeStatus(contract)}
                               className="btn-secondary text-sm px-3 py-1"
@@ -891,7 +905,7 @@ export default function EmployeeDetailPage() {
                               📝 Status
                             </button>
                           )}
-                          {canCreateEmployeeContracts && contract.status === 'active' && contract.status !== 'terminated' && canRenewContract(contract) && (
+                          {canCreateEmployeeContracts && (contract as any).status === 'active' && (contract as any).status !== 'terminated' && canRenewContract(contract) && (
                             <button
                               onClick={() => handleRenewContract(contract)}
                               className="btn-primary text-sm px-3 py-1"

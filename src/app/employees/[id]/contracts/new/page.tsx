@@ -9,6 +9,7 @@ import { generateComprehensiveContract, previewContractPDF, downloadComprehensiv
 import { ContractTemplate } from '@/components/contracts/contract-template'
 import { DateInput } from '@/components/ui/date-input'
 import { EmployeeContractSelector } from '@/components/contracts/employee-contract-selector'
+import { useToastContext } from '@/components/ui/toast'
 
 interface Employee {
   id: string
@@ -147,6 +148,7 @@ export default function NewContractPage() {
   const [loadingTemplate, setLoadingTemplate] = useState(false)
 
   const canCreateEmployeeContracts = currentUser && hasPermission(currentUser, 'canCreateEmployeeContracts')
+  const toast = useToastContext()
 
   const validateForm = () => {
     const errors: {[key: string]: string} = {}
@@ -489,18 +491,14 @@ export default function NewContractPage() {
         setContractCreated(true)
         
         // Show success message but stay on page for PDF download
-        alert(
-          `Contract created successfully!\n\n` +
-          `Contract #${newContract.contractNumber || 'New Contract'}\n\n` +
-          `You can now download the PDF or navigate back to view all contracts.`
-        )
+        toast.push(`Contract created successfully! Contract #${newContract.contractNumber || 'New Contract'}. You can now download the PDF or view all contracts.`)
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to create contract')
+        toast.push(error.error || 'Failed to create contract')
       }
     } catch (error) {
       console.error('Error creating contract:', error)
-      alert('Failed to create contract')
+      toast.push('Failed to create contract')
     } finally {
       setSaving(false)
     }
@@ -593,6 +591,7 @@ export default function NewContractPage() {
       isSalaryBased: data.isSalaryBased !== false,
       compensationType: data.compensationType?.name || '',
       benefits: data.benefits.map(benefit => ({
+        benefitTypeId: benefit.benefitType.id,
         name: benefit.benefitType.name,
         amount: benefit.amount,
         isPercentage: benefit.isPercentage,
@@ -648,7 +647,7 @@ export default function NewContractPage() {
       pdf.save(fileName)
     } catch (error) {
       console.error('Error generating PDF:', error)
-      alert('Failed to generate PDF')
+      toast.push('Failed to generate PDF')
     }
   }
 
@@ -664,7 +663,7 @@ export default function NewContractPage() {
       window.open(pdfUrl, '_blank')
     } catch (error) {
       console.error('Error previewing PDF:', error)
-      alert('Failed to preview PDF')
+      toast.push('Failed to preview PDF')
     }
   }
 

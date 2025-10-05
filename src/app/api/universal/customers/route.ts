@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
 // Validation schemas
@@ -15,7 +16,7 @@ const CreateCustomerSchema = z.object({
   customerType: z.enum(['INDIVIDUAL', 'BUSINESS', 'CONTRACTOR', 'WHOLESALE', 'VIP']).default('INDIVIDUAL'),
   segment: z.string().optional(), // Business-specific segmentation
   businessType: z.string().min(1),
-  attributes: z.record(z.any()).optional() // Business-specific customer data
+  attributes: z.record(z.string(), z.any()).optional() // Business-specific customer data
 })
 
 const UpdateCustomerSchema = CreateCustomerSchema.partial().extend({
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
             select: { name: true, type: true }
           },
           ...(includeOrders && {
-            orders: {
+            businessOrders: {
               select: {
                 id: true,
                 orderNumber: true,
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
           }),
           _count: {
             select: {
-              orders: true
+              businessOrders: true
             }
           }
         },
@@ -186,6 +187,8 @@ export async function POST(request: NextRequest) {
 
     const customer = await prisma.businessCustomer.create({
       data: {
+        id: randomUUID(),
+        updatedAt: new Date(),
         ...validatedData,
         customerNumber,
         businessType: validatedData.businessType || business.type,
@@ -199,7 +202,7 @@ export async function POST(request: NextRequest) {
         },
         _count: {
           select: {
-            orders: true
+            businessOrders: true
           }
         }
       }
@@ -214,7 +217,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -277,7 +280,7 @@ export async function PUT(request: NextRequest) {
         },
         _count: {
           select: {
-            orders: true
+            businessOrders: true
           }
         }
       }
@@ -292,7 +295,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
@@ -322,7 +325,7 @@ export async function DELETE(request: NextRequest) {
     const customerWithOrders = await prisma.businessCustomer.findUnique({
       where: { id },
       include: {
-        orders: {
+        businessOrders: {
           where: {
             status: {
               notIn: ['COMPLETED', 'CANCELLED', 'REFUNDED']
@@ -340,11 +343,11 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    if (customerWithOrders.orders.length > 0) {
+    if (customerWithOrders.businessOrders.length > 0) {
       return NextResponse.json(
         {
           error: 'Cannot delete customer with active orders. Complete or cancel orders first.',
-          activeOrders: customerWithOrders.orders
+          activeOrders: customerWithOrders.businessOrders
         },
         { status: 409 }
       )

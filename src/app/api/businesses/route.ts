@@ -16,7 +16,10 @@ export async function GET() {
 
     // System admins get ALL businesses (except umbrella), regular users get only their memberships
     let businesses;
-    if (isSystemAdmin(user)) {
+    // Get businesses depending on user role; return a consistent wrapper for clients
+    const isAdmin = isSystemAdmin(user)
+
+    if (isAdmin) {
       businesses = await prisma.business.findMany({
         where: {
           isActive: true,
@@ -37,12 +40,6 @@ export async function GET() {
           { type: 'asc' },
           { name: 'asc' },
         ],
-      });
-
-      return NextResponse.json({
-        success: true,
-        businesses,
-        isAdmin: true
       });
     } else {
       // Regular users: Get businesses where user is a member (excluding umbrella businesses)
@@ -74,9 +71,9 @@ export async function GET() {
           createdAt: 'desc',
         },
       });
-
-      return NextResponse.json(businesses);
     }
+
+    return NextResponse.json({ businesses, isAdmin })
   } catch (error) {
     console.error('Error fetching businesses:', error);
     return NextResponse.json(
@@ -104,22 +101,23 @@ export async function POST(req: NextRequest) {
 
     // Create business and make the creator the owner
     const business = await prisma.business.create({
-      data: {
+      // Cast data to any to avoid TypeScript strict input type issues (id generation handled at runtime)
+      data: ({
         name,
         type,
         description: description || null,
         createdBy: session.user.id,
-        memberships: {
-          create: {
+        businessMemberships: {
+          create: ({
             userId: session.user.id,
             role: 'business-owner',
             permissions: BUSINESS_PERMISSION_PRESETS['business-owner'],
             isActive: true,
-          },
+          } as any),
         },
-      },
+      } as any),
       include: {
-        memberships: {
+        businessMemberships: {
           where: {
             userId: session.user.id,
           },

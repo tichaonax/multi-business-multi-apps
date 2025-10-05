@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -14,6 +16,8 @@ export default function RestaurantSuppliersPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null)
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const confirm = useConfirm()
+  const toast = useToastContext()
 
   // Load suppliers from API
   const loadSuppliers = async () => {
@@ -54,21 +58,21 @@ export default function RestaurantSuppliersPage() {
   }
 
   const handleSupplierDelete = async (supplier: any) => {
-    if (confirm(`Are you sure you want to delete ${supplier.name}?`)) {
-      try {
-        const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${BUSINESS_ID}`, {
-          method: 'DELETE'
-        })
-        if (response.ok) {
-          await loadSuppliers() // Reload suppliers
-          alert('Supplier deleted successfully')
-        } else {
-          throw new Error('Failed to delete supplier')
-        }
-      } catch (error) {
-        console.error('Error deleting supplier:', error)
-        alert('Error deleting supplier')
+    const ok = await confirm({ title: 'Delete supplier', description: `Are you sure you want to delete ${supplier.name}?`, confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
+    try {
+      const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${BUSINESS_ID}`, {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        await loadSuppliers() // Reload suppliers
+        toast.push('Supplier deleted successfully')
+      } else {
+        throw new Error('Failed to delete supplier')
       }
+    } catch (error) {
+      console.error('Error deleting supplier:', error)
+      toast.push('Error deleting supplier')
     }
   }
 
@@ -197,11 +201,10 @@ export default function RestaurantSuppliersPage() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
-                      className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                        activeTab === tab.id
+                      className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === tab.id
                           ? 'border-red-500 text-red-600'
                           : 'border-transparent text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
+                        }`}
                     >
                       <span className="text-lg">{tab.icon}</span>
                       <div className="text-left">
@@ -302,10 +305,9 @@ export default function RestaurantSuppliersPage() {
                             <div>
                               <div className="flex items-center gap-3 mb-2">
                                 <h4 className="text-lg font-semibold">{delivery.supplier}</h4>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  delivery.status === 'Delivered' ? 'bg-green-100 text-green-800' :
-                                  delivery.status === 'In Transit' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'
-                                }`}>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${delivery.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+                                    delivery.status === 'In Transit' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'
+                                  }`}>
                                   {delivery.status}
                                 </span>
                                 {delivery.farmToTable && (
@@ -332,7 +334,7 @@ export default function RestaurantSuppliersPage() {
                             </div>
                           )}
 
-                            <div className="space-y-2 mb-4">
+                          <div className="space-y-2 mb-4">
                             <h5 className="font-medium text-gray-900 dark:text-gray-100">Items:</h5>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                               {delivery.items.map((item, itemIndex) => (
@@ -343,7 +345,7 @@ export default function RestaurantSuppliersPage() {
                             </div>
                           </div>
 
-                            <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
                             <button className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
                               Quality Check
                             </button>

@@ -1,6 +1,7 @@
  'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
+import { useToastContext } from '@/components/ui/toast'
 import { createPortal } from 'react-dom'
 import { VehicleMaintenanceRecord } from '@/types/vehicle'
 import { useDateFormat } from '@/contexts/settings-context'
@@ -31,6 +32,7 @@ export function MaintenanceDetailModal({ maintenance, onClose }: MaintenanceDeta
 
   // Call context hooks before any early returns to maintain stable hooks order
   const { format: globalDateFormat } = useDateFormat()
+  const toast = useToastContext()
   const formatDate = (d?: string) => (d ? formatDateByFormat(d, globalDateFormat) : 'N/A')
 
   if (!maintenance) return null
@@ -105,14 +107,14 @@ export function MaintenanceDetailModal({ maintenance, onClose }: MaintenanceDeta
                   const contentType = res.headers.get('content-type') || ''
                   if (!res.ok) {
                     newWin.close()
-                    alert('Failed to open receipt: server returned an error')
+                    toast.push('Failed to open receipt: server returned an error')
                     return
                   }
 
                   if (contentType.includes('text/html')) {
                     // Likely a redirect to an HTML page (login/home). Close the tab and show message.
                     newWin.close()
-                    alert('Receipt could not be opened — it may require authentication or is not available.')
+                    toast.push('Receipt could not be opened — it may require authentication or is not available.')
                     return
                   }
 
@@ -121,7 +123,7 @@ export function MaintenanceDetailModal({ maintenance, onClose }: MaintenanceDeta
                   newWin.location.href = blobUrl
                 } catch (err) {
                   try { newWin?.close() } catch (e) {}
-                  alert((err as any)?.message || 'Failed to open receipt')
+                  toast.push((err as any)?.message || 'Failed to open receipt')
                 }
               }}
               className="px-4 py-2 bg-green-100 text-green-700 rounded-md"

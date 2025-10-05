@@ -5,9 +5,11 @@ import { ThemeProvider } from '@/contexts/theme-context'
 import { SettingsProvider } from '@/contexts/settings-context'
 import { BusinessPermissionsProvider } from '@/contexts/business-permissions-context'
 import ToastProvider from '@/components/ui/toast'
+import PromptProvider from '@/components/ui/input-modal'
 import { NavigationProvider } from '@/contexts/navigation-context'
 import { GlobalHeader } from '@/components/layout/global-header'
 import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
+import ConfirmProvider from '@/components/ui/confirm-modal'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -32,17 +34,21 @@ export default function RootLayout({
           <SettingsProvider>
             <ThemeProvider>
               <ToastProvider>
+                <PromptProvider>
                 <BusinessPermissionsProvider>
                   <NavigationProvider>
                   <div className="min-h-screen">
                     <GlobalHeader />
-                    <main>
-                      {children}
-                    </main>
+                    <ConfirmProvider>
+                      <main>
+                        {children}
+                      </main>
+                    </ConfirmProvider>
                     <GlobalLoadingSpinner />
                   </div>
                 </NavigationProvider>
                 </BusinessPermissionsProvider>
+                </PromptProvider>
               </ToastProvider>
             </ThemeProvider>
           </SettingsProvider>

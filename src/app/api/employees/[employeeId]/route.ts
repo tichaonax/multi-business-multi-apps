@@ -23,117 +23,61 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      include: {
-        users: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            isActive: true
-          }
-        },
-  jobTitles: true,
-  compensationTypes: true,
-        businesses: {
-          select: {
-            id: true,
-            name: true,
-            type: true
-          }
-        },
-  idFormatTemplates: true,
-  driverLicenseTemplates: true,
-        // Prisma generated relation name for employee contracts
-        employee_contracts_employee_contracts_employeeIdToemployees: {
-          select: ( {
-            id: true,
-            contractNumber: true,
-            version: true,
-            status: true,
-            baseSalary: true,
-            startDate: true,
-            endDate: true,
-            employeeSignedAt: true,
-            createdAt: true,
-            pdfGenerationData: true,
-            businesses_employee_contracts_primaryBusinessIdTobusinesses: {
-              select: { id: true, name: true, type: true }
-            },
-            // include the previous contract relation for quick lookup
-            previousContract: {
-              select: { id: true, contractNumber: true }
-            },
-            // relation on EmployeeContract is named `jobTitles`
-            jobTitles: {
-              select: { id: true, title: true, department: true }
-            },
-            // supervisor relation on EmployeeContract uses generated name
-            employees_employee_contracts_supervisorIdToemployees: {
-              select: { id: true, fullName: true }
-            },
-            contract_benefits: {
-              include: {
-                benefitType: { select: { name: true, type: true } }
-              }
-            }
-          } as Prisma.EmployeeContractSelect ),
-          orderBy: { createdAt: 'desc' }
-        },
-        // supervisor relation on Employee model is named `employees` (supervisor link)
-        employees: {
-          select: {
-            id: true,
-            fullName: true,
-            jobTitles: {
-              select: {
-                title: true
-              }
-            }
-          }
-        },
-        // relation name is `otherEmployees` in the Prisma schema
-        otherEmployees: {
-          select: {
-            id: true,
-            fullName: true,
-            jobTitles: {
-              select: {
-                title: true
-              }
-            }
-          }
-        },
-        // generated relation name for business assignments
-        employee_business_assignments: {
-          include: {
-            // relation on EmployeeBusinessAssignment is `businesses`
-            businesses: { select: { id: true, name: true, type: true } }
-          }
-        },
-        // generated relation name for disciplinary actions where employeeId is the target
-        disciplinary_actions_disciplinary_actions_employeeIdToemployees: {
-          select: {
-            id: true,
-            actionType: true,
-            violationType: true,
-            title: true,
-            description: true,
-            incidentDate: true,
-            actionDate: true,
-            severity: true,
-            isActive: true
-          }
-        },
-        _count: {
-          select: {
-            otherEmployees: true,
-            disciplinary_actions_disciplinary_actions_employeeIdToemployees: true
-          }
+    // NOTE: casting include to 'any' to avoid transient TypeScript include mismatches
+    // while the generated Prisma client types settle. TODO: remove 'as any' once
+    // prisma client types are stable and include names are verified.
+    const includeAny: any = {
+      users: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          isActive: true
         }
-      }
-    })
+      },
+      jobTitles: true,
+      compensationTypes: true,
+      businesses: {
+        select: { id: true, name: true, type: true }
+      },
+      idFormatTemplates: true,
+      driverLicenseTemplates: true,
+      // Prisma generated relation name for employee contracts
+      employee_contracts_employee_contracts_employeeIdToemployees: {
+        select: ( {
+          id: true,
+          contractNumber: true,
+          version: true,
+          status: true,
+          baseSalary: true,
+          startDate: true,
+          endDate: true,
+          employeeSignedAt: true,
+          createdAt: true,
+          pdfGenerationData: true,
+          businesses_employee_contracts_primaryBusinessIdTobusinesses: {
+            select: { id: true, name: true, type: true }
+          },
+          previousContract: { select: { id: true, contractNumber: true } },
+          jobTitles: { select: { id: true, title: true, department: true } },
+          employees_employee_contracts_supervisorIdToemployees: { select: { id: true, fullName: true } },
+          contract_benefits: { include: { benefitType: { select: { name: true, type: true } } } }
+        } as Prisma.EmployeeContractSelect ),
+        orderBy: { createdAt: 'desc' }
+      },
+      // supervisor relation on Employee model is named `employees` (supervisor link)
+      employees: { select: { id: true, fullName: true, jobTitles: { select: { title: true } } } },
+      otherEmployees: { select: { id: true, fullName: true, jobTitles: { select: { title: true } } } },
+  // generated relation name for business assignments (Prisma uses snake_case here)
+  employee_business_assignments: { include: { businesses: { select: { id: true, name: true, type: true } } } },
+      // generated relation name for disciplinary actions where employeeId is the target
+      disciplinary_actions_disciplinary_actions_employeeIdToemployees: {
+        select: { id: true, actionType: true, violationType: true, title: true, description: true, incidentDate: true, actionDate: true, severity: true, isActive: true }
+      },
+      _count: { select: { otherEmployees: true, disciplinary_actions_disciplinary_actions_employeeIdToemployees: true } }
+    }
+
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId }, include: includeAny })
 
     if (!employee) {
       return NextResponse.json(
@@ -255,7 +199,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           }
         }
       }) || [],
-      businessAssignments: (e.employee_business_assignments || e.employeeBusinessAssignments || []).map((assignment: any) => ({
+      businessAssignments: (e.employee_business_assignments || []).map((assignment: any) => ({
         role: assignment.role,
         isActive: assignment.isActive,
         assignedAt: assignment.assignedAt

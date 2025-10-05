@@ -25,39 +25,62 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { projectId } = await params
 
-    console.log('🔍 Looking for project:', projectId, 'created by:', session.user.id)
-    
-    // Get project with all related data
-    const project = await prisma.constructionProject.findFirst({
-      where: {
-        id: projectId,
-        createdBy: session.user.id
-      },
+    console.log('🔍 Looking for project:', projectId, 'requested by:', session.user.id)
+
+    // Fetch the project basic record first to diagnose not-found vs access-denied
+    const basicProject = await prisma.constructionProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true, createdBy: true }
+    })
+
+    if (!basicProject) {
+      console.log('❌ Project not found with ID:', projectId)
+      return NextResponse.json(
+        { error: 'Project not found' },
+        { status: 404 }
+      )
+    }
+
+    // Users with construction view or personal finance access may view any project
+    const canViewAll = hasPermission(session.user, 'canViewConstructionProjects') || hasPermission(session.user, 'canAccessPersonalFinance')
+
+    // Enforce ownership for users without broader viewing permissions
+    if (!canViewAll && basicProject.createdBy !== session.user.id) {
+      console.log('❌ Access denied for user:', session.user.id, 'project.createdBy:', basicProject.createdBy)
+      return NextResponse.json(
+        { error: 'Project not found or access denied' },
+        { status: 403 }
+      )
+    }
+
+    // Get project with all related data now that access is verified
+    const project = await prisma.constructionProject.findUnique({
+      where: { id: projectId },
       include: {
         projectStages: {
           include: {
             stageContractorAssignments: {
               include: {
-                projectContractor: {
-                  include: {
-                    person: {
-                      select: {
-                        id: true,
-                        fullName: true,
-                        phone: true,
-                        email: true
+                    projectContractors: {
+                      include: {
+                        persons: {
+                          select: {
+                            id: true,
+                            fullName: true,
+                            phone: true,
+                            email: true
+                          }
+                        }
                       }
                     }
                   }
-                }
-              }
             }
           },
           orderBy: { orderIndex: 'asc' }
         },
         projectContractors: {
           include: {
-            person: {
+            persons: {
               select: {
                 id: true,
                 fullName: true,
@@ -69,19 +92,19 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         projectTransactions: {
           include: {
-            personalExpense: {
+            personalExpenses: {
               select: {
                 amount: true,
                 date: true
               }
             },
-            projectStage: {
+            projectStages: {
               select: {
                 id: true,
                 name: true
               }
             },
-            recipientPerson: {
+            persons: {
               select: {
                 id: true,
                 fullName: true
@@ -103,17 +126,18 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     
     console.log('✅ Project found:', project.name)
 
-    // Format the response
+    // Format the response (cast to any so TypeScript doesn't complain about generated types)
+    const p: any = project
     const formattedProject = {
-      id: project.id,
-      name: project.name,
-      description: project.description,
-      status: project.status,
-      budget: project.budget ? parseFloat(project.budget.toString()) : null,
-      startDate: project.startDate?.toISOString() || null,
-      endDate: project.endDate?.toISOString() || null,
-      createdAt: project.createdAt.toISOString(),
-      stages: project.projectStages.map(stage => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      status: p.status,
+      budget: p.budget ? parseFloat(p.budget.toString()) : null,
+      startDate: p.startDate?.toISOString() || null,
+      endDate: p.endDate?.toISOString() || null,
+      createdAt: p.createdAt.toISOString(),
+      stages: (p.projectStages || []).map((stage: any) => ({
         id: stage.id,
         name: stage.name,
         status: stage.status,
@@ -122,49 +146,50 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         startDate: stage.startDate?.toISOString() || null,
         endDate: stage.endDate?.toISOString() || null,
         completionDate: stage.completionDate?.toISOString() || null,
-        contractorAssignments: stage.stageContractorAssignments.map(assignment => ({
+          contractorAssignments: (stage.stageContractorAssignments || []).map((assignment: any) => ({
           id: assignment.id,
           predeterminedAmount: parseFloat(assignment.predeterminedAmount.toString()),
           depositAmount: assignment.depositAmount ? parseFloat(assignment.depositAmount.toString()) : null,
           isDepositPaid: assignment.isDepositPaid,
           isFinalPaymentMade: assignment.isFinalPaymentMade,
           contractor: {
-            id: assignment.projectContractor.person.id,
-            fullName: assignment.projectContractor.person.fullName,
-            phone: assignment.projectContractor.person.phone,
-            email: assignment.projectContractor.person.email
+            id: assignment.projectContractors?.id || null,
+            fullName: assignment.projectContractors?.persons?.fullName || null,
+            phone: assignment.projectContractors?.persons?.phone || null,
+            email: assignment.projectContractors?.persons?.email || null
           }
         }))
       })),
-      projectContractors: project.projectContractors.map(contractor => ({
+      projectContractors: (p.projectContractors || []).map((contractor: any) => ({
         id: contractor.id,
         isPrimary: contractor.isPrimary,
         role: contractor.role,
         person: {
-          id: contractor.person.id,
-          fullName: contractor.person.fullName,
-          phone: contractor.person.phone,
-          email: contractor.person.email
+          id: contractor.persons?.id || null,
+          fullName: contractor.persons?.fullName || null,
+          phone: contractor.persons?.phone || null,
+          email: contractor.persons?.email || null
         }
       })),
-      projectTransactions: project.projectTransactions.map(transaction => ({
+      projectTransactions: (p.projectTransactions || []).map((transaction: any) => ({
         id: transaction.id,
         transactionType: transaction.transactionType,
         amount: parseFloat(transaction.amount.toString()),
         description: transaction.description,
         createdAt: transaction.createdAt.toISOString(),
         status: transaction.status,
-        recipientPerson: transaction.recipientPerson ? {
-          fullName: transaction.recipientPerson.fullName
+        recipientPerson: transaction.persons ? {
+          fullName: transaction.persons.fullName
         } : null,
-        stage: transaction.projectStage ? {
-          name: transaction.projectStage.name
+        stage: transaction.projectStages ? {
+          name: transaction.projectStages.name
         } : null
       }))
     }
 
     return NextResponse.json(formattedProject)
-  } catch (error) {
+  } catch (err) {
+    const error: any = err
     console.error('💥 Project fetch error:', error)
     console.error('Error details:', {
       message: error.message,

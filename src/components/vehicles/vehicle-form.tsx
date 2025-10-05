@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { DateInput } from '@/components/ui/date-input'
 import { useDateFormat, useDefaultMileageUnit } from '@/contexts/settings-context'
 import { useSession } from 'next-auth/react'
+import { useToastContext } from '@/components/ui/toast'
+import fetchWithValidation from '@/lib/fetchWithValidation'
 import { CreateVehicleData, Vehicle } from '@/types/vehicle'
 import { getMileageUnitOptions, getMileageUnitWarning, canChangeMileageUnit, type MileageUnit } from '@/lib/mileage-utils'
 import { isSystemAdmin, type SessionUser } from '@/lib/permission-utils'
@@ -41,6 +43,8 @@ export function VehicleForm({ vehicle, onSuccess, onCancel }: VehicleFormProps) 
     purchasePrice: 0,
     notes: ''
   })
+
+  const toast = useToastContext()
 
   // Populate form data if editing
   useEffect(() => {
@@ -91,25 +95,18 @@ export function VehicleForm({ vehicle, onSuccess, onCancel }: VehicleFormProps) 
       const method = isEdit ? 'PUT' : 'POST'
       const body = isEdit ? { id: vehicle?.id, ...formData } : formData
 
-      const response = await fetch(url, {
+      const result = await fetchWithValidation(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       })
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || `Failed to ${isEdit ? 'update' : 'create'} vehicle`)
-      }
-
-      if (onSuccess) {
-        onSuccess()
-      }
+      if (onSuccess) onSuccess()
+      toast.push(isEdit ? 'Vehicle updated' : 'Vehicle created')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const message = err instanceof Error ? err.message : 'An error occurred'
+      setError(message)
+      try { useToastContext().push(message) } catch (e) { /* noop if toast not available */ }
     } finally {
       setIsSubmitting(false)
     }

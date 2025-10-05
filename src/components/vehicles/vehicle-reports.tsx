@@ -16,6 +16,28 @@ interface VehicleReportsData {
     totalExpenses: number
     maintenanceDue: number
   }
+  fuelEfficiency: {
+    avgEfficiency: number
+    avgCostPerDistance: number
+    totalFuelConsumed: number
+    totalFuelCost: number
+    byType: Record<string, any>
+  }
+  maintenanceBreakdown: Record<string, { count: number; totalCost: number; services: string[] }>
+  expenseCategories: Record<string, { count: number; totalAmount: number }>
+  driverAuthorizations: {
+    total: number
+    active: number
+    expiring: number
+    expired: number
+    byLevel: Record<string, number>
+  }
+  vehicleLicenseCompliance: {
+    expiringLicenses: number
+    expiringDriverLicenses: number
+    licenseByType: Record<string, { count: number; licenses: any[] }>
+    driverLicensesByUrgency: Record<string, { count: number; drivers: any[] }>
+  }
   monthlyMetrics: {
     month: string
     trips: number
@@ -80,12 +102,13 @@ export function VehicleReports() {
       setError('')
 
       // Fetch multiple report types and combine them
-      const [fleetOverview, mileageSummary, expenseSummary, maintenanceSchedule, complianceAlerts] = await Promise.all([
+      const [fleetOverview, mileageSummary, expenseSummary, maintenanceSchedule, complianceAlerts, driverActivity] = await Promise.all([
         fetch(`/api/vehicles/reports?reportType=FLEET_OVERVIEW&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json()),
         fetch(`/api/vehicles/reports?reportType=MILEAGE_SUMMARY&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json()),
         fetch(`/api/vehicles/reports?reportType=EXPENSE_SUMMARY&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json()),
         fetch(`/api/vehicles/reports?reportType=MAINTENANCE_SCHEDULE`, { signal }).then(res => res.json()),
-        fetch(`/api/vehicles/reports?reportType=COMPLIANCE_ALERTS`, { signal }).then(res => res.json())
+        fetch(`/api/vehicles/reports?reportType=COMPLIANCE_ALERTS`, { signal }).then(res => res.json()),
+        fetch(`/api/vehicles/reports?reportType=DRIVER_ACTIVITY&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json())
       ])
 
       // Combine all report data into the expected format
@@ -93,12 +116,34 @@ export function VehicleReports() {
         fleetSummary: {
           totalVehicles: fleetOverview.data?.summary?.totalVehicles || 0,
           activeVehicles: fleetOverview.data?.summary?.activeVehicles || 0,
-          totalDrivers: 0, // We'll need to add this to the API
-          activeDrivers: 0, // We'll need to add this to the API
+          totalDrivers: driverActivity.data?.length || 0,
+          activeDrivers: driverActivity.data?.filter((d: any) => d.driver?.isActive)?.length || 0,
           totalTrips: fleetOverview.data?.summary?.totalTrips || 0,
           totalMileage: mileageSummary.data?.summary?.totalMileage || 0,
           totalExpenses: expenseSummary.data?.summary?.totalAmount || 0,
           maintenanceDue: maintenanceSchedule.data?.summary?.upcomingCount || 0
+        },
+        fuelEfficiency: {
+          avgEfficiency: mileageSummary.data?.summary?.fuelEfficiency?.avgEfficiency || 0,
+          avgCostPerDistance: mileageSummary.data?.summary?.fuelEfficiency?.avgCostPerDistance || 0,
+          totalFuelConsumed: mileageSummary.data?.summary?.fuelEfficiency?.totalFuelConsumed || 0,
+          totalFuelCost: mileageSummary.data?.summary?.fuelEfficiency?.totalFuelCost || 0,
+          byType: mileageSummary.data?.summary?.fuelEfficiency?.byType || {}
+        },
+        maintenanceBreakdown: maintenanceSchedule.data?.serviceTypeBreakdown || {},
+        expenseCategories: expenseSummary.data?.summary?.byCategory || {},
+        driverAuthorizations: {
+          total: driverActivity.data?.reduce((sum: number, d: any) => sum + (d.summary?.totalAuthorizations || 0), 0) || 0,
+          active: driverActivity.data?.reduce((sum: number, d: any) => sum + (d.summary?.activeAuthorizations || 0), 0) || 0,
+          expiring: driverActivity.data?.reduce((sum: number, d: any) => sum + (d.summary?.expiringAuthorizations || 0), 0) || 0,
+          expired: driverActivity.data?.reduce((sum: number, d: any) => sum + (d.summary?.expiredAuthorizations || 0), 0) || 0,
+          byLevel: {}
+        },
+        vehicleLicenseCompliance: {
+          expiringLicenses: complianceAlerts.data?.summary?.expiringLicensesCount || 0,
+          expiringDriverLicenses: complianceAlerts.data?.summary?.expiringDriverLicensesCount || 0,
+          licenseByType: complianceAlerts.data?.licenseByType || {},
+          driverLicensesByUrgency: complianceAlerts.data?.driverLicensesByUrgency || {}
         },
         monthlyMetrics: [], // We'll populate this from API data
         vehicleUtilization: fleetOverview.data?.vehicles?.map((vehicle: any) => ({
@@ -322,6 +367,165 @@ export function VehicleReports() {
           </div>
         </div>
       </div>
+
+      {/* Fuel Efficiency Metrics */}
+      {reportsData.fuelEfficiency.totalFuelConsumed > 0 && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">⛽ Fuel Efficiency</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <p className="text-sm text-secondary">Avg Efficiency</p>
+              <p className="text-xl font-bold text-blue-600">{reportsData.fuelEfficiency.avgEfficiency.toFixed(2)} mi/gal</p>
+            </div>
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <p className="text-sm text-secondary">Avg Cost/Distance</p>
+              <p className="text-xl font-bold text-green-600">{formatCurrency(reportsData.fuelEfficiency.avgCostPerDistance)}/mi</p>
+            </div>
+            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+              <p className="text-sm text-secondary">Total Fuel</p>
+              <p className="text-xl font-bold text-purple-600">{reportsData.fuelEfficiency.totalFuelConsumed.toFixed(2)} gal</p>
+            </div>
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+              <p className="text-sm text-secondary">Total Fuel Cost</p>
+              <p className="text-xl font-bold text-orange-600">{formatCurrency(reportsData.fuelEfficiency.totalFuelCost)}</p>
+            </div>
+          </div>
+          {Object.keys(reportsData.fuelEfficiency.byType).length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-secondary mb-2">By Fuel Type</h4>
+              <div className="space-y-2">
+                {Object.entries(reportsData.fuelEfficiency.byType).map(([type, data]: [string, any]) => (
+                  <div key={type} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                    <span className="text-sm font-medium text-primary">{type}</span>
+                    <div className="text-right">
+                      <span className="text-sm text-primary">{data.quantity.toFixed(2)} gal</span>
+                      <span className="text-xs text-secondary ml-2">{formatCurrency(data.cost)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Maintenance Service Breakdown */}
+      {Object.keys(reportsData.maintenanceBreakdown).length > 0 && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">🔧 Maintenance Services</h3>
+          <div className="space-y-3">
+            {Object.entries(reportsData.maintenanceBreakdown).map(([type, data]) => (
+              <div key={type} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="font-medium text-primary">{type}</h4>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-primary">{formatCurrency(data.totalCost)}</p>
+                    <p className="text-xs text-secondary">{data.count} services</p>
+                  </div>
+                </div>
+                <div className="text-xs text-secondary">
+                  {data.services.slice(0, 3).join(', ')}
+                  {data.services.length > 3 && ` +${data.services.length - 3} more`}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Driver Authorization Metrics */}
+      {reportsData.driverAuthorizations.total > 0 && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">👤 Driver Authorizations</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <p className="text-sm text-secondary">Total</p>
+              <p className="text-2xl font-bold text-blue-600">{reportsData.driverAuthorizations.total}</p>
+            </div>
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <p className="text-sm text-secondary">Active</p>
+              <p className="text-2xl font-bold text-green-600">{reportsData.driverAuthorizations.active}</p>
+            </div>
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+              <p className="text-sm text-secondary">Expiring</p>
+              <p className="text-2xl font-bold text-orange-600">{reportsData.driverAuthorizations.expiring}</p>
+            </div>
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <p className="text-sm text-secondary">Expired</p>
+              <p className="text-2xl font-bold text-red-600">{reportsData.driverAuthorizations.expired}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vehicle License Compliance */}
+      {(reportsData.vehicleLicenseCompliance.expiringLicenses > 0 || reportsData.vehicleLicenseCompliance.expiringDriverLicenses > 0) && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">📋 License Compliance</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Vehicle Licenses */}
+            {Object.keys(reportsData.vehicleLicenseCompliance.licenseByType).length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-secondary mb-3">Vehicle Licenses Expiring</h4>
+                <div className="space-y-2">
+                  {Object.entries(reportsData.vehicleLicenseCompliance.licenseByType).map(([type, data]) => (
+                    <div key={type} className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-primary">{type}</span>
+                        <span className="text-lg font-bold text-orange-600">{data.count}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Driver Licenses */}
+            {Object.keys(reportsData.vehicleLicenseCompliance.driverLicensesByUrgency).length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-secondary mb-3">Driver Licenses by Urgency</h4>
+                <div className="space-y-2">
+                  {Object.entries(reportsData.vehicleLicenseCompliance.driverLicensesByUrgency).map(([urgency, data]) => {
+                    const urgencyColor = urgency === 'CRITICAL' ? 'red' : urgency === 'HIGH' ? 'orange' : 'yellow'
+                    return (
+                      <div key={urgency} className={`p-3 bg-${urgencyColor}-50 dark:bg-${urgencyColor}-900/20 rounded-lg border border-${urgencyColor}-200 dark:border-${urgencyColor}-800`}>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-primary">{urgency}</span>
+                          <span className={`text-lg font-bold text-${urgencyColor}-600`}>{data.count}</span>
+                        </div>
+                        {data.drivers.length > 0 && (
+                          <div className="text-xs text-secondary mt-1">
+                            {data.drivers.slice(0, 2).map((d: any) => d.fullName).join(', ')}
+                            {data.drivers.length > 2 && ` +${data.drivers.length - 2} more`}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Expense Category Breakdown */}
+      {Object.keys(reportsData.expenseCategories).length > 0 && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">💳 Expense Categories</h3>
+          <div className="space-y-2">
+            {Object.entries(reportsData.expenseCategories).map(([category, data]) => (
+              <div key={category} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div>
+                  <span className="text-sm font-medium text-primary">{category}</span>
+                  <span className="text-xs text-secondary ml-2">({data.count} transactions)</span>
+                </div>
+                <span className="text-sm font-bold text-primary">{formatCurrency(data.totalAmount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Maintenance Alerts */}
       {reportsData.maintenanceAlerts.length > 0 && (

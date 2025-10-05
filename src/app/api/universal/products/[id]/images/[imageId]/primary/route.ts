@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> })
- {
-
-    const { id, imageId } = await params
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
+  const { id: productId, imageId } = await params
   try {
-    const { id: productId, imageId } = params
 
     // Ensure image belongs to product
     const img = await prisma.productImage.findUnique({ where: { id: imageId } })
@@ -15,7 +12,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // unset other images
     await prisma.productImage.updateMany({ where: { productId }, data: { isPrimary: false } })
 
-    const updated = await prisma.productImage.update({ where: { id: imageId }, data: { isPrimary: true } })
+  const updated = await prisma.productImage.update({ where: { id: imageId }, data: { isPrimary: true, updatedAt: new Date() } })
 
     return NextResponse.json({ success: true, data: updated })
   } catch (err) {

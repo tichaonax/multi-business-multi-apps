@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 import { Vehicle, VehicleApiResponse } from '@/types/vehicle'
 import { LicenseStatusIndicator } from './license-status-indicator'
 
@@ -59,6 +61,9 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
     }
   }
 
+  const confirm = useConfirm()
+  const toast = useToastContext()
+
   useEffect(() => {
     fetchVehicles()
 
@@ -97,9 +102,14 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
   }, [updatedVehicleId, updateSeq])
 
   const handleDelete = async (vehicleId: string) => {
-    if (!confirm('Are you sure you want to delete this vehicle?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Delete vehicle',
+      description: 'Are you sure you want to delete this vehicle? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/vehicles?id=${vehicleId}`, {
@@ -115,7 +125,7 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
       // Refresh the list
       fetchVehicles()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete vehicle')
+  toast.push(err instanceof Error ? err.message : 'Failed to delete vehicle')
     }
   }
 

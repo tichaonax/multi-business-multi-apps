@@ -4,6 +4,7 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { BarcodeScanner } from '@/components/universal/barcode-scanner'
 import { UniversalProduct } from '@/components/universal/product-card'
 import { useState, useEffect, useRef } from 'react'
+import { useToastContext } from '@/components/ui/toast'
 
 interface MenuItem {
   id: string
@@ -86,14 +87,14 @@ export default function RestaurantPOS() {
   const handleProductScanned = (product: any, variantId?: string) => {
     // Check if product is available
     if (!(product as any).isAvailable) {
-      alert(`${product.name} is currently unavailable`)
+      toast.push(`${product.name} is currently unavailable`)
       return
     }
 
     // If variant is specified, check variant availability
     const variant = variantId ? (product.variants || []).find((v: any) => v.id === variantId) : undefined
     if (variant && !(variant as any).isAvailable) {
-      alert(`${product.name} (${variant.name}) is currently unavailable`)
+      toast.push(`${product.name} (${variant.name}) is currently unavailable`)
       return
     }
 
@@ -163,16 +164,16 @@ export default function RestaurantPOS() {
         if (result.inventoryUpdates && result.inventoryUpdates.length > 0) {
           const failedUpdates = result.inventoryUpdates.filter((u: any) => !u.success)
           if (failedUpdates.length > 0) {
-            alert(`Order processed successfully!\n\nNote: Some inventory updates failed. Please check inventory manually.`)
+            toast.push('Order processed successfully! Note: Some inventory updates failed. Please check inventory manually.')
           } else {
-            alert(`Order processed successfully!\n\nInventory updated: ${result.inventoryUpdates.length} items`)
+            toast.push(`Order processed successfully! Inventory updated: ${result.inventoryUpdates.length} items`)
           }
         } else {
-          alert('Order processed successfully!')
+          toast.push('Order processed successfully!')
         }
       }
     } catch (error) {
-      alert('Failed to process order')
+      toast.push('Failed to process order')
     }
     finally {
       submitInFlightRef.current = false
@@ -187,6 +188,7 @@ export default function RestaurantPOS() {
       return v.toString(16)
     })
   }
+  const toast = useToastContext()
 
   return (
     <BusinessTypeRoute requiredBusinessType="restaurant">

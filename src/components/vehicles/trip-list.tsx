@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
+import { usePrompt } from '@/components/ui/input-modal'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { VehicleTrip, TripApiResponse } from '@/types/vehicle'
@@ -24,6 +27,9 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
   })
   const controllerRef = useRef<AbortController | null>(null)
   const { format: globalDateFormat } = useDateFormat()
+  const confirm = useConfirm()
+  const toast = useToastContext()
+  const prompt = usePrompt()
 
   const fetchTrips = async () => {
     if (controllerRef.current) controllerRef.current.abort()
@@ -97,14 +103,19 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
       // Refresh the list
       fetchTrips()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to complete trip')
+      toast.push(err instanceof Error ? err.message : 'Failed to complete trip')
     }
   }
 
   const handleDelete = async (tripId: string) => {
-    if (!confirm('Are you sure you want to delete this trip?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Delete trip',
+      description: 'Are you sure you want to delete this trip? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/vehicles/trips?id=${tripId}`, {
@@ -120,7 +131,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
       // Refresh the list
       fetchTrips()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete trip')
+      toast.push(err instanceof Error ? err.message : 'Failed to delete trip')
     }
   }
 
@@ -303,11 +314,20 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
                       {!trip.isCompleted && (
                         <button
                           type="button"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation()
-                            const endMileage = prompt('Enter end mileage:', trip.startMileage.toString())
-                            if (endMileage && Number(endMileage) > trip.startMileage) {
-                              handleCompleteTrip(trip.id, Number(endMileage))
+                            const input = await prompt({
+                              title: 'End mileage',
+                              description: 'Enter the end mileage for this trip',
+                              placeholder: trip.startMileage.toString(),
+                              defaultValue: trip.startMileage.toString(),
+                              confirmText: 'Complete',
+                              cancelText: 'Cancel'
+                            })
+                            if (input && Number(input) > trip.startMileage) {
+                              handleCompleteTrip(trip.id, Number(input))
+                            } else if (input !== null) {
+                              toast.push('Invalid mileage entered')
                             }
                           }}
                           className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors relative z-[9999] pointer-events-auto"

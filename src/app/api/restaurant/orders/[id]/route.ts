@@ -228,7 +228,7 @@ export async function GET(
             fullName: true
           }
         },
-        items: {
+        businessOrderItems: {
           select: {
             id: true,
             quantity: true,
@@ -237,7 +237,7 @@ export async function GET(
             productVariant: {
               select: {
                 name: true,
-                product: {
+                businessProducts: {
                   select: {
                     name: true
                   }
@@ -279,26 +279,26 @@ export async function GET(
       customerName: 'Walk-in Customer', // businessOrder doesn't have customer info
       customerPhone: '',
       customerEmail: '',
-      tableNumber: order.attributes?.tableNumber || '',
+  tableNumber: (order.attributes as any)?.tableNumber || '',
       orderType: mapOrderTypeFromUniversal(order.orderType || 'SALE'),
       status: mapStatusFromUniversal(order.status),
       subtotal: Number(order.subtotal || 0),
       taxAmount: Number(order.taxAmount || 0),
-      tipAmount: order.attributes?.tipAmount || 0,
+  tipAmount: (order.attributes as any)?.tipAmount || 0,
       totalAmount: Number(order.totalAmount),
       paymentStatus: mapPaymentStatusFromUniversal(order.paymentStatus),
       paymentMethod: order.paymentMethod || '',
       notes: order.notes || '',
-      estimatedReadyTime: order.attributes?.estimatedReadyTime || '',
+  estimatedReadyTime: (order.attributes as any)?.estimatedReadyTime || '',
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       businessId: order.businessId,
-      items: order.items.map((item: any) => ({
+      items: order.businessOrderItems.map((item: any) => ({
         id: item.id,
         quantity: item.quantity,
         unitPrice: Number(item.unitPrice),
         totalPrice: Number(item.totalPrice),
-        productName: item.productVariant?.product?.name || item.productVariant?.name || 'Unknown Item'
+        productName: item.productVariant?.businessProducts?.name || item.productVariant?.name || 'Unknown Item'
       }))
     }
 

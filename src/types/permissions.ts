@@ -40,6 +40,22 @@ export interface UserLevelPermissions {
   canManageAllBusinesses: boolean;
 }
 
+// Customer Management Permissions (Cross-business capability)
+export interface CustomerManagementPermissions {
+  canAccessCustomers: boolean;
+  canViewCustomers: boolean;
+  canManageCustomers: boolean;
+  canCreateCustomers: boolean;
+  canEditCustomers: boolean;
+  canDeleteCustomers: boolean;
+  canManageDivisionAccounts: boolean;
+  canManageLaybys: boolean;
+  canManageCredit: boolean;
+  canViewCustomerReports: boolean;
+  canExportCustomerData: boolean;
+  canLinkCustomerAccounts: boolean;
+}
+
 // Core Business Permissions (Business-Specific - tied to business membership)
 export interface CoreBusinessPermissions {
   // Business Management
@@ -88,6 +104,32 @@ export interface CoreBusinessPermissions {
   canExportEmployeeData: boolean;
   canApproveSalaryIncreases: boolean;
   canProcessSalaryIncreases: boolean;
+
+  // Customer Management (Business-level)
+  canAccessCustomers: boolean;
+  canViewCustomers: boolean;
+  canManageCustomers: boolean;
+  canCreateCustomers: boolean;
+  canEditCustomers: boolean;
+  canDeleteCustomers: boolean;
+  canManageDivisionAccounts: boolean;
+  canManageLaybys: boolean;
+  canManageCredit: boolean;
+  canViewCustomerReports: boolean;
+  canExportCustomerData: boolean;
+  canLinkCustomerAccounts: boolean;
+
+  // Payroll Management
+  canAccessPayroll: boolean;
+  canManagePayroll: boolean;
+  canCreatePayrollPeriod: boolean;
+  canEditPayrollEntry: boolean;
+  canApprovePayroll: boolean;
+  canExportPayroll: boolean;
+  canEnterPaySlips: boolean;
+  canReconcilePayroll: boolean;
+  canViewPayrollReports: boolean;
+  canManageAdvances: boolean;
 }
 
 // Business-Type-Specific Permission Modules
@@ -624,6 +666,32 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canViewCostReports: true,
   canApproveBudgetChanges: true,
   canViewProfitabilityReports: true,
+
+  // Customer Management - Full access
+  canAccessCustomers: true,
+  canViewCustomers: true,
+  canManageCustomers: true,
+  canCreateCustomers: true,
+  canEditCustomers: true,
+  canDeleteCustomers: true,
+  canManageDivisionAccounts: true,
+  canManageLaybys: true,
+  canManageCredit: true,
+  canViewCustomerReports: true,
+  canExportCustomerData: true,
+  canLinkCustomerAccounts: true,
+
+  // Payroll Management - Full access
+  canAccessPayroll: true,
+  canManagePayroll: true,
+  canCreatePayrollPeriod: true,
+  canEditPayrollEntry: true,
+  canApprovePayroll: true,
+  canExportPayroll: true,
+  canEnterPaySlips: true,
+  canReconcilePayroll: true,
+  canViewPayrollReports: true,
+  canManageAdvances: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -673,6 +741,32 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canViewCostReports: true,
   canApproveBudgetChanges: false,
   canViewProfitabilityReports: true,
+
+  // Customer Management - Manager access
+  canAccessCustomers: true,
+  canViewCustomers: true,
+  canManageCustomers: true,
+  canCreateCustomers: true,
+  canEditCustomers: true,
+  canDeleteCustomers: false,
+  canManageDivisionAccounts: true,
+  canManageLaybys: true,
+  canManageCredit: true,
+  canViewCustomerReports: true,
+  canExportCustomerData: true,
+  canLinkCustomerAccounts: true,
+
+  // Payroll Management - Manager access (all except approval)
+  canAccessPayroll: true,
+  canManagePayroll: true,
+  canCreatePayrollPeriod: true,
+  canEditPayrollEntry: true,
+  canApprovePayroll: false,  // Only owners can approve
+  canExportPayroll: true,
+  canEnterPaySlips: true,
+  canReconcilePayroll: true,
+  canViewPayrollReports: true,
+  canManageAdvances: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -722,6 +816,32 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canViewCostReports: false,
   canApproveBudgetChanges: false,
   canViewProfitabilityReports: false,
+
+  // Customer Management - View only
+  canAccessCustomers: true,
+  canViewCustomers: true,
+  canManageCustomers: false,
+  canCreateCustomers: false,
+  canEditCustomers: false,
+  canDeleteCustomers: false,
+  canManageDivisionAccounts: false,
+  canManageLaybys: false,
+  canManageCredit: false,
+  canViewCustomerReports: true,
+  canExportCustomerData: false,
+  canLinkCustomerAccounts: false,
+
+  // Payroll Management - No access
+  canAccessPayroll: false,
+  canManagePayroll: false,
+  canCreatePayrollPeriod: false,
+  canEditPayrollEntry: false,
+  canApprovePayroll: false,
+  canExportPayroll: false,
+  canEnterPaySlips: false,
+  canReconcilePayroll: false,
+  canViewPayrollReports: false,
+  canManageAdvances: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -771,6 +891,32 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewCostReports: true,
   canApproveBudgetChanges: false,
   canViewProfitabilityReports: true,
+
+  // Customer Management - View only
+  canAccessCustomers: true,
+  canViewCustomers: true,
+  canManageCustomers: false,
+  canCreateCustomers: false,
+  canEditCustomers: false,
+  canDeleteCustomers: false,
+  canManageDivisionAccounts: false,
+  canManageLaybys: false,
+  canManageCredit: false,
+  canViewCustomerReports: true,
+  canExportCustomerData: false,
+  canLinkCustomerAccounts: false,
+
+  // Payroll Management - View-only access
+  canAccessPayroll: true,
+  canManagePayroll: false,
+  canCreatePayrollPeriod: false,
+  canEditPayrollEntry: false,
+  canApprovePayroll: false,
+  canExportPayroll: false,
+  canEnterPaySlips: false,
+  canReconcilePayroll: false,
+  canViewPayrollReports: true,
+  canManageAdvances: false,
 };
 
 // System admin permissions (cross-business)
@@ -820,6 +966,32 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canViewCostReports: true,
   canApproveBudgetChanges: true,
   canViewProfitabilityReports: true,
+
+  // Customer Management - Full access
+  canAccessCustomers: true,
+  canViewCustomers: true,
+  canManageCustomers: true,
+  canCreateCustomers: true,
+  canEditCustomers: true,
+  canDeleteCustomers: true,
+  canManageDivisionAccounts: true,
+  canManageLaybys: true,
+  canManageCredit: true,
+  canViewCustomerReports: true,
+  canExportCustomerData: true,
+  canLinkCustomerAccounts: true,
+
+  // Payroll Management - Full access
+  canAccessPayroll: true,
+  canManagePayroll: true,
+  canCreatePayrollPeriod: true,
+  canEditPayrollEntry: true,
+  canApprovePayroll: true,
+  canExportPayroll: true,
+  canEnterPaySlips: true,
+  canReconcilePayroll: true,
+  canViewPayrollReports: true,
+  canManageAdvances: true,
 };
 
 // User-Level Permission Presets

@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { DateInput } from '@/components/ui/date-input'
@@ -96,9 +98,14 @@ export function MaintenanceList({ onMaintenanceSelect, onAddMaintenance, vehicle
   }, [filter])
 
   const handleDelete = async (maintenanceId: string) => {
-    if (!confirm('Are you sure you want to delete this maintenance record?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Delete maintenance record',
+      description: 'Are you sure you want to delete this maintenance record? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
     try {
       const response = await fetch(`/api/vehicles/maintenance?id=${maintenanceId}`, {
         method: 'DELETE',
@@ -113,11 +120,13 @@ export function MaintenanceList({ onMaintenanceSelect, onAddMaintenance, vehicle
       // Refresh the list immediately
       fetchMaintenanceRecords()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete maintenance record')
+      toast.push(err instanceof Error ? err.message : 'Failed to delete maintenance record')
     }
   }
 
   const { format: globalDateFormat } = useDateFormat()
+  const confirm = useConfirm()
+  const toast = useToastContext()
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A'
     return formatDateByFormat(dateString, globalDateFormat)

@@ -82,6 +82,7 @@
     "drizzle-orm": "^0.44.5",
     "eslint": "^9.34.0",
     "eslint-config-next": "^15.5.2",
+    "exceljs": "^4.4.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.2",
     "lucide-react": "^0.544.0",

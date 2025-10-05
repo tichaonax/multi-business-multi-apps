@@ -1,8 +1,10 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from 'react'
 import { DateInput } from '@/components/ui/date-input'
 import { CreateExpenseData, Vehicle, VehicleTrip } from '@/types/vehicle'
+import { useToastContext } from '@/components/ui/toast'
+import fetchWithValidation from '@/lib/fetchWithValidation'
 
 interface ExpenseFormProps {
   onSuccess?: () => void
@@ -13,6 +15,7 @@ interface ExpenseFormProps {
 export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [trips, setTrips] = useState<VehicleTrip[]>([])
+  const toast = useToastContext()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [loadingData, setLoadingData] = useState(true)
@@ -39,22 +42,18 @@ export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [vehiclesRes, tripsRes] = await Promise.all([
-          fetch('/api/vehicles?isActive=true'),
-          fetch('/api/vehicles/trips?isCompleted=false')
+        const [vehiclesBody, tripsBody] = await Promise.all([
+          fetchWithValidation('/api/vehicles?isActive=true'),
+          fetchWithValidation('/api/vehicles/trips?isCompleted=false')
         ])
 
-        if (vehiclesRes.ok) {
-          const vehiclesData = await vehiclesRes.json()
-          setVehicles(vehiclesData.data || [])
-        }
-
-        if (tripsRes.ok) {
-          const tripsData = await tripsRes.json()
-          setTrips(tripsData.data || [])
-        }
+        setVehicles(vehiclesBody?.data || [])
+        setTrips(tripsBody?.data || [])
       } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Error fetching data'
         console.error('Error fetching data:', err)
+        try { toast.push(msg) } catch (e) { /* noop if toast not available */ }
+        setError(msg)
       } finally {
         setLoadingData(false)
       }
@@ -99,25 +98,19 @@ export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
     setError('')
 
     try {
-      const response = await fetch('/api/vehicles/expenses', {
+      const body = await fetchWithValidation('/api/vehicles/expenses', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       })
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create expense')
-      }
-
-      if (onSuccess) {
-        onSuccess()
-      }
+      const successMsg = body?.message || 'Expense recorded'
+      try { toast.push(successMsg) } catch (e) { /* noop */ }
+      if (onSuccess) onSuccess()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const msg = err instanceof Error ? err.message : 'An error occurred'
+      setError(msg)
+      try { toast.push(msg) } catch (e) { /* noop */ }
     } finally {
       setIsSubmitting(false)
     }

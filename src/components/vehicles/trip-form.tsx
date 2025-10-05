@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useToastContext } from '@/components/ui/toast'
+import fetchWithValidation from '@/lib/fetchWithValidation'
 import { CreateTripData, Vehicle, VehicleDriver } from '@/types/vehicle'
 
 interface TripFormProps {
@@ -31,26 +33,22 @@ export function TripForm({ onSuccess, onCancel }: TripFormProps) {
     notes: ''
   })
 
+  const toast = useToastContext()
+
   // Fetch vehicles and drivers on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [vehiclesRes, driversRes] = await Promise.all([
-          fetch('/api/vehicles?isActive=true'),
-          fetch('/api/vehicles/drivers?isActive=true')
+        const [vehiclesBody, driversBody] = await Promise.all([
+          fetchWithValidation('/api/vehicles?isActive=true'),
+          fetchWithValidation('/api/vehicles/drivers?isActive=true')
         ])
 
-        if (vehiclesRes.ok) {
-          const vehiclesData = await vehiclesRes.json()
-          setVehicles(vehiclesData.data || [])
-        }
-
-        if (driversRes.ok) {
-          const driversData = await driversRes.json()
-          setDrivers(driversData.data || [])
-        }
+        setVehicles(vehiclesBody?.data || [])
+        setDrivers(driversBody?.data || [])
       } catch (err) {
         console.error('Error fetching data:', err)
+        try { toast.push(err instanceof Error ? err.message : 'Failed to load data') } catch (e) { }
       } finally {
         setLoadingData(false)
       }
@@ -64,13 +62,11 @@ export function TripForm({ onSuccess, onCancel }: TripFormProps) {
     if (formData.vehicleId) {
       const fetchAuthorizedDrivers = async () => {
         try {
-          const response = await fetch(`/api/vehicles/drivers?vehicleId=${formData.vehicleId}&isActive=true`)
-          if (response.ok) {
-            const data = await response.json()
-            setAuthorizedDrivers(data.data || [])
-          }
+          const body = await fetchWithValidation(`/api/vehicles/drivers?vehicleId=${formData.vehicleId}&isActive=true`)
+          setAuthorizedDrivers(body?.data || [])
         } catch (err) {
           console.error('Error fetching authorized drivers:', err)
+          try { toast.push(err instanceof Error ? err.message : 'Failed to load authorized drivers') } catch (e) { }
         }
       }
 
@@ -94,25 +90,17 @@ export function TripForm({ onSuccess, onCancel }: TripFormProps) {
     setError('')
 
     try {
-      const response = await fetch('/api/vehicles/trips', {
+      const result = await fetchWithValidation('/api/vehicles/trips', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create trip')
-      }
-
-      if (onSuccess) {
-        onSuccess()
-      }
+      if (onSuccess) onSuccess()
+      toast.push('Trip logged successfully')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const message = err instanceof Error ? err.message : 'An error occurred'
+      setError(message)
+      try { useToastContext().push(message) } catch (e) { }
     } finally {
       setIsSubmitting(false)
     }

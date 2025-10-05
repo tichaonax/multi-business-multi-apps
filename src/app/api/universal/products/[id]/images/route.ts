@@ -3,6 +3,7 @@ import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> })
  {
@@ -54,13 +55,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       const img = await prisma.productImage.create({
         data: {
+          id: randomUUID(),
           productId,
           imageUrl: url,
           altText: file.name,
           isPrimary: false,
           sortOrder: existingCount + i,
           imageSize: 'MEDIUM',
-          businessType: product.businessType || 'restaurant'
+          businessType: product.businessType || 'restaurant',
+          updatedAt: new Date()
         }
       })
 

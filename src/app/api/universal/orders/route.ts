@@ -8,19 +8,20 @@ const CreateOrderItemSchema = z.object({
   quantity: z.number().int().min(1),
   unitPrice: z.number().min(0),
   discountAmount: z.number().min(0).default(0),
-  attributes: z.record(z.any()).optional() // Business-specific order item data
+  attributes: z.record(z.string(), z.any()).optional() // Business-specific order item data
 })
 
 const CreateOrderSchema = z.object({
   businessId: z.string().min(1),
-  customerId: z.string().optional(),
+  customerId: z.string().optional(), // Legacy: BusinessCustomer ID
+  divisionAccountId: z.string().optional(), // New: CustomerDivisionAccount ID
   employeeId: z.string().optional(),
   orderType: z.enum(['SALE', 'RETURN', 'EXCHANGE', 'SERVICE', 'RENTAL', 'SUBSCRIPTION']).default('SALE'),
   paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK']).optional(),
   discountAmount: z.number().min(0).default(0),
   taxAmount: z.number().min(0).default(0),
   businessType: z.string().min(1),
-  attributes: z.record(z.any()).optional(), // Business-specific order data
+  attributes: z.record(z.string(), z.any()).optional(), // Business-specific order data
   notes: z.string().optional(),
   items: z.array(CreateOrderItemSchema).min(1)
 })
@@ -31,7 +32,7 @@ const UpdateOrderSchema = z.object({
   paymentStatus: z.enum(['PENDING', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'REFUNDED', 'FAILED']).optional(),
   paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK']).optional(),
   notes: z.string().optional(),
-  attributes: z.record(z.any()).optional()
+  attributes: z.record(z.string(), z.any()).optional()
 })
 
 // Generate order number based on business type
@@ -94,8 +95,17 @@ export async function GET(request: NextRequest) {
           business: {
             select: { name: true, type: true }
           },
-          customer: {
+          businessCustomer: {
             select: { id: true, name: true, customerNumber: true }
+          },
+          divisionAccount: {
+            select: {
+              id: true,
+              divisionCustomerNumber: true,
+              universalCustomer: {
+                select: { id: true, fullName: true, customerNumber: true, primaryEmail: true, primaryPhone: true }
+              }
+            }
           },
           employee: {
             select: { id: true, fullName: true, employeeNumber: true }
@@ -181,7 +191,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify customer exists if specified
+    // Verify customer exists if specified (supports both old and new systems)
     if (orderData.customerId) {
       const customer = await prisma.businessCustomer.findFirst({
         where: {
@@ -192,7 +202,25 @@ export async function POST(request: NextRequest) {
 
       if (!customer) {
         return NextResponse.json(
-          { error: 'Customer not found' },
+          { error: 'Customer not found in BusinessCustomer table' },
+          { status: 404 }
+        )
+      }
+    }
+
+    // Verify division account exists if specified (new system)
+    if (orderData.divisionAccountId) {
+      const divisionAccount = await prisma.customerDivisionAccount.findFirst({
+        where: {
+          id: orderData.divisionAccountId,
+          businessId: orderData.businessId,
+          isActive: true
+        }
+      })
+
+      if (!divisionAccount) {
+        return NextResponse.json(
+          { error: 'Customer division account not found or inactive' },
           { status: 404 }
         )
       }
@@ -224,7 +252,7 @@ export async function POST(request: NextRequest) {
         }
       },
       include: {
-        product: {
+        businessProducts: {
           select: { name: true, productType: true, businessType: true }
         }
       }
@@ -243,7 +271,7 @@ export async function POST(request: NextRequest) {
     const stockIssues = []
     for (const item of items) {
       const variant = variants.find(v => v.id === item.productVariantId)!
-      if (variant.product.productType === 'PHYSICAL' && variant.stockQuantity < item.quantity) {
+      if ((variant as any).businessProducts?.productType === 'PHYSICAL' && variant.stockQuantity < item.quantity) {
         stockIssues.push({
           variantId: item.productVariantId,
           requested: item.quantity,
@@ -282,21 +310,40 @@ export async function POST(request: NextRequest) {
     // Create order with items in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create the order
-      const order = await tx.businessOrder.create({
+  const order = await tx.businessOrder.create({
         data: {
-          ...orderData,
+          businessId: orderData.businessId,
+          customerId: orderData.customerId,
+          divisionAccountId: orderData.divisionAccountId,
+          employeeId: orderData.employeeId,
+          orderType: orderData.orderType,
+          paymentMethod: orderData.paymentMethod,
+          discountAmount: orderData.discountAmount,
+          taxAmount: orderData.taxAmount,
+          businessType: orderData.businessType || business.type,
+          attributes: orderData.attributes,
+          notes: orderData.notes,
           orderNumber,
           subtotal,
           totalAmount,
-          businessType: orderData.businessType || business.type,
           status: 'PENDING',
-          paymentStatus: 'PENDING'
+          paymentStatus: 'PENDING',
+          updatedAt: new Date()
         },
-        include: {
-          business: { select: { name: true, type: true } },
-          customer: { select: { id: true, name: true, customerNumber: true } },
-          employee: { select: { id: true, fullName: true, employeeNumber: true } }
-        }
+          include: {
+            business: { select: { name: true, type: true } },
+            businessCustomer: { select: { id: true, name: true, customerNumber: true } },
+            divisionAccount: {
+              select: {
+                id: true,
+                divisionCustomerNumber: true,
+                universalCustomer: {
+                  select: { id: true, fullName: true, customerNumber: true }
+                }
+              }
+            },
+            employee: { select: { id: true, fullName: true, employeeNumber: true } }
+          }
       })
 
       // Create order items
@@ -319,7 +366,7 @@ export async function POST(request: NextRequest) {
       // Update stock for physical products
       for (const item of items) {
         const variant = variants.find(v => v.id === item.productVariantId)!
-        if (variant.product.productType === 'PHYSICAL') {
+        if ((variant as any).businessProducts?.productType === 'PHYSICAL') {
           await tx.productVariant.update({
             where: { id: item.productVariantId },
             data: {
@@ -364,7 +411,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }

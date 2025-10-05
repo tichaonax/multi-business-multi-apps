@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useToastContext } from '@/components/ui/toast'
+import fetchWithValidation from '@/lib/fetchWithValidation'
 import { X, Plus, Trash2, Car, Calendar, Shield, AlertCircle } from 'lucide-react'
 import { DateInput } from '@/components/ui/date-input'
 import { VehicleDriver } from '@/types/vehicle'
@@ -142,8 +144,8 @@ export function VehicleAssignmentModal({ driver, isOpen, onClose, onSuccess }: V
         })
 
         if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Failed to remove vehicle assignment')
+          const err = await response.json().catch(() => ({}))
+          throw new Error(err.error || 'Failed to remove vehicle assignment')
         }
       }
 
@@ -164,15 +166,17 @@ export function VehicleAssignmentModal({ driver, isOpen, onClose, onSuccess }: V
         })
 
         if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Failed to create vehicle assignment')
+          const err = await response.json().catch(() => ({}))
+          throw new Error(err.error || 'Failed to create vehicle assignment')
         }
       }
 
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save assignments')
+      const message = err instanceof Error ? err.message : 'Failed to save assignments'
+      setError(message)
+      try { useToastContext().push(message) } catch (e) { }
     } finally {
       setSaving(false)
     }

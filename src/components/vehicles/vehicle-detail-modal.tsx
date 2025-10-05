@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
+import fetchWithValidation from '@/lib/fetchWithValidation'
 import { useSession } from 'next-auth/react'
 import { Vehicle, VehicleLicense } from '@/types/vehicle'
 import { Button } from '@/components/ui/button'
@@ -99,19 +102,15 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
         isActive: formData.isActive
       }
 
-      const response = await fetch('/api/vehicles', {
+      const toast = useToastContext()
+      const result = await fetchWithValidation('/api/vehicles', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatePayload)
       })
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to update vehicle')
-      }
-
       setSuccess('Vehicle updated successfully!')
+      toast.push('Vehicle updated successfully')
       setIsEditing(false)
 
       // Update the vehicle data
@@ -123,7 +122,9 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       }, 3000)
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update vehicle')
+      const message = err instanceof Error ? err.message : 'Failed to update vehicle'
+      setError(message)
+      try { useToastContext().push(message) } catch (e) { }
     } finally {
       setIsSubmitting(false)
     }
@@ -181,9 +182,14 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   }
 
   const handleDeleteLicense = async (licenseId: string) => {
-    if (!confirm('Are you sure you want to delete this license?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Delete license',
+      description: 'Are you sure you want to delete this license? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/vehicles/licenses?id=${licenseId}`, {
@@ -201,6 +207,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete license')
+      toast.push(err instanceof Error ? err.message : 'Failed to delete license')
     }
   }
 
@@ -210,9 +217,14 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       return
     }
 
-    if (!confirm(`Are you sure you want to delete ${selectedLicenseIds.length} selected license(s)?`)) {
-      return
-    }
+    const ok = await confirm({
+      title: `Delete ${selectedLicenseIds.length} license(s)?`,
+      description: `Are you sure you want to delete ${selectedLicenseIds.length} selected license(s)? This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       // Bulk delete in a single request
@@ -233,8 +245,12 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete selected licenses')
+      toast.push(err instanceof Error ? err.message : 'Failed to delete selected licenses')
     }
   }
+
+  const confirm = useConfirm()
+  const toast = useToastContext()
 
   const toggleLicenseSelection = (licenseId: string) => {
     setSelectedLicenseIds(prev =>

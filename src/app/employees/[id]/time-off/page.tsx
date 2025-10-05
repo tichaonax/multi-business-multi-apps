@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePrompt } from '@/components/ui/input-modal'
 import { useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -58,6 +59,7 @@ export default function EmployeeTimeOffPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const prompt = usePrompt()
 
   const [showNewRequestForm, setShowNewRequestForm] = useState(false)
   const [newRequest, setNewRequest] = useState({
@@ -200,7 +202,7 @@ export default function EmployeeTimeOffPage() {
       const response = await fetch(`/api/employees/${employeeId}/leave-requests/${requestId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: 'rejected',
           rejectionReason: reason
         })
@@ -302,7 +304,7 @@ export default function EmployeeTimeOffPage() {
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-6">
                   Leave Balance ({leaveBalance.year})
                 </h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -355,7 +357,7 @@ export default function EmployeeTimeOffPage() {
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-6">
                   New Leave Request
                 </h3>
-                
+
                 <form onSubmit={handleSubmitRequest} className="space-y-6">
                   <div>
                     <label className="block text-sm font-medium text-secondary mb-2">
@@ -363,7 +365,7 @@ export default function EmployeeTimeOffPage() {
                     </label>
                     <select
                       value={newRequest.leaveType}
-                      onChange={(e) => setNewRequest({...newRequest, leaveType: e.target.value})}
+                      onChange={(e) => setNewRequest({ ...newRequest, leaveType: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
                     >
@@ -377,13 +379,13 @@ export default function EmployeeTimeOffPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <DateInput
                       value={newRequest.startDate}
-                      onChange={(date) => setNewRequest({...newRequest, startDate: date})}
+                      onChange={(date) => setNewRequest({ ...newRequest, startDate: date })}
                       label="Start Date"
                       required
                     />
                     <DateInput
                       value={newRequest.endDate}
-                      onChange={(date) => setNewRequest({...newRequest, endDate: date})}
+                      onChange={(date) => setNewRequest({ ...newRequest, endDate: date })}
                       label="End Date"
                       required
                     />
@@ -408,7 +410,7 @@ export default function EmployeeTimeOffPage() {
                     </label>
                     <textarea
                       value={newRequest.reason}
-                      onChange={(e) => setNewRequest({...newRequest, reason: e.target.value})}
+                      onChange={(e) => setNewRequest({ ...newRequest, reason: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                       rows={3}
                       placeholder="Optional reason for leave request..."
@@ -490,8 +492,8 @@ export default function EmployeeTimeOffPage() {
                                   ✅ Approve
                                 </button>
                                 <button
-                                  onClick={() => {
-                                    const reason = prompt('Reason for rejection (optional):')
+                                  onClick={async () => {
+                                    const reason = await prompt({ title: 'Reason for rejection (optional):', defaultValue: '' })
                                     if (reason !== null) {
                                       handleRejectRequest(request.id, reason)
                                     }

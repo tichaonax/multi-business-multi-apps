@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
 const CreateExpenseSchema = z.object({
@@ -230,9 +231,11 @@ export async function POST(request: NextRequest) {
     // Create expense
     const expense = await prisma.vehicleExpense.create({
       data: {
+        id: randomUUID(),
         ...validatedData,
         expenseDate: new Date(validatedData.expenseDate),
-        createdBy: session.user.id
+        createdBy: session.user.id,
+        updatedAt: new Date()
       },
       include: {
         vehicles: {

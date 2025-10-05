@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button';
 import {
   Upload,
@@ -50,6 +51,7 @@ export function DataImport() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const confirm = useConfirm()
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -99,11 +101,8 @@ export function DataImport() {
   const handleImport = async () => {
     if (!importFile) return;
 
-    const confirmed = window.confirm(
-      'Are you sure you want to import this data? This action may modify existing records.'
-    );
-
-    if (!confirmed) return;
+    const ok = await confirm({ title: 'Import data', description: 'Are you sure you want to import this data? This action may modify existing records.', confirmText: 'Import', cancelText: 'Cancel' })
+    if (!ok) return
 
     try {
       setLoading(true);
@@ -211,11 +210,10 @@ export function DataImport() {
             return (
               <div
                 key={type.id}
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  importOptions.dataType === type.id
+                className={`p-4 border rounded-lg cursor-pointer transition-colors ${importOptions.dataType === type.id
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
                     : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                }`}
+                  }`}
                 onClick={() =>
                   setImportOptions({ ...importOptions, dataType: type.id })
                 }
@@ -246,11 +244,10 @@ export function DataImport() {
           {modes.map((mode) => (
             <div
               key={mode.id}
-              className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                importOptions.mode === mode.id
+              className={`p-4 border rounded-lg cursor-pointer transition-colors ${importOptions.mode === mode.id
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
                   : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-              }`}
+                }`}
               onClick={() =>
                 setImportOptions({ ...importOptions, mode: mode.id })
               }
@@ -311,11 +308,10 @@ export function DataImport() {
         />
 
         <div
-          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-            importFile
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${importFile
               ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950'
               : 'border-slate-300 hover:border-slate-400 dark:border-slate-600 dark:hover:border-slate-500'
-          }`}
+            }`}
         >
           {importFile ? (
             <div className="space-y-2">
@@ -399,22 +395,20 @@ export function DataImport() {
 
       {/* Validation Results */}
       {importResult?.validation && showPreview && (
-        <div className={`p-4 rounded-lg border ${
-          importResult.validation.isValid
+        <div className={`p-4 rounded-lg border ${importResult.validation.isValid
             ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
             : 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
-        }`}>
+          }`}>
           <div className="flex items-center gap-2 mb-4">
             {importResult.validation.isValid ? (
               <CheckCircle className="h-5 w-5 text-green-600" />
             ) : (
               <AlertCircle className="h-5 w-5 text-red-600" />
             )}
-            <h4 className={`font-medium ${
-              importResult.validation.isValid
+            <h4 className={`font-medium ${importResult.validation.isValid
                 ? 'text-green-900 dark:text-green-100'
                 : 'text-red-900 dark:text-red-100'
-            }`}>
+              }`}>
               {importResult.validation.isValid ? 'Validation Passed' : 'Validation Failed'}
             </h4>
           </div>
@@ -491,22 +485,20 @@ export function DataImport() {
 
       {/* Import Results */}
       {importResult?.results && !showPreview && (
-        <div className={`p-4 rounded-lg border ${
-          importResult.success
+        <div className={`p-4 rounded-lg border ${importResult.success
             ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
             : 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
-        }`}>
+          }`}>
           <div className="flex items-center gap-2 mb-4">
             {importResult.success ? (
               <CheckCircle className="h-5 w-5 text-green-600" />
             ) : (
               <AlertTriangle className="h-5 w-5 text-red-600" />
             )}
-            <h4 className={`font-medium ${
-              importResult.success
+            <h4 className={`font-medium ${importResult.success
                 ? 'text-green-900 dark:text-green-100'
                 : 'text-red-900 dark:text-red-100'
-            }`}>
+              }`}>
               {importResult.success ? 'Import Completed' : 'Import Failed'}
             </h4>
           </div>

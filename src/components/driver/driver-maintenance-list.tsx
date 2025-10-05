@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -252,9 +254,14 @@ export function DriverMaintenanceList({ onAddMaintenance }: DriverMaintenanceLis
   }
 
   const handleDeleteRecord = async (record: DriverMaintenanceRecord) => {
-    if (!confirm('Are you sure you want to delete this maintenance record? This action cannot be undone.')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Delete maintenance record',
+      description: 'Are you sure you want to delete this maintenance record? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/driver/maintenance?id=${record.id}`, {
@@ -265,14 +272,17 @@ export function DriverMaintenanceList({ onAddMaintenance }: DriverMaintenanceLis
         // Refresh the records list
         fetchRecords(currentPage)
       } else {
-        const data = await response.json()
-        alert(data.error || 'Failed to delete maintenance record')
+  const data = await response.json()
+  toast.push(data.error || 'Failed to delete maintenance record')
       }
     } catch (error) {
       console.error('Error deleting record:', error)
-      alert('Network error. Please try again.')
+      toast.push('Network error. Please try again.')
     }
   }
+
+  const confirm = useConfirm()
+  const toast = useToastContext()
 
   if (loading && !refreshing) {
     return (

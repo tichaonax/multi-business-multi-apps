@@ -72,7 +72,8 @@ export function Sidebar() {
       fetch('/api/businesses')
         .then(res => res.json())
         .then(data => {
-          const businessList = data.success ? data.businesses : data
+          // API returns { businesses, isAdmin }
+          const businessList = data.businesses || []
           if (businessList && Array.isArray(businessList)) {
             setBusinesses(businessList)
             groupBusinessesByType(businessList)
@@ -374,6 +375,17 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* Payroll - Only for users with payroll permissions */}
+        {(hasPermission(currentUser, 'canAccessPayroll') || isSystemAdmin(currentUser)) && (
+          <Link
+            href="/payroll"
+            className={getLinkClasses('/payroll')}
+          >
+            <span className="text-lg">💵</span>
+            <span>Payroll</span>
+          </Link>
+        )}
+
         {/* Reports - Only for managers and admins, not drivers */}
         {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canAccessFinancialData')) && (
           <Link
@@ -399,6 +411,17 @@ export function Sidebar() {
         <div className="pt-4 pb-2">
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tools</h3>
         </div>
+
+        {/* Customer Management - Cross-business functionality */}
+        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canAccessCustomers') || hasPermission(currentUser, 'canManageCustomers')) && (
+          <Link
+            href="/customers"
+            className={getLinkClasses('/customers')}
+          >
+            <span className="text-lg">👥</span>
+            <span>Customer Management</span>
+          </Link>
+        )}
 
         {/* Project Management - Cross-business functionality */}
   {(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canViewProjects') || hasUserPermission(currentUser, 'canAccessPersonalFinance')) && (

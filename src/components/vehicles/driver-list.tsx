@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { VehicleDriver, DriverApiResponse } from '@/types/vehicle'
@@ -130,9 +132,14 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
   }, [page, refreshSignal])
 
   const handleDelete = async (driverId: string) => {
-    if (!confirm('Are you sure you want to delete this driver?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Delete driver',
+      description: 'Are you sure you want to delete this driver? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/vehicles/drivers?id=${driverId}`, {
@@ -148,7 +155,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
       // Refresh the list
       fetchDrivers()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete driver')
+      toast.push(err instanceof Error ? err.message : 'Failed to delete driver')
     }
   }
 
@@ -176,9 +183,14 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
   }
 
   const handleDeactivateUser = async (driverId: string, driverName: string) => {
-    if (!confirm(`Are you sure you want to deactivate the user account for ${driverName}?`)) {
-      return
-    }
+    const ok = await confirm({
+      title: `Deactivate user account for ${driverName}?`,
+      description: `Are you sure you want to deactivate the user account for ${driverName}?`,
+      confirmText: 'Deactivate',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     setUserOperationLoading(driverId)
     try {
@@ -192,19 +204,24 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
         throw new Error(result.error || 'Failed to deactivate user')
       }
 
-      alert(`User account for ${driverName} has been deactivated successfully`)
+      toast.push(`User account for ${driverName} has been deactivated successfully`)
       fetchDrivers() // Refresh list
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to deactivate user')
+      toast.push(err instanceof Error ? err.message : 'Failed to deactivate user')
     } finally {
       setUserOperationLoading(null)
     }
   }
 
   const handleReactivateUser = async (driverId: string, driverName: string) => {
-    if (!confirm(`Are you sure you want to reactivate the user account for ${driverName}?`)) {
-      return
-    }
+    const ok = await confirm({
+      title: `Reactivate user account for ${driverName}?`,
+      description: `Are you sure you want to reactivate the user account for ${driverName}?`,
+      confirmText: 'Reactivate',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     setUserOperationLoading(driverId)
     try {
@@ -218,24 +235,24 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
         throw new Error(result.error || 'Failed to reactivate user')
       }
 
-      alert(`User account for ${driverName} has been reactivated successfully`)
+      toast.push(`User account for ${driverName} has been reactivated successfully`)
       fetchDrivers() // Refresh list
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to reactivate user')
+      toast.push(err instanceof Error ? err.message : 'Failed to reactivate user')
     } finally {
       setUserOperationLoading(null)
     }
   }
 
   const handlePromotionSuccess = (message: string) => {
-    alert(message)
+    toast.push(message)
     fetchDrivers() // Refresh list to show updated user status
     setPromotionModalOpen(false)
     setSelectedDriverForPromotion(null)
   }
 
   const handlePromotionError = (error: string) => {
-    alert(error)
+    toast.push(error)
   }
 
   const { format: globalDateFormat } = useDateFormat()
@@ -243,6 +260,9 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
     if (!dateString) return 'N/A'
     return formatDateByFormat(dateString, globalDateFormat)
   }
+
+  const confirm = useConfirm()
+  const toast = useToastContext()
 
   const isLicenseExpiringSoon = (expiryDate: string) => {
     const expiry = new Date(expiryDate)

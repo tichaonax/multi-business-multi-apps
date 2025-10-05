@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { DriverLicenseInput } from '@/components/ui/driver-license-input'
 import { useDateFormat } from '@/contexts/settings-context'
+import { useToastContext } from '@/components/ui/toast'
+import fetchWithValidation from '@/lib/fetchWithValidation'
 import { parseDateFromFormat } from '@/lib/country-codes'
 import { CreateDriverData } from '@/types/vehicle'
 
@@ -16,6 +18,8 @@ export function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
   const { defaultCountry, format: globalDateFormat } = useDateFormat()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  const toast = useToastContext()
 
   const [formData, setFormData] = useState<CreateDriverData>({
     fullName: '',
@@ -50,25 +54,18 @@ export function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
 
       const payload = { ...formData, licenseExpiry: licenseExpiryISO, dateOfBirth: dobISO }
 
-      const response = await fetch('/api/vehicles/drivers', {
+      const result = await fetchWithValidation('/api/vehicles/drivers', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       })
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to register driver')
-      }
-
-      if (onSuccess) {
-        onSuccess()
-      }
+      if (onSuccess) onSuccess()
+      toast.push('Driver registered')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const message = err instanceof Error ? err.message : 'An error occurred'
+      setError(message)
+      try { toast.push(message) } catch (e) { }
     } finally {
       setIsSubmitting(false)
     }

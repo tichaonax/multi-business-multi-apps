@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { DateInput } from '@/components/ui/date-input'
 import { CreateMaintenanceData, Vehicle } from '@/types/vehicle'
+import { useToastContext } from '@/components/ui/toast'
+import fetchWithValidation from '@/lib/fetchWithValidation'
 
 interface MaintenanceFormProps {
   onSuccess?: () => void
@@ -15,6 +17,7 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [loadingData, setLoadingData] = useState(true)
+  const toast = useToastContext()
 
   const [formData, setFormData] = useState<CreateMaintenanceData>({
     vehicleId: vehicleId || '',
@@ -33,17 +36,16 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
     isCompleted: false
   })
 
-  // Fetch vehicles on component mount
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
-        const response = await fetch('/api/vehicles?isActive=true')
-        if (response.ok) {
-          const data = await response.json()
-          setVehicles(data.data || [])
-        }
+        const body = await fetchWithValidation('/api/vehicles?isActive=true')
+        setVehicles(body?.data || [])
       } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Error fetching vehicles'
         console.error('Error fetching vehicles:', err)
+        try { toast.push(msg) } catch (e) {}
+        setError(msg)
       } finally {
         setLoadingData(false)
       }
@@ -54,21 +56,15 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
     } else {
       setLoadingData(false)
     }
-  }, [vehicleId])
+  }, [vehicleId, toast])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked
-      setFormData(prev => ({
-        ...prev,
-        [name]: checked
-      }))
+      setFormData(prev => ({ ...prev, [name]: checked }))
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: type === 'number' ? Number(value) : value
-      }))
+      setFormData(prev => ({ ...prev, [name]: type === 'number' ? Number(value) : value }))
     }
   }
 
@@ -78,25 +74,19 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
     setError('')
 
     try {
-      const response = await fetch('/api/vehicles/maintenance', {
+      const body = await fetchWithValidation('/api/vehicles/maintenance', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       })
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create maintenance record')
-      }
-
-      if (onSuccess) {
-        onSuccess()
-      }
+      const successMsg = body?.message || 'Maintenance record saved'
+      try { toast.push(successMsg) } catch (e) {}
+      if (onSuccess) onSuccess()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const msg = err instanceof Error ? err.message : 'An error occurred'
+      setError(msg)
+      try { toast.push(msg) } catch (e) {}
     } finally {
       setIsSubmitting(false)
     }
@@ -122,28 +112,18 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-primary">Record Maintenance Service</h2>
         {onCancel && (
-          <button
-            onClick={onCancel}
-            className="text-secondary hover:text-primary transition-colors"
-          >
-            ✕
-          </button>
+          <button onClick={onCancel} className="text-secondary hover:text-primary transition-colors">✕</button>
         )}
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
-          {error}
-        </div>
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">{error}</div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Vehicle Selection */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Vehicle *
-            </label>
+            <label className="block text-sm font-medium text-secondary mb-1">Vehicle *</label>
             <select
               name="vehicleId"
               required
@@ -153,26 +133,15 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary disabled:bg-gray-100 dark:disabled:bg-gray-600 transition-colors"
             >
               <option value="">Select a vehicle</option>
-              {vehicles.map((vehicle) => (
-                <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.make} {vehicle.model} ({vehicle.licensePlate})
-                </option>
+              {vehicles.map(v => (
+                <option key={v.id} value={v.id}>{v.make} {v.model} ({v.licensePlate})</option>
               ))}
             </select>
           </div>
 
-          {/* Service Type */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Service Type *
-            </label>
-            <select
-              name="serviceType"
-              required
-              value={formData.serviceType}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-            >
+            <label className="block text-sm font-medium text-secondary mb-1">Service Type *</label>
+            <select name="serviceType" required value={formData.serviceType} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors">
               <option value="ROUTINE">Routine Maintenance</option>
               <option value="REPAIR">Repair</option>
               <option value="INSPECTION">Inspection</option>
@@ -182,94 +151,33 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
             </select>
           </div>
 
-          {/* Service Name */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Service Name *
-            </label>
-            <input
-              type="text"
-              name="serviceName"
-              required
-              value={formData.serviceName}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-              placeholder="Oil change, brake repair, inspection..."
-            />
+            <label className="block text-sm font-medium text-secondary mb-1">Service Name *</label>
+            <input type="text" name="serviceName" required value={formData.serviceName} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="Oil change, brake repair, inspection..." />
           </div>
 
-          {/* Service Provider */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Service Provider
-            </label>
-            <input
-              type="text"
-              name="serviceProvider"
-              value={formData.serviceProvider}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-              placeholder="Shop name or mechanic"
-            />
+            <label className="block text-sm font-medium text-secondary mb-1">Service Provider</label>
+            <input type="text" name="serviceProvider" value={formData.serviceProvider} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="Shop name or mechanic" />
           </div>
 
-          {/* Service Date */}
           <div>
-            <DateInput
-              value={formData.serviceDate || ''}
-              onChange={(isoDate) => setFormData(prev => ({ ...prev, serviceDate: isoDate }))}
-              label="Service Date"
-              required
-              className="w-full"
-            />
+            <DateInput value={formData.serviceDate || ''} onChange={(isoDate) => setFormData(prev => ({ ...prev, serviceDate: isoDate }))} label="Service Date" required className="w-full" />
           </div>
 
-          {/* Mileage at Service */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Mileage at Service *
-            </label>
-            <input
-              type="number"
-              name="mileageAtService"
-              required
-              min="0"
-              value={formData.mileageAtService || ''}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-              placeholder="Current odometer reading"
-            />
+            <label className="block text-sm font-medium text-secondary mb-1">Mileage at Service *</label>
+            <input type="number" name="mileageAtService" required min="0" value={formData.mileageAtService || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="Current odometer reading" />
           </div>
 
-          {/* Cost */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Cost *
-            </label>
-            <input
-              type="number"
-              name="cost"
-              required
-              min="0"
-              step="0.01"
-              value={formData.cost || ''}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-              placeholder="0.00"
-            />
+            <label className="block text-sm font-medium text-secondary mb-1">Cost *</label>
+            <input type="number" name="cost" required min="0" step="0.01" value={formData.cost || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="0.00" />
           </div>
 
-          {/* Currency */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Currency
-            </label>
-            <select
-              name="currency"
-              value={formData.currency}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-            >
+            <label className="block text-sm font-medium text-secondary mb-1">Currency</label>
+            <select name="currency" value={formData.currency} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors">
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
               <option value="GBP">GBP</option>
@@ -277,105 +185,40 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
             </select>
           </div>
 
-          {/* Next Service Mileage */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Next Service Mileage
-            </label>
-            <input
-              type="number"
-              name="nextServiceMileage"
-              min="0"
-              value={formData.nextServiceMileage || ''}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-              placeholder="When next service is due"
-            />
+            <label className="block text-sm font-medium text-secondary mb-1">Next Service Mileage</label>
+            <input type="number" name="nextServiceMileage" min="0" value={formData.nextServiceMileage || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="When next service is due" />
           </div>
 
-          {/* Next Service Date */}
           <div>
-            <DateInput
-              value={formData.nextServiceDate || ''}
-              onChange={(isoDate) => setFormData(prev => ({ ...prev, nextServiceDate: isoDate }))}
-              label="Next Service Date"
-              className="w-full"
-            />
+            <DateInput value={formData.nextServiceDate || ''} onChange={(isoDate) => setFormData(prev => ({ ...prev, nextServiceDate: isoDate }))} label="Next Service Date" className="w-full" />
           </div>
 
-          {/* Warranty Until */}
           <div>
-            <DateInput
-              value={formData.warrantyUntil || ''}
-              onChange={(isoDate) => setFormData(prev => ({ ...prev, warrantyUntil: isoDate }))}
-              label="Warranty Until"
-              className="w-full"
-            />
+            <DateInput value={formData.warrantyUntil || ''} onChange={(isoDate) => setFormData(prev => ({ ...prev, warrantyUntil: isoDate }))} label="Warranty Until" className="w-full" />
           </div>
 
-          {/* Receipt URL */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Receipt URL/Photo
-            </label>
-            <input
-              type="url"
-              name="receiptUrl"
-              value={formData.receiptUrl}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-              placeholder="https://example.com/receipt.pdf"
-            />
+            <label className="block text-sm font-medium text-secondary mb-1">Receipt URL/Photo</label>
+            <input type="url" name="receiptUrl" value={formData.receiptUrl} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="https://example.com/receipt.pdf" />
           </div>
         </div>
 
-        {/* Service Completed */}
         <div className="flex items-center">
-          <input
-            type="checkbox"
-            name="isCompleted"
-            checked={formData.isCompleted}
-            onChange={handleInputChange}
-            className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-          />
-          <label className="ml-2 text-sm text-secondary">
-            Service has been completed
-          </label>
+          <input type="checkbox" name="isCompleted" checked={formData.isCompleted} onChange={handleInputChange} className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" />
+          <label className="ml-2 text-sm text-secondary">Service has been completed</label>
         </div>
 
-        {/* Notes */}
         <div>
-          <label className="block text-sm font-medium text-secondary mb-1">
-            Notes
-          </label>
-          <textarea
-            name="notes"
-            rows={3}
-            value={formData.notes}
-            onChange={handleInputChange}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
-            placeholder="Additional service details, parts replaced, etc..."
-          />
+          <label className="block text-sm font-medium text-secondary mb-1">Notes</label>
+          <textarea name="notes" rows={3} value={formData.notes} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="Additional service details, parts replaced, etc..." />
         </div>
 
-        {/* Submit Buttons */}
         <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
           {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 text-secondary bg-gray-200 dark:bg-gray-600 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors w-full sm:w-auto"
-            >
-              Cancel
-            </button>
+            <button type="button" onClick={onCancel} className="px-4 py-2 text-secondary bg-gray-200 dark:bg-gray-600 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors w-full sm:w-auto" disabled={isSubmitting}>Cancel</button>
           )}
-          <button
-            type="submit"
-            disabled={isSubmitting || !formData.vehicleId}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto"
-          >
-            {isSubmitting ? 'Recording...' : 'Record Service'}
-          </button>
+          <button type="submit" disabled={isSubmitting || !formData.vehicleId} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto">{isSubmitting ? 'Recording...' : 'Record Service'}</button>
         </div>
       </form>
     </div>
