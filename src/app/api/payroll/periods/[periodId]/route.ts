@@ -394,6 +394,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
             cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
             grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
+            // Expose any absence deduction computed from adjustments
+            absenceDeduction: Number(totals.absenceDeduction ?? 0),
             // Recompute netPay based on the gross we are returning and the normalized totalDeductions
             netPay: (Number(totals.grossPay ?? Number(entry.grossPay || 0)) - totalDeductionsForReturn),
             // Presentational fields only - do not write these back to DB here

@@ -2173,6 +2173,8 @@ model PayrollEntry {
   sickDays          Int       @default(0) @map("sick_days")
   leaveDays         Int       @default(0) @map("leave_days")
   absenceDays       Int       @default(0) @map("absence_days")
+  // Fractional absence portion (e.g. 0.25, 0.5). Persists fractional days absent.
+  absenceFraction   Decimal   @default(0) @db.Decimal(4, 2) @map("absence_fraction")
   overtimeHours     Decimal   @default(0) @db.Decimal(10, 2)
   baseSalary        Decimal   @default(0) @db.Decimal(12, 2)
   commission        Decimal   @default(0) @db.Decimal(12, 2)

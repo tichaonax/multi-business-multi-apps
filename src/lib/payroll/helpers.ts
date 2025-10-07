@@ -216,12 +216,23 @@ export async function computeTotalsForEntry(entryId: string) {
     // applied after taxes etc. (i.e., added to totalDeductions).
     let additionsTotal = 0
     let adjustmentsAsDeductions = 0
+    let absenceDeduction = 0
     try {
         const adjustments = await prisma.payrollAdjustment.findMany({ where: { payrollEntryId: entryId } })
         for (const a of adjustments) {
             const amt = Number(a.amount || 0)
             if (amt >= 0) additionsTotal += amt
-            else adjustmentsAsDeductions += Math.abs(amt)
+            else {
+                const absAmt = Math.abs(amt)
+                // Treat explicit 'absence' adjustments specially: expose as absenceDeduction
+                const rawType = String(a.adjustmentType || '').toLowerCase()
+                if (rawType === 'absence') {
+                    absenceDeduction += absAmt
+                    // Do NOT include absence in adjustmentsAsDeductions so it won't be double-counted
+                } else {
+                    adjustmentsAsDeductions += absAmt
+                }
+            }
         }
     } catch (err) {
         // ignore and treat as zero
@@ -229,11 +240,17 @@ export async function computeTotalsForEntry(entryId: string) {
         adjustmentsAsDeductions = 0
     }
 
+    // Exclude explicit absence adjustments from totalDeductions. Absence is returned separately
+    // as `absenceDeduction` so callers can display it under Compensation Breakdown and subtract
+    // it from gross for presentation without double-counting under Total Deductions.
     const totalDeductions = Number(entry.totalDeductions ?? 0) + adjustmentsAsDeductions
 
+    // Note: grossPay here reflects earnings before deductions (absence is represented
+    // as an adjustment/deduction). We return `absenceDeduction` separately so callers
+    // (UI) can display it and subtract for presentation where needed.
     const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal
     const netGross = grossPay // Net gross (we do not subtract deductions here)
     const netPay = netGross // keep legacy field for compatibility (DB column named netPay will hold netGross)
 
-    return { grossPay, netGross, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, overtimePay, hourlyRate }
+    return { grossPay, netGross, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, overtimePay, hourlyRate, absenceDeduction }
 }

@@ -294,7 +294,8 @@ export function PayrollEntryDetailModal({
         }
 
         // Recompute negative adjustments (deductions) from the normalized payrollAdjustments list
-  const adjAsDeductionsFromList = payrollAdjustments.filter((a: any) => !a.isAddition).reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
+  // Exclude explicit 'absence' adjustments from the computed deductions so they are not double-counted
+  const adjAsDeductionsFromList = payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType||a.type||'').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
         const advances = Number(data.advanceDeductions || 0)
         const loans = Number(data.loanDeductions || 0)
         const misc = Number(data.miscDeductions || 0)
@@ -431,7 +432,8 @@ export function PayrollEntryDetailModal({
 
     // negative adjustments treated as deductions applied after taxes
     const adjAsDeductionsFromServer = Number((entry as any).adjustmentsAsDeductions || 0)
-  const adjAsDeductionsFromList = payrollAdjustments.filter(a => !a.isAddition).reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
+  // Exclude explicit 'absence' adjustments from adjustmentsAsDeductions so they are not double-counted
+  const adjAsDeductionsFromList = payrollAdjustments.filter(a => !a.isAddition && String((a.adjustmentType||a.type||'').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
     const adjAsDeductions = adjAsDeductionsFromServer && adjAsDeductionsFromServer !== 0 ? adjAsDeductionsFromServer : adjAsDeductionsFromList
 
     // Compute absence deduction: combine whole days + fraction and convert to hours
@@ -447,11 +449,10 @@ export function PayrollEntryDetailModal({
     // Prefer live misc value from the form while editing so UI shows immediate effect
     const miscVal = typeof formData.miscDeductions === 'number' ? Number(formData.miscDeductions) : Number(entry.miscDeductions || 0)
 
-    let totalDeductions = Number(entry.totalDeductions || 0)
-    // If stored totalDeductions is missing or zero, build from breakdowns plus negative adjustments
-    if (!totalDeductions || totalDeductions === 0) {
-      totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + miscVal + adjAsDeductions + absenceDeduction
-    }
+    // Build a derived total from visible deduction components (excluding absence)
+    // Always prefer the derived total for UI display so Total Deductions equals the sum
+    // of the visible Other Deductions (advances, loans, misc, and non-absence adjustments).
+    const totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + miscVal + adjAsDeductions
 
     const net = gross - totalDeductions
     return { benefitsTotal, gross, totalDeductions, net, absenceDeduction }
@@ -542,6 +543,8 @@ export function PayrollEntryDetailModal({
         ['sickDays', 'sickDays'],
         ['leaveDays', 'leaveDays'],
         ['absenceDays', 'absenceDays'],
+        // Persist fractional absence so server and list stay in sync
+        ['absenceFraction', 'absenceFraction'],
         ['overtimeHours', 'overtimeHours'],
         ['commission', 'commission'],
         ['miscDeductions', 'miscDeductions'],
@@ -550,7 +553,7 @@ export function PayrollEntryDetailModal({
 
       // Treat known numeric form fields as numbers and compare numerically to avoid
       // false-positives when server returns strings/Decimals.
-      const numericKeys = new Set(['workDays','sickDays','leaveDays','absenceDays','overtimeHours','commission','miscDeductions'])
+  const numericKeys = new Set(['workDays','sickDays','leaveDays','absenceDays','absenceFraction','overtimeHours','commission','miscDeductions'])
       for (const [k, serverKey] of mapKeys) {
         const newVal = (formData as any)[k]
         const oldVal = (entry as any)[serverKey]
@@ -1448,7 +1451,24 @@ export function PayrollEntryDetailModal({
                         duplicate here. Persisted/manual overrides remain visible. */}
                     {(() => {
                       // Exclude zero-amount benefits from the Compensation Breakdown display
-                      const displayed = benefits.filter(b => b.isActive && Number(b.amount || 0) > 0)
+                      // Ensure contract-inferred benefits are included individually as line items
+                      const contractInferred = (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb:any) => Number(cb.amount || 0) !== 0 && cb.name).map((cb:any) => ({ benefitName: cb.name, amount: Number(cb.amount || 0), source: 'contract-inferred', benefitTypeId: cb.benefitTypeId || null }))
+                      // Merge persisted/manual benefits (from `benefits`) with contract-inferred, avoiding duplicates by benefitTypeId or name
+                      const displayedMap = new Map<string, any>()
+                      for (const b of (benefits || [])) {
+                        try {
+                          if (!b || Number(b.amount || 0) === 0) continue
+                          const key = String(b.benefitTypeId || (b.benefitName || '').toLowerCase())
+                          if (!displayedMap.has(key)) displayedMap.set(key, { benefitName: b.benefitName || b.name || key, amount: Number(b.amount || 0), source: b.source || 'manual', benefitTypeId: b.benefitTypeId || null })
+                        } catch (e) { /* ignore */ }
+                      }
+                      for (const cb of contractInferred) {
+                        try {
+                          const key = String(cb.benefitTypeId || (cb.benefitName || '').toLowerCase())
+                          if (!displayedMap.has(key)) displayedMap.set(key, cb)
+                        } catch (e) { /* ignore */ }
+                      }
+                      const displayed = Array.from(displayedMap.values())
                       return (
                         <>
                           {displayed.map((benefit) => (
@@ -1562,10 +1582,10 @@ export function PayrollEntryDetailModal({
                   </div>
                 </div>
                 {/* Show payroll adjustments that are deductions as individual line items */}
-                {entry.payrollAdjustments && entry.payrollAdjustments.filter((a:any) => !a.isAddition).length > 0 && (
+                {entry.payrollAdjustments && entry.payrollAdjustments.filter((a:any) => !a.isAddition && String((a.adjustmentType||a.type||'').toLowerCase()) !== 'absence').length > 0 && (
                   <div>
                     <div className="font-medium text-secondary mb-1">Other Deductions:</div>
-                    {entry.payrollAdjustments.filter((a:any) => !a.isAddition).map((adj:any) => (
+                    {entry.payrollAdjustments.filter((a:any) => !a.isAddition && String((a.adjustmentType||a.type||'').toLowerCase()) !== 'absence').map((adj:any) => (
                       <div key={adj.id} className="flex justify-between ml-4 text-xs items-center">
                         {/* Prefer explicit description, then DB reason, then type, then generic label */}
                         <div className="text-secondary">{adj.description || adj.reason || adj.type || 'Deduction'}</div>

@@ -177,14 +177,57 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       try { resolvedBaseSalary = Number(contract.baseSalary) } catch (e) { resolvedBaseSalary = resolvedBaseSalary }
     }
 
+    // Ensure we expose any persisted absenceFraction even when the generated Prisma client
+    // may be stale and not include the field. Try to read from the `entry` object first,
+    // otherwise fall back to a direct DB select.
+    let persistedAbsenceFraction: number | null = null
+    try {
+      const v = (entry as any).absenceFraction
+      if (v !== undefined && v !== null) persistedAbsenceFraction = Number(v)
+    } catch (e) {
+      // ignore
+    }
+    if (persistedAbsenceFraction === null) {
+      try {
+        // Try a deterministic select that aliases the DB column as `absenceFraction`.
+        // Use COALESCE to ensure a numeric value when column exists.
+        const rows: any = await prisma.$queryRaw`SELECT COALESCE(absence_fraction, 0) AS "absenceFraction" FROM payroll_entries WHERE id = ${entryId}`
+        if (Array.isArray(rows) && rows.length > 0 && rows[0] && rows[0].absenceFraction !== undefined && rows[0].absenceFraction !== null) {
+          try { persistedAbsenceFraction = Number(rows[0].absenceFraction) } catch (e) { persistedAbsenceFraction = Number(String(rows[0].absenceFraction || 0)) }
+        }
+      } catch (e) {
+        // If raw select fails (e.g., column missing or DB doesn't match), try the more generic probe as a fallback
+        try {
+          const rows2: any = await prisma.$queryRaw`SELECT * FROM payroll_entries WHERE id = ${entryId}`
+          if (Array.isArray(rows2) && rows2.length > 0 && rows2[0]) {
+            const row = rows2[0]
+            const candidates = ['absenceFraction', 'absence_fraction', 'absencefraction']
+            for (const c of candidates) {
+              if (Object.prototype.hasOwnProperty.call(row, c) && row[c] !== undefined && row[c] !== null) {
+                try { persistedAbsenceFraction = Number(row[c]) } catch (errConv) { persistedAbsenceFraction = Number(String(row[c] || 0)) }
+                break
+              }
+            }
+          }
+        } catch (e2) {
+          console.warn('Raw SELECT for absenceFraction failed (both attempts)', { entryId, err: e, err2: e2 })
+          persistedAbsenceFraction = null
+        }
+      }
+    }
+
     const responseEntry = {
       ...entry,
       workDays: derivedWorkDays,
       payrollEntryBenefits: persistedBenefits,
       mergedBenefits: effectiveMerged,
-      benefitsTotal: totals.benefitsTotal ?? 0,
-      grossPay: totals.grossPay ?? 0,
-      netPay: totals.netPay ?? 0,
+  benefitsTotal: totals.benefitsTotal ?? 0,
+  grossPay: totals.grossPay ?? 0,
+  netPay: totals.netPay ?? 0,
+  // Expose any absence deduction derived from adjustments (e.g. absence payrollAdjustment)
+  absenceDeduction: Number(totals.absenceDeduction ?? 0),
+      // Expose persisted fractional absence if available (null when not present).
+      absenceFraction: persistedAbsenceFraction !== null ? persistedAbsenceFraction : 0,
       // Ensure baseSalary is present for UI display
       baseSalary: resolvedBaseSalary,
       // Expose the adjustments accounting breakdown for the UI
@@ -204,6 +247,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       hireDate: contract?.startDate ?? (entry as any).hireDate ?? null,
       contract: contract || (entry as any).contract || null
     }
+
+    // Debugging: log what absenceFraction we will return so it's easy to trace in server logs
+    try {
+      console.debug('GET /api/payroll/entries/[entryId] - returning absenceFraction', { entryId, absenceFraction: persistedAbsenceFraction })
+    } catch (e) { /* ignore logging errors */ }
 
     return NextResponse.json(responseEntry)
   } catch (error) {
@@ -235,6 +283,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       sickDays,
       leaveDays,
       absenceDays,
+      absenceFraction,
       overtimeHours,
       commission,
       notes
@@ -263,20 +312,48 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Update mutable fields first
-    const updatedEntry = await prisma.payrollEntry.update({
-      where: { id: entryId },
-      data: {
-        workDays: workDays !== undefined ? workDays : existingEntry.workDays,
-        sickDays: sickDays !== undefined ? sickDays : existingEntry.sickDays,
-        leaveDays: leaveDays !== undefined ? leaveDays : existingEntry.leaveDays,
-        absenceDays: absenceDays !== undefined ? absenceDays : existingEntry.absenceDays,
-        overtimeHours: overtimeHours !== undefined ? overtimeHours : existingEntry.overtimeHours,
-        commission: commission !== undefined ? commission : existingEntry.commission,
-        notes: notes !== undefined ? notes : existingEntry.notes,
-        updatedAt: new Date()
+    // Update mutable fields first (exclude `absenceFraction` from the typed update because
+    // the generated Prisma client may be stale until `prisma generate` runs locally).
+    const updateData: any = {
+      workDays: workDays !== undefined ? workDays : existingEntry.workDays,
+      sickDays: sickDays !== undefined ? sickDays : existingEntry.sickDays,
+      leaveDays: leaveDays !== undefined ? leaveDays : existingEntry.leaveDays,
+      absenceDays: absenceDays !== undefined ? absenceDays : existingEntry.absenceDays,
+      overtimeHours: overtimeHours !== undefined ? overtimeHours : existingEntry.overtimeHours,
+      commission: commission !== undefined ? commission : existingEntry.commission,
+      notes: notes !== undefined ? notes : existingEntry.notes,
+      updatedAt: new Date()
+    }
+
+    const updatedEntry = await prisma.payrollEntry.update({ where: { id: entryId }, data: updateData })
+
+    // Persist absenceFraction via a parameterized raw query when provided. This avoids relying
+    // on a generated Prisma client that may not yet include the new field.
+    if (absenceFraction !== undefined) {
+      // Try updating both camelCase and snake_case column names to be robust across DB column naming.
+      const dec = new Decimal(absenceFraction)
+      let updated = false
+      try {
+        try {
+          await prisma.$executeRaw`UPDATE payroll_entries SET "absenceFraction" = ${dec} WHERE id = ${entryId}`
+          updated = true
+        } catch (errCamel) {
+          // Try snake_case variant
+          try {
+            await prisma.$executeRaw`UPDATE payroll_entries SET absence_fraction = ${dec} WHERE id = ${entryId}`
+            updated = true
+          } catch (errSnake) {
+            console.error('Failed to persist absenceFraction (both camelCase and snake_case attempts):', { entryId, errCamel, errSnake })
+          }
+        }
+      } catch (err) {
+        console.error('Unexpected error while persisting absenceFraction:', err)
       }
-    })
+      if (!updated) {
+        // Log a friendly message suggesting migration may be required
+        console.warn('absenceFraction column not found or update failed. Ensure DB migration was applied and Prisma client regenerated.')
+      }
+    }
 
     // Recompute totals using helper which accounts for persisted benefits and adjustment handling
     const recomputed = await import('@/lib/payroll/helpers').then(m => m.computeTotalsForEntry(entryId))
@@ -306,10 +383,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     })
 
+    // Attach recomputed absenceDeduction to the returned entry so clients can display authoritative absence
+    const returnedEntry = { ...(entry as any), absenceDeduction: Number(recomputed.absenceDeduction ?? 0) }
+
     // Update period totals
     if (existingEntry.payrollPeriodId) await updatePeriodTotals(existingEntry.payrollPeriodId)
 
-    return NextResponse.json(entry)
+  return NextResponse.json(returnedEntry)
   } catch (error) {
     console.error('Payroll entry update error:', error)
     return NextResponse.json(

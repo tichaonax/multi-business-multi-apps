@@ -598,6 +598,27 @@ export default function PayrollPeriodDetailPage() {
     }
   }
 
+  // Resolve absence deduction value for an entry.
+  // Prefer a value computed/stored by the payroll entry detail modal (entry.absenceDeduction or entry.absenceAmount).
+  // If absent, fall back to a per-day pro-rated computation based on cumulativeAbsenceDays.
+  const resolveAbsenceDeduction = (entry: PayrollEntry) => {
+    try {
+      const stored = Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
+      if (stored && stored !== 0) return stored
+
+      // Fallback: compute from cumulativeAbsenceDays using client-side pro-rating
+      const absenceDays = Number((entry as any).cumulativeAbsenceDays || 0)
+      if (!absenceDays || absenceDays <= 0) return 0
+      const baseSalary = Number(entry.baseSalary || 0)
+      const workingDays = period ? getWorkingDaysInMonthClient(period.year, period.month) : 22
+      const perDay = workingDays > 0 ? (baseSalary / workingDays) : 0
+      const deduction = perDay * absenceDays
+      return Number(deduction || 0)
+    } catch (e) {
+      return 0
+    }
+  }
+
   // Resolve benefits total for an entry - prefer server-provided totals but fall back to merged/contract/entry calculations
   const resolveBenefitsTotal = (entry: PayrollEntry) => {
     const serverTotal = Number((entry as any).totalBenefitsAmount ?? (entry as any).benefitsTotal ?? 0)
@@ -626,14 +647,38 @@ export default function PayrollPeriodDetailPage() {
     const storedGross = Number(entry.grossPay || 0)
     const storedNet = Number(entry.netPay || 0)
     if (storedGross && storedNet) {
-      // Prefer persisted totals on the entry, but guard against stale/negative stored totalDeductions.
-      // Compute a fallback from breakdowns and adjustments and prefer it when the stored value is missing/<=0.
-      const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+      // Prefer persisted totals on the entry, but still apply any resolved absence deduction so
+      // the UI always shows gross reduced by absence even when stored values exist.
+      // Build derived adjustments excluding explicit 'absence' adjustments so list matches modal
       const fallbackDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
-      const adjustmentsAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
-      const derivedTotal = fallbackDeductions + adjustmentsAsDeductions
-      const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotal
-      return { benefitsTotal, grossInclBenefits: storedGross, netInclBenefits: storedNet, totalDeductions }
+      let derivedAdjDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+      try {
+        const adjustmentsList = (entry as any).payrollAdjustments || []
+        if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
+          const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
+            try {
+              const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
+              if (rawType === 'absence') return s
+              const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+              const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+              return s + (!isAdd ? Math.abs(amt) : 0)
+            } catch (e) { return s }
+          }, 0)
+          derivedAdjDeductions = derivedDeductions
+        }
+      } catch (e) {
+        // ignore and use server-provided adjustmentsAsDeductions when present
+      }
+      const derivedTotal = fallbackDeductions + derivedAdjDeductions
+      // Prefer the derived total (which excludes absence) for list display so it matches modal
+      const totalDeductions = derivedTotal
+
+      // Subtract any resolved absence deduction from the stored gross so UI aligns with modal/server semantics
+      const absenceDeduction = resolveAbsenceDeduction(entry) || 0
+      const adjustedGross = Number(storedGross) - Number(absenceDeduction)
+      const adjustedNet = Number(adjustedGross) - Number(totalDeductions)
+
+      return { benefitsTotal, grossInclBenefits: adjustedGross, netInclBenefits: adjustedNet, totalDeductions }
     }
 
     const baseSalary = Number(entry.baseSalary || 0)
@@ -651,21 +696,26 @@ export default function PayrollPeriodDetailPage() {
           return s + (isAdd ? Math.abs(amt) : 0)
         }, 0)
         const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
-          const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
-          const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
-          return s + (!isAdd ? Math.abs(amt) : 0)
+          try {
+            const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
+            if (rawType === 'absence') return s
+            const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+            const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+            return s + (!isAdd ? Math.abs(amt) : 0)
+          } catch (e) { return s }
         }, 0)
         if (!additions || additions === 0) additions = derivedAdditions
         if (!adjAsDeductions || adjAsDeductions === 0) adjAsDeductions = derivedDeductions
       }
     }
 
-    // Add positive adjustments to gross; negative adjustments are treated as deductions applied after taxes
-    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions
+  // Add positive adjustments to gross; negative adjustments are treated as deductions applied after taxes
+  const absenceDeduction = resolveAbsenceDeduction(entry)
+  const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
 
-    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
-    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-    const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotalDeductions
+  // Build derived totalDeductions excluding absence (so list matches modal)
+  const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+  const totalDeductions = derivedTotalDeductions
 
     const netInclBenefits = grossInclBenefits - totalDeductions
 
@@ -701,7 +751,8 @@ export default function PayrollPeriodDetailPage() {
       }
     }
 
-    const gross = baseSalary + commission + overtime + benefitsTotal + additions
+  const absenceDeduction = resolveAbsenceDeduction(entry)
+  const gross = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
 
     const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
     const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
@@ -1012,6 +1063,7 @@ export default function PayrollPeriodDetailPage() {
                       {benefit.benefitName}
                     </th>
                   ))}
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Absence (unearned)</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Deductions</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Gross Pay</th>
                   {canEditEntry && ['draft', 'in_progress'].includes(period.status) && (
@@ -1100,10 +1152,12 @@ export default function PayrollPeriodDetailPage() {
                     })}
                     {(() => {
                       const totals = computeEntryTotals(entry)
+                      const absenceAmt = resolveAbsenceDeduction(entry)
                       return (
                         <>
+                          <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{absenceAmt && absenceAmt !== 0 ? `-${formatCurrency(Math.abs(absenceAmt))}` : formatCurrency(0)}</td>
                           <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.totalDeductions)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary font-medium cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.grossInclBenefits)}</td>
+                          <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.grossInclBenefits)}</td>
                         </>
                       )
                     })()}
