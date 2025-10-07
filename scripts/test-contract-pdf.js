@@ -2,6 +2,16 @@ const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
+function randomDob(minAge = 18, maxAge = 65) {
+  const today = new Date()
+  const maxDate = new Date()
+  maxDate.setFullYear(today.getFullYear() - minAge)
+  const minDate = new Date()
+  minDate.setFullYear(today.getFullYear() - maxAge)
+  const rand = new Date(minDate.getTime() + Math.floor(Math.random() * (maxDate.getTime() - minDate.getTime())))
+  return rand
+}
+
 async function createTestEmployeeWithContract() {
   try {
     console.log('🔍 Creating test employee with contract for PDF validation...')
@@ -69,7 +79,7 @@ async function createTestEmployeeWithContract() {
           phone: '+1-555-0199',
           nationalId: '123-45-6789',
           address: '456 Employee Street, Worker Town, WT 54321',
-          dateOfBirth: new Date('1985-03-15'),
+          dateOfBirth: randomDob(),
           hireDate: new Date('2024-01-15'),
           employmentStatus: 'active',
           primaryBusinessId: business.id,

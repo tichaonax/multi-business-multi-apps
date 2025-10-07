@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
@@ -8,7 +8,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { PayrollEntryForm } from '@/components/payroll/payroll-entry-form'
 import { PayrollEntryDetailModal } from '@/components/payroll/payroll-entry-detail-modal'
 import { PayrollExportPreviewModal } from '@/components/payroll/payroll-export-preview-modal'
-import { hasPermission } from '@/lib/permission-utils'
+import { hasPermission, isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 
 interface PayrollPeriod {
   id: string
@@ -72,6 +72,11 @@ interface PayrollEntry {
     }
   }
   benefitsTotal?: number
+  // Optional explicit fields provided by the API
+  employeeFirstName?: string | null
+  employeeLastName?: string | null
+  employeeDateOfBirth?: string | null
+  employeeHireDate?: string | null
 }
 
 export default function PayrollPeriodDetailPage() {
@@ -112,6 +117,33 @@ export default function PayrollPeriodDetailPage() {
       const response = await fetch(`/api/payroll/periods/${periodId}`)
       if (response.ok) {
         const data = await response.json()
+        // Normalize payrollAdjustments on each entry so UI reflects signed amounts correctly
+        try {
+          const deductionTypes = new Set(['penalty', 'loan', 'loan_payment', 'loan payment', 'advance', 'advance_payment', 'advance payment', 'loanpayment'])
+          if (Array.isArray(data.payrollEntries)) {
+            data.payrollEntries = data.payrollEntries.map((e: any) => {
+              try {
+                if (!Array.isArray(e.payrollAdjustments)) return e
+                e.payrollAdjustments = e.payrollAdjustments.map((a: any) => {
+                  const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
+                  const isDeductionType = deductionTypes.has(rawType)
+                  // prefer storedAmount when server exposes it (signed DB value); fallback to amount
+                  const signedAmount = Number(a.storedAmount ?? a.amount ?? 0)
+                  return {
+                    ...a,
+                    isAddition: isDeductionType ? false : (signedAmount >= 0),
+                    // keep UI-facing absolute amount
+                    amount: Math.abs(signedAmount),
+                    storedAmount: signedAmount,
+                    type: a.adjustmentType ?? a.type,
+                    description: a.reason ?? a.description ?? ''
+                  }
+                })
+              } catch (e) { /* ignore */ }
+              return e
+            })
+          }
+        } catch (e) { /* ignore */ }
         console.log('Loaded period data:', data)
         console.log('First entry payrollEntryBenefits:', data.payrollEntries?.[0]?.payrollEntryBenefits)
         console.log('First entry mergedBenefits:', data.payrollEntries?.[0]?.mergedBenefits)
@@ -343,8 +375,9 @@ export default function PayrollPeriodDetailPage() {
     }
   }
 
-  const showNotification = (type: 'success' | 'error', message: string) => {
-    setNotification({ type, message })
+  const showNotification = (type: 'success' | 'error', message: any) => {
+    const msg = typeof message === 'string' ? message : (message && (message as any).message) || String(message || '')
+    setNotification({ type, message: msg })
     setTimeout(() => setNotification(null), 5000)
   }
 
@@ -372,32 +405,49 @@ export default function PayrollPeriodDetailPage() {
         uniqueBenefitsMap.set(benefitId, { id: benefitId, name })
       })
 
-      // If mergedBenefits missing for this entry, fall back to contract and persisted entry benefits
-      if (!merged || merged.length === 0) {
-        contractBenefits.forEach((cb: any) => {
-          const contractAmount = Number(cb.amount || 0)
-          // Check for any override (active or inactive)
-          const override = entry.payrollEntryBenefits?.find((pb: any) => pb.benefitName === cb.name)
-          if (override && override.isActive === false) return
-          let effectiveAmount = contractAmount
-          if (override && override.isActive === true) effectiveAmount = Number(override.amount || 0)
-          if (effectiveAmount > 0) {
-            const benefitId = cb.benefitTypeId || cb.name
-            uniqueBenefitsMap.set(benefitId, { id: benefitId, name: cb.name })
-          }
-        })
+      // Regardless of mergedBenefits presence, include contract-inferred benefits and persisted payrollEntryBenefits
+      // mergedBenefits represent an authoritative merged view but might not list all contract benefits (or may be empty for some entries).
+      // We therefore union merged, contract and persisted manual benefits, preferring merged amounts and honoring persisted overrides.
+      const unioned: Map<string, { id: string, name: string }> = new Map()
 
-        entry.payrollEntryBenefits?.forEach((benefit: any) => {
-          if (!benefit.isActive) return
-          const amount = Number(benefit.amount || 0)
+      // Start from merged (authoritative) when present
+      if (Array.isArray(merged) && merged.length > 0) {
+        merged.forEach((mb: any) => {
+          if (!mb) return
+          if (mb.isActive === false) return
+          const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
+          const amount = Number(mb.amount || 0)
           if (amount <= 0) return
-          const inContract = contractBenefits.some((cb: any) => cb.name === benefit.benefitName)
-          if (!inContract) {
-            const benefitId = benefit.benefitTypeId || benefit.benefitName
-            uniqueBenefitsMap.set(benefitId, { id: benefitId, name: benefit.benefitName })
-          }
+          const benefitId = String(mb.benefitType?.id || mb.benefitTypeId || name)
+          unioned.set(benefitId, { id: benefitId, name })
         })
       }
+
+      // Ensure contract-inferred benefits are included (they may be missing from merged for some entries)
+      contractBenefits.forEach((cb: any) => {
+        const contractAmount = Number(cb.amount || 0)
+        // Check for any override (active or inactive)
+        const override = entry.payrollEntryBenefits?.find((pb: any) => (pb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) || pb.benefitName === cb.name)
+        if (override && override.isActive === false) return
+        let effectiveAmount = contractAmount
+        if (override && override.isActive === true) effectiveAmount = Number(override.amount || 0)
+        if (effectiveAmount > 0) {
+          const benefitId = String(cb.benefitTypeId || cb.name)
+          if (!unioned.has(benefitId)) unioned.set(benefitId, { id: benefitId, name: cb.name })
+        }
+      })
+
+      // Include any manual persisted payrollEntryBenefits not covered above
+      entry.payrollEntryBenefits?.forEach((benefit: any) => {
+        if (!benefit.isActive) return
+        const amount = Number(benefit.amount || 0)
+        if (amount <= 0) return
+        const benefitId = String(benefit.benefitTypeId || benefit.benefitName)
+        if (!unioned.has(benefitId)) unioned.set(benefitId, { id: benefitId, name: benefit.benefitName })
+      })
+
+      // Merge unioned into uniqueBenefitsMap
+      unioned.forEach((v, k) => uniqueBenefitsMap.set(k, v))
     })
 
     const result = Array.from(uniqueBenefitsMap.values())
@@ -408,6 +458,60 @@ export default function PayrollPeriodDetailPage() {
     return result
   }
 
+  // Memoize unique benefits so we don't recalculate on every render (reduces noisy logs)
+  const uniqueBenefits = useMemo(() => {
+    console.log('[instrument] compute uniqueBenefits memoized')
+    return getUniqueBenefits()
+  }, [period])
+
+  // Temporary instrumentation: detect navigation/reload events so we can capture hard reloads
+  useEffect(() => {
+    // add emitInstrument helper for page-level instrumentation
+    const emitInstrument = (label: string, payload?: any) => {
+      try {
+        if (typeof window === 'undefined') return
+        const rec = { ts: Date.now(), label, payload, stack: new Error().stack }
+        ;(window as any).__instrumentLogs = (window as any).__instrumentLogs || []
+        ;(window as any).__instrumentLogs.push(rec)
+        console.warn('[instrument]', label, payload, rec.stack)
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    try {
+      if (typeof window === 'undefined') return
+      const win: any = window as any
+      const origReload = win.location && win.location.reload ? win.location.reload.bind(win.location) : undefined
+      if (origReload) {
+        win.location.reload = function (...args: any[]) {
+          emitInstrument('window.location.reload called (page)', { args })
+          return origReload(...args)
+        }
+      }
+
+      const beforeUnload = (e: any) => emitInstrument('beforeunload/unload fired (page)', { visibilityState: document.visibilityState })
+      const onVisibility = () => emitInstrument('visibilitychange (page)', { visibilityState: document.visibilityState })
+
+      window.addEventListener('beforeunload', beforeUnload)
+      window.addEventListener('unload', beforeUnload)
+      document.addEventListener('visibilitychange', onVisibility)
+
+      return () => {
+        try {
+          if (origReload) win.location.reload = origReload
+        } catch (e) {
+          // ignore
+        }
+        window.removeEventListener('beforeunload', beforeUnload)
+        window.removeEventListener('unload', beforeUnload)
+        document.removeEventListener('visibilitychange', onVisibility)
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [])
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -416,10 +520,82 @@ export default function PayrollPeriodDetailPage() {
     }).format(amount)
   }
 
+  const makeShortCompanyLabel = (name?: string | null) => {
+    if (!name) return ''
+    const parts = name.split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      const acronym = parts.map(p => p[0]).join('').toUpperCase()
+      return acronym.slice(0, 4)
+    }
+    const trimmed = name.replace(/\s+/g, '').toUpperCase()
+    return trimmed.slice(0, 4)
+  }
+
   const getMonthName = (month: number) => {
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December']
     return months[month - 1]
+  }
+
+  // Count working days (Mon-Fri) for a given year/month (month 1-12) - client copy of server helper
+  const getWorkingDaysInMonthClient = (year: number, month: number) => {
+    const daysInMonth = new Date(year, month, 0).getDate()
+    let count = 0
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(year, month - 1, d)
+      const day = dt.getDay()
+      if (day !== 0 && day !== 6) count++
+    }
+    return count
+  }
+
+  // Compute overtime pay on the client when entry.overtimePay is not present.
+  // Rules: overtimePay = overtimeHours * hourlyRate * 1.5
+  // hourlyRate fallbacks: entry.hourlyRate > employee.hourlyRate > contract.pdfGenerationData.basicSalary (when compensationType indicates hourly) > derived from baseSalary using work days * 8
+  const computeOvertimeForEntry = (entry: PayrollEntry) => {
+    try {
+      const overtimeHours = Number((entry as any).overtimeHours ?? 0)
+      const persistedOvertimePay = Number((entry as any).overtimePay ?? 0)
+      if (persistedOvertimePay && persistedOvertimePay > 0) return persistedOvertimePay
+
+      if (!overtimeHours || overtimeHours === 0) return 0
+
+      let hourlyRate = Number((entry as any).hourlyRate ?? 0)
+      if ((!hourlyRate || hourlyRate === 0) && (entry as any).employee && (entry as any).employee.hourlyRate) {
+        hourlyRate = Number((entry as any).employee.hourlyRate || 0)
+      }
+
+      if ((!hourlyRate || hourlyRate === 0) && entry.contract) {
+        try {
+          const compType = (entry.contract as any).pdfGenerationData?.compensationType || ''
+          const basic = Number((entry.contract as any).pdfGenerationData?.basicSalary || 0)
+          // Only treat contract basicSalary as hourly if compensationType indicates hourly AND the value is plausibly hourly (<= 200)
+          if (typeof compType === 'string' && compType.toLowerCase().includes('hour') && basic > 0 && basic <= 200) {
+            hourlyRate = basic
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      const baseSalary = Number(entry.baseSalary || 0)
+      // Fallback: derive hourly rate from monthly baseSalary by annualizing then
+      // dividing by total working hours per year. Business rule: 6 days/week × 9 hours/day × 52 weeks.
+      if ((!hourlyRate || hourlyRate === 0) && baseSalary) {
+        try {
+          const annualSalary = Number(baseSalary) * 12
+          const hoursPerYear = 6 * 9 * 52 // 2808
+          hourlyRate = annualSalary / Math.max(1, hoursPerYear)
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      if (!hourlyRate || hourlyRate === 0) return 0
+      return Number(overtimeHours * hourlyRate * 1.5)
+    } catch (e) {
+      return 0
+    }
   }
 
   // Resolve benefits total for an entry - prefer server-provided totals but fall back to merged/contract/entry calculations
@@ -450,28 +626,89 @@ export default function PayrollPeriodDetailPage() {
     const storedGross = Number(entry.grossPay || 0)
     const storedNet = Number(entry.netPay || 0)
     if (storedGross && storedNet) {
-      let totalDeductions = Number(entry.totalDeductions || 0)
-      if (!totalDeductions || totalDeductions === 0) {
-        totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
-      }
+      // Prefer persisted totals on the entry, but guard against stale/negative stored totalDeductions.
+      // Compute a fallback from breakdowns and adjustments and prefer it when the stored value is missing/<=0.
+      const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+      const fallbackDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
+      const adjustmentsAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+      const derivedTotal = fallbackDeductions + adjustmentsAsDeductions
+      const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotal
       return { benefitsTotal, grossInclBenefits: storedGross, netInclBenefits: storedNet, totalDeductions }
     }
 
     const baseSalary = Number(entry.baseSalary || 0)
     const commission = Number(entry.commission || 0)
-    const overtime = Number(entry.overtimePay || 0)
-    const adjustments = Number((entry as any).adjustmentsTotal || 0)
-
-    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + adjustments
-
-    let totalDeductions = Number(entry.totalDeductions || 0)
-    if (!totalDeductions || totalDeductions === 0) {
-      totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
+  const overtime = computeOvertimeForEntry(entry)
+    // Prefer server-provided aggregated fields, but derive from payrollAdjustments when missing
+    let additions = Number((entry as any).adjustmentsTotal || 0)
+    let adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+    if ((!additions || additions === 0) || (!adjAsDeductions || adjAsDeductions === 0)) {
+      const adjustmentsList = (entry as any).payrollAdjustments || []
+      if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
+        const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
+          const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+          const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+          return s + (isAdd ? Math.abs(amt) : 0)
+        }, 0)
+        const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
+          const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+          const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+          return s + (!isAdd ? Math.abs(amt) : 0)
+        }, 0)
+        if (!additions || additions === 0) additions = derivedAdditions
+        if (!adjAsDeductions || adjAsDeductions === 0) adjAsDeductions = derivedDeductions
+      }
     }
+
+    // Add positive adjustments to gross; negative adjustments are treated as deductions applied after taxes
+    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions
+
+    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotalDeductions
 
     const netInclBenefits = grossInclBenefits - totalDeductions
 
     return { benefitsTotal, grossInclBenefits, netInclBenefits, totalDeductions }
+  }
+
+  // Align with server semantics: positive adjustments increase gross (adjustmentsTotal),
+  // negative adjustments are treated as deductions (adjustmentsAsDeductions). Use this
+  // helper to ensure table and summary use the same rule as the modal and server.
+  const computeEntryTotalsAligned = (entry: PayrollEntry) => {
+    const benefitsTotal = resolveBenefitsTotal(entry)
+    const baseSalary = Number(entry.baseSalary || 0)
+    const commission = Number(entry.commission || 0)
+  const overtime = computeOvertimeForEntry(entry)
+
+    let additions = Number((entry as any).adjustmentsTotal || 0)
+    let adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+    if ((!additions || additions === 0) || (!adjAsDeductions || adjAsDeductions === 0)) {
+      const adjustmentsList = (entry as any).payrollAdjustments || []
+      if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
+        const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
+          const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+          const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+          return s + (isAdd ? Math.abs(amt) : 0)
+        }, 0)
+        const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
+          const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+          const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+          return s + (!isAdd ? Math.abs(amt) : 0)
+        }, 0)
+        if (!additions || additions === 0) additions = derivedAdditions
+        if (!adjAsDeductions || adjAsDeductions === 0) adjAsDeductions = derivedDeductions
+      }
+    }
+
+    const gross = baseSalary + commission + overtime + benefitsTotal + additions
+
+    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotalDeductions
+
+    const net = gross - totalDeductions
+    return { benefitsTotal, gross, totalDeductions, net }
   }
 
   if (loading) {
@@ -498,6 +735,27 @@ export default function PayrollPeriodDetailPage() {
   const canApprove = hasPermission(session?.user, 'canApprovePayroll')
   const canExport = hasPermission(session?.user, 'canExportPayroll')
 
+  // Determine whether the current user can delete the payroll period.
+  // Rules: system admins or business-owner/manager can delete. Deletion is allowed in draft/in_progress/review.
+  // For approved periods, deletion is allowed only within 7 days of approval.
+  const canDeletePeriodButton = (() => {
+    if (!session?.user || !period) return false
+    // system admin shortcut
+    if (isSystemAdmin(session.user)) return true
+    const role = getUserRoleInBusiness(session.user, period.business.id)
+    const isManagerOrOwner = role === 'business-manager' || role === 'business-owner'
+    if (!isManagerOrOwner) return false
+    if (['draft', 'in_progress', 'review'].includes(period.status)) return true
+    if (period.status === 'approved') {
+      const approvedAt = (period as any).approvedAt ? new Date((period as any).approvedAt) : null
+      if (!approvedAt) return true
+      const msSinceApproved = Date.now() - approvedAt.getTime()
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+      return msSinceApproved <= sevenDaysMs
+    }
+    return false
+  })()
+
   return (
     <ContentLayout
       title={`${getMonthName(period.month)} ${period.year} Payroll`}
@@ -523,12 +781,6 @@ export default function PayrollPeriodDetailPage() {
               >
                 Add All Employees
               </button>
-              <button
-                onClick={handleDeletePeriod}
-                className="px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700"
-              >
-                Delete Period
-              </button>
               {period.payrollEntries.length > 0 && (
                 <>
                   <button
@@ -546,6 +798,51 @@ export default function PayrollPeriodDetailPage() {
                 </>
               )}
             </>
+          )}
+
+          {/* Delete Period button: show when period is not locked (exported/closed). If user cannot delete, show disabled button with tooltip explaining why. */}
+          {canEditEntry && !['exported', 'closed'].includes(period.status) && (
+            (() => {
+              // Compute a friendly disabled reason if deletion is not allowed.
+              let disabledReason: string | null = null
+              if (!session?.user) {
+                disabledReason = 'Sign in to delete payroll periods'
+              } else if (isSystemAdmin(session.user)) {
+                disabledReason = null
+              } else {
+                const role = getUserRoleInBusiness(session.user, period.business.id)
+                if (!role || (role !== 'business-owner' && role !== 'business-manager')) {
+                  disabledReason = 'Only business owners or managers can delete payroll periods'
+                } else if (period.status === 'approved') {
+                  const approvedAt = (period as any).approvedAt ? new Date((period as any).approvedAt) : null
+                  if (approvedAt) {
+                    const msSince = Date.now() - approvedAt.getTime()
+                    const sevenDays = 7 * 24 * 60 * 60 * 1000
+                    if (msSince > sevenDays) disabledReason = 'Payroll period cannot be deleted more than 7 days after approval'
+                  }
+                }
+              }
+
+              const isDisabled = !canDeletePeriodButton
+
+              // If the period is exported/closed we already don't render this block per above.
+              return (
+                <div className="inline-flex items-start gap-2">
+                  <button
+                    onClick={handleDeletePeriod}
+                    disabled={isDisabled}
+                    className={`px-4 py-2 text-sm font-medium text-white ${isDisabled ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-600 hover:bg-gray-700'} rounded-md`}
+                  >
+                    Delete Period
+                  </button>
+                  {isDisabled && disabledReason && (
+                    <div className="text-xs text-secondary max-w-xs">
+                      {disabledReason}
+                    </div>
+                  )}
+                </div>
+              )
+            })()
           )}
           {canEditEntry && period.status === 'review' && period.payrollEntries.length > 0 && (
             <button
@@ -642,12 +939,16 @@ export default function PayrollPeriodDetailPage() {
           <h3 className="text-lg font-semibold text-primary mb-4">Add Employee to Payroll</h3>
           <PayrollEntryForm
             payrollPeriodId={period.id}
-            onSuccess={(message) => {
-              showNotification('success', message)
+            onSuccess={(payload) => {
+              const msg = typeof payload === 'string' ? payload : (payload && (payload as any).message) || ''
+              showNotification('success', msg)
               setShowAddEntry(false)
               loadPeriod()
             }}
-            onError={(error) => showNotification('error', error)}
+            onError={(error) => {
+              const msg = typeof error === 'string' ? error : (error && (error as any).message) || 'An error occurred'
+              showNotification('error', msg)
+            }}
             onCancel={() => setShowAddEntry(false)}
           />
         </div>
@@ -662,19 +963,19 @@ export default function PayrollPeriodDetailPage() {
         <div className="card">
           <p className="text-sm text-secondary">Gross Pay</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).grossInclBenefits, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).gross, 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Deductions</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.totalDeductions || 0), 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).totalDeductions, 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Net Pay</p>
           <p className="text-2xl font-bold text-green-600">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).net, 0))}
           </p>
         </div>
       </div>
@@ -689,15 +990,21 @@ export default function PayrollPeriodDetailPage() {
             <table className="min-w-full divide-y divide-border">
               <thead className="bg-muted">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Employee</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Job Title</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Company</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Employee ID</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">ID Number</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">DOB</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Surname</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">First Names</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Job Title</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Days</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Sick Total</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Leave Total</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Absence Total</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Base Salary</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Commission</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Engaged</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Dismissed</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Base Salary</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Commission</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Overtime</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Adjustments</th>
                   {getUniqueBenefits().map(benefit => (
@@ -705,9 +1012,8 @@ export default function PayrollPeriodDetailPage() {
                       {benefit.benefitName}
                     </th>
                   ))}
-                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Gross Pay</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Deductions</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Net Pay</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Gross Pay</th>
                   {canEditEntry && ['draft', 'in_progress'].includes(period.status) && (
                     <th className="px-3 py-2 text-center text-xs font-medium text-secondary uppercase">Actions</th>
                   )}
@@ -719,22 +1025,50 @@ export default function PayrollPeriodDetailPage() {
                     key={entry.id}
                     className="hover:bg-muted transition-colors"
                   >
-                    <td
-                      className="px-3 py-2 text-sm text-primary cursor-pointer"
-                      onClick={() => setSelectedEntryId(entry.id)}
-                    >
-                      {entry.employeeNumber} - {entry.employeeName}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.employee?.jobTitles?.title || ''}</td>
+                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{makeShortCompanyLabel((entry as any).primaryBusiness?.name || (entry as any).employee?.primaryBusiness?.name)}</td>
+                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeNumber || ''}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.nationalId}</td>
+                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeDateOfBirth ? new Date((entry as any).employeeDateOfBirth).toLocaleDateString() : (entry.dateOfBirth ? new Date(entry.dateOfBirth).toLocaleDateString() : '')}</td>
+                    <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeLastName || (() => { const parts = entry.employeeName.split(' '); return parts.slice(-1)[0] || '' })()}</td>
+                    <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeFirstName || (() => { const parts = entry.employeeName.split(' '); return parts.slice(0, -1).join(' ') || '' })()}</td>
+                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.employee?.jobTitles?.title || ''}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.workDays}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeSickDays || 0}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeLeaveDays || 0}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeAbsenceDays || 0}</td>
-                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(entry.baseSalary)}</td>
-                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(entry.commission)}</td>
-                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(entry.overtimePay)}</td>
-                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency((entry as any).adjustmentsTotal || 0)}</td>
+                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeHireDate ? new Date((entry as any).employeeHireDate).toLocaleDateString() : (entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : '')}</td>
+                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.terminationDate ? new Date(entry.terminationDate).toLocaleDateString() : ''}</td>
+                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.baseSalary || 0))}</td>
+                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.commission || 0))}</td>
+                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(computeOvertimeForEntry(entry) || 0))}</td>
+                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                      {(() => {
+                        // Prefer server-provided aggregated additions when present and non-zero
+                        let additions = Number((entry as any).adjustmentsTotal || 0)
+                        let deductions = Number((entry as any).adjustmentsAsDeductions || 0)
+                        const adjustmentsList = (entry as any).payrollAdjustments || []
+                        if ((!additions || additions === 0) || (!deductions || deductions === 0)) {
+                          if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
+                            const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
+                              const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+                              const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+                              return s + (isAdd ? Math.abs(amt) : 0)
+                            }, 0)
+                            const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
+                              const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+                              const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+                              return s + (!isAdd ? Math.abs(amt) : 0)
+                            }, 0)
+                            if (!additions || additions === 0) additions = derivedAdditions
+                            if (!deductions || deductions === 0) deductions = derivedDeductions
+                          }
+                        }
+
+                        // Show positive additions in this column. Negative adjustments will appear under Deductions.
+                        if (additions && additions !== 0) return `+${formatCurrency(additions)}`
+                        return formatCurrency(0)
+                      })()}
+                    </td>
                     {getUniqueBenefits().map(uniqueBenefit => {
                       // Prefer mergedBenefits (server) for display
                       const merged = (entry as any).mergedBenefits || []
@@ -768,9 +1102,8 @@ export default function PayrollPeriodDetailPage() {
                       const totals = computeEntryTotals(entry)
                       return (
                         <>
-                          <td className="px-3 py-2 text-sm text-right text-primary font-medium cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.grossInclBenefits)}</td>
                           <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.totalDeductions)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.netInclBenefits)}</td>
+                          <td className="px-3 py-2 text-sm text-right text-primary font-medium cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.grossInclBenefits)}</td>
                         </>
                       )
                     })()}
@@ -801,9 +1134,23 @@ export default function PayrollPeriodDetailPage() {
           isOpen={!!selectedEntryId}
           onClose={() => setSelectedEntryId(null)}
           entryId={selectedEntryId}
-          onSuccess={(message) => {
+          onSuccess={(payload) => {
+            try {
+              // page-level instrumentation for modal success callbacks
+              if (typeof window !== 'undefined') {
+                ;(window as any).__instrumentLogs = (window as any).__instrumentLogs || []
+                ;(window as any).__instrumentLogs.push({ ts: Date.now(), label: 'parent:onSuccess received', payload: { payload, entryId: selectedEntryId }, stack: new Error().stack })
+                console.warn('[instrument]', 'parent:onSuccess received', { payload, entryId: selectedEntryId })
+              }
+            } catch (e) {
+              // ignore
+            }
+            const p: any = payload
+            const message = typeof p === 'string' ? p : (p && p.message) || ''
+            // Default to not refreshing the whole period unless explicitly requested
+            const shouldRefresh = typeof p === 'object' ? Boolean(p.refresh) : false
             showNotification('success', message)
-            loadPeriod()
+            if (shouldRefresh) loadPeriod()
           }}
           onError={(error) => showNotification('error', error)}
         />

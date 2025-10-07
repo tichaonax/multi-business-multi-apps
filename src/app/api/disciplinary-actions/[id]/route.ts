@@ -31,8 +31,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                 department: true
               }
             },
-            primaryBusiness: {
+            // Employee relation is named `businesses` in Prisma schema (primaryBusinessId relation).
+            businesses: {
               select: {
+                id: true,
                 name: true,
                 type: true
               }
@@ -59,7 +61,20 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    return NextResponse.json(disciplinaryAction)
+    // Normalize shape for clients: expose employee.primaryBusiness (first business) for compatibility
+    try {
+      const actionAny: any = disciplinaryAction
+      if (actionAny.employee) {
+        const firstBusiness = Array.isArray(actionAny.employee.businesses) && actionAny.employee.businesses.length > 0
+          ? actionAny.employee.businesses[0]
+          : null
+        actionAny.employee.primaryBusiness = firstBusiness
+        // optionally keep businesses array as-is; clients expect primaryBusiness specifically
+      }
+      return NextResponse.json(actionAny)
+    } catch (e) {
+      return NextResponse.json(disciplinaryAction)
+    }
   } catch (error) {
     console.error('Disciplinary action fetch error:', error)
     return NextResponse.json(
@@ -158,8 +173,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
                 department: true
               }
             },
-            primaryBusiness: {
+            businesses: {
               select: {
+                id: true,
                 name: true,
                 type: true
               }
@@ -179,7 +195,19 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     })
 
-    return NextResponse.json(updatedAction)
+    // Attach primaryBusiness to employee for compatibility
+    try {
+      const actionAny: any = updatedAction
+      if (actionAny.employee) {
+        const firstBusiness = Array.isArray(actionAny.employee.businesses) && actionAny.employee.businesses.length > 0
+          ? actionAny.employee.businesses[0]
+          : null
+        actionAny.employee.primaryBusiness = firstBusiness
+      }
+      return NextResponse.json(actionAny)
+    } catch (e) {
+      return NextResponse.json(updatedAction)
+    }
   } catch (error) {
     console.error('Disciplinary action update error:', error)
     return NextResponse.json(

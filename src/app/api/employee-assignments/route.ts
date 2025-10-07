@@ -97,11 +97,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Verify employee exists
+    // Verify employee exists. Include businesses list and derive primaryBusiness as the first item for compatibility.
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
       include: {
-        primaryBusiness: true
+        businesses: {
+          select: {
+            id: true,
+            name: true,
+            type: true
+          }
+        }
       }
     })
 
@@ -190,10 +196,14 @@ export async function POST(req: NextRequest) {
     })
 
     // Update supervisor if different from current and if it's not the primary business
-    if (supervisorId && employee.primaryBusiness.id !== businessId) {
-      // For cross-business assignments, we might want to track business-specific supervisors
-      // For now, we'll update the main supervisor only if this is their primary business
-      if (employee.primaryBusiness.id === businessId) {
+    if (supervisorId) {
+      const primaryBusiness = Array.isArray(employee?.businesses) && employee.businesses.length > 0
+        ? employee.businesses[0]
+        : null
+
+      // For cross-business assignments, we may want business-specific supervisors.
+      // For now, update the main supervisor only when the assignment's businessId matches the employee's primary business.
+      if (primaryBusiness && primaryBusiness.id === businessId) {
         await prisma.employee.update({
           where: { id: employeeId },
           data: { supervisorId }

@@ -112,9 +112,19 @@ export async function POST(req: NextRequest) {
     // Create adjustment
     const adjustment = await prisma.$transaction(async (tx) => {
       // Build sanitized create payload to avoid accidentally passing user-supplied fields
-      // determine stored amount sign based on isAddition flag
+      // determine stored amount sign robustly based on isAddition flag or the sign of the amount
       const rawAmount = typeof amount === 'number' ? amount : parseFloat(amount)
-      const signedAmount = isAddition === false ? -Math.abs(rawAmount) : Math.abs(rawAmount)
+      let signedAmount = Number.isFinite(Number(rawAmount)) ? Number(rawAmount) : 0
+      // Interpret isAddition flexibly: accept boolean true/false or string 'true'/'false'
+      const isAdditionFlag = (isAddition === true) || (String(isAddition).toLowerCase() === 'true')
+      const isAdditionExplicitlyProvided = typeof isAddition === 'boolean' || (typeof isAddition === 'string' && (String(isAddition).toLowerCase() === 'true' || String(isAddition).toLowerCase() === 'false'))
+      // If client explicitly provided the flag, use it; otherwise fall back to the sign of rawAmount
+      if (isAdditionExplicitlyProvided) {
+        signedAmount = isAdditionFlag ? Math.abs(signedAmount) : -Math.abs(signedAmount)
+      } else {
+        // If amount is negative, treat as deduction; otherwise treat as addition
+        signedAmount = Number(signedAmount) < 0 ? -Math.abs(signedAmount) : Math.abs(signedAmount)
+      }
 
       const createPayload: any = {
         id: `PA-${nanoid(12)}`,
@@ -190,11 +200,18 @@ export async function PUT(req: NextRequest) {
       // update adjustment
       const existingAny: any = existing
 
-      // compute signed amount based on isAddition if provided, otherwise keep existing stored amount
+      // compute signed amount robustly based on isAddition flag or amount sign
       let newAmount = existingAny.amount
       if (amount !== undefined) {
         const raw = typeof amount === 'number' ? amount : parseFloat(amount)
-        newAmount = isAddition === false ? -Math.abs(raw) : Math.abs(raw)
+        let candidate = Number.isFinite(Number(raw)) ? Number(raw) : 0
+        const isAdditionFlagUp = (isAddition === true) || (String(isAddition).toLowerCase() === 'true')
+        const isAdditionExplicitUp = typeof isAddition === 'boolean' || (typeof isAddition === 'string' && (String(isAddition).toLowerCase() === 'true' || String(isAddition).toLowerCase() === 'false'))
+        if (isAdditionExplicitUp) {
+          newAmount = isAdditionFlagUp ? Math.abs(candidate) : -Math.abs(candidate)
+        } else {
+          newAmount = candidate < 0 ? -Math.abs(candidate) : Math.abs(candidate)
+        }
       }
 
       const updated = await tx.payrollAdjustment.update({
@@ -259,16 +276,25 @@ async function recalcEntryAndPeriod(tx: any, entryId: string) {
 
   const benefitsTotal = (entry.payrollEntryBenefits || []).filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)
   // payrollAdjustments.amount is stored as signed (positive for additions, negative for deductions)
-  const adjustmentsTotal = (entry.payrollAdjustments || []).reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
+  let additionsTotal = 0
+  let adjustmentsAsDeductions = 0
+  for (const a of (entry.payrollAdjustments || [])) {
+    const amt = Number(a.amount || 0)
+    if (amt >= 0) additionsTotal += amt
+    else adjustmentsAsDeductions += Math.abs(amt)
+  }
 
   const baseSalary = Number(entry.baseSalary || 0)
   const commission = Number(entry.commission || 0)
   const overtimePay = Number(entry.overtimePay || 0)
 
-  const grossPay = baseSalary + commission + overtimePay + benefitsTotal + adjustmentsTotal
-  const netPay = grossPay - Number(entry.totalDeductions || 0)
+  // Add positive adjustments to gross; negative adjustments counted as additional deductions
+  const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal
+  const currentStoredDeductions = Number(entry.totalDeductions || 0)
+  const newTotalDeductions = currentStoredDeductions + adjustmentsAsDeductions
+  const netPay = grossPay - newTotalDeductions
 
-  await tx.payrollEntry.update({ where: { id: entryId }, data: { benefitsTotal, adjustmentsTotal, grossPay, netPay, updatedAt: new Date() } })
+  await tx.payrollEntry.update({ where: { id: entryId }, data: { benefitsTotal, adjustmentsTotal: additionsTotal, grossPay, netPay, totalDeductions: newTotalDeductions, updatedAt: new Date() } })
 
   const allEntries = await tx.payrollEntry.findMany({ where: { payrollPeriodId: entry.payrollPeriodId } })
   const periodTotals = allEntries.reduce((acc: any, e: any) => ({ totalGrossPay: acc.totalGrossPay + Number(e.grossPay), totalDeductions: acc.totalDeductions + Number(e.totalDeductions), totalNetPay: acc.totalNetPay + Number(e.netPay) }), { totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 })

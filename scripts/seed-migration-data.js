@@ -425,11 +425,121 @@ async function main() {
 
 // Run seeding if this file is executed directly
 if (require.main === module) {
-  main()
-    .catch((error) => {
+  ;(async () => {
+    const argv = process.argv.slice(2)
+
+    // Helper CLI flags for quick lookup / small edits without running full seeding
+    const listFlag = argv.includes('--list-benefits')
+    const searchIndex = argv.findIndex(a => a === '--search-benefit')
+    const addIndex = argv.findIndex(a => a === '--add-benefit')
+
+    // Utility: list all benefit types
+    async function listBenefitTypes() {
+      if (!prisma.benefitType || typeof prisma.benefitType.findMany !== 'function') {
+        console.warn('Prisma model benefitType not available - cannot list benefit types')
+        return
+      }
+      const rows = await prisma.benefitType.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] })
+      console.log(`Found ${rows.length} benefit types:`)
+      for (const r of rows) {
+        console.log(` - ${r.name} [type=${r.type}]${r.isActive ? '' : ' (inactive)'}${r.defaultAmount !== null && r.defaultAmount !== undefined ? ` default=${r.defaultAmount}` : ''}`)
+      }
+    }
+
+    // Utility: search benefit types by substring (case-insensitive)
+    async function searchBenefitTypes(term) {
+      if (!term) {
+        console.error('Please provide a search term after --search-benefit')
+        process.exit(2)
+      }
+      if (!prisma.benefitType || typeof prisma.benefitType.findMany !== 'function') {
+        console.warn('Prisma model benefitType not available - cannot search benefit types')
+        return
+      }
+      const rows = await prisma.benefitType.findMany({ where: { name: { contains: term, mode: 'insensitive' } }, orderBy: [{ name: 'asc' }] })
+      console.log(`Search results for "${term}": ${rows.length} matches`)
+      for (const r of rows) console.log(` - ${r.name} [type=${r.type}]`)
+    }
+
+    // Utility: add a benefit type (JSON string or simple name:type pair)
+    async function addBenefitType(payload) {
+      if (!prisma.benefitType || typeof prisma.benefitType.upsert !== 'function') {
+        console.warn('Prisma model benefitType not available - cannot add benefit type')
+        return
+      }
+
+      let obj = null
+      // Accept JSON string or shorthand name:type
+      try {
+        if (typeof payload === 'string' && payload.trim().startsWith('{')) {
+          obj = JSON.parse(payload)
+        } else if (typeof payload === 'string' && payload.includes(':')) {
+          const [name, type] = payload.split(':').map(s => s.trim())
+          obj = { name, type }
+        } else {
+          throw new Error('Invalid payload')
+        }
+      } catch (err) {
+        console.error('Invalid --add-benefit payload. Provide JSON or "Name:Type". Example: --add-benefit "{\"name\":\"Tool Allowance\",\"type\":\"allowance\",\"defaultAmount\":50}"')
+        process.exit(2)
+      }
+
+      if (!obj.name || !obj.type) {
+        console.error('Benefit must include at least name and type')
+        process.exit(2)
+      }
+
+      // Normalize: prevent duplicates by name (case-insensitive)
+      const existing = await prisma.benefitType.findFirst({ where: { name: { equals: obj.name, mode: 'insensitive' } } })
+      if (existing) {
+        console.log(`Benefit type already exists: ${existing.name} [type=${existing.type}]`)
+        return
+      }
+
+      const created = await prisma.benefitType.create({ data: {
+        id: require('crypto').randomUUID(),
+        name: obj.name,
+        type: obj.type,
+        defaultAmount: obj.defaultAmount !== undefined ? obj.defaultAmount : null,
+        isPercentage: !!obj.isPercentage,
+        isActive: obj.isActive !== undefined ? !!obj.isActive : true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }})
+
+      console.log(`Created benefit type: ${created.name} [type=${created.type}]`)
+    }
+
+    try {
+      if (listFlag) {
+        await listBenefitTypes()
+        await prisma.$disconnect()
+        process.exit(0)
+      }
+
+      if (searchIndex !== -1) {
+        const term = argv[searchIndex + 1]
+        await searchBenefitTypes(term)
+        await prisma.$disconnect()
+        process.exit(0)
+      }
+
+      if (addIndex !== -1) {
+        const payload = argv[addIndex + 1]
+        await addBenefitType(payload)
+        await prisma.$disconnect()
+        process.exit(0)
+      }
+
+      // Default behavior: run full seeding
+      await main()
+      process.exit(0)
+    } catch (error) {
       console.error('💥 Seeding failed:', error)
+      await prisma.$disconnect()
       process.exit(1)
-    })
+    }
+  })()
 }
 
 module.exports = { seedMigrationData: main }

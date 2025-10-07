@@ -141,6 +141,17 @@ export function MobileSidebar() {
                 </Link>
               )}
 
+              {/* Payroll Management - show to users who can access payroll */}
+              {(hasPermission(user, 'canAccessPayroll') || hasPermission(user, 'canManagePayroll') || isSystemAdmin(user)) && (
+                <Link
+                  href="/payroll"
+                  className="block px-4 py-3 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  🧾 Payroll Management
+                </Link>
+              )}
+
               {/* HR Reports - Only for users with actual employee management permissions */}
               {(isSystemAdmin(user) || hasPermission(user, 'canManageEmployees') || hasPermission(user, 'canEditEmployees')) && (
                 <Link

@@ -3,6 +3,16 @@ const { randomUUID } = require('crypto')
 
 const prisma = new PrismaClient()
 
+function randomDob(minAge = 18, maxAge = 65) {
+  const today = new Date()
+  const maxDate = new Date()
+  maxDate.setFullYear(today.getFullYear() - minAge)
+  const minDate = new Date()
+  minDate.setFullYear(today.getFullYear() - maxAge)
+  const rand = new Date(minDate.getTime() + Math.floor(Math.random() * (maxDate.getTime() - minDate.getTime())))
+  return rand
+}
+
 async function seedContractCTEMP1009(options = {}) {
   console.log('🔧 Seeding contract CT-EMP1009...')
 
@@ -14,7 +24,7 @@ async function seedContractCTEMP1009(options = {}) {
 
   let employee = await prisma.employee.findUnique({ where: { employeeNumber } })
   if (!employee) {
-    const newEmp = {
+      const newEmp = {
       id: randomUUID(),
       employeeNumber,
       // Use realistic employee details requested by the user
@@ -25,6 +35,7 @@ async function seedContractCTEMP1009(options = {}) {
       phone: '+263-78-545-3103',
       address: '789 Pine St, City, State 12345',
       nationalId: `SEED-1009-${Date.now().toString().slice(-4)}`,
+  dateOfBirth: randomDob(),
       primaryBusinessId: business.id,
       compensationTypeId: compensationType.id,
       jobTitleId: jobTitle.id,
@@ -47,7 +58,9 @@ async function seedContractCTEMP1009(options = {}) {
         email: 'michael.davis@techcorp.com',
         phone: '+263-78-545-3103',
         address: '789 Pine St, City, State 12345',
-        updatedAt: new Date('2025-09-29')
+          // Ensure dateOfBirth is set if missing
+          dateOfBirth: employee.dateOfBirth || randomDob(),
+          updatedAt: new Date('2025-09-29')
       }})
       employee = updatedEmp
       console.log(`✅ Updated employee contact details for ${employee.employeeNumber}`)

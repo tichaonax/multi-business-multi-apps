@@ -164,6 +164,32 @@ export async function POST(req: NextRequest) {
 
     // Fetch contracts for employees in this period to merge contract benefits
     const employeeIds = Array.from(new Set(period.payrollEntries.map(e => (e as any).employeeId).filter(Boolean)))
+    // Fetch employee primaryBusinessId mapping so we can attach business info to exported rows
+    const employeesForBusiness = await prisma.employee.findMany({
+      where: { id: { in: employeeIds } },
+      select: { id: true, primaryBusinessId: true }
+    })
+    const employeePrimaryBusinessIdMap: Record<string, string | null> = {}
+    for (const e of employeesForBusiness) employeePrimaryBusinessIdMap[e.id] = e.primaryBusinessId || null
+    const primaryBusinessIds = Array.from(new Set(Object.values(employeePrimaryBusinessIdMap).filter(Boolean))) as string[]
+  const businesses = primaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: primaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
+    const businessById: Record<string, any> = {}
+    for (const b of businesses) businessById[b.id] = b
+    // Compute canonical shortName for export consistency
+    const computeShortName = (name?: string) => {
+      if (!name) return undefined
+      const parts = String(name).split(/\s+/).filter(Boolean)
+      if (parts.length === 1) return parts[0].slice(0, 4).toUpperCase()
+      const acronym = parts.map(p => p[0]).join('').slice(0, 4).toUpperCase()
+      return acronym
+    }
+    for (const id of Object.keys(businessById)) {
+      try {
+        if (!businessById[id].shortName) businessById[id].shortName = computeShortName(businessById[id].name)
+      } catch (err) {
+        // ignore
+      }
+    }
     const contracts = await prisma.employeeContract.findMany({
       where: { employeeId: { in: employeeIds } },
       orderBy: { startDate: 'desc' },
@@ -239,25 +265,37 @@ export async function POST(req: NextRequest) {
       // Use helper to compute merged benefits and totals
       const totals = await computeTotalsForEntry((entry as any).id)
 
-      enrichedEntries.push({
-        ...entry,
-        payrollEntryBenefits: entry.payrollEntryBenefits || [],
-        contract: contract || null,
-        mergedBenefits: totals.combined || [],
-        totalBenefitsAmount: Number(totals.benefitsTotal || 0),
-        workDays: derivedWorkDays,
-        cumulativeSickDays: cumulative.cumulativeSickDays,
-        cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
-        cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
-        grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
-        netPay: Number(totals.netPay ?? Number(entry.netPay || 0))
-      })
+  const _pbId = empId ? employeePrimaryBusinessIdMap[empId] : null
+  const _pb = _pbId ? businessById[_pbId] : null
+
+  enrichedEntries.push({
+          ...entry,
+          payrollEntryBenefits: entry.payrollEntryBenefits || [],
+          contract: contract || null,
+          mergedBenefits: totals.combined || [],
+          totalBenefitsAmount: Number(totals.benefitsTotal || 0),
+          workDays: derivedWorkDays,
+          cumulativeSickDays: cumulative.cumulativeSickDays,
+          cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
+          cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
+          grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
+          netPay: Number(totals.netPay ?? Number(entry.netPay || 0)),
+          // copy employee name parts if available (these come from included employee select)
+          employeeFirstName: (entry as any).employee?.firstName ?? null,
+          employeeLastName: (entry as any).employee?.lastName ?? null,
+          employeeFullName: (entry as any).employee?.fullName ?? entry.employeeName,
+          employeeDateOfBirth: (entry as any).dateOfBirth,
+          employeeHireDate: (entry as any).hireDate,
+          primaryBusiness: _pb ? { ..._pb, shortName: _pb.shortName } : null
+        })
     }
 
     // Generate Excel file using enriched entries; include benefits in gross/net
     const excelRows = enrichedEntries.map(entry => ({
       employeeNumber: entry.employeeNumber,
-      employeeName: entry.employeeName,
+      employeeName: entry.employeeFullName || entry.employeeName,
+      employeeFirstName: (entry as any).employeeFirstName || null,
+      employeeLastName: (entry as any).employeeLastName || null,
       nationalId: entry.nationalId,
       dateOfBirth: entry.dateOfBirth,
       hireDate: entry.hireDate,
@@ -356,6 +394,11 @@ export async function POST(req: NextRequest) {
           updatedAt: new Date()
         }
       })
+
+      // Attach computed shortName to business for API consumers
+      if (newExport?.business && !(newExport.business as any).shortName) {
+        ;(newExport.business as any).shortName = computeShortName(newExport.business.name)
+      }
 
       return newExport
     })

@@ -32,6 +32,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             employeeNumber: true,
             fullName: true,
             nationalId: true,
+            dateOfBirth: true,
+            hireDate: true,
             email: true,
             jobTitles: { select: { title: true } }
           }
@@ -66,16 +68,20 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     // Calculate derived work days (same logic as period API)
     const helper = await import('@/lib/payroll/helpers')
-    const monthRequiredWorkDays = helper.getWorkingDaysInMonth(entry.payrollPeriod.year, entry.payrollPeriod.month)
 
-    // Check for time tracking data
+    // Determine payroll year/month safely (payrollPeriod may be null in some queries)
+    const payrollYear = entry.payrollPeriod?.year ?? (entry as any).year
+    const payrollMonth = entry.payrollPeriod?.month ?? (entry as any).month
+    const monthRequiredWorkDaysSafe = payrollYear && payrollMonth ? helper.getWorkingDaysInMonth(payrollYear, payrollMonth) : 0
+
+    // Check for time tracking data (only query when we have payrollYear/month)
     let timeTracking = null
-    if (entry.employee?.id) {
+    if (entry.employee?.id && payrollYear && payrollMonth) {
       timeTracking = await prisma.employeeTimeTracking.findFirst({
         where: {
           employeeId: entry.employee.id,
-          year: entry.payrollPeriod.year,
-          month: entry.payrollPeriod.month
+          year: payrollYear,
+          month: payrollMonth
         }
       })
     }
@@ -83,8 +89,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const derivedWorkDays = (entry.workDays && entry.workDays > 0)
       ? entry.workDays
       : (timeTracking
-        ? ((timeTracking.workDays && timeTracking.workDays > 0) ? timeTracking.workDays : monthRequiredWorkDays)
-        : monthRequiredWorkDays)
+        ? ((timeTracking.workDays && timeTracking.workDays > 0) ? timeTracking.workDays : monthRequiredWorkDaysSafe)
+        : monthRequiredWorkDaysSafe)
 
     // Get persisted/manual/override benefits via helper
     const mergedPersisted = await helper.computeCombinedBenefitsForEntry(entry)
@@ -136,7 +142,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Build effective merged list: start from contract benefits, then apply persisted overrides
-    const mergedByKey = new Map<string, any>()
+  const mergedByKey = new Map<string, any>()
     for (const cb of contractBenefits) {
       mergedByKey.set(cb.key, { ...cb, isActive: true })
     }
@@ -158,25 +164,44 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const effectiveMerged = Array.from(mergedByKey.values())
-    const benefitsTotal = effectiveMerged.filter(b => b.isActive !== false).reduce((s, b) => s + Number(b.amount || 0), 0)
-    const baseSalary = Number((entry as any).baseSalary || 0)
-    const commission = Number((entry as any).commission || 0)
-    const overtimePay = Number((entry as any).overtimePay || 0)
-    const adjustmentsTotal = Number((entry as any).adjustmentsTotal || 0)
 
-    const grossPay = baseSalary + commission + overtimePay + benefitsTotal + adjustmentsTotal
-    const totalDeductions = Number((entry as any).totalDeductions || 0)
-    const netPay = grossPay - totalDeductions
+    // Use the helper to compute authoritative totals (it will include persisted benefits and
+    // apply the adjustment rule: positive adjustments add to gross, negative adjustments are
+    // treated as deductions applied after taxes).
+    const totals = await import('@/lib/payroll/helpers').then(m => m.computeTotalsForEntry(entryId))
+
+    // Ensure baseSalary exists on the response. If payroll entry has no baseSalary, prefer
+    // the employee's most recent contract baseSalary.
+    let resolvedBaseSalary = Number((entry as any).baseSalary || 0)
+    if ((!resolvedBaseSalary || resolvedBaseSalary === 0) && contract && contract.baseSalary != null) {
+      try { resolvedBaseSalary = Number(contract.baseSalary) } catch (e) { resolvedBaseSalary = resolvedBaseSalary }
+    }
 
     const responseEntry = {
       ...entry,
-      workDays: derivedWorkDays, // Override with calculated work days
+      workDays: derivedWorkDays,
       payrollEntryBenefits: persistedBenefits,
-      // mergedBenefits: the effective view (contract benefits with persisted overrides applied)
       mergedBenefits: effectiveMerged,
-      benefitsTotal,
-      grossPay,
-      netPay,
+      benefitsTotal: totals.benefitsTotal ?? 0,
+      grossPay: totals.grossPay ?? 0,
+      netPay: totals.netPay ?? 0,
+      // Ensure baseSalary is present for UI display
+      baseSalary: resolvedBaseSalary,
+      // Expose the adjustments accounting breakdown for the UI
+      adjustmentsTotal: totals.additionsTotal ?? 0,
+      adjustmentsAsDeductions: totals.adjustmentsAsDeductions ?? 0,
+      // Normalize payroll adjustments for display (isAddition + absolute amount)
+      payrollAdjustments: (entry.payrollAdjustments || []).map((a: any) => ({
+        ...a,
+        // keep UI-friendly absolute amount but expose the original signed DB value as storedAmount
+        isAddition: Number(a.amount || 0) >= 0,
+        amount: Math.abs(Number(a.amount || 0)),
+        storedAmount: Number(a.amount || 0),
+        description: a.reason ?? a.description ?? ''
+      })),
+      // Prefer the employee's DOB from the employee record, fall back to stored payrollEntry value
+      dateOfBirth: entry.employee?.dateOfBirth ?? (entry as any).dateOfBirth ?? null,
+      hireDate: contract?.startDate ?? (entry as any).hireDate ?? null,
       contract: contract || (entry as any).contract || null
     }
 
@@ -238,17 +263,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Recalculate totals
-    const commissionAmount = new Decimal(commission !== undefined ? commission : existingEntry.commission)
-    const baseSalary = new Decimal(existingEntry.baseSalary)
-    const benefitsTotal = new Decimal(existingEntry.benefitsTotal)
-
-    const grossPay = baseSalary.add(commissionAmount).add(benefitsTotal)
-    const totalDeductions = new Decimal(existingEntry.totalDeductions)
-    const netPay = grossPay.sub(totalDeductions)
-
-    // Update entry
-    const entry = await prisma.payrollEntry.update({
+    // Update mutable fields first
+    const updatedEntry = await prisma.payrollEntry.update({
       where: { id: entryId },
       data: {
         workDays: workDays !== undefined ? workDays : existingEntry.workDays,
@@ -256,10 +272,25 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         leaveDays: leaveDays !== undefined ? leaveDays : existingEntry.leaveDays,
         absenceDays: absenceDays !== undefined ? absenceDays : existingEntry.absenceDays,
         overtimeHours: overtimeHours !== undefined ? overtimeHours : existingEntry.overtimeHours,
-        commission: commissionAmount.toNumber(),
-        grossPay: grossPay.toNumber(),
-        netPay: netPay.toNumber(),
+        commission: commission !== undefined ? commission : existingEntry.commission,
         notes: notes !== undefined ? notes : existingEntry.notes,
+        updatedAt: new Date()
+      }
+    })
+
+    // Recompute totals using helper which accounts for persisted benefits and adjustment handling
+    const recomputed = await import('@/lib/payroll/helpers').then(m => m.computeTotalsForEntry(entryId))
+
+    // Persist computed aggregates back to the payroll entry
+    const entry = await prisma.payrollEntry.update({
+      where: { id: entryId },
+      data: {
+        grossPay: recomputed.grossPay,
+        netPay: recomputed.netPay,
+        benefitsTotal: recomputed.benefitsTotal ?? 0,
+        // store adjustmentsTotal as additions only (positive adjustments)
+        adjustmentsTotal: recomputed.additionsTotal ?? 0,
+  totalDeductions: Number(existingEntry.totalDeductions ?? 0) + Number(recomputed.adjustmentsAsDeductions ?? 0),
         updatedAt: new Date()
       },
       include: {

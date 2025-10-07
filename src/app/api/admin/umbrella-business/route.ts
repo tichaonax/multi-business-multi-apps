@@ -63,14 +63,17 @@ export async function GET(req: NextRequest) {
         })
       } else {
         // Create a new umbrella business
+        const shortName = await (await import('@/lib/business-shortname')).generateUniqueShortName(prisma as any, 'Umbrella Business Settings')
         umbrellaBusinessData = await prisma.business.create({
-          data: {
+          // Cast data to any to avoid Prisma client schema mismatch issues for shortName
+          data: ({
             name: 'Umbrella Business Settings',
             type: 'umbrella',
             isUmbrellaBusiness: true,
             umbrellaBusinessName: 'Demo Umbrella Company',
-            isActive: true
-          },
+            isActive: true,
+            shortName
+          } as any),
           select: {
             id: true,
             umbrellaBusinessName: true,
@@ -122,8 +125,9 @@ export async function PUT(req: NextRequest) {
 
     if (!umbrellaBusinessRecord) {
       // Create umbrella business if it doesn't exist
+      const shortName = await (await import('@/lib/business-shortname')).generateUniqueShortName(prisma as any, 'Umbrella Business Settings')
       umbrellaBusinessRecord = await prisma.business.create({
-        data: {
+        data: ({
           name: 'Umbrella Business Settings',
           type: 'umbrella',
           isUmbrellaBusiness: true,
@@ -132,8 +136,9 @@ export async function PUT(req: NextRequest) {
           umbrellaBusinessPhone,
           umbrellaBusinessEmail,
           umbrellaBusinessRegistration,
-          isActive: true
-        }
+          isActive: true,
+          shortName
+        } as any)
       })
     } else {
       // Update existing umbrella business

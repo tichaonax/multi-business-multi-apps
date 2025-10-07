@@ -33,6 +33,7 @@ async function getOrCreateDevManager(prisma) {
     fullName: 'Dev Manager',
     email: 'dev.manager@local',
     phone: null,
+    dateOfBirth: new Date(1990,0,1),
     address: null,
     nationalId: `DEV-MGR-${Date.now()}`,
     hireDate: new Date(),

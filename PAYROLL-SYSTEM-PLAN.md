@@ -840,14 +840,14 @@ prisma/
 
 ## Questions for Clarification
 
-1. **Tax Handling**: Should we include PAYE/tax calculations or is that handled by 3rd party?
+1. **Tax Handling**: Should we include PAYE/tax calculations or is that handled by 3rd party? --- 3rd party
 2. **Pension**: Should pension contributions be tracked separately?
 3. **Currency**: All employees paid in same currency (USD, ZWL, etc.)?
-4. **Payment Method**: Track how employees are paid (bank transfer, cash, mobile money)?
-5. **Bank Details**: Do we need to export bank details for direct deposit?
-6. **Department/Cost Center**: Should payroll be segmented by department?
-7. **Approval Workflow**: How many approval levels required?
-8. **Historical Data**: Do we need to import historical payroll data?
+4. **Payment Method**: Track how employees are paid (bank transfer, cash, mobile money)? Yes
+5. **Bank Details**: Do we need to export bank details for direct deposit? ---NO
+6. **Department/Cost Center**: Should payroll be segmented by department? -- No
+7. **Approval Workflow**: How many approval levels required? --One
+8. **Historical Data**: Do we need to import historical payroll data? --NO
 
 ---
 

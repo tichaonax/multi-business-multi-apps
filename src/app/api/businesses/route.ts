@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { generateUniqueShortName } from '@/lib/business-shortname';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
 
@@ -99,13 +100,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create business and make the creator the owner
+    // Generate a unique shortName and create business and make the creator the owner
+    const shortName = await generateUniqueShortName(prisma as any, name)
     const business = await prisma.business.create({
       // Cast data to any to avoid TypeScript strict input type issues (id generation handled at runtime)
       data: ({
         name,
         type,
         description: description || null,
+        shortName,
         createdBy: session.user.id,
         businessMemberships: {
           create: ({

@@ -1,6 +1,7 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from 'react'
+import type { OnSuccessArg } from '@/types/ui'
 
 interface Employee {
   id: string
@@ -11,7 +12,7 @@ interface Employee {
 
 interface PayrollEntryFormProps {
   payrollPeriodId: string
-  onSuccess: (message: string) => void
+  onSuccess: (payload: OnSuccessArg) => void
   onError: (error: string) => void
   onCancel: () => void
 }
@@ -68,7 +69,7 @@ export function PayrollEntryForm({
       })
 
       if (response.ok) {
-        onSuccess('Payroll entry created successfully')
+        onSuccess({ message: 'Payroll entry created successfully', refresh: false })
         setFormData({
           employeeId: '',
           workDays: 22,

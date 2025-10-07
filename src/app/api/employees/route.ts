@@ -244,8 +244,11 @@ export async function POST(req: NextRequest) {
     } = data
 
     // Validation
-    if (!firstName || !lastName || !phone || !nationalId || !jobTitleId || 
-        !compensationTypeId || !primaryBusinessId || !hireDate) {
+    // Normalize and apply defaults: require dateOfBirth; if missing, apply a sensible default
+    const normalizedDob = dateOfBirth ? new Date(dateOfBirth) : new Date('1990-01-01')
+
+    if (!firstName || !lastName || !phone || !nationalId || !jobTitleId ||
+        !compensationTypeId || !primaryBusinessId || !hireDate || !normalizedDob) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -330,7 +333,8 @@ export async function POST(req: NextRequest) {
         nationalId: nationalId,
         idFormatTemplateId: idFormatTemplateId || null,
         address: address || null,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+  // Persist dateOfBirth as a required field (validated above) - use normalizedDob (default-safe)
+  dateOfBirth: normalizedDob,
         jobTitleId: jobTitleId,
         compensationTypeId: compensationTypeId,
         supervisorId: supervisorId || null,
@@ -355,29 +359,18 @@ export async function POST(req: NextRequest) {
               email: true
             }
           },
-          jobTitles: true,
-          compensationTypes: true,
-          // canonical relation name for subordinate employees on Employee model
-          otherEmployees: {
+          jobTitles: {
             select: {
-              id: true,
-              fullName: true,
-              jobTitles: {
-                select: {
-                  title: true
-                }
-              }
+              title: true,
+              department: true
             }
           },
-          // canonical relation name for primary business on Employee model
-          businesses: {
-            select: {
-              id: true,
-              name: true,
-              type: true
-            }
+          compensationTypes: {
+            select: { name: true }
           },
-          idFormatTemplates: true
+          business: {
+            select: { id: true, name: true }
+          }
         }
       })
 

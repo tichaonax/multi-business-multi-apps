@@ -3,6 +3,16 @@ const crypto = require('crypto')
 
 const prisma = new PrismaClient()
 
+function randomDob(minAge = 18, maxAge = 65) {
+  const today = new Date()
+  const maxDate = new Date()
+  maxDate.setFullYear(today.getFullYear() - minAge)
+  const minDate = new Date()
+  minDate.setFullYear(today.getFullYear() - maxAge)
+  const rand = new Date(minDate.getTime() + Math.floor(Math.random() * (maxDate.getTime() - minDate.getTime())))
+  return rand
+}
+
 const sampleEmployees = [
   {
     firstName: 'John',
@@ -11,7 +21,7 @@ const sampleEmployees = [
     phone: '+1-555-0101',
     nationalId: 'NAT-001-2024',
     address: '123 Main St, City, State 12345',
-    dateOfBirth: new Date('1985-03-15'),
+  dateOfBirth: randomDob(),
     jobTitleName: 'General Manager',
     compensationTypeName: 'Senior Management Salary',
     hireDate: new Date('2020-01-15'),
@@ -26,7 +36,7 @@ const sampleEmployees = [
     phone: '+1-555-0102',
     nationalId: 'NAT-002-2024',
     address: '456 Oak Ave, City, State 12345',
-    dateOfBirth: new Date('1990-07-22'),
+  dateOfBirth: randomDob(),
     jobTitleName: 'Assistant Manager',
     compensationTypeName: 'Monthly Salary',
     supervisorFirstName: 'John',
@@ -43,7 +53,7 @@ const sampleEmployees = [
     phone: '+1-555-0103',
     nationalId: 'NAT-003-2024',
     address: '789 Pine St, City, State 12345',
-    dateOfBirth: new Date('1988-11-08'),
+  dateOfBirth: randomDob(),
     jobTitleName: 'Administrative Assistant',
     compensationTypeName: 'Hourly Wage',
     supervisorFirstName: 'Sarah',

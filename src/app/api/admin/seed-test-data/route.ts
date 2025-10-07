@@ -4,6 +4,17 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
 
+// Helper: produce a random DOB ensuring age >= 18
+function randomDob(minAge = 18, maxAge = 65) {
+  const today = new Date()
+  const maxDate = new Date()
+  maxDate.setFullYear(today.getFullYear() - minAge)
+  const minDate = new Date()
+  minDate.setFullYear(today.getFullYear() - maxAge)
+  const rand = new Date(minDate.getTime() + Math.floor(Math.random() * (maxDate.getTime() - minDate.getTime())))
+  return rand
+}
+
 // Small runtime type-guard to avoid casting session.user to `any` inline
 function isAdmin(session: unknown): boolean {
   if (!session || typeof session !== 'object') return false;
@@ -214,6 +225,9 @@ export async function POST(_request: NextRequest) {
                   email: uniqueEmail,
                   phone: employeeData.phone.slice(0, -3) + String(employeeCount + 100).slice(-3),
                   nationalId: employeeData.nationalId.slice(0, -3) + String(employeeCount + 100).slice(-3),
+                  // Ensure seeded employees include a dateOfBirth so UI and business logic
+                  // that relies on DOB does not encounter missing values.
+                  dateOfBirth: randomDob(),
                   primaryBusinessId: business.id,
                   compensationTypeId: compType!.id,
                   jobTitleId: jobTitle!.id,

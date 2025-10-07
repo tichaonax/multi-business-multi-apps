@@ -197,13 +197,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Create benefit in transaction
-    const result = await prisma.$transaction(async (tx) => {
+    let result: any
+    try {
+      result = await prisma.$transaction(async (tx) => {
       // Ensure we have a benefitType to satisfy the schema (benefitTypeId is required)
       let finalBenefitType = benefitType
 
       if (!finalBenefitType) {
-        // Try to find an existing BenefitType by name
-        const found = await tx.benefitType.findFirst({ where: { name: String(benefitName) } })
+        // Try to find an existing BenefitType by name (case-insensitive)
+        const found = await tx.benefitType.findFirst({ where: { name: { equals: String(benefitName), mode: 'insensitive' } } })
         if (found) {
           finalBenefitType = found
         } else {
@@ -234,12 +236,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           payrollEntryId: entryId,
           OR: [
             { benefitTypeId: finalBenefitType!.id },
-            { benefitName: { equals: finalBenefitType!.name } }
+            { benefitName: { equals: finalBenefitType!.name, mode: 'insensitive' } }
           ]
         }
       })
 
       if (existingConflict) {
+        // Signal a duplicate in a way the caller can react to
         throw new Error('Benefit already exists for this payroll entry')
       }
 
@@ -266,7 +269,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       await recalculateEntryTotals(tx, entryId)
 
       return newBenefit
+      return result
     })
+    } catch (txErr) {
+      // Translate known business errors into HTTP responses
+      if (txErr instanceof Error && txErr.message && txErr.message.includes('Benefit already exists')) {
+        return NextResponse.json({ error: txErr.message }, { status: 409 })
+      }
+      throw txErr
+    }
 
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

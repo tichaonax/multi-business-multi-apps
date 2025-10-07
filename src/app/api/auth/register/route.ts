@@ -94,14 +94,16 @@ export async function POST(req: NextRequest) {
 
     // If user wants to create a business, create it with them as owner
     if (createBusiness && businessName) {
+      const shortName = await (await import('@/lib/business-shortname')).generateUniqueShortName(prisma as any, businessName)
       const business = await prisma.business.create({
-        data: {
+        data: ({
           name: businessName,
           type: businessType || 'general',
           description: `${businessName} business`,
           createdBy: user.id,
           isActive: true,
-        }
+          shortName,
+        } as any)
       });
 
       // Create business membership with owner permissions

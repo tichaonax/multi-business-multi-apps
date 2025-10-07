@@ -1,6 +1,16 @@
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
+function randomDob(minAge = 18, maxAge = 65) {
+  const today = new Date()
+  const maxDate = new Date()
+  maxDate.setFullYear(today.getFullYear() - minAge)
+  const minDate = new Date()
+  minDate.setFullYear(today.getFullYear() - maxAge)
+  const rand = new Date(minDate.getTime() + Math.floor(Math.random() * (maxDate.getTime() - minDate.getTime())))
+  return rand
+}
+
 async function createSimpleEmployees() {
   try {
     console.log('👥 Creating simple sample employees...')
@@ -34,6 +44,7 @@ async function createSimpleEmployees() {
           email: 'john.smith@company.com',
           phone: '+1-555-0101',
           nationalId: 'ID123456789',
+          dateOfBirth: randomDob(),
           hireDate: new Date('2022-01-15'),
           employmentStatus: 'active',
           jobTitleId: managerJobTitle.id,

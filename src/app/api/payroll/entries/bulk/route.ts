@@ -31,11 +31,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
     }
 
-    // Get all active employees for this business (minimal fields)
+    // Get all active employees for this business (minimal fields).
+    // Also include employees who were terminated within the payroll period
+    // because they should receive a final paycheck for that period.
     const employees = await prisma.employee.findMany({
       where: {
         primaryBusinessId: businessId,
-        isActive: true
+        OR: [
+          { isActive: true },
+          {
+            terminationDate: {
+              gte: (period as any).startDate,
+              lte: (period as any).endDate
+            }
+          }
+        ]
       },
       select: {
         id: true,
@@ -50,10 +60,31 @@ export async function POST(request: NextRequest) {
 
     // Fetch latest active contract for each employee separately to avoid fragile relation names on Employee
     const employeeIds = employees.map((e: any) => e.id)
+    // Fetch contracts that are either active or were terminated during the
+    // payroll period. This ensures terminated employees get their final
+    // contract calculated for the period.
+    // Select contracts that overlap the payroll period. A contract is eligible if:
+    // - it started on or before the payroll period end, AND
+    // - it is active, OR it was terminated but the termination (endDate)
+    //   falls on/after the payroll period start (i.e. it covers at least
+    //   part of the payroll period).
     const contracts = await prisma.employeeContract.findMany({
       where: {
         employeeId: { in: employeeIds },
-        status: 'active'
+        startDate: { lte: (period as any).endDate },
+        AND: [
+          {
+            OR: [
+              { status: 'active' },
+              {
+                AND: [
+                  { status: 'terminated' },
+                  { endDate: { gte: (period as any).startDate } }
+                ]
+              }
+            ]
+          }
+        ]
       },
       orderBy: { startDate: 'desc' },
       include: {
@@ -89,19 +120,48 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    // Exclude employees without an active/latest contract.
+    const eligibleEmployees = newEmployees.filter(emp => !!latestContractByEmployee[emp.id])
+    const skippedDueToNoActiveContract = newEmployees.filter(emp => !latestContractByEmployee[emp.id])
 
-    // Create payroll entries for all new employees (with transaction for benefits)
-    const entries = []
-    const benefitRecords = []
+    // Add diagnostics for skipped employees (no overlapping contract for the period)
+    const diagnostics: { employeeId: string; contractId?: string; issue: string; details?: string }[] = []
+    for (const skipped of skippedDueToNoActiveContract) {
+      const details = `Employee ${skipped.employeeNumber || skipped.id} has no contract overlapping payroll period ${period.id} (${(period as any).startDate.toISOString()} - ${(period as any).endDate.toISOString()})`
+      diagnostics.push({ employeeId: skipped.id, issue: 'no_overlapping_contract', details })
+      console.warn('Skipping employee with no overlapping contract for this payroll period:', skipped.id, skipped.fullName, details)
+    }
 
-    for (const employee of newEmployees) {
+    if (eligibleEmployees.length === 0) {
+      return NextResponse.json(
+        { error: 'No eligible employees with active contracts to add to this payroll period', diagnostics },
+        { status: 400 }
+      )
+    }
+
+    // Create payroll entries for all eligible employees (with transaction for benefits)
+    const entries: any[] = []
+    const benefitRecords: any[] = []
+
+    for (const employee of eligibleEmployees) {
       const contract = latestContractByEmployee[employee.id]
 
       if (!contract) {
         continue // Skip employees without contracts
       }
 
-      const baseSalary = Number(contract.baseSalary || 0)
+      // Safely convert Prisma Decimal (or numeric) to JS number
+      let baseSalary = 0
+      try {
+        if (contract.baseSalary && typeof contract.baseSalary === 'object' && typeof (contract.baseSalary as any).toNumber === 'function') {
+          baseSalary = (contract.baseSalary as any).toNumber()
+        } else {
+          baseSalary = Number(contract.baseSalary || 0)
+        }
+      } catch (err) {
+        console.warn('Could not parse contract.baseSalary for contract', contract?.id, err)
+        baseSalary = Number(contract.baseSalary || 0)
+      }
       const workDays = 22 // Default work days
 
       // Calculate benefits total and deductions from contract benefits
@@ -109,7 +169,7 @@ export async function POST(request: NextRequest) {
       let totalDeductions = 0
       const entryId = `PE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-      for (const benefit of contract.contract_benefits || []) {
+  for (const benefit of contract.contract_benefits || []) {
         const amount = Number(
           benefit.amount ?? benefit.benefitType?.defaultAmount ?? 0
         )
@@ -138,6 +198,17 @@ export async function POST(request: NextRequest) {
       // Calculate gross pay including benefits
       const grossPay = baseSalary + benefitsTotal
       const netPay = grossPay - totalDeductions
+
+      // Diagnostics: record if DOB missing or baseSalary is zero
+      if (!employee.dateOfBirth) {
+        diagnostics.push({ employeeId: employee.id, contractId: contract.id, issue: 'missing_dateOfBirth' })
+        console.warn('Employee missing dateOfBirth:', employee.id, employee.fullName)
+      }
+
+      if (!baseSalary || baseSalary === 0) {
+        diagnostics.push({ employeeId: employee.id, contractId: contract.id, issue: 'zero_baseSalary' })
+        console.warn('Employee has zero baseSalary from contract:', employee.id, contract.id, baseSalary)
+      }
 
       entries.push({
         id: entryId,
@@ -209,7 +280,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       count: entries.length,
-      message: `Added ${entries.length} employees to payroll`
+      message: `Added ${entries.length} employees to payroll`,
+      diagnostics
     })
   } catch (error) {
     console.error('Bulk add employees error:', error)

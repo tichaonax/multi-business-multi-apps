@@ -143,6 +143,17 @@ export function PayrollExportPreviewModal({
     }).format(amount)
   }
 
+  const makeShortCompanyLabel = (name?: string | null) => {
+    if (!name) return ''
+    const parts = name.split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      const acronym = parts.map(p => p[0]).join('').toUpperCase()
+      return acronym.slice(0, 4)
+    }
+    const trimmed = name.replace(/\s+/g, '').toUpperCase()
+    return trimmed.slice(0, 4)
+  }
+
   const getMonthName = (month: number) => {
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December']
@@ -182,11 +193,10 @@ export function PayrollExportPreviewModal({
     const storedGross = Number(entry.grossPay || 0)
     const storedNet = Number(entry.netPay || 0)
     if (storedGross && storedNet) {
-      // Prefer stored totalDeductions if present, otherwise compute from deduction fields
-      let totalDeductions = Number(entry.totalDeductions || 0)
-      if (!totalDeductions || totalDeductions === 0) {
-        totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
-      }
+      // Prefer stored totals but guard against missing/negative stored totalDeductions.
+      const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+      const derivedTotal = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
+      const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotal
 
       return { benefitsTotal, grossInclBenefits: storedGross, netInclBenefits: storedNet, totalDeductions }
     }
@@ -207,6 +217,23 @@ export function PayrollExportPreviewModal({
     const netInclBenefits = grossInclBenefits - totalDeductions
 
     return { benefitsTotal, grossInclBenefits, netInclBenefits, totalDeductions }
+  }
+
+  // Aligned totals: use adjustmentsTotal as additions, adjustmentsAsDeductions as deductions
+  const computeEntryTotalsAligned = (entry: PayrollEntry) => {
+    const benefitsTotal = resolveBenefitsTotal(entry)
+    const baseSalary = Number(entry.baseSalary || 0)
+    const commission = Number(entry.commission || 0)
+    const overtime = Number(entry.overtimePay || 0)
+    const additions = Number((entry as any).adjustmentsTotal || 0)
+    const adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+
+    const gross = baseSalary + commission + overtime + benefitsTotal + additions
+    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotalDeductions
+    const net = gross - totalDeductions
+    return { benefitsTotal, gross, totalDeductions, net }
   }
 
   if (!isOpen) return null
@@ -270,7 +297,8 @@ export function PayrollExportPreviewModal({
                 <table className="min-w-full divide-y divide-border">
                   <thead className="bg-gray-100 dark:bg-gray-800">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">ID Number</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Company</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Employee ID</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">DOB</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Surname</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">First Names</th>
@@ -299,26 +327,34 @@ export function PayrollExportPreviewModal({
                   </thead>
                   <tbody className="divide-y divide-border bg-background">
                     {period.payrollEntries.map((entry) => {
-                      const nameParts = entry.employeeName.split(' ')
-                      const firstName = nameParts.slice(0, -1).join(' ') || ''
-                      const surname = nameParts.slice(-1)[0] || ''
+                      // Prefer explicit firstName/lastName if provided by the API, otherwise fallback to splitting employeeName
+                      const firstName = (entry as any).employeeFirstName || (() => {
+                        const nameParts = entry.employeeName ? entry.employeeName.split(' ') : []
+                        return nameParts.slice(0, -1).join(' ') || ''
+                      })()
+                      const surname = (entry as any).employeeLastName || (() => {
+                        const nameParts = entry.employeeName ? entry.employeeName.split(' ') : []
+                        return nameParts.slice(-1)[0] || ''
+                      })()
 
                       return (
                         <tr key={entry.id} className="hover:bg-muted">
+                          <td className="px-3 py-2 text-sm text-primary">{makeShortCompanyLabel((entry as any).primaryBusiness?.name || (entry as any).employee?.primaryBusiness?.name)}</td>
+                          <td className="px-3 py-2 text-sm text-primary">{(entry as any).employeeNumber || ''}</td>
                           <td className="px-3 py-2 text-sm text-primary">{entry.nationalId}</td>
-                          <td className="px-3 py-2 text-sm text-secondary">{entry.dateOfBirth ? new Date(entry.dateOfBirth).toLocaleDateString() : ''}</td>
+                          <td className="px-3 py-2 text-sm text-secondary">{(entry as any).employeeDateOfBirth ? new Date((entry as any).employeeDateOfBirth).toLocaleDateString() : (entry.dateOfBirth ? new Date(entry.dateOfBirth).toLocaleDateString() : '')}</td>
                           <td className="px-3 py-2 text-sm text-primary">{surname}</td>
                           <td className="px-3 py-2 text-sm text-primary">{firstName}</td>
                           <td className="px-3 py-2 text-sm text-right text-secondary">{entry.workDays}</td>
                           <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeSickDays || 0}</td>
                           <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeLeaveDays || 0}</td>
                           <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeAbsenceDays || 0}</td>
-                          <td className="px-3 py-2 text-sm text-secondary">{new Date(entry.hireDate).toLocaleDateString()}</td>
+                          <td className="px-3 py-2 text-sm text-secondary">{(entry as any).employeeHireDate ? new Date((entry as any).employeeHireDate).toLocaleDateString() : (entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : '')}</td>
                           <td className="px-3 py-2 text-sm text-secondary">{entry.terminationDate ? new Date(entry.terminationDate).toLocaleDateString() : ''}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(entry.baseSalary)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(entry.commission)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(entry.overtimePay)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency((entry as any).adjustmentsTotal || 0)}</td>
+                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.baseSalary || 0))}</td>
+                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.commission || 0))}</td>
+                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.overtimePay || 0))}</td>
+                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number((entry as any).adjustmentsTotal || 0))}</td>
                           {getUniqueBenefits().map(uniqueBenefit => {
                             const merged = entry.mergedBenefits?.find((mb: any) => {
                               const id = mb?.benefitType?.id || mb?.benefitTypeId || mb?.key || String(mb?.benefitTypeId || '')
@@ -342,19 +378,19 @@ export function PayrollExportPreviewModal({
                             )
                           })}
                           <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(0)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(entry.advanceDeductions + entry.loanDeductions)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(entry.miscDeductions)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(computeEntryTotals(entry).benefitsTotal)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(computeEntryTotals(entry).grossInclBenefits)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium">{formatCurrency(computeEntryTotals(entry).netInclBenefits)}</td>
+                          <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0))}</td>
+                          <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(Number(entry.miscDeductions || 0))}</td>
+                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(computeEntryTotalsAligned(entry).benefitsTotal)}</td>
+                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(computeEntryTotalsAligned(entry).gross)}</td>
+                          <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium">{formatCurrency(computeEntryTotalsAligned(entry).net)}</td>
                         </tr>
                       )
                     })}
                   </tbody>
                   <tfoot className="bg-gray-100 dark:bg-gray-800">
                     <tr>
-                      {/* There are 10 columns before Basic Salary (ID, DOB, Surname, First Names, Days, Sick Total, Leave Total, Absence Total, Date Engaged, Date Dismissed) */}
-                      <td colSpan={10} className="px-3 py-2 text-sm font-bold text-right text-primary">TOTALS:</td>
+                      {/* There is now an extra Company column before ID, so increase colSpan by 1 */}
+                      <td colSpan={12} className="px-3 py-2 text-sm font-bold text-right text-primary">TOTALS:</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.baseSalary), 0))}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.commission), 0))}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.overtimePay), 0))}</td>
@@ -393,9 +429,9 @@ export function PayrollExportPreviewModal({
                       <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(0)}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-red-600 dark:text-red-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.advanceDeductions || 0) + Number(e.loanDeductions || 0), 0))}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-red-600 dark:text-red-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.miscDeductions || 0), 0))}</td>
-                      <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).benefitsTotal, 0))}</td>
-                      <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).grossInclBenefits, 0))}</td>
-                      <td className="px-3 py-2 text-sm text-right font-bold text-green-600 dark:text-green-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0))}</td>
+                      <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).benefitsTotal, 0))}</td>
+                      <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).gross, 0))}</td>
+                      <td className="px-3 py-2 text-sm text-right font-bold text-green-600 dark:text-green-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).net, 0))}</td>
                     </tr>
                   </tfoot>
                 </table>

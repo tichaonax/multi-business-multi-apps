@@ -49,8 +49,9 @@ export async function GET(req: NextRequest) {
                 department: true
               }
             },
-            primaryBusiness: {
+            businesses: {
               select: {
+                id: true,
                 name: true,
                 type: true
               }
@@ -74,7 +75,21 @@ export async function GET(req: NextRequest) {
       ]
     })
 
-    return NextResponse.json(disciplinaryActions)
+    // Attach primaryBusiness (first business) to employee for backwards compatibility
+    try {
+      const normalized = (disciplinaryActions as any[]).map(act => {
+        if (act.employee) {
+          const firstBusiness = Array.isArray(act.employee.businesses) && act.employee.businesses.length > 0
+            ? act.employee.businesses[0]
+            : null
+          act.employee.primaryBusiness = firstBusiness
+        }
+        return act
+      })
+      return NextResponse.json(normalized)
+    } catch (e) {
+      return NextResponse.json(disciplinaryActions)
+    }
   } catch (error) {
     console.error('Disciplinary actions fetch error:', error)
     return NextResponse.json(

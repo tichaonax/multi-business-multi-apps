@@ -3,6 +3,16 @@ const crypto = require('crypto')
 
 const prisma = new PrismaClient()
 
+function randomDob(minAge = 18, maxAge = 65) {
+  const today = new Date()
+  const maxDate = new Date()
+  maxDate.setFullYear(today.getFullYear() - minAge)
+  const minDate = new Date()
+  minDate.setFullYear(today.getFullYear() - maxAge)
+  const rand = new Date(minDate.getTime() + Math.floor(Math.random() * (maxDate.getTime() - minDate.getTime())))
+  return rand
+}
+
 async function createTestEmployee() {
   try {
     console.log('🧪 Creating test employee for verification...')
@@ -36,6 +46,7 @@ async function createTestEmployee() {
         email: 'john.test@example.com',
         phone: '+1-555-0123',
         nationalId: 'TEST-123-456',
+  dateOfBirth: randomDob(),
         jobTitleId: jobTitle.id,
         compensationTypeId: compensationType.id,
         primaryBusinessId: business.id,

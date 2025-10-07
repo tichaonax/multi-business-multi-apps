@@ -51,8 +51,6 @@ export async function generatePayrollExcel(
   businessName: string
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook()
-
-  // Set workbook properties
   workbook.creator = 'Business Management System'
   workbook.created = new Date()
   workbook.modified = new Date()
@@ -124,6 +122,7 @@ export async function generatePayrollExcel(
 
   // Build dynamic header array
   const fixedHeaders = [
+      'Company',
     'ID Number',
     'DOB',
     'Employee Surname',
@@ -193,6 +192,7 @@ export async function generatePayrollExcel(
   const columnWidths: number[] = []
   allHeaders.forEach((h) => {
     switch (h) {
+        case 'Company': columnWidths.push(10); break
       case 'ID Number': columnWidths.push(15); break
       case 'DOB': columnWidths.push(12); break
       case 'Employee Surname': columnWidths.push(20); break
@@ -216,21 +216,41 @@ export async function generatePayrollExcel(
 
   // Add data rows
   entries.forEach((entry) => {
-    const nameParts = entry.employeeName.split(' ')
-    const firstName = nameParts.slice(0, -1).join(' ') || ''
-    const surname = nameParts.slice(-1)[0] || ''
+    // Prefer explicit firstName/lastName if provided; otherwise split employeeName
+    let firstName = ''
+    let surname = ''
+    if ((entry as any).employeeFirstName || (entry as any).employeeLastName) {
+      firstName = (entry as any).employeeFirstName || ''
+      surname = (entry as any).employeeLastName || ''
+    } else {
+      const nameParts = (entry as any).employeeName ? (entry as any).employeeName.split(' ') : []
+      firstName = nameParts.slice(0, -1).join(' ') || ''
+      surname = nameParts.slice(-1)[0] || ''
+    }
 
     // Build row data array
     const rowData = [
+        // company short label - prefer server-provided shortName when available
+        (() => {
+          const pb = (entry as any).primaryBusiness
+          if (pb && pb.shortName) return pb.shortName
+          const name = pb?.name || ''
+          if (!name) return ''
+          const parts = name.split(/\s+/).filter(Boolean)
+          if (parts.length >= 2) return parts.map((p: string) => p[0]).join('').toUpperCase().slice(0, 4)
+          return name.replace(/\s+/g, '').toUpperCase().slice(0, 4)
+        })(),
       entry.nationalId,
-      entry.dateOfBirth ? formatDate(entry.dateOfBirth) : '',
+      // Prefer employeeDateOfBirth if present (string/Date), otherwise entry.dateOfBirth
+      (entry as any).employeeDateOfBirth ? formatDate((entry as any).employeeDateOfBirth) : (entry.dateOfBirth ? formatDate(entry.dateOfBirth) : ''),
       surname,
       firstName,
       entry.workDays,
       (entry as any).cumulativeSickDays || 0,
       (entry as any).cumulativeLeaveDays || 0,
       (entry as any).cumulativeAbsenceDays || 0,
-      formatDate(entry.hireDate),
+      // Prefer employeeHireDate (contract start) when present
+      (entry as any).employeeHireDate ? formatDate((entry as any).employeeHireDate) : formatDate(entry.hireDate),
       entry.terminationDate ? formatDate(entry.terminationDate) : '',
       entry.baseSalary,
       entry.commission,
@@ -270,7 +290,7 @@ export async function generatePayrollExcel(
     })
 
     // Add end columns
-    const advancesLoans = entry.advanceDeductions + entry.loanDeductions
+  const advancesLoans = entry.advanceDeductions + entry.loanDeductions
     // If the server has already computed grossPay/netPay (which include benefits and adjustments), prefer those values.
     // Otherwise compute locally from components (base + commission + overtime + benefits + adjustments)
     // Prefer stored server values if present (including zero)
@@ -279,16 +299,16 @@ export async function generatePayrollExcel(
     const storedGross = storedGrossRaw !== undefined && storedGrossRaw !== null ? Number(storedGrossRaw) : undefined
     const storedNet = storedNetRaw !== undefined && storedNetRaw !== null ? Number(storedNetRaw) : undefined
 
-    const adjustments = Number((entry as any).adjustmentsTotal || 0)
-    const computedGross = Number(entry.baseSalary || 0) + Number(entry.commission || 0) + Number(entry.overtimePay || 0) + benefitsSum + adjustments
+  const additions = Number((entry as any).adjustmentsTotal || 0)
+  const adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+  const computedGross = Number(entry.baseSalary || 0) + Number(entry.commission || 0) + Number(entry.overtimePay || 0) + benefitsSum + additions
 
     const grossInclBenefits = Number.isFinite(storedGross as number) ? (storedGross as number) : computedGross
 
-    // Determine totalDeductions (prefer totalDeductions if present)
-    let totalDeductions = Number(entry.totalDeductions || 0)
-    if (!totalDeductions || totalDeductions === 0) {
-      totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
-    }
+    // Determine totalDeductions (prefer server total only when positive), otherwise derive from breakdown
+    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotalDeductions
 
     const netInclBenefits = Number.isFinite(storedNet as number) ? (storedNet as number) : (grossInclBenefits - totalDeductions)
 
@@ -303,8 +323,8 @@ export async function generatePayrollExcel(
 
     const dataRow = worksheet.addRow(rowData)
 
-    // Format currency columns (all numeric columns after Days)
-    const firstCurrencyCol = 8 // Basic Salary
+    // Format currency columns (all numeric columns starting at Basic Salary)
+    const firstCurrencyCol = allHeaders.indexOf('Basic Salary') + 1
     const lastCurrencyCol = totalColumns
     for (let col = firstCurrencyCol; col <= lastCurrencyCol; col++) {
       const cell = dataRow.getCell(col)
@@ -380,9 +400,9 @@ export async function generatePayrollExcel(
     fgColor: { argb: 'FFF2F2F2' }
   }
 
-  // Format totals currency (all numeric columns)
-  const firstCurrencyCol = 8
-  for (let col = firstCurrencyCol; col <= totalColumns; col++) {
+  // Format totals currency (all numeric columns starting at Basic Salary)
+  const firstCurrencyColTotals = allHeaders.indexOf('Basic Salary') + 1
+  for (let col = firstCurrencyColTotals; col <= totalColumns; col++) {
     const cell = totalRow.getCell(col)
     cell.numFmt = '#,##0.00'
     cell.alignment = { horizontal: 'right' }

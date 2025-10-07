@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { generateUniqueShortName } from '@/lib/business-shortname'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
 export async function GET() {
@@ -60,20 +61,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Business name and type are required' }, { status: 400 })
     }
 
+    const shortName = await generateUniqueShortName(prisma as any, name.trim())
     const business = await prisma.business.create({
-      data: {
+      // Cast to any because local Prisma client may not include the newly added shortName field yet
+      data: ({
         name: name.trim(),
         type: type.trim(),
         description: description?.trim() || null,
+        shortName,
         isActive: true,
         settings: {},
         createdBy: session.user.id
-      }
+      } as any)
     })
 
     // Create audit log
     await prisma.auditLog.create({
-      data: {
+      // Cast to any to avoid strict Prisma typing for optional fields like id
+      data: ({
         action: 'BUSINESS_CREATED',
         entityType: 'Business',
         entityId: business.id,
@@ -82,7 +87,7 @@ export async function POST(req: NextRequest) {
           businessName: business.name,
           businessType: business.type
         }
-      }
+      } as any)
     }).catch(error => {
       console.error('Failed to create audit log:', error)
     })

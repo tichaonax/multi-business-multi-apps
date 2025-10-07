@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getWorkingDaysInMonth, computeTotalsForEntry } from '@/lib/payroll/helpers'
 import { hasPermission } from '@/lib/permission-utils'
+import { isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 
 interface RouteParams {
   params: Promise<{ periodId: string }>
@@ -42,12 +43,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
               select: {
                 id: true,
                 employeeNumber: true,
+                firstName: true,
+                lastName: true,
                 fullName: true,
                 nationalId: true,
+                dateOfBirth: true,
+                hireDate: true,
                 email: true,
-                jobTitles: {
-                  select: { title: true }
-                }
+                jobTitles: { select: { title: true } },
+                primaryBusinessId: true
               }
             }
           },
@@ -64,6 +68,43 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         { error: 'Payroll period not found' },
         { status: 404 }
       )
+    }
+
+    // TEMPORARY LOGGING: For each payroll entry, log whether the employee has an overlapping contract for this period
+    try {
+      const periodStart = period.periodStart instanceof Date ? period.periodStart : new Date(period.periodStart)
+      const periodEnd = period.periodEnd instanceof Date ? period.periodEnd : new Date(period.periodEnd)
+      for (const entry of period.payrollEntries || []) {
+        const employeeId = entry.employeeId
+        const employeeNumber = entry.employee?.employeeNumber || entry.employeeNumber || null
+        // Find any contract for the employee that overlaps the period
+        const contract = await prisma.employeeContract.findFirst({
+          where: {
+            employeeId,
+            startDate: { lte: periodEnd },
+            AND: [
+              {
+                OR: [
+                  { status: 'active' },
+                  {
+                    AND: [
+                      { status: 'terminated' },
+                      { endDate: { gte: periodStart } }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        })
+        if (contract) {
+          console.info(`[payroll-period-diagnostics] entryId=${entry.id} employeeId=${employeeId} employeeNumber=${employeeNumber} HAS overlapping contract id=${contract.id}`)
+        } else {
+          console.warn(`[payroll-period-diagnostics] entryId=${entry.id} employeeId=${employeeId} employeeNumber=${employeeNumber} NO overlapping contract for period ${period.id}`)
+        }
+      }
+    } catch (logErr) {
+      console.error('Temporary payroll period diagnostics logging failed:', logErr)
     }
 
     // If we have entries, load their benefits separately (avoid nested include mismatches)
@@ -94,9 +135,32 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         benefitsByEntry[b.payrollEntryId].push(b)
       }
 
+      // Load payroll adjustments for entries so the period API can return the same
+      // normalized adjustments shape as the single-entry endpoint. This prevents
+      // inconsistencies where the UI shows different signs for adjustments.
+      let adjustments: any[] = []
+      try {
+        adjustments = await prisma.payrollAdjustment.findMany({
+          where: { payrollEntryId: { in: entryIds } }
+        })
+      } catch (err) {
+        console.warn('Failed to load payroll adjustments for period entries:', err)
+      }
+
+      const adjustmentsByEntry: Record<string, any[]> = {}
+      for (const a of adjustments) {
+        if (!adjustmentsByEntry[a.payrollEntryId]) adjustmentsByEntry[a.payrollEntryId] = []
+        adjustmentsByEntry[a.payrollEntryId].push(a)
+      }
+
       let enrichedEntries: any[] = period.payrollEntries.map(entry => ({
         ...entry,
-        payrollEntryBenefits: benefitsByEntry[entry.id] || []
+        payrollEntryBenefits: benefitsByEntry[entry.id] || [],
+        employeeFirstName: (entry as any).employee?.firstName || null,
+        employeeLastName: (entry as any).employee?.lastName || null,
+        employeeFullName: (entry as any).employee?.fullName || (entry as any).employeeName || null,
+        employeeDateOfBirth: (entry as any).employee?.dateOfBirth || (entry as any).dateOfBirth || null,
+        employeeHireDate: (entry as any).employee?.hireDate || (entry as any).hireDate || null
       }))
 
       // Merge contract-level benefits with payroll-entry-level benefits for every entry.
@@ -231,9 +295,97 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
           const cumulative = empId ? (cumulativeByEmployee[empId] || { cumulativeSickDays: 0, cumulativeLeaveDays: 0, cumulativeAbsenceDays: 0 }) : { cumulativeSickDays: 0, cumulativeLeaveDays: 0, cumulativeAbsenceDays: 0 }
 
-          return {
+          // Non-destructive display fallbacks: use employee.dateOfBirth or contract-derived DOB
+          let displayDob = (entry as any).employee?.dateOfBirth || (entry as any).dateOfBirth || null
+          // Attempt to extract dateOfBirth from contract.pdfGenerationData if present
+          if ((!displayDob || displayDob === null) && contract && contract.pdfGenerationData) {
+            const pdf = contract.pdfGenerationData
+            displayDob = pdf.employeeDateOfBirth || pdf.employeeDob || pdf.dateOfBirth || pdf.employeeBirthDate || pdf.birthDate || displayDob || null
+          }
+
+          // Base salary display fallback: prefer stored entry.baseSalary, then contract.baseSalary, then pdfGenerationData.basicSalary
+          let displayBaseSalary = Number((entry as any).baseSalary ?? 0)
+          if ((!displayBaseSalary || displayBaseSalary === 0) && contract) {
+            try {
+              if (contract.baseSalary != null) {
+                displayBaseSalary = typeof contract.baseSalary.toNumber === 'function' ? contract.baseSalary.toNumber() : Number(contract.baseSalary)
+              } else if (contract.pdfGenerationData && contract.pdfGenerationData.basicSalary) {
+                displayBaseSalary = Number(contract.pdfGenerationData.basicSalary || 0)
+              }
+            } catch (e) {
+              displayBaseSalary = Number(contract.baseSalary || 0)
+            }
+          }
+
+          // Attach normalized payrollAdjustments for each entry (if present)
+          let payrollAdjustmentsForEntry: any[] | undefined = undefined
+          try {
+            const rawList = adjustmentsByEntry[entry.id] || []
+            if (Array.isArray(rawList) && rawList.length > 0) {
+              const deductionTypes = new Set(['penalty', 'loan', 'loan_payment', 'loan payment', 'advance', 'advance_payment', 'advance payment', 'loanpayment'])
+              payrollAdjustmentsForEntry = rawList.map((a: any) => {
+                const signed = Number(a.amount || 0)
+                const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
+                const isDeductionType = deductionTypes.has(rawType)
+                return {
+                  id: a.id,
+                  payrollEntryId: a.payrollEntryId,
+                  // UI-facing absolute amount
+                  amount: Math.abs(Number(signed || 0)),
+                  // expose original DB-signed value for consumers that need it
+                  storedAmount: Number(signed || 0),
+                  isAddition: isDeductionType ? false : (Number(signed) >= 0),
+                  type: a.adjustmentType ?? a.type,
+                  description: a.reason ?? a.description ?? '',
+                  createdAt: a.createdAt
+                }
+              })
+            }
+          } catch (err) {
+            // ignore adjustments attach errors
+          }
+
+          // Mutate returned object for API consumers (non-persistent): set entry-level DOB/baseSalary
+          // Also compute adjustmentsTotal and adjustmentsAsDeductions from payrollAdjustments
+          // to avoid stale aggregated fields causing UI inconsistencies.
+          let adjustmentsTotalForReturn = Number((entry as any).adjustmentsTotal || 0)
+          let adjustmentsAsDeductionsForReturn = Number((entry as any).adjustmentsAsDeductions || 0)
+          try {
+            if (Array.isArray(payrollAdjustmentsForEntry) && payrollAdjustmentsForEntry.length > 0) {
+              const derivedAdditions = payrollAdjustmentsForEntry.reduce((s: number, a: any) => {
+                const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+                return s + (a.isAddition ? Math.abs(amt) : 0)
+              }, 0)
+              const derivedDeductions = payrollAdjustmentsForEntry.reduce((s: number, a: any) => {
+                const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+                return s + (!a.isAddition ? Math.abs(amt) : 0)
+              }, 0)
+              adjustmentsTotalForReturn = derivedAdditions
+              adjustmentsAsDeductionsForReturn = derivedDeductions
+            }
+          } catch (err) {
+            // ignore
+          }
+
+          // Compute a safe totalDeductions to return to UI: prefer a derived breakdown-based
+          // total (advances + loans + misc + adjustmentsAsDeductions) when it differs from
+          // the stored entry.totalDeductions. This prevents stale/incorrect negative totals
+          // from the DB leaking into the summary/table UI.
+          const advances = Number(entry.advanceDeductions || 0)
+          const loans = Number(entry.loanDeductions || 0)
+          const misc = Number(entry.miscDeductions || 0)
+          const derivedTotalDeductions = advances + loans + misc + adjustmentsAsDeductionsForReturn
+          const serverTotalDeductions = Number(entry.totalDeductions || 0)
+          const totalDeductionsForReturn = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
+
+          const returnedEntry = {
             ...entry,
             payrollEntryBenefits: entryBenefits,
+            payrollAdjustments: payrollAdjustmentsForEntry,
+            adjustmentsTotal: adjustmentsTotalForReturn,
+            adjustmentsAsDeductions: adjustmentsAsDeductionsForReturn,
+            // Normalize totalDeductions exposed to clients to avoid showing negative/stale DB values
+            totalDeductions: totalDeductionsForReturn,
             contract: contract || null,
             mergedBenefits,
             totalBenefitsAmount,
@@ -242,11 +394,81 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
             cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
             grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
-            netPay: Number(totals.netPay ?? Number(entry.netPay || 0))
+            // Recompute netPay based on the gross we are returning and the normalized totalDeductions
+            netPay: (Number(totals.grossPay ?? Number(entry.grossPay || 0)) - totalDeductionsForReturn),
+            // Presentational fields only - do not write these back to DB here
+            displayBaseSalary,
+            displayDateOfBirth: displayDob,
+            primaryBusiness: (entry as any).employee?.primaryBusiness || null
           }
+
+          // Overwrite entry.dateOfBirth and nested employee.dateOfBirth if missing and we have a fallback
+          if (!returnedEntry.dateOfBirth && displayDob) {
+            try {
+              returnedEntry.dateOfBirth = displayDob
+            } catch (err) {
+              // ignore
+            }
+          }
+
+          if (returnedEntry.employee && !returnedEntry.employee.dateOfBirth && displayDob) {
+            try {
+              returnedEntry.employee.dateOfBirth = displayDob
+            } catch (err) {
+              // ignore
+            }
+          }
+
+          // Overwrite entry.baseSalary for display when missing/zero
+          if ((!returnedEntry.baseSalary || Number(returnedEntry.baseSalary) === 0) && displayBaseSalary) {
+            try {
+              returnedEntry.baseSalary = displayBaseSalary
+            } catch (err) {
+              // ignore
+            }
+          }
+
+          return returnedEntry
         })) as any
       } catch (contractErr) {
         console.warn('Failed to load/merge contract benefits:', contractErr)
+      }
+
+      // Fetch businesses for employee.primaryBusinessId and attach to enriched entries
+  const employeePrimaryBusinessIds = Array.from(new Set(enrichedEntries.map((e: any) => (e.employee?.primaryBusinessId) || null).filter(Boolean))) as string[]
+  const empBusinesses = employeePrimaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: employeePrimaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
+      const empBusinessById: Record<string, any> = {}
+      for (const b of empBusinesses) empBusinessById[b.id] = b
+
+      for (const ee of enrichedEntries) {
+        try {
+          const pbId = ee.employee?.primaryBusinessId
+          ee.primaryBusiness = pbId ? empBusinessById[pbId] || null : (ee.primaryBusiness || null)
+        } catch (err) {
+          // ignore
+        }
+      }
+
+      // Ensure primaryBusiness.shortName is consistently available server-side
+      const computeShortName = (name?: string) => {
+        if (!name) return undefined
+        const parts = String(name).split(/\s+/).filter(Boolean)
+        if (parts.length === 1) return parts[0].slice(0, 4).toUpperCase()
+        const acronym = parts.map(p => p[0]).join('').slice(0, 4).toUpperCase()
+        return acronym
+      }
+
+      for (const e of enrichedEntries) {
+        try {
+          if ((e as any).primaryBusiness && !((e as any).primaryBusiness as any).shortName) {
+            ;(((e as any).primaryBusiness) as any).shortName = computeShortName((((e as any).primaryBusiness) as any).name)
+          }
+          if ((e as any).employee?.primaryBusiness && !((e as any).employee.primaryBusiness as any).shortName) {
+            ((e as any).employee.primaryBusiness as any).shortName = computeShortName((e as any).employee.primaryBusiness.name)
+          }
+        } catch (err) {
+          // non-fatal
+        }
       }
 
       // Build server-side visible benefit columns by scanning mergedBenefits of each entry
@@ -278,7 +500,28 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
       const visibleBenefitColumns = Array.from(visibleMap.values()).sort((a, b) => (a.benefitName || '').localeCompare(b.benefitName || ''))
 
-      const result: any = { ...period, payrollEntries: enrichedEntries as any, visibleBenefitColumns }
+      // Recompute period-level aggregates from the enriched entries to avoid
+      // returning stale or entry-specific totals that may have been stored on
+      // the period row. This ensures the list/summary view reflects the same
+      // numbers shown on each entry returned in `payrollEntries`.
+      const summed = (enrichedEntries || []).reduce((acc: any, e: any) => {
+        acc.gross += Number(e.grossPay || 0)
+        acc.deductions += Number(e.totalDeductions || 0)
+        acc.net += Number(e.netPay || 0)
+        return acc
+      }, { gross: 0, deductions: 0, net: 0 })
+
+      const result: any = {
+        ...period,
+        // prefer runtime-computed employee count since we may have filtered/merged
+        totalEmployees: (enrichedEntries || []).length,
+        // keep the original shape (strings in some responses) by casting to string
+        totalGrossPay: String(summed.gross),
+        totalDeductions: String(summed.deductions),
+        totalNetPay: String(summed.net),
+        payrollEntries: enrichedEntries as any,
+        visibleBenefitColumns
+      }
       if (benefitLoadError) {
         const hint = /does not exist/.test(benefitLoadError)
           ? 'Payroll benefits table/column missing. Run prisma migrations or check your DB schema.'
@@ -405,17 +648,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const { periodId } = await params
 
-    if (!hasPermission(session.user, 'canManagePayroll')) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
-
-    // Verify period exists
+    // Verify period exists (need businessId and approvedAt)
     const existingPeriod = await prisma.payrollPeriod.findUnique({
       where: { id: periodId },
       include: {
-        _count: {
-          select: { payrollEntries: true }
-        }
+        business: { select: { id: true } },
+        _count: { select: { payrollEntries: true } }
       }
     })
 
@@ -426,12 +664,22 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Only allow deletion of draft and in_progress periods
-    if (!['draft', 'in_progress'].includes(existingPeriod.status)) {
-      return NextResponse.json(
-        { error: 'Only draft or in-progress payroll periods can be deleted' },
-        { status: 400 }
-      )
+    // Only allow managers (business-manager or business-owner) or system admins to delete a period
+    const user = session.user as any
+    const isAdmin = isSystemAdmin(user)
+    const role = getUserRoleInBusiness(user, existingPeriod.business?.id)
+    if (!(isAdmin || role === 'business-manager' || role === 'business-owner')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    // If the period was approved, ensure deletion happens within 7 days of approval
+    if (existingPeriod.approvedAt) {
+      const approvedAt = new Date(existingPeriod.approvedAt as any)
+      const cutoff = new Date(approvedAt)
+      cutoff.setDate(cutoff.getDate() + 7)
+      if (new Date() > cutoff) {
+        return NextResponse.json({ error: 'Payroll period cannot be deleted more than 7 days after approval' }, { status: 400 })
+      }
     }
 
     // Delete in transaction - first entries (cascade should handle benefits), then period

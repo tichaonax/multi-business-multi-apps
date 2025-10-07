@@ -12,27 +12,60 @@ async function createContractViaApiOrDb(employeeId, payload = {}) {
   const seedApiKey = process.env.SEED_API_KEY
   const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:3000'
 
-  // Enforce API-only behavior
-  if (!seedApiKey) {
-    throw new Error('SEED_API_KEY is not set. Regeneration requires calling the application contracts API. Set SEED_API_KEY in your environment to enable API-based seeding.')
+  // If SEED_API_KEY is present, prefer posting to the running app's contracts API
+  if (seedApiKey && fetch) {
+    const res = await fetch(`${seedApiBase}/api/employees/${employeeId}/contracts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-seed-api-key': seedApiKey },
+      body: JSON.stringify(payload)
+    })
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      throw new Error(`Contracts API returned ${res.status}: ${txt}`)
+    }
+
+    return await res.json()
   }
 
-  if (!fetch) {
-    throw new Error('fetch is not available in this runtime. Ensure Node has global fetch or run in an environment with fetch enabled.')
+  // Fallback: create directly in DB (useful for local seeding without running API)
+  // Validate required fields
+  const { jobTitleId, compensationTypeId, baseSalary, startDate, primaryBusinessId } = payload
+  if (!jobTitleId || !compensationTypeId || !baseSalary || !startDate || !primaryBusinessId) {
+    throw new Error('Missing required contract fields for DB fallback: jobTitleId, compensationTypeId, baseSalary, startDate, primaryBusinessId')
   }
 
-  const res = await fetch(`${seedApiBase}/api/employees/${employeeId}/contracts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-seed-api-key': seedApiKey },
-    body: JSON.stringify(payload)
-  })
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '')
-    throw new Error(`Contracts API returned ${res.status}: ${txt}`)
+  const numericSalary = Number(baseSalary)
+  if (!isFinite(numericSalary) || numericSalary <= 0) {
+    throw new Error('Invalid baseSalary for DB fallback; must be a positive number')
   }
 
-  return await res.json()
+  const createData = {
+    id: payload.id || randomUUID(),
+    employeeId,
+    contractNumber: payload.contractNumber || `CON${Date.now()}`,
+    version: payload.version || 1,
+    jobTitleId,
+    compensationTypeId,
+    baseSalary: new Prisma.Decimal(numericSalary),
+    startDate: new Date(startDate),
+    primaryBusinessId,
+    supervisorId: payload.supervisorId || null,
+    supervisorName: payload.supervisorName || null,
+    supervisorTitle: payload.supervisorTitle || null,
+    previousContractId: payload.previousContractId || null,
+    isCommissionBased: payload.isCommissionBased || false,
+    isSalaryBased: payload.isSalaryBased !== undefined ? payload.isSalaryBased : true,
+    createdBy: payload.createdBy || 'seed-fallback',
+    status: payload.status || 'active',
+    pdfGenerationData: payload.pdfGenerationData || null,
+    umbrellaBusinessId: payload.umbrellaBusinessId || null,
+    umbrellaBusinessName: payload.umbrellaBusinessName || null,
+    businessAssignments: payload.businessAssignments || null,
+    notes: payload.notes || ''
+  }
+
+  return await prisma.employeeContract.create({ data: createData })
 }
 
 module.exports = { createContractViaApiOrDb }

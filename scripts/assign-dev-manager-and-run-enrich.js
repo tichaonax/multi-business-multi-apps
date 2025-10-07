@@ -54,6 +54,7 @@ async function run() {
         fullName: 'Dev Manager',
         email: 'dev.manager@local.dev',
         phone: '+0000000000',
+        dateOfBirth: new Date('1990-01-01'),
         hireDate: new Date(),
         jobTitleId: managerJob.id,
         compensationTypeId: (await prisma.compensationType.findFirst())?.id || '',

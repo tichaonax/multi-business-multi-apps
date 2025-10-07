@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
       take: limit
     }) as any;
 
-    // Format response
+    // Format response and attach primaryBusiness (first business) for compatibility
     const formattedEmployees = employees.map(employee => ({
       id: employee.id,
       fullName: employee.fullName,
@@ -120,11 +120,13 @@ export async function GET(req: NextRequest) {
         department: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.department || null) : (employee.jobTitles?.department || null),
         level: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.level || null) : (employee.jobTitles?.level || null)
       },
-      primaryBusiness: {
-        id: Array.isArray(employee.businesses) ? (employee.businesses[0]?.id || null) : (employee.businesses?.id || null),
-        name: Array.isArray(employee.businesses) ? (employee.businesses[0]?.name || null) : (employee.businesses?.name || null),
-        type: Array.isArray(employee.businesses) ? (employee.businesses[0]?.type || null) : (employee.businesses?.type || null)
-      },
+      primaryBusiness: (Array.isArray(employee.businesses) && employee.businesses.length > 0)
+        ? {
+            id: employee.businesses[0].id,
+            name: employee.businesses[0].name,
+            type: employee.businesses[0].type
+          }
+        : { id: null, name: null, type: null },
       businessAssignments: (employee.employee_business_assignments || []).map((assignment: any) => ({
         business: assignment.businesses,
         role: assignment.role,

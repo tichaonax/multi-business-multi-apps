@@ -40,7 +40,11 @@ export async function GET(req: NextRequest) {
             id: true,
             employeeNumber: true,
             fullName: true,
+            firstName: true,
+            lastName: true,
             nationalId: true,
+            dateOfBirth: true,
+            hireDate: true,
             email: true,
             jobTitles: {
               select: { title: true }

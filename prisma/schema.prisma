@@ -333,6 +333,7 @@ model Business {
   umbrellaBusinessEmail        String?
   umbrellaBusinessPhone        String?
   umbrellaBusinessRegistration String?
+  shortName                    String?                     
   businessAccount              BusinessAccount?
   businessBrands               BusinessBrand[]
   businessCategories           BusinessCategory[]

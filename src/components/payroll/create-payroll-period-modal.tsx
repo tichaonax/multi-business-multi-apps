@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from 'react'
+import type { OnSuccessArg } from '@/types/ui'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { useToastContext } from '@/components/ui/toast'
 import { DateInput } from '@/components/ui/date-input'
@@ -9,7 +10,9 @@ interface CreatePayrollPeriodModalProps {
   isOpen: boolean
   onClose: () => void
   businessId: string
-  onSuccess: (message: string, periodId?: string) => void
+  isUmbrella?: boolean
+  targetAllEmployees?: boolean
+  onSuccess: (payload: OnSuccessArg) => void
   onError: (error: string) => void
 }
 
@@ -17,6 +20,8 @@ export function CreatePayrollPeriodModal({
   isOpen,
   onClose,
   businessId,
+  isUmbrella = false,
+  targetAllEmployees = false,
   onSuccess,
   onError
 }: CreatePayrollPeriodModalProps) {
@@ -38,12 +43,12 @@ export function CreatePayrollPeriodModal({
       const result = await fetchWithValidation('/api/payroll/periods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, ...formData })
+        body: JSON.stringify({ businessId, ...formData, targetAllEmployees: !!targetAllEmployees })
       })
 
       // Success
       toast.push('Payroll period created successfully')
-      try { onSuccess('Payroll period created successfully', result.id) } catch (e) { }
+  try { onSuccess({ message: 'Payroll period created successfully', id: result.id, refresh: false }) } catch (e) { }
       onClose()
       setFormData({
         year: new Date().getFullYear(),

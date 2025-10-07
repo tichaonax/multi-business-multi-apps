@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type { OnSuccessArg } from '@/types/ui'
 import { DateInput } from '@/components/ui/date-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
@@ -45,7 +46,7 @@ interface BusinessAssignment {
 interface AddEmployeeModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (message: string) => void
+  onSuccess: (payload: OnSuccessArg) => void
   onError: (error: string) => void
 }
 
@@ -255,7 +256,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
     setFormData({...formData, compensationTypeId: newCompensationType.id})
     // Close the modal
     setShowAddCompensationTypeModal(false)
-    onSuccess('Compensation type created successfully')
+  onSuccess({ message: 'Compensation type created successfully', refresh: false })
   }
 
   const handleNewJobTitleSuccess = (newJobTitle: any) => {
@@ -265,7 +266,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
     setFormData({...formData, jobTitleId: newJobTitle.id})
     // Close the modal
     setShowAddJobTitleModal(false)
-    onSuccess('Job title created successfully')
+  onSuccess({ message: 'Job title created successfully', refresh: false })
   }
 
   if (!isOpen) return null

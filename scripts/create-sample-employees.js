@@ -2,6 +2,17 @@ const { PrismaClient } = require('@prisma/client')
 const { randomUUID } = require('crypto')
 const prisma = new PrismaClient()
 
+// Return a random DOB such that age is between minAge and maxAge (inclusive lower/upper bounds approximate)
+function randomDob(minAge = 18, maxAge = 65) {
+  const today = new Date()
+  const maxDate = new Date()
+  maxDate.setFullYear(today.getFullYear() - minAge)
+  const minDate = new Date()
+  minDate.setFullYear(today.getFullYear() - maxAge)
+  const rand = new Date(minDate.getTime() + Math.floor(Math.random() * (maxDate.getTime() - minDate.getTime())))
+  return rand
+}
+
 async function createSampleEmployees() {
   try {
     console.log('🧑‍💼 Creating sample employees and contracts...')
@@ -35,6 +46,7 @@ async function createSampleEmployees() {
         phone: '+1-555-0101',
         address: '123 Main St, Anytown, ST 12345',
         nationalId: 'ID123456789',
+  dateOfBirth: randomDob(),
         hireDate: new Date(2022, 0, 15),
         employmentStatus: 'active',
         jobTitleId: managerJobTitle.id,
@@ -51,6 +63,7 @@ async function createSampleEmployees() {
         phone: '+1-555-0102',
         address: '456 Oak Ave, Anytown, ST 12345',
         nationalId: 'ID987654321',
+  dateOfBirth: randomDob(),
         hireDate: new Date(2022, 2, 10),
         employmentStatus: 'active',
         jobTitleId: salesJobTitle.id,
@@ -67,6 +80,7 @@ async function createSampleEmployees() {
         phone: '+1-555-0103',
         address: '789 Pine Rd, Anytown, ST 12345',
         nationalId: 'ID456789123',
+  dateOfBirth: randomDob(),
         hireDate: new Date(2023, 5, 1),
         employmentStatus: 'active',
         jobTitleId: adminJobTitle.id,
@@ -83,6 +97,7 @@ async function createSampleEmployees() {
         phone: '+1-555-0104',
         address: '321 Elm St, Anytown, ST 12345',
         nationalId: 'ID555777999',
+  dateOfBirth: randomDob(),
         hireDate: new Date(2023, 8, 15),
         employmentStatus: 'active',
         jobTitleId: salesJobTitle.id,

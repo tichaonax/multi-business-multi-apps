@@ -100,8 +100,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       pdfDataKeys: pdfContractData ? Object.keys(pdfContractData).slice(0, 5) : 'none'
     }, null, 2))
 
-    if (!jobTitleId || !compensationTypeId || !baseSalary || !startDate || !primaryBusinessId) {
+    if (!jobTitleId || !compensationTypeId || !startDate || !primaryBusinessId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Normalize and validate baseSalary: must be a positive number
+    const normalizedBaseSalary = Number(baseSalary)
+    if (!isFinite(normalizedBaseSalary) || normalizedBaseSalary <= 0) {
+      return NextResponse.json({ error: 'Invalid baseSalary. Must be a positive number' }, { status: 400 })
     }
 
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } })
@@ -182,7 +188,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         version: 1,
         jobTitleId,
         compensationTypeId,
-        baseSalary: new Prisma.Decimal(parseFloat(baseSalary)),
+  baseSalary: new Prisma.Decimal(normalizedBaseSalary),
         startDate: new Date(startDate),
         primaryBusinessId,
         supervisorId: supervisorId || null,
