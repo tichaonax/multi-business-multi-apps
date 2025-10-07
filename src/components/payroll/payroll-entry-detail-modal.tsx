@@ -104,6 +104,8 @@ export function PayrollEntryDetailModal({
   // Autosave refs/state: debounce timer and in-progress flag
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [autosaveInProgress, setAutosaveInProgress] = useState(false)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [adjustmentForm, setAdjustmentForm] = useState({
     type: 'bonus',
@@ -312,17 +314,76 @@ export function PayrollEntryDetailModal({
           payrollEntryBenefits: dedupedPayrollEntryBenefits.length > 0 ? dedupedPayrollEntryBenefits : data.payrollEntryBenefits,
           totalDeductions: totalDeductionsToUse
         })
-        setFormData({
-          workDays: data.workDays || 0,
-          sickDays: data.sickDays,
-          leaveDays: data.leaveDays,
-          absenceDays: data.absenceDays,
-          absenceFraction: String(data.absenceFraction ?? '0'),
-          overtimeHours: data.overtimeHours,
-          commission: data.commission,
-          miscDeductions: Number(data.miscDeductions || 0),
-          notes: data.notes || ''
-        })
+        // Recover implied overtime hours when overtimePay exists but overtimeHours was not persisted
+        let impliedOvertimeHours: number | null = null
+        try {
+          const persistedHours = data.overtimeHours !== undefined && data.overtimeHours !== null ? Number(data.overtimeHours) : null
+          if ((persistedHours === null || persistedHours === 0) && data.overtimePay && Number(data.overtimePay) > 0) {
+            // Derive an hourly rate using the same fallbacks as computeHourlyRateForEntry
+            let hourlyRate = Number(data.hourlyRate ?? 0)
+            if ((!hourlyRate || hourlyRate === 0) && data.employee && (data.employee as any).hourlyRate) {
+              hourlyRate = Number((data.employee as any).hourlyRate || 0)
+            }
+            if ((!hourlyRate || hourlyRate === 0) && data.contract) {
+              try {
+                const compType = (data.contract as any).pdfGenerationData?.compensationType || ''
+                const contractBasic = Number((data.contract as any).pdfGenerationData?.basicSalary || 0)
+                if (typeof compType === 'string' && compType.toLowerCase().includes('hour') && contractBasic > 0 && contractBasic <= 200) {
+                  hourlyRate = contractBasic
+                }
+              } catch (e) {
+                // ignore
+              }
+            }
+            if ((!hourlyRate || hourlyRate === 0) && data.baseSalary) {
+              try {
+                const annualSalary = Number(data.baseSalary) * 12
+                const hoursPerYear = 6 * 9 * 52 // 2808
+                hourlyRate = annualSalary / Math.max(1, hoursPerYear)
+              } catch (e) {
+                // ignore
+              }
+            }
+
+            if (hourlyRate && hourlyRate > 0) {
+              impliedOvertimeHours = Math.round((Number(data.overtimePay) / (hourlyRate * 1.5)) * 100) / 100
+            }
+          }
+          const finalOvertimeHours = impliedOvertimeHours !== null ? impliedOvertimeHours : (data.overtimeHours ?? 0)
+
+          setFormData({
+            workDays: data.workDays || 0,
+            sickDays: data.sickDays,
+            leaveDays: data.leaveDays,
+            absenceDays: data.absenceDays,
+            absenceFraction: String(data.absenceFraction ?? '0'),
+            overtimeHours: finalOvertimeHours,
+            commission: data.commission,
+            miscDeductions: Number(data.miscDeductions || 0),
+            notes: data.notes || ''
+          })
+          // If we derived implied overtime hours (i.e. server had overtimePay but no hours),
+          // persist the inferred hours so the authoritative entry stores them too.
+          if (impliedOvertimeHours !== null) {
+            // small delay to avoid interfering with other load logic
+            setTimeout(() => {
+              try { persistFormData().catch(() => {/* swallow */}) } catch (e) { /* ignore */ }
+            }, 250)
+          }
+        } catch (e) {
+          // Fallback to original behaviour on any unexpected error
+          setFormData({
+            workDays: data.workDays || 0,
+            sickDays: data.sickDays,
+            leaveDays: data.leaveDays,
+            absenceDays: data.absenceDays,
+            absenceFraction: String(data.absenceFraction ?? '0'),
+            overtimeHours: data.overtimeHours,
+            commission: data.commission,
+            miscDeductions: Number(data.miscDeductions || 0),
+            notes: data.notes || ''
+          })
+        }
         setBenefits(benefitsList)
       }
     } catch (error) {
@@ -582,6 +643,21 @@ export function PayrollEntryDetailModal({
         const data = await response.json()
   // Merge returned entry data into local entry state so future diffs compare correctly
   try { setEntry((prev: any) => ({ ...(prev || {}), ...(data || {}) })) } catch (e) { /* ignore */ }
+        // Indicate a successful autosave locally (brief badge in UI)
+        try {
+          setSavedAt(Date.now())
+          if (savedTimerRef.current) {
+            clearTimeout(savedTimerRef.current)
+            savedTimerRef.current = null
+          }
+          savedTimerRef.current = setTimeout(() => {
+            try { setSavedAt(null) } catch (e) { /* ignore */ }
+            if (savedTimerRef.current) {
+              clearTimeout(savedTimerRef.current)
+              savedTimerRef.current = null
+            }
+          }, 2000)
+        } catch (e) { /* ignore */ }
 
         // Determine previous absence value (from the currently loaded entry) so we can decide whether
         // to request a parent refresh after upserting/deleting the absence adjustment.
@@ -643,27 +719,49 @@ export function PayrollEntryDetailModal({
             }
           }
 
-          if (adjustmentChanged || Math.abs((absenceAmt || 0) - (previousAbsence || 0)) > 0.005) {
-            try { onSuccess({ message: 'Saved', refresh: true, updatedEntry: entryToReturn }) } catch (e) { /* ignore */ }
-          } else {
-            try { onSuccess({ message: 'Saved', refresh: false, updatedEntry: entryToReturn }) } catch (e) { /* ignore */ }
-          }
+          // During autosave we keep this silent: do not notify parent via onSuccess to avoid
+          // triggering UI refreshes while the user is mid-edit. We've already merged the
+          // returned entry into local state above.
         } catch (e) {
-          // Don't block the main save on adjustment upsert errors; surface via onError if needed
+          // Don't block the main save on adjustment upsert errors; log for debugging but remain silent
           try { console.error('Failed to upsert absence adjustment', e) } catch (er) { /* ignore */ }
-          try { onSuccess({ message: 'Saved', refresh: false }) } catch (e) { /* ignore */ }
         }
       } else {
         const err = await response.json()
-        try { onError(err.error || 'Failed to autosave') } catch (e) { /* ignore */ }
+        try { console.warn('Autosave failed:', err) } catch (e) { /* ignore */ }
         // reload entry to avoid showing stale/optimistic state
         await loadEntry()
       }
     } catch (e) {
-      try { onError('Failed to autosave') } catch (err) { /* ignore */ }
+      try { console.warn('Autosave exception:', e) } catch (err) { /* ignore */ }
       await loadEntry()
     } finally {
       setAutosaveInProgress(false)
+    }
+  }
+
+  // Clear saved timer on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        if (savedTimerRef.current) {
+          clearTimeout(savedTimerRef.current)
+          savedTimerRef.current = null
+        }
+      } catch (e) { /* ignore */ }
+    }
+  }, [])
+
+  // Immediately flush any pending autosave timer and persist now.
+  const flushAutosave = async () => {
+    try {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+      await persistFormData()
+    } catch (e) {
+      // ignore flush errors
     }
   }
 
@@ -679,7 +777,7 @@ export function PayrollEntryDetailModal({
     autosaveTimerRef.current = setTimeout(() => {
       persistFormData().catch(() => {/* swallow */})
       autosaveTimerRef.current = null
-    }, 800)
+    }, 1500)
 
     return () => {
       if (autosaveTimerRef.current) {
@@ -688,7 +786,7 @@ export function PayrollEntryDetailModal({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, isOpen, entryId, entry])
+  }, [formData, isOpen, entryId])
 
   // Temporary instrumentation helper: use console.warn (visible) and persist messages
   // to window.__instrumentLogs so you can inspect them in the console even if filters hide
@@ -1076,7 +1174,7 @@ export function PayrollEntryDetailModal({
           }
         }
 
-  onSuccess({ message: 'Benefit added successfully', refresh: false })
+  onSuccess({ message: 'Benefit added successfully', refresh: true })
     // Collapse add form after success and reset selection
     setShowAddBenefit(false)
     setBenefitForm({ benefitTypeId: '', amount: 0 })
@@ -1106,7 +1204,7 @@ export function PayrollEntryDetailModal({
       })
 
         if (response.ok) {
-          onSuccess({ message: 'Benefit reactivated', refresh: false })
+          onSuccess({ message: 'Benefit reactivated', refresh: true })
         await loadBenefits()
         await loadEntry()
       } else {
@@ -1140,7 +1238,7 @@ export function PayrollEntryDetailModal({
         })
 
         if (response.ok) {
-          onSuccess({ message: 'Contract benefit removed for this entry', refresh: false })
+          onSuccess({ message: 'Contract benefit removed for this entry', refresh: true })
           setDeactivatingBenefit(null)
           setDeactivationReason('')
           await loadBenefits()
@@ -1163,7 +1261,7 @@ export function PayrollEntryDetailModal({
       })
 
       if (response.ok) {
-        onSuccess({ message: 'Benefit deactivated', refresh: false })
+        onSuccess({ message: 'Benefit deactivated', refresh: true })
         setDeactivatingBenefit(null)
         setDeactivationReason('')
         await loadBenefits()
@@ -1185,7 +1283,7 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify({ id: benefitId, ...patch })
       })
       if (response.ok) {
-        onSuccess({ message: 'Benefit updated', refresh: false })
+        onSuccess({ message: 'Benefit updated', refresh: true })
         await loadBenefits()
         await loadEntry()
       } else {
@@ -1206,7 +1304,7 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify({ benefitTypeId: benefit.benefitTypeId, amount: benefit.amount })
       })
       if (response.ok) {
-        onSuccess({ message: 'Benefit override saved', refresh: false })
+        onSuccess({ message: 'Benefit override saved', refresh: true })
         await loadBenefits()
         await loadEntry()
       } else {
@@ -1228,7 +1326,7 @@ export function PayrollEntryDetailModal({
       })
 
       if (response.ok) {
-        onSuccess({ message: 'Benefit deleted successfully', refresh: false })
+        onSuccess({ message: 'Benefit deleted successfully', refresh: true })
         await loadBenefits()
         await loadEntry()
       } else {
@@ -1275,7 +1373,17 @@ export function PayrollEntryDetailModal({
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto p-4">
       <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-primary">Payroll Entry Details</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold text-primary">Payroll Entry Details</h2>
+            {/* Autosave status indicator (subtle) */}
+            <div className="text-sm text-secondary">
+              {autosaveInProgress ? (
+                <span className="text-xs inline-flex items-center gap-2">Saving...</span>
+              ) : savedAt ? (
+                <span className="text-xs text-green-600 inline-flex items-center gap-2">Saved</span>
+              ) : null}
+            </div>
+          </div>
           <button type="button" onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: true }) } catch (e) { /* ignore */ } onClose() }} className="text-secondary hover:text-primary transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1314,6 +1422,7 @@ export function PayrollEntryDetailModal({
                     type="number"
                     value={formData.workDays}
                     onChange={(e) => setFormData({ ...formData, workDays: parseInt(e.target.value) || 0 })}
+                    onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
                     max="31"
@@ -1325,6 +1434,7 @@ export function PayrollEntryDetailModal({
                     type="number"
                     value={formData.sickDays}
                     onChange={(e) => setFormData({ ...formData, sickDays: parseInt(e.target.value) || 0 })}
+                    onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
                     max="31"
@@ -1336,6 +1446,7 @@ export function PayrollEntryDetailModal({
                     type="number"
                     value={formData.leaveDays}
                     onChange={(e) => setFormData({ ...formData, leaveDays: parseInt(e.target.value) || 0 })}
+                    onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
                     max="31"
@@ -1348,6 +1459,7 @@ export function PayrollEntryDetailModal({
                       type="number"
                       value={formData.absenceDays}
                       onChange={(e) => setFormData({ ...formData, absenceDays: parseInt(e.target.value) || 0 })}
+                      onBlur={() => flushAutosave()}
                       className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       min="0"
                       max="31"
@@ -1374,6 +1486,7 @@ export function PayrollEntryDetailModal({
                     step="0.5"
                     value={formData.overtimeHours}
                     onChange={(e) => setFormData({ ...formData, overtimeHours: parseFloat(e.target.value) || 0 })}
+                    onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
                   />
@@ -1385,6 +1498,7 @@ export function PayrollEntryDetailModal({
                     step="0.01"
                     value={formData.commission}
                     onChange={(e) => setFormData({ ...formData, commission: parseFloat(e.target.value) || 0 })}
+                    onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
                   />
@@ -1430,15 +1544,15 @@ export function PayrollEntryDetailModal({
                 {(entry.overtimePay > 0) ? (
                   <div className="flex justify-between">
                     <span className="text-secondary">Overtime Pay:</span>
-                    <span className="text-primary">{formatCurrency(entry.overtimePay)}</span>
+                    <span className="text-primary">{formatCurrency(entry.overtimePay)}{(formData.overtimeHours || formData.overtimeHours === 0) ? (<span className="text-sm text-secondary ml-2">({(Number.isFinite(Number(formData.overtimeHours)) ? String(Number(formData.overtimeHours).toFixed(2).replace(/\.00$/,'') ) : String(formData.overtimeHours))} hrs)</span>) : null}</span>
                   </div>
                 ) : (
                   (() => {
                     const computed = computeOvertimeForModal(entry)
-                    return computed > 0 ? (
+                      return computed > 0 ? (
                       <div className="flex justify-between">
                         <span className="text-secondary">Overtime Pay (computed):</span>
-                        <span className="text-primary">{formatCurrency(computed)}</span>
+                        <span className="text-primary">{formatCurrency(computed)}{(formData.overtimeHours || formData.overtimeHours === 0) ? (<span className="text-sm text-secondary ml-2">({(Number.isFinite(Number(formData.overtimeHours)) ? String(Number(formData.overtimeHours).toFixed(2).replace(/\.00$/,'') ) : String(formData.overtimeHours))} hrs)</span>) : null}</span>
                       </div>
                     ) : null
                   })()
@@ -1574,8 +1688,9 @@ export function PayrollEntryDetailModal({
                     <input
                       type="number"
                       step="0.01"
-                      value={typeof formData.miscDeductions === 'number' ? formData.miscDeductions : Number(entry.miscDeductions || 0)}
-                      onChange={(e) => setFormData({ ...formData, miscDeductions: parseFloat(e.target.value) || 0 })}
+                        value={typeof formData.miscDeductions === 'number' ? formData.miscDeductions : Number(entry.miscDeductions || 0)}
+                        onChange={(e) => setFormData({ ...formData, miscDeductions: parseFloat(e.target.value) || 0 })}
+                        onBlur={() => flushAutosave()}
                       className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       min="0"
                     />
@@ -1911,7 +2026,7 @@ export function PayrollEntryDetailModal({
                             }
 
                             // Notify parent and instrument the moment — parent may refresh data
-                            onSuccess({ message: 'Benefit created and added', refresh: false })
+                            onSuccess({ message: 'Benefit created and added', refresh: true })
                             emitInstrument('createAndAdd:afterOnSuccess', { entryId, parsed })
                             // Clear search, update local entry/benefits so Manual Benefits shows the new item,
                             // and close the add UI to avoid leaving a stale form open.
@@ -2031,7 +2146,7 @@ export function PayrollEntryDetailModal({
                                   body: JSON.stringify({ id: b.id, amount })
                                 })
                                 if (response.ok) {
-                                  onSuccess({ message: 'Benefit updated', refresh: false })
+                                  onSuccess({ message: 'Benefit updated', refresh: true })
                                 } else {
                                   const error = await response.json()
                                   onError(error.error || 'Failed to update benefit')
