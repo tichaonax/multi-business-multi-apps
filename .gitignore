@@ -68,3 +68,12 @@ services_list.txt
 
 # SQL utility scripts (temporary)
 add_missing_sync_tables.sql
+
+# Ignore local VS Code settings and workspace settings
+.vscode/
+
+# Local backups and export artifacts
+backups/
+
+# Local utility scripts and backfills (not part of app runtime)
+scripts/
