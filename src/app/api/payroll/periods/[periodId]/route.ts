@@ -348,7 +348,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           // Mutate returned object for API consumers (non-persistent): set entry-level DOB/baseSalary
           // Also compute adjustmentsTotal and adjustmentsAsDeductions from payrollAdjustments
           // to avoid stale aggregated fields causing UI inconsistencies.
-          let adjustmentsTotalForReturn = Number((entry as any).adjustmentsTotal || 0)
+            let adjustmentsTotalForReturn = Number((entry as any).adjustmentsTotal || 0)
           let adjustmentsAsDeductionsForReturn = Number((entry as any).adjustmentsAsDeductions || 0)
           try {
             if (Array.isArray(payrollAdjustmentsForEntry) && payrollAdjustmentsForEntry.length > 0) {
@@ -356,7 +356,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                 const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
                 return s + (a.isAddition ? Math.abs(amt) : 0)
               }, 0)
+              // Exclude 'absence' type from deductions so it's shown separately and not double-counted
               const derivedDeductions = payrollAdjustmentsForEntry.reduce((s: number, a: any) => {
+                const rawType = String((a.type || '')).toLowerCase()
+                if (rawType === 'absence') return s
                 const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
                 return s + (!a.isAddition ? Math.abs(amt) : 0)
               }, 0)
@@ -378,7 +381,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           const serverTotalDeductions = Number(entry.totalDeductions || 0)
           const totalDeductionsForReturn = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
-          const returnedEntry = {
+            const returnedEntry = {
             ...entry,
             payrollEntryBenefits: entryBenefits,
             payrollAdjustments: payrollAdjustmentsForEntry,
@@ -390,9 +393,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             mergedBenefits,
             totalBenefitsAmount,
             workDays: derivedWorkDays,
-            cumulativeSickDays: cumulative.cumulativeSickDays,
-            cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
-            cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
+              // Include current entry's day counts into the returned cumulative totals so UI sees non-zero values
+              cumulativeSickDays: Number(cumulative.cumulativeSickDays || 0) + Number(entry.sickDays || 0),
+              cumulativeLeaveDays: Number(cumulative.cumulativeLeaveDays || 0) + Number(entry.leaveDays || 0),
+              cumulativeAbsenceDays: Number(cumulative.cumulativeAbsenceDays || 0) + Number(entry.absenceDays || 0),
             grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
             // Expose any absence deduction computed from adjustments
             absenceDeduction: Number(totals.absenceDeduction ?? 0),

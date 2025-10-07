@@ -333,7 +333,7 @@ model Business {
   umbrellaBusinessEmail        String?
   umbrellaBusinessPhone        String?
   umbrellaBusinessRegistration String?
-  shortName                    String?                     
+  shortName                    String?
   businessAccount              BusinessAccount?
   businessBrands               BusinessBrand[]
   businessCategories           BusinessCategory[]
@@ -354,12 +354,12 @@ model Business {
   lenderLoans                  InterBusinessLoan[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
   menuCombos                   MenuCombo[]
   menuPromotions               MenuPromotion[]
+  payrollPeriods               PayrollPeriod[]
   projects                     Project[]
   vehicleExpenses              VehicleExpense[]
   vehicleReimbursements        VehicleReimbursement[]
   vehicleTrips                 VehicleTrip[]
   vehicles                     Vehicle[]
-  payrollPeriods               PayrollPeriod[]
 
   @@map("businesses")
 }
@@ -521,18 +521,18 @@ model DataSnapshot {
   tableName           String
   recordId            String
   snapshotData        Json
-  loanDeductions      Decimal  @default(0) @db.Decimal(12, 2)
-  loanBreakdown       Json?
-  advanceDeductions   Decimal  @default(0) @db.Decimal(12, 2)
   advanceBreakdown    Json?
+  advanceDeductions   Decimal  @default(0) @db.Decimal(12, 2)
   deductionsBreakdown Json?
-  totalDeductions     Decimal  @default(0) @db.Decimal(12, 2)
-  isProRata           Boolean?
-  proRataReason       String?
-  proRataCalculation  Json?
   expectedWorkDays    Int?
   hasAdjustments      Boolean?
+  isProRata           Boolean?
+  loanBreakdown       Json?
+  loanDeductions      Decimal  @default(0) @db.Decimal(12, 2)
+  proRataCalculation  Json?
+  proRataReason       String?
   processedBy         String?
+  totalDeductions     Decimal  @default(0) @db.Decimal(12, 2)
 
   @@map("data_snapshots")
 }
@@ -720,16 +720,7 @@ model EmployeeContract {
   supervisorId                                                               String?
   supervisorName                                                             String?
   supervisorTitle                                                            String?
-  // Link to a previous contract this one was based on
-  previousContractId                                                         String?
-  previousContract                                                           EmployeeContract?  @relation("contract_previous", fields: [previousContractId], references: [id])
-  previousContractChildren                                                   EmployeeContract[] @relation("contract_previous")
   updatedAt                                                                  DateTime           @default(now())
-  // Renewal tracking fields
-  isRenewal                                                                  Boolean            @default(false)
-  renewalCount                                                               Int                @default(0)
-  originalContractId                                                         String?
-  copiedFromContractId                                                       String?
   commissionAmount                                                           Decimal?           @db.Decimal(12, 2)
   contractDurationMonths                                                     Int?
   livingAllowance                                                            Decimal?           @db.Decimal(12, 2)
@@ -737,12 +728,19 @@ model EmployeeContract {
   umbrellaBusinessId                                                         String?
   umbrellaBusinessName                                                       String?            @default("Demo Umbrella Company")
   businessAssignments                                                        Json?
+  previousContractId                                                         String?
+  copiedFromContractId                                                       String?
+  isRenewal                                                                  Boolean            @default(false)
+  originalContractId                                                         String?
+  renewalCount                                                               Int                @default(0)
   contract_benefits                                                          ContractBenefit[]
   contract_renewals_contract_renewals_newContractIdToemployee_contracts      ContractRenewal[]  @relation("contract_renewals_newContractIdToemployee_contracts")
   contract_renewals_contract_renewals_originalContractIdToemployee_contracts ContractRenewal[]  @relation("contract_renewals_originalContractIdToemployee_contracts")
   compensationTypes                                                          CompensationType   @relation(fields: [compensationTypeId], references: [id])
   employees_employee_contracts_employeeIdToemployees                         Employee           @relation("employee_contracts_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
   jobTitles                                                                  JobTitle           @relation(fields: [jobTitleId], references: [id])
+  previousContract                                                           EmployeeContract?  @relation("contract_previous", fields: [previousContractId], references: [id])
+  previousContractChildren                                                   EmployeeContract[] @relation("contract_previous")
   businesses_employee_contracts_primaryBusinessIdTobusinesses                Business           @relation("employee_contracts_primaryBusinessIdTobusinesses", fields: [primaryBusinessId], references: [id])
   employees_employee_contracts_supervisorIdToemployees                       Employee?          @relation("employee_contracts_supervisorIdToemployees", fields: [supervisorId], references: [id])
   businesses_employee_contracts_umbrellaBusinessIdTobusinesses               Business?          @relation("employee_contracts_umbrellaBusinessIdTobusinesses", fields: [umbrellaBusinessId], references: [id])
@@ -1640,7 +1638,6 @@ model SyncSession {
 model User {
   id                                                              String                     @id
   email                                                           String                     @unique
-  username                                                        String?                    @unique
   passwordHash                                                    String
   name                                                            String
   role                                                            String                     @default("user")
@@ -1659,6 +1656,7 @@ model User {
   lastAccessedAt                                                  DateTime?
   lastAccessedBusinessId                                          String?
   lastAccessedBusinessType                                        String?
+  username                                                        String?                    @unique
   accounts                                                        Account[]
   auditLogs                                                       AuditLog[]
   businessAccounts                                                BusinessAccount[]
@@ -1677,6 +1675,11 @@ model User {
   inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoan[]        @relation("inter_business_loans_lenderUserIdTousers")
   loanTransactions                                                LoanTransaction[]
   orders                                                          Order[]
+  payrollAdjustmentsApproved                                      PayrollAdjustment[]        @relation("PayrollAdjustmentApprover")
+  payrollAdjustmentsCreated                                       PayrollAdjustment[]        @relation("PayrollAdjustmentCreator")
+  payrollEntriesProcessed                                         PayrollEntry[]             @relation("PayrollEntryProcessor")
+  payrollPeriodsApproved                                          PayrollPeriod[]            @relation("PayrollPeriodApprover")
+  payrollPeriodsCreated                                           PayrollPeriod[]            @relation("PayrollPeriodCreator")
   permissionTemplates                                             PermissionTemplate[]
   personalBudgets                                                 PersonalBudget[]
   personalExpenses                                                PersonalExpense[]
@@ -1691,11 +1694,6 @@ model User {
   vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursement[]     @relation("vehicle_reimbursements_approvedByTousers")
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursement[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicle[]
-  payrollPeriodsCreated                                           PayrollPeriod[]            @relation("PayrollPeriodCreator")
-  payrollPeriodsApproved                                          PayrollPeriod[]            @relation("PayrollPeriodApprover")
-  payrollEntriesProcessed                                         PayrollEntry[]             @relation("PayrollEntryProcessor")
-  payrollAdjustmentsCreated                                       PayrollAdjustment[]        @relation("PayrollAdjustmentCreator")
-  payrollAdjustmentsApproved                                      PayrollAdjustment[]        @relation("PayrollAdjustmentApprover")
 
   @@map("users")
 }
@@ -1864,8 +1862,6 @@ model Vehicle {
   driveType                 DriveType
   ownershipType             OwnershipType
   currentMileage            Int
-  mileageUnit               String                     @default("km")
-  hasInitialMileage         Boolean                    @default(false)
   businessId                String?
   userId                    String?
   isActive                  Boolean                    @default(true)
@@ -1874,6 +1870,8 @@ model Vehicle {
   notes                     String?
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime
+  hasInitialMileage         Boolean                    @default(false)
+  mileageUnit               String                     @default("km")
   driverAuthorizations      DriverAuthorization[]
   vehicleExpenses           VehicleExpense[]
   vehicleLicenses           VehicleLicense[]
@@ -1884,6 +1882,161 @@ model Vehicle {
   users                     User?                      @relation(fields: [userId], references: [id])
 
   @@map("vehicles")
+}
+
+model VehicleMaintenanceService {
+  id                  String                             @id
+  maintenanceRecordId String
+  serviceName         String
+  serviceType         String
+  cost                Decimal                            @db.Decimal(10, 2)
+  currency            String                             @default("USD")
+  serviceProvider     String?
+  description         String?
+  isScheduledService  Boolean                            @default(false)
+  warrantyUntil       String?
+  receiptUrl          String?
+  createdAt           DateTime                           @default(now())
+  updatedAt           DateTime                           @updatedAt
+  expenses            VehicleMaintenanceServiceExpense[]
+  maintenanceRecord   VehicleMaintenanceRecord           @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_maintenance_services")
+}
+
+model VehicleMaintenanceServiceExpense {
+  id                   String                    @id
+  serviceId            String
+  expenseType          String
+  amount               Decimal                   @db.Decimal(10, 2)
+  currency             String                    @default("USD")
+  description          String?
+  vendorName           String?
+  isBusinessDeductible Boolean                   @default(false)
+  receiptUrl           String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  service              VehicleMaintenanceService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_maintenance_service_expenses")
+}
+
+model PayrollPeriod {
+  id              String         @id
+  businessId      String
+  year            Int
+  month           Int
+  periodStart     DateTime?
+  periodEnd       DateTime?
+  status          String         @default("draft")
+  totalEmployees  Int            @default(0)
+  totalGrossPay   Decimal        @default(0) @db.Decimal(12, 2)
+  totalDeductions Decimal        @default(0) @db.Decimal(12, 2)
+  totalNetPay     Decimal        @default(0) @db.Decimal(12, 2)
+  createdAt       DateTime       @default(now())
+  createdBy       String?
+  approvedAt      DateTime?
+  approvedBy      String?
+  exportedAt      DateTime?
+  closedAt        DateTime?
+  notes           String?
+  updatedAt       DateTime       @default(now())
+  payrollEntries  PayrollEntry[]
+  approver        User?          @relation("PayrollPeriodApprover", fields: [approvedBy], references: [id])
+  business        Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator         User?          @relation("PayrollPeriodCreator", fields: [createdBy], references: [id])
+
+  @@unique([businessId, year, month], name: "businessId_year_month")
+  @@index([businessId])
+  @@index([year, month])
+  @@map("payroll_periods")
+}
+
+model PayrollEntry {
+  id                   String                @id
+  payrollPeriodId      String?
+  employeeId           String?
+  employeeNumber       String?
+  employeeName         String?
+  nationalId           String?
+  overtimeHours        Decimal               @default(0) @db.Decimal(10, 2)
+  baseSalary           Decimal               @default(0) @db.Decimal(12, 2)
+  commission           Decimal               @default(0) @db.Decimal(12, 2)
+  livingAllowance      Decimal               @default(0) @db.Decimal(12, 2)
+  vehicleAllowance     Decimal               @default(0) @db.Decimal(12, 2)
+  travelAllowance      Decimal               @default(0) @db.Decimal(12, 2)
+  overtimePay          Decimal               @default(0) @db.Decimal(12, 2)
+  benefitsTotal        Decimal               @default(0) @db.Decimal(12, 2)
+  benefitsBreakdown    Json?
+  loanDeductions       Decimal               @default(0) @db.Decimal(12, 2)
+  advanceDeductions    Decimal               @default(0) @db.Decimal(12, 2)
+  advanceBreakdown     Json?
+  miscDeductions       Decimal               @default(0) @db.Decimal(12, 2)
+  grossPay             Decimal               @default(0) @db.Decimal(12, 2)
+  totalDeductions      Decimal               @default(0) @db.Decimal(12, 2)
+  netPay               Decimal               @default(0) @db.Decimal(12, 2)
+  adjustmentsTotal     Decimal               @default(0) @db.Decimal(12, 2)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @default(now())
+  notes                String?
+  absenceDays          Int                   @default(0) @map("absence_days")
+  dateOfBirth          DateTime?             @map("date_of_birth")
+  hireDate             DateTime?             @map("hire_date")
+  leaveDays            Int                   @default(0) @map("leave_days")
+  processedBy          String?               @map("processed_by")
+  sickDays             Int                   @default(0) @map("sick_days")
+  terminationDate      DateTime?             @map("termination_date")
+  workDays             Int                   @default(0) @map("work_days")
+  absenceFraction      Decimal               @default(0) @map("absence_fraction") @db.Decimal(4, 2)
+  payrollAdjustments   PayrollAdjustment[]
+  employee             Employee?             @relation(fields: [employeeId], references: [id])
+  payrollPeriod        PayrollPeriod?        @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+  processor            User?                 @relation("PayrollEntryProcessor", fields: [processedBy], references: [id])
+  payrollEntryBenefits PayrollEntryBenefit[]
+
+  @@unique([payrollPeriodId, employeeId])
+  @@index([payrollPeriodId])
+  @@index([employeeId])
+  @@map("payroll_entries")
+}
+
+model PayrollEntryBenefit {
+  id                String       @id
+  payrollEntryId    String
+  benefitTypeId     String
+  benefitName       String
+  amount            Decimal      @db.Decimal(12, 2)
+  isActive          Boolean      @default(true)
+  deactivatedReason String?
+  source            String       @default("contract")
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @default(now())
+  benefitType       BenefitType  @relation(fields: [benefitTypeId], references: [id], onDelete: Cascade)
+  payrollEntry      PayrollEntry @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+
+  @@index([payrollEntryId])
+  @@index([benefitTypeId])
+  @@map("payroll_entry_benefits")
+}
+
+model PayrollAdjustment {
+  id             String        @id
+  payrollEntryId String?
+  amount         Decimal       @db.Decimal(12, 2)
+  reason         String?
+  createdAt      DateTime      @default(now())
+  createdBy      String?
+  adjustmentType String?
+  approvedAt     DateTime?     @map("approved_at")
+  approvedBy     String?       @map("approved_by")
+  status         String        @default("pending")
+  updatedAt      DateTime      @default(now())
+  approver       User?         @relation("PayrollAdjustmentApprover", fields: [approvedBy], references: [id])
+  creator        User?         @relation("PayrollAdjustmentCreator", fields: [createdBy], references: [id])
+  payrollEntry   PayrollEntry? @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+
+  @@index([payrollEntryId])
+  @@map("payroll_adjustments")
 }
 
 enum AttributeDataType {
@@ -2079,176 +2232,4 @@ enum TripType {
   BUSINESS
   PERSONAL
   MIXED
-}
-
-model VehicleMaintenanceService {
-  id                  String   @id
-  maintenanceRecordId String
-  serviceName         String
-  serviceType         String
-  cost                Decimal  @db.Decimal(10, 2)
-  currency            String   @default("USD")
-  serviceProvider     String?
-  description         String?
-  isScheduledService  Boolean  @default(false)
-  warrantyUntil       String?
-  receiptUrl          String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  // Relations
-  maintenanceRecord VehicleMaintenanceRecord           @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
-  expenses          VehicleMaintenanceServiceExpense[]
-
-  @@map("vehicle_maintenance_services")
-}
-
-model VehicleMaintenanceServiceExpense {
-  id                   String   @id
-  serviceId            String
-  expenseType          String
-  amount               Decimal  @db.Decimal(10, 2)
-  currency             String   @default("USD")
-  description          String?
-  vendorName           String?
-  isBusinessDeductible Boolean  @default(false)
-  receiptUrl           String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  // Relations
-  service VehicleMaintenanceService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  @@map("vehicle_maintenance_service_expenses")
-}
-
-// ===================================
-// PAYROLL SYSTEM MODELS
-// ===================================
-
-model PayrollPeriod {
-  id              String    @id
-  businessId      String
-  year            Int
-  month           Int
-  periodStart     DateTime?
-  periodEnd       DateTime?
-  status          String    @default("draft")
-  totalEmployees  Int       @default(0)
-  totalGrossPay   Decimal   @default(0) @db.Decimal(12, 2)
-  totalDeductions Decimal   @default(0) @db.Decimal(12, 2)
-  totalNetPay     Decimal   @default(0) @db.Decimal(12, 2)
-  createdBy       String?
-  approvedBy      String?
-  approvedAt      DateTime?
-  exportedAt      DateTime?
-  closedAt        DateTime?
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now())
-
-  // Relations
-  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  creator        User?          @relation("PayrollPeriodCreator", fields: [createdBy], references: [id])
-  approver       User?          @relation("PayrollPeriodApprover", fields: [approvedBy], references: [id])
-  payrollEntries PayrollEntry[]
-
-  @@unique([businessId, year, month], name: "businessId_year_month")
-  @@index([businessId])
-  @@index([year, month])
-  @@map("payroll_periods")
-}
-
-model PayrollEntry {
-  id                String    @id
-  payrollPeriodId   String?
-  employeeId        String?
-  employeeNumber    String?
-  employeeName      String?
-  nationalId        String?
-  dateOfBirth       DateTime? @map("date_of_birth")
-  hireDate          DateTime? @map("hire_date")
-  terminationDate   DateTime? @map("termination_date")
-  workDays          Int       @default(0) @map("work_days")
-  sickDays          Int       @default(0) @map("sick_days")
-  leaveDays         Int       @default(0) @map("leave_days")
-  absenceDays       Int       @default(0) @map("absence_days")
-  // Fractional absence portion (e.g. 0.25, 0.5). Persists fractional days absent.
-  absenceFraction   Decimal   @default(0) @db.Decimal(4, 2) @map("absence_fraction")
-  overtimeHours     Decimal   @default(0) @db.Decimal(10, 2)
-  baseSalary        Decimal   @default(0) @db.Decimal(12, 2)
-  commission        Decimal   @default(0) @db.Decimal(12, 2)
-  livingAllowance   Decimal   @default(0) @db.Decimal(12, 2)
-  vehicleAllowance  Decimal   @default(0) @db.Decimal(12, 2)
-  travelAllowance   Decimal   @default(0) @db.Decimal(12, 2)
-  overtimePay       Decimal   @default(0) @db.Decimal(12, 2)
-  adjustmentsTotal  Decimal   @default(0) @db.Decimal(12, 2)
-  benefitsTotal     Decimal   @default(0) @db.Decimal(12, 2)
-  benefitsBreakdown Json?
-  grossPay          Decimal   @default(0) @db.Decimal(12, 2)
-  advanceDeductions Decimal   @default(0) @db.Decimal(12, 2)
-  advanceBreakdown  Json?
-  loanDeductions    Decimal   @default(0) @db.Decimal(12, 2)
-  miscDeductions    Decimal   @default(0) @db.Decimal(12, 2)
-  totalDeductions   Decimal   @default(0) @db.Decimal(12, 2)
-  netPay            Decimal   @default(0) @db.Decimal(12, 2)
-  processedBy       String?   @map("processed_by")
-  notes             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @default(now())
-
-  // Relations
-  payrollPeriod        PayrollPeriod?        @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
-  employee             Employee?             @relation(fields: [employeeId], references: [id])
-  processor            User?                 @relation("PayrollEntryProcessor", fields: [processedBy], references: [id])
-  payrollEntryBenefits PayrollEntryBenefit[]
-  payrollAdjustments   PayrollAdjustment[]
-
-  @@unique([payrollPeriodId, employeeId])
-  @@index([payrollPeriodId])
-  @@index([employeeId])
-  @@map("payroll_entries")
-}
-
-model PayrollEntryBenefit {
-  id                String   @id
-  payrollEntryId    String
-  benefitTypeId     String
-  benefitName       String
-  amount            Decimal  @db.Decimal(12, 2)
-  isActive          Boolean  @default(true)
-  deactivatedReason String?
-  source            String   @default("contract")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @default(now())
-
-  // Relations
-  payrollEntry PayrollEntry @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
-  benefitType  BenefitType  @relation(fields: [benefitTypeId], references: [id], onDelete: Cascade)
-
-  @@index([payrollEntryId])
-  @@index([benefitTypeId])
-  @@map("payroll_entry_benefits")
-}
-
-model PayrollAdjustment {
-  id             String    @id
-  payrollEntryId String?
-  adjustmentType String?
-  amount         Decimal   @db.Decimal(12, 2)
-  reason         String?
-  createdBy      String?
-  approvedBy     String?   @map("approved_by")
-  approvedAt     DateTime? @map("approved_at")
-  status         String    @default("pending")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now())
-
-  // Relations
-  payrollEntry PayrollEntry? @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
-  creator      User?         @relation("PayrollAdjustmentCreator", fields: [createdBy], references: [id])
-  approver     User?         @relation("PayrollAdjustmentApprover", fields: [approvedBy], references: [id])
-
-  @@index([payrollEntryId])
-  @@map("payroll_adjustments")
 }

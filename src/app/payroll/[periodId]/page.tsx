@@ -608,7 +608,7 @@ export default function PayrollPeriodDetailPage() {
       let derivedAdjDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
       try {
         const adjustmentsList = (entry as any).payrollAdjustments || []
-        if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
+      if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
           const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
             try {
               const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
@@ -663,9 +663,11 @@ export default function PayrollPeriodDetailPage() {
       }
     }
 
+    // No further action here; we'll compute absence and subtract it from gross below.
+
   // Add positive adjustments to gross; negative adjustments are treated as deductions applied after taxes
   const absenceDeduction = resolveAbsenceDeduction(entry)
-  const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
+  const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - (absenceDeduction || 0)
 
   // Build derived totalDeductions excluding absence (so list matches modal)
   const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
@@ -1085,9 +1087,9 @@ export default function PayrollPeriodDetailPage() {
                     <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeFirstName || (() => { const parts = entry.employeeName.split(' '); return parts.slice(0, -1).join(' ') || '' })()}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.employee?.jobTitles?.title || ''}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.workDays}</td>
-                    <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeSickDays || 0}</td>
-                    <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeLeaveDays || 0}</td>
-                    <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeAbsenceDays || 0}</td>
+                    <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeSickDays ?? (entry as any).sickDays ?? 0}</td>
+                    <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeLeaveDays ?? (entry as any).leaveDays ?? 0}</td>
+                    <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeHireDate ? new Date((entry as any).employeeHireDate).toLocaleDateString() : (entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : '')}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.terminationDate ? new Date(entry.terminationDate).toLocaleDateString() : ''}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.baseSalary || 0))}</td>

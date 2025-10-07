@@ -139,7 +139,7 @@ export async function generatePayrollExcel(
   ]
   const benefitHeaders = uniqueBenefits.map(b => b.benefitName)
   const endHeaders = [
-    'Misc Reimbursement',
+    'Absence (unearned)',
     'Advances Loans',
     'Misc Deductions',
     'Benefits Total',
@@ -248,7 +248,7 @@ export async function generatePayrollExcel(
       entry.workDays,
       (entry as any).cumulativeSickDays || 0,
       (entry as any).cumulativeLeaveDays || 0,
-      (entry as any).cumulativeAbsenceDays || 0,
+  (entry as any).cumulativeAbsenceDays || 0,
       // Prefer employeeHireDate (contract start) when present
       (entry as any).employeeHireDate ? formatDate((entry as any).employeeHireDate) : formatDate(entry.hireDate),
       entry.terminationDate ? formatDate(entry.terminationDate) : '',
@@ -300,8 +300,11 @@ export async function generatePayrollExcel(
     const storedNet = storedNetRaw !== undefined && storedNetRaw !== null ? Number(storedNetRaw) : undefined
 
   const additions = Number((entry as any).adjustmentsTotal || 0)
-  const adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
-  const computedGross = Number(entry.baseSalary || 0) + Number(entry.commission || 0) + Number(entry.overtimePay || 0) + benefitsSum + additions
+  // adjustmentsAsDeductions may include absence; subtract resolved absence so exports don't double-count it
+  const storedAdjAs = Number((entry as any).adjustmentsAsDeductions || 0)
+  const absenceDeduction = Number(((entry as any).absenceDeduction ?? (entry as any).absenceAmount) || 0)
+  const adjAsDeductions = Math.max(0, storedAdjAs - absenceDeduction)
+  const computedGross = Number(entry.baseSalary || 0) + Number(entry.commission || 0) + Number(entry.overtimePay || 0) + benefitsSum + additions - (absenceDeduction || 0)
 
     const grossInclBenefits = Number.isFinite(storedGross as number) ? (storedGross as number) : computedGross
 
@@ -310,10 +313,32 @@ export async function generatePayrollExcel(
     const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
     const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotalDeductions
 
-    const netInclBenefits = Number.isFinite(storedNet as number) ? (storedNet as number) : (grossInclBenefits - totalDeductions)
+  // Net (incl Benefits) in the export should reflect gross (third-party handles deductions)
+  const netInclBenefits = Number.isFinite(storedNet as number) ? (storedNet as number) : grossInclBenefits
+
+    // Compute absence/unearned value: prefer stored/persisted absenceDeduction, otherwise compute per-day using cumulativeAbsenceDays
+    const absenceDeduction = Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
+    const absenceDays = Number((entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0)
+    const workingDays = (() => {
+      try {
+        const d = new Date(period.periodStart)
+        const month = Number((d.getMonth ? d.getMonth() : (new Date()).getMonth()) + 1)
+        const year = Number(d.getFullYear ? d.getFullYear() : (new Date()).getFullYear())
+        const daysInMonth = new Date(year, month, 0).getDate()
+        let cnt = 0
+        for (let dd = 1; dd <= daysInMonth; dd++) {
+          const dt = new Date(year, month - 1, dd)
+          const day = dt.getDay()
+          if (day !== 0 && day !== 6) cnt++
+        }
+        return cnt
+      } catch (e) { return 22 }
+    })()
+    const perDay = workingDays > 0 ? (Number(entry.baseSalary || 0) / workingDays) : 0
+    const computedAbsence = absenceDeduction && absenceDeduction !== 0 ? absenceDeduction : (perDay * absenceDays)
 
     rowData.push(
-      0, // Misc Reimbursement (placeholder)
+      computedAbsence, // Absence (unearned)
       advancesLoans,
       entry.miscDeductions,
       benefitsSum,
