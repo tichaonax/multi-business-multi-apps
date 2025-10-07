@@ -243,7 +243,15 @@ export async function computeTotalsForEntry(entryId: string) {
     // Exclude explicit absence adjustments from totalDeductions. Absence is returned separately
     // as `absenceDeduction` so callers can display it under Compensation Breakdown and subtract
     // it from gross for presentation without double-counting under Total Deductions.
-    const totalDeductions = Number(entry.totalDeductions ?? 0) + adjustmentsAsDeductions
+    // Compute a derived total from component parts (advances, loans, misc + adjustmentsAsDeductions)
+    // and prefer the derived value to avoid stale or already-aggregated DB values that can
+    // cause double-counting when adjustments are also applied separately.
+    const advances = Number(entry.advanceDeductions || 0)
+    const loans = Number(entry.loanDeductions || 0)
+    const misc = Number(entry.miscDeductions || 0)
+    const derivedTotalDeductions = advances + loans + misc + adjustmentsAsDeductions
+    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+    const totalDeductions = serverTotalDeductions === derivedTotalDeductions ? serverTotalDeductions : derivedTotalDeductions
 
     // Note: grossPay here reflects earnings before deductions (absence is represented
     // as an adjustment/deduction). We return `absenceDeduction` separately so callers

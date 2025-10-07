@@ -788,56 +788,7 @@ export function PayrollEntryDetailModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData, isOpen, entryId])
 
-  // Temporary instrumentation helper: use console.warn (visible) and persist messages
-  // to window.__instrumentLogs so you can inspect them in the console even if filters hide
-  // standard logs. Remove after debugging.
-  const emitInstrument = (label: string, payload?: any) => {
-    // Be extra defensive: this helper must never throw. Some browsers/environments
-    // can have oddities around Error.stack, console, or window property descriptors.
-    if (typeof window === 'undefined') return
-
-    try {
-      const rec: any = { ts: Date.now(), label, payload }
-
-      // Capture stack if available but don't let failures here bubble up.
-      try {
-        rec.stack = new Error().stack
-      } catch (e) {
-        rec.stack = undefined
-      }
-
-      // Ensure we can push into a logs array without triggering property errors.
-      try {
-        const win: any = window as any
-        if (!Object.prototype.hasOwnProperty.call(win, '__instrumentLogs')) {
-          try {
-            Object.defineProperty(win, '__instrumentLogs', {
-              value: [],
-              writable: true,
-              configurable: true
-            })
-          } catch (e) {
-            // fallback to direct assignment if defineProperty fails
-            try { win.__instrumentLogs = [] } catch (e) { /* ignore */ }
-          }
-        }
-        try { win.__instrumentLogs.push(rec) } catch (e) { /* ignore */ }
-      } catch (e) {
-        // ignore
-      }
-
-      // Console output guarded separately
-      try {
-        if (typeof console !== 'undefined' && typeof console.warn === 'function') {
-          console.warn('[instrument]', label, payload, rec.stack)
-        }
-      } catch (e) {
-        // ignore
-      }
-    } catch (e) {
-      // swallow any unexpected error
-    }
-  }
+  // ...existing code...
 
   // Recompute derived totals locally after benefits change (optimistic UI updates)
   const recomputeTotalsAfterBenefitsChange = (benefitsList: any[]) => {
@@ -859,99 +810,7 @@ export function PayrollEntryDetailModal({
     }
   }
 
-  // Temporary instrumentation: make these logs obvious in the browser console and
-  // detect page reload/navigation events. Remove after debugging.
-  type InstrumentWindow = Window & { __instrumentLogs?: any[] }
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    try {
-      const win = window as unknown as InstrumentWindow
-  const origReload = win.location && win.location.reload ? win.location.reload.bind(win.location) : undefined
-      if (origReload) {
-        win.location.reload = function (...args: any[]) {
-          emitInstrument('window.location.reload called', { args })
-          return (origReload as any).apply(null, args)
-        }
-      }
-
-      // Also instrument other navigation APIs which can cause a full page navigation
-  const origAssign = win.location && typeof win.location.assign === 'function' ? win.location.assign.bind(win.location) : undefined
-      if (origAssign) {
-        win.location.assign = function (...args: any[]) {
-          emitInstrument('window.location.assign called', { args })
-          return (origAssign as any).apply(null, args)
-        }
-      }
-
-  const origReplace = win.location && typeof win.location.replace === 'function' ? win.location.replace.bind(win.location) : undefined
-      if (origReplace) {
-        win.location.replace = function (...args: any[]) {
-          emitInstrument('window.location.replace called', { args })
-          return (origReplace as any).apply(null, args)
-        }
-      }
-
-  const origPush = win.history && typeof win.history.pushState === 'function' ? win.history.pushState.bind(win.history) : undefined
-  const origReplaceState = win.history && typeof win.history.replaceState === 'function' ? win.history.replaceState.bind(win.history) : undefined
-      if (origPush) {
-        win.history.pushState = function (...args: any[]) {
-          emitInstrument('history.pushState called', { args })
-          return (origPush as any).apply(null, args)
-        }
-      }
-      if (origReplaceState) {
-        win.history.replaceState = function (...args: any[]) {
-          emitInstrument('history.replaceState called', { args })
-          return (origReplaceState as any).apply(null, args)
-        }
-      }
-
-      const onPop = () => emitInstrument('popstate fired', { visibilityState: document.visibilityState })
-      window.addEventListener('popstate', onPop)
-
-      const beforeUnload = (e: any) => emitInstrument('beforeunload/unload fired', { visibilityState: document.visibilityState })
-      const onVisibility = () => emitInstrument('visibilitychange', { visibilityState: document.visibilityState })
-
-      window.addEventListener('beforeunload', beforeUnload)
-      window.addEventListener('unload', beforeUnload)
-      document.addEventListener('visibilitychange', onVisibility)
-
-      return () => {
-        try {
-          if (origReload) win.location.reload = origReload
-        } catch (e) {
-          // ignore
-        }
-        try {
-          if (origAssign) win.location.assign = origAssign
-        } catch (e) {
-          // ignore
-        }
-        try {
-          if (origReplace) win.location.replace = origReplace
-        } catch (e) {
-          // ignore
-        }
-        try {
-          if (origPush) win.history.pushState = origPush
-        } catch (e) {
-          // ignore
-        }
-        try {
-          if (origReplaceState) win.history.replaceState = origReplaceState
-        } catch (e) {
-          // ignore
-        }
-        window.removeEventListener('popstate', onPop)
-        window.removeEventListener('beforeunload', beforeUnload)
-        window.removeEventListener('unload', beforeUnload)
-        document.removeEventListener('visibilitychange', onVisibility)
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, [])
+  // ...existing code...
 
   // Available benefit types for the +Add Benefit dropdown.
   // Exclude benefit types that are already present either as persisted payrollEntryBenefits
@@ -1048,7 +907,7 @@ export function PayrollEntryDetailModal({
         return
       }
 
-      emitInstrument('handleAddAdjustment:start', { entryId, adjustmentForm })
+  // instrumentation removed
 
       // Ensure server receives a signed amount: negative for deductions
       const sendAmount = (adjustmentForm.isAddition === false) ? -Math.abs(amountNum) : Math.abs(amountNum)
@@ -1068,8 +927,7 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify(payload)
       })
 
-      const parsed = await parseJsonSafe(response)
-      emitInstrument('handleAddAdjustment:response', { status: response.status, parsed })
+  const parsed = await parseJsonSafe(response)
 
       if (response.ok) {
         onSuccess({ message: 'Adjustment added successfully', refresh: false })
@@ -1142,7 +1000,7 @@ export function PayrollEntryDetailModal({
         return
       }
 
-  emitInstrument('handleAddBenefit:start', { entryId, benefitForm })
+  // instrumentation removed
 
       const response = await fetch(`/api/payroll/entries/${entryId}/benefits`, {
         method: 'POST',
@@ -1151,7 +1009,6 @@ export function PayrollEntryDetailModal({
       })
 
   const parsed = await parseJsonSafe(response)
-  emitInstrument('handleAddBenefit:response', { status: response.status, parsed })
       if (response.ok) {
         // If server returned the created payrollEntryBenefit, merge it into local benefits list
         if (parsed) {
@@ -1212,7 +1069,7 @@ export function PayrollEntryDetailModal({
         onError(error.error || 'Failed to update benefit')
       }
     } catch (error) {
-      onError('Failed to update benefit')
+        // instrumentation removed
     }
   }
 
@@ -1996,16 +1853,15 @@ export function PayrollEntryDetailModal({
                         // a lightweight benefitType if needed and persist the payrollEntryBenefit.
                         try {
                           const payload = { benefitName: nameToCreate, amount: amountToCreate }
-                          emitInstrument('createAndAdd:start', { entryId, payload })
+                          // instrumentation removed
                           const resp = await fetch(`/api/payroll/entries/${entryId}/benefits`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
                           })
                           const parsed = await parseJsonSafe(resp)
-                          emitInstrument('createAndAdd:response', { status: resp.status, parsed })
                           if (resp.ok) {
-                            emitInstrument('createAndAdd:beforeOnSuccess', { entryId, parsed })
+                            // instrumentation removed
                             // If server included the created benefitType, ensure it exists in local cache
                             if (parsed && parsed.benefitType) {
                               setBenefitTypes((prev) => {
@@ -2027,7 +1883,6 @@ export function PayrollEntryDetailModal({
 
                             // Notify parent and instrument the moment — parent may refresh data
                             onSuccess({ message: 'Benefit created and added', refresh: true })
-                            emitInstrument('createAndAdd:afterOnSuccess', { entryId, parsed })
                             // Clear search, update local entry/benefits so Manual Benefits shows the new item,
                             // and close the add UI to avoid leaving a stale form open.
                             setBenefitSearch('')

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
+import { computeTotalsForEntry } from '@/lib/payroll/helpers'
 import { nanoid } from 'nanoid'
 
 // GET /api/payroll/periods - List payroll periods for a business
@@ -78,6 +79,50 @@ export async function GET(req: NextRequest) {
         }
         return p
       })
+
+      // Recompute period-level aggregates using authoritative per-entry totals
+      try {
+        // For each period, fetch its entry ids and compute totals via computeTotalsForEntry
+        await Promise.all(periodsWithShort.map(async (p: any) => {
+          try {
+            const entries = await prisma.payrollEntry.findMany({ where: { payrollPeriodId: p.id }, select: { id: true } })
+            if (!entries || entries.length === 0) {
+              p.totalGrossPay = String(0)
+              p.totalDeductions = String(0)
+              p.totalNetPay = String(0)
+              return
+            }
+
+            const totals = await entries.reduce(async (accP: Promise<any>, e: any) => {
+              const acc = await accP
+              try {
+                const t = await computeTotalsForEntry(e.id)
+                acc.gross += Number(t?.grossPay || 0)
+                // computeTotalsForEntry may return totalDeductions that already includes stored entry.totalDeductions
+                // but it is authoritative; use it as-is
+                acc.deductions += Number(t?.totalDeductions || 0)
+                acc.net += Number(t?.netPay || 0)
+              } catch (err) {
+                // ignore entry-level failures
+              }
+              return acc
+            }, Promise.resolve({ gross: 0, deductions: 0, net: 0 }))
+
+            p.totalGrossPay = String(totals.gross)
+            p.totalDeductions = String(totals.deductions)
+            p.totalNetPay = String(totals.net)
+          } catch (err) {
+            // if recompute fails for a period, fall back to stored values
+            try {
+              p.totalGrossPay = String(p.totalGrossPay || 0)
+              p.totalDeductions = String(p.totalDeductions || 0)
+              p.totalNetPay = String(p.totalNetPay || 0)
+            } catch (e) { /* ignore */ }
+          }
+        }))
+      } catch (err) {
+        console.warn('Failed to recompute period aggregates for list endpoint', err)
+      }
 
       return NextResponse.json(periodsWithShort)
   } catch (error) {

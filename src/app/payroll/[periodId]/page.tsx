@@ -464,53 +464,7 @@ export default function PayrollPeriodDetailPage() {
     return getUniqueBenefits()
   }, [period])
 
-  // Temporary instrumentation: detect navigation/reload events so we can capture hard reloads
-  useEffect(() => {
-    // add emitInstrument helper for page-level instrumentation
-    const emitInstrument = (label: string, payload?: any) => {
-      try {
-        if (typeof window === 'undefined') return
-        const rec = { ts: Date.now(), label, payload, stack: new Error().stack }
-        ;(window as any).__instrumentLogs = (window as any).__instrumentLogs || []
-        ;(window as any).__instrumentLogs.push(rec)
-        console.warn('[instrument]', label, payload, rec.stack)
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    try {
-      if (typeof window === 'undefined') return
-      const win: any = window as any
-      const origReload = win.location && win.location.reload ? win.location.reload.bind(win.location) : undefined
-      if (origReload) {
-        win.location.reload = function (...args: any[]) {
-          emitInstrument('window.location.reload called (page)', { args })
-          return origReload(...args)
-        }
-      }
-
-      const beforeUnload = (e: any) => emitInstrument('beforeunload/unload fired (page)', { visibilityState: document.visibilityState })
-      const onVisibility = () => emitInstrument('visibilitychange (page)', { visibilityState: document.visibilityState })
-
-      window.addEventListener('beforeunload', beforeUnload)
-      window.addEventListener('unload', beforeUnload)
-      document.addEventListener('visibilitychange', onVisibility)
-
-      return () => {
-        try {
-          if (origReload) win.location.reload = origReload
-        } catch (e) {
-          // ignore
-        }
-        window.removeEventListener('beforeunload', beforeUnload)
-        window.removeEventListener('unload', beforeUnload)
-        document.removeEventListener('visibilitychange', onVisibility)
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, [])
+  // instrumentation removed
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -742,9 +696,13 @@ export default function PayrollPeriodDetailPage() {
           return s + (isAdd ? Math.abs(amt) : 0)
         }, 0)
         const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
-          const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
-          const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
-          return s + (!isAdd ? Math.abs(amt) : 0)
+          try {
+            const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
+            if (rawType === 'absence') return s
+            const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+            const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+            return s + (!isAdd ? Math.abs(amt) : 0)
+          } catch (e) { return s }
         }, 0)
         if (!additions || additions === 0) additions = derivedAdditions
         if (!adjAsDeductions || adjAsDeductions === 0) adjAsDeductions = derivedDeductions
@@ -754,9 +712,11 @@ export default function PayrollPeriodDetailPage() {
   const absenceDeduction = resolveAbsenceDeduction(entry)
   const gross = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
 
-    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
-    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-    const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotalDeductions
+  const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+  const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+  // Prefer the derived total which excludes explicit 'absence' adjustments so the list
+  // and modal remain consistent and absence is shown separately.
+  const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
     const net = gross - totalDeductions
     return { benefitsTotal, gross, totalDeductions, net }
@@ -785,6 +745,46 @@ export default function PayrollPeriodDetailPage() {
   const canEditEntry = hasPermission(session?.user, 'canEditPayrollEntry')
   const canApprove = hasPermission(session?.user, 'canApprovePayroll')
   const canExport = hasPermission(session?.user, 'canExportPayroll')
+
+  // Diagnostic logging: compute per-entry totals and header sums to help trace mismatches
+  try {
+    if (period && Array.isArray(period.payrollEntries)) {
+      const perEntryTotals = period.payrollEntries.map(e => {
+        const t = computeEntryTotals(e)
+        return { id: e.id, employee: (e as any).employeeName || (e as any).employeeNumber || '', totalDeductions: t.totalDeductions, gross: t.grossInclBenefits, net: t.netInclBenefits }
+      })
+      const headerSumDeductions = perEntryTotals.reduce((s, x) => s + Number(x.totalDeductions || 0), 0)
+      console.debug('[payroll-debug] perEntryTotals', perEntryTotals)
+      console.debug('[payroll-debug] headerSumDeductions', headerSumDeductions)
+
+      // Compare to server-provided totalDeductions per-entry and period-level sum
+      try {
+        const serverPerEntry = period.payrollEntries.map(e => ({ id: e.id, serverTotalDeductions: Number(e.totalDeductions || 0) }))
+        const serverSumDeductions = serverPerEntry.reduce((s, x) => s + Number(x.serverTotalDeductions || 0), 0)
+        console.debug('[payroll-debug] serverPerEntryTotals', serverPerEntry)
+        console.debug('[payroll-debug] serverSumDeductions', serverSumDeductions)
+
+        // List entries where client-derived totalDeductions differs from server-provided value
+        const mismatches = period.payrollEntries
+          .map(e => {
+            const ct = computeEntryTotals(e).totalDeductions || 0
+            const st = Number(e.totalDeductions || 0)
+            return { id: e.id, employee: (e as any).employeeName || (e as any).employeeNumber || '', clientTotalDeductions: ct, serverTotalDeductions: st, diff: Number((ct - st).toFixed(2)) }
+          })
+          .filter(x => Math.abs(x.diff) > 0.001)
+
+        if (mismatches.length > 0) {
+          console.warn('[payroll-debug] deduction mismatches detected (client vs server)', { mismatches })
+        } else {
+          console.debug('[payroll-debug] no deduction mismatches detected between client and server totals')
+        }
+      } catch (e) {
+        console.warn('Failed to compute server/client deduction comparison', e)
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to compute debug payroll totals', err)
+  }
 
   // Determine whether the current user can delete the payroll period.
   // Rules: system admins or business-owner/manager can delete. Deletion is allowed in draft/in_progress/review.
@@ -1014,19 +1014,19 @@ export default function PayrollPeriodDetailPage() {
         <div className="card">
           <p className="text-sm text-secondary">Gross Pay</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).gross, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).grossInclBenefits, 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Deductions</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).totalDeductions, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).totalDeductions, 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Net Pay</p>
           <p className="text-2xl font-bold text-green-600">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e).net, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0))}
           </p>
         </div>
       </div>

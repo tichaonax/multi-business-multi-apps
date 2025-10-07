@@ -225,13 +225,36 @@ export function PayrollExportPreviewModal({
     const baseSalary = Number(entry.baseSalary || 0)
     const commission = Number(entry.commission || 0)
     const overtime = Number(entry.overtimePay || 0)
-    const additions = Number((entry as any).adjustmentsTotal || 0)
-    const adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+    let additions = Number((entry as any).adjustmentsTotal || 0)
+    let adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+    if ((!additions || additions === 0) || (!adjAsDeductions || adjAsDeductions === 0)) {
+      const adjustmentsList = (entry as any).payrollAdjustments || []
+      if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
+        const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
+          const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+          const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+          return s + (isAdd ? Math.abs(amt) : 0)
+        }, 0)
+        const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
+          try {
+            const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
+            if (rawType === 'absence') return s
+            const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+            const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+            return s + (!isAdd ? Math.abs(amt) : 0)
+          } catch (e) { return s }
+        }, 0)
+        if (!additions || additions === 0) additions = derivedAdditions
+        if (!adjAsDeductions || adjAsDeductions === 0) adjAsDeductions = derivedDeductions
+      }
+    }
 
     const gross = baseSalary + commission + overtime + benefitsTotal + additions
-    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
-    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-    const totalDeductions = (typeof serverTotalDeductions === 'number' && serverTotalDeductions > 0) ? serverTotalDeductions : derivedTotalDeductions
+  const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+  const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+  // Prefer the derived total which excludes explicit 'absence' adjustments so exports
+  // align with the modal/list display.
+  const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
     const net = gross - totalDeductions
     return { benefitsTotal, gross, totalDeductions, net }
   }

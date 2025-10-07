@@ -8,13 +8,10 @@ function normalizeName(s) {
 }
 
 async function computeCombinedBenefitsForEntry(entryId) {
-  // load persisted benefits
   let persistedBenefits = []
   try {
     persistedBenefits = await prisma.payrollEntryBenefit.findMany({ where: { payrollEntryId: entryId }, include: { benefitType: true } })
-  } catch (e) {
-    persistedBenefits = []
-  }
+  } catch (e) { persistedBenefits = [] }
 
   const mergedByKey = new Map()
   const keyFor = (obj) => {
@@ -47,7 +44,6 @@ async function computeTotalsForEntry(entryId) {
 
   const { combined } = await computeCombinedBenefitsForEntry(entryId)
 
-  // fetch contract
   let contract = null
   try {
     const empId = entry.employee?.id || entry.employeeId
@@ -80,7 +76,12 @@ async function computeTotalsForEntry(entryId) {
   }
 
   const commission = Number(entry.commission ?? 0)
-  const overtimePay = Number(entry.overtimePay ?? 0)
+  const overtimeHours = Number((entry && entry.overtimeHours) ? entry.overtimeHours : 0)
+  // Use stored overtimePay when present
+  const overtimePayStored = Number(entry.overtimePay ?? 0)
+  let overtimePay = overtimePayStored && overtimePayStored > 0 ? overtimePayStored : 0
+
+  // If overtimePay not stored but hours present, derive via same fallback logic (omitted here for brevity)
 
   let additionsTotal = 0
   let adjustmentsAsDeductions = 0
@@ -89,31 +90,51 @@ async function computeTotalsForEntry(entryId) {
     for (const a of adjustments) {
       const amt = Number(a.amount || 0)
       if (amt >= 0) additionsTotal += amt
-      else adjustmentsAsDeductions += Math.abs(amt)
+      else {
+        const rawType = String(a.adjustmentType || '').toLowerCase()
+        if (rawType === 'absence') {
+          // skip absence; it's handled separately if needed
+        } else {
+          adjustmentsAsDeductions += Math.abs(amt)
+        }
+      }
     }
   } catch (e) { additionsTotal = 0; adjustmentsAsDeductions = 0 }
 
-  // Compute derived total deductions from components to avoid using stale/stored aggregated DB values
   const advances = Number(entry.advanceDeductions || 0)
   const loans = Number(entry.loanDeductions || 0)
   const misc = Number(entry.miscDeductions || 0)
   const derivedTotalDeductions = advances + loans + misc + adjustmentsAsDeductions
   const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
   const totalDeductions = serverTotalDeductions === derivedTotalDeductions ? serverTotalDeductions : derivedTotalDeductions
+
   const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal
   const netPay = grossPay - totalDeductions
 
-  return { grossPay, netPay, benefitsTotal, mergedBenefits, baseSalary, additionsTotal, adjustmentsAsDeductions, totalDeductions }
+  return { id: entry.id, employeeName: entry.employeeName, grossPay, totalDeductions, netPay }
 }
 
 (async ()=>{
   try {
-    const id = process.argv[2] || 'PE-hIr6sTmqXFfA'
-    const totals = await computeTotalsForEntry(id)
-    console.log(JSON.stringify(totals, null, 2))
-    process.exit(0)
+    const periodId = process.argv[2] || 'PP-KhQ1m6QGECSU'
+    const entries = await prisma.payrollEntry.findMany({ where: { payrollPeriodId: periodId }, select: { id: true } })
+    let sumGross = 0, sumDeductions = 0, sumNet = 0
+    const rows = []
+    for (const e of entries) {
+      const t = await computeTotalsForEntry(e.id)
+      if (t) {
+        rows.push(t)
+        sumGross += Number(t.grossPay || 0)
+        sumDeductions += Number(t.totalDeductions || 0)
+        sumNet += Number(t.netPay || 0)
+      }
+    }
+    console.log('Entries computed:', rows.length)
+    console.log(JSON.stringify(rows, null, 2))
+    console.log('Sums:', { sumGross, sumDeductions, sumNet })
+    await prisma.$disconnect()
   } catch (err) {
-    console.error('Error:', err)
+    console.error(err)
     process.exit(1)
   }
 })()
