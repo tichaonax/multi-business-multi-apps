@@ -76,4 +76,4 @@ add_missing_sync_tables.sql
 backups/
 
 # Local utility scripts and backfills (not part of app runtime)
-scripts/
+# scripts/ was removed from ignore so runtime/seed scripts remain tracked
