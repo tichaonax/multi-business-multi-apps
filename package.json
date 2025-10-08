@@ -14,7 +14,7 @@
     "db:studio": "npx prisma studio",
     "db:deploy": "npx prisma migrate deploy",
     "db:reset": "npx prisma migrate reset",
-  "db:backfill-shortname": "ts-node --transpile-only scripts/backfill-business-shortname.ts",
+    "db:backfill-shortname": "ts-node --transpile-only scripts/backfill-business-shortname.ts",
     "db:pull": "npx prisma db pull",
     "db:push": "npx prisma db push",
     "install:full": "node scripts/install/install.js",
@@ -72,6 +72,7 @@
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.1",
     "@prisma/client": "^6.16.2",
+    "@tailwindcss/postcss": "^4.1.14",
     "@types/bcryptjs": "^3.0.0",
     "@types/pg": "^8.15.5",
     "@types/react": "^19.1.12",
@@ -87,7 +88,7 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.2",
     "lucide-react": "^0.544.0",
-    "next": "^15.5.2",
+    "next": "^15.5.4",
     "next-auth": "^4.24.11",
     "node-cron": "^4.2.1",
     "node-windows": "^1.0.0-beta.8",
@@ -115,6 +116,7 @@
     "puppeteer": "^23.0.0",
     "puppeteer-core": "^23.0.0",
     "tailwindcss": "^3.4.17",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }
 }

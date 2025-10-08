@@ -23,10 +23,16 @@ interface PayrollPeriod {
     name: string
     email: string
   }
+  business?: {
+    id: string
+    name: string
+    type: string
+    shortName?: string
+  }
 }
 
 interface PayrollPeriodsListProps {
-  businessId: string
+  businessId?: string
   onSelectPeriod?: (period: PayrollPeriod) => void
 }
 
@@ -44,17 +50,15 @@ export function PayrollPeriodsList({ businessId, onSelectPeriod }: PayrollPeriod
   const loadPeriods = async () => {
     try {
       setLoading(true)
-      const params = new URLSearchParams({ businessId })
+      const params = new URLSearchParams()
 
-      if (filterYear) {
-        params.append('year', filterYear.toString())
-      }
+      // If a businessId was provided, include it; otherwise fetch periods across all businesses
+      if (businessId) params.append('businessId', businessId)
 
-      if (filterStatus) {
-        params.append('status', filterStatus)
-      }
+      if (filterYear) params.append('year', filterYear.toString())
+      if (filterStatus) params.append('status', filterStatus)
 
-      const response = await fetch(`/api/payroll/periods?${params}`)
+      const response = await fetch(`/api/payroll/periods?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
         setPeriods(data)
@@ -89,7 +93,7 @@ export function PayrollPeriodsList({ businessId, onSelectPeriod }: PayrollPeriod
 
   const getMonthName = (month: number) => {
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                    'July', 'August', 'September', 'October', 'November', 'December']
+      'July', 'August', 'September', 'October', 'November', 'December']
     return months[month - 1]
   }
 
@@ -167,6 +171,13 @@ export function PayrollPeriodsList({ businessId, onSelectPeriod }: PayrollPeriod
                       {period.status.replace('_', ' ').toUpperCase()}
                     </span>
                   </div>
+
+                  {period.business && (
+                    <div className="text-sm text-secondary mb-2">
+                      <strong className="text-primary">{period.business.shortName || period.business.name}</strong>
+                      <span className="ml-2">({period.business.type})</span>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-4 gap-4 text-sm">
                     <div>

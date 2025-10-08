@@ -8,7 +8,8 @@ export function getWorkingDaysInMonth(year: number, month: number) {
     for (let d = 1; d <= daysInMonth; d++) {
         const dt = new Date(year, month - 1, d)
         const day = dt.getDay()
-        if (day !== 0 && day !== 6) count++
+        // Count Monday-Saturday as working days (exclude Sundays only) to match preview
+        if (day !== 0) count++
     }
     return count
 }

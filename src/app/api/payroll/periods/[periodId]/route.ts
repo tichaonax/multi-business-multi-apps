@@ -228,7 +228,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           }
         }
 
-  enrichedEntries = await Promise.all(enrichedEntries.map(async entry => {
+        enrichedEntries = await Promise.all(enrichedEntries.map(async entry => {
           const entryBenefits = entry.payrollEntryBenefits || []
           const empId = entry.employeeId
           const contract = empId ? latestContractByEmployee[empId] : null
@@ -348,7 +348,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           // Mutate returned object for API consumers (non-persistent): set entry-level DOB/baseSalary
           // Also compute adjustmentsTotal and adjustmentsAsDeductions from payrollAdjustments
           // to avoid stale aggregated fields causing UI inconsistencies.
-            let adjustmentsTotalForReturn = Number((entry as any).adjustmentsTotal || 0)
+          let adjustmentsTotalForReturn = Number((entry as any).adjustmentsTotal || 0)
           let adjustmentsAsDeductionsForReturn = Number((entry as any).adjustmentsAsDeductions || 0)
           try {
             if (Array.isArray(payrollAdjustmentsForEntry) && payrollAdjustmentsForEntry.length > 0) {
@@ -381,7 +381,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           const serverTotalDeductions = Number(entry.totalDeductions || 0)
           const totalDeductionsForReturn = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
-            const returnedEntry = {
+          const returnedEntry = {
             ...entry,
             payrollEntryBenefits: entryBenefits,
             payrollAdjustments: payrollAdjustmentsForEntry,
@@ -393,10 +393,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             mergedBenefits,
             totalBenefitsAmount,
             workDays: derivedWorkDays,
-              // Include current entry's day counts into the returned cumulative totals so UI sees non-zero values
-              cumulativeSickDays: Number(cumulative.cumulativeSickDays || 0) + Number(entry.sickDays || 0),
-              cumulativeLeaveDays: Number(cumulative.cumulativeLeaveDays || 0) + Number(entry.leaveDays || 0),
-              cumulativeAbsenceDays: Number(cumulative.cumulativeAbsenceDays || 0) + Number(entry.absenceDays || 0),
+            // Include current entry's day counts into the returned cumulative totals so UI sees non-zero values
+            cumulativeSickDays: Number(cumulative.cumulativeSickDays || 0) + Number(entry.sickDays || 0),
+            cumulativeLeaveDays: Number(cumulative.cumulativeLeaveDays || 0) + Number(entry.leaveDays || 0),
+            cumulativeAbsenceDays: Number(cumulative.cumulativeAbsenceDays || 0) + Number(entry.absenceDays || 0),
             grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
             // Expose any absence deduction computed from adjustments
             absenceDeduction: Number(totals.absenceDeduction ?? 0),
@@ -441,8 +441,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       }
 
       // Fetch businesses for employee.primaryBusinessId and attach to enriched entries
-  const employeePrimaryBusinessIds = Array.from(new Set(enrichedEntries.map((e: any) => (e.employee?.primaryBusinessId) || null).filter(Boolean))) as string[]
-  const empBusinesses = employeePrimaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: employeePrimaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
+      const employeePrimaryBusinessIds = Array.from(new Set(enrichedEntries.map((e: any) => (e.employee?.primaryBusinessId) || null).filter(Boolean))) as string[]
+      const empBusinesses = employeePrimaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: employeePrimaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
       const empBusinessById: Record<string, any> = {}
       for (const b of empBusinesses) empBusinessById[b.id] = b
 
@@ -467,14 +467,61 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       for (const e of enrichedEntries) {
         try {
           if ((e as any).primaryBusiness && !((e as any).primaryBusiness as any).shortName) {
-            ;(((e as any).primaryBusiness) as any).shortName = computeShortName((((e as any).primaryBusiness) as any).name)
+            const short = computeShortName((((e as any).primaryBusiness) as any).name)
+            ; (((e as any).primaryBusiness) as any).shortName = short
+            // Persist computed shortName back to DB for future queries (best-effort)
+            try {
+              if (((e as any).primaryBusiness) && ((e as any).primaryBusiness).id) {
+                prisma.business.update({ where: { id: ((e as any).primaryBusiness).id }, data: { shortName: short } }).catch(() => null)
+              }
+            } catch (err) { /* ignore persistence errors */ }
           }
           if ((e as any).employee?.primaryBusiness && !((e as any).employee.primaryBusiness as any).shortName) {
-            ((e as any).employee.primaryBusiness as any).shortName = computeShortName((e as any).employee.primaryBusiness.name)
+            const shortEmp = computeShortName((e as any).employee.primaryBusiness.name)
+            ((e as any).employee.primaryBusiness as any).shortName = shortEmp
+            try {
+              if (((e as any).employee.primaryBusiness) && ((e as any).employee.primaryBusiness).id) {
+                prisma.business.update({ where: { id: ((e as any).employee.primaryBusiness).id }, data: { shortName: shortEmp } }).catch(() => null)
+              }
+            } catch (err) { /* ignore */ }
           }
         } catch (err) {
           // non-fatal
         }
+      }
+
+      // Sort and group enrichedEntries server-side so UI preview can mirror export
+      try {
+        const rowsByCompany: Map<string, any[]> = new Map()
+        for (const ee of enrichedEntries) {
+          const companyDisplay = (ee.primaryBusiness && (ee.primaryBusiness.shortName || ee.primaryBusiness.name)) || ''
+          const key = String(companyDisplay || '').trim() || 'ZZZ'
+          const normalized = key.toUpperCase()
+          if (!rowsByCompany.has(normalized)) rowsByCompany.set(normalized, [])
+          rowsByCompany.get(normalized)!.push(ee)
+        }
+        const sortedCompanyKeys = Array.from(rowsByCompany.keys()).sort()
+        const sorted: any[] = []
+        for (const k of sortedCompanyKeys) {
+          const group = rowsByCompany.get(k) || []
+          group.sort((a: any, b: any) => {
+            const aLast = a.employee?.lastName || a.employeeLastName || ''
+            const bLast = b.employee?.lastName || b.employeeLastName || ''
+            const c = String(aLast).localeCompare(String(bLast))
+            if (c !== 0) return c
+            const aFirst = a.employee?.firstName || a.employeeFirstName || ''
+            const bFirst = b.employee?.firstName || b.employeeFirstName || ''
+            const c2 = String(aFirst).localeCompare(String(bFirst))
+            if (c2 !== 0) return c2
+            const aNum = a.employee?.employeeNumber || a.employeeNumber || ''
+            const bNum = b.employee?.employeeNumber || b.employeeNumber || ''
+            return String(aNum).localeCompare(String(bNum))
+          })
+          sorted.push(...group)
+        }
+        enrichedEntries = sorted
+      } catch (err) {
+        // ignore
       }
 
       // Build server-side visible benefit columns by scanning mergedBenefits of each entry

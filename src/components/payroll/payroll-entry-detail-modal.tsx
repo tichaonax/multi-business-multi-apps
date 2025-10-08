@@ -131,6 +131,7 @@ export function PayrollEntryDetailModal({
   }, [isOpen, entryId])
 
   const loadEntry = async () => {
+    let loadedData: any = null
     try {
       setLoading(true)
       const response = await fetch(`/api/payroll/entries/${entryId}`)
@@ -139,7 +140,7 @@ export function PayrollEntryDetailModal({
 
         // Build benefits list by starting from server-provided mergedBenefits (authoritative effective view)
         // then overlay persisted payrollEntryBenefits so overrides and deactivations are reflected.
-  const benefitsMap = new Map<string, any>()
+        const benefitsMap = new Map<string, any>()
 
         const normalizeName = (s?: string | null) => {
           if (!s) return ''
@@ -157,7 +158,7 @@ export function PayrollEntryDetailModal({
         // Seed from mergedBenefits (server effective list) when available
         if (Array.isArray(data.mergedBenefits) && data.mergedBenefits.length > 0) {
           for (const mb of data.mergedBenefits) {
-            const k = keyFor(mb) || `merged-${Math.random().toString(36).slice(2,9)}`
+            const k = keyFor(mb) || `merged-${Math.random().toString(36).slice(2, 9)}`
             const id = mb.id || mb.benefitType?.id || mb.benefitTypeId || k
             const name = mb.benefitType?.name || mb.benefitName || mb.name || k
             // Treat merged/contract benefits as not active by default. Persisted overrides
@@ -198,7 +199,7 @@ export function PayrollEntryDetailModal({
         // If there were no mergedBenefits and no persisted benefits, fall back to contract pdfGenerationData
         if (benefitsMap.size === 0 && data.contract && data.contract.pdfGenerationData && Array.isArray(data.contract.pdfGenerationData.benefits)) {
           for (const cb of data.contract.pdfGenerationData.benefits) {
-            const k = keyFor(cb) || `contract-${Math.random().toString(36).slice(2,9)}`
+            const k = keyFor(cb) || `contract-${Math.random().toString(36).slice(2, 9)}`
             const id = cb.benefitTypeId || k
             const name = cb.name || cb.benefitType?.name || `Benefit-${id}`
             benefitsMap.set(k, {
@@ -221,7 +222,7 @@ export function PayrollEntryDetailModal({
           for (const cb of data.contract.pdfGenerationData.benefits) {
             try {
               const name = cb.name || (cb.benefitType && cb.benefitType.name) || ''
-              const id = cb.benefitTypeId || name || `contract-${Math.random().toString(36).slice(2,9)}`
+              const id = cb.benefitTypeId || name || `contract-${Math.random().toString(36).slice(2, 9)}`
               const key = String(id)
               // If not already present in benefitsList (by benefitTypeId or normalized name), add it
               const exists = benefitsList.some((b: any) => (b.benefitTypeId && cb.benefitTypeId && String(b.benefitTypeId) === String(cb.benefitTypeId)) || (String((b.benefitName || b.name || '')).toLowerCase() === String(name || '').toLowerCase()))
@@ -270,13 +271,13 @@ export function PayrollEntryDetailModal({
           }
         })
 
-  // Deduplicate persisted payrollEntryBenefits to avoid showing duplicates in Manual Benefits
+        // Deduplicate persisted payrollEntryBenefits to avoid showing duplicates in Manual Benefits
         const normalizeNameForKey = (s?: string | null) => {
           if (!s) return ''
           try { return String(s).normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase() } catch (e) { return String(s).trim().replace(/\s+/g, ' ').toLowerCase() }
         }
 
-  let dedupedPayrollEntryBenefits: any[] = []
+        let dedupedPayrollEntryBenefits: any[] = []
         if (Array.isArray(data.payrollEntryBenefits) && data.payrollEntryBenefits.length > 0) {
           const seen = new Map<string, any>()
           for (const b of data.payrollEntryBenefits) {
@@ -296,8 +297,8 @@ export function PayrollEntryDetailModal({
         }
 
         // Recompute negative adjustments (deductions) from the normalized payrollAdjustments list
-  // Exclude explicit 'absence' adjustments from the computed deductions so they are not double-counted
-  const adjAsDeductionsFromList = payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType||a.type||'').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
+        // Exclude explicit 'absence' adjustments from the computed deductions so they are not double-counted
+        const adjAsDeductionsFromList = payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
         const advances = Number(data.advanceDeductions || 0)
         const loans = Number(data.loanDeductions || 0)
         const misc = Number(data.miscDeductions || 0)
@@ -314,6 +315,13 @@ export function PayrollEntryDetailModal({
           payrollEntryBenefits: dedupedPayrollEntryBenefits.length > 0 ? dedupedPayrollEntryBenefits : data.payrollEntryBenefits,
           totalDeductions: totalDeductionsToUse
         })
+        loadedData = {
+          ...data,
+          benefitsTotal: benefitsTotalToUse,
+          payrollAdjustments,
+          payrollEntryBenefits: dedupedPayrollEntryBenefits.length > 0 ? dedupedPayrollEntryBenefits : data.payrollEntryBenefits,
+          totalDeductions: totalDeductionsToUse
+        }
         // Recover implied overtime hours when overtimePay exists but overtimeHours was not persisted
         let impliedOvertimeHours: number | null = null
         try {
@@ -367,7 +375,7 @@ export function PayrollEntryDetailModal({
           if (impliedOvertimeHours !== null) {
             // small delay to avoid interfering with other load logic
             setTimeout(() => {
-              try { persistFormData().catch(() => {/* swallow */}) } catch (e) { /* ignore */ }
+              try { persistFormData().catch(() => {/* swallow */ }) } catch (e) { /* ignore */ }
             }, 250)
           }
         } catch (e) {
@@ -385,12 +393,15 @@ export function PayrollEntryDetailModal({
           })
         }
         setBenefits(benefitsList)
+        // return loaded data to callers so they can opt-in to receive updatedEntry without forcing a full refresh
+        return loadedData
       }
     } catch (error) {
       console.error('Failed to load entry:', error)
     } finally {
       setLoading(false)
     }
+    return loadedData
   }
 
   // Compute overtime for modal (available to render and totals)
@@ -479,8 +490,8 @@ export function PayrollEntryDetailModal({
       (Array.isArray(benefitsList) ? benefitsList.filter(b => b.isActive !== false).reduce((s, b) => s + Number(b.amount || 0), 0) : 0)
 
     const baseSalary = Number(entry.baseSalary || 0)
-  // Prefer the live form value for commission so changes are reflected immediately
-  const commission = typeof formData.commission === 'number' ? Number(formData.commission) : Number(entry.commission || 0)
+    // Prefer the live form value for commission so changes are reflected immediately
+    const commission = typeof formData.commission === 'number' ? Number(formData.commission) : Number(entry.commission || 0)
     // Use the top-level computeOvertimeForModal so UI reflects live formData changes.
     // ...existing code relies on the outer computeOvertimeForModal which reads `formData`.
 
@@ -493,8 +504,8 @@ export function PayrollEntryDetailModal({
 
     // negative adjustments treated as deductions applied after taxes
     const adjAsDeductionsFromServer = Number((entry as any).adjustmentsAsDeductions || 0)
-  // Exclude explicit 'absence' adjustments from adjustmentsAsDeductions so they are not double-counted
-  const adjAsDeductionsFromList = payrollAdjustments.filter(a => !a.isAddition && String((a.adjustmentType||a.type||'').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
+    // Exclude explicit 'absence' adjustments from adjustmentsAsDeductions so they are not double-counted
+    const adjAsDeductionsFromList = payrollAdjustments.filter(a => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
     const adjAsDeductions = adjAsDeductionsFromServer && adjAsDeductionsFromServer !== 0 ? adjAsDeductionsFromServer : adjAsDeductionsFromList
 
     // Compute absence deduction: combine whole days + fraction and convert to hours
@@ -544,7 +555,7 @@ export function PayrollEntryDetailModal({
           }
 
           for (const inf of inferred) {
-            const k = keyFor(inf) || `inf-${Math.random().toString(36).slice(2,9)}`
+            const k = keyFor(inf) || `inf-${Math.random().toString(36).slice(2, 9)}`
             mergedMap.set(k, { ...inf, source: inf.source || 'contract-inferred' })
           }
           for (const p of persisted) {
@@ -614,7 +625,7 @@ export function PayrollEntryDetailModal({
 
       // Treat known numeric form fields as numbers and compare numerically to avoid
       // false-positives when server returns strings/Decimals.
-  const numericKeys = new Set(['workDays','sickDays','leaveDays','absenceDays','absenceFraction','overtimeHours','commission','miscDeductions'])
+      const numericKeys = new Set(['workDays', 'sickDays', 'leaveDays', 'absenceDays', 'absenceFraction', 'overtimeHours', 'commission', 'miscDeductions'])
       for (const [k, serverKey] of mapKeys) {
         const newVal = (formData as any)[k]
         const oldVal = (entry as any)[serverKey]
@@ -641,8 +652,8 @@ export function PayrollEntryDetailModal({
 
       if (response.ok) {
         const data = await response.json()
-  // Merge returned entry data into local entry state so future diffs compare correctly
-  try { setEntry((prev: any) => ({ ...(prev || {}), ...(data || {}) })) } catch (e) { /* ignore */ }
+        // Merge returned entry data into local entry state so future diffs compare correctly
+        try { setEntry((prev: any) => ({ ...(prev || {}), ...(data || {}) })) } catch (e) { /* ignore */ }
         // Indicate a successful autosave locally (brief badge in UI)
         try {
           setSavedAt(Date.now())
@@ -676,7 +687,7 @@ export function PayrollEntryDetailModal({
           const totalsAfter = computeEntryTotalsLocal(data, data.payrollAdjustments || [], benefits)
           const absenceAmt = Number(totalsAfter.absenceDeduction || 0)
           // Look for existing absence adjustment in either returned data or current entry
-          const existingAdj = (data.payrollAdjustments || entry?.payrollAdjustments || []).find((a:any) => String((a.adjustmentType||a.type||'').toLowerCase()) === 'absence')
+          const existingAdj = (data.payrollAdjustments || entry?.payrollAdjustments || []).find((a: any) => String((a.adjustmentType || a.type || '').toLowerCase()) === 'absence')
           let adjustmentChanged = false
           if (absenceAmt > 0) {
             const payload = {
@@ -712,7 +723,7 @@ export function PayrollEntryDetailModal({
               if (r2.ok) {
                 const refd = await r2.json()
                 entryToReturn = refd
-                try { setEntry((prev:any) => ({ ...(prev||{}), ...(refd||{}) })) } catch (e) { /* ignore */ }
+                try { setEntry((prev: any) => ({ ...(prev || {}), ...(refd || {}) })) } catch (e) { /* ignore */ }
               }
             } catch (e) {
               // ignore fetch failure and fall back to original data
@@ -775,7 +786,7 @@ export function PayrollEntryDetailModal({
     }
     // Schedule new autosave
     autosaveTimerRef.current = setTimeout(() => {
-      persistFormData().catch(() => {/* swallow */})
+      persistFormData().catch(() => {/* swallow */ })
       autosaveTimerRef.current = null
     }, 1500)
 
@@ -874,9 +885,10 @@ export function PayrollEntryDetailModal({
       })
 
       if (response.ok) {
-        const data = await response.json()
-        onSuccess({ message: 'Payroll entry updated successfully', refresh: true, updatedEntry: data })
-        loadEntry()
+        const data = await response.json().catch(() => null)
+        // Update parent with new entry but do not force a full page refresh; pass updatedEntry
+        onSuccess({ message: 'Payroll entry updated successfully', refresh: false, updatedEntry: data })
+        await loadEntry()
       } else {
         const error = await response.json()
         onError(error.error || 'Failed to update entry')
@@ -907,7 +919,7 @@ export function PayrollEntryDetailModal({
         return
       }
 
-  // instrumentation removed
+      // instrumentation removed
 
       // Ensure server receives a signed amount: negative for deductions
       const sendAmount = (adjustmentForm.isAddition === false) ? -Math.abs(amountNum) : Math.abs(amountNum)
@@ -927,10 +939,12 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify(payload)
       })
 
-  const parsed = await parseJsonSafe(response)
+      const parsed = await parseJsonSafe(response)
 
       if (response.ok) {
-        onSuccess({ message: 'Adjustment added successfully', refresh: false })
+        const data = await response.json().catch(() => null)
+        // Inform parent with updated entry data when available; do not force a full refresh
+        onSuccess({ message: 'Adjustment added successfully', refresh: false, updatedEntry: data || null })
         setShowAddAdjustment(false)
         setAdjustmentForm({
           type: 'bonus',
@@ -964,9 +978,10 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify(sendPatch)
       })
 
-  if (response.ok) {
-  onSuccess({ message: 'Adjustment updated', refresh: false })
-        loadEntry()
+      if (response.ok) {
+        const data = await response.json().catch(() => null)
+        onSuccess({ message: 'Adjustment updated', refresh: false, updatedEntry: data || null })
+        await loadEntry()
       } else {
         const error = await response.json()
         onError(error.error || 'Failed to update adjustment')
@@ -982,8 +997,9 @@ export function PayrollEntryDetailModal({
       if (!ok) return
       const response = await fetch(`/api/payroll/adjustments?adjustmentId=${adjustmentId}`, { method: 'DELETE' })
       if (response.ok) {
-        onSuccess({ message: 'Adjustment deleted', refresh: false })
-        loadEntry()
+        const data = await response.json().catch(() => null)
+        onSuccess({ message: 'Adjustment deleted', refresh: false, updatedEntry: data || null })
+        await loadEntry()
       } else {
         const error = await response.json()
         onError(error.error || 'Failed to delete adjustment')
@@ -1000,7 +1016,7 @@ export function PayrollEntryDetailModal({
         return
       }
 
-  // instrumentation removed
+      // instrumentation removed
 
       const response = await fetch(`/api/payroll/entries/${entryId}/benefits`, {
         method: 'POST',
@@ -1008,8 +1024,9 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify(benefitForm)
       })
 
-  const parsed = await parseJsonSafe(response)
+      const parsed = await parseJsonSafe(response)
       if (response.ok) {
+        const created = parsed || null
         // If server returned the created payrollEntryBenefit, merge it into local benefits list
         if (parsed) {
           try {
@@ -1017,7 +1034,7 @@ export function PayrollEntryDetailModal({
             setBenefits((prev) => {
               try {
                 // Build key similar to other logic
-                const newKey = (parsed.benefitType && parsed.benefitType.id) || parsed.benefitTypeId || String(parsed.benefitName || parsed.benefitType?.name || `new-${Math.random().toString(36).slice(2,9)}`)
+                const newKey = (parsed.benefitType && parsed.benefitType.id) || parsed.benefitTypeId || String(parsed.benefitName || parsed.benefitType?.name || `new-${Math.random().toString(36).slice(2, 9)}`)
                 // Avoid duplicates
                 const exists = prev.some((b: any) => (b.benefitTypeId && parsed.benefitTypeId && String(b.benefitTypeId) === String(parsed.benefitTypeId)) || (parsed.benefitType && b.benefitType && String(b.benefitType.id) === String(parsed.benefitType.id)) || (String(b.benefitName || '').toLowerCase() === String(parsed.benefitName || parsed.benefitType?.name || '').toLowerCase()))
                 if (exists) return prev
@@ -1031,11 +1048,11 @@ export function PayrollEntryDetailModal({
           }
         }
 
-  onSuccess({ message: 'Benefit added successfully', refresh: true })
-    // Collapse add form after success and reset selection
-    setShowAddBenefit(false)
-    setBenefitForm({ benefitTypeId: '', amount: 0 })
-    await loadBenefits()
+        onSuccess({ message: 'Benefit added successfully', refresh: false, updatedEntry: created })
+        // Collapse add form after success and reset selection
+        setShowAddBenefit(false)
+        setBenefitForm({ benefitTypeId: '', amount: 0 })
+        await loadBenefits()
       } else {
         const msg = parsed?.error || parsed?.message || parsed?.text || `Failed to add benefit (${response.status})`
         onError(msg)
@@ -1060,8 +1077,9 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify({ isActive: true, deactivatedReason: null })
       })
 
-        if (response.ok) {
-          onSuccess({ message: 'Benefit reactivated', refresh: true })
+      if (response.ok) {
+        const updated = await response.json().catch(() => null)
+        onSuccess({ message: 'Benefit reactivated', refresh: false, updatedEntry: updated })
         await loadBenefits()
         await loadEntry()
       } else {
@@ -1069,7 +1087,7 @@ export function PayrollEntryDetailModal({
         onError(error.error || 'Failed to update benefit')
       }
     } catch (error) {
-        // instrumentation removed
+      // instrumentation removed
     }
   }
 
@@ -1095,7 +1113,8 @@ export function PayrollEntryDetailModal({
         })
 
         if (response.ok) {
-          onSuccess({ message: 'Contract benefit removed for this entry', refresh: true })
+          const updated = await response.json().catch(() => null)
+          onSuccess({ message: 'Contract benefit removed for this entry', refresh: false, updatedEntry: updated })
           setDeactivatingBenefit(null)
           setDeactivationReason('')
           await loadBenefits()
@@ -1118,7 +1137,8 @@ export function PayrollEntryDetailModal({
       })
 
       if (response.ok) {
-        onSuccess({ message: 'Benefit deactivated', refresh: true })
+        const updated = await response.json().catch(() => null)
+        onSuccess({ message: 'Benefit deactivated', refresh: false, updatedEntry: updated })
         setDeactivatingBenefit(null)
         setDeactivationReason('')
         await loadBenefits()
@@ -1140,7 +1160,8 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify({ id: benefitId, ...patch })
       })
       if (response.ok) {
-        onSuccess({ message: 'Benefit updated', refresh: true })
+        const updated = await response.json().catch(() => null)
+        onSuccess({ message: 'Benefit updated', refresh: false, updatedEntry: updated })
         await loadBenefits()
         await loadEntry()
       } else {
@@ -1161,7 +1182,8 @@ export function PayrollEntryDetailModal({
         body: JSON.stringify({ benefitTypeId: benefit.benefitTypeId, amount: benefit.amount })
       })
       if (response.ok) {
-        onSuccess({ message: 'Benefit override saved', refresh: true })
+        const updated = await response.json().catch(() => null)
+        onSuccess({ message: 'Benefit override saved', refresh: false, updatedEntry: updated })
         await loadBenefits()
         await loadEntry()
       } else {
@@ -1183,7 +1205,8 @@ export function PayrollEntryDetailModal({
       })
 
       if (response.ok) {
-        onSuccess({ message: 'Benefit deleted successfully', refresh: true })
+        const updated = await response.json().catch(() => null)
+        onSuccess({ message: 'Benefit deleted successfully', refresh: false, updatedEntry: updated })
         await loadBenefits()
         await loadEntry()
       } else {
@@ -1241,7 +1264,7 @@ export function PayrollEntryDetailModal({
               ) : null}
             </div>
           </div>
-          <button type="button" onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: true }) } catch (e) { /* ignore */ } onClose() }} className="text-secondary hover:text-primary transition-colors">
+          <button type="button" onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: false, updatedEntry: entry || null }) } catch (e) { /* ignore */ } onClose() }} className="text-secondary hover:text-primary transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1401,15 +1424,15 @@ export function PayrollEntryDetailModal({
                 {(entry.overtimePay > 0) ? (
                   <div className="flex justify-between">
                     <span className="text-secondary">Overtime Pay:</span>
-                    <span className="text-primary">{formatCurrency(entry.overtimePay)}{(formData.overtimeHours || formData.overtimeHours === 0) ? (<span className="text-sm text-secondary ml-2">({(Number.isFinite(Number(formData.overtimeHours)) ? String(Number(formData.overtimeHours).toFixed(2).replace(/\.00$/,'') ) : String(formData.overtimeHours))} hrs)</span>) : null}</span>
+                    <span className="text-primary">{formatCurrency(entry.overtimePay)}{(formData.overtimeHours || formData.overtimeHours === 0) ? (<span className="text-sm text-secondary ml-2">({(Number.isFinite(Number(formData.overtimeHours)) ? String(Number(formData.overtimeHours).toFixed(2).replace(/\.00$/, '')) : String(formData.overtimeHours))} hrs)</span>) : null}</span>
                   </div>
                 ) : (
                   (() => {
                     const computed = computeOvertimeForModal(entry)
-                      return computed > 0 ? (
+                    return computed > 0 ? (
                       <div className="flex justify-between">
                         <span className="text-secondary">Overtime Pay (computed):</span>
-                        <span className="text-primary">{formatCurrency(computed)}{(formData.overtimeHours || formData.overtimeHours === 0) ? (<span className="text-sm text-secondary ml-2">({(Number.isFinite(Number(formData.overtimeHours)) ? String(Number(formData.overtimeHours).toFixed(2).replace(/\.00$/,'') ) : String(formData.overtimeHours))} hrs)</span>) : null}</span>
+                        <span className="text-primary">{formatCurrency(computed)}{(formData.overtimeHours || formData.overtimeHours === 0) ? (<span className="text-sm text-secondary ml-2">({(Number.isFinite(Number(formData.overtimeHours)) ? String(Number(formData.overtimeHours).toFixed(2).replace(/\.00$/, '')) : String(formData.overtimeHours))} hrs)</span>) : null}</span>
                       </div>
                     ) : null
                   })()
@@ -1423,18 +1446,24 @@ export function PayrollEntryDetailModal({
                     {(() => {
                       // Exclude zero-amount benefits from the Compensation Breakdown display
                       // Ensure contract-inferred benefits are included individually as line items
-                      const contractInferred = (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb:any) => Number(cb.amount || 0) !== 0 && cb.name).map((cb:any) => ({ benefitName: cb.name, amount: Number(cb.amount || 0), source: 'contract-inferred', benefitTypeId: cb.benefitTypeId || null }))
+                      const contractInferred = (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name).map((cb: any) => ({ benefitName: cb.name, amount: Number(cb.amount || 0), source: 'contract-inferred', benefitTypeId: cb.benefitTypeId || null }))
                       // Merge persisted/manual benefits (from `benefits`) with contract-inferred, avoiding duplicates by benefitTypeId or name
                       const displayedMap = new Map<string, any>()
                       for (const b of (benefits || [])) {
                         try {
+                          // Exclude explicitly deactivated persisted benefits from the Compensation Breakdown
                           if (!b || Number(b.amount || 0) === 0) continue
+                          if (b.isActive === false) continue
                           const key = String(b.benefitTypeId || (b.benefitName || '').toLowerCase())
                           if (!displayedMap.has(key)) displayedMap.set(key, { benefitName: b.benefitName || b.name || key, amount: Number(b.amount || 0), source: b.source || 'manual', benefitTypeId: b.benefitTypeId || null })
                         } catch (e) { /* ignore */ }
                       }
                       for (const cb of contractInferred) {
                         try {
+                          // If there's a persisted override for this contract benefit and it is explicitly deactivated,
+                          // do not show the contract-inferred benefit (the persisted override intentionally hides it).
+                          const override = (entry?.payrollEntryBenefits || []).find((pb: any) => (pb.benefitTypeId && cb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) || (pb.benefitName && String(pb.benefitName).toLowerCase() === String(cb.benefitName).toLowerCase()))
+                          if (override && override.isActive === false) continue
                           const key = String(cb.benefitTypeId || (cb.benefitName || '').toLowerCase())
                           if (!displayedMap.has(key)) displayedMap.set(key, cb)
                         } catch (e) { /* ignore */ }
@@ -1444,7 +1473,7 @@ export function PayrollEntryDetailModal({
                         <>
                           {displayed.map((benefit) => (
                             <div key={benefit.id || benefit.benefitTypeId} className="flex justify-between ml-4 text-xs">
-                                <span className="text-secondary">{benefit.benefitName}{benefit.source === 'contract-inferred' && (<span className="ml-1 text-blue-600 dark:text-blue-400"> (from contract)</span>)}</span>
+                              <span className="text-secondary">{benefit.benefitName}{benefit.source === 'contract-inferred' && (<span className="ml-1 text-blue-600 dark:text-blue-400"> (from contract)</span>)}</span>
                               <span className="text-primary">{formatCurrency(benefit.amount)}</span>
                             </div>
                           ))}
@@ -1465,12 +1494,12 @@ export function PayrollEntryDetailModal({
                             return null
                           })()}
 
-                              <div className="flex justify-between font-medium">
-                                <span className="text-secondary">Total Benefits:</span>
-                                <span className="text-primary">
-                                  {formatCurrency(displayed.reduce((sum, b) => sum + Number(b.amount || 0), 0) + ((entry && Number((entry as any).adjustmentsTotal || 0)) ? Number((entry as any).adjustmentsTotal || 0) : (entry?.payrollAdjustments || []).filter((a:any)=>a.isAddition).reduce((s:number,a:any)=>s+Number(a.amount||0),0)))}
-                                </span>
-                              </div>
+                          <div className="flex justify-between font-medium">
+                            <span className="text-secondary">Total Benefits:</span>
+                            <span className="text-primary">
+                              {formatCurrency(displayed.reduce((sum, b) => sum + Number(b.amount || 0), 0) + ((entry && Number((entry as any).adjustmentsTotal || 0)) ? Number((entry as any).adjustmentsTotal || 0) : (entry?.payrollAdjustments || []).filter((a: any) => a.isAddition).reduce((s: number, a: any) => s + Number(a.amount || 0), 0)))}
+                            </span>
+                          </div>
                         </>
                       )
                     })()}
@@ -1545,19 +1574,19 @@ export function PayrollEntryDetailModal({
                     <input
                       type="number"
                       step="0.01"
-                        value={typeof formData.miscDeductions === 'number' ? formData.miscDeductions : Number(entry.miscDeductions || 0)}
-                        onChange={(e) => setFormData({ ...formData, miscDeductions: parseFloat(e.target.value) || 0 })}
-                        onBlur={() => flushAutosave()}
+                      value={typeof formData.miscDeductions === 'number' ? formData.miscDeductions : Number(entry.miscDeductions || 0)}
+                      onChange={(e) => setFormData({ ...formData, miscDeductions: parseFloat(e.target.value) || 0 })}
+                      onBlur={() => flushAutosave()}
                       className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       min="0"
                     />
                   </div>
                 </div>
                 {/* Show payroll adjustments that are deductions as individual line items */}
-                {entry.payrollAdjustments && entry.payrollAdjustments.filter((a:any) => !a.isAddition && String((a.adjustmentType||a.type||'').toLowerCase()) !== 'absence').length > 0 && (
+                {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').length > 0 && (
                   <div>
                     <div className="font-medium text-secondary mb-1">Other Deductions:</div>
-                    {entry.payrollAdjustments.filter((a:any) => !a.isAddition && String((a.adjustmentType||a.type||'').toLowerCase()) !== 'absence').map((adj:any) => (
+                    {entry.payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').map((adj: any) => (
                       <div key={adj.id} className="flex justify-between ml-4 text-xs items-center">
                         {/* Prefer explicit description, then DB reason, then type, then generic label */}
                         <div className="text-secondary">{adj.description || adj.reason || adj.type || 'Deduction'}</div>
@@ -1692,9 +1721,9 @@ export function PayrollEntryDetailModal({
                 </div>
               )}
 
-                {entry.payrollAdjustments && entry.payrollAdjustments.filter((a:any)=>a.isAddition).length > 0 ? (
+              {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => a.isAddition).length > 0 ? (
                 <div className="space-y-2">
-                  {entry.payrollAdjustments.filter((a:any)=>a.isAddition).map((adj: any) => (
+                  {entry.payrollAdjustments.filter((a: any) => a.isAddition).map((adj: any) => (
                     <div key={adj.id} className="bg-muted p-3 rounded border border-border flex items-center justify-between">
                       <div>
                         {/* Prefer description, then reason, then type */}
@@ -1741,68 +1770,68 @@ export function PayrollEntryDetailModal({
               {showAddBenefit && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-4 border border-blue-200 dark:border-blue-800">
                   <div className="grid grid-cols-2 gap-4 mb-3">
-                        <div>
-                          <label className="block text-sm font-medium text-secondary mb-1">Benefit Type</label>
-                          {/* Searchable input with suggestions. If no suggestion matches, user can create-and-add on the fly. */}
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={benefitSearch || (benefitForm.benefitTypeId ? (benefitTypes.find(bt => bt.id === benefitForm.benefitTypeId)?.name || '') : '')}
-                              onChange={(e) => {
-                                setBenefitSearch(e.target.value)
-                                // clear explicit selection when user types
-                                if (benefitForm.benefitTypeId) setBenefitForm({ ...benefitForm, benefitTypeId: '' })
-                              }}
-                              onKeyDown={(e) => {
-                                // Prevent Enter from submitting any surrounding forms / reloading page
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                }
-                              }}
-                              placeholder="Search or type to add new benefit"
-                              className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">Benefit Type</label>
+                      {/* Searchable input with suggestions. If no suggestion matches, user can create-and-add on the fly. */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={benefitSearch || (benefitForm.benefitTypeId ? (benefitTypes.find(bt => bt.id === benefitForm.benefitTypeId)?.name || '') : '')}
+                          onChange={(e) => {
+                            setBenefitSearch(e.target.value)
+                            // clear explicit selection when user types
+                            if (benefitForm.benefitTypeId) setBenefitForm({ ...benefitForm, benefitTypeId: '' })
+                          }}
+                          onKeyDown={(e) => {
+                            // Prevent Enter from submitting any surrounding forms / reloading page
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                            }
+                          }}
+                          placeholder="Search or type to add new benefit"
+                          className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
 
-                            {/* Suggestion dropdown */}
-                            {benefitSearch.trim().length > 0 && (
-                              <div className="absolute z-10 left-0 right-0 bg-white dark:bg-gray-900 border border-border rounded mt-1 max-h-48 overflow-auto shadow">
-                                {/* Show matches from the full global set so users can see existing types (disabled when already added for this entry) */}
-                                {(Array.isArray(benefitTypes) ? benefitTypes : []).filter((bt: any) => (bt.name || '').toLowerCase().includes(benefitSearch.toLowerCase())).slice(0, 50).map((bt: any) => {
-                                  // Determine whether this type is already present for this payroll entry (either persisted manual or contract-inferred)
-                                  const id = bt && bt.id ? String(bt.id) : null
-                                  const used = Boolean(id && (
-                                    (entry?.payrollEntryBenefits || []).some((b: any) => b.benefitTypeId && String(b.benefitTypeId) === id) ||
-                                    (entry?.contract?.pdfGenerationData?.benefits || []).some((cb: any) => cb.benefitTypeId && String(cb.benefitTypeId) === id)
-                                  ))
-                                  const baseClass = used ? 'px-3 py-2 opacity-50 cursor-not-allowed' : 'px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer'
-                                  return (
-                                    <div
-                                      key={bt.id}
-                                      className={baseClass}
-                                      onClick={() => {
-                                        if (used) {
-                                          // Don't select used types; make it clear why
-                                          try { onError('This benefit type is already present for this payroll entry') } catch (e) { /* ignore */ }
-                                          return
-                                        }
-                                        setBenefitForm({ ...benefitForm, benefitTypeId: bt.id, amount: bt.defaultAmount ?? benefitForm.amount })
-                                        setBenefitSearch('')
-                                      }}
-                                    >
-                                      {bt.name} <span className="text-xs text-secondary">({bt.type})</span>
-                                        {bt.name}
-                                      {used && <span className="ml-2 text-xs text-secondary">(already added)</span>}
-                                        {used && <span className="ml-2 text-xs text-secondary">(already added)</span>}
-                                    </div>
-                                  )
-                                })}
-                                {((Array.isArray(benefitTypes) ? benefitTypes : []).filter((bt: any) => (bt.name || '').toLowerCase().includes(benefitSearch.toLowerCase())).length === 0) && (
-                                  <div className="px-3 py-2 text-sm text-secondary">No matches. Press "Create & Add" to add this benefit type.</div>
-                                )}
-                              </div>
+                        {/* Suggestion dropdown */}
+                        {benefitSearch.trim().length > 0 && (
+                          <div className="absolute z-10 left-0 right-0 bg-white dark:bg-gray-900 border border-border rounded mt-1 max-h-48 overflow-auto shadow">
+                            {/* Show matches from the full global set so users can see existing types (disabled when already added for this entry) */}
+                            {(Array.isArray(benefitTypes) ? benefitTypes : []).filter((bt: any) => (bt.name || '').toLowerCase().includes(benefitSearch.toLowerCase())).slice(0, 50).map((bt: any) => {
+                              // Determine whether this type is already present for this payroll entry (either persisted manual or contract-inferred)
+                              const id = bt && bt.id ? String(bt.id) : null
+                              const used = Boolean(id && (
+                                (entry?.payrollEntryBenefits || []).some((b: any) => b.benefitTypeId && String(b.benefitTypeId) === id) ||
+                                (entry?.contract?.pdfGenerationData?.benefits || []).some((cb: any) => cb.benefitTypeId && String(cb.benefitTypeId) === id)
+                              ))
+                              const baseClass = used ? 'px-3 py-2 opacity-50 cursor-not-allowed' : 'px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer'
+                              return (
+                                <div
+                                  key={bt.id}
+                                  className={baseClass}
+                                  onClick={() => {
+                                    if (used) {
+                                      // Don't select used types; make it clear why
+                                      try { onError('This benefit type is already present for this payroll entry') } catch (e) { /* ignore */ }
+                                      return
+                                    }
+                                    setBenefitForm({ ...benefitForm, benefitTypeId: bt.id, amount: bt.defaultAmount ?? benefitForm.amount })
+                                    setBenefitSearch('')
+                                  }}
+                                >
+                                  {bt.name} <span className="text-xs text-secondary">({bt.type})</span>
+                                  {bt.name}
+                                  {used && <span className="ml-2 text-xs text-secondary">(already added)</span>}
+                                  {used && <span className="ml-2 text-xs text-secondary">(already added)</span>}
+                                </div>
+                              )
+                            })}
+                            {((Array.isArray(benefitTypes) ? benefitTypes : []).filter((bt: any) => (bt.name || '').toLowerCase().includes(benefitSearch.toLowerCase())).length === 0) && (
+                              <div className="px-3 py-2 text-sm text-secondary">No matches. Press "Create & Add" to add this benefit type.</div>
                             )}
                           </div>
-                        </div>
+                        )}
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-secondary mb-1">Amount</label>
                       <input
@@ -1881,8 +1910,8 @@ export function PayrollEntryDetailModal({
                               }
                             }
 
-                            // Notify parent and instrument the moment — parent may refresh data
-                            onSuccess({ message: 'Benefit created and added', refresh: true })
+                            // Notify parent and instrument the moment — do not force full refresh; provide created item
+                            onSuccess({ message: 'Benefit created and added', refresh: false, updatedEntry: parsed || null })
                             // Clear search, update local entry/benefits so Manual Benefits shows the new item,
                             // and close the add UI to avoid leaving a stale form open.
                             setBenefitSearch('')
@@ -1899,15 +1928,15 @@ export function PayrollEntryDetailModal({
                         } catch (err) {
                           onError('Failed to create benefit')
                         }
-                        }}
-                        // Disable Create & Add when amount is invalid or when the typed name exactly matches
-                        // an existing global benefit type (to avoid duplicate creation) or when it already exists
-                        // as a persisted/manual benefit on this entry.
-                        disabled={Number(benefitForm.amount || 0) <= 0 || exactTypedMatchIsAvailable || exactTypedMatchInEntry || typedMatchesGlobalBenefit}
-                        className={`px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 ${Number(benefitForm.amount || 0) <= 0 || exactTypedMatchIsAvailable || exactTypedMatchInEntry || typedMatchesGlobalBenefit ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        Create & Add
-                      </button>
+                      }}
+                      // Disable Create & Add when amount is invalid or when the typed name exactly matches
+                      // an existing global benefit type (to avoid duplicate creation) or when it already exists
+                      // as a persisted/manual benefit on this entry.
+                      disabled={Number(benefitForm.amount || 0) <= 0 || exactTypedMatchIsAvailable || exactTypedMatchInEntry || typedMatchesGlobalBenefit}
+                      className={`px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 ${Number(benefitForm.amount || 0) <= 0 || exactTypedMatchIsAvailable || exactTypedMatchInEntry || typedMatchesGlobalBenefit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      Create & Add
+                    </button>
                   </div>
                 </div>
               )}
@@ -1938,13 +1967,13 @@ export function PayrollEntryDetailModal({
                         return false
                       }
 
-                        // Include zero-amount persisted benefits here so users can edit or remove them.
-                        return entry!.payrollEntryBenefits.filter((b:any) => !isContractOverride(b)).map((b:any) => (
+                      // Include zero-amount persisted benefits here so users can edit or remove them.
+                      return entry!.payrollEntryBenefits.filter((b: any) => !isContractOverride(b)).map((b: any) => (
                         <div key={b.id} className="p-3 rounded bg-muted border border-border flex items-center justify-between">
                           <div>
-                              <div className="font-medium text-sm text-primary">
-                                <span>{b.benefitName}</span>
-                              </div>
+                            <div className="font-medium text-sm text-primary">
+                              <span>{b.benefitName}</span>
+                            </div>
                             {!b.isActive && b.deactivatedReason && <div className="text-xs text-red-600 mt-1">Deactivated: {b.deactivatedReason}</div>}
                           </div>
                           <div className="flex items-center gap-3">
@@ -2001,7 +2030,8 @@ export function PayrollEntryDetailModal({
                                   body: JSON.stringify({ id: b.id, amount })
                                 })
                                 if (response.ok) {
-                                  onSuccess({ message: 'Benefit updated', refresh: true })
+                                  const updated = await response.json().catch(() => null)
+                                  onSuccess({ message: 'Benefit updated', refresh: false, updatedEntry: updated })
                                 } else {
                                   const error = await response.json()
                                   onError(error.error || 'Failed to update benefit')
@@ -2027,11 +2057,11 @@ export function PayrollEntryDetailModal({
               {/* Contract-inferred benefits section */}
               <div>
                 <div className="font-medium text-secondary mb-2">Contract Benefits (from contract PDF)</div>
-                {entry?.contract?.pdfGenerationData?.benefits && entry.contract.pdfGenerationData.benefits.filter((cb:any) => Number(cb.amount || 0) !== 0 && cb.name).length > 0 ? (
+                {entry?.contract?.pdfGenerationData?.benefits && entry.contract.pdfGenerationData.benefits.filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name).length > 0 ? (
                   <div className="space-y-2">
-                    {entry!.contract.pdfGenerationData.benefits.filter((cb:any) => Number(cb.amount || 0) !== 0 && cb.name).map((cb:any) => {
+                    {entry!.contract.pdfGenerationData.benefits.filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name).map((cb: any) => {
                       // Find any persisted override matching this contract benefit by type or name
-                      const override = entry!.payrollEntryBenefits?.find((pb:any) => (pb.benefitTypeId && cb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) || (pb.benefitName && String(pb.benefitName).toLowerCase() === String(cb.name).toLowerCase()))
+                      const override = entry!.payrollEntryBenefits?.find((pb: any) => (pb.benefitTypeId && cb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) || (pb.benefitName && String(pb.benefitName).toLowerCase() === String(cb.name).toLowerCase()))
                       if (override) {
                         // Show the persisted override in the Contract section with a toggle, Edit and Delete
                         return (
@@ -2078,12 +2108,12 @@ export function PayrollEntryDetailModal({
                       }
 
                       // No override: show inferred contract benefit with Persist and Remove
-                        return (
+                      return (
                         <div key={cb.benefitTypeId || cb.name} className="p-3 rounded border bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 flex items-center justify-between">
                           <div>
-                              <div className="font-medium text-sm text-primary">
-                                <span>{cb.name} <span className="ml-2 text-xs text-blue-600">(From Contract)</span></span>
-                              </div>
+                            <div className="font-medium text-sm text-primary">
+                              <span>{cb.name} <span className="ml-2 text-xs text-blue-600">(From Contract)</span></span>
+                            </div>
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-primary font-medium">{formatCurrency(Number(cb.amount || 0))}</span>
@@ -2246,7 +2276,7 @@ export function PayrollEntryDetailModal({
             <div className="flex justify-end gap-3 pt-4 border-t border-border">
               <button
                 type="button"
-                onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: true }) } catch (e) { /* ignore */ } onClose() }}
+                onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: false, updatedEntry: entry || null }) } catch (e) { /* ignore */ } onClose() }}
                 className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted transition-colors"
               >
                 Close

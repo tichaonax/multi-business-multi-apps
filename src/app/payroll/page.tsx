@@ -152,11 +152,10 @@ export default function PayrollPage() {
       {/* Notification */}
       {notification && (
         <div
-          className={`mb-4 p-4 rounded-md ${
-            notification.type === 'success'
+          className={`mb-4 p-4 rounded-md ${notification.type === 'success'
               ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800'
               : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800'
-          }`}
+            }`}
         >
           {notification.message}
         </div>
@@ -210,17 +209,11 @@ export default function PayrollPage() {
         </select>
       </div>
 
-      {/* Payroll Periods List */}
-      {selectedBusinessId ? (
-        <PayrollPeriodsList
-          businessId={selectedBusinessId}
-          onSelectPeriod={(period) => router.push(`/payroll/${period.id}`)}
-        />
-      ) : (
-        <div className="card text-center py-12">
-          <p className="text-secondary">Please select a business to view payroll periods</p>
-        </div>
-      )}
+      {/* Payroll Periods List - show all periods when no business selected */}
+      <PayrollPeriodsList
+        businessId={selectedBusinessId || undefined}
+        onSelectPeriod={(period) => router.push(`/payroll/${period.id}`)}
+      />
 
       {/* Create Period Modal */}
       {canCreatePeriod && (

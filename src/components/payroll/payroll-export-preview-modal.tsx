@@ -175,8 +175,9 @@ export function PayrollExportPreviewModal({
   // Compute canonical benefits total for an entry. Prefer server-provided totals but fall back
   // to mergedBenefits / payrollEntryBenefits / contract pdfGenerationData calculations.
   const resolveBenefitsTotal = (entry: PayrollEntry) => {
-    const serverTotal = Number((entry as any).totalBenefitsAmount ?? (entry as any).benefitsTotal ?? 0)
-    if (serverTotal && serverTotal > 0) return serverTotal
+    // Prefer explicit API-provided totals when present (including zero)
+    const serverTotalRaw = (entry as any).totalBenefitsAmount ?? (entry as any).benefitsTotal
+    if (serverTotalRaw !== undefined && serverTotalRaw !== null) return Number(serverTotalRaw)
 
     // Try mergedBenefits first
     const merged = (entry as any).mergedBenefits
@@ -273,11 +274,11 @@ export function PayrollExportPreviewModal({
 
     const absenceDeduction = resolveAbsenceDeduction(entry)
     const gross = baseSalary + commission + overtime + benefitsTotal + additions - (absenceDeduction || 0)
-  const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
-  const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-  // Prefer the derived total which excludes explicit 'absence' adjustments so exports
-  // align with the modal/list display.
-  const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
+    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    // Prefer the derived total which excludes explicit 'absence' adjustments so exports
+    // align with the modal/list display.
+    const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
     // For export/preview, Net (incl Benefits) should be the gross amount (third-party will apply deductions).
     const net = gross
     return { benefitsTotal, gross, totalDeductions, net }
@@ -393,66 +394,142 @@ export function PayrollExportPreviewModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border bg-background">
-                    {period.payrollEntries.map((entry) => {
-                      // Prefer explicit firstName/lastName if provided by the API, otherwise fallback to splitting employeeName
-                      const firstName = (entry as any).employeeFirstName || (() => {
-                        const nameParts = entry.employeeName ? entry.employeeName.split(' ') : []
-                        return nameParts.slice(0, -1).join(' ') || ''
-                      })()
-                      const surname = (entry as any).employeeLastName || (() => {
-                        const nameParts = entry.employeeName ? entry.employeeName.split(' ') : []
-                        return nameParts.slice(-1)[0] || ''
-                      })()
+                    {(() => {
+                      // Group and sort entries by company then by lastName, firstName, employeeNumber
+                      const groups: Record<string, any[]> = {}
+                      for (const entry of period.payrollEntries) {
+                        const company = (entry as any).primaryBusiness?.shortName || (entry as any).primaryBusiness?.name || (entry as any).contract?.pdfGenerationData?.businessName || ''
+                        const key = String(company || '').trim() || 'ZZZ'
+                        if (!groups[key]) groups[key] = []
+                        groups[key].push(entry)
+                      }
+                      const sortedCompanyKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b))
+                      const rows: any[] = []
+                      for (const k of sortedCompanyKeys) {
+                        const group = groups[k]
+                        group.sort((a: any, b: any) => {
+                          const aLast = a.employee?.lastName || a.employeeLastName || (a.employeeName || '').split(' ').slice(-1)[0] || ''
+                          const bLast = b.employee?.lastName || b.employeeLastName || (b.employeeName || '').split(' ').slice(-1)[0] || ''
+                          const c = String(aLast).localeCompare(String(bLast))
+                          if (c !== 0) return c
+                          const aFirst = a.employee?.firstName || a.employeeFirstName || (a.employeeName || '').split(' ').slice(0, -1).join(' ') || ''
+                          const bFirst = b.employee?.firstName || b.employeeFirstName || (b.employeeName || '').split(' ').slice(0, -1).join(' ') || ''
+                          const c2 = String(aFirst).localeCompare(String(bFirst))
+                          if (c2 !== 0) return c2
+                          const aNum = a.employee?.employeeNumber || a.employeeNumber || ''
+                          const bNum = b.employee?.employeeNumber || b.employeeNumber || ''
+                          return String(aNum).localeCompare(String(bNum))
+                        })
 
-                      return (
-                        <tr key={entry.id} className="hover:bg-muted">
-                          <td className="px-3 py-2 text-sm text-primary">{makeShortCompanyLabel((entry as any).primaryBusiness?.name || (entry as any).employee?.primaryBusiness?.name)}</td>
-                          <td className="px-3 py-2 text-sm text-primary">{(entry as any).employeeNumber || ''}</td>
-                          <td className="px-3 py-2 text-sm text-primary">{entry.nationalId}</td>
-                          <td className="px-3 py-2 text-sm text-secondary">{(entry as any).employeeDateOfBirth ? new Date((entry as any).employeeDateOfBirth).toLocaleDateString() : (entry.dateOfBirth ? new Date(entry.dateOfBirth).toLocaleDateString() : '')}</td>
-                          <td className="px-3 py-2 text-sm text-primary">{surname}</td>
-                          <td className="px-3 py-2 text-sm text-primary">{firstName}</td>
-                          <td className="px-3 py-2 text-sm text-secondary">{(entry as any).employee?.jobTitles?.title || ''}</td>
-                          <td className="px-3 py-2 text-sm text-right text-secondary">{entry.workDays}</td>
-                          <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeSickDays ?? (entry as any).sickDays ?? 0}</td>
-                          <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeLeaveDays ?? (entry as any).leaveDays ?? 0}</td>
-                          <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0}</td>
-                          <td className="px-3 py-2 text-sm text-secondary">{(entry as any).employeeHireDate ? new Date((entry as any).employeeHireDate).toLocaleDateString() : (entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : '')}</td>
-                          <td className="px-3 py-2 text-sm text-secondary">{entry.terminationDate ? new Date(entry.terminationDate).toLocaleDateString() : ''}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.baseSalary || 0))}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.commission || 0))}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.overtimePay || 0))}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number((entry as any).adjustmentsTotal || 0))}</td>
-                          {getUniqueBenefits().map(uniqueBenefit => {
-                            const merged = entry.mergedBenefits?.find((mb: any) => {
-                              const id = mb?.benefitType?.id || mb?.benefitTypeId || mb?.key || String(mb?.benefitTypeId || '')
-                              return String(id) === String(uniqueBenefit.benefitTypeId)
-                            })
+                        // Push a header object to render as a company header row in the table
+                        rows.push({ __companyHeader: true, companyKey: k })
+                        for (const r of group) rows.push(r)
+                        // Push a subtotal marker so we can render group totals
+                        rows.push({ __companySubtotal: true, companyKey: k, entries: group })
+                      }
+                      return rows.map((entryOrMeta, idx) => {
+                        if ((entryOrMeta as any).__companyHeader) {
+                          const label = (entryOrMeta as any).companyKey === 'ZZZ' ? 'Unassigned' : (entryOrMeta as any).companyKey
+                          return (
+                            <tr key={`h-${idx}`} className="bg-gray-50 dark:bg-gray-800">
+                              <td colSpan={999} className="px-3 py-2 text-sm font-semibold text-primary">{label}</td>
+                            </tr>
+                          )
+                        }
+                        if ((entryOrMeta as any).__companySubtotal) {
+                          const grp = (entryOrMeta as any).entries || []
+                          const totals = grp.reduce((acc: any, e: any) => {
+                            acc.base += Number(e.baseSalary || 0)
+                            acc.comm += Number(e.commission || 0)
+                            acc.ot += Number(e.overtimePay || 0)
+                            acc.adj += Number((e as any).adjustmentsTotal || 0)
+                            acc.abs += resolveAbsenceDeduction(e as any) || 0
+                            acc.deds += computeEntryTotalsAligned(e as any).totalDeductions
+                            acc.bens += computeEntryTotalsAligned(e as any).benefitsTotal
+                            acc.gross += computeEntryTotalsAligned(e as any).gross
+                            acc.net += computeEntryTotalsAligned(e as any).net
+                            return acc
+                          }, { base: 0, comm: 0, ot: 0, adj: 0, abs: 0, deds: 0, bens: 0, gross: 0, net: 0 })
+                          return (
+                            <tr key={`s-${idx}`} className="bg-gray-100 dark:bg-gray-800 font-semibold">
+                              <td className="px-3 py-2 text-sm text-right" colSpan={13}>Group Totals:</td>
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.base)}</td>
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.comm)}</td>
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.ot)}</td>
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.adj)}</td>
+                              {getUniqueBenefits().map((b, i) => (
+                                <td key={`g-${i}`} className="px-3 py-2 text-sm text-right">{formatCurrency(0)}</td>
+                              ))}
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.abs)}</td>
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.deds)}</td>
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.bens)}</td>
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.gross)}</td>
+                              <td className="px-3 py-2 text-sm text-right text-green-600 font-medium">{formatCurrency(totals.net)}</td>
+                            </tr>
+                          )
+                        }
 
-                            const contractVal = entry.contract?.pdfGenerationData?.benefits?.find((cb: any) => {
-                              return String(cb.benefitTypeId || cb.name) === String(uniqueBenefit.benefitTypeId)
-                            })
+                        const entry = entryOrMeta as PayrollEntry
+                        // Prefer explicit firstName/lastName if provided by the API, otherwise fallback to splitting employeeName
+                        const firstName = (entry as any).employeeFirstName || (() => {
+                          const nameParts = entry.employeeName ? entry.employeeName.split(' ') : []
+                          return nameParts.slice(0, -1).join(' ') || ''
+                        })()
+                        const surname = (entry as any).employeeLastName || (() => {
+                          const nameParts = entry.employeeName ? entry.employeeName.split(' ') : []
+                          return nameParts.slice(-1)[0] || ''
+                        })()
 
-                            const entryBenefit = entry.payrollEntryBenefits?.find(
-                              b => b.benefitTypeId === uniqueBenefit.benefitTypeId && b.isActive
-                            )
+                        return (
+                          <tr key={entry.id} className="hover:bg-muted">
+                            <td className="px-3 py-2 text-sm text-primary">{makeShortCompanyLabel((entry as any).primaryBusiness?.name || (entry as any).employee?.primaryBusiness?.name)}</td>
+                            <td className="px-3 py-2 text-sm text-primary">{(entry as any).employeeNumber || ''}</td>
+                            <td className="px-3 py-2 text-sm text-primary">{entry.nationalId}</td>
+                            <td className="px-3 py-2 text-sm text-secondary">{(entry as any).employeeDateOfBirth ? new Date((entry as any).employeeDateOfBirth).toLocaleDateString() : (entry.dateOfBirth ? new Date(entry.dateOfBirth).toLocaleDateString() : '')}</td>
+                            <td className="px-3 py-2 text-sm text-primary">{surname}</td>
+                            <td className="px-3 py-2 text-sm text-primary">{firstName}</td>
+                            <td className="px-3 py-2 text-sm text-secondary">{(entry as any).employee?.jobTitles?.title || ''}</td>
+                            <td className="px-3 py-2 text-sm text-right text-secondary">{entry.workDays}</td>
+                            <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeSickDays ?? (entry as any).sickDays ?? 0}</td>
+                            <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeLeaveDays ?? (entry as any).leaveDays ?? 0}</td>
+                            <td className="px-3 py-2 text-sm text-right text-secondary">{(entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0}</td>
+                            <td className="px-3 py-2 text-sm text-secondary">{(entry as any).employeeHireDate ? new Date((entry as any).employeeHireDate).toLocaleDateString() : (entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : '')}</td>
+                            <td className="px-3 py-2 text-sm text-secondary">{entry.terminationDate ? new Date(entry.terminationDate).toLocaleDateString() : ''}</td>
+                            <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.baseSalary || 0))}</td>
+                            <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.commission || 0))}</td>
+                            <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.overtimePay || 0))}</td>
+                            <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number((entry as any).adjustmentsTotal || 0))}</td>
+                            {getUniqueBenefits().map(uniqueBenefit => {
+                              const merged = entry.mergedBenefits?.find((mb: any) => {
+                                const id = mb?.benefitType?.id || mb?.benefitTypeId || mb?.key || String(mb?.benefitTypeId || '')
+                                return String(id) === String(uniqueBenefit.benefitTypeId)
+                              })
 
-                            const amount = merged?.amount ?? contractVal?.amount ?? entryBenefit?.amount
+                              const contractVal = entry.contract?.pdfGenerationData?.benefits?.find((cb: any) => {
+                                return String(cb.benefitTypeId || cb.name) === String(uniqueBenefit.benefitTypeId)
+                              })
 
-                            return (
-                              <td key={uniqueBenefit.benefitTypeId} className="px-3 py-2 text-sm text-right text-primary">
-                                {typeof amount === 'number' ? formatCurrency(amount) : ''}
-                              </td>
-                            )
-                          })}
-                          <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{resolveAbsenceDeduction(entry) && resolveAbsenceDeduction(entry) !== 0 ? `-${formatCurrency(Math.abs(resolveAbsenceDeduction(entry)))}` : formatCurrency(0)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(computeEntryTotalsAligned(entry).totalDeductions)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(computeEntryTotalsAligned(entry).benefitsTotal)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(computeEntryTotalsAligned(entry).gross)}</td>
-                          <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium">{formatCurrency(computeEntryTotalsAligned(entry).net)}</td>
-                        </tr>
-                      )
-                    })}
+                              const entryBenefit = entry.payrollEntryBenefits?.find(
+                                b => b.benefitTypeId === uniqueBenefit.benefitTypeId && b.isActive
+                              )
+
+                              const amount = merged?.amount ?? contractVal?.amount ?? entryBenefit?.amount
+
+                              return (
+                                <td key={uniqueBenefit.benefitTypeId} className="px-3 py-2 text-sm text-right text-primary">
+                                  {typeof amount === 'number' ? formatCurrency(amount) : ''}
+                                </td>
+                              )
+                            })}
+                            <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{resolveAbsenceDeduction(entry) && resolveAbsenceDeduction(entry) !== 0 ? `-${formatCurrency(Math.abs(resolveAbsenceDeduction(entry)))}` : formatCurrency(0)}</td>
+                            <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(computeEntryTotalsAligned(entry).totalDeductions)}</td>
+                            <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(computeEntryTotalsAligned(entry).benefitsTotal)}</td>
+                            <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(computeEntryTotalsAligned(entry).gross)}</td>
+                            <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium">{formatCurrency(computeEntryTotalsAligned(entry).net)}</td>
+                          </tr>
+                        )
+                      })
+                    })()}
                   </tbody>
                   <tfoot className="bg-gray-100 dark:bg-gray-800">
                     <tr>

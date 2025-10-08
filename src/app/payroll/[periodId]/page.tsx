@@ -144,13 +144,7 @@ export default function PayrollPeriodDetailPage() {
             })
           }
         } catch (e) { /* ignore */ }
-        console.log('Loaded period data:', data)
-        console.log('First entry payrollEntryBenefits:', data.payrollEntries?.[0]?.payrollEntryBenefits)
-        console.log('First entry mergedBenefits:', data.payrollEntries?.[0]?.mergedBenefits)
-        console.log('All entries mergedBenefits:', data.payrollEntries?.map((e: any) => ({
-          employee: e.employeeName,
-          mergedBenefits: e.mergedBenefits
-        })))
+        // Loaded period data; UI will consume server-provided mergedBenefits and totals.
         setPeriod(data)
       }
     } catch (error) {
@@ -386,7 +380,6 @@ export default function PayrollPeriodDetailPage() {
     if (!period) return []
     const uniqueBenefitsMap = new Map<string, { id: string, name: string }>()
 
-    console.log('=== getUniqueBenefits called ===')
 
     period.payrollEntries.forEach(entry => {
       // Prefer server-merged benefits when present
@@ -395,14 +388,15 @@ export default function PayrollPeriodDetailPage() {
       const entryBenefits = entry.payrollEntryBenefits || []
 
       // Use mergedBenefits to decide columns (they represent the effective, merged view)
+      // Prefer server-provided merged benefits even when amount is zero so preview and
+      // export remain consistent with server authority.
       merged.forEach((mb: any) => {
         if (!mb) return
         if (mb.isActive === false) return
         const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
-        const amount = Number(mb.amount || 0)
-        if (amount <= 0) return
+        if (!name) return
         const benefitId = String(mb.benefitType?.id || mb.benefitTypeId || name)
-        uniqueBenefitsMap.set(benefitId, { id: benefitId, name })
+        if (!uniqueBenefitsMap.has(benefitId)) uniqueBenefitsMap.set(benefitId, { id: benefitId, name })
       })
 
       // Regardless of mergedBenefits presence, include contract-inferred benefits and persisted payrollEntryBenefits
@@ -454,13 +448,12 @@ export default function PayrollPeriodDetailPage() {
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(b => ({ benefitTypeId: b.id, benefitName: b.name }))
 
-    console.log('Final unique benefits for columns:', result)
+  // Final unique benefits for columns computed from server mergedBenefits and contract/manual fallbacks.
     return result
   }
 
-  // Memoize unique benefits so we don't recalculate on every render (reduces noisy logs)
+  // Memoize unique benefits so we don't recalculate on every render
   const uniqueBenefits = useMemo(() => {
-    console.log('[instrument] compute uniqueBenefits memoized')
     return getUniqueBenefits()
   }, [period])
 
@@ -575,8 +568,9 @@ export default function PayrollPeriodDetailPage() {
 
   // Resolve benefits total for an entry - prefer server-provided totals but fall back to merged/contract/entry calculations
   const resolveBenefitsTotal = (entry: PayrollEntry) => {
-    const serverTotal = Number((entry as any).totalBenefitsAmount ?? (entry as any).benefitsTotal ?? 0)
-    if (serverTotal && serverTotal > 0) return serverTotal
+    // Prefer explicit API-provided totals when present (including zero).
+    const serverTotalRaw = (entry as any).totalBenefitsAmount ?? (entry as any).benefitsTotal
+    if (serverTotalRaw !== undefined && serverTotalRaw !== null) return Number(serverTotalRaw)
 
     const merged = (entry as any).mergedBenefits
     if (Array.isArray(merged) && merged.length > 0) {
@@ -608,7 +602,7 @@ export default function PayrollPeriodDetailPage() {
       let derivedAdjDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
       try {
         const adjustmentsList = (entry as any).payrollAdjustments || []
-      if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
+        if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
           const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
             try {
               const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
@@ -637,7 +631,7 @@ export default function PayrollPeriodDetailPage() {
 
     const baseSalary = Number(entry.baseSalary || 0)
     const commission = Number(entry.commission || 0)
-  const overtime = computeOvertimeForEntry(entry)
+    const overtime = computeOvertimeForEntry(entry)
     // Prefer server-provided aggregated fields, but derive from payrollAdjustments when missing
     let additions = Number((entry as any).adjustmentsTotal || 0)
     let adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
@@ -665,13 +659,13 @@ export default function PayrollPeriodDetailPage() {
 
     // No further action here; we'll compute absence and subtract it from gross below.
 
-  // Add positive adjustments to gross; negative adjustments are treated as deductions applied after taxes
-  const absenceDeduction = resolveAbsenceDeduction(entry)
-  const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - (absenceDeduction || 0)
+    // Add positive adjustments to gross; negative adjustments are treated as deductions applied after taxes
+    const absenceDeduction = resolveAbsenceDeduction(entry)
+    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - (absenceDeduction || 0)
 
-  // Build derived totalDeductions excluding absence (so list matches modal)
-  const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-  const totalDeductions = derivedTotalDeductions
+    // Build derived totalDeductions excluding absence (so list matches modal)
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    const totalDeductions = derivedTotalDeductions
 
     const netInclBenefits = grossInclBenefits - totalDeductions
 
@@ -685,7 +679,7 @@ export default function PayrollPeriodDetailPage() {
     const benefitsTotal = resolveBenefitsTotal(entry)
     const baseSalary = Number(entry.baseSalary || 0)
     const commission = Number(entry.commission || 0)
-  const overtime = computeOvertimeForEntry(entry)
+    const overtime = computeOvertimeForEntry(entry)
 
     let additions = Number((entry as any).adjustmentsTotal || 0)
     let adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
@@ -711,14 +705,14 @@ export default function PayrollPeriodDetailPage() {
       }
     }
 
-  const absenceDeduction = resolveAbsenceDeduction(entry)
-  const gross = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
+    const absenceDeduction = resolveAbsenceDeduction(entry)
+    const gross = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
 
-  const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
-  const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-  // Prefer the derived total which excludes explicit 'absence' adjustments so the list
-  // and modal remain consistent and absence is shown separately.
-  const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
+    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    // Prefer the derived total which excludes explicit 'absence' adjustments so the list
+    // and modal remain consistent and absence is shown separately.
+    const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
     const net = gross - totalDeductions
     return { benefitsTotal, gross, totalDeductions, net }
@@ -748,45 +742,7 @@ export default function PayrollPeriodDetailPage() {
   const canApprove = hasPermission(session?.user, 'canApprovePayroll')
   const canExport = hasPermission(session?.user, 'canExportPayroll')
 
-  // Diagnostic logging: compute per-entry totals and header sums to help trace mismatches
-  try {
-    if (period && Array.isArray(period.payrollEntries)) {
-      const perEntryTotals = period.payrollEntries.map(e => {
-        const t = computeEntryTotals(e)
-        return { id: e.id, employee: (e as any).employeeName || (e as any).employeeNumber || '', totalDeductions: t.totalDeductions, gross: t.grossInclBenefits, net: t.netInclBenefits }
-      })
-      const headerSumDeductions = perEntryTotals.reduce((s, x) => s + Number(x.totalDeductions || 0), 0)
-      console.debug('[payroll-debug] perEntryTotals', perEntryTotals)
-      console.debug('[payroll-debug] headerSumDeductions', headerSumDeductions)
-
-      // Compare to server-provided totalDeductions per-entry and period-level sum
-      try {
-        const serverPerEntry = period.payrollEntries.map(e => ({ id: e.id, serverTotalDeductions: Number(e.totalDeductions || 0) }))
-        const serverSumDeductions = serverPerEntry.reduce((s, x) => s + Number(x.serverTotalDeductions || 0), 0)
-        console.debug('[payroll-debug] serverPerEntryTotals', serverPerEntry)
-        console.debug('[payroll-debug] serverSumDeductions', serverSumDeductions)
-
-        // List entries where client-derived totalDeductions differs from server-provided value
-        const mismatches = period.payrollEntries
-          .map(e => {
-            const ct = computeEntryTotals(e).totalDeductions || 0
-            const st = Number(e.totalDeductions || 0)
-            return { id: e.id, employee: (e as any).employeeName || (e as any).employeeNumber || '', clientTotalDeductions: ct, serverTotalDeductions: st, diff: Number((ct - st).toFixed(2)) }
-          })
-          .filter(x => Math.abs(x.diff) > 0.001)
-
-        if (mismatches.length > 0) {
-          console.warn('[payroll-debug] deduction mismatches detected (client vs server)', { mismatches })
-        } else {
-          console.debug('[payroll-debug] no deduction mismatches detected between client and server totals')
-        }
-      } catch (e) {
-        console.warn('Failed to compute server/client deduction comparison', e)
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to compute debug payroll totals', err)
-  }
+  // Diagnostic code removed: rely on server-provided totals (mergedBenefits / totalBenefitsAmount)
 
   // Determine whether the current user can delete the payroll period.
   // Rules: system admins or business-owner/manager can delete. Deletion is allowed in draft/in_progress/review.
@@ -930,6 +886,39 @@ export default function PayrollPeriodDetailPage() {
               </button>
             </>
           )}
+          {canExport && period.status === 'exported' && (
+            <>
+              <button
+                onClick={async () => {
+                  try {
+                    setExporting(true)
+                    const res = await fetch('/api/payroll/exports/regenerate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ payrollPeriodId: period.id })
+                    })
+                    if (res.ok) {
+                      const data = await res.json()
+                      window.open(data.fileUrl, '_blank')
+                      showNotification('success', 'Export regenerated')
+                      await loadPeriod()
+                    } else {
+                      const err = await res.json().catch(() => null)
+                      showNotification('error', err?.error || 'Failed to regenerate export')
+                    }
+                  } catch (e) {
+                    showNotification('error', 'Failed to regenerate export')
+                  } finally {
+                    setExporting(false)
+                  }
+                }}
+                disabled={exporting}
+                className="px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-md hover:bg-yellow-700 disabled:opacity-50"
+              >
+                {exporting ? 'Regenerating...' : 'Regenerate Export'}
+              </button>
+            </>
+          )}
         </div>
       }
     >
@@ -937,8 +926,8 @@ export default function PayrollPeriodDetailPage() {
       {notification && (
         <div
           className={`mb-4 p-4 rounded-md ${notification.type === 'success'
-              ? 'bg-green-50 text-green-800 border border-green-200'
-              : 'bg-red-50 text-red-800 border border-red-200'
+            ? 'bg-green-50 text-green-800 border border-green-200'
+            : 'bg-red-50 text-red-800 border border-red-200'
             }`}
         >
           {notification.message}
@@ -1054,10 +1043,10 @@ export default function PayrollPeriodDetailPage() {
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Sick Total</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Leave Total</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Absence Total</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Engaged</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Dismissed</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Base Salary</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Commission</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Engaged</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Dismissed</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Base Salary</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Commission</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Overtime</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Adjustments</th>
                   {getUniqueBenefits().map(benefit => (
@@ -1083,8 +1072,8 @@ export default function PayrollPeriodDetailPage() {
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeNumber || ''}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.nationalId}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeDateOfBirth ? new Date((entry as any).employeeDateOfBirth).toLocaleDateString() : (entry.dateOfBirth ? new Date(entry.dateOfBirth).toLocaleDateString() : '')}</td>
-                    <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeLastName || (() => { const parts = entry.employeeName.split(' '); return parts.slice(-1)[0] || '' })()}</td>
-                    <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeFirstName || (() => { const parts = entry.employeeName.split(' '); return parts.slice(0, -1).join(' ') || '' })()}</td>
+                    <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeLastName || (() => { const name = entry.employeeName || ''; const parts = name ? name.split(' ') : []; return parts.slice(-1)[0] || '' })()}</td>
+                    <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeFirstName || (() => { const name = entry.employeeName || ''; const parts = name ? name.split(' ') : []; return parts.slice(0, -1).join(' ') || '' })()}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.employee?.jobTitles?.title || ''}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.workDays}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeSickDays ?? (entry as any).sickDays ?? 0}</td>
@@ -1194,8 +1183,8 @@ export default function PayrollPeriodDetailPage() {
             try {
               // page-level instrumentation for modal success callbacks
               if (typeof window !== 'undefined') {
-                ;(window as any).__instrumentLogs = (window as any).__instrumentLogs || []
-                ;(window as any).__instrumentLogs.push({ ts: Date.now(), label: 'parent:onSuccess received', payload: { payload, entryId: selectedEntryId }, stack: new Error().stack })
+                ; (window as any).__instrumentLogs = (window as any).__instrumentLogs || []
+                  ; (window as any).__instrumentLogs.push({ ts: Date.now(), label: 'parent:onSuccess received', payload: { payload, entryId: selectedEntryId }, stack: new Error().stack })
                 console.warn('[instrument]', 'parent:onSuccess received', { payload, entryId: selectedEntryId })
               }
             } catch (e) {
@@ -1206,6 +1195,27 @@ export default function PayrollPeriodDetailPage() {
             // Default to not refreshing the whole period unless explicitly requested
             const shouldRefresh = typeof p === 'object' ? Boolean(p.refresh) : false
             showNotification('success', message)
+            // If the modal provided an updatedEntry object, merge it into the period entries to avoid a full reload
+            if (p && typeof p === 'object' && p.updatedEntry && period) {
+              try {
+                const updated: any = p.updatedEntry
+                setPeriod((prev) => {
+                  if (!prev) return prev
+                  const entries = Array.isArray(prev.payrollEntries) ? prev.payrollEntries.slice() : []
+                  const idx = entries.findIndex((e: any) => String(e.id) === String(updated.id))
+                  if (idx >= 0) {
+                    entries[idx] = { ...entries[idx], ...updated }
+                  } else {
+                    entries.push(updated)
+                  }
+                  return { ...prev, payrollEntries: entries }
+                })
+              } catch (e) {
+                // fallback to reload if merge fails
+                if (shouldRefresh) loadPeriod()
+              }
+              return
+            }
             if (shouldRefresh) loadPeriod()
           }}
           onError={(error) => showNotification('error', error)}

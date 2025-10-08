@@ -24,12 +24,10 @@ export async function GET(req: NextRequest) {
     const year = searchParams.get('year')
     const status = searchParams.get('status')
 
-    if (!businessId) {
-      return NextResponse.json({ error: 'Business ID is required' }, { status: 400 })
-    }
 
-    // Build filter
-    const where: any = { businessId }
+    // Build filter - businessId is optional; when omitted return periods across all businesses
+    const where: any = {}
+    if (businessId) where.businessId = businessId
 
     if (year) {
       where.year = parseInt(year)
@@ -61,70 +59,70 @@ export async function GET(req: NextRequest) {
       ]
     })
 
-      // Ensure each returned period's business has a shortName (computed fallback) to keep API stable
-      const computeShortName = (name?: string) => {
-        if (!name) return undefined
-        const words = name.split(/\s+/).filter(Boolean)
-        if (words.length === 1) return words[0].substring(0, 4).toUpperCase()
-        const initials = words.map(w => w[0].toUpperCase()).join('').substring(0, 4)
-        return initials
-      }
+    // Ensure each returned period's business has a shortName (computed fallback) to keep API stable
+    const computeShortName = (name?: string) => {
+      if (!name) return undefined
+      const words = name.split(/\s+/).filter(Boolean)
+      if (words.length === 1) return words[0].substring(0, 4).toUpperCase()
+      const initials = words.map(w => w[0].toUpperCase()).join('').substring(0, 4)
+      return initials
+    }
 
-      const periodsWithShort = periods.map(p => {
-        const b: any = p.business || null
-        if (b) {
-          if (!b.shortName) {
-            b.shortName = computeShortName(b.name)
-          }
+    const periodsWithShort = periods.map(p => {
+      const b: any = p.business || null
+      if (b) {
+        if (!b.shortName) {
+          b.shortName = computeShortName(b.name)
         }
-        return p
-      })
-
-      // Recompute period-level aggregates using authoritative per-entry totals
-      try {
-        // For each period, fetch its entry ids and compute totals via computeTotalsForEntry
-        await Promise.all(periodsWithShort.map(async (p: any) => {
-          try {
-            const entries = await prisma.payrollEntry.findMany({ where: { payrollPeriodId: p.id }, select: { id: true } })
-            if (!entries || entries.length === 0) {
-              p.totalGrossPay = String(0)
-              p.totalDeductions = String(0)
-              p.totalNetPay = String(0)
-              return
-            }
-
-            const totals = await entries.reduce(async (accP: Promise<any>, e: any) => {
-              const acc = await accP
-              try {
-                const t = await computeTotalsForEntry(e.id)
-                acc.gross += Number(t?.grossPay || 0)
-                // computeTotalsForEntry may return totalDeductions that already includes stored entry.totalDeductions
-                // but it is authoritative; use it as-is
-                acc.deductions += Number(t?.totalDeductions || 0)
-                acc.net += Number(t?.netPay || 0)
-              } catch (err) {
-                // ignore entry-level failures
-              }
-              return acc
-            }, Promise.resolve({ gross: 0, deductions: 0, net: 0 }))
-
-            p.totalGrossPay = String(totals.gross)
-            p.totalDeductions = String(totals.deductions)
-            p.totalNetPay = String(totals.net)
-          } catch (err) {
-            // if recompute fails for a period, fall back to stored values
-            try {
-              p.totalGrossPay = String(p.totalGrossPay || 0)
-              p.totalDeductions = String(p.totalDeductions || 0)
-              p.totalNetPay = String(p.totalNetPay || 0)
-            } catch (e) { /* ignore */ }
-          }
-        }))
-      } catch (err) {
-        console.warn('Failed to recompute period aggregates for list endpoint', err)
       }
+      return p
+    })
 
-      return NextResponse.json(periodsWithShort)
+    // Recompute period-level aggregates using authoritative per-entry totals
+    try {
+      // For each period, fetch its entry ids and compute totals via computeTotalsForEntry
+      await Promise.all(periodsWithShort.map(async (p: any) => {
+        try {
+          const entries = await prisma.payrollEntry.findMany({ where: { payrollPeriodId: p.id }, select: { id: true } })
+          if (!entries || entries.length === 0) {
+            p.totalGrossPay = String(0)
+            p.totalDeductions = String(0)
+            p.totalNetPay = String(0)
+            return
+          }
+
+          const totals = await entries.reduce(async (accP: Promise<any>, e: any) => {
+            const acc = await accP
+            try {
+              const t = await computeTotalsForEntry(e.id)
+              acc.gross += Number(t?.grossPay || 0)
+              // computeTotalsForEntry may return totalDeductions that already includes stored entry.totalDeductions
+              // but it is authoritative; use it as-is
+              acc.deductions += Number(t?.totalDeductions || 0)
+              acc.net += Number(t?.netPay || 0)
+            } catch (err) {
+              // ignore entry-level failures
+            }
+            return acc
+          }, Promise.resolve({ gross: 0, deductions: 0, net: 0 }))
+
+          p.totalGrossPay = String(totals.gross)
+          p.totalDeductions = String(totals.deductions)
+          p.totalNetPay = String(totals.net)
+        } catch (err) {
+          // if recompute fails for a period, fall back to stored values
+          try {
+            p.totalGrossPay = String(p.totalGrossPay || 0)
+            p.totalDeductions = String(p.totalDeductions || 0)
+            p.totalNetPay = String(p.totalNetPay || 0)
+          } catch (e) { /* ignore */ }
+        }
+      }))
+    } catch (err) {
+      console.warn('Failed to recompute period aggregates for list endpoint', err)
+    }
+
+    return NextResponse.json(periodsWithShort)
   } catch (error) {
     console.error('Payroll periods fetch error:', error)
     return NextResponse.json(
@@ -148,7 +146,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await req.json()
-  const { businessId, year, month, periodStart, periodEnd, notes, targetAllEmployees } = data
+    const { businessId, year, month, periodStart, periodEnd, notes, targetAllEmployees } = data
 
     // Validation
     if (!businessId || !year || !month || !periodStart || !periodEnd) {
@@ -305,7 +303,7 @@ export async function POST(req: NextRequest) {
 
         // Find distinct employeeIds who have overlapping contracts
         const overlappingContracts = await tx.employeeContract.findMany({ where: contractWhere, select: { employeeId: true } })
-  const employeeIds = Array.from(new Set(overlappingContracts.map((c: any) => c.employeeId))).filter(Boolean)
+        const employeeIds = Array.from(new Set(overlappingContracts.map((c: any) => c.employeeId))).filter(Boolean)
 
         if (employeeIds.length > 0) {
           const employees = await tx.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, employeeNumber: true, fullName: true, nationalId: true, dateOfBirth: true, hireDate: true } })
@@ -346,7 +344,7 @@ export async function POST(req: NextRequest) {
           const initials = words.map(w => w[0].toUpperCase()).join('').substring(0, 4)
           return initials
         }
-        ;(result.business as any).shortName = computeShortName(result.business.name)
+          ; (result.business as any).shortName = computeShortName(result.business.name)
       }
       return result
     })

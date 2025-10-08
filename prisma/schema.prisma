@@ -355,6 +355,7 @@ model Business {
   menuCombos                   MenuCombo[]
   menuPromotions               MenuPromotion[]
   payrollPeriods               PayrollPeriod[]
+  payrollExports               PayrollExport[]
   projects                     Project[]
   vehicleExpenses              VehicleExpense[]
   vehicleReimbursements        VehicleReimbursement[]
@@ -1694,6 +1695,7 @@ model User {
   vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursement[]     @relation("vehicle_reimbursements_approvedByTousers")
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursement[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicle[]
+  payrollExports                                                  PayrollExport[]
 
   @@map("users")
 }
@@ -1942,6 +1944,7 @@ model PayrollPeriod {
   notes           String?
   updatedAt       DateTime       @default(now())
   payrollEntries  PayrollEntry[]
+  payrollExports  PayrollExport[]
   approver        User?          @relation("PayrollPeriodApprover", fields: [approvedBy], references: [id])
   business        Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   creator         User?          @relation("PayrollPeriodCreator", fields: [createdBy], references: [id])
@@ -2037,6 +2040,33 @@ model PayrollAdjustment {
 
   @@index([payrollEntryId])
   @@map("payroll_adjustments")
+}
+
+// Tracks generated payroll export files (Excel/CSV) and metadata
+model PayrollExport {
+  id               String        @id
+  payrollPeriodId  String
+  businessId       String
+  year             Int
+  month            Int
+  fileName         String
+  fileUrl          String
+  fileSize         Int
+  format           String        @default("excel")
+  includesMonths   Int[]
+  employeeCount    Int
+  totalGrossPay    Decimal       @db.Decimal(12, 2)
+  totalNetPay      Decimal       @db.Decimal(12, 2)
+  exportedAt       DateTime?
+  exportedBy       String
+  generationType   String
+  notes            String?
+
+  payrollPeriod    PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+  business         Business      @relation(fields: [businessId], references: [id])
+  exporter         User          @relation(fields: [exportedBy], references: [id])
+
+  @@map("payroll_exports")
 }
 
 enum AttributeDataType {

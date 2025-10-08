@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
     const employeePrimaryBusinessIdMap: Record<string, string | null> = {}
     for (const e of employeesForBusiness) employeePrimaryBusinessIdMap[e.id] = e.primaryBusinessId || null
     const primaryBusinessIds = Array.from(new Set(Object.values(employeePrimaryBusinessIdMap).filter(Boolean))) as string[]
-  const businesses = primaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: primaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
+    const businesses = primaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: primaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
     const businessById: Record<string, any> = {}
     for (const b of businesses) businessById[b.id] = b
     // Compute canonical shortName for export consistency
@@ -265,29 +265,29 @@ export async function POST(req: NextRequest) {
       // Use helper to compute merged benefits and totals
       const totals = await computeTotalsForEntry((entry as any).id)
 
-  const _pbId = empId ? employeePrimaryBusinessIdMap[empId] : null
-  const _pb = _pbId ? businessById[_pbId] : null
+      const _pbId = empId ? employeePrimaryBusinessIdMap[empId] : null
+      const _pb = _pbId ? businessById[_pbId] : null
 
-  enrichedEntries.push({
-          ...entry,
-          payrollEntryBenefits: entry.payrollEntryBenefits || [],
-          contract: contract || null,
-          mergedBenefits: totals.combined || [],
-          totalBenefitsAmount: Number(totals.benefitsTotal || 0),
-          workDays: derivedWorkDays,
-          cumulativeSickDays: cumulative.cumulativeSickDays,
-          cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
-          cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
-          grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
-          netPay: Number(totals.netPay ?? Number(entry.netPay || 0)),
-          // copy employee name parts if available (these come from included employee select)
-          employeeFirstName: (entry as any).employee?.firstName ?? null,
-          employeeLastName: (entry as any).employee?.lastName ?? null,
-          employeeFullName: (entry as any).employee?.fullName ?? entry.employeeName,
-          employeeDateOfBirth: (entry as any).dateOfBirth,
-          employeeHireDate: (entry as any).hireDate,
-          primaryBusiness: _pb ? { ..._pb, shortName: _pb.shortName } : null
-        })
+      enrichedEntries.push({
+        ...entry,
+        payrollEntryBenefits: entry.payrollEntryBenefits || [],
+        contract: contract || null,
+        mergedBenefits: totals.combined || [],
+        totalBenefitsAmount: Number(totals.benefitsTotal || 0),
+        workDays: derivedWorkDays,
+        cumulativeSickDays: cumulative.cumulativeSickDays,
+        cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
+        cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
+        grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
+        netPay: Number(totals.netPay ?? Number(entry.netPay || 0)),
+        // copy employee name parts if available (these come from included employee select)
+        employeeFirstName: (entry as any).employee?.firstName ?? null,
+        employeeLastName: (entry as any).employee?.lastName ?? null,
+        employeeFullName: (entry as any).employee?.fullName ?? entry.employeeName,
+        employeeDateOfBirth: (entry as any).dateOfBirth,
+        employeeHireDate: (entry as any).hireDate,
+        primaryBusiness: _pb ? { ..._pb, shortName: _pb.shortName } : null
+      })
     }
 
     // Generate Excel file using enriched entries; include benefits in gross/net
@@ -354,7 +354,9 @@ export async function POST(req: NextRequest) {
     const fileSize = excelBuffer.length
 
     // Create export record
+    console.log('runtime check prisma.payrollExport exists:', typeof prisma.payrollExport)
     const exportRecord = await prisma.$transaction(async (tx) => {
+      console.log('runtime tx keys sample:', Object.keys(tx).slice(0, 30))
       const newExport = await tx.payrollExport.create({
         data: {
           id: `EX-${nanoid(12)}`,
@@ -397,7 +399,7 @@ export async function POST(req: NextRequest) {
 
       // Attach computed shortName to business for API consumers
       if (newExport?.business && !(newExport.business as any).shortName) {
-        ;(newExport.business as any).shortName = computeShortName(newExport.business.name)
+        ; (newExport.business as any).shortName = computeShortName(newExport.business.name)
       }
 
       return newExport

@@ -132,7 +132,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const contractBenefits: any[] = []
     if (contract && contract.pdfGenerationData && Array.isArray(contract.pdfGenerationData.benefits)) {
       for (const cb of contract.pdfGenerationData.benefits) {
-        const k = keyFor(cb) || `contract-${Math.random().toString(36).slice(2,9)}`
+        const k = keyFor(cb) || `contract-${Math.random().toString(36).slice(2, 9)}`
         const id = cb.benefitTypeId || k
         const name = cb.name || cb.benefitType?.name || id
         const amount = Number(cb.amount || 0)
@@ -142,7 +142,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Build effective merged list: start from contract benefits, then apply persisted overrides
-  const mergedByKey = new Map<string, any>()
+    const mergedByKey = new Map<string, any>()
     for (const cb of contractBenefits) {
       mergedByKey.set(cb.key, { ...cb, isActive: true })
     }
@@ -221,11 +221,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       workDays: derivedWorkDays,
       payrollEntryBenefits: persistedBenefits,
       mergedBenefits: effectiveMerged,
-  benefitsTotal: totals.benefitsTotal ?? 0,
-  grossPay: totals.grossPay ?? 0,
-  netPay: totals.netPay ?? 0,
-  // Expose any absence deduction derived from adjustments (e.g. absence payrollAdjustment)
-  absenceDeduction: Number(totals.absenceDeduction ?? 0),
+      benefitsTotal: totals.benefitsTotal ?? 0,
+      grossPay: totals.grossPay ?? 0,
+      netPay: totals.netPay ?? 0,
+      // Expose any absence deduction derived from adjustments (e.g. absence payrollAdjustment)
+      absenceDeduction: Number(totals.absenceDeduction ?? 0),
       // Expose persisted fractional absence if available (null when not present).
       absenceFraction: persistedAbsenceFraction !== null ? persistedAbsenceFraction : 0,
       // Ensure baseSalary is present for UI display
@@ -367,7 +367,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         benefitsTotal: recomputed.benefitsTotal ?? 0,
         // store adjustmentsTotal as additions only (positive adjustments)
         adjustmentsTotal: recomputed.additionsTotal ?? 0,
-  totalDeductions: Number(existingEntry.totalDeductions ?? 0) + Number(recomputed.adjustmentsAsDeductions ?? 0),
+        totalDeductions: Number(existingEntry.totalDeductions ?? 0) + Number(recomputed.adjustmentsAsDeductions ?? 0),
         updatedAt: new Date()
       },
       include: {
@@ -389,7 +389,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     // Update period totals
     if (existingEntry.payrollPeriodId) await updatePeriodTotals(existingEntry.payrollPeriodId)
 
-  return NextResponse.json(returnedEntry)
+    return NextResponse.json(returnedEntry)
   } catch (error) {
     console.error('Payroll entry update error:', error)
     return NextResponse.json(
