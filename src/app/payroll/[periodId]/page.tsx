@@ -8,7 +8,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { PayrollEntryForm } from '@/components/payroll/payroll-entry-form'
 import { PayrollEntryDetailModal } from '@/components/payroll/payroll-entry-detail-modal'
 import { PayrollExportPreviewModal } from '@/components/payroll/payroll-export-preview-modal'
-import { hasPermission, isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
+import { hasPermission, isSystemAdmin, getUserRoleInBusiness, canDeletePayroll } from '@/lib/permission-utils'
 
 interface PayrollPeriod {
   id: string
@@ -91,6 +91,7 @@ export default function PayrollPeriodDetailPage() {
   const [loading, setLoading] = useState(true)
   const [showAddEntry, setShowAddEntry] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [notification, setNotification] = useState<{
@@ -714,8 +715,8 @@ export default function PayrollPeriodDetailPage() {
     // and modal remain consistent and absence is shown separately.
     const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
-    const net = gross - totalDeductions
-    return { benefitsTotal, gross, totalDeductions, net }
+  const net = gross // Presentation Net Gross: do not subtract deductions (third-party will apply them)
+  return { benefitsTotal, gross, totalDeductions, net }
   }
 
   if (loading) {
@@ -741,29 +742,12 @@ export default function PayrollPeriodDetailPage() {
   const canEditEntry = hasPermission(session?.user, 'canEditPayrollEntry')
   const canApprove = hasPermission(session?.user, 'canApprovePayroll')
   const canExport = hasPermission(session?.user, 'canExportPayroll')
+  const canResetExported = isSystemAdmin(session?.user) || hasPermission(session?.user, 'canResetExportedPayrollToPreview', period.business.id)
 
   // Diagnostic code removed: rely on server-provided totals (mergedBenefits / totalBenefitsAmount)
 
-  // Determine whether the current user can delete the payroll period.
-  // Rules: system admins or business-owner/manager can delete. Deletion is allowed in draft/in_progress/review.
-  // For approved periods, deletion is allowed only within 7 days of approval.
-  const canDeletePeriodButton = (() => {
-    if (!session?.user || !period) return false
-    // system admin shortcut
-    if (isSystemAdmin(session.user)) return true
-    const role = getUserRoleInBusiness(session.user, period.business.id)
-    const isManagerOrOwner = role === 'business-manager' || role === 'business-owner'
-    if (!isManagerOrOwner) return false
-    if (['draft', 'in_progress', 'review'].includes(period.status)) return true
-    if (period.status === 'approved') {
-      const approvedAt = (period as any).approvedAt ? new Date((period as any).approvedAt) : null
-      if (!approvedAt) return true
-      const msSinceApproved = Date.now() - approvedAt.getTime()
-      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
-      return msSinceApproved <= sevenDaysMs
-    }
-    return false
-  })()
+  // Use the new canDeletePayroll helper function which checks both business-level and business-agnostic permissions
+  const canDeletePeriodButton = canDeletePayroll(session?.user, period.business.id)
 
   return (
     <ContentLayout
@@ -888,6 +872,42 @@ export default function PayrollPeriodDetailPage() {
           )}
           {canExport && period.status === 'exported' && (
             <>
+              {canResetExported && (
+                <button
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Reset exported payroll to preview',
+                      description:
+                        'This will reset the exported payroll period back to preview mode so changes can be made and re-submitted. This is allowed only within 7 days of export and requires administrator privileges or the explicit manager permission. Continue?',
+                      confirmText: 'Reset to Preview',
+                      cancelText: 'Cancel'
+                    })
+
+                    if (!ok) return
+
+                    try {
+                      setResetting(true)
+                      const res = await fetch(`/api/payroll/periods/${period.id}/reset-to-preview`, { method: 'PUT' })
+                      if (res.ok) {
+                        showNotification('success', 'Payroll period reset to preview')
+                        await loadPeriod()
+                      } else {
+                        const err = await res.json().catch(() => null)
+                        showNotification('error', err?.error || 'Failed to reset payroll period')
+                      }
+                    } catch (e) {
+                      showNotification('error', 'Failed to reset payroll period')
+                    } finally {
+                      setResetting(false)
+                    }
+                  }}
+                  disabled={resetting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-rose-600 rounded-md hover:bg-rose-700 disabled:opacity-50"
+                >
+                  {resetting ? 'Resetting...' : 'Reset to Preview'}
+                </button>
+              )}
+
               <button
                 onClick={async () => {
                   try {
@@ -1005,19 +1025,19 @@ export default function PayrollPeriodDetailPage() {
         <div className="card">
           <p className="text-sm text-secondary">Gross Pay</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).grossInclBenefits, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e as any).gross, 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Deductions</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).totalDeductions, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e as any).totalDeductions, 0))}
           </p>
         </div>
         <div className="card">
-          <p className="text-sm text-secondary">Net Pay</p>
+          <p className="text-sm text-secondary">Net Gross</p>
           <p className="text-2xl font-bold text-green-600">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e as any).net, 0))}
           </p>
         </div>
       </div>

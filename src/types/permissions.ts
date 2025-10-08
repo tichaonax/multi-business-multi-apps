@@ -38,6 +38,14 @@ export interface UserLevelPermissions {
   canManageSystemSettings: boolean;
   canViewSystemLogs: boolean;
   canManageAllBusinesses: boolean;
+
+  // Business-Agnostic Manager Payroll Actions (cross-business capabilities)
+  // These permissions allow managers to work with umbrella payroll periods
+  // and override business-level restrictions. Only assignable to Managers.
+  canAccessUmbrellaPayroll: boolean;  // Can view/manage umbrella payroll periods
+  canExportPayrollAcrossBusinesses: boolean;  // Business-agnostic export permission
+  canResetPayrollAcrossBusinesses: boolean;  // Business-agnostic reset permission
+  canDeletePayrollAcrossBusinesses: boolean;  // Business-agnostic delete permission
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -126,6 +134,9 @@ export interface CoreBusinessPermissions {
   canEditPayrollEntry: boolean;
   canApprovePayroll: boolean;
   canExportPayroll: boolean;
+  // Allow resetting an exported payroll period back to preview/review within a limited window
+  canResetExportedPayrollToPreview: boolean;
+  canDeletePayroll: boolean; // Delete payroll periods (Manager-only permission, must be explicitly granted)
   canEnterPaySlips: boolean;
   canReconcilePayroll: boolean;
   canViewPayrollReports: boolean;
@@ -572,6 +583,19 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canViewSystemLogs', label: 'System Logs' },
       { key: 'canManageAllBusinesses', label: 'All Businesses' },
     ]
+  },
+  // Business-Agnostic Manager Payroll Actions
+  // ⚠️ CRITICAL: Only visible to System Admins when editing Managers
+  // Grants cross-business payroll capabilities including umbrella period access
+  managerPayrollActions: {
+    title: 'Manager Payroll Actions (Business-Agnostic)',
+    description: 'Cross-business payroll management permissions. Required to view/manage umbrella payroll periods and override business-level restrictions. Only assignable to Managers.',
+    permissions: [
+      { key: 'canAccessUmbrellaPayroll', label: 'Access Umbrella Payroll' },
+      { key: 'canExportPayrollAcrossBusinesses', label: 'Export Payroll (Global)' },
+      { key: 'canResetPayrollAcrossBusinesses', label: 'Reset Exported Payroll (Global)' },
+      { key: 'canDeletePayrollAcrossBusinesses', label: 'Delete Payroll (Global)' },
+    ]
   }
 };
 
@@ -615,6 +639,26 @@ export const CORE_PERMISSIONS = {
     { key: 'canExportEmployeeData', label: 'Export Employee Data' },
     { key: 'canApproveSalaryIncreases', label: 'Approve Salary Increases' },
     { key: 'canProcessSalaryIncreases', label: 'Process Salary Increases' },
+  ]
+  ,
+  payrollManagement: [
+    { key: 'canAccessPayroll', label: 'Access Payroll' },
+    { key: 'canManagePayroll', label: 'Manage Payroll' },
+    { key: 'canCreatePayrollPeriod', label: 'Create Payroll Period' },
+    { key: 'canEditPayrollEntry', label: 'Edit Payroll Entry' },
+    { key: 'canApprovePayroll', label: 'Approve Payroll' },
+    { key: 'canEnterPaySlips', label: 'Enter Pay Slips' },
+    { key: 'canReconcilePayroll', label: 'Reconcile Payroll' },
+    { key: 'canViewPayrollReports', label: 'View Payroll Reports' },
+    { key: 'canManageAdvances', label: 'Manage Advances' },
+  ],
+  // Manager Payroll Actions (ONLY shown to business-owner and business-manager roles)
+  // ⚠️ CRITICAL: These must be explicitly assigned - NOT default for managers
+  // Employees will NEVER see these options even with custom permissions
+  managerPayrollActions: [
+    { key: 'canExportPayroll', label: 'Export Payroll' },
+    { key: 'canResetExportedPayrollToPreview', label: 'Reset Exported → Preview (7 days)' },
+    { key: 'canDeletePayroll', label: 'Delete Payroll' },
   ]
 }
 
@@ -687,7 +731,9 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canCreatePayrollPeriod: true,
   canEditPayrollEntry: true,
   canApprovePayroll: true,
-  canExportPayroll: true,
+  canExportPayroll: true,  // Business owners have export by default
+  canResetExportedPayrollToPreview: true,  // Business owners have reset by default
+  canDeletePayroll: true,  // Business owners have delete by default
   canEnterPaySlips: true,
   canReconcilePayroll: true,
   canViewPayrollReports: true,
@@ -756,13 +802,17 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canExportCustomerData: true,
   canLinkCustomerAccounts: true,
 
-  // Payroll Management - Manager access (all except approval)
+  // Payroll Management - Manager access
+  // ⚠️ CRITICAL: Export, Reset, and Delete are FALSE by default
+  // These must be explicitly granted via custom permissions
   canAccessPayroll: true,
   canManagePayroll: true,
   canCreatePayrollPeriod: true,
   canEditPayrollEntry: true,
   canApprovePayroll: false,  // Only owners can approve
-  canExportPayroll: true,
+  canExportPayroll: false,  // ❌ FALSE by default - must be explicitly granted
+  canResetExportedPayrollToPreview: false,  // ❌ FALSE by default - must be explicitly granted
+  canDeletePayroll: false,  // ❌ FALSE by default - must be explicitly granted
   canEnterPaySlips: true,
   canReconcilePayroll: true,
   canViewPayrollReports: true,
@@ -832,12 +882,16 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canLinkCustomerAccounts: false,
 
   // Payroll Management - No access
+  // ⚠️ Employees can be granted custom payroll permissions for specific tasks
+  // but will NEVER see Export/Reset/Delete options in UI
   canAccessPayroll: false,
   canManagePayroll: false,
   canCreatePayrollPeriod: false,
   canEditPayrollEntry: false,
   canApprovePayroll: false,
-  canExportPayroll: false,
+  canExportPayroll: false,  // ❌ NEVER accessible to employees
+  canResetExportedPayrollToPreview: false,  // ❌ NEVER accessible to employees
+  canDeletePayroll: false,  // ❌ NEVER accessible to employees
   canEnterPaySlips: false,
   canReconcilePayroll: false,
   canViewPayrollReports: false,
@@ -913,6 +967,8 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canEditPayrollEntry: false,
   canApprovePayroll: false,
   canExportPayroll: false,
+  canResetExportedPayrollToPreview: false,
+  canDeletePayroll: false,  // Read-only users cannot delete
   canEnterPaySlips: false,
   canReconcilePayroll: false,
   canViewPayrollReports: true,
@@ -988,6 +1044,8 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canEditPayrollEntry: true,
   canApprovePayroll: true,
   canExportPayroll: true,
+  canResetExportedPayrollToPreview: true,
+  canDeletePayroll: true,  // System admins can delete payroll
   canEnterPaySlips: true,
   canReconcilePayroll: true,
   canViewPayrollReports: true,
@@ -1034,6 +1092,12 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canManageSystemSettings: false,
   canViewSystemLogs: false,
   canManageAllBusinesses: false,
+
+  // Business-Agnostic Manager Payroll Actions - No access by default
+  canAccessUmbrellaPayroll: false,
+  canExportPayrollAcrossBusinesses: false,
+  canResetPayrollAcrossBusinesses: false,
+  canDeletePayrollAcrossBusinesses: false,
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
@@ -1075,6 +1139,12 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canManageSystemSettings: true,
   canViewSystemLogs: true,
   canManageAllBusinesses: true,
+
+  // Business-Agnostic Manager Payroll Actions - Full access for admins
+  canAccessUmbrellaPayroll: true,
+  canExportPayrollAcrossBusinesses: true,
+  canResetPayrollAcrossBusinesses: true,
+  canDeletePayrollAcrossBusinesses: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
@@ -1117,6 +1187,12 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canManageSystemSettings: false,
   canViewSystemLogs: false,
   canManageAllBusinesses: false,
+
+  // Business-Agnostic Manager Payroll Actions - No access
+  canAccessUmbrellaPayroll: false,
+  canExportPayrollAcrossBusinesses: false,
+  canResetPayrollAcrossBusinesses: false,
+  canDeletePayrollAcrossBusinesses: false,
 };
 
 // Permission presets for easy management

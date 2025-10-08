@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getWorkingDaysInMonth, computeTotalsForEntry } from '@/lib/payroll/helpers'
-import { hasPermission } from '@/lib/permission-utils'
+import { hasPermission, canDeletePayroll } from '@/lib/permission-utils'
 import { isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 
 interface RouteParams {
@@ -72,10 +72,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     // TEMPORARY LOGGING: For each payroll entry, log whether the employee has an overlapping contract for this period
     try {
-      const periodStart = period.periodStart instanceof Date ? period.periodStart : new Date(period.periodStart)
-      const periodEnd = period.periodEnd instanceof Date ? period.periodEnd : new Date(period.periodEnd)
+  const periodStart = period.periodStart instanceof Date ? period.periodStart : (period.periodStart ? new Date(period.periodStart) : new Date())
+  const periodEnd = period.periodEnd instanceof Date ? period.periodEnd : (period.periodEnd ? new Date(period.periodEnd) : new Date())
       for (const entry of period.payrollEntries || []) {
-        const employeeId = entry.employeeId
+  const employeeId = entry.employeeId || undefined
         const employeeNumber = entry.employee?.employeeNumber || entry.employeeNumber || null
         // Find any contract for the employee that overlaps the period
         const contract = await prisma.employeeContract.findFirst({
@@ -381,6 +381,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           const serverTotalDeductions = Number(entry.totalDeductions || 0)
           const totalDeductionsForReturn = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
+          // Compute adjusted gross to ensure the UI and exports display Gross offset by Absence (unearned)
+          const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
+          const absenceFromTotals = Number(totals.absenceDeduction ?? 0)
+          const grossAdjusted = grossFromTotals - absenceFromTotals
+
           const returnedEntry = {
             ...entry,
             payrollEntryBenefits: entryBenefits,
@@ -397,11 +402,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             cumulativeSickDays: Number(cumulative.cumulativeSickDays || 0) + Number(entry.sickDays || 0),
             cumulativeLeaveDays: Number(cumulative.cumulativeLeaveDays || 0) + Number(entry.leaveDays || 0),
             cumulativeAbsenceDays: Number(cumulative.cumulativeAbsenceDays || 0) + Number(entry.absenceDays || 0),
-            grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
+            // Return grossPay already offset by absence so clients don't need to re-apply absence deduction
+            grossPay: grossAdjusted,
             // Expose any absence deduction computed from adjustments
-            absenceDeduction: Number(totals.absenceDeduction ?? 0),
-            // Recompute netPay based on the gross we are returning and the normalized totalDeductions
-            netPay: (Number(totals.grossPay ?? Number(entry.grossPay || 0)) - totalDeductionsForReturn),
+            absenceDeduction: absenceFromTotals,
+            // For preview/export, Net (incl Benefits) is defined as Gross minus Absence (deductions are applied by third-party processors)
+            netPay: grossAdjusted,
             // Presentational fields only - do not write these back to DB here
             displayBaseSalary,
             displayDateOfBirth: displayDob,
@@ -477,11 +483,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             } catch (err) { /* ignore persistence errors */ }
           }
           if ((e as any).employee?.primaryBusiness && !((e as any).employee.primaryBusiness as any).shortName) {
-            const shortEmp = computeShortName((e as any).employee.primaryBusiness.name)
-            ((e as any).employee.primaryBusiness as any).shortName = shortEmp
+            const empPb = (e as any).employee.primaryBusiness as any
+            const nameForShort = empPb && empPb.name ? String(empPb.name) : undefined
+            const shortEmp: string | undefined = nameForShort ? computeShortName(nameForShort) : undefined
+            ;(((e as any).employee.primaryBusiness) as any).shortName = shortEmp
             try {
-              if (((e as any).employee.primaryBusiness) && ((e as any).employee.primaryBusiness).id) {
-                prisma.business.update({ where: { id: ((e as any).employee.primaryBusiness).id }, data: { shortName: shortEmp } }).catch(() => null)
+              if (empPb && empPb.id) {
+                prisma.business.update({ where: { id: empPb.id }, data: { shortName: shortEmp } }).catch(() => null)
               }
             } catch (err) { /* ignore */ }
           }
@@ -717,12 +725,19 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Only allow managers (business-manager or business-owner) or system admins to delete a period
+    // Use the new canDeletePayroll helper which checks both business-level and business-agnostic permissions
     const user = session.user as any
-    const isAdmin = isSystemAdmin(user)
-    const role = getUserRoleInBusiness(user, existingPeriod.business?.id)
-    if (!(isAdmin || role === 'business-manager' || role === 'business-owner')) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    if (!canDeletePayroll(user, existingPeriod.business?.id)) {
+      return NextResponse.json({
+        error: 'Insufficient permissions to delete this payroll period. Delete permission must be explicitly granted to managers.'
+      }, { status: 403 })
+    }
+
+    // Prevent deletion if period is exported or closed
+    if (['exported', 'closed'].includes(existingPeriod.status)) {
+      return NextResponse.json({
+        error: `Cannot delete ${existingPeriod.status} payroll periods`
+      }, { status: 400 })
     }
 
     // If the period was approved, ensure deletion happens within 7 days of approval
@@ -731,7 +746,9 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       const cutoff = new Date(approvedAt)
       cutoff.setDate(cutoff.getDate() + 7)
       if (new Date() > cutoff) {
-        return NextResponse.json({ error: 'Payroll period cannot be deleted more than 7 days after approval' }, { status: 400 })
+        return NextResponse.json({
+          error: 'Payroll period cannot be deleted more than 7 days after approval'
+        }, { status: 400 })
       }
     }
 

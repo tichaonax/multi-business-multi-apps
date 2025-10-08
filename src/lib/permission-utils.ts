@@ -602,3 +602,98 @@ export function canWorkAtCurrentTime(user?: SessionUser | null, businessId?: str
   
   return true
 }
+
+/**
+ * Business-Agnostic Payroll Permission Functions
+ * These handle cross-business payroll capabilities and umbrella period access
+ */
+
+/**
+ * Check if user has business-agnostic manager payroll permissions
+ * These permissions allow viewing umbrella periods and overriding business restrictions
+ */
+export function hasBusinessAgnosticPayrollAccess(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+
+  // System admins always have business-agnostic access
+  if (isSystemAdmin(user)) return true
+
+  // Check for explicit business-agnostic umbrella payroll permission
+  return hasUserPermission(user, 'canAccessUmbrellaPayroll')
+}
+
+/**
+ * Check if user can view a specific payroll period based on business context
+ */
+export function canViewPayrollPeriod(
+  user: SessionUser | null | undefined,
+  period: { businessId: string; isUmbrella?: boolean }
+): boolean {
+  if (!user) return false
+
+  // System admins can view all periods
+  if (isSystemAdmin(user)) return true
+
+  // If it's an umbrella period, need business-agnostic permission
+  if (period.isUmbrella) {
+    return hasBusinessAgnosticPayrollAccess(user)
+  }
+
+  // For regular business periods, check if user is member of that business
+  const memberships = getActiveBusinessMemberships(user)
+  return memberships.some(m => m.businessId === period.businessId)
+}
+
+/**
+ * Check if user can export payroll (business-level or business-agnostic)
+ */
+export function canExportPayroll(user: SessionUser | null | undefined, businessId?: string): boolean {
+  if (!user) return false
+
+  // System admin always can
+  if (isSystemAdmin(user)) return true
+
+  // Check business-agnostic permission first
+  if (hasUserPermission(user, 'canExportPayrollAcrossBusinesses')) {
+    return true
+  }
+
+  // Check business-level permission
+  return hasPermission(user, 'canExportPayroll', businessId)
+}
+
+/**
+ * Check if user can reset exported payroll (business-level or business-agnostic)
+ */
+export function canResetExportedPayroll(user: SessionUser | null | undefined, businessId?: string): boolean {
+  if (!user) return false
+
+  // System admin always can
+  if (isSystemAdmin(user)) return true
+
+  // Check business-agnostic permission first
+  if (hasUserPermission(user, 'canResetPayrollAcrossBusinesses')) {
+    return true
+  }
+
+  // Check business-level permission
+  return hasPermission(user, 'canResetExportedPayrollToPreview', businessId)
+}
+
+/**
+ * Check if user can delete payroll (business-level or business-agnostic)
+ */
+export function canDeletePayroll(user: SessionUser | null | undefined, businessId?: string): boolean {
+  if (!user) return false
+
+  // System admin always can
+  if (isSystemAdmin(user)) return true
+
+  // Check business-agnostic permission first
+  if (hasUserPermission(user, 'canDeletePayrollAcrossBusinesses')) {
+    return true
+  }
+
+  // Check business-level permission
+  return hasPermission(user, 'canDeletePayroll', businessId)
+}

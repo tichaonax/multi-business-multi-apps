@@ -612,11 +612,12 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
                           </div>
                         </div>
                         {!collapsedPermissions[index] && (
-                          <CustomPermissionsEditor 
+                          <CustomPermissionsEditor
                             permissions={membership.customPermissions}
                             businessType={membership.businessType as BusinessType || 'other'}
-                            onChange={(newPermissions) => updateBusinessMembership(index, { 
-                              customPermissions: newPermissions 
+                            currentRole={membership.role}
+                            onChange={(newPermissions) => updateBusinessMembership(index, {
+                              customPermissions: newPermissions
                             })}
                           />
                         )}
@@ -765,9 +766,10 @@ interface CustomPermissionsEditorProps {
   permissions: Partial<BusinessPermissions>
   businessType: BusinessType
   onChange: (permissions: Partial<BusinessPermissions>) => void
+  currentRole: keyof typeof BUSINESS_PERMISSION_PRESETS  // NEW - needed to determine visibility
 }
 
-function CustomPermissionsEditor({ permissions, businessType, onChange }: CustomPermissionsEditorProps) {
+function CustomPermissionsEditor({ permissions, businessType, onChange, currentRole }: CustomPermissionsEditorProps) {
   const updatePermission = (key: string, value: boolean) => {
     onChange({
       ...permissions,
@@ -777,17 +779,30 @@ function CustomPermissionsEditor({ permissions, businessType, onChange }: Custom
 
   // Get business-type specific modules
   const businessTypeModules = BUSINESS_TYPE_MODULES[businessType] || []
-  
+
   // Business-level permissions (tied to business membership)
   const corePermissionGroups = [
     { title: 'Business Management', permissions: CORE_PERMISSIONS.coreBusinessManagement },
     { title: 'User Management', permissions: CORE_PERMISSIONS.userManagement },
     { title: 'Employee Management', permissions: CORE_PERMISSIONS.employeeManagement },
     { title: 'Data Management', permissions: CORE_PERMISSIONS.dataManagement },
+    { title: 'Payroll Management', permissions: CORE_PERMISSIONS.payrollManagement },
   ]
+
+  // ⚠️ CRITICAL: Only show Manager Payroll Actions for business-owner and business-manager roles
+  // Employees should NEVER see these options
+  const showManagerPayrollActions = ['business-owner', 'business-manager'].includes(currentRole)
 
   const allPermissionGroups = [
     ...corePermissionGroups,
+    ...(showManagerPayrollActions ? [
+      {
+        title: 'Manager Payroll Actions',
+        permissions: CORE_PERMISSIONS.managerPayrollActions,
+        managerOnly: true,
+        requiresExplicitGrant: true  // Show badge indicating explicit assignment needed
+      }
+    ] : []),
     ...businessTypeModules
   ]
 
@@ -797,12 +812,31 @@ function CustomPermissionsEditor({ permissions, businessType, onChange }: Custom
         <div key={group.title} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium text-gray-900 dark:text-white">{group.title}</h4>
-            {businessTypeModules.includes(group) && (
-              <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 rounded-full">
-                {businessType.charAt(0).toUpperCase() + businessType.slice(1)} Specific
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {(group as any).managerOnly && (
+                <span className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded-full">
+                  Managers Only
+                </span>
+              )}
+              {(group as any).requiresExplicitGrant && (
+                <span className="px-2 py-1 text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-300 rounded-full">
+                  Explicit Assignment Required
+                </span>
+              )}
+              {businessTypeModules.includes(group) && (
+                <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 rounded-full">
+                  {businessType.charAt(0).toUpperCase() + businessType.slice(1)} Specific
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Show helper text for manager payroll actions */}
+          {(group as any).requiresExplicitGrant && (
+            <div className="mb-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-800 dark:text-yellow-200">
+              ⚠️ These permissions are NOT granted by default to Managers. They must be explicitly enabled.
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             {group.permissions.map((permission) => (
               <label key={permission.key} className="flex items-center space-x-2">
