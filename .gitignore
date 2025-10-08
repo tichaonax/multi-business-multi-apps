@@ -81,7 +81,15 @@ backups/
 # Generated payroll exports and debug dumps
 public/exports/payroll/*.xlsx
 public/exports/payroll/debug_*.json
+public/exports/payroll/
 
 # Temporary helper files created during development
-.temp_* 
+.temp_*
 scripts/.temp_*
+scripts/tmp-*.js
+scripts/tmp-*.ts
+scripts/tmp-*.cjs
+
+# Temporary development data files
+period.json
+verify-totals.xlsx
