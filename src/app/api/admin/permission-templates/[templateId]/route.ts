@@ -77,11 +77,11 @@ export async function PATCH(
       where: { id: templateId },
       data: {
         name,
-        permissions,
+        permissions: permissions as any,
         updatedAt: new Date()
       },
       include: {
-        user: {
+        users: {
           select: {
             id: true,
             name: true,

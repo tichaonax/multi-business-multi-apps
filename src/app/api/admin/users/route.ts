@@ -246,7 +246,11 @@ export async function POST(req: NextRequest) {
           // Determine permissions to use
           let assignmentPermissions = {};
           if (assignment.useCustomPermissions && assignment.customPermissions) {
-            assignmentPermissions = assignment.customPermissions;
+            assignmentPermissions = { ...assignment.customPermissions };
+            // ensure manager-only flag is not set for non-manager roles
+            if (!(assignment.role === 'business-manager' || assignment.role === 'business-owner')) {
+              delete (assignmentPermissions as any).canResetExportedPayrollToPreview
+            }
           } else {
             assignmentPermissions = BUSINESS_PERMISSION_PRESETS[assignment.role as keyof typeof BUSINESS_PERMISSION_PRESETS] ||
                                    BUSINESS_PERMISSION_PRESETS['employee'];
@@ -294,9 +298,14 @@ export async function POST(req: NextRequest) {
         });
 
         if (userMembership) {
-          const userPermissions = customPermissions || 
+          let userPermissions = customPermissions || 
                                  BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS] ||
                                  BUSINESS_PERMISSION_PRESETS['employee'];
+          if (userPermissions && !(role === 'business-manager' || role === 'business-owner')) {
+            // strip manager-only permission if present
+            userPermissions = { ...userPermissions } as any
+            delete (userPermissions as any).canResetExportedPayrollToPreview
+          }
 
           const membership = await tx.businessMembership.create({
             data: {

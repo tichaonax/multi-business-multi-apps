@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
+import { randomUUID } from 'crypto'
 import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions, UserLevelPermissions } from '@/types/permissions'
 
 interface UserUpdateRequest {
@@ -241,10 +242,11 @@ export async function PATCH(
       })
 
       // Update or create business memberships
-      const updatedMemberships = []
+        const updatedMemberships = []
+        const warnings: string[] = []
       for (const membershipData of businessMemberships) {
-        // Determine permissions to use
-        let finalPermissions: BusinessPermissions
+  // Determine permissions to use
+  let finalPermissions: Partial<BusinessPermissions>
         let finalTemplateId: string | null = null
         
         if (membershipData.useCustomPermissions) {
@@ -262,6 +264,15 @@ export async function PATCH(
           finalTemplateId = null
         }
 
+        // Enforce: canResetExportedPayrollToPreview may only be granted to business-manager or business-owner roles
+        if ((finalPermissions as any)?.canResetExportedPayrollToPreview) {
+          if (!(membershipData.role === 'business-manager' || membershipData.role === 'business-owner')) {
+            // strip it and record a warning
+            delete (finalPermissions as any).canResetExportedPayrollToPreview
+            warnings.push(`canResetExportedPayrollToPreview removed from permissions for business ${membershipData.businessId} because role ${membershipData.role} is not manager/owner`)
+          }
+        }
+
         const membership = await tx.businessMembership.upsert({
           where: {
             userId_businessId: {
@@ -270,10 +281,11 @@ export async function PATCH(
             }
           },
           create: {
+            id: randomUUID(),
             userId,
             businessId: membershipData.businessId,
             role: membershipData.role,
-            permissions: finalPermissions,
+            permissions: finalPermissions as any,
             templateId: finalTemplateId,
             isActive: membershipData.isActive,
             invitedBy: session.user.id,
@@ -282,7 +294,7 @@ export async function PATCH(
           },
           update: {
             role: membershipData.role,
-            permissions: finalPermissions,
+            permissions: finalPermissions as any,
             templateId: finalTemplateId,
             isActive: membershipData.isActive,
             lastAccessedAt: new Date(),
@@ -297,9 +309,8 @@ export async function PATCH(
         updatedMemberships.push(membership)
       }
 
-      return { user: updatedUser, memberships: updatedMemberships }
+      return { user: updatedUser, memberships: updatedMemberships, warnings }
     })
-
     return NextResponse.json({
       success: true,
       message: `User updated successfully`,
@@ -315,7 +326,8 @@ export async function PATCH(
           role: m.role,
           isActive: m.isActive
         }))
-      }
+      },
+      warnings: result.warnings || []
     })
 
   } catch (error) {

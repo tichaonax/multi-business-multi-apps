@@ -193,7 +193,7 @@ export function PayrollPeriodsList({ businessId, onSelectPeriod }: PayrollPeriod
                       <span className="ml-2 font-medium text-primary">{formatCurrency(period.totalDeductions)}</span>
                     </div>
                     <div>
-                      <span className="text-secondary">Net Pay:</span>
+                      <span className="text-secondary">Net Gross:</span>
                       <span className="ml-2 font-medium text-green-600 dark:text-green-400">{formatCurrency(period.totalNetPay)}</span>
                     </div>
                   </div>

@@ -2002,7 +2002,7 @@ export function PayrollEntryDetailModal({
                                 }
                                 return bb
                               }))
-                              // Recompute totals optimistically so Net Pay / Gross Pay update immediately
+                              // Recompute totals optimistically so Net Gross / Gross Pay update immediately
                               try {
                                 // Build the merged current benefits view used for calculations
                                 const merged = (benefits || []).map((bb: any) => {
@@ -2247,7 +2247,7 @@ export function PayrollEntryDetailModal({
               </div>
             )}
 
-            {/* Net Pay */}
+            {/* Net Gross */}
             {(() => {
               const totals = computeEntryTotalsLocal(entry, entry.payrollAdjustments || [], benefits)
               return (

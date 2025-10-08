@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BusinessPermissions, BusinessType } from '@/types/permissions'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { randomUUID } from 'crypto'
 
 interface TemplateCreateRequest {
   name: string
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
     const templates = await prisma.permissionTemplate.findMany({
       where,
       include: {
-        user: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -97,14 +98,15 @@ export async function POST(req: NextRequest) {
 
     const template = await prisma.permissionTemplate.create({
       data: {
+        id: randomUUID(),
         name,
         businessType,
-        permissions,
+        permissions: permissions as any,
         createdBy: session.user.id,
         isActive: true
       },
       include: {
-        user: {
+        users: {
           select: {
             id: true,
             name: true,

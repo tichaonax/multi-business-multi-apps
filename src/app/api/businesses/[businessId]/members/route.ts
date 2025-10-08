@@ -139,7 +139,8 @@ export async function POST(req: NextRequest, { params }: Context) {
           data: {
             isActive: true,
             role: role,
-            permissions: BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS],
+            // Ensure manager-only permissions are not accidentally granted to non-manager roles
+            permissions: BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS] as any,
             invitedBy: session.user.id,
           },
           include: {
@@ -157,12 +158,15 @@ export async function POST(req: NextRequest, { params }: Context) {
     }
 
     // Create new membership
-    const newMembership = await prisma.businessMembership.create({
+    // Ensure manager-only permissions are not granted by default unless role preset includes them
+    const presetPermissions = BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS]
+
+        const newMembership = await prisma.businessMembership.create({
       data: {
         userId: invitedUser.id,
         businessId: businessId,
         role: role,
-        permissions: BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS],
+            permissions: presetPermissions as any,
         invitedBy: session.user.id,
         isActive: true,
       },

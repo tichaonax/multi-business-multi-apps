@@ -206,7 +206,7 @@ export function PayrollExportModal({
               <li>• Bonuses and deductions for the selected month</li>
               <li>• Loan deductions and remaining balances</li>
               <li>• Leave balances and usage</li>
-              <li>• Net pay calculations</li>
+              <li>• Net Gross calculations</li>
             </ul>
           </div>
 

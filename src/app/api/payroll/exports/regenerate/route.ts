@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
     if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!hasPermission(session.user, 'canExportPayroll')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
-    const data = await req.json()
-    const { payrollPeriodId } = data
+  const data = await req.json()
+  const { payrollPeriodId, includeDiagnostics } = data
     if (!payrollPeriodId) return NextResponse.json({ error: 'Missing payrollPeriodId' }, { status: 400 })
 
     // Find most recent export record for this period
@@ -82,27 +82,27 @@ export async function POST(req: NextRequest) {
       const serverTotalDeductionsVal = (entry.totalDeductions !== undefined && entry.totalDeductions !== null) ? Number(entry.totalDeductions) : null
       const totalDeductions = (serverTotalDeductionsVal !== derivedTotalDeductions && derivedTotalDeductions !== 0) ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
 
-      const additionsTotal = Number(totals.additionsTotal || 0)
-      const absenceDeduction = Number(totals.absenceDeduction || 0)
+    const additionsTotal = Number(totals.additionsTotal || 0)
+    const absenceDeduction = Number(totals.absenceDeduction || 0)
 
-      const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
-  // For export, do NOT subtract deductions here — third-party processor will apply them.
-  // Net (incl Benefits) for the export should reflect gross (grossInclBenefits).
-  const netComputed = grossFromTotals
+  const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
+  // Pass raw gross (pre-absence) to generator; generator will compute Net Gross = gross - absence
+  const grossRaw = grossFromTotals
+  const netComputed = grossRaw - absenceDeduction
 
       enrichedEntries.push({
         ...entry,
         payrollEntryBenefits: entry.payrollEntryBenefits || [],
         mergedBenefits: totals.combined || [],
-        totalBenefitsAmount: Number(totals.benefitsTotal || 0),
-        grossPay: grossFromTotals,
+    totalBenefitsAmount: Number(totals.benefitsTotal || 0),
+  grossPay: grossRaw,
         // expose adjustments and derived deduction fields so excelRows picks them up
         adjustmentsTotal: additionsTotal,
         adjustmentsAsDeductions: adjustmentsAsDeductions,
         totalDeductions: totalDeductions,
-        absenceDeduction: absenceDeduction,
+  absenceDeduction: absenceDeduction,
         // Ensure netPay matches gross for exported file (third-party will apply deductions)
-        netPay: Number(totals.netPay ?? netComputed),
+  netPay: Number(totals.netPay ?? netComputed),
         // attach resolved contract and employee objects for generator to use
         contract: contract || null,
         employee: entry.employee || null
@@ -173,6 +173,8 @@ export async function POST(req: NextRequest) {
       cumulativeAbsenceDays: entry.cumulativeAbsenceDays ?? entry.absenceDays ?? 0,
       adjustmentsTotal: Number(entry.adjustmentsTotal || 0),
       adjustmentsAsDeductions: Number(entry.adjustmentsAsDeductions || 0),
+  // Include explicit absence deduction so export generator and diagnostics can use it
+  absenceDeduction: Number(entry.absenceDeduction ?? entry.absenceAmount ?? 0),
       absenceFraction: entry.absenceFraction ?? entry.absenceFractionDays ?? null,
       nationalId: entry.nationalId,
       dateOfBirth: entry.dateOfBirth,
@@ -235,6 +237,69 @@ export async function POST(req: NextRequest) {
       excelRows as any,
       period.business.name
     )
+
+    // Build diagnostics information: per-entry diagnostics and aggregated sums
+    try {
+      const perEntryDiagnostics = excelRows.map((r: any) => {
+        const absence = Number(r.absenceDeduction ?? 0) || Number(r.absenceAmount ?? 0) || 0
+        const grossRaw = Number(r.grossPay || 0)
+        const displayedGross = grossRaw - absence
+        const net = displayedGross
+        return {
+          employeeNumber: r.employeeNumber || null,
+          baseSalary: Number(r.baseSalary || 0),
+          commission: Number(r.commission || 0),
+          overtime: Number(r.overtimePay || 0),
+          benefitsTotal: Number(r.totalBenefitsAmount || 0),
+          grossRaw,
+          absence,
+          displayedGross,
+          totalDeductions: Number(r.totalDeductions || 0),
+          net
+        }
+      })
+
+      const exportSums = perEntryDiagnostics.reduce((acc: any, e: any) => {
+        acc.grossRaw += Number(e.grossRaw || 0)
+        acc.absence += Number(e.absence || 0)
+        acc.displayedGross += Number(e.displayedGross || 0)
+        acc.totalDeductions += Number(e.totalDeductions || 0)
+        acc.benefits += Number(e.benefitsTotal || 0)
+        acc.net += Number(e.net || 0)
+        return acc
+      }, { grossRaw: 0, absence: 0, displayedGross: 0, totalDeductions: 0, benefits: 0, net: 0 })
+
+      // Also compute period-like sums using the regenerate's enriched rows
+      const periodLikeSums = { grossAdjusted: 0, deductions: 0, net: 0, benefits: 0 }
+      for (const rRaw of excelRows) {
+        const r: any = rRaw
+        const grossFromTotals = Number(r.grossPay || 0)
+        const absenceFromTotals = Number(r.absenceDeduction ?? 0) || 0
+        const grossAdjusted = grossFromTotals - absenceFromTotals
+        periodLikeSums.grossAdjusted += grossAdjusted
+        periodLikeSums.deductions += Number(r.totalDeductions || 0)
+        periodLikeSums.net += grossAdjusted
+        periodLikeSums.benefits += Number(r.totalBenefitsAmount || 0)
+      }
+
+      // Write diagnostics JSON file so developers can inspect it after regeneration
+      try {
+        const diagnosticsDir = path.join(process.cwd(), 'public', 'exports', 'payroll')
+        await mkdir(diagnosticsDir, { recursive: true })
+        const diagFile = path.join(diagnosticsDir, `diagnostics_${String(payrollPeriodId)}.json`)
+        const diagPayload = { periodId: payrollPeriodId, exportSums, periodLikeSums, perEntryDiagnostics, generatedAt: new Date().toISOString() }
+        await writeFile(diagFile, JSON.stringify(diagPayload, null, 2), 'utf8')
+        console.log('Wrote diagnostics file:', diagFile)
+      } catch (wErr) {
+        console.warn('Failed to write diagnostics file:', wErr)
+      }
+
+      if (includeDiagnostics) {
+        return NextResponse.json({ message: 'Diagnostics', periodId: payrollPeriodId, perEntryDiagnostics, exportSums, periodLikeSums }, { status: 200 })
+      }
+    } catch (diagErr) {
+      console.warn('Diagnostics generation failed:', diagErr)
+    }
 
     // Save new file (overwrite old file)
     const exportsDir = path.join(process.cwd(), 'public', 'exports', 'payroll')

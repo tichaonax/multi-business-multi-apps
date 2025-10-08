@@ -278,8 +278,10 @@ export async function POST(req: NextRequest) {
         cumulativeSickDays: cumulative.cumulativeSickDays,
         cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
         cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
-        grossPay: Number(totals.grossPay ?? Number(entry.grossPay || 0)),
-        netPay: Number(totals.netPay ?? Number(entry.netPay || 0)),
+  // Pass raw grossPay (pre-absence) to generator. The generator will compute Net Gross = gross - absence.
+  grossPay: Number(Number(totals.grossPay ?? Number(entry.grossPay || 0))),
+  absenceDeduction: Number(totals.absenceDeduction || 0),
+  netPay: Number(Number(totals.grossPay ?? Number(entry.grossPay || 0)) - Number(totals.absenceDeduction || 0)),
         // copy employee name parts if available (these come from included employee select)
         employeeFirstName: (entry as any).employee?.firstName ?? null,
         employeeLastName: (entry as any).employee?.lastName ?? null,

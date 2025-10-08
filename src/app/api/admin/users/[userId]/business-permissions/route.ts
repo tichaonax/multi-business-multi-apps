@@ -54,7 +54,7 @@ export async function PATCH(
         business: {
           select: { name: true }
         },
-        template: {
+        permissionTemplate: {
           select: { id: true, name: true }
         }
       }
@@ -68,6 +68,18 @@ export async function PATCH(
     }
 
     // Update the business membership permissions
+    // Enforce: canResetExportedPayrollToPreview may only be granted to business-manager or business-owner roles
+    const role = existingMembership.role
+    const sanitizedPermissions = { ...permissions } as Partial<typeof permissions>
+    let warning: string | undefined
+    if (sanitizedPermissions.canResetExportedPayrollToPreview) {
+      if (!(role === 'business-manager' || role === 'business-owner')) {
+        // Strip the flag to prevent non-managers from receiving it
+        delete (sanitizedPermissions as any).canResetExportedPayrollToPreview
+        warning = 'canResetExportedPayrollToPreview is reserved for manager/owner roles and was removed from the provided permissions'
+      }
+    }
+
     const updatedMembership = await prisma.businessMembership.update({
       where: {
         userId_businessId: {
@@ -76,14 +88,14 @@ export async function PATCH(
         }
       },
       data: {
-        permissions,
+        permissions: sanitizedPermissions as any,
         lastAccessedAt: new Date()
       },
       include: {
         business: {
           select: { name: true }
         },
-        template: {
+        permissionTemplate: {
           select: { id: true, name: true }
         }
       }
@@ -91,8 +103,9 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: `Permissions updated for ${existingMembership.business.name}`,
-      membership: updatedMembership
+      message: `Permissions updated for ${updatedMembership.business?.name || existingMembership.businessId}` + (warning ? ` — ${warning}` : ''),
+      membership: updatedMembership,
+      warning
     })
 
   } catch (error) {

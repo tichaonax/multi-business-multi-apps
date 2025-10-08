@@ -270,7 +270,7 @@ export default function AdminPayrollPage() {
                     <li><strong>Compensation:</strong> Basic Salary, Commission, Living Allowance</li>
                     <li><strong>Allowances:</strong> Vehicle Reimbursement, Travel Allowance, Overtime</li>
                     <li><strong>Deductions:</strong> Advances, Loans</li>
-                    <li><strong>Calculations:</strong> Gross Pay, Net Pay (after deductions)</li>
+                    <li><strong>Calculations:</strong> Gross Pay, Net Gross (after deductions)</li>
                   </ul>
                   <p className="mt-3">
                     <strong>Note:</strong> This export is designed for integration with third-party payroll processing systems
@@ -303,7 +303,7 @@ export default function AdminPayrollPage() {
                           Gross Pay
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Net Pay
+                          Net Gross
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Data Status

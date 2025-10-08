@@ -227,7 +227,8 @@ export function PayrollExportPreviewModal({
       totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
     }
 
-    const netInclBenefits = grossInclBenefits - totalDeductions
+  // Presentation Net Gross = gross minus absence (deductions shown separately and not subtracted here)
+  const netInclBenefits = grossInclBenefits - (resolveAbsenceDeduction(entry) || 0)
 
     return { benefitsTotal, grossInclBenefits, netInclBenefits, totalDeductions }
   }
@@ -328,7 +329,7 @@ export function PayrollExportPreviewModal({
               <h3 className="text-lg font-semibold text-primary mb-2">
                 {period.business.name} - {getMonthName(period.month)} {period.year}
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <span className="text-secondary">Period:</span>
                   <div className="font-medium text-primary">
@@ -341,11 +342,11 @@ export function PayrollExportPreviewModal({
                 </div>
                 <div>
                   <span className="text-secondary">Total Gross Pay (incl Benefits):</span>
-                  <div className="font-medium text-primary">{formatCurrency(Number(period.totalGrossPay ?? period.payrollEntries.reduce((s, e) => s + computeEntryTotals(e).grossInclBenefits, 0)))}</div>
+                  <div className="font-medium text-primary">{formatCurrency(Number(period.totalGrossPay ?? period.payrollEntries.reduce((s, e) => s + computeEntryTotalsAligned(e).gross, 0)))}</div>
                 </div>
                 <div>
-                  <span className="text-secondary">Total Net Pay (incl Benefits):</span>
-                  <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(Number(period.totalNetPay ?? period.payrollEntries.reduce((s, e) => s + computeEntryTotals(e).netInclBenefits, 0)))}</div>
+                  <span className="text-secondary">Total Net Gross (incl Benefits):</span>
+                  <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(Number(period.totalNetPay ?? period.payrollEntries.reduce((s, e) => s + computeEntryTotalsAligned(e).net, 0)))}</div>
                 </div>
               </div>
             </div>
@@ -390,7 +391,7 @@ export function PayrollExportPreviewModal({
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Deductions</th>
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Benefits Total</th>
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Gross (incl Benefits)</th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Net (incl Benefits)</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Net Gross (incl Benefits)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border bg-background">

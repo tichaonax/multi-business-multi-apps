@@ -32,7 +32,7 @@ async function run(payrollPeriodId: string) {
     const helper = require('../src/lib/payroll/helpers')
     computeTotalsForEntry = helper.computeTotalsForEntry
   } catch (e) {
-    console.warn('Could not load computeTotalsForEntry helper, falling back to minimal totals', e && e.message)
+    console.warn('Could not load computeTotalsForEntry helper, falling back to minimal totals', (e as any)?.message || String(e))
   }
 
   const enrichedEntries = []
@@ -60,7 +60,7 @@ async function run(payrollPeriodId: string) {
     const gen = require('../src/lib/payroll/excel-generator')
     generatePayrollExcel = gen.generatePayrollExcel
   } catch (e) {
-    console.error('Could not load generatePayrollExcel:', e && e.message)
+    console.error('Could not load generatePayrollExcel:', (e as any)?.message || String(e))
     process.exit(1)
   }
 
@@ -91,7 +91,7 @@ async function run(payrollPeriodId: string) {
       netPay: Number(e.netPay || 0),
       mergedBenefits: e.mergedBenefits || [],
       totalBenefitsAmount: Number(e.totalBenefitsAmount || 0),
-      payrollEntryBenefits: (e.payrollEntryBenefits || []).map(b => ({ id: b.id, benefitTypeId: b.benefitTypeId, benefitName: b.benefitName, amount: Number(b.amount || 0), isActive: b.isActive }))
+  payrollEntryBenefits: (e.payrollEntryBenefits || []).map((b: any) => ({ id: b.id, benefitTypeId: b.benefitTypeId, benefitName: b.benefitName, amount: Number(b.amount || 0), isActive: b.isActive }))
     })),
     period.business?.name || 'Business'
   )

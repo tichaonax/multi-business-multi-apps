@@ -47,7 +47,7 @@ export function generatePayrollWorksheet(
     'Loans',
     'Gross Pay',
     'Deductions',
-    'Net Pay'
+  'Net Gross'
   ]
 
   // Transform employee data to worksheet rows
@@ -114,7 +114,7 @@ export function generatePayrollWorksheet(
     { wch: 10 }, // Loans
     { wch: 12 }, // Gross Pay
     { wch: 12 }, // Deductions
-    { wch: 12 }  // Net Pay
+  { wch: 12 }  // Net Gross
   ]
 
   worksheet['!cols'] = colWidths
