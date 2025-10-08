@@ -77,3 +77,11 @@ backups/
 
 # Local utility scripts and backfills (not part of app runtime)
 # scripts/ was removed from ignore so runtime/seed scripts remain tracked
+
+# Generated payroll exports and debug dumps
+public/exports/payroll/*.xlsx
+public/exports/payroll/debug_*.json
+
+# Temporary helper files created during development
+.temp_* 
+scripts/.temp_*
