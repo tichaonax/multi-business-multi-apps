@@ -136,7 +136,7 @@ export async function generatePayrollExcel(
     'Deductions',
     'Benefits Total',
     'Gross (incl Benefits)',
-    'Net Gross (incl Benefits)'
+    'Net (incl Benefits)'
   ]
   const allHeaders = [...fixedHeaders, ...benefitHeaders, ...endHeaders]
   const totalColumns = allHeaders.length
@@ -491,34 +491,35 @@ export async function generatePayrollExcel(
 
     // Add end columns
   const advancesLoans = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0)
-  // Prefer server-provided grossPay which should already be adjusted for absence (APIs now return grossPay offset by absence).
-  // Fallback to computing gross locally and subtracting absence once.
-  // Treat entry.grossPay as the raw gross (pre-absence) when provided by the API.
+  // If the server has already computed grossPay/netPay (which include benefits and adjustments), prefer those values.
+  // Otherwise compute locally from components (base + commission + overtime + benefits + adjustments)
+  // Prefer stored server values if present (including zero)
   const storedGrossRaw = (entry as any).grossPay
+  const storedNetRaw = (entry as any).netPay
   const storedGross = storedGrossRaw !== undefined && storedGrossRaw !== null ? Number(storedGrossRaw) : undefined
+  const storedNet = storedNetRaw !== undefined && storedNetRaw !== null ? Number(storedNetRaw) : undefined
 
   const additions = Number((entry as any).adjustmentsTotal || 0)
-  const storedAdjAs = Number((entry as any).adjustmentsAsDeductions || 0)
-  const storedAbsenceDeduction = Number(((entry as any).absenceDeduction ?? (entry as any).absenceAmount) || 0)
-  const adjAsDeductions = Math.max(0, storedAdjAs - storedAbsenceDeduction)
+    // adjustmentsAsDeductions may include absence; subtract resolved absence so exports don't double-count it
+    const storedAdjAs = Number((entry as any).adjustmentsAsDeductions || 0)
+    const storedAbsenceDeduction = Number(((entry as any).absenceDeduction ?? (entry as any).absenceAmount) || 0)
+    const adjAsDeductions = Math.max(0, storedAdjAs - storedAbsenceDeduction)
+    // Compute gross/net/totalDeductions aligned with preview logic
+    const absenceDeductionResolved = resolveAbsenceDeduction(period)
+    const computedGross = Number(entry.baseSalary || 0) + Number(entry.commission || 0) + Number(entry.overtimePay || 0) + benefitsSum + additions - (absenceDeductionResolved || 0)
+    const grossInclBenefits = Number.isFinite(storedGross as number) ? (storedGross as number) : computedGross
 
-  const absenceDeductionResolved = resolveAbsenceDeduction(period)
+    // Derived total deductions excludes explicit 'absence' so it aligns with the preview
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    const serverTotalDeductionsVal = (entry.totalDeductions !== undefined && entry.totalDeductions !== null) ? Number(entry.totalDeductions) : null
+    // Preview prefers the derived total when it differs from server-provided aggregated total
+    const totalDeductions = (serverTotalDeductionsVal !== derivedTotalDeductions && derivedTotalDeductions !== 0) ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
 
-  const computedGrossRaw = Number(entry.baseSalary || 0) + Number(entry.commission || 0) + Number(entry.overtimePay || 0) + benefitsSum + additions
-  // If server provided gross (raw pre-absence), use it directly. Otherwise use computed raw gross.
-  const grossInclBenefits = storedGross !== undefined ? storedGross : computedGrossRaw
-
-  // Derived total deductions excludes explicit 'absence' so it aligns with the preview
-  const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-  const serverTotalDeductionsVal = (entry.totalDeductions !== undefined && entry.totalDeductions !== null) ? Number(entry.totalDeductions) : null
-  // Preview prefers the derived total when it differs from server-provided aggregated total
-  const totalDeductions = (serverTotalDeductionsVal !== derivedTotalDeductions && derivedTotalDeductions !== 0) ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
-
-  // For export/preview, Net (incl Benefits) should be the gross amount with absence already subtracted (presentation rule).
-  // Also show Gross (incl Benefits) offset by the unearned absence amount so grand totals exclude unearned money.
-  // Compute displayedGross which is gross minus the absence deduction (presentation value).
-  const netInclBenefits = Number(grossInclBenefits) - Number(absenceDeductionResolved || 0)
-  const displayedGrossInclBenefits = Number(grossInclBenefits) - Number(absenceDeductionResolved || 0)
+    // For export/preview, Net (incl Benefits) should be the gross amount (third-party will apply deductions).
+    // For export/preview, Net (incl Benefits) must exclude the Absence (unearned) amount.
+    // Compute Net as Gross (incl Benefits) minus the resolved absence deduction so Absence is shown separately.
+    // We deliberately ignore any stored net value here to ensure the exported Net matches the preview rule.
+    const netInclBenefits = (grossInclBenefits - (absenceDeductionResolved || 0))
 
     // Compute absence/unearned value: prefer stored/persisted absenceDeduction, otherwise compute per-day using cumulativeAbsenceDays
   // Use resolved absence deduction (positive number). For display in Excel match preview which shows a negative value
@@ -556,8 +557,7 @@ export async function generatePayrollExcel(
         computedAbsence && computedAbsence !== 0 ? -Math.abs(Number(computedAbsence)) : 0,
         totalDeductions,
         benefitsTotalForExport,
-        // Show gross offset by absence so both the per-row Gross and grand totals exclude unearned money
-        Number(displayedGrossInclBenefits || 0),
+        grossInclBenefits,
         netInclBenefits
       )
 
@@ -588,7 +588,7 @@ export async function generatePayrollExcel(
       if (/deduct/i.test(header) || /absence/i.test(header)) {
         cell.font = { color: { argb: 'FFFF0000' } } // red
       }
-      if (header === 'Net Gross (incl Benefits)') {
+      if (header === 'Net (incl Benefits)') {
         cell.font = { color: { argb: 'FF008000' } } // green
       }
     }
@@ -612,13 +612,31 @@ export async function generatePayrollExcel(
     }
   } catch (e) { /* ignore */ }
 
-  // Add totals row (grand totals). Build an index-aligned array sized to totalColumns
-  // so each formula is placed into the exact header column and we avoid any off-by-one
-  // misalignment when headers change.
-  // Data rows start after title/period/blank/header rows. Assume header at row 4 so data begins at row 5.
+  // Add totals row (grand totals). Data rows start after title/period/blank/header rows.
+  // We need to compute the dataStartRow accounting for inserted header and subtotal rows. Assume
+  // title(1), period(1), blank(1), header(1) => data begins at row 5 as before.
   const dataStartRow = 5
+  // dataEndRow should be last row before the final subtotals/grand total row
   const dataEndRow = worksheet.lastRow ? worksheet.lastRow.number : (4 + entries.length)
+  const totalRowData: any[] = ['', '', 'TOTALS']
 
+  // Determine important column indexes dynamically based on headers (1-based)
+  const baseSalaryIndex = allHeaders.indexOf('Basic Salary') + 1
+  const commissionIndex = allHeaders.indexOf('Commission') + 1
+  const overtimeIndex = allHeaders.indexOf('Overtime') + 1
+
+  // totalRowData currently has 3 items (indices 0,1,2)
+  // We need to fill up to baseSalaryIndex - 1
+  // Current length is 3, so we start filling from index 3
+  const currentLength = totalRowData.length
+  for (let i = currentLength; i < baseSalaryIndex - 1; i++) {
+    totalRowData.push('')
+  }
+
+  // Add formulas for Basic Salary, Commission, Overtime
+  const baseSalaryCol = getColumnLetter(baseSalaryIndex)
+  const commissionCol = getColumnLetter(commissionIndex)
+  const overtimeCol = getColumnLetter(overtimeIndex)
   // Helper to create SUM formula. If subtotal rows exist, sum only subtotal cells to avoid double-counting.
   const makeSumFormula = (colLetter: string) => {
     if (subtotalRowNumbers.length > 0) {
@@ -627,33 +645,26 @@ export async function generatePayrollExcel(
     return `SUM(${colLetter}${dataStartRow}:${colLetter}${dataEndRow})`
   }
 
-  // Pre-build a row array sized to totalColumns and fill with blanks
-  const totalRowData: any[] = new Array(totalColumns).fill('')
-  // Put the label in column 3 (ID Number column was index 3 in headers)
-  totalRowData[2] = 'TOTALS'
+  totalRowData.push(
+    { formula: makeSumFormula(baseSalaryCol) },
+    { formula: makeSumFormula(commissionCol) },
+    { formula: makeSumFormula(overtimeCol) }
+  )
 
-  // Determine important column indexes (1-based)
-  const baseSalaryIndex = allHeaders.indexOf('Basic Salary') + 1
-  const commissionIndex = allHeaders.indexOf('Commission') + 1
-  const overtimeIndex = allHeaders.indexOf('Overtime') + 1
+  // Add formulas for each benefit column
+  // After pushing Basic Salary, Commission, Overtime, we're now at the benefit columns
+  let excelCol = overtimeIndex + 1
+  uniqueBenefits.forEach(() => {
+    const colLetter = getColumnLetter(excelCol)
+    totalRowData.push({ formula: makeSumFormula(colLetter) })
+    excelCol++
+  })
 
-  // Place formulas directly at the computed column indexes
-  totalRowData[baseSalaryIndex - 1] = { formula: makeSumFormula(getColumnLetter(baseSalaryIndex)) }
-  totalRowData[commissionIndex - 1] = { formula: makeSumFormula(getColumnLetter(commissionIndex)) }
-  totalRowData[overtimeIndex - 1] = { formula: makeSumFormula(getColumnLetter(overtimeIndex)) }
-
-  // Benefit columns start immediately after fixedHeaders
-  const benefitsStartIndex = fixedHeaders.length + 1 // 1-based
-  for (let i = 0; i < uniqueBenefits.length; i++) {
-    const colIndex = benefitsStartIndex + i
-    totalRowData[colIndex - 1] = { formula: makeSumFormula(getColumnLetter(colIndex)) }
-  }
-
-  // End headers follow benefits
-  const endStartIndex = benefitsStartIndex + uniqueBenefits.length
-  for (let i = 0; i < endHeaders.length; i++) {
-    const colIndex = endStartIndex + i
-    totalRowData[colIndex - 1] = { formula: makeSumFormula(getColumnLetter(colIndex)) }
+  // Add formulas for end columns (6 total: Misc Reimbursement, Advances/Loans, Misc Deductions, Benefits Total, Gross Pay, Net Pay)
+  // excelCol now points to the first end column
+  for (let i = 0; i < 6; i++) {
+    const colLetter = getColumnLetter(excelCol + i)
+    totalRowData.push({ formula: makeSumFormula(colLetter) })
   }
 
   const totalRow = worksheet.addRow(totalRowData)
