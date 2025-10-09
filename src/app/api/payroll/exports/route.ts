@@ -108,12 +108,17 @@ export async function POST(req: NextRequest) {
           include: {
             employee: {
               select: {
+                id: true,
                 employeeNumber: true,
+                firstName: true,
+                lastName: true,
                 fullName: true,
                 nationalId: true,
                 dateOfBirth: true,
                 hireDate: true,
-                terminationDate: true
+                terminationDate: true,
+                jobTitles: { select: { title: true } },
+                primaryBusinessId: true
               }
             },
             payrollEntryBenefits: {
@@ -193,7 +198,16 @@ export async function POST(req: NextRequest) {
     const contracts = await prisma.employeeContract.findMany({
       where: { employeeId: { in: employeeIds } },
       orderBy: { startDate: 'desc' },
-      include: { contract_benefits: { include: { benefitType: { select: { id: true, name: true, type: true, defaultAmount: true } } } } }
+      select: {
+        id: true,
+        employeeId: true,
+        pdfGenerationData: true,
+        primaryBusinessId: true,
+        startDate: true,
+        endDate: true,
+        jobTitles: { select: { title: true } },
+        contract_benefits: { include: { benefitType: { select: { id: true, name: true, type: true, defaultAmount: true } } } }
+      }
     })
 
     const latestContractByEmployee: Record<string, any> = {}
@@ -266,29 +280,63 @@ export async function POST(req: NextRequest) {
       const totals = await computeTotalsForEntry((entry as any).id)
 
       const _pbId = empId ? employeePrimaryBusinessIdMap[empId] : null
-      const _pb = _pbId ? businessById[_pbId] : null
+      let _pb = _pbId ? businessById[_pbId] : null
+
+      // Check if contract has explicit company name - if so, override primaryBusiness
+      const contractCompanyName = contract?.pdfGenerationData?.companyName || contract?.companyName
+      if (contractCompanyName) {
+        _pb = _pb || {}
+        _pb.name = contractCompanyName
+        _pb.shortName = computeShortName(contractCompanyName)
+      } else if (_pb && !_pb.shortName) {
+        _pb.shortName = computeShortName(_pb.name)
+      }
+
+      // Normalize deductions/adjustments like regenerate export so they match
+      const advances = Number(entry.advanceDeductions || 0)
+      const loans = Number(entry.loanDeductions || 0)
+      const misc = Number(entry.miscDeductions || 0)
+      const adjustmentsAsDeductions = Number(totals.adjustmentsAsDeductions || 0)
+      const derivedTotalDeductions = advances + loans + misc + adjustmentsAsDeductions
+      const serverTotalDeductionsVal = (entry.totalDeductions !== undefined && entry.totalDeductions !== null) ? Number(entry.totalDeductions) : null
+      const totalDeductions = (serverTotalDeductionsVal !== derivedTotalDeductions && derivedTotalDeductions !== 0) ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
+
+      const additionsTotal = Number(totals.additionsTotal || 0)
+      const absenceDeduction = Number(totals.absenceDeduction || 0)
+
+      const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
+      const grossRaw = grossFromTotals
+      const netComputed = grossRaw // Net = Gross (doesn't subtract deductions)
 
       enrichedEntries.push({
         ...entry,
         payrollEntryBenefits: entry.payrollEntryBenefits || [],
         contract: contract || null,
+        employee: (entry as any).employee || null,
         mergedBenefits: totals.combined || [],
         totalBenefitsAmount: Number(totals.benefitsTotal || 0),
         workDays: derivedWorkDays,
-        cumulativeSickDays: cumulative.cumulativeSickDays,
-        cumulativeLeaveDays: cumulative.cumulativeLeaveDays,
-        cumulativeAbsenceDays: cumulative.cumulativeAbsenceDays,
-  // Pass raw grossPay (pre-absence) to generator. The generator will compute Net Gross = gross - absence.
-  grossPay: Number(Number(totals.grossPay ?? Number(entry.grossPay || 0))),
-  absenceDeduction: Number(totals.absenceDeduction || 0),
-  netPay: Number(Number(totals.grossPay ?? Number(entry.grossPay || 0)) - Number(totals.absenceDeduction || 0)),
+        // Include current entry's day counts into the cumulative totals so Excel sees actual values (matches period API)
+        cumulativeSickDays: Number(cumulative.cumulativeSickDays || 0) + Number(entry.sickDays || 0),
+        cumulativeLeaveDays: Number(cumulative.cumulativeLeaveDays || 0) + Number(entry.leaveDays || 0),
+        cumulativeAbsenceDays: Number(cumulative.cumulativeAbsenceDays || 0) + Number(entry.absenceDays || 0),
+        // Pass raw grossPay (pre-absence) to generator. The generator will compute Net Gross = gross - absence.
+        grossPay: grossRaw,
+        absenceDeduction: absenceDeduction,
+        netPay: Number(totals.netPay ?? netComputed),
+        // expose adjustments and derived deduction fields so excelRows picks them up
+        adjustmentsTotal: additionsTotal,
+        adjustmentsAsDeductions: adjustmentsAsDeductions,
+        totalDeductions: totalDeductions,
         // copy employee name parts if available (these come from included employee select)
         employeeFirstName: (entry as any).employee?.firstName ?? null,
         employeeLastName: (entry as any).employee?.lastName ?? null,
         employeeFullName: (entry as any).employee?.fullName ?? entry.employeeName,
         employeeDateOfBirth: (entry as any).dateOfBirth,
         employeeHireDate: (entry as any).hireDate,
-        primaryBusiness: _pb ? { ..._pb, shortName: _pb.shortName } : null
+        primaryBusiness: _pb ? { ..._pb, shortName: _pb.shortName } : null,
+        // Attach job title from employee or contract fallback for generator
+        jobTitle: (entry as any).employee?.jobTitles?.title || contract?.pdfGenerationData?.jobTitle || (entry as any).jobTitle || (entry as any).employeeJobTitle || ''
       })
     }
 
@@ -298,6 +346,13 @@ export async function POST(req: NextRequest) {
       employeeName: entry.employeeFullName || entry.employeeName,
       employeeFirstName: (entry as any).employeeFirstName || null,
       employeeLastName: (entry as any).employeeLastName || null,
+      employeeDateOfBirth: (entry as any).employeeDateOfBirth || null,
+      employeeHireDate: (entry as any).employeeHireDate || null,
+      jobTitle: (entry as any).jobTitle || '',
+      // include primaryBusiness info per entry so generator can pick correct shortName
+      primaryBusiness: ((entry as any).primaryBusiness && { name: (entry as any).primaryBusiness.name, shortName: (entry as any).primaryBusiness.shortName }) || ((entry as any).contract?.pdfGenerationData?.businessName ? { name: (entry as any).contract.pdfGenerationData.businessName, shortName: undefined } : undefined),
+      employee: (entry as any).employee || null,
+      contract: (entry as any).contract || null,
       nationalId: entry.nationalId,
       dateOfBirth: entry.dateOfBirth,
       hireDate: entry.hireDate,
@@ -315,6 +370,9 @@ export async function POST(req: NextRequest) {
       advanceDeductions: parseFloat(entry.advanceDeductions.toString()),
       loanDeductions: parseFloat(entry.loanDeductions.toString()),
       miscDeductions: parseFloat(entry.miscDeductions.toString()),
+      adjustmentsTotal: Number((entry as any).adjustmentsTotal || 0),
+      adjustmentsAsDeductions: Number((entry as any).adjustmentsAsDeductions || 0),
+      absenceDeduction: Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0),
       grossPay: parseFloat(entry.grossPay.toString()),
       totalDeductions: parseFloat(entry.totalDeductions.toString()),
       netPay: parseFloat(entry.netPay.toString()),
@@ -329,6 +387,40 @@ export async function POST(req: NextRequest) {
         isActive: benefit.isActive
       }))
     }))
+
+    // Group and sort entries by company, then by last name within each company
+    try {
+      const rowsByCompany: Map<string, { displayName: string; rows: any[] }> = new Map()
+      for (const r of excelRows) {
+        const companyDisplay = (r.primaryBusiness && (r.primaryBusiness.shortName || r.primaryBusiness.name)) || ''
+        const key = String(companyDisplay || '').trim() || 'ZZZ'
+        const normalized = key.toUpperCase()
+        if (!rowsByCompany.has(normalized)) rowsByCompany.set(normalized, { displayName: companyDisplay, rows: [] })
+        rowsByCompany.get(normalized)!.rows.push(r)
+      }
+
+      const sortedCompanyKeys = Array.from(rowsByCompany.keys()).sort()
+      const sortedRows: any[] = []
+      for (const k of sortedCompanyKeys) {
+        const group = rowsByCompany.get(k)!.rows
+        group.sort((a, b) => {
+          const aLast = (a.employee && a.employee.lastName) || a.employeeLastName || ''
+          const bLast = (b.employee && b.employee.lastName) || b.employeeLastName || ''
+          const cmp = String(aLast).localeCompare(String(bLast))
+          if (cmp !== 0) return cmp
+          // If last names are the same, sort by first name
+          const aFirst = (a.employee && a.employee.firstName) || a.employeeFirstName || ''
+          const bFirst = (b.employee && b.employee.firstName) || b.employeeFirstName || ''
+          return String(aFirst).localeCompare(String(bFirst))
+        })
+        sortedRows.push(...group)
+      }
+
+      // Replace excelRows with sorted rows
+      excelRows.splice(0, excelRows.length, ...sortedRows)
+    } catch (sortErr) {
+      console.warn('Failed to group/sort excel rows by company/lastName for original export:', sortErr)
+    }
 
     const excelBuffer = await generatePayrollExcel(
       {

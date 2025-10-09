@@ -86,9 +86,9 @@ export async function POST(req: NextRequest) {
     const absenceDeduction = Number(totals.absenceDeduction || 0)
 
   const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
-  // Pass raw gross (pre-absence) to generator; generator will compute Net Gross = gross - absence
+  // Pass raw gross (pre-absence) to generator; Net = Gross (doesn't subtract deductions)
   const grossRaw = grossFromTotals
-  const netComputed = grossRaw - absenceDeduction
+  const netComputed = grossRaw
 
       enrichedEntries.push({
         ...entry,

@@ -515,11 +515,8 @@ export async function generatePayrollExcel(
     // Preview prefers the derived total when it differs from server-provided aggregated total
     const totalDeductions = (serverTotalDeductionsVal !== derivedTotalDeductions && derivedTotalDeductions !== 0) ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
 
-    // For export/preview, Net (incl Benefits) should be the gross amount (third-party will apply deductions).
-    // For export/preview, Net (incl Benefits) must exclude the Absence (unearned) amount.
-    // Compute Net as Gross (incl Benefits) minus the resolved absence deduction so Absence is shown separately.
-    // We deliberately ignore any stored net value here to ensure the exported Net matches the preview rule.
-    const netInclBenefits = (grossInclBenefits - (absenceDeductionResolved || 0))
+  // Net = Gross (deductions are NOT subtracted - they are shown separately)
+  const netInclBenefits = grossInclBenefits
 
     // Compute absence/unearned value: prefer stored/persisted absenceDeduction, otherwise compute per-day using cumulativeAbsenceDays
   // Use resolved absence deduction (positive number). For display in Excel match preview which shows a negative value

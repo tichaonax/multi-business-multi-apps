@@ -485,14 +485,15 @@ export default function PayrollPeriodDetailPage() {
     return months[month - 1]
   }
 
-  // Count working days (Mon-Fri) for a given year/month (month 1-12) - client copy of server helper
+  // Count working days (Mon-Sat) for a given year/month (month 1-12) - client copy of server helper
   const getWorkingDaysInMonthClient = (year: number, month: number) => {
     const daysInMonth = new Date(year, month, 0).getDate()
     let count = 0
     for (let d = 1; d <= daysInMonth; d++) {
       const dt = new Date(year, month - 1, d)
       const day = dt.getDay()
-      if (day !== 0 && day !== 6) count++
+      // Count Monday-Saturday as working days (exclude Sundays only)
+      if (day !== 0) count++
     }
     return count
   }
@@ -596,8 +597,7 @@ export default function PayrollPeriodDetailPage() {
     const storedGross = Number(entry.grossPay || 0)
     const storedNet = Number(entry.netPay || 0)
     if (storedGross && storedNet) {
-      // Prefer persisted totals on the entry, but still apply any resolved absence deduction so
-      // the UI always shows gross reduced by absence even when stored values exist.
+      // Prefer persisted totals on the entry - server already has absence subtracted
       // Build derived adjustments excluding explicit 'absence' adjustments so list matches modal
       const fallbackDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
       let derivedAdjDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
@@ -622,10 +622,9 @@ export default function PayrollPeriodDetailPage() {
       // Prefer the derived total (which excludes absence) for list display so it matches modal
       const totalDeductions = derivedTotal
 
-      // Subtract any resolved absence deduction from the stored gross so UI aligns with modal/server semantics
-      const absenceDeduction = resolveAbsenceDeduction(entry) || 0
-      const adjustedGross = Number(storedGross) - Number(absenceDeduction)
-      const adjustedNet = Number(adjustedGross) - Number(totalDeductions)
+      // Server-provided gross already has absence subtracted - don't subtract again
+      const adjustedGross = Number(storedGross)
+      const adjustedNet = Number(adjustedGross)
 
       return { benefitsTotal, grossInclBenefits: adjustedGross, netInclBenefits: adjustedNet, totalDeductions }
     }
@@ -715,7 +714,8 @@ export default function PayrollPeriodDetailPage() {
     // and modal remain consistent and absence is shown separately.
     const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
-  const net = gross // Presentation Net Gross: do not subtract deductions (third-party will apply them)
+  // Net = Gross (deductions shown separately)
+  const net = gross
   return { benefitsTotal, gross, totalDeductions, net }
   }
 
@@ -1016,7 +1016,7 @@ export default function PayrollPeriodDetailPage() {
         </div>
       )}
 
-      {/* Period Summary - Calculate from entries to include contract benefits */}
+      {/* Period Summary - Use API-provided stored values to match preview exactly */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="card">
           <p className="text-sm text-secondary">Employees</p>
@@ -1025,19 +1025,19 @@ export default function PayrollPeriodDetailPage() {
         <div className="card">
           <p className="text-sm text-secondary">Gross Pay</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e as any).gross, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.grossPay || 0), 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Deductions</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e as any).totalDeductions, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.totalDeductions || 0), 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Net Gross</p>
           <p className="text-2xl font-bold text-green-600">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + computeEntryTotalsAligned(e as any).net, 0))}
+            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.netPay || 0), 0))}
           </p>
         </div>
       </div>

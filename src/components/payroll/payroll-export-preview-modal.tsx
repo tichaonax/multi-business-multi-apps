@@ -160,14 +160,15 @@ export function PayrollExportPreviewModal({
     return months[month - 1]
   }
 
-  // Count working days (Mon-Fri) for a given year/month (month 1-12)
+  // Count working days (Mon-Sat) for a given year/month (month 1-12)
   const getWorkingDaysInMonthClient = (year: number, month: number) => {
     const daysInMonth = new Date(year, month, 0).getDate()
     let count = 0
     for (let d = 1; d <= daysInMonth; d++) {
       const dt = new Date(year, month - 1, d)
       const day = dt.getDay()
-      if (day !== 0 && day !== 6) count++
+      // Count Monday-Saturday as working days (exclude Sundays only)
+      if (day !== 0) count++
     }
     return count
   }
@@ -274,15 +275,15 @@ export function PayrollExportPreviewModal({
     }
 
     const absenceDeduction = resolveAbsenceDeduction(entry)
-    const gross = baseSalary + commission + overtime + benefitsTotal + additions - (absenceDeduction || 0)
-    const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
-    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-    // Prefer the derived total which excludes explicit 'absence' adjustments so exports
-    // align with the modal/list display.
-    const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
-    // For export/preview, Net (incl Benefits) should be the gross amount (third-party will apply deductions).
-    const net = gross
-    return { benefitsTotal, gross, totalDeductions, net }
+
+  // ALWAYS recalculate gross/net - ignore stored values which may use old formula
+  const gross = baseSalary + commission + overtime + benefitsTotal + additions - (absenceDeduction || 0)
+  const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
+  const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+  const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
+
+  const net = gross // Net = Gross (deductions shown separately)
+  return { benefitsTotal, gross, totalDeductions, net }
   }
 
   // Resolve absence deduction value for an entry. Prefer persisted values exposed by the API
@@ -345,8 +346,8 @@ export function PayrollExportPreviewModal({
                   <div className="font-medium text-primary">{formatCurrency(Number(period.totalGrossPay ?? period.payrollEntries.reduce((s, e) => s + computeEntryTotalsAligned(e).gross, 0)))}</div>
                 </div>
                 <div>
-                  <span className="text-secondary">Total Net Gross (incl Benefits):</span>
-                  <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(Number(period.totalNetPay ?? period.payrollEntries.reduce((s, e) => s + computeEntryTotalsAligned(e).net, 0)))}</div>
+                  <span className="text-secondary">Total Net (incl Benefits):</span>
+                  <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(Number(period.totalNetPay ?? period.payrollEntries.reduce((s, e) => s + (computeEntryTotalsAligned(e).gross - computeEntryTotalsAligned(e).totalDeductions), 0)))}</div>
                 </div>
               </div>
             </div>

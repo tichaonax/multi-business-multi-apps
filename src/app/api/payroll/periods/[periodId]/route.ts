@@ -381,10 +381,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           const serverTotalDeductions = Number(entry.totalDeductions || 0)
           const totalDeductionsForReturn = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
-          // Compute adjusted gross to ensure the UI and exports display Gross offset by Absence (unearned)
+          // Get gross and absence from totals helper (grossPay already has absence subtracted)
           const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
           const absenceFromTotals = Number(totals.absenceDeduction ?? 0)
-          const grossAdjusted = grossFromTotals - absenceFromTotals
+          // Don't subtract absence again - it's already been subtracted in computeTotalsForEntry
+          const grossAdjusted = grossFromTotals
 
           const returnedEntry = {
             ...entry,

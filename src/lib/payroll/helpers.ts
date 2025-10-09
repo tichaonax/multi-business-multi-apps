@@ -254,12 +254,14 @@ export async function computeTotalsForEntry(entryId: string) {
     const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
     const totalDeductions = serverTotalDeductions === derivedTotalDeductions ? serverTotalDeductions : derivedTotalDeductions
 
-    // Note: grossPay here reflects earnings before deductions (absence is represented
-    // as an adjustment/deduction). We return `absenceDeduction` separately so callers
-    // (UI) can display it and subtract for presentation where needed.
-    const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal
-    const netGross = grossPay // Net gross (we do not subtract deductions here)
-    const netPay = netGross // keep legacy field for compatibility (DB column named netPay will hold netGross)
+    // Canonical payroll semantics (server authoritative):
+    // - grossPay includes all earnings and is reduced for unearned absence amounts.
+    // - totalDeductions are shown separately and NOT subtracted from net pay
+    // - Net = Gross (deductions shown separately, NOT subtracted)
+    // Compute gross as earnings minus absenceDeduction (so callers don't need to subtract again).
+    const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal - absenceDeduction
+    // Net = Gross (deductions shown separately, NOT subtracted)
+    const netPay = grossPay
 
-    return { grossPay, netGross, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, overtimePay, hourlyRate, absenceDeduction }
+    return { grossPay, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, overtimePay, hourlyRate, absenceDeduction }
 }
