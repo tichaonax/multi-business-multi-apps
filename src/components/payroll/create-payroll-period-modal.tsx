@@ -121,20 +121,39 @@ export function CreatePayrollPeriodModal({
               value={formData.periodStart}
               onChange={(value) => {
                 // Auto-sync year and month from periodStart date
+                // AND auto-set periodEnd to last day of that month
                 if (value) {
                   try {
-                    const date = new Date(value)
-                    if (!isNaN(date.getTime())) {
+                    console.log('DateInput onChange received value:', value)
+
+                    // Parse ISO date string directly to avoid timezone issues
+                    // value should be in format "YYYY-MM-DD"
+                    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+                    if (match) {
+                      const year = parseInt(match[1], 10)
+                      const month = parseInt(match[2], 10)
+                      const day = parseInt(match[3], 10)
+
+                      console.log('Parsed year:', year, 'month:', month, 'day:', day)
+
+                      // Calculate last day of the month
+                      const lastDay = new Date(year, month, 0).getDate() // Day 0 of next month = last day of current month
+                      const lastDayOfMonth = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+                      console.log('Auto-setting periodEnd to last day of month:', lastDayOfMonth)
+
                       setFormData({
                         ...formData,
                         periodStart: value,
-                        year: date.getFullYear(),
-                        month: date.getMonth() + 1
+                        periodEnd: lastDayOfMonth,
+                        year: year,
+                        month: month
                       })
                       return
                     }
                   } catch (e) {
                     // Invalid date, just update periodStart
+                    console.error('Date parsing error:', e)
                   }
                 }
                 setFormData({ ...formData, periodStart: value })

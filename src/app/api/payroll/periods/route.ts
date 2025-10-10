@@ -166,9 +166,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate that the month parameter matches the month in periodStart
-    const startDate = new Date(periodStart)
-    const startMonth = startDate.getMonth() + 1 // JavaScript months are 0-indexed
-    const startYear = startDate.getFullYear()
+    // Parse ISO date string directly to avoid timezone issues
+    // periodStart should be in format "YYYY-MM-DD"
+    const dateMatch = periodStart.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!dateMatch) {
+      return NextResponse.json(
+        { error: 'Invalid periodStart date format. Expected YYYY-MM-DD.' },
+        { status: 400 }
+      )
+    }
+
+    const startYear = parseInt(dateMatch[1], 10)
+    const startMonth = parseInt(dateMatch[2], 10)
+    const startDay = parseInt(dateMatch[3], 10)
 
     if (parseInt(month) !== startMonth || parseInt(year) !== startYear) {
       return NextResponse.json(
@@ -206,18 +216,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Business not found' },
         { status: 404 }
-      )
-    }
-
-    // If the client requested creating for all employees, ensure the
-    // selected business is in fact the umbrella business. Otherwise the
-    // subsequent duplicate-period checks can return a misleading error
-    // (e.g. "Payroll period for this month already exists"). Provide a
-    // clearer validation message here.
-    if (targetAllEmployees && !business.isUmbrellaBusiness) {
-      return NextResponse.json(
-        { error: 'targetAllEmployees may only be used with the umbrella (All employees) business. Please select the All employees (Umbrella) option.' },
-        { status: 400 }
       )
     }
 
@@ -292,12 +290,15 @@ export async function POST(req: NextRequest) {
       const p = await tx.payrollPeriod.create({ data: createData })
 
       if (targetAllEmployees) {
-        // NEW LOGIC: Create multiple entries per employee if they have multiple signed contracts in the period
-        // Get all employees (filter by business if not umbrella)
+        // Create entries for all employees in the selected business
+        // If business is umbrella, get ALL employees across all businesses
+        // If business is specific, get only employees for that business
         const employeeWhere: any = { isActive: true }
         if (!business.isUmbrellaBusiness) {
+          // Regular business: only get employees assigned to this business
           employeeWhere.primaryBusinessId = businessId
         }
+        // Umbrella business: no filter, get everyone!
 
         const employees = await tx.employee.findMany({
           where: employeeWhere,
@@ -325,7 +326,7 @@ export async function POST(req: NextRequest) {
             p.periodStart,
             p.periodEnd,
             employee.terminationDate,
-            business.isUmbrellaBusiness ? undefined : businessId
+            business.isUmbrellaBusiness ? undefined : businessId  // No business filter for umbrella
           )
 
           if (contractEntries.length === 0) {

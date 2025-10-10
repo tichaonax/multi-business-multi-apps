@@ -69,6 +69,7 @@ export default function PayrollPage() {
                   finalList = [umbrellaBusiness, ...list]
                 }
                 // remember umbrella id for create-all shortcut
+                console.log('Umbrella business loaded:', umbrellaBusiness)
                 setUmbrellaBusinessId(umbrellaBusiness.id)
               }
             }
@@ -172,11 +173,25 @@ export default function PayrollPage() {
               id="create-for-all"
               type="checkbox"
               checked={createForAllEmployees}
-              onChange={(e) => setCreateForAllEmployees(e.target.checked)}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setCreateForAllEmployees(checked)
+
+                // If checking the box and no business is selected, auto-select umbrella
+                if (checked && !selectedBusinessId && umbrellaBusinessId) {
+                  console.log('Auto-selecting umbrella business:', umbrellaBusinessId)
+                  console.log('Available businesses:', businesses)
+                  setSelectedBusinessId(umbrellaBusinessId)
+                }
+              }}
               className="h-4 w-4 text-blue-600 border-border rounded"
             />
             <label htmlFor="create-for-all" className="text-sm text-secondary">
-              Create payroll for all employees (Umbrella)
+              Create payroll for all employees ({
+                selectedBusinessId
+                  ? businesses.find(b => b.id === selectedBusinessId)?.name || 'Select a business'
+                  : 'Select a business'
+              })
             </label>
           </div>
         )}
