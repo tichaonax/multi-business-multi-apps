@@ -61,7 +61,9 @@
     "test:coverage": "jest --coverage",
     "create-admin": "node scripts/create-admin.js",
     "init-business-balances": "node scripts/initialize-business-balances.js",
-    "test:seed-clothing": "node tests/seed-clothing.test.js"
+    "test:seed-clothing": "node tests/seed-clothing.test.js",
+    "setup": "node scripts/setup-fresh-install.js",
+    "setup:update": "node scripts/setup-after-pull.js"
   },
   "keywords": [],
   "author": "",

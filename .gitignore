@@ -41,6 +41,10 @@ next-env.d.ts
 *.db
 *.sqlite
 
+# Prisma generated client (should be regenerated on each machine)
+/node_modules/.prisma/
+/node_modules/@prisma/client/
+
 # logs
 logs
 *.log
