@@ -101,6 +101,7 @@ export default function PayrollPeriodDetailPage() {
   const [resetting, setResetting] = useState(false)
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [includePastPeriods, setIncludePastPeriods] = useState(false)
   const [notification, setNotification] = useState<{
     type: 'success' | 'error'
     message: string
@@ -363,9 +364,10 @@ export default function PayrollPeriodDetailPage() {
   const handleExport = async () => {
     if (!period) return
     const ok = await confirm({
-      title: 'Export payroll',
-      description:
-        '⚠️ IMPORTANT: Once exported, this payroll period will be LOCKED and no further changes can be made. Continue with export?',
+      title: includePastPeriods ? 'Export Year-to-Date payroll' : 'Export payroll',
+      description: includePastPeriods
+        ? '⚠️ IMPORTANT: This will export all approved periods for this year up to and including this month. Once exported, this payroll period will be LOCKED and no further changes can be made. Continue with export?'
+        : '⚠️ IMPORTANT: Once exported, this payroll period will be LOCKED and no further changes can be made. Continue with export?',
       confirmText: 'Export'
     })
 
@@ -379,13 +381,17 @@ export default function PayrollPeriodDetailPage() {
         body: JSON.stringify({
           payrollPeriodId: period.id,
           businessId: period.business.id,
-          generationType: 'single_month'
+          generationType: includePastPeriods ? 'year_to_date' : 'single_month',
+          includePastPeriods
         })
       })
 
       if (response.ok) {
         const data = await response.json()
-        showNotification('success', 'Excel file generated successfully. Payroll period is now locked.')
+        const successMessage = includePastPeriods
+          ? 'Year-to-Date Excel file generated successfully. Payroll period is now locked.'
+          : 'Excel file generated successfully. Payroll period is now locked.'
+        showNotification('success', successMessage)
 
         // Download the file
         window.open(data.fileUrl, '_blank')
@@ -936,12 +942,23 @@ export default function PayrollPeriodDetailPage() {
               >
                 Preview Export
               </button>
+              <label className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includePastPeriods}
+                  onChange={(e) => setIncludePastPeriods(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-secondary">
+                  Include past periods (Year-to-Date)
+                </span>
+              </label>
               <button
                 onClick={handleExport}
                 disabled={exporting}
                 className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50"
               >
-                {exporting ? 'Exporting...' : 'Export to Excel'}
+                {exporting ? 'Exporting...' : includePastPeriods ? 'Export YTD' : 'Export to Excel'}
               </button>
             </>
           )}

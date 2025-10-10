@@ -6,6 +6,7 @@ import { getWorkingDaysInMonth, computeTotalsForEntry } from '@/lib/payroll/help
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 import { generatePayrollExcel } from '@/lib/payroll/excel-generator'
+import { generateMultiTabPayrollExcel, getYearToDatePeriods, regeneratePeriodEntries } from '@/lib/payroll/multi-tab-excel-generator'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
@@ -86,7 +87,8 @@ export async function POST(req: NextRequest) {
       businessId,
       generationType,
       includesMonths,
-      notes
+      notes,
+      includePastPeriods = false  // NEW: Multi-tab YTD export flag
     } = data
 
     // Validation
@@ -162,6 +164,113 @@ export async function POST(req: NextRequest) {
     // Generate filename
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const monthName = monthNames[period.month - 1]
+
+    // NEW: Multi-tab year-to-date export workflow
+    if (includePastPeriods) {
+      console.log(`Generating multi-tab YTD export for period ${payrollPeriodId}`)
+
+      // Get all approved periods in the same year up to this month
+      const ytdPeriods = await getYearToDatePeriods(businessId, payrollPeriodId)
+
+      if (ytdPeriods.length === 0) {
+        return NextResponse.json(
+          { error: 'No approved periods found for year-to-date export' },
+          { status: 400 }
+        )
+      }
+
+      console.log(`Found ${ytdPeriods.length} periods for YTD export`)
+
+      // Build tabs for each period
+      const tabs = []
+      const allMonths = []
+
+      for (const p of ytdPeriods) {
+        const isCurrentPeriod = p.id === payrollPeriodId
+        allMonths.push(p.month)
+
+        // Regenerate entries for past periods, use current data for current period
+        const entries = isCurrentPeriod
+          ? period.payrollEntries // Current period uses already-loaded data
+          : await regeneratePeriodEntries(p.id) // Past periods use regeneration
+
+        tabs.push({
+          period: p,
+          entries,
+          isRegenerated: !isCurrentPeriod
+        })
+
+        console.log(`  - ${monthNames[p.month - 1]} ${p.year}: ${entries.length} entries ${isCurrentPeriod ? '(current)' : '(regenerated)'}`)
+      }
+
+      // Generate multi-tab Excel
+      const exportBusinessName = period.business.isUmbrellaBusiness && period.business.umbrellaBusinessName
+        ? period.business.umbrellaBusinessName
+        : period.business.name
+
+      const excelBuffer = await generateMultiTabPayrollExcel(tabs, exportBusinessName)
+
+      // Save file
+      const fileName = `Payroll_YTD_${period.year}_${monthName}_${Date.now()}.xlsx`
+      const exportsDir = path.join(process.cwd(), 'public', 'exports', 'payroll')
+      await mkdir(exportsDir, { recursive: true })
+
+      const filePath = path.join(exportsDir, fileName)
+      await writeFile(filePath, excelBuffer)
+
+      const fileUrl = `/exports/payroll/${fileName}`
+      const fileSize = excelBuffer.length
+
+      // Create export record
+      const exportRecord = await prisma.$transaction(async (tx) => {
+        const newExport = await tx.payrollExport.create({
+          data: {
+            id: `EX-${nanoid(12)}`,
+            payrollPeriodId,
+            businessId,
+            year: period.year,
+            month: period.month,
+            fileName,
+            fileUrl,
+            fileSize,
+            format: 'excel',
+            includesMonths: allMonths,
+            employeeCount,
+            totalGrossPay,
+            totalNetPay,
+            exportedBy: session.user.id,
+            generationType: 'year_to_date',
+            notes: notes || `Year-to-date export with ${ytdPeriods.length} tabs`,
+            exportedAt: new Date()
+          },
+          include: {
+            business: {
+              select: { id: true, name: true, type: true }
+            },
+            exporter: {
+              select: { id: true, name: true, email: true }
+            }
+          }
+        })
+
+        // Update period status to exported
+        await tx.payrollPeriod.update({
+          where: { id: payrollPeriodId },
+          data: {
+            status: 'exported',
+            exportedAt: new Date(),
+            updatedAt: new Date()
+          }
+        })
+
+        return newExport
+      })
+
+      console.log(`Multi-tab export complete: ${fileName} (${ytdPeriods.length} tabs, ${fileSize} bytes)`)
+      return NextResponse.json(exportRecord, { status: 201 })
+    }
+
+    // Standard single-month export (existing workflow)
     const fileName = `Payroll_${period.year}_${monthName}_${Date.now()}.xlsx`
 
     // Prepare entries with mergedBenefits and totals (match period route merging logic)

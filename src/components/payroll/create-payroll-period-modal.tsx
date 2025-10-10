@@ -119,7 +119,26 @@ export function CreatePayrollPeriodModal({
             </label>
             <DateInput
               value={formData.periodStart}
-              onChange={(value) => setFormData({ ...formData, periodStart: value })}
+              onChange={(value) => {
+                // Auto-sync year and month from periodStart date
+                if (value) {
+                  try {
+                    const date = new Date(value)
+                    if (!isNaN(date.getTime())) {
+                      setFormData({
+                        ...formData,
+                        periodStart: value,
+                        year: date.getFullYear(),
+                        month: date.getMonth() + 1
+                      })
+                      return
+                    }
+                  } catch (e) {
+                    // Invalid date, just update periodStart
+                  }
+                }
+                setFormData({ ...formData, periodStart: value })
+              }}
               required
             />
           </div>

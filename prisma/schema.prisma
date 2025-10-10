@@ -1998,6 +1998,7 @@ model PayrollEntry {
   contractStartDate    DateTime?
   contractEndDate      DateTime?
   isProrated           Boolean               @default(false)
+  contractSnapshot     Json?
   payrollAdjustments   PayrollAdjustment[]
   employee             Employee?             @relation(fields: [employeeId], references: [id])
   payrollPeriod        PayrollPeriod?        @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)

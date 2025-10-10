@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { computeTotalsForEntry } from '@/lib/payroll/helpers'
 import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
+import { captureContractSnapshot } from '@/lib/payroll/contract-snapshot'
 import { nanoid } from 'nanoid'
 
 // GET /api/payroll/periods - List payroll periods for a business
@@ -160,6 +161,20 @@ export async function POST(req: NextRequest) {
     if (month < 1 || month > 12) {
       return NextResponse.json(
         { error: 'Month must be between 1 and 12' },
+        { status: 400 }
+      )
+    }
+
+    // Validate that the month parameter matches the month in periodStart
+    const startDate = new Date(periodStart)
+    const startMonth = startDate.getMonth() + 1 // JavaScript months are 0-indexed
+    const startYear = startDate.getFullYear()
+
+    if (parseInt(month) !== startMonth || parseInt(year) !== startYear) {
+      return NextResponse.json(
+        {
+          error: `Month/year mismatch: period starts in ${startYear}-${startMonth.toString().padStart(2, '0')} but month=${month}, year=${year} was provided. Please ensure the month and year match the period start date.`
+        },
         { status: 400 }
       )
     }
@@ -324,6 +339,16 @@ export async function POST(req: NextRequest) {
           for (const contractEntry of contractEntries) {
             const { contract, effectiveStartDate, effectiveEndDate, workDays, proratedBaseSalary, isProrated } = contractEntry
 
+            // Capture immutable contract snapshot at period creation time
+            let contractSnapshot = null
+            try {
+              const snapshot = await captureContractSnapshot(contract.id, p.createdAt)
+              contractSnapshot = snapshot
+            } catch (error) {
+              console.warn(`Failed to capture contract snapshot for ${contract.contractNumber}:`, error)
+              // Continue without snapshot - will fall back to live contract data if needed
+            }
+
             const entryId = `PE-${nanoid(12)}`
             const entry: any = {
               id: entryId,
@@ -344,13 +369,14 @@ export async function POST(req: NextRequest) {
               contractStartDate: effectiveStartDate,
               contractEndDate: effectiveEndDate,
               isProrated,
+              contractSnapshot,  // Store immutable snapshot
               createdAt: new Date(),
               updatedAt: new Date()
             }
 
             allEntries.push(entry)
 
-            console.log(`  - Entry for ${employee.employeeNumber}: Contract ${contract.contractNumber}, ${effectiveStartDate.toISOString().split('T')[0]} to ${effectiveEndDate.toISOString().split('T')[0]}, ${workDays} days, $${proratedBaseSalary}${isProrated ? ' (prorated)' : ''}`)
+            console.log(`  - Entry for ${employee.employeeNumber}: Contract ${contract.contractNumber}, ${effectiveStartDate.toISOString().split('T')[0]} to ${effectiveEndDate.toISOString().split('T')[0]}, ${workDays} days, $${proratedBaseSalary}${isProrated ? ' (prorated)' : ''}${contractSnapshot ? ' [snapshot captured]' : ''}`)
           }
         }
 
