@@ -102,6 +102,22 @@ async function main() {
 
   console.log('✅ Database is empty - proceeding with fresh installation\n')
 
+  // Clean up Prisma cache first to avoid Windows file lock issues
+  console.log('🧹 Cleaning Prisma cache to avoid file lock issues...\n')
+  const prismaClientPath = path.join(ROOT_DIR, 'node_modules', '.prisma')
+  if (fs.existsSync(prismaClientPath)) {
+    try {
+      if (process.platform === 'win32') {
+        execSync(`rmdir /s /q "${prismaClientPath}"`, { stdio: 'inherit' })
+      } else {
+        execSync(`rm -rf "${prismaClientPath}"`, { stdio: 'inherit' })
+      }
+      console.log('✅ Cleaned .prisma cache\n')
+    } catch (error) {
+      console.warn('⚠️  Could not clean .prisma cache (continuing anyway)\n')
+    }
+  }
+
   const steps = [
     {
       command: 'npm install',

@@ -207,6 +207,31 @@ These scripts automate all the steps above.
 
 ## Common Issues
 
+### Issue: "EPERM: operation not permitted" when generating Prisma client
+
+**Cause**: Windows file lock - the query engine file is locked by:
+- Running development server (`npm run dev`)
+- Open Prisma Studio
+- Antivirus software
+- Previous Prisma processes
+
+**Solution**:
+```bash
+# Option 1: Use the automated cleanup script
+npm run setup:clean
+
+# Option 2: Manual cleanup
+# 1. Stop the development server (Ctrl+C)
+# 2. Close Prisma Studio if open
+# 3. Kill processes on port 8080
+powershell "Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess -Force"
+# 4. Delete the .prisma folder
+rmdir /s /q node_modules\.prisma
+# 5. Reinstall and run setup
+npm install
+npm run setup
+```
+
 ### Issue: "Module has no exported member 'SyncOperation'"
 
 **Cause**: Prisma client not generated or out of sync with schema.
