@@ -354,8 +354,8 @@ model Business {
   lenderLoans                  InterBusinessLoan[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
   menuCombos                   MenuCombo[]
   menuPromotions               MenuPromotion[]
-  payrollPeriods               PayrollPeriod[]
   payrollExports               PayrollExport[]
+  payrollPeriods               PayrollPeriod[]
   projects                     Project[]
   vehicleExpenses              VehicleExpense[]
   vehicleReimbursements        VehicleReimbursement[]
@@ -1679,6 +1679,7 @@ model User {
   payrollAdjustmentsApproved                                      PayrollAdjustment[]        @relation("PayrollAdjustmentApprover")
   payrollAdjustmentsCreated                                       PayrollAdjustment[]        @relation("PayrollAdjustmentCreator")
   payrollEntriesProcessed                                         PayrollEntry[]             @relation("PayrollEntryProcessor")
+  payrollExports                                                  PayrollExport[]
   payrollPeriodsApproved                                          PayrollPeriod[]            @relation("PayrollPeriodApprover")
   payrollPeriodsCreated                                           PayrollPeriod[]            @relation("PayrollPeriodCreator")
   permissionTemplates                                             PermissionTemplate[]
@@ -1695,7 +1696,6 @@ model User {
   vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursement[]     @relation("vehicle_reimbursements_approvedByTousers")
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursement[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicle[]
-  payrollExports                                                  PayrollExport[]
 
   @@map("users")
 }
@@ -1924,30 +1924,30 @@ model VehicleMaintenanceServiceExpense {
 }
 
 model PayrollPeriod {
-  id              String         @id
+  id              String          @id
   businessId      String
   year            Int
   month           Int
   periodStart     DateTime?
   periodEnd       DateTime?
-  status          String         @default("draft")
-  totalEmployees  Int            @default(0)
-  totalGrossPay   Decimal        @default(0) @db.Decimal(12, 2)
-  totalDeductions Decimal        @default(0) @db.Decimal(12, 2)
-  totalNetPay     Decimal        @default(0) @db.Decimal(12, 2)
-  createdAt       DateTime       @default(now())
+  status          String          @default("draft")
+  totalEmployees  Int             @default(0)
+  totalGrossPay   Decimal         @default(0) @db.Decimal(12, 2)
+  totalDeductions Decimal         @default(0) @db.Decimal(12, 2)
+  totalNetPay     Decimal         @default(0) @db.Decimal(12, 2)
+  createdAt       DateTime        @default(now())
   createdBy       String?
   approvedAt      DateTime?
   approvedBy      String?
   exportedAt      DateTime?
   closedAt        DateTime?
   notes           String?
-  updatedAt       DateTime       @default(now())
+  updatedAt       DateTime        @default(now())
   payrollEntries  PayrollEntry[]
   payrollExports  PayrollExport[]
-  approver        User?          @relation("PayrollPeriodApprover", fields: [approvedBy], references: [id])
-  business        Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  creator         User?          @relation("PayrollPeriodCreator", fields: [createdBy], references: [id])
+  approver        User?           @relation("PayrollPeriodApprover", fields: [approvedBy], references: [id])
+  business        Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator         User?           @relation("PayrollPeriodCreator", fields: [createdBy], references: [id])
 
   @@unique([businessId, year, month], name: "businessId_year_month")
   @@index([businessId])
@@ -1956,19 +1956,21 @@ model PayrollPeriod {
 }
 
 model PayrollEntry {
-  id                   String                @id
-  payrollPeriodId      String?
-  employeeId           String?
-  employeeNumber       String?
-  employeeName         String?
-  nationalId           String?
-  overtimeHours        Decimal               @default(0) @db.Decimal(10, 2)
-  baseSalary           Decimal               @default(0) @db.Decimal(12, 2)
-  commission           Decimal               @default(0) @db.Decimal(12, 2)
-  livingAllowance      Decimal               @default(0) @db.Decimal(12, 2)
-  vehicleAllowance     Decimal               @default(0) @db.Decimal(12, 2)
-  travelAllowance      Decimal               @default(0) @db.Decimal(12, 2)
-  overtimePay          Decimal               @default(0) @db.Decimal(12, 2)
+  id                      String                @id
+  payrollPeriodId         String?
+  employeeId              String?
+  employeeNumber          String?
+  employeeName            String?
+  nationalId              String?
+  overtimeHours           Decimal               @default(0) @db.Decimal(10, 2)
+  standardOvertimeHours   Decimal               @default(0) @db.Decimal(10, 2)
+  doubleTimeOvertimeHours Decimal               @default(0) @db.Decimal(10, 2)
+  baseSalary              Decimal               @default(0) @db.Decimal(12, 2)
+  commission              Decimal               @default(0) @db.Decimal(12, 2)
+  livingAllowance         Decimal               @default(0) @db.Decimal(12, 2)
+  vehicleAllowance        Decimal               @default(0) @db.Decimal(12, 2)
+  travelAllowance         Decimal               @default(0) @db.Decimal(12, 2)
+  overtimePay             Decimal               @default(0) @db.Decimal(12, 2)
   benefitsTotal        Decimal               @default(0) @db.Decimal(12, 2)
   benefitsBreakdown    Json?
   loanDeductions       Decimal               @default(0) @db.Decimal(12, 2)
@@ -1982,24 +1984,29 @@ model PayrollEntry {
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @default(now())
   notes                String?
-  absenceDays          Int                   @default(0) @map("absence_days")
-  dateOfBirth          DateTime?             @map("date_of_birth")
-  hireDate             DateTime?             @map("hire_date")
-  leaveDays            Int                   @default(0) @map("leave_days")
-  processedBy          String?               @map("processed_by")
-  sickDays             Int                   @default(0) @map("sick_days")
-  terminationDate      DateTime?             @map("termination_date")
-  workDays             Int                   @default(0) @map("work_days")
-  absenceFraction      Decimal               @default(0) @map("absence_fraction") @db.Decimal(4, 2)
+  absenceDays          Int                   @default(0)
+  dateOfBirth          DateTime?
+  hireDate             DateTime?
+  leaveDays            Int                   @default(0)
+  processedBy          String?
+  sickDays             Int                   @default(0)
+  terminationDate      DateTime?
+  workDays             Int                   @default(0)
+  absenceFraction      Decimal               @default(0) @db.Decimal(4, 2)
+  contractId           String?
+  contractNumber       String?
+  contractStartDate    DateTime?
+  contractEndDate      DateTime?
+  isProrated           Boolean               @default(false)
   payrollAdjustments   PayrollAdjustment[]
   employee             Employee?             @relation(fields: [employeeId], references: [id])
   payrollPeriod        PayrollPeriod?        @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
   processor            User?                 @relation("PayrollEntryProcessor", fields: [processedBy], references: [id])
   payrollEntryBenefits PayrollEntryBenefit[]
 
-  @@unique([payrollPeriodId, employeeId])
   @@index([payrollPeriodId])
   @@index([employeeId])
+  @@index([contractId])
   @@map("payroll_entries")
 }
 
@@ -2030,8 +2037,8 @@ model PayrollAdjustment {
   createdAt      DateTime      @default(now())
   createdBy      String?
   adjustmentType String?
-  approvedAt     DateTime?     @map("approved_at")
-  approvedBy     String?       @map("approved_by")
+  approvedAt     DateTime?
+  approvedBy     String?
   status         String        @default("pending")
   updatedAt      DateTime      @default(now())
   approver       User?         @relation("PayrollAdjustmentApprover", fields: [approvedBy], references: [id])
@@ -2042,29 +2049,27 @@ model PayrollAdjustment {
   @@map("payroll_adjustments")
 }
 
-// Tracks generated payroll export files (Excel/CSV) and metadata
 model PayrollExport {
-  id               String        @id
-  payrollPeriodId  String
-  businessId       String
-  year             Int
-  month            Int
-  fileName         String
-  fileUrl          String
-  fileSize         Int
-  format           String        @default("excel")
-  includesMonths   Int[]
-  employeeCount    Int
-  totalGrossPay    Decimal       @db.Decimal(12, 2)
-  totalNetPay      Decimal       @db.Decimal(12, 2)
-  exportedAt       DateTime?
-  exportedBy       String
-  generationType   String
-  notes            String?
-
-  payrollPeriod    PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
-  business         Business      @relation(fields: [businessId], references: [id])
-  exporter         User          @relation(fields: [exportedBy], references: [id])
+  id              String        @id
+  payrollPeriodId String
+  businessId      String
+  year            Int
+  month           Int
+  fileName        String
+  fileUrl         String
+  fileSize        Int
+  format          String        @default("excel")
+  includesMonths  Int[]
+  employeeCount   Int
+  totalGrossPay   Decimal       @db.Decimal(12, 2)
+  totalNetPay     Decimal       @db.Decimal(12, 2)
+  exportedAt      DateTime?
+  exportedBy      String
+  generationType  String
+  notes           String?
+  business        Business      @relation(fields: [businessId], references: [id], map: "payroll_exports_businessid_fkey")
+  exporter        User          @relation(fields: [exportedBy], references: [id], map: "payroll_exports_exportedby_fkey")
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], map: "payroll_exports_payrollperiodid_fkey")
 
   @@map("payroll_exports")
 }

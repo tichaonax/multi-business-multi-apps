@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { PrismaClient } from '@prisma/client'
+import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
+import { nanoid } from 'nanoid'
 
 const prisma = new PrismaClient()
 
@@ -58,58 +60,15 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Fetch latest active contract for each employee separately to avoid fragile relation names on Employee
-    const employeeIds = employees.map((e: any) => e.id)
-    // Fetch contracts that are either active or were terminated during the
-    // payroll period. This ensures terminated employees get their final
-    // contract calculated for the period.
-    // Select contracts that overlap the payroll period. A contract is eligible if:
-    // - it started on or before the payroll period end, AND
-    // - it is active, OR it was terminated but the termination (endDate)
-    //   falls on/after the payroll period start (i.e. it covers at least
-    //   part of the payroll period).
-    const contracts = await prisma.employeeContract.findMany({
-      where: {
-        employeeId: { in: employeeIds },
-        startDate: { lte: (period as any).endDate },
-        AND: [
-          {
-            OR: [
-              { status: 'active' },
-              {
-                AND: [
-                  { status: 'terminated' },
-                  { endDate: { gte: (period as any).startDate } }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      orderBy: { startDate: 'desc' },
-      include: {
-        compensationTypes: true,
-        contract_benefits: {
-          include: { benefitType: true }
-        }
-      }
-    })
-
-    // Map latest contract by employeeId (first in ordered list)
-    const latestContractByEmployee: Record<string, any> = {}
-    for (const c of contracts) {
-      if (!latestContractByEmployee[c.employeeId]) {
-        latestContractByEmployee[c.employeeId] = c
-      }
-    }
-
-    // Get existing entries to avoid duplicates
+    // Get existing entries to check which employees already have entries
+    // Note: With multi-contract support, an employee can have multiple entries per contract
+    // For bulk add, we'll skip employees who already have any entries to avoid complexity
     const existingEntries = await prisma.payrollEntry.findMany({
       where: { payrollPeriodId },
       select: { employeeId: true }
     })
 
-  const existingEmployeeIds = new Set(existingEntries.map((e: any) => e.employeeId))
+    const existingEmployeeIds = new Set(existingEntries.map((e: any) => e.employeeId))
 
     // Filter out employees already in payroll
     const newEmployees = employees.filter(emp => !existingEmployeeIds.has(emp.id))
@@ -120,128 +79,133 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    // Exclude employees without an active/latest contract.
-    const eligibleEmployees = newEmployees.filter(emp => !!latestContractByEmployee[emp.id])
-    const skippedDueToNoActiveContract = newEmployees.filter(emp => !latestContractByEmployee[emp.id])
 
-    // Add diagnostics for skipped employees (no overlapping contract for the period)
-    const diagnostics: { employeeId: string; contractId?: string; issue: string; details?: string }[] = []
-    for (const skipped of skippedDueToNoActiveContract) {
-      const details = `Employee ${skipped.employeeNumber || skipped.id} has no contract overlapping payroll period ${period.id} (${(period as any).startDate.toISOString()} - ${(period as any).endDate.toISOString()})`
-      diagnostics.push({ employeeId: skipped.id, issue: 'no_overlapping_contract', details })
-      console.warn('Skipping employee with no overlapping contract for this payroll period:', skipped.id, skipped.fullName, details)
-    }
+    console.log(`Bulk add: Processing ${newEmployees.length} employees for payroll entries`)
 
-    if (eligibleEmployees.length === 0) {
-      return NextResponse.json(
-        { error: 'No eligible employees with active contracts to add to this payroll period', diagnostics },
-        { status: 400 }
-      )
-    }
-
-    // Create payroll entries for all eligible employees (with transaction for benefits)
+    // Create payroll entries using the new contract selection logic
+    // This automatically handles: multiple contracts per employee, proration, signed contracts only, etc.
     const entries: any[] = []
     const benefitRecords: any[] = []
+    const diagnostics: { employeeId: string; contractId?: string; issue: string; details?: string }[] = []
+    let employeesWithContracts = 0
 
-    for (const employee of eligibleEmployees) {
-      const contract = latestContractByEmployee[employee.id]
+    for (const employee of newEmployees) {
+      // Generate payroll contract entries for this employee
+      // This handles: signed contracts only, multi-contract scenarios, proration, auto-renewal
+      const contractEntries = await generatePayrollContractEntries(
+        employee.id,
+        period.periodStart,
+        period.periodEnd,
+        employee.terminationDate,
+        businessId
+      )
 
-      if (!contract) {
-        continue // Skip employees without contracts
+      if (contractEntries.length === 0) {
+        const details = `Employee ${employee.employeeNumber || employee.id} has no signed contracts overlapping payroll period ${period.id} (${period.periodStart?.toISOString()} - ${period.periodEnd?.toISOString()})`
+        diagnostics.push({ employeeId: employee.id, issue: 'no_signed_contracts', details })
+        console.warn('Skipping employee with no signed contracts for this payroll period:', employee.id, employee.fullName)
+        continue
       }
 
-      // Safely convert Prisma Decimal (or numeric) to JS number
-      let baseSalary = 0
-      try {
-        if (contract.baseSalary && typeof contract.baseSalary === 'object' && typeof (contract.baseSalary as any).toNumber === 'function') {
-          baseSalary = (contract.baseSalary as any).toNumber()
-        } else {
-          baseSalary = Number(contract.baseSalary || 0)
+      employeesWithContracts++
+
+      // Create one payroll entry for each contract period
+      for (const contractEntry of contractEntries) {
+        const { contract, effectiveStartDate, effectiveEndDate, workDays, proratedBaseSalary, isProrated } = contractEntry
+
+        // Calculate benefits total and deductions from contract benefits
+        let benefitsTotal = 0
+        let totalDeductions = 0
+        const entryId = `PE-${nanoid(12)}`
+
+        for (const benefit of contract.contract_benefits || []) {
+          const amount = Number(
+            benefit.amount ?? benefit.benefitType?.defaultAmount ?? 0
+          )
+
+          if (benefit.benefitType?.type === 'deduction') {
+            totalDeductions += amount
+          } else if (benefit.benefitType?.type === 'benefit' || benefit.benefitType?.type === 'allowance') {
+            // Add to benefits
+            benefitsTotal += amount
+
+            // Create benefit record
+            benefitRecords.push({
+              id: `PEB-${nanoid(12)}`,
+              payrollEntryId: entryId,
+              benefitTypeId: benefit.benefitTypeId,
+              benefitName: benefit.benefitType?.name || 'Unknown Benefit',
+              amount,
+              isActive: true,
+              source: 'contract',
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })
+          }
         }
-      } catch (err) {
-        console.warn('Could not parse contract.baseSalary for contract', contract?.id, err)
-        baseSalary = Number(contract.baseSalary || 0)
-      }
-      const workDays = 22 // Default work days
 
-      // Calculate benefits total and deductions from contract benefits
-      let benefitsTotal = 0
-      let totalDeductions = 0
-      const entryId = `PE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        // Calculate gross pay including benefits
+        const grossPay = proratedBaseSalary + benefitsTotal
+        const netPay = grossPay - totalDeductions
 
-  for (const benefit of contract.contract_benefits || []) {
-        const amount = Number(
-          benefit.amount ?? benefit.benefitType?.defaultAmount ?? 0
-        )
-
-        if (benefit.benefitType?.type === 'deduction') {
-          totalDeductions += amount
-        } else if (benefit.benefitType?.type === 'benefit' || benefit.benefitType?.type === 'allowance') {
-          // Add to benefits
-          benefitsTotal += amount
-
-          // Create benefit record
-          benefitRecords.push({
-            id: `PEB-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            payrollEntryId: entryId,
-            benefitTypeId: benefit.benefitTypeId,
-            benefitName: benefit.benefitType?.name || 'Unknown Benefit',
-            amount,
-            isActive: true,
-            source: 'contract',
-            createdAt: new Date(),
-            updatedAt: new Date()
-          })
+        // Diagnostics: record if DOB missing or baseSalary is zero
+        if (!employee.dateOfBirth) {
+          diagnostics.push({ employeeId: employee.id, contractId: contract.id, issue: 'missing_dateOfBirth' })
+          console.warn('Employee missing dateOfBirth:', employee.id, employee.fullName)
         }
+
+        if (!proratedBaseSalary || proratedBaseSalary === 0) {
+          diagnostics.push({ employeeId: employee.id, contractId: contract.id, issue: 'zero_baseSalary' })
+          console.warn('Employee has zero prorated salary from contract:', employee.id, contract.id, proratedBaseSalary)
+        }
+
+        entries.push({
+          id: entryId,
+          payrollPeriodId,
+          employeeId: employee.id,
+          employeeNumber: employee.employeeNumber,
+          employeeName: employee.fullName,
+          nationalId: employee.nationalId,
+          dateOfBirth: employee.dateOfBirth,
+          hireDate: employee.hireDate,
+          terminationDate: employee.terminationDate,
+          workDays,
+          sickDays: 0,
+          leaveDays: 0,
+          absenceDays: 0,
+          overtimeHours: 0,
+          baseSalary: proratedBaseSalary,
+          commission: 0,
+          livingAllowance: 0,
+          vehicleAllowance: 0,
+          travelAllowance: 0,
+          overtimePay: 0,
+          benefitsTotal,
+          grossPay,
+          advanceDeductions: 0,
+          loanDeductions: 0,
+          miscDeductions: 0,
+          totalDeductions,
+          netPay,
+          contractId: contract.id,
+          contractNumber: contract.contractNumber,
+          contractStartDate: effectiveStartDate,
+          contractEndDate: effectiveEndDate,
+          isProrated,
+          processedBy: session.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+
+        console.log(`  - Entry for ${employee.employeeNumber}: Contract ${contract.contractNumber}, ${effectiveStartDate.toISOString().split('T')[0]} to ${effectiveEndDate.toISOString().split('T')[0]}, ${workDays} days, $${proratedBaseSalary}${isProrated ? ' (prorated)' : ''}`)
       }
+    }
 
-      // Calculate gross pay including benefits
-      const grossPay = baseSalary + benefitsTotal
-      const netPay = grossPay - totalDeductions
-
-      // Diagnostics: record if DOB missing or baseSalary is zero
-      if (!employee.dateOfBirth) {
-        diagnostics.push({ employeeId: employee.id, contractId: contract.id, issue: 'missing_dateOfBirth' })
-        console.warn('Employee missing dateOfBirth:', employee.id, employee.fullName)
-      }
-
-      if (!baseSalary || baseSalary === 0) {
-        diagnostics.push({ employeeId: employee.id, contractId: contract.id, issue: 'zero_baseSalary' })
-        console.warn('Employee has zero baseSalary from contract:', employee.id, contract.id, baseSalary)
-      }
-
-      entries.push({
-        id: entryId,
-        payrollPeriodId,
-        employeeId: employee.id,
-        employeeNumber: employee.employeeNumber,
-        employeeName: employee.fullName,
-        nationalId: employee.nationalId,
-        dateOfBirth: employee.dateOfBirth,
-        hireDate: employee.hireDate,
-        terminationDate: employee.terminationDate,
-        workDays,
-        sickDays: 0,
-        leaveDays: 0,
-        absenceDays: 0,
-        overtimeHours: 0,
-        baseSalary,
-        commission: 0,
-        livingAllowance: 0,
-        vehicleAllowance: 0,
-        travelAllowance: 0,
-        overtimePay: 0,
-        benefitsTotal,
-        grossPay,
-        advanceDeductions: 0,
-        loanDeductions: 0,
-        miscDeductions: 0,
-        totalDeductions,
-        netPay,
-        processedBy: session.user.id,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
+    if (entries.length === 0) {
+      return NextResponse.json(
+        { error: 'No eligible employees with signed contracts to add to this payroll period', diagnostics },
+        { status: 400 }
+      )
     }
 
     // Bulk insert entries and benefits in transaction
@@ -277,10 +241,13 @@ export async function POST(request: NextRequest) {
       data: totals
     })
 
+    console.log(`Bulk add complete: Created ${entries.length} payroll entries for ${employeesWithContracts} employees`)
+
     return NextResponse.json({
       success: true,
       count: entries.length,
-      message: `Added ${entries.length} employees to payroll`,
+      employeeCount: employeesWithContracts,
+      message: `Added ${entries.length} payroll entries for ${employeesWithContracts} employees (some employees may have multiple contracts)`,
       diagnostics
     })
   } catch (error) {

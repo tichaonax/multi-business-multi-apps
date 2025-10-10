@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       where: { id: payrollPeriodId },
       include: {
         business: {
-          select: { name: true }
+          select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true }
         },
         payrollEntries: {
           include: {
@@ -422,6 +422,11 @@ export async function POST(req: NextRequest) {
       console.warn('Failed to group/sort excel rows by company/lastName for original export:', sortErr)
     }
 
+    // Use umbrella business name for umbrella payrolls, otherwise use regular business name
+    const exportBusinessName = period.business.isUmbrellaBusiness && period.business.umbrellaBusinessName
+      ? period.business.umbrellaBusinessName
+      : period.business.name
+
     const excelBuffer = await generatePayrollExcel(
       {
         year: period.year,
@@ -431,7 +436,7 @@ export async function POST(req: NextRequest) {
         status: period.status
       },
       excelRows as any,
-      period.business.name
+      exportBusinessName
     )
 
     // Save file to public/exports directory

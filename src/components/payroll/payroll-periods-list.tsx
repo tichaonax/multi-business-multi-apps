@@ -174,7 +174,7 @@ export function PayrollPeriodsList({ businessId, onSelectPeriod }: PayrollPeriod
 
                   {period.business && (
                     <div className="text-sm text-secondary mb-2">
-                      <strong className="text-primary">{period.business.shortName || period.business.name}</strong>
+                      <strong className="text-primary">{period.business.name}</strong>
                       <span className="ml-2">({period.business.type})</span>
                     </div>
                   )}

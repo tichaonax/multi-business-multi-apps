@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 import { Decimal } from '@prisma/client/runtime/library'
+import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
 
 // GET /api/payroll/entries - List payroll entries
 export async function GET(req: NextRequest) {
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
     const {
       payrollPeriodId,
       employeeId,
+      contractId, // Optional: specify which contract to use
       workDays,
       sickDays,
       leaveDays,
@@ -107,21 +109,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check if entry already exists
-    const existingEntry = await prisma.payrollEntry.findUnique({
-      where: {
-        payrollPeriodId_employeeId: {
+    // Note: We no longer check for unique (payrollPeriodId, employeeId) constraint
+    // because employees can have multiple entries for different contracts.
+    // If contractId is specified, check if that specific contract already has an entry.
+    if (contractId) {
+      const existingEntry = await prisma.payrollEntry.findFirst({
+        where: {
           payrollPeriodId,
-          employeeId
+          employeeId,
+          contractId
         }
-      }
-    })
+      })
 
-    if (existingEntry) {
-      return NextResponse.json(
-        { error: 'Payroll entry for this employee already exists in this period' },
-        { status: 400 }
-      )
+      if (existingEntry) {
+        return NextResponse.json(
+          { error: 'Payroll entry for this employee and contract already exists in this period' },
+          { status: 400 }
+        )
+      }
     }
 
     // Verify period exists and is editable
@@ -143,22 +148,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Fetch employee with active contract
+    // Fetch employee basic info
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
-      include: {
-        employee_contracts_employee_contracts_employeeIdToemployees: {
-          where: { status: 'active' },
-          include: {
-            contract_benefits: {
-              include: {
-                benefitType: true
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 1
-        }
+      select: {
+        id: true,
+        employeeNumber: true,
+        fullName: true,
+        nationalId: true,
+        dateOfBirth: true,
+        hireDate: true,
+        terminationDate: true
       }
     })
 
@@ -169,22 +169,60 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get active contract
-    const activeContract = (employee as any).employee_contracts_employee_contracts_employeeIdToemployees?.[0]
+    // Use the contract selection helper to get applicable contracts
+    // This handles signed contracts only, proration, multi-contract scenarios, etc.
+    const contractEntries = await generatePayrollContractEntries(
+      employeeId,
+      period.periodStart,
+      period.periodEnd,
+      employee.terminationDate,
+      period.businessId
+    )
 
-    if (!activeContract) {
+    if (contractEntries.length === 0) {
       return NextResponse.json(
-        { error: 'Employee has no active contract' },
+        {
+          error: 'Employee has no signed contracts for this payroll period',
+          details: `No signed contracts found that overlap the period ${period.periodStart?.toISOString().split('T')[0]} to ${period.periodEnd?.toISOString().split('T')[0]}`
+        },
         { status: 400 }
       )
     }
 
+    // If contractId is specified, use that specific contract
+    // Otherwise, use the first applicable contract (usually the most recent)
+    let selectedContractEntry = contractEntries[0]
+    if (contractId) {
+      const matching = contractEntries.find(ce => ce.contract.id === contractId)
+      if (!matching) {
+        return NextResponse.json(
+          {
+            error: 'Specified contract is not valid for this payroll period',
+            details: `Contract ${contractId} is either not signed or does not overlap the period`,
+            availableContracts: contractEntries.map(ce => ({
+              contractId: ce.contract.id,
+              contractNumber: ce.contract.contractNumber,
+              startDate: ce.effectiveStartDate,
+              endDate: ce.effectiveEndDate
+            }))
+          },
+          { status: 400 }
+        )
+      }
+      selectedContractEntry = matching
+    }
+
+    const { contract, effectiveStartDate, effectiveEndDate, workDays: calculatedWorkDays, proratedBaseSalary, isProrated } = selectedContractEntry
+
+    // Use provided workDays or calculated workDays
+    const finalWorkDays = workDays !== undefined ? workDays : calculatedWorkDays
+
     // Calculate compensation
-    const baseSalary = new Decimal(activeContract.baseSalary || 0)
+    const baseSalary = new Decimal(proratedBaseSalary || 0)
     const commissionAmount = new Decimal(commission || 0)
 
     // Calculate benefits total
-    const benefits = activeContract.contract_benefits || []
+    const benefits = contract.contract_benefits || []
     let benefitsTotal = new Decimal(0)
     const benefitsBreakdown: any = {}
 
@@ -229,7 +267,7 @@ export async function POST(req: NextRequest) {
     const totalDeductions = advanceDeductions
     const netPay = grossPay.sub(totalDeductions)
 
-    // Create entry
+    // Create entry with contract tracking fields
     const entry = await prisma.payrollEntry.create({
       data: {
         id: `PE-${nanoid(12)}`,
@@ -241,7 +279,7 @@ export async function POST(req: NextRequest) {
         dateOfBirth: employee.dateOfBirth,
         hireDate: employee.hireDate,
         terminationDate: employee.terminationDate,
-        workDays: workDays || 0,
+        workDays: finalWorkDays,
         sickDays: sickDays || 0,
         leaveDays: leaveDays || 0,
         absenceDays: absenceDays || 0,
@@ -255,6 +293,11 @@ export async function POST(req: NextRequest) {
         grossPay: grossPay.toNumber(),
         totalDeductions: totalDeductions.toNumber(),
         netPay: netPay.toNumber(),
+        contractId: contract.id,
+        contractNumber: contract.contractNumber,
+        contractStartDate: effectiveStartDate,
+        contractEndDate: effectiveEndDate,
+        isProrated,
         processedBy: session.user.id,
         notes: notes || null,
         createdAt: new Date(),

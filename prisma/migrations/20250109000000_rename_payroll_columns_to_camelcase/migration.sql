@@ -1,0 +1,19 @@
+-- Rename columns in payroll_entries table to camelCase
+ALTER TABLE "payroll_entries" RENAME COLUMN "absence_days" TO "absenceDays";
+ALTER TABLE "payroll_entries" RENAME COLUMN "date_of_birth" TO "dateOfBirth";
+ALTER TABLE "payroll_entries" RENAME COLUMN "hire_date" TO "hireDate";
+ALTER TABLE "payroll_entries" RENAME COLUMN "leave_days" TO "leaveDays";
+ALTER TABLE "payroll_entries" RENAME COLUMN "processed_by" TO "processedBy";
+ALTER TABLE "payroll_entries" RENAME COLUMN "sick_days" TO "sickDays";
+ALTER TABLE "payroll_entries" RENAME COLUMN "termination_date" TO "terminationDate";
+ALTER TABLE "payroll_entries" RENAME COLUMN "work_days" TO "workDays";
+ALTER TABLE "payroll_entries" RENAME COLUMN "absence_fraction" TO "absenceFraction";
+ALTER TABLE "payroll_entries" RENAME COLUMN "contract_id" TO "contractId";
+ALTER TABLE "payroll_entries" RENAME COLUMN "contract_number" TO "contractNumber";
+ALTER TABLE "payroll_entries" RENAME COLUMN "contract_start_date" TO "contractStartDate";
+ALTER TABLE "payroll_entries" RENAME COLUMN "contract_end_date" TO "contractEndDate";
+ALTER TABLE "payroll_entries" RENAME COLUMN "is_prorated" TO "isProrated";
+
+-- Rename columns in payroll_adjustments table to camelCase
+ALTER TABLE "payroll_adjustments" RENAME COLUMN "approved_at" TO "approvedAt";
+ALTER TABLE "payroll_adjustments" RENAME COLUMN "approved_by" TO "approvedBy";

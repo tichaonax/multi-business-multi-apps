@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const period = await prisma.payrollPeriod.findUnique({
       where: { id: payrollPeriodId },
       include: {
-        business: { select: { name: true } },
+        business: { select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true } },
         payrollEntries: {
           include: {
             payrollEntryBenefits: { include: { benefitType: { select: { id: true, name: true } } } },
@@ -226,6 +226,11 @@ export async function POST(req: NextRequest) {
 
     // (debug dump removed)
 
+    // Use umbrella business name for umbrella payrolls, otherwise use regular business name
+    const exportBusinessName = period.business.isUmbrellaBusiness && period.business.umbrellaBusinessName
+      ? period.business.umbrellaBusinessName
+      : period.business.name
+
     const excelBuffer = await generatePayrollExcel(
       {
         year: period.year,
@@ -235,7 +240,7 @@ export async function POST(req: NextRequest) {
         status: period.status
       },
       excelRows as any,
-      period.business.name
+      exportBusinessName
     )
 
     // Build diagnostics information: per-entry diagnostics and aggregated sums

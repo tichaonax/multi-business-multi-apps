@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { computeTotalsForEntry } from '@/lib/payroll/helpers'
+import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
 import { nanoid } from 'nanoid'
 
 // GET /api/payroll/periods - List payroll periods for a business
@@ -276,61 +277,93 @@ export async function POST(req: NextRequest) {
       const p = await tx.payrollPeriod.create({ data: createData })
 
       if (targetAllEmployees) {
-        // Create entries only for employees who have a contract that overlaps the payroll period.
-        // For umbrella payrolls include contracts across all businesses; for business-specific include only contracts
-        // with primaryBusinessId equal to the selected business.
-        const contractWhere: any = {
-          startDate: { lte: p.periodEnd },
-          AND: [
-            {
-              OR: [
-                { status: 'active' },
-                {
-                  AND: [
-                    { status: 'terminated' },
-                    { endDate: { gte: p.periodStart } }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-
+        // NEW LOGIC: Create multiple entries per employee if they have multiple signed contracts in the period
+        // Get all employees (filter by business if not umbrella)
+        const employeeWhere: any = { isActive: true }
         if (!business.isUmbrellaBusiness) {
-          // For non-umbrella business-specific creation, restrict contracts to the business
-          contractWhere.primaryBusinessId = businessId
+          employeeWhere.primaryBusinessId = businessId
         }
 
-        // Find distinct employeeIds who have overlapping contracts
-        const overlappingContracts = await tx.employeeContract.findMany({ where: contractWhere, select: { employeeId: true } })
-        const employeeIds = Array.from(new Set(overlappingContracts.map((c: any) => c.employeeId))).filter(Boolean)
+        const employees = await tx.employee.findMany({
+          where: employeeWhere,
+          select: {
+            id: true,
+            employeeNumber: true,
+            fullName: true,
+            nationalId: true,
+            dateOfBirth: true,
+            hireDate: true,
+            terminationDate: true
+          }
+        })
 
-        if (employeeIds.length > 0) {
-          const employees = await tx.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, employeeNumber: true, fullName: true, nationalId: true, dateOfBirth: true, hireDate: true } })
+        console.log(`Period ${p.id}: Processing ${employees.length} employees for payroll entries`)
 
-          if (employees.length > 0) {
-            const entries = employees.map((emp: any) => ({
-              id: `PE-${nanoid(12)}`,
+        const allEntries: any[] = []
+        let employeesWithContracts = 0
+
+        for (const employee of employees) {
+          // Generate payroll contract entries for this employee
+          // This handles: signed contracts only, multi-contract scenarios, proration, auto-renewal
+          const contractEntries = await generatePayrollContractEntries(
+            employee.id,
+            p.periodStart,
+            p.periodEnd,
+            employee.terminationDate,
+            business.isUmbrellaBusiness ? undefined : businessId
+          )
+
+          if (contractEntries.length === 0) {
+            console.log(`Skipping employee ${employee.employeeNumber} (${employee.fullName}): No signed contracts for period`)
+            continue
+          }
+
+          employeesWithContracts++
+
+          // Create one payroll entry for each contract period
+          for (const contractEntry of contractEntries) {
+            const { contract, effectiveStartDate, effectiveEndDate, workDays, proratedBaseSalary, isProrated } = contractEntry
+
+            const entryId = `PE-${nanoid(12)}`
+            const entry: any = {
+              id: entryId,
               payrollPeriodId: p.id,
-              employeeId: emp.id,
-              employeeNumber: emp.employeeNumber || null,
-              employeeName: emp.fullName || null,
-              nationalId: emp.nationalId || null,
-              dateOfBirth: emp.dateOfBirth || null,
-              hireDate: emp.hireDate || null,
-              workDays: 0,
-              grossPay: 0,
-              netPay: 0,
+              employeeId: employee.id,
+              employeeNumber: employee.employeeNumber || null,
+              employeeName: employee.fullName || null,
+              nationalId: employee.nationalId || null,
+              dateOfBirth: employee.dateOfBirth || null,
+              hireDate: employee.hireDate || null,
+              terminationDate: employee.terminationDate || null,
+              workDays,
+              baseSalary: proratedBaseSalary,
+              grossPay: proratedBaseSalary, // Will be recalculated with benefits/deductions later
+              netPay: proratedBaseSalary,   // Will be recalculated later
+              contractId: contract.id,
+              contractNumber: contract.contractNumber,
+              contractStartDate: effectiveStartDate,
+              contractEndDate: effectiveEndDate,
+              isProrated,
               createdAt: new Date(),
               updatedAt: new Date()
-            }))
+            }
 
-            await tx.payrollEntry.createMany({ data: entries })
+            allEntries.push(entry)
 
-            // Update totals on period
-            await tx.payrollPeriod.update({ where: { id: p.id }, data: { totalEmployees: employees.length, updatedAt: new Date() } })
-            p.totalEmployees = employees.length
+            console.log(`  - Entry for ${employee.employeeNumber}: Contract ${contract.contractNumber}, ${effectiveStartDate.toISOString().split('T')[0]} to ${effectiveEndDate.toISOString().split('T')[0]}, ${workDays} days, $${proratedBaseSalary}${isProrated ? ' (prorated)' : ''}`)
           }
+        }
+
+        if (allEntries.length > 0) {
+          await tx.payrollEntry.createMany({ data: allEntries })
+          console.log(`Created ${allEntries.length} payroll entries for ${employeesWithContracts} employees`)
+
+          // Update totals on period
+          await tx.payrollPeriod.update({
+            where: { id: p.id },
+            data: { totalEmployees: employeesWithContracts, updatedAt: new Date() }
+          })
+          p.totalEmployees = employeesWithContracts
         }
       }
 

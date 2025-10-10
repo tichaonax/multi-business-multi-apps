@@ -1,7 +1,7 @@
 'use client'
 
 import { forwardRef } from 'react'
-import { formatPhoneNumberForDisplay, formatDateByCountry, getCountryByCode } from '@/lib/country-codes'
+import { formatPhoneNumberForDisplay, formatDateByCountry, formatDateByFormat, getCountryByCode } from '@/lib/country-codes'
 
 // Simple National ID formatter for common patterns
 const formatNationalId = (nationalId: string): string => {
@@ -134,10 +134,11 @@ interface ContractData {
 
 interface ContractTemplateProps {
   data: ContractData
+  globalDateFormat?: string // Optional global date format (e.g., 'DD/MM/YYYY')
 }
 
 export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps>(
-  ({ data: contractData }, ref) => {
+  ({ data: contractData, globalDateFormat }, ref) => {
     // Early return if required data is missing
     if (!contractData || !contractData.business || !contractData.employee) {
       return (
@@ -156,12 +157,18 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
     }
 
     const countryCode = getEmployeeCountryCode(contractData.employee)
-    
+
     const formatDate = (dateString: string) => {
+      // Use global date format if provided, otherwise fallback to country-based formatting
+      if (globalDateFormat) {
+        return formatDateByFormat(dateString, globalDateFormat)
+      }
       return formatDateByCountry(dateString, countryCode)
     }
-    
-    const currentDate = formatDateByCountry(new Date(), countryCode)
+
+    const currentDate = globalDateFormat
+      ? formatDateByFormat(new Date(), globalDateFormat)
+      : formatDateByCountry(new Date(), countryCode)
 
     return (
       <div ref={ref} className="bg-white p-8 max-w-4xl mx-auto text-black" style={{ fontFamily: 'Arial, sans-serif' }}>
@@ -284,8 +291,10 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p><strong>Position:</strong> {contractData.jobTitle.title}</p>
               {contractData.jobTitle.department && <p><strong>Department:</strong> {contractData.jobTitle.department}</p>}
-              <p><strong>Start Date:</strong> {formatDate(contractData.startDate)}</p>
-              {contractData.endDate && <p><strong>End Date:</strong> {formatDate(contractData.endDate)}</p>}
+              <p>
+                <strong>Start Date:</strong> {formatDate(contractData.startDate)}
+                {contractData.endDate && <span>  <strong>End Date:</strong> {formatDate(contractData.endDate)}</span>}
+              </p>
             </div>
             <div>
               <p><strong>Base Salary:</strong> {formatCurrency(contractData.baseSalary)} per month</p>

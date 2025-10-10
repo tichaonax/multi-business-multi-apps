@@ -10,6 +10,7 @@ import { ContractTemplate } from '@/components/contracts/contract-template'
 import { DateInput } from '@/components/ui/date-input'
 import { EmployeeContractSelector } from '@/components/contracts/employee-contract-selector'
 import { useToastContext } from '@/components/ui/toast'
+import { useDateFormat } from '@/contexts/settings-context'
 
 interface Employee {
   id: string
@@ -107,6 +108,7 @@ export default function NewContractPage() {
   const params = useParams()
   const router = useRouter()
   const employeeId = params.id as string
+  const { format: globalDateFormat } = useDateFormat()
 
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [jobTitles, setJobTitles] = useState<JobTitle[]>([])
@@ -1296,7 +1298,7 @@ export default function NewContractPage() {
             <div className="card p-4">
               <h3 className="text-lg font-semibold text-primary mb-4">Contract Preview</h3>
               <div className="overflow-y-auto max-h-96 border border-gray-200 dark:border-gray-700 rounded p-4">
-                <ContractTemplate data={contractData} />
+                <ContractTemplate data={contractData} globalDateFormat={globalDateFormat} />
               </div>
             </div>
           </div>

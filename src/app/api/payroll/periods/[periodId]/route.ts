@@ -734,33 +734,73 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       }, { status: 403 })
     }
 
-    // Prevent deletion if period is exported or closed
-    if (['exported', 'closed'].includes(existingPeriod.status)) {
-      return NextResponse.json({
-        error: `Cannot delete ${existingPeriod.status} payroll periods`
-      }, { status: 400 })
-    }
-
-    // If the period was approved, ensure deletion happens within 7 days of approval
+    // Enforce 7-day deletion window from approval date
+    // This allows recreation if errors are discovered shortly after approval
     if (existingPeriod.approvedAt) {
       const approvedAt = new Date(existingPeriod.approvedAt as any)
       const cutoff = new Date(approvedAt)
       cutoff.setDate(cutoff.getDate() + 7)
-      if (new Date() > cutoff) {
+      const now = new Date()
+
+      if (now > cutoff) {
+        const daysSinceApproval = Math.floor((now.getTime() - approvedAt.getTime()) / (1000 * 60 * 60 * 24))
         return NextResponse.json({
-          error: 'Payroll period cannot be deleted more than 7 days after approval'
+          error: 'This payroll period cannot be deleted',
+          message: `This payroll period was approved ${daysSinceApproval} days ago. Payroll periods can only be deleted within 7 days of approval. This period's records are now permanent and cannot be deleted.`,
+          approvedAt: approvedAt.toISOString(),
+          deletionCutoff: cutoff.toISOString(),
+          daysSinceApproval
         }, { status: 400 })
       }
     }
 
-    // Delete in transaction - first entries (cascade should handle benefits), then period
+    // Delete in transaction - create audit log, then delete exports, entries, and period
     await prisma.$transaction(async (tx) => {
+      // Create audit log entry before deletion for auditing/recovery purposes
+      await tx.auditLog.create({
+        data: {
+          id: `AL-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+          userId: session.user.id,
+          action: 'DELETE',
+          entityType: 'PayrollPeriod',
+          entityId: periodId,
+          timestamp: new Date(),
+          oldValues: {
+            ...existingPeriod,
+            entryCount: existingPeriod._count?.payrollEntries || 0
+          },
+          newValues: null,
+          metadata: {
+            reason: 'Deleted within 7-day window for correction',
+            deletedAt: new Date().toISOString(),
+            daysSinceCreation: Math.floor((Date.now() - new Date(existingPeriod.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+          }
+        }
+      })
+
+      // Delete any export records for this period first (FK constraint: payroll_exports_payrollperiodid_fkey)
+      await tx.payrollExport.deleteMany({
+        where: { payrollPeriodId: periodId }
+      })
+
+      // Delete payroll adjustments (FK constraint)
+      const entryIds = await tx.payrollEntry.findMany({
+        where: { payrollPeriodId: periodId },
+        select: { id: true }
+      })
+      if (entryIds.length > 0) {
+        const ids = entryIds.map(e => e.id)
+        await tx.payrollAdjustment.deleteMany({
+          where: { payrollEntryId: { in: ids } }
+        })
+      }
+
       // Delete all payroll entries (benefits will cascade delete due to FK constraint)
       await tx.payrollEntry.deleteMany({
         where: { payrollPeriodId: periodId }
       })
 
-      // Delete the period
+      // Finally delete the period
       await tx.payrollPeriod.delete({
         where: { id: periodId }
       })

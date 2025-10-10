@@ -137,6 +137,7 @@ export interface CoreBusinessPermissions {
   // Allow resetting an exported payroll period back to preview/review within a limited window
   canResetExportedPayrollToPreview: boolean;
   canDeletePayroll: boolean; // Delete payroll periods (Manager-only permission, must be explicitly granted)
+  canPrintPayrollEntryDetails: boolean; // Print payroll entry details as PDF (Admin-only by default, can be granted to managers)
   canEnterPaySlips: boolean;
   canReconcilePayroll: boolean;
   canViewPayrollReports: boolean;
@@ -647,6 +648,7 @@ export const CORE_PERMISSIONS = {
     { key: 'canCreatePayrollPeriod', label: 'Create Payroll Period' },
     { key: 'canEditPayrollEntry', label: 'Edit Payroll Entry' },
     { key: 'canApprovePayroll', label: 'Approve Payroll' },
+    { key: 'canPrintPayrollEntryDetails', label: 'Print Entry Details PDF' },
     { key: 'canEnterPaySlips', label: 'Enter Pay Slips' },
     { key: 'canReconcilePayroll', label: 'Reconcile Payroll' },
     { key: 'canViewPayrollReports', label: 'View Payroll Reports' },
@@ -734,6 +736,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canExportPayroll: true,  // Business owners have export by default
   canResetExportedPayrollToPreview: true,  // Business owners have reset by default
   canDeletePayroll: true,  // Business owners have delete by default
+  canPrintPayrollEntryDetails: true,  // Business owners can print entry details
   canEnterPaySlips: true,
   canReconcilePayroll: true,
   canViewPayrollReports: true,
@@ -803,7 +806,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canLinkCustomerAccounts: true,
 
   // Payroll Management - Manager access
-  // ⚠️ CRITICAL: Export, Reset, and Delete are FALSE by default
+  // ⚠️ CRITICAL: Export, Reset, Delete, and Print are FALSE by default
   // These must be explicitly granted via custom permissions
   canAccessPayroll: true,
   canManagePayroll: true,
@@ -813,6 +816,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canExportPayroll: false,  // ❌ FALSE by default - must be explicitly granted
   canResetExportedPayrollToPreview: false,  // ❌ FALSE by default - must be explicitly granted
   canDeletePayroll: false,  // ❌ FALSE by default - must be explicitly granted
+  canPrintPayrollEntryDetails: false,  // ❌ FALSE by default - must be explicitly granted
   canEnterPaySlips: true,
   canReconcilePayroll: true,
   canViewPayrollReports: true,
@@ -883,7 +887,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
 
   // Payroll Management - No access
   // ⚠️ Employees can be granted custom payroll permissions for specific tasks
-  // but will NEVER see Export/Reset/Delete options in UI
+  // but will NEVER see Export/Reset/Delete/Print options in UI
   canAccessPayroll: false,
   canManagePayroll: false,
   canCreatePayrollPeriod: false,
@@ -892,6 +896,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canExportPayroll: false,  // ❌ NEVER accessible to employees
   canResetExportedPayrollToPreview: false,  // ❌ NEVER accessible to employees
   canDeletePayroll: false,  // ❌ NEVER accessible to employees
+  canPrintPayrollEntryDetails: false,  // ❌ NEVER accessible to employees
   canEnterPaySlips: false,
   canReconcilePayroll: false,
   canViewPayrollReports: false,
@@ -969,6 +974,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canExportPayroll: false,
   canResetExportedPayrollToPreview: false,
   canDeletePayroll: false,  // Read-only users cannot delete
+  canPrintPayrollEntryDetails: false,  // Read-only users cannot print
   canEnterPaySlips: false,
   canReconcilePayroll: false,
   canViewPayrollReports: true,
@@ -1046,6 +1052,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canExportPayroll: true,
   canResetExportedPayrollToPreview: true,
   canDeletePayroll: true,  // System admins can delete payroll
+  canPrintPayrollEntryDetails: true,  // System admins can print entry details
   canEnterPaySlips: true,
   canReconcilePayroll: true,
   canViewPayrollReports: true,

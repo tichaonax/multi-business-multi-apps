@@ -136,7 +136,8 @@ export async function POST(
         startDate: newStartDate,
         endDate: newEndDate,
         status: 'active', // Auto-activate renewed contracts
-        employeeSignedAt: new Date(), // Auto-sign renewed contracts
+        employeeSignedAt: new Date(), // Auto-sign renewed contracts (employee)
+        managerSignedAt: new Date(), // Auto-sign renewed contracts (manager)
         createdBy: session.user.id,
 
         // Renewal tracking fields
