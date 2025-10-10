@@ -591,6 +591,32 @@ export function PayrollEntryDetailModal({
     }
   }
 
+  // Helper function to strip leading zeros from number inputs and return as string
+  // This removes leading zeros as the user types (e.g., "03" becomes "3")
+  const stripLeadingZeros = (value: string): string => {
+    // Handle empty string
+    if (!value || value === '') {
+      return ''
+    }
+    // Remove leading zeros but keep single "0"
+    const cleaned = value.replace(/^0+/, '') || '0'
+    return cleaned
+  }
+
+  // Helper to handle number input changes with leading zero stripping
+  const handleNumberInput = (value: string, fieldName: keyof typeof formData) => {
+    // If the value is empty, set to 0
+    if (value === '' || value === null || value === undefined) {
+      setFormData({ ...formData, [fieldName]: 0 })
+      return
+    }
+    // Strip leading zeros immediately as user types
+    const cleaned = value.replace(/^0+/, '') || '0'
+    // Update formData with the parsed number (this removes the leading zero from display)
+    const numValue = parseInt(cleaned, 10) || 0
+    setFormData({ ...formData, [fieldName]: numValue })
+  }
+
   const loadBenefitTypes = async () => {
     try {
       // Cache-bust to ensure we get latest results after on-the-fly creates
@@ -702,6 +728,7 @@ export function PayrollEntryDetailModal({
         }
 
         // Upsert an 'absence' payrollAdjustment so the absence deduction is persisted and auditable
+        let entryToReturn = data
         try {
           const totalsAfter = computeEntryTotalsLocal(data, data.payrollAdjustments || [], benefits)
           const absenceAmt = Number(totalsAfter.absenceDeduction || 0)
@@ -735,7 +762,6 @@ export function PayrollEntryDetailModal({
           // so the computed absence shows up immediately on the payroll list.
           // If an adjustment changed, re-fetch the entry so we return the authoritative updated entry
           // (including any newly created/updated/deleted adjustments) to the parent.
-          let entryToReturn = data
           if (adjustmentChanged) {
             try {
               const r2 = await fetch(`/api/payroll/entries/${entryId}`)
@@ -748,22 +774,24 @@ export function PayrollEntryDetailModal({
               // ignore fetch failure and fall back to original data
             }
           }
-
-          // During autosave we keep this silent: do not notify parent via onSuccess to avoid
-          // triggering UI refreshes while the user is mid-edit. We've already merged the
-          // returned entry into local state above.
         } catch (e) {
           // Don't block the main save on adjustment upsert errors; log for debugging but remain silent
           try { console.error('Failed to upsert absence adjustment', e) } catch (er) { /* ignore */ }
         }
+
+        // CRITICAL: Silently notify parent to update the entry in the list (without showing notification or reloading).
+        // This ensures ALL autosaved fields (sickDays, leaveDays, workDays, overtime, etc.) are immediately reflected in the payroll list.
+        // This must be OUTSIDE the absence adjustment try-catch block so it runs for all autosaves.
+        try {
+          onSuccess({ message: '', refresh: false, updatedEntry: entryToReturn })
+        } catch (e) {
+          // Ignore onSuccess errors - parent might not be listening or modal might be closing
+        }
       } else {
-        const err = await response.json()
-        try { console.warn('Autosave failed:', err) } catch (e) { /* ignore */ }
         // reload entry to avoid showing stale/optimistic state
         await loadEntry()
       }
     } catch (e) {
-      try { console.warn('Autosave exception:', e) } catch (err) { /* ignore */ }
       await loadEntry()
     } finally {
       setAutosaveInProgress(false)
@@ -792,6 +820,34 @@ export function PayrollEntryDetailModal({
       await persistFormData()
     } catch (e) {
       // ignore flush errors
+    }
+  }
+
+  // Handle close button - flush autosave and pass current entry data to parent
+  const handleClose = async () => {
+    try {
+      // Flush any pending autosave before closing
+      await flushAutosave()
+
+      // Reload the entry to get the latest data from the server
+      const response = await fetch(`/api/payroll/entries/${entryId}`)
+      if (response.ok) {
+        const latestEntry = await response.json()
+        // Pass the latest entry data to parent so it can update the list
+        onSuccess({ message: '', refresh: false, updatedEntry: latestEntry })
+      } else {
+        // If fetch fails, pass current entry data
+        onSuccess({ message: '', refresh: false, updatedEntry: entry })
+      }
+    } catch (e) {
+      // On error, still try to pass current entry data
+      try {
+        onSuccess({ message: '', refresh: false, updatedEntry: entry })
+      } catch (err) {
+        // ignore
+      }
+    } finally {
+      onClose()
     }
   }
 
@@ -879,19 +935,28 @@ export function PayrollEntryDetailModal({
     try { return String(s).normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase() } catch (e) { return String(s).trim().replace(/\s+/g, ' ').toLowerCase() }
   }
 
-  const exactTypedMatch = benefitSearch.trim().length > 0
-    ? benefitTypes.find((bt: any) => normalize(bt.name) === normalize(benefitSearch))
-    : null
+  // Check if the typed search matches any benefit in the FULL benefitTypes list
+  // (this matches what's actually shown in the dropdown, including "already added" items)
+  // The key insight: if there are ANY matches showing in the dropdown (even if disabled),
+  // the user should NOT be able to "Create & Add" because the benefit type already exists.
+  const hasMatchesInDropdown = benefitSearch.trim().length > 0 &&
+    (Array.isArray(benefitTypes) ? benefitTypes : [])
+      .some((bt: any) => normalize(bt.name || '').includes(normalize(benefitSearch)))
 
-  // Whether the exact-typed global benefit type is present in the available set
-  // Disable "Create & Add" when an exact-typed global benefit type already exists (use full benefitTypes list)
-  const exactTypedMatchIsAvailable = Boolean(exactTypedMatch && (Array.isArray(benefitTypes) ? benefitTypes.some((bt: any) => String(bt.id) === String(exactTypedMatch.id)) : false))
+  // Also disable when the typed name exactly matches an already-added benefit in the entry
+  const exactTypedMatchInEntry = benefitSearch.trim().length > 0 &&
+    Boolean((entry?.payrollEntryBenefits || []).some((b: any) =>
+      normalize(b.benefitName || b.benefitType?.name || '') === normalize(benefitSearch)
+    ))
 
-  // Also check whether the typed name exactly matches an already-persisted/manual benefit
-  const exactTypedMatchInEntry = benefitSearch.trim().length > 0 && Boolean((entry?.payrollEntryBenefits || []).some((b: any) => normalize(b.benefitName || b.benefitType?.name || '') === normalize(benefitSearch)))
+  // CRITICAL: Disable "Create & Add" when a benefit type is selected from the dropdown
+  // (benefitTypeId is set). This prevents the confusing state where both "Add Benefit"
+  // and "Create & Add" are enabled after selecting from dropdown.
+  const benefitTypeIsSelected = Boolean(benefitForm.benefitTypeId)
 
-  // Also disable Create & Add when the typed search exactly matches a global benefit type name
-  const typedMatchesGlobalBenefit = benefitSearch.trim().length > 0 && Boolean((benefitTypes || []).some((bt: any) => normalize(bt.name) === normalize(benefitSearch)))
+  // Legacy variables for compatibility (used in disable logic for "Create & Add" button)
+  const exactTypedMatchIsAvailable = hasMatchesInDropdown || benefitTypeIsSelected
+  const typedMatchesGlobalBenefit = hasMatchesInDropdown || benefitTypeIsSelected
 
 
   const handleSave = async () => {
@@ -1431,7 +1496,7 @@ export function PayrollEntryDetailModal({
               ) : null}
             </div>
           </div>
-          <button type="button" onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: false, updatedEntry: entry || null }) } catch (e) { /* ignore */ } onClose() }} className="text-secondary hover:text-primary transition-colors">
+          <button type="button" onClick={handleClose} className="text-secondary hover:text-primary transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1468,7 +1533,7 @@ export function PayrollEntryDetailModal({
                   <input
                     type="number"
                     value={formData.workDays}
-                    onChange={(e) => setFormData({ ...formData, workDays: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => handleNumberInput(e.target.value, 'workDays')}
                     onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
@@ -1480,7 +1545,7 @@ export function PayrollEntryDetailModal({
                   <input
                     type="number"
                     value={formData.sickDays}
-                    onChange={(e) => setFormData({ ...formData, sickDays: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => handleNumberInput(e.target.value, 'sickDays')}
                     onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
@@ -1492,7 +1557,7 @@ export function PayrollEntryDetailModal({
                   <input
                     type="number"
                     value={formData.leaveDays}
-                    onChange={(e) => setFormData({ ...formData, leaveDays: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => handleNumberInput(e.target.value, 'leaveDays')}
                     onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
@@ -1505,7 +1570,7 @@ export function PayrollEntryDetailModal({
                     <input
                       type="number"
                       value={formData.absenceDays}
-                      onChange={(e) => setFormData({ ...formData, absenceDays: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => handleNumberInput(e.target.value, 'absenceDays')}
                       onBlur={() => flushAutosave()}
                       className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       min="0"
@@ -2027,14 +2092,15 @@ export function PayrollEntryDetailModal({
                                   }}
                                 >
                                   {bt.name} <span className="text-xs text-secondary">({bt.type})</span>
-                                  {bt.name}
-                                  {used && <span className="ml-2 text-xs text-secondary">(already added)</span>}
                                   {used && <span className="ml-2 text-xs text-secondary">(already added)</span>}
                                 </div>
                               )
                             })}
-                            {((Array.isArray(benefitTypes) ? benefitTypes : []).filter((bt: any) => (bt.name || '').toLowerCase().includes(benefitSearch.toLowerCase())).length === 0) && (
-                              <div className="px-3 py-2 text-sm text-secondary">No matches. Press "Create & Add" to add this benefit type.</div>
+                            {/* Show "No matches" only when the filtered results are empty */}
+                            {(Array.isArray(benefitTypes) ? benefitTypes : []).filter((bt: any) => (bt.name || '').toLowerCase().includes(benefitSearch.toLowerCase())).length === 0 && (
+                              <div className="px-3 py-2 text-sm text-secondary">
+                                No matches found. {!exactTypedMatchInEntry ? 'Press "Create & Add" to add this benefit.' : 'This benefit is already added to this entry.'}
+                              </div>
                             )}
                           </div>
                         )}
@@ -2508,7 +2574,7 @@ export function PayrollEntryDetailModal({
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: false, updatedEntry: entry || null }) } catch (e) { /* ignore */ } onClose() }}
+                  onClick={handleClose}
                   className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted transition-colors"
                 >
                   Close

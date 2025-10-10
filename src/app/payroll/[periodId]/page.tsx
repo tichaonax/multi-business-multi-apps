@@ -59,6 +59,12 @@ interface PayrollEntry {
   totalDeductions: number
   netPay: number
   payrollEntryBenefits?: PayrollEntryBenefit[]
+  // Contract tracking fields
+  contractId?: string | null
+  contractNumber?: string | null
+  contractStartDate?: string | Date | null
+  contractEndDate?: string | Date | null
+  isProrated?: boolean
   // Optional data provided by server or merged in the UI
   mergedBenefits?: Array<any>
   contract?: {
@@ -71,6 +77,7 @@ interface PayrollEntry {
       title?: string
     }
   }
+  employeeId?: string
   benefitsTotal?: number
   // Optional explicit fields provided by the API
   employeeFirstName?: string | null
@@ -99,6 +106,8 @@ export default function PayrollPeriodDetailPage() {
     message: string
   } | null>(null)
   const [syncingBenefits, setSyncingBenefits] = useState(false)
+  const [addingAllEmployees, setAddingAllEmployees] = useState(false)
+  const [availableEmployeesCount, setAvailableEmployeesCount] = useState<number | null>(null)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -111,6 +120,12 @@ export default function PayrollPeriodDetailPage() {
       loadPeriod()
     }
   }, [periodId])
+
+  useEffect(() => {
+    if (period?.business?.id) {
+      loadAvailableEmployeesCount()
+    }
+  }, [period?.business?.id])
 
   const loadPeriod = async () => {
     try {
@@ -155,6 +170,19 @@ export default function PayrollPeriodDetailPage() {
     }
   }
 
+  const loadAvailableEmployeesCount = async () => {
+    if (!period?.business?.id) return
+    try {
+      const response = await fetch(`/api/employees?businessId=${period.business.id}`)
+      if (response.ok) {
+        const employees = await response.json()
+        setAvailableEmployeesCount(Array.isArray(employees) ? employees.length : 0)
+      }
+    } catch (error) {
+      console.error('Failed to load available employees count:', error)
+    }
+  }
+
   const handleAddAllEmployees = async () => {
     if (!period) return
     const ok = await confirm({
@@ -166,6 +194,7 @@ export default function PayrollPeriodDetailPage() {
     if (!ok) return
 
     try {
+      setAddingAllEmployees(true)
       const response = await fetch('/api/payroll/entries/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -179,12 +208,15 @@ export default function PayrollPeriodDetailPage() {
         const result = await response.json()
         showNotification('success', `Successfully added ${result.count} employees to payroll`)
         loadPeriod()
+        loadAvailableEmployeesCount()
       } else {
         const error = await response.json()
         showNotification('error', error.error || 'Failed to add employees')
       }
     } catch (error) {
       showNotification('error', 'Failed to add employees')
+    } finally {
+      setAddingAllEmployees(false)
     }
   }
 
@@ -498,6 +530,41 @@ export default function PayrollPeriodDetailPage() {
     return count
   }
 
+  // Helper to format contract date range for display
+  const formatContractDateRange = (entry: PayrollEntry) => {
+    if (!entry.contractStartDate || !entry.contractEndDate) return null
+
+    const startDate = new Date(entry.contractStartDate)
+    const endDate = new Date(entry.contractEndDate)
+
+    const formatDate = (date: Date) => {
+      return `${date.getDate()}/${date.getMonth() + 1}`
+    }
+
+    return `${formatDate(startDate)} - ${formatDate(endDate)}`
+  }
+
+  // Group entries by employee to detect multi-contract scenarios
+  const getEntriesByEmployee = () => {
+    const employeeMap = new Map<string, PayrollEntry[]>()
+
+    period?.payrollEntries.forEach(entry => {
+      const empId = entry.employeeId || entry.id
+      if (!employeeMap.has(empId)) {
+        employeeMap.set(empId, [])
+      }
+      employeeMap.get(empId)!.push(entry)
+    })
+
+    return employeeMap
+  }
+
+  // Check if employee has multiple contracts in this period
+  const hasMultipleContracts = (employeeId: string) => {
+    const entries = getEntriesByEmployee().get(employeeId) || []
+    return entries.length > 1
+  }
+
   // Compute overtime pay on the client when entry.overtimePay is not present.
   // Rules: overtimePay = overtimeHours * hourlyRate * 1.5
   // hourlyRate fallbacks: entry.hourlyRate > employee.hourlyRate > contract.pdfGenerationData.basicSalary (when compensationType indicates hourly) > derived from baseSalary using work days * 8
@@ -764,16 +831,24 @@ export default function PayrollPeriodDetailPage() {
             <>
               <button
                 onClick={() => setShowAddEntry(!showAddEntry)}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                disabled={availableEmployeesCount !== null && period.payrollEntries.length >= availableEmployeesCount}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-md ${availableEmployeesCount !== null && period.payrollEntries.length >= availableEmployeesCount ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                title={availableEmployeesCount !== null && period.payrollEntries.length >= availableEmployeesCount ? 'All available employees have been added' : ''}
               >
                 {showAddEntry ? 'Cancel' : 'Add Employee'}
               </button>
-              <button
-                onClick={handleAddAllEmployees}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
-              >
-                Add All Employees
-              </button>
+              {/* Hide "Add All Employees" when period already has entries to prevent duplicate employee errors
+                  (period creation with targetAllEmployees already adds all employees) */}
+              {period.payrollEntries.length === 0 && (
+                <button
+                  onClick={handleAddAllEmployees}
+                  disabled={addingAllEmployees || (availableEmployeesCount !== null && availableEmployeesCount === 0)}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${addingAllEmployees || (availableEmployeesCount !== null && availableEmployeesCount === 0) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                  title={availableEmployeesCount !== null && availableEmployeesCount === 0 ? 'No employees available to add' : ''}
+                >
+                  {addingAllEmployees ? 'Adding...' : 'Add All Employees'}
+                </button>
+              )}
               {period.payrollEntries.length > 0 && (
                 <>
                   <button
@@ -1006,6 +1081,7 @@ export default function PayrollPeriodDetailPage() {
               showNotification('success', msg)
               setShowAddEntry(false)
               loadPeriod()
+              loadAvailableEmployeesCount()
             }}
             onError={(error) => {
               const msg = typeof error === 'string' ? error : (error && (error as any).message) || 'An error occurred'
@@ -1059,6 +1135,7 @@ export default function PayrollPeriodDetailPage() {
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Surname</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">First Names</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Job Title</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Contract Period</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Days</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Sick Total</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Leave Total</th>
@@ -1095,6 +1172,22 @@ export default function PayrollPeriodDetailPage() {
                     <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeLastName || (() => { const name = entry.employeeName || ''; const parts = name ? name.split(' ') : []; return parts.slice(-1)[0] || '' })()}</td>
                     <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeFirstName || (() => { const name = entry.employeeName || ''; const parts = name ? name.split(' ') : []; return parts.slice(0, -1).join(' ') || '' })()}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.employee?.jobTitles?.title || ''}</td>
+                    <td className="px-3 py-2 text-sm cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                      {formatContractDateRange(entry) ? (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className={entry.isProrated ? 'text-orange-600 dark:text-orange-400 font-medium text-xs' : 'text-secondary text-xs'}>
+                            {formatContractDateRange(entry)}
+                          </span>
+                          {entry.isProrated && (
+                            <span className="text-[10px] bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-1 py-0.5 rounded font-medium" title="Prorated salary">
+                              PRO
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-secondary text-xs">-</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.workDays}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeSickDays ?? (entry as any).sickDays ?? 0}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeLeaveDays ?? (entry as any).leaveDays ?? 0}</td>
@@ -1200,37 +1293,43 @@ export default function PayrollPeriodDetailPage() {
           onClose={() => setSelectedEntryId(null)}
           entryId={selectedEntryId}
           onSuccess={(payload) => {
-            try {
-              // page-level instrumentation for modal success callbacks
-              if (typeof window !== 'undefined') {
-                ; (window as any).__instrumentLogs = (window as any).__instrumentLogs || []
-                  ; (window as any).__instrumentLogs.push({ ts: Date.now(), label: 'parent:onSuccess received', payload: { payload, entryId: selectedEntryId }, stack: new Error().stack })
-                console.warn('[instrument]', 'parent:onSuccess received', { payload, entryId: selectedEntryId })
-              }
-            } catch (e) {
-              // ignore
-            }
             const p: any = payload
             const message = typeof p === 'string' ? p : (p && p.message) || ''
             // Default to not refreshing the whole period unless explicitly requested
             const shouldRefresh = typeof p === 'object' ? Boolean(p.refresh) : false
-            showNotification('success', message)
+            // Only show notification if there's an actual message (autosave sends empty messages)
+            if (message && message.trim()) {
+              showNotification('success', message)
+            }
             // If the modal provided an updatedEntry object, merge it into the period entries to avoid a full reload
             if (p && typeof p === 'object' && p.updatedEntry && period) {
               try {
                 const updated: any = p.updatedEntry
+                // CRITICAL: Validate that the updated entry has a valid ID before attempting merge
+                if (!updated || !updated.id) {
+                  if (shouldRefresh) loadPeriod()
+                  return
+                }
+
                 setPeriod((prev) => {
                   if (!prev) return prev
                   const entries = Array.isArray(prev.payrollEntries) ? prev.payrollEntries.slice() : []
                   const idx = entries.findIndex((e: any) => String(e.id) === String(updated.id))
                   if (idx >= 0) {
-                    entries[idx] = { ...entries[idx], ...updated }
+                    // Found existing entry - merge the update by creating a completely new object
+                    // to ensure React detects the change
+                    const oldEntry = entries[idx]
+                    entries[idx] = { ...oldEntry, ...updated }
                   } else {
-                    entries.push(updated)
+                    // CRITICAL FIX: If entry not found, DO NOT push a new entry (this causes phantom rows).
+                    // Instead, reload period to ensure data consistency.
+                    setTimeout(() => loadPeriod(), 0)
+                    return prev  // Return unchanged state, reload will happen async
                   }
                   return { ...prev, payrollEntries: entries }
                 })
               } catch (e) {
+                console.error('[payroll] Error merging updatedEntry:', e)
                 // fallback to reload if merge fails
                 if (shouldRefresh) loadPeriod()
               }
