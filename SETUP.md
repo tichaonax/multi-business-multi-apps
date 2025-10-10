@@ -105,9 +105,11 @@ The application will be available at `http://localhost:8080`.
 
 ---
 
-## Windows Sync Service Installation (Optional)
+## Windows Sync Service Installation (Optional - For Multi-Machine Sync)
 
-If you need the background sync service for offline/online synchronization:
+**⚠️ READ FIRST**: See [SYNC-ONE-TIME-SETUP.md](SYNC-ONE-TIME-SETUP.md) for complete one-time setup guide including firewall configuration and environment variables.
+
+If you need the background sync service for database synchronization between multiple machines:
 
 ### 1. Build the Service
 
@@ -125,7 +127,13 @@ This compiles the TypeScript service files to JavaScript in the `dist/` folder.
 npm run service:install
 ```
 
-This installs and starts the Multi-Business Sync Service as a Windows service.
+**IMPORTANT**: The service installs but does NOT auto-start. You must manually start it:
+
+```bash
+npm run service:start
+```
+
+This is intentional to allow you to configure firewall rules and environment variables first.
 
 ### 3. Manage the Service
 
