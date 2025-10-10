@@ -55,17 +55,21 @@ This reads your `prisma/schema.prisma` and generates TypeScript types and the da
 
 ### 5. Set Up the Database
 
-Run database migrations to create all tables and schema:
+**For Fresh Installations** (empty database), use `db push` to create the schema directly:
+
+```bash
+npx prisma db push
+```
+
+This creates all tables from your schema without migration history - perfect for fresh installs.
+
+**For Production Updates** (existing database with data), use migrations:
 
 ```bash
 npx prisma migrate deploy
 ```
 
-**For development**, you can use:
-
-```bash
-npx prisma migrate dev
-```
+**Note**: The automated `npm run setup` script uses `db push` for fresh installations and includes safety checks to prevent running on existing databases.
 
 ### 6. Seed Reference Data
 

@@ -39,6 +39,36 @@ function run(command, description) {
   }
 }
 
+async function checkDatabaseEmpty() {
+  try {
+    const { PrismaClient } = require('@prisma/client')
+    const prisma = new PrismaClient()
+
+    try {
+      // Try to query a table - if it exists, database is not empty
+      const result = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public'
+          AND table_name = 'users'
+        ) as table_exists;
+      `
+
+      await prisma.$disconnect()
+
+      if (result[0]?.table_exists) {
+        return false // Database has tables
+      }
+      return true // Database is empty
+    } catch (error) {
+      await prisma.$disconnect()
+      return true // Assume empty if query fails
+    }
+  } catch (error) {
+    return true // Assume empty if Prisma client not generated yet
+  }
+}
+
 async function main() {
   console.log('\n' + '='.repeat(60))
   console.log('🚀 MULTI-BUSINESS MULTI-APPS - FRESH INSTALLATION SETUP')
@@ -53,6 +83,25 @@ async function main() {
     process.exit(1)
   }
 
+  // Safety check: Verify this is a fresh installation
+  console.log('🔍 Checking if this is a fresh installation...\n')
+
+  const isEmpty = await checkDatabaseEmpty()
+
+  if (!isEmpty) {
+    console.log('⚠️  DATABASE NOT EMPTY!')
+    console.log('This script is for fresh installations only.')
+    console.log('The database already contains tables.\n')
+    console.log('If you pulled code updates, use instead:')
+    console.log('  npm run setup:update\n')
+    console.log('To force fresh installation (⚠️  DELETES ALL DATA):')
+    console.log('  npx prisma migrate reset')
+    console.log('  npm run setup\n')
+    process.exit(1)
+  }
+
+  console.log('✅ Database is empty - proceeding with fresh installation\n')
+
   const steps = [
     {
       command: 'npm install',
@@ -65,8 +114,8 @@ async function main() {
       required: true
     },
     {
-      command: 'npx prisma migrate deploy',
-      description: 'Running database migrations',
+      command: 'npx prisma db push --accept-data-loss',
+      description: 'Creating database schema (fresh install - no migrations)',
       required: true
     },
     {
