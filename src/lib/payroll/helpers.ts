@@ -177,8 +177,12 @@ export async function computeTotalsForEntry(entryId: string) {
     }
 
     const commission = Number(entry.commission ?? 0)
-    // Compute overtimePay from overtimeHours and an hourly rate (1.5x multiplier)
-    const overtimeHours = Number((entry as any).overtimeHours ?? 0)
+
+    // Compute overtimePay using dual overtime rates (standard 1.5x and double-time 2.0x)
+    const standardOvertimeHours = Number((entry as any).standardOvertimeHours ?? 0)
+    const doubleTimeOvertimeHours = Number((entry as any).doubleTimeOvertimeHours ?? 0)
+    const oldOvertimeHours = Number((entry as any).overtimeHours ?? 0) // Legacy field for backward compatibility
+
     // Determine hourly rate preference: entry.hourlyRate > employee.hourlyRate > contract.pdfGenerationData.basicSalary (if compensationType indicates hourly) > derived from baseSalary
     let hourlyRate = Number((entry as any).hourlyRate ?? 0)
     if ((!hourlyRate || hourlyRate === 0) && (entry as any).employee && (entry as any).employee.hourlyRate) {
@@ -210,7 +214,17 @@ export async function computeTotalsForEntry(entryId: string) {
         }
     }
 
-    const overtimePay = Number((overtimeHours && hourlyRate) ? (overtimeHours * hourlyRate * 1.5) : 0)
+    // Calculate overtime using utility function for dual rates
+    const { calculateTotalOvertimePay } = await import('@/lib/payroll/overtime-utils')
+    let overtimePay = 0
+
+    // Use new dual overtime fields if available, otherwise fall back to legacy single field
+    if (standardOvertimeHours > 0 || doubleTimeOvertimeHours > 0) {
+        overtimePay = calculateTotalOvertimePay(standardOvertimeHours, doubleTimeOvertimeHours, hourlyRate)
+    } else if (oldOvertimeHours > 0 && hourlyRate > 0) {
+        // Legacy calculation for backward compatibility
+        overtimePay = Math.round(oldOvertimeHours * hourlyRate * 1.5 * 100) / 100
+    }
     // Load payroll adjustments for this entry. Adjustments are stored as signed amounts.
     // Business rule: positive adjustments increase gross pay (additions). Negative adjustments
     // should NOT be subtracted from the gross; instead they are treated as deductions and

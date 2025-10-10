@@ -43,7 +43,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             id: true,
             year: true,
             month: true,
-            status: true
+            status: true,
+            business: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
           }
         },
         payrollAdjustments: {
@@ -285,7 +291,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       absenceDays,
       absenceFraction,
       overtimeHours,
+      standardOvertimeHours,
+      doubleTimeOvertimeHours,
       commission,
+      miscDeductions,
       notes
     } = data
 
@@ -320,7 +329,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       leaveDays: leaveDays !== undefined ? leaveDays : existingEntry.leaveDays,
       absenceDays: absenceDays !== undefined ? absenceDays : existingEntry.absenceDays,
       overtimeHours: overtimeHours !== undefined ? overtimeHours : existingEntry.overtimeHours,
+      standardOvertimeHours: standardOvertimeHours !== undefined ? standardOvertimeHours : existingEntry.standardOvertimeHours,
+      doubleTimeOvertimeHours: doubleTimeOvertimeHours !== undefined ? doubleTimeOvertimeHours : existingEntry.doubleTimeOvertimeHours,
       commission: commission !== undefined ? commission : existingEntry.commission,
+      miscDeductions: miscDeductions !== undefined ? miscDeductions : existingEntry.miscDeductions,
       notes: notes !== undefined ? notes : existingEntry.notes,
       updatedAt: new Date()
     }
@@ -365,6 +377,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         grossPay: recomputed.grossPay,
         netPay: recomputed.netPay,
         benefitsTotal: recomputed.benefitsTotal ?? 0,
+        overtimePay: recomputed.overtimePay ?? 0,
         // store adjustmentsTotal as additions only (positive adjustments)
         adjustmentsTotal: recomputed.additionsTotal ?? 0,
         totalDeductions: Number(existingEntry.totalDeductions ?? 0) + Number(recomputed.adjustmentsAsDeductions ?? 0),
@@ -379,12 +392,49 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             nationalId: true
           }
         },
-        payrollAdjustments: true
+        payrollAdjustments: true,
+        payrollPeriod: {
+          select: {
+            year: true,
+            month: true
+          }
+        }
       }
     })
 
-    // Attach recomputed absenceDeduction to the returned entry so clients can display authoritative absence
-    const returnedEntry = { ...(entry as any), absenceDeduction: Number(recomputed.absenceDeduction ?? 0) }
+    // Compute cumulative sick/leave/absence days from time tracking
+    let cumulativeSickDays = Number(entry.sickDays || 0)
+    let cumulativeLeaveDays = Number(entry.leaveDays || 0)
+    let cumulativeAbsenceDays = Number(entry.absenceDays || 0)
+
+    if (entry.employee?.id && entry.payrollPeriod) {
+      try {
+        const timeTracking = await prisma.employeeTimeTracking.findFirst({
+          where: {
+            employeeId: entry.employee.id,
+            year: entry.payrollPeriod.year,
+            month: entry.payrollPeriod.month
+          }
+        })
+
+        if (timeTracking) {
+          cumulativeSickDays = Number(timeTracking.sickDays || 0)
+          cumulativeLeaveDays = Number(timeTracking.leaveDays || 0)
+          cumulativeAbsenceDays = Number(timeTracking.absenceDays || 0)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch time tracking for cumulative days:', err)
+      }
+    }
+
+    // Attach recomputed absenceDeduction and cumulative days to the returned entry
+    const returnedEntry = {
+      ...(entry as any),
+      absenceDeduction: Number(recomputed.absenceDeduction ?? 0),
+      cumulativeSickDays,
+      cumulativeLeaveDays,
+      cumulativeAbsenceDays
+    }
 
     // Update period totals
     if (existingEntry.payrollPeriodId) await updatePeriodTotals(existingEntry.payrollPeriodId)

@@ -1,9 +1,13 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import type { OnSuccessArg } from '@/types/ui'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { usePrompt } from '@/components/ui/input-modal'
+import { hasPermission } from '@/lib/permission-utils'
+import { generatePayrollEntryPDF, generatePayrollEntryFileName, PayrollEntryData } from '@/lib/pdf-utils'
+import { calculateTotalOvertimePay, deriveHourlyRateFromMonthlySalary } from '@/lib/payroll/overtime-utils'
 
 interface PayrollEntryBenefit {
   id: string
@@ -88,6 +92,8 @@ export function PayrollEntryDetailModal({
   })
 
   const showPrompt = usePrompt()
+  const { data: session } = useSession()
+  const modalContentRef = useRef<HTMLDivElement>(null)
 
   const [formData, setFormData] = useState({
     workDays: 0,
@@ -95,6 +101,8 @@ export function PayrollEntryDetailModal({
     leaveDays: 0,
     absenceDays: 0,
     overtimeHours: 0,
+    standardOvertimeHours: 0,
+    doubleTimeOvertimeHours: 0,
     commission: 0,
     miscDeductions: 0,
     absenceFraction: '0',
@@ -119,6 +127,7 @@ export function PayrollEntryDetailModal({
     amount: 0
   })
   const [benefitSearch, setBenefitSearch] = useState('')
+  const [addingBenefit, setAddingBenefit] = useState(false)
 
   const [deactivationReason, setDeactivationReason] = useState('')
   const confirm = useConfirm()
@@ -366,6 +375,8 @@ export function PayrollEntryDetailModal({
             absenceDays: data.absenceDays,
             absenceFraction: String(data.absenceFraction ?? '0'),
             overtimeHours: finalOvertimeHours,
+            standardOvertimeHours: Number(data.standardOvertimeHours || 0),
+            doubleTimeOvertimeHours: Number(data.doubleTimeOvertimeHours || 0),
             commission: data.commission,
             miscDeductions: Number(data.miscDeductions || 0),
             notes: data.notes || ''
@@ -387,6 +398,8 @@ export function PayrollEntryDetailModal({
             absenceDays: data.absenceDays,
             absenceFraction: String(data.absenceFraction ?? '0'),
             overtimeHours: data.overtimeHours,
+            standardOvertimeHours: Number(data.standardOvertimeHours || 0),
+            doubleTimeOvertimeHours: Number(data.doubleTimeOvertimeHours || 0),
             commission: data.commission,
             miscDeductions: Number(data.miscDeductions || 0),
             notes: data.notes || ''
@@ -407,11 +420,23 @@ export function PayrollEntryDetailModal({
   // Compute overtime for modal (available to render and totals)
   const computeOvertimeForModal = (en: any) => {
     try {
-      const overtimeHours = Number(formData.overtimeHours ?? en.overtimeHours ?? 0)
-      const persistedOvertimePay = Number(en.overtimePay ?? 0)
-      if ((formData.overtimeHours === undefined || formData.overtimeHours === null) && persistedOvertimePay && persistedOvertimePay > 0) return persistedOvertimePay
-      if (!overtimeHours || overtimeHours === 0) return 0
+      // Get standard and double-time hours from form data or entry
+      const standardHours = Number(formData.standardOvertimeHours ?? en.standardOvertimeHours ?? 0)
+      const doubleTimeHours = Number(formData.doubleTimeOvertimeHours ?? en.doubleTimeOvertimeHours ?? 0)
 
+      const persistedOvertimePay = Number(en.overtimePay ?? 0)
+
+      // If no form data but persisted pay exists, return persisted
+      if ((formData.standardOvertimeHours === undefined || formData.standardOvertimeHours === null) &&
+          (formData.doubleTimeOvertimeHours === undefined || formData.doubleTimeOvertimeHours === null) &&
+          persistedOvertimePay && persistedOvertimePay > 0) {
+        return persistedOvertimePay
+      }
+
+      // If no overtime hours, return 0
+      if (!standardHours && !doubleTimeHours) return 0
+
+      // Derive hourly rate using existing fallback logic
       let hourlyRate = Number(en.hourlyRate ?? 0)
       if ((!hourlyRate || hourlyRate === 0) && en.employee && (en.employee as any).hourlyRate) {
         hourlyRate = Number((en.employee as any).hourlyRate || 0)
@@ -421,8 +446,6 @@ export function PayrollEntryDetailModal({
         try {
           const compType = (en.contract as any).pdfGenerationData?.compensationType || ''
           const contractBasic = Number((en.contract as any).pdfGenerationData?.basicSalary || 0)
-          // Only treat contract basicSalary as an hourly rate when compensationType mentions 'hour'
-          // AND the value is plausibly hourly (e.g., <= 200). Otherwise fall back to monthly->annualized derivation below.
           if (typeof compType === 'string' && compType.toLowerCase().includes('hour') && contractBasic > 0 && contractBasic <= 200) {
             hourlyRate = contractBasic
           }
@@ -432,20 +455,14 @@ export function PayrollEntryDetailModal({
       }
 
       const baseSalary = Number(en.baseSalary || 0)
-      // Fallback: derive hourly rate from monthly baseSalary by annualizing then
-      // dividing by total working hours per year (6 days/week × 9 hours/day × 52 weeks)
       if ((!hourlyRate || hourlyRate === 0) && baseSalary) {
-        try {
-          const annualSalary = Number(baseSalary) * 12
-          const hoursPerYear = 6 * 9 * 52 // 2808
-          hourlyRate = annualSalary / Math.max(1, hoursPerYear)
-        } catch (e) {
-          // ignore
-        }
+        hourlyRate = deriveHourlyRateFromMonthlySalary(baseSalary)
       }
 
       if (!hourlyRate || hourlyRate === 0) return 0
-      return Math.round(overtimeHours * hourlyRate * 1.5 * 100) / 100
+
+      // Calculate total overtime pay using utility function
+      return calculateTotalOvertimePay(standardHours, doubleTimeHours, hourlyRate)
     } catch (e) {
       return 0
     }
@@ -527,7 +544,7 @@ export function PayrollEntryDetailModal({
     const totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + miscVal + adjAsDeductions
 
     const net = gross - totalDeductions
-    return { benefitsTotal, gross, totalDeductions, net, absenceDeduction }
+    return { benefitsTotal, gross, totalDeductions, net, absenceDeduction, overtimePay: overtime }
   }
 
   const loadBenefits = async () => {
@@ -618,6 +635,8 @@ export function PayrollEntryDetailModal({
         // Persist fractional absence so server and list stay in sync
         ['absenceFraction', 'absenceFraction'],
         ['overtimeHours', 'overtimeHours'],
+        ['standardOvertimeHours', 'standardOvertimeHours'],
+        ['doubleTimeOvertimeHours', 'doubleTimeOvertimeHours'],
         ['commission', 'commission'],
         ['miscDeductions', 'miscDeductions'],
         ['notes', 'notes']
@@ -625,7 +644,7 @@ export function PayrollEntryDetailModal({
 
       // Treat known numeric form fields as numbers and compare numerically to avoid
       // false-positives when server returns strings/Decimals.
-      const numericKeys = new Set(['workDays', 'sickDays', 'leaveDays', 'absenceDays', 'absenceFraction', 'overtimeHours', 'commission', 'miscDeductions'])
+      const numericKeys = new Set(['workDays', 'sickDays', 'leaveDays', 'absenceDays', 'absenceFraction', 'overtimeHours', 'standardOvertimeHours', 'doubleTimeOvertimeHours', 'commission', 'miscDeductions'])
       for (const [k, serverKey] of mapKeys) {
         const newVal = (formData as any)[k]
         const oldVal = (entry as any)[serverKey]
@@ -900,6 +919,144 @@ export function PayrollEntryDetailModal({
     }
   }
 
+  const handlePrintPDF = async () => {
+    try {
+      if (!entry) {
+        onError('Unable to generate PDF')
+        return
+      }
+
+      // Extract data for PDF
+      const employeeName = entry.employeeName || 'Unknown'
+      const employeeNumber = entry.employeeNumber || 'Unknown'
+      const nationalId = entry.nationalId || 'N/A'
+      const year = (entry as any).payrollPeriod?.year || new Date().getFullYear()
+      const month = (entry as any).payrollPeriod?.month || new Date().getMonth() + 1
+
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December']
+      const periodMonth = monthNames[month - 1] || `Month ${month}`
+
+      // Get totals
+      const totals = computeEntryTotalsLocal(entry, entry.payrollAdjustments || [], benefits)
+
+      // Get job title from employee or contract
+      const jobTitle = (entry.employee as any)?.jobTitles?.title ||
+                       (entry.contract as any)?.pdfGenerationData?.jobTitle ||
+                       undefined
+
+      // Get business name from payroll period
+      const businessName = (entry as any).payrollPeriod?.business?.name || undefined
+
+      // Get start date (contract start date / hire date)
+      const startDate = entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : undefined
+
+      // Prepare benefits data (include all benefits in PDF)
+      const benefitsData: Array<{ name: string; amount: number }> = []
+      if (entry.payrollEntryBenefits && entry.payrollEntryBenefits.length > 0) {
+        entry.payrollEntryBenefits.forEach((benefit) => {
+          benefitsData.push({
+            name: benefit.benefitName + (benefit.source === 'contract-inferred' ? ' (from contract)' : ''),
+            amount: Number(benefit.amount || 0)
+          })
+        })
+      }
+
+      // Add adjustments to benefits if positive
+      const additionsFromServer = Number((entry as any).adjustmentsTotal || 0)
+      const additionsFromList = (entry?.payrollAdjustments || [])
+        .filter((a: any) => a.isAddition)
+        .reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
+      const additions = additionsFromServer && additionsFromServer !== 0 ? additionsFromServer : additionsFromList
+
+      // Prepare advances data
+      const advancesData: Array<{ description: string; amount: number }> = []
+      if (entry.advanceBreakdown && entry.advanceBreakdown.length > 0) {
+        entry.advanceBreakdown.forEach((adv: any) => {
+          advancesData.push({
+            description: adv.description || 'Advance',
+            amount: Number(adv.amount || 0)
+          })
+        })
+      }
+
+      // Prepare loans data
+      const loansData: Array<{ description: string; amount: number }> = []
+      if (entry.loanBreakdown && entry.loanBreakdown.length > 0) {
+        entry.loanBreakdown.forEach((loan: any) => {
+          loansData.push({
+            description: loan.description || 'Loan',
+            amount: Number(loan.amount || 0)
+          })
+        })
+      }
+
+      // Prepare other deductions (negative adjustments excluding absence)
+      const otherDeductionsData: Array<{ description: string; amount: number }> = []
+      if (entry.payrollAdjustments && entry.payrollAdjustments.length > 0) {
+        entry.payrollAdjustments
+          .filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence')
+          .forEach((adj: any) => {
+            const type = (adj.adjustmentType || adj.type || 'other').replace(/_/g, ' ')
+            const desc = adj.description || adj.reason
+            const label = desc ? `${type} - ${desc}` : type
+            otherDeductionsData.push({
+              description: label.charAt(0).toUpperCase() + label.slice(1),
+              amount: Number(adj.amount || 0)
+            })
+          })
+      }
+
+      const pdfData: PayrollEntryData = {
+        employeeName,
+        employeeNumber,
+        nationalId,
+        jobTitle,
+        startDate,
+        periodMonth,
+        periodYear: year,
+        businessName,
+
+        // Earnings
+        baseSalary: Number(entry.baseSalary || 0),
+        commission: Number(entry.commission || 0),
+        overtimePay: Number(totals.overtimePay || 0),
+        standardOvertimeHours: Number(formData.standardOvertimeHours ?? entry.standardOvertimeHours ?? 0) || undefined,
+        doubleTimeOvertimeHours: Number(formData.doubleTimeOvertimeHours ?? entry.doubleTimeOvertimeHours ?? 0) || undefined,
+        benefits: benefitsData,
+        adjustments: additions,
+        absenceDeduction: totals.absenceDeduction || undefined,
+        grossPay: totals.gross,
+
+        // Deductions
+        advances: advancesData,
+        loans: loansData,
+        otherDeductions: otherDeductionsData,
+        miscDeductions: Number(formData.miscDeductions || entry.miscDeductions || 0),
+        totalDeductions: totals.totalDeductions,
+
+        // Work days
+        workDays: formData.workDays ?? entry.workDays ?? 0,
+        sickDays: formData.sickDays ?? entry.sickDays ?? 0,
+        leaveDays: formData.leaveDays ?? entry.leaveDays ?? 0,
+        absenceDays: formData.absenceDays ?? entry.absenceDays ?? 0,
+
+        // Net
+        netPay: totals.net
+      }
+
+      const fileName = generatePayrollEntryFileName(employeeName, employeeNumber, year, month)
+
+      // Generate and download PDF
+      await generatePayrollEntryPDF(pdfData, fileName)
+
+      onSuccess({ message: 'PDF generated successfully', refresh: false, updatedEntry: null })
+    } catch (error) {
+      console.error('PDF generation error:', error)
+      onError('Failed to generate PDF')
+    }
+  }
+
   const handleAddAdjustment = async () => {
     try {
       // Client-side validation
@@ -1016,7 +1173,7 @@ export function PayrollEntryDetailModal({
         return
       }
 
-      // instrumentation removed
+      setAddingBenefit(true)
 
       const response = await fetch(`/api/payroll/entries/${entryId}/benefits`, {
         method: 'POST',
@@ -1043,6 +1200,13 @@ export function PayrollEntryDetailModal({
                 return prev
               }
             })
+
+            // Update entry.payrollEntryBenefits to show in Manual Benefits section immediately
+            setEntry((prevEntry: any) => {
+              if (!prevEntry) return prevEntry
+              const updatedBenefits = [...(prevEntry.payrollEntryBenefits || []), parsed]
+              return { ...prevEntry, payrollEntryBenefits: updatedBenefits }
+            })
           } catch (e) {
             // ignore
           }
@@ -1052,6 +1216,7 @@ export function PayrollEntryDetailModal({
         // Collapse add form after success and reset selection
         setShowAddBenefit(false)
         setBenefitForm({ benefitTypeId: '', amount: 0 })
+        setBenefitSearch('')
         await loadBenefits()
       } else {
         const msg = parsed?.error || parsed?.message || parsed?.text || `Failed to add benefit (${response.status})`
@@ -1059,6 +1224,8 @@ export function PayrollEntryDetailModal({
       }
     } catch (error) {
       onError('Failed to add benefit')
+    } finally {
+      setAddingBenefit(false)
     }
   }
 
@@ -1276,7 +1443,7 @@ export function PayrollEntryDetailModal({
             <div className="text-secondary">Loading...</div>
           </div>
         ) : entry ? (
-          <div className="space-y-6">
+          <div ref={modalContentRef} className="space-y-6">
             {/* Employee Info */}
             <div className="bg-muted p-4 rounded-lg border border-border">
               <h3 className="font-semibold text-primary mb-2">Employee Information</h3>
@@ -1360,12 +1527,28 @@ export function PayrollEntryDetailModal({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-secondary mb-1">Overtime Hours</label>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Standard Overtime Hours <span className="text-xs text-secondary">(1.5× rate)</span>
+                  </label>
                   <input
                     type="number"
                     step="0.5"
-                    value={formData.overtimeHours}
-                    onChange={(e) => setFormData({ ...formData, overtimeHours: parseFloat(e.target.value) || 0 })}
+                    value={formData.standardOvertimeHours}
+                    onChange={(e) => setFormData({ ...formData, standardOvertimeHours: parseFloat(e.target.value) || 0 })}
+                    onBlur={() => flushAutosave()}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Double-Time Overtime Hours <span className="text-xs text-secondary">(2.0× rate)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={formData.doubleTimeOvertimeHours}
+                    onChange={(e) => setFormData({ ...formData, doubleTimeOvertimeHours: parseFloat(e.target.value) || 0 })}
                     onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
@@ -1424,7 +1607,16 @@ export function PayrollEntryDetailModal({
                 {(entry.overtimePay > 0) ? (
                   <div className="flex justify-between">
                     <span className="text-secondary">Overtime Pay:</span>
-                    <span className="text-primary">{formatCurrency(entry.overtimePay)}{(formData.overtimeHours || formData.overtimeHours === 0) ? (<span className="text-sm text-secondary ml-2">({(Number.isFinite(Number(formData.overtimeHours)) ? String(Number(formData.overtimeHours).toFixed(2).replace(/\.00$/, '')) : String(formData.overtimeHours))} hrs)</span>) : null}</span>
+                    <span className="text-primary">
+                      {formatCurrency(entry.overtimePay)}
+                      {((formData.standardOvertimeHours > 0 || formData.doubleTimeOvertimeHours > 0)) && (
+                        <span className="text-sm text-secondary ml-2">
+                          ({formData.standardOvertimeHours > 0 && `${formData.standardOvertimeHours}h @1.5×`}
+                          {formData.standardOvertimeHours > 0 && formData.doubleTimeOvertimeHours > 0 && ', '}
+                          {formData.doubleTimeOvertimeHours > 0 && `${formData.doubleTimeOvertimeHours}h @2.0×`})
+                        </span>
+                      )}
+                    </span>
                   </div>
                 ) : (
                   (() => {
@@ -1432,7 +1624,16 @@ export function PayrollEntryDetailModal({
                     return computed > 0 ? (
                       <div className="flex justify-between">
                         <span className="text-secondary">Overtime Pay (computed):</span>
-                        <span className="text-primary">{formatCurrency(computed)}{(formData.overtimeHours || formData.overtimeHours === 0) ? (<span className="text-sm text-secondary ml-2">({(Number.isFinite(Number(formData.overtimeHours)) ? String(Number(formData.overtimeHours).toFixed(2).replace(/\.00$/, '')) : String(formData.overtimeHours))} hrs)</span>) : null}</span>
+                        <span className="text-primary">
+                          {formatCurrency(computed)}
+                          {((formData.standardOvertimeHours > 0 || formData.doubleTimeOvertimeHours > 0)) && (
+                            <span className="text-sm text-secondary ml-2">
+                              ({formData.standardOvertimeHours > 0 && `${formData.standardOvertimeHours}h @1.5×`}
+                              {formData.standardOvertimeHours > 0 && formData.doubleTimeOvertimeHours > 0 && ', '}
+                              {formData.doubleTimeOvertimeHours > 0 && `${formData.doubleTimeOvertimeHours}h @2.0×`})
+                            </span>
+                          )}
+                        </span>
                       </div>
                     ) : null
                   })()
@@ -1588,8 +1789,11 @@ export function PayrollEntryDetailModal({
                     <div className="font-medium text-secondary mb-1">Other Deductions:</div>
                     {entry.payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').map((adj: any) => (
                       <div key={adj.id} className="flex justify-between ml-4 text-xs items-center">
-                        {/* Prefer explicit description, then DB reason, then type, then generic label */}
-                        <div className="text-secondary">{adj.description || adj.reason || adj.type || 'Deduction'}</div>
+                        {/* Show type and description */}
+                        <div className="text-secondary">
+                          <span className="font-medium capitalize">{(adj.adjustmentType || adj.type || 'other').replace(/_/g, ' ')}</span>
+                          {(adj.description || adj.reason) && <span className="ml-1">- {adj.description || adj.reason}</span>}
+                        </div>
                         <div className="flex items-center gap-3">
                           {/* Always display a single properly-signed currency value. Use Math.abs to avoid double signs. */}
                           <span className="text-red-600">{formatCurrency(-Math.abs(Number(adj.amount || 0)))}</span>
@@ -1727,8 +1931,12 @@ export function PayrollEntryDetailModal({
                     <div key={adj.id} className="bg-muted p-3 rounded border border-border flex items-center justify-between">
                       <div>
                         {/* Prefer description, then reason, then type */}
-                        <div className="font-medium text-sm text-primary">{adj.description || adj.reason || adj.type || ''}</div>
-                        <div className="text-xs text-secondary">{adj.type} • {new Date(adj.createdAt).toLocaleDateString()}</div>
+                        <div className="font-medium text-sm text-primary">{adj.description || adj.reason || adj.type || 'Adjustment'}</div>
+                        <div className="text-xs text-secondary">
+                          <span className="font-medium capitalize">{(adj.adjustmentType || adj.type || 'other').replace(/_/g, ' ')}</span>
+                          {' • '}
+                          {new Date(adj.createdAt).toLocaleDateString()}
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className={`text-sm font-medium ${adj.isAddition ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -1851,10 +2059,10 @@ export function PayrollEntryDetailModal({
                     <button
                       type="button"
                       onClick={handleAddBenefit}
-                      disabled={Number(benefitForm.amount || 0) <= 0 || !benefitForm.benefitTypeId}
-                      className={`flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 ${Number(benefitForm.amount || 0) <= 0 || !benefitForm.benefitTypeId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={addingBenefit || Number(benefitForm.amount || 0) <= 0 || !benefitForm.benefitTypeId}
+                      className={`flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 ${addingBenefit || Number(benefitForm.amount || 0) <= 0 || !benefitForm.benefitTypeId ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      Add Benefit
+                      {addingBenefit ? 'Adding...' : 'Add Benefit'}
                     </button>
                     <button
                       type="button"
@@ -1881,8 +2089,8 @@ export function PayrollEntryDetailModal({
                         // extra permissions to create global benefit types. The server will create
                         // a lightweight benefitType if needed and persist the payrollEntryBenefit.
                         try {
+                          setAddingBenefit(true)
                           const payload = { benefitName: nameToCreate, amount: amountToCreate }
-                          // instrumentation removed
                           const resp = await fetch(`/api/payroll/entries/${entryId}/benefits`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1890,7 +2098,6 @@ export function PayrollEntryDetailModal({
                           })
                           const parsed = await parseJsonSafe(resp)
                           if (resp.ok) {
-                            // instrumentation removed
                             // If server included the created benefitType, ensure it exists in local cache
                             if (parsed && parsed.benefitType) {
                               setBenefitTypes((prev) => {
@@ -1910,6 +2117,15 @@ export function PayrollEntryDetailModal({
                               }
                             }
 
+                            // Update entry.payrollEntryBenefits to show in Manual Benefits section immediately
+                            if (parsed) {
+                              setEntry((prevEntry: any) => {
+                                if (!prevEntry) return prevEntry
+                                const updatedBenefits = [...(prevEntry.payrollEntryBenefits || []), parsed]
+                                return { ...prevEntry, payrollEntryBenefits: updatedBenefits }
+                              })
+                            }
+
                             // Notify parent and instrument the moment — do not force full refresh; provide created item
                             onSuccess({ message: 'Benefit created and added', refresh: false, updatedEntry: parsed || null })
                             // Clear search, update local entry/benefits so Manual Benefits shows the new item,
@@ -1918,7 +2134,6 @@ export function PayrollEntryDetailModal({
                             // Ensure we reload both benefits and the full entry so manual section updates immediately
                             await loadBenefits()
                             await loadBenefitTypes()
-                            await loadEntry()
                             setShowAddBenefit(false)
                             setBenefitForm({ benefitTypeId: '', amount: 0 })
                           } else {
@@ -1927,15 +2142,17 @@ export function PayrollEntryDetailModal({
                           }
                         } catch (err) {
                           onError('Failed to create benefit')
+                        } finally {
+                          setAddingBenefit(false)
                         }
                       }}
                       // Disable Create & Add when amount is invalid or when the typed name exactly matches
                       // an existing global benefit type (to avoid duplicate creation) or when it already exists
-                      // as a persisted/manual benefit on this entry.
-                      disabled={Number(benefitForm.amount || 0) <= 0 || exactTypedMatchIsAvailable || exactTypedMatchInEntry || typedMatchesGlobalBenefit}
-                      className={`px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 ${Number(benefitForm.amount || 0) <= 0 || exactTypedMatchIsAvailable || exactTypedMatchInEntry || typedMatchesGlobalBenefit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      // as a persisted/manual benefit on this entry, or when currently adding a benefit.
+                      disabled={addingBenefit || Number(benefitForm.amount || 0) <= 0 || exactTypedMatchIsAvailable || exactTypedMatchInEntry || typedMatchesGlobalBenefit}
+                      className={`px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 ${addingBenefit || Number(benefitForm.amount || 0) <= 0 || exactTypedMatchIsAvailable || exactTypedMatchInEntry || typedMatchesGlobalBenefit ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      Create & Add
+                      {addingBenefit ? 'Creating...' : 'Create & Add'}
                     </button>
                   </div>
                 </div>
@@ -2273,22 +2490,38 @@ export function PayrollEntryDetailModal({
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-border">
-              <button
-                type="button"
-                onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: false, updatedEntry: entry || null }) } catch (e) { /* ignore */ } onClose() }}
-                className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted transition-colors"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
+            <div className="flex justify-between items-center pt-4 border-t border-border">
+              <div>
+                {session?.user && hasPermission(session.user, 'canPrintPayrollEntryDetails') && (
+                  <button
+                    type="button"
+                    onClick={handlePrintPDF}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 inline-flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Print PDF
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { try { onSuccess({ message: 'Closed payroll entry', refresh: false, updatedEntry: entry || null }) } catch (e) { /* ignore */ } onClose() }}
+                  className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
             </div>
           </div>
         ) : (
