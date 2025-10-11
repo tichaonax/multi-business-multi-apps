@@ -295,6 +295,9 @@ class ServiceUpdateManager {
     this.log('🗄️  Running database migrations...');
 
     try {
+      // Clean Prisma client to prevent EPERM errors (file locks from stopped service)
+      await this.cleanPrismaClient();
+
       // Generate Prisma client
       await execAsync('npx prisma generate');
       this.log('✅ Prisma client generated');
@@ -305,7 +308,74 @@ class ServiceUpdateManager {
 
     } catch (error) {
       this.log(`❌ Migration failed: ${error.message}`, 'ERROR');
+
+      // If EPERM error, try cleaning and regenerating
+      if (error.message.includes('EPERM') || error.message.includes('operation not permitted')) {
+        this.log('🔧 Detected file permission error, attempting recovery...');
+        try {
+          await this.cleanPrismaClient();
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for file handles to release
+          await execAsync('npx prisma generate');
+          this.log('✅ Prisma client regenerated after cleanup');
+
+          await execAsync('npx prisma migrate deploy');
+          this.log('✅ Database migrations completed after recovery');
+          return;
+        } catch (retryError) {
+          this.log(`❌ Recovery failed: ${retryError.message}`, 'ERROR');
+        }
+      }
+
       throw error;
+    }
+  }
+
+  /**
+   * Clean Prisma client files to prevent EPERM errors
+   */
+  async cleanPrismaClient() {
+    this.log('🧹 Cleaning Prisma client files...');
+
+    try {
+      const prismaClientPath = path.join(__dirname, '..', 'node_modules', '.prisma', 'client');
+      const prismaPath = path.join(__dirname, '..', 'node_modules', '@prisma', 'client');
+
+      // Remove .prisma/client directory
+      if (fs.existsSync(prismaClientPath)) {
+        try {
+          await execAsync(`rmdir /S /Q "${prismaClientPath}"`);
+          this.log('✅ Removed .prisma/client');
+        } catch (err) {
+          // Directory might be locked, try force removal
+          try {
+            await execAsync(`powershell -Command "Remove-Item -Path '${prismaClientPath}' -Recurse -Force -ErrorAction SilentlyContinue"`);
+            this.log('✅ Force removed .prisma/client via PowerShell');
+          } catch (psErr) {
+            this.log(`⚠️  Could not remove .prisma/client: ${err.message}`, 'WARN');
+          }
+        }
+      }
+
+      // Remove @prisma/client directory
+      if (fs.existsSync(prismaPath)) {
+        try {
+          await execAsync(`rmdir /S /Q "${prismaPath}"`);
+          this.log('✅ Removed @prisma/client');
+        } catch (err) {
+          // Directory might be locked, try force removal
+          try {
+            await execAsync(`powershell -Command "Remove-Item -Path '${prismaPath}' -Recurse -Force -ErrorAction SilentlyContinue"`);
+            this.log('✅ Force removed @prisma/client via PowerShell');
+          } catch (psErr) {
+            this.log(`⚠️  Could not remove @prisma/client: ${err.message}`, 'WARN');
+          }
+        }
+      }
+
+      this.log('✅ Prisma client cleanup completed');
+    } catch (error) {
+      this.log(`⚠️  Prisma cleanup warning: ${error.message}`, 'WARN');
+      // Don't fail the process - this is a best-effort cleanup
     }
   }
 
