@@ -187,7 +187,10 @@ export class SchemaVersionManager {
 
       // Get latest migration
       const latestMigration = await this.prisma.$queryRaw`
-        SELECT migration_name AS migration_name, applied_steps_count AS applied_steps_count, finished_at AS finished_at
+        SELECT
+          migration_name AS "migrationName",
+          applied_steps_count AS "appliedStepsCount",
+          finished_at AS "finishedAt"
         FROM _prisma_migrations
         WHERE finished_at IS NOT NULL
         ORDER BY finished_at DESC
@@ -204,14 +207,10 @@ export class SchemaVersionManager {
 
       const migration = latestMigration[0]
 
-      // Map SQL result fields to camelCase used in the code
-  const migrationName = migration.migrationName || migration.migration_name
-  const finishedAt = migration.finishedAt || migration.finished_at
-
       return {
-        version: this.extractVersionFromMigrationName(migrationName),
-        name: migrationName,
-        appliedAt: new Date(finishedAt)
+        version: this.extractVersionFromMigrationName(migration.migrationName),
+        name: migration.migrationName,
+        appliedAt: new Date(migration.finishedAt)
       }
     } catch (error) {
       console.error('Failed to get migration version:', error)
@@ -343,14 +342,15 @@ export class SchemaVersionManager {
       // Get all sync nodes
       const nodes = await this.prisma.$queryRaw`
         SELECT
-          node_id AS node_id,
-          node_name AS node_name,
-          schema_version AS schema_version,
-          schema_hash AS schema_hash,
-          migration_name AS migration_name,
-          schema_applied_at AS schema_applied_at
+          node_id AS "nodeId",
+          node_name AS "nodeName",
+          schema_version AS "schemaVersion",
+          schema_hash AS "schemaHash",
+          migration_name AS "migrationName",
+          schema_applied_at AS "schemaAppliedAt",
+          is_active AS "isActive"
         FROM sync_nodes
-        WHERE enabled = true AND node_id != ${this.nodeId};
+        WHERE is_active = true AND node_id != ${this.nodeId};
       ` as any[]
 
       const nodeDetails = []
@@ -360,17 +360,12 @@ export class SchemaVersionManager {
       for (const node of nodes) {
         const compatibility = await this.checkCompatibility(node)
 
-        // Map DB row properties to camelCase
-  const nodeId = node.nodeId || node.node_id
-  const nodeName = node.nodeName || node.node_name
-  const version = node.schemaVersion || node.schema_version || 'unknown'
-
         nodeDetails.push({
-          nodeId,
-          nodeName,
+          nodeId: node.nodeId,
+          nodeName: node.nodeName,
           isCompatible: compatibility.isCompatible,
           compatibilityLevel: compatibility.compatibilityLevel,
-          version,
+          version: node.schemaVersion || 'unknown',
           reason: compatibility.reason
         })
 
