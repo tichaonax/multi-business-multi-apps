@@ -4,6 +4,7 @@ exports.NetworkMonitor = void 0;
 exports.createNetworkMonitor = createNetworkMonitor;
 const events_1 = require("events");
 const os_1 = require("os");
+const uuid_1 = require("uuid");
 class NetworkMonitor extends events_1.EventEmitter {
     constructor(prisma, nodeId) {
         super();
@@ -225,6 +226,7 @@ class NetworkMonitor extends events_1.EventEmitter {
         try {
             await this.prisma.networkPartition.create({
                 data: {
+                    id: (0, uuid_1.v4)(),
                     nodeId: this.nodeId,
                     partitionType: 'NETWORK_DISCONNECTION',
                     startTime: new Date(),

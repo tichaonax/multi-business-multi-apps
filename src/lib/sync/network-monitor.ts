@@ -6,6 +6,7 @@
 import { EventEmitter } from 'events'
 import { networkInterfaces } from 'os'
 import { PrismaClient } from '@prisma/client'
+import { v4 as uuidv4 } from 'uuid'
 
 export interface NetworkStatus {
   isOnline: boolean
@@ -360,6 +361,7 @@ export class NetworkMonitor extends EventEmitter {
       // Record network partition in database
       await this.prisma.networkPartition.create({
         data: {
+          id: uuidv4(),
           nodeId: this.nodeId,
           partitionType: 'NETWORK_DISCONNECTION',
           startTime: new Date(),
