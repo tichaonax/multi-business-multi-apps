@@ -42,9 +42,9 @@ export class SyncCompatibilityGuard {
 
       const attempt: SyncAttempt = {
         remoteNode: {
-          nodeId: String(remoteNode.nodeId || remoteNode.node_id || 'unknown'),
-          nodeName: String(remoteNode.nodeName || remoteNode.node_name || 'unknown'),
-          schemaVersion: String(remoteNode.schemaVersion || remoteNode.schema_version || 'unknown')
+          nodeId: String(remoteNode.nodeId || 'unknown'),
+          nodeName: String(remoteNode.nodeName || 'unknown'),
+          schemaVersion: String(remoteNode.schemaVersion || 'unknown')
         },
         timestamp: new Date(),
         allowed: compatibilityCheck.isCompatible,
@@ -58,7 +58,7 @@ export class SyncCompatibilityGuard {
 
       if (!compatibilityCheck.isCompatible) {
         const reason = compatibilityCheck.reason || 'Schema versions are incompatible'
-  console.warn(`🚫 Sync blocked with ${remoteNode.nodeName || remoteNode.node_name}: ${reason}`)
+  console.warn(`🚫 Sync blocked with ${remoteNode.nodeName}: ${reason}`)
 
         return {
           allowed: false,
@@ -69,7 +69,7 @@ export class SyncCompatibilityGuard {
 
       // Log compatible sync
       const level = compatibilityCheck.compatibilityLevel
-  console.log(`✅ Sync allowed with ${remoteNode.nodeName || remoteNode.node_name} (${level})`)
+  console.log(`✅ Sync allowed with ${remoteNode.nodeName} (${level})`)
 
       return {
         allowed: true,
@@ -82,8 +82,8 @@ export class SyncCompatibilityGuard {
       // Record failed attempt
         const attempt: SyncAttempt = {
         remoteNode: {
-          nodeId: String(remoteNode.nodeId || remoteNode.node_id || 'unknown'),
-          nodeName: String(remoteNode.nodeName || remoteNode.node_name || 'unknown'),
+          nodeId: String(remoteNode.nodeId || 'unknown'),
+          nodeName: String(remoteNode.nodeName || 'unknown'),
           schemaVersion: 'unknown'
         },
         timestamp: new Date(),

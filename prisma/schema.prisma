@@ -388,7 +388,7 @@ model compensation_types {
   employees            employees[]
 }
 
-model ConflictResolution {
+model conflict_resolutions {
   id                 String             @id
   conflictType       ConflictType
   resolutionStrategy ResolutionStrategy
@@ -402,8 +402,6 @@ model ConflictResolution {
   strategy           String?
   metadata           Json?
   createdAt          DateTime           @default(now())
-
-  @@map("conflict_resolutions")
 }
 
 model construction_expenses {
@@ -478,7 +476,7 @@ model contract_renewals {
   employee_contracts_contract_renewals_originalContractIdToemployee_contracts employee_contracts  @relation("contract_renewals_originalContractIdToemployee_contracts", fields: [originalContractId], references: [id])
 }
 
-model DataSnapshot {
+model data_snapshots {
   id                  String   @id
   nodeId              String
   tableName           String
@@ -496,8 +494,6 @@ model DataSnapshot {
   proRataReason       String?
   processedBy         String?
   totalDeductions     Decimal  @default(0) @db.Decimal(12, 2)
-
-  @@map("data_snapshots")
 }
 
 model disciplinary_actions {
@@ -919,7 +915,7 @@ model id_format_templates {
   persons     persons[]
 }
 
-model InitialLoadSession {
+model initial_load_sessions {
   id               String    @id
   sessionId        String    @unique
   sourceNodeId     String
@@ -935,8 +931,6 @@ model InitialLoadSession {
   currentBatch     Int       @default(0)
   metadata         Json?
   createdAt        DateTime  @default(now())
-
-  @@map("initial_load_sessions")
 }
 
 model inter_business_loans {
@@ -1073,7 +1067,7 @@ model menu_promotions {
   businesses           businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
 
-model NetworkPartition {
+model network_partitions {
   id                 String    @id
   nodeId             String
   partitionType      String
@@ -1084,11 +1078,9 @@ model NetworkPartition {
   partitionMetadata  Json?
   resolutionMetadata Json?
   createdAt          DateTime  @default(now())
-
-  @@map("network_partitions")
 }
 
-model NodeState {
+model node_states {
   id          String   @id
   nodeId      String   @unique
   nodeName    String
@@ -1098,11 +1090,9 @@ model NodeState {
   metadata    Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime
-
-  @@map("node_states")
 }
 
-model OfflineQueue {
+model offline_queue {
   id           String    @id
   nodeId       String
   eventId      String
@@ -1118,8 +1108,6 @@ model OfflineQueue {
   errorMessage String?
   dependencies Json?
   isProcessed  Boolean   @default(false)
-
-  @@map("offline_queue")
 }
 
 model order_items {
@@ -1568,18 +1556,16 @@ model supplier_products {
   @@unique([supplierId, productId])
 }
 
-model SyncConfiguration {
+model sync_configurations {
   id                  String    @id
   nodeId              String    @unique
   registrationKeyHash String?
   lastConfigUpdate    DateTime?
   configMetadata      Json?
   createdAt           DateTime  @default(now())
-
-  @@map("sync_configurations")
 }
 
-model SyncEvent {
+model sync_events {
   eventId         String        @id
   sourceNodeId    String
   tableName       String
@@ -1597,11 +1583,9 @@ model SyncEvent {
   processingError String?
   retryCount      Int           @default(0)
   createdAt       DateTime      @default(now())
-
-  @@map("sync_events")
 }
 
-model SyncMetric {
+model sync_metrics {
   id                   String   @id
   nodeId               String
   metricDate           DateTime
@@ -1619,10 +1603,9 @@ model SyncMetric {
   createdAt            DateTime @default(now())
 
   @@unique([nodeId, metricDate], map: "nodeId_metricDate")
-  @@map("sync_metrics")
 }
 
-model SyncNode {
+model sync_nodes {
   id               String    @id
   nodeId           String    @unique
   nodeName         String
@@ -1643,11 +1626,9 @@ model SyncNode {
   capabilities     Json?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @default(now())
-
-  @@map("sync_nodes")
 }
 
-model SyncSession {
+model sync_sessions {
   id           String    @id
   sessionId    String    @unique
   sourceNodeId String
@@ -1659,8 +1640,6 @@ model SyncSession {
   errorMessage String?
   metadata     Json?
   createdAt    DateTime  @default(now())
-
-  @@map("sync_sessions")
 }
 
 model users {
