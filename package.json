@@ -85,6 +85,7 @@
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.5",
     "eslint": "^9.34.0",

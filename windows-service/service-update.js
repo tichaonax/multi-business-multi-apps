@@ -4,6 +4,9 @@
  * Based on electricity-tokens service update patterns
  */
 
+// Load environment variables from .env file
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+
 const HybridServiceManager = require('./hybrid-service-manager');
 const path = require('path');
 const fs = require('fs');
