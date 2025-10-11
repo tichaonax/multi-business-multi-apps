@@ -4,6 +4,45 @@ const execAsync = util.promisify(exec);
 
 const SERVICE_NAME = 'multibusinesssyncservice.exe';
 const SC = process.env.SC_COMMAND || 'sc.exe';
+const MAX_WAIT_TIME = 30000; // 30 seconds
+const CHECK_INTERVAL = 1000; // 1 second
+
+/**
+ * Wait for service to reach STOPPED state
+ * Windows services don't stop instantly - they go through STOP_PENDING state
+ */
+async function waitForServiceStopped() {
+  const startTime = Date.now();
+
+  while ((Date.now() - startTime) < MAX_WAIT_TIME) {
+    try {
+      const { stdout } = await execAsync(`${SC} query ${SERVICE_NAME}`);
+
+      if (stdout.includes('STOPPED')) {
+        console.log('✅ Service fully stopped');
+        return true;
+      }
+
+      if (stdout.includes('STOP_PENDING')) {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        console.log(`⏳ Waiting for service to stop... (${elapsed}s)`);
+        await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
+        continue;
+      }
+
+    } catch (error) {
+      // If sc query fails, service might be uninstalled
+      if (error.message.includes('1060') || error.message.toLowerCase().includes('does not exist')) {
+        console.log('ℹ️  Service not installed');
+        return true;
+      }
+    }
+
+    await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
+  }
+
+  throw new Error(`Service did not stop within ${MAX_WAIT_TIME/1000} seconds`);
+}
 
 async function run() {
   try {
@@ -11,6 +50,10 @@ async function run() {
     const { stdout, stderr } = await execAsync(`${SC} stop ${SERVICE_NAME}`);
     console.log(stdout);
     if (stderr) console.error(stderr);
+
+    // Wait for service to fully stop
+    await waitForServiceStopped();
+
   } catch (err) {
     const msg = String(err);
     const stdout = err && err.stdout ? String(err.stdout) : '';

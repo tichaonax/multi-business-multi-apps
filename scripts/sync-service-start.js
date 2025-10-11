@@ -5,11 +5,53 @@ const execAsync = util.promisify(exec);
 
 const SERVICE_NAME = 'multibusinesssyncservice.exe';
 const SC = process.env.SC_COMMAND || 'sc.exe';
+const MAX_WAIT_TIME = 30000; // 30 seconds
+const CHECK_INTERVAL = 1000; // 1 second
 
 // Check for force-build flag and other flags
 const args = process.argv.slice(2);
 const forceBuild = args.includes('--force-build') || args.includes('-f');
 const direct = args.includes('--direct') || process.env.SYNC_DIRECT_START === 'true';
+
+/**
+ * Wait for service to reach RUNNING state
+ * Windows services take time to start - they go through START_PENDING state
+ */
+async function waitForServiceRunning() {
+  const startTime = Date.now();
+
+  while ((Date.now() - startTime) < MAX_WAIT_TIME) {
+    try {
+      const { stdout } = await execAsync(`${SC} query ${SERVICE_NAME}`);
+
+      if (stdout.includes('RUNNING')) {
+        console.log('✅ Service fully started');
+        return true;
+      }
+
+      if (stdout.includes('START_PENDING')) {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        console.log(`⏳ Waiting for service to start... (${elapsed}s)`);
+        await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
+        continue;
+      }
+
+      if (stdout.includes('STOPPED')) {
+        throw new Error('Service stopped unexpectedly during startup');
+      }
+
+    } catch (error) {
+      if (error.message.includes('stopped unexpectedly')) {
+        throw error;
+      }
+      // Other errors during startup - wait and retry
+    }
+
+    await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
+  }
+
+  throw new Error(`Service did not start within ${MAX_WAIT_TIME/1000} seconds`);
+}
 
 // Helper to load .env.local into process.env so child processes see DATABASE_URL etc.
 function loadEnvLocal() {
@@ -163,9 +205,11 @@ async function run() {
     console.log(stdout);
     if (stderr) console.error(stderr);
 
-    // Wait for service to actually start and provide feedback
+    // Wait for service to actually start and reach RUNNING state
+    console.log(`[${new Date().toISOString()}] [INFO] Waiting for service to fully start...`);
+    await waitForServiceRunning();
+
     console.log(`[${new Date().toISOString()}] [INFO] Service started successfully`);
-    console.log('✅ Service started successfully!');
     console.log('🌐 Application should be accessible at http://localhost:8080');
 
     // Show process information
