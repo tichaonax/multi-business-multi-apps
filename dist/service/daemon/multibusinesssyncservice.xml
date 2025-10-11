@@ -1,0 +1,38 @@
+<service>
+	<id>multibusinesssyncservice.exe</id>
+	<name>Multi-Business Sync Service</name>
+	<description>Background database synchronization service for Multi-Business Management Platform</description>
+	<executable>C:\Program Files\nodejs\node.exe</executable>
+	<argument>--harmony</argument>
+	<argument>--max_old_space_size=2048</argument>
+	<argument>C:\Users\ticha\apps\multi-business-multi-apps\node_modules\node-windows\lib\wrapper.js</argument>
+	<argument>--file</argument>
+	<argument>C:\Users\ticha\apps\multi-business-multi-apps\dist\service\sync-service-runner.js</argument>
+	<argument>--scriptoptions=</argument>
+	<argument>--log</argument>
+	<argument>Multi-Business Sync Service wrapper</argument>
+	<argument>--grow</argument>
+	<argument>0.25</argument>
+	<argument>--wait</argument>
+	<argument>1</argument>
+	<argument>--maxrestarts</argument>
+	<argument>3</argument>
+	<argument>--abortonerror</argument>
+	<argument>n</argument>
+	<argument>--stopparentfirst</argument>
+	<argument>undefined</argument>
+	<logmode>rotate</logmode>
+	<stoptimeout>30sec</stoptimeout>
+	<env name="NODE_ENV" value="production"/>
+	<env name="SYNC_REGISTRATION_KEY" value="default-registration-key-change-in-production"/>
+	<env name="SYNC_PORT" value="8765"/>
+	<env name="SYNC_INTERVAL" value="30000"/>
+	<env name="LOG_LEVEL" value="info"/>
+	<serviceaccount>
+		<domain>DELL-HWANDAZA</domain>
+		<user>LocalSystem</user>
+		<password></password>
+		<allowservicelogon>true</allowservicelogon>
+	</serviceaccount>
+	<workingdirectory>C:\Users\ticha\apps\multi-business-multi-apps</workingdirectory>
+</service>

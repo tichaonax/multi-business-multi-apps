@@ -78,6 +78,11 @@ async function main() {
       command: 'npm run build',
       description: 'Rebuilding the application',
       optional: false
+    },
+    {
+      command: 'npm run build:service',
+      description: 'Rebuilding Windows sync service (CRITICAL)',
+      optional: false
     }
   ]
 
@@ -85,19 +90,20 @@ async function main() {
     run(step.command, step.description, step.optional)
   }
 
-  // Optional: Rebuild Windows service if it exists
+  // Check if service is installed
   const serviceExists = checkServiceExists()
 
   if (serviceExists) {
     console.log('\n' + '='.repeat(60))
     console.log('🔧 Windows Service Detected')
     console.log('='.repeat(60))
-    console.log('Rebuilding and reinstalling the sync service...\n')
+    console.log('Service files have been rebuilt.')
 
-    run('npm run build:service', 'Rebuilding Windows sync service', true)
-
-    console.log('\n⚠️  To reinstall the service, run as Administrator:')
-    console.log('   npm run service:install\n')
+    console.log('\n⚠️  IMPORTANT: To apply changes to the running service:')
+    console.log('   1. Stop the service:   npm run service:stop (as Administrator)')
+    console.log('   2. Start the service:  npm run service:start (as Administrator)')
+    console.log('   OR')
+    console.log('   Restart the service:  npm run service:restart (as Administrator)\n')
   }
 
   console.log('\n' + '='.repeat(60))

@@ -1,0 +1,43 @@
+#!/bin/bash
+#
+# Post-Merge Git Hook
+# Automatically runs after 'git pull' or 'git merge'
+#
+# This hook rebuilds the sync service automatically to ensure
+# the remote server has the latest compiled code after pulling updates.
+#
+
+echo ""
+echo "============================================================"
+echo "🔄 POST-MERGE HOOK: Rebuilding sync service..."
+echo "============================================================"
+echo ""
+
+# Check if package.json was updated (dependencies might have changed)
+if git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD | grep --quiet "package.json"; then
+  echo "📦 package.json changed - running full setup..."
+  npm run setup:update
+else
+  # Only rebuild the service if source files changed
+  if git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD | grep --quiet "src/"; then
+    echo "🔧 Source files changed - rebuilding service..."
+
+    # Regenerate Prisma client in case schema changed
+    npx prisma generate
+
+    # Rebuild sync service
+    npm run build:service
+
+    echo ""
+    echo "✅ Sync service rebuilt successfully!"
+    echo ""
+    echo "⚠️  REMINDER: If the service is running, restart it:"
+    echo "   npm run service:restart (as Administrator)"
+    echo ""
+  else
+    echo "ℹ️  No source files changed - skipping rebuild"
+  fi
+fi
+
+echo "============================================================"
+echo ""

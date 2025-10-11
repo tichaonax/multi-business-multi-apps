@@ -15,7 +15,7 @@
 
 # production
 /build
-/dist
+# /dist - TRACKED: Service requires compiled files for deployment
 
 # misc
 .DS_Store
@@ -51,7 +51,7 @@ logs
 /generated/prisma
 
 # build artifacts and service files
-/dist
+# /dist - TRACKED: Service requires compiled files for deployment
 /windows-service/daemon/*.exe
 /windows-service/daemon/*.pid
 /windows-service/daemon/*.log

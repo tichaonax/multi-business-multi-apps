@@ -64,7 +64,9 @@
     "test:seed-clothing": "node tests/seed-clothing.test.js",
     "setup": "node scripts/setup-fresh-install.js",
     "setup:update": "node scripts/setup-after-pull.js",
-    "setup:clean": "node scripts/cleanup-before-setup.js && npm install && node scripts/setup-fresh-install.js"
+    "setup:clean": "node scripts/cleanup-before-setup.js && npm install && node scripts/setup-fresh-install.js",
+    "hooks:install": "node scripts/install-git-hooks.js",
+    "deploy": "npm run setup:update && npm run service:restart"
   },
   "keywords": [],
   "author": "",
