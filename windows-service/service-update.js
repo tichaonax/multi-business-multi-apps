@@ -292,7 +292,7 @@ class ServiceUpdateManager {
   }
 
   /**
-   * Run database migrations
+   * Run database migrations with intelligent fresh install vs upgrade detection
    */
   async runDatabaseMigrations() {
     this.log('🗄️  Running database migrations...');
@@ -313,19 +313,100 @@ class ServiceUpdateManager {
       await execAsync('npx prisma generate');
       this.log('✅ Prisma client generated');
 
-      // Run migrations with error handling for production databases
-      try {
-        await execAsync('npx prisma migrate deploy');
-        this.log('✅ Database migrations completed');
-      } catch (migrateError) {
-        // Handle P3005 - database not empty (production baseline issue)
-        if (migrateError.message.includes('P3005') || migrateError.message.includes('database schema is not empty')) {
-          this.log('⚠️  Database already has schema (production database)', 'WARN');
-          this.log('💡 Assuming migrations are already applied', 'WARN');
-          this.log('✅ Skipping migration deployment for existing database');
-          return; // Don't fail - this is expected for production
+      // Check database state to determine if this is fresh install or upgrade
+      const { checkDatabaseState } = require(path.join(__dirname, '..', 'scripts', 'check-database-state.js'));
+      const dbState = await checkDatabaseState();
+
+      if (dbState.isEmpty) {
+        // Fresh install path - database is empty
+        this.log('🆕 Fresh database detected - using db push + baseline workflow');
+
+        try {
+          // Use db push for initial schema (faster and simpler than migrations)
+          await execAsync('npx prisma db push --accept-data-loss');
+          this.log('✅ Schema pushed to database');
+
+          // Baseline all migrations (mark them as applied without running)
+          const fs = require('fs');
+          const migrationsDir = path.join(__dirname, '..', 'prisma', 'migrations');
+
+          if (fs.existsSync(migrationsDir)) {
+            const migrations = fs.readdirSync(migrationsDir)
+              .filter(dir => dir !== 'migration_lock.toml' && fs.statSync(path.join(migrationsDir, dir)).isDirectory());
+
+            if (migrations.length > 0) {
+              this.log(`📋 Baselining ${migrations.length} migrations...`);
+
+              for (const migration of migrations) {
+                try {
+                  await execAsync(`npx prisma migrate resolve --applied "${migration}"`);
+                  this.log(`  ✅ Baselined: ${migration}`);
+                } catch (resolveError) {
+                  // Migration might already be marked as applied
+                  if (resolveError.message.includes('is already recorded as applied')) {
+                    this.log(`  ℹ️  Already baselined: ${migration}`);
+                  } else {
+                    this.log(`  ⚠️  Could not baseline ${migration}: ${resolveError.message}`, 'WARN');
+                  }
+                }
+              }
+
+              this.log('✅ All migrations baselined');
+            }
+          }
+
+        } catch (pushError) {
+          this.log(`❌ Fresh install schema push failed: ${pushError.message}`, 'ERROR');
+          throw pushError;
         }
-        throw migrateError; // Re-throw other errors
+
+      } else {
+        // Upgrade path - database has existing schema
+        this.log('🔄 Existing database detected - running pending migrations');
+
+        try {
+          await execAsync('npx prisma migrate deploy');
+          this.log('✅ Database migrations completed');
+        } catch (migrateError) {
+          // Handle P3005 - database not empty (already has schema)
+          if (migrateError.message.includes('P3005') || migrateError.message.includes('database schema is not empty')) {
+            this.log('⚠️  Database already has schema', 'WARN');
+            this.log('💡 Assuming migrations are already applied or baseline needed');
+
+            // Try to baseline existing migrations
+            try {
+              const fs = require('fs');
+              const migrationsDir = path.join(__dirname, '..', 'prisma', 'migrations');
+
+              if (fs.existsSync(migrationsDir)) {
+                const migrations = fs.readdirSync(migrationsDir)
+                  .filter(dir => dir !== 'migration_lock.toml' && fs.statSync(path.join(migrationsDir, dir)).isDirectory());
+
+                for (const migration of migrations) {
+                  try {
+                    await execAsync(`npx prisma migrate resolve --applied "${migration}"`);
+                  } catch (e) {
+                    // Ignore errors - migrations might already be applied
+                  }
+                }
+              }
+
+              this.log('✅ Migration baseline completed');
+            } catch (baselineError) {
+              this.log(`⚠️  Could not baseline migrations: ${baselineError.message}`, 'WARN');
+            }
+
+            return; // Don't fail - this is expected for production
+          }
+
+          // Handle pending migrations not found (clean state)
+          if (migrateError.message.includes('No pending migrations')) {
+            this.log('✅ No pending migrations to apply');
+            return;
+          }
+
+          throw migrateError; // Re-throw other errors
+        }
       }
 
     } catch (error) {
