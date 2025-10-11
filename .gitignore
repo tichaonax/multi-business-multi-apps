@@ -52,7 +52,10 @@ logs
 
 # build artifacts and service files
 # /dist - TRACKED: Service requires compiled files for deployment
+/dist/service/build-info.json
 /windows-service/daemon/*.exe
+/windows-service/daemon/*.exe.config
+/windows-service/daemon/*.xml
 /windows-service/daemon/*.pid
 /windows-service/daemon/*.log
 
@@ -89,6 +92,7 @@ public/exports/payroll/
 
 # Temporary helper files created during development
 .temp_*
+.tmp_*
 scripts/.temp_*
 scripts/tmp-*.js
 scripts/tmp-*.ts
