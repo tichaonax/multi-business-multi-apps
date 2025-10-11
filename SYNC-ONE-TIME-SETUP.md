@@ -87,13 +87,21 @@ OR use PowerShell (as Administrator):
 
 ### Step 1: Fresh Install the Application
 
+**CRITICAL**: Complete the full application setup BEFORE installing the sync service.
+
 ```bash
 # Pull latest code
 git pull
 
-# Run fresh installation
+# Run fresh installation (includes database migrations and seeding)
 npm run setup
 ```
+
+**Why this order matters**: The sync service expects a fully-configured database. Running setup first ensures:
+- Database schema is created
+- Reference data is seeded
+- Prisma client is generated
+- Application build is complete
 
 ### Step 2: Build the Sync Service
 

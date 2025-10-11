@@ -145,7 +145,7 @@ async function run() {
 
     // Check current status first
     try {
-      const { stdout: statusOut } = await execAsync(`${SC} query "${SERVICE_NAME}"`);
+      const { stdout: statusOut } = await execAsync(`${SC} query ${SERVICE_NAME}`);
       if (statusOut.includes('RUNNING')) {
         console.log('📊 Current service status: ALREADY RUNNING');
         console.log('✅ Service is already started!');
@@ -159,7 +159,7 @@ async function run() {
     }
 
     console.log(`[${new Date().toISOString()}] [INFO] Starting service using sc.exe...`);
-    const { stdout, stderr } = await execAsync(`${SC} start "${SERVICE_NAME}"`);
+    const { stdout, stderr} = await execAsync(`${SC} start ${SERVICE_NAME}`);
     console.log(stdout);
     if (stderr) console.error(stderr);
 
@@ -200,7 +200,7 @@ async function run() {
       console.log('Please run this command from an elevated (Administrator) shell. Steps:');
       console.log('  1. Open Start -> type "PowerShell" -> Right click -> Run as Administrator');
       console.log('  2. In the elevated shell, run:');
-      console.log(`     ${SC} start "${SERVICE_NAME}"`);
+      console.log(`     ${SC} start ${SERVICE_NAME}`);
       console.log('  or from the project folder:');
       console.log('     npm run sync-service:start');
       console.log('\nIf you need to install the service first, run:');

@@ -7,8 +7,8 @@ const SC = process.env.SC_COMMAND || 'sc.exe';
 
 async function run() {
   try {
-    console.log(`Running: ${SC} stop "${SERVICE_NAME}"`);
-    const { stdout, stderr } = await execAsync(`${SC} stop "${SERVICE_NAME}"`);
+    console.log(`Running: ${SC} stop ${SERVICE_NAME}`);
+    const { stdout, stderr } = await execAsync(`${SC} stop ${SERVICE_NAME}`);
     console.log(stdout);
     if (stderr) console.error(stderr);
   } catch (err) {
@@ -24,7 +24,7 @@ async function run() {
       console.log('Please run this command from an elevated (Administrator) shell. Steps:');
       console.log('  1. Open Start -> type "PowerShell" -> Right click -> Run as Administrator');
       console.log('  2. In the elevated shell, run:');
-      console.log(`     ${SC} stop "${SERVICE_NAME}"`);
+      console.log(`     ${SC} stop ${SERVICE_NAME}`);
       console.log('  or from the project folder:');
       console.log('     npm run sync-service:stop');
     } else {

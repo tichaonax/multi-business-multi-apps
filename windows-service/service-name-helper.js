@@ -10,17 +10,21 @@ function getCandidateServiceNames() {
   const internal = (config && config.name) ? String(config.name) : undefined;
   const display = (config && config.displayName) ? String(config.displayName) : internal;
 
-  if (internal) candidates.push(internal);
+  if (internal) {
+    // Try the configured name as-is
+    candidates.push(internal);
 
-  // If internal ends with .exe, also try the variant used by winsw id where the dot is removed
-  // Example: 'MultiBusinessSyncService' -> 'multibusinesssyncservice.exe'
-  if (internal && /\.exe$/i.test(internal)) {
-    const alt = internal.replace(/\.exe$/i, 'exe.exe');
-    if (alt !== internal) candidates.push(alt);
+    // Try lowercase + .exe variant (what Windows actually registers)
+    candidates.push(internal.toLowerCase() + '.exe');
+
+    // Try lowercase without extension
+    candidates.push(internal.toLowerCase());
+
+    // If internal already ends with .exe, try variant without it
+    if (/\.exe$/i.test(internal)) {
+      candidates.push(internal.replace(/\.exe$/i, ''));
+    }
   }
-
-  // Also try the internal without extension
-  if (internal) candidates.push(internal.replace(/\.exe$/i, ''));
 
   // Finally fall back to display name (human-friendly, may contain spaces)
   if (display && !candidates.includes(display)) candidates.push(display);

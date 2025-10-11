@@ -10,7 +10,8 @@ function runScQuery() {
   try {
     let lastOut = '';
     for (const name of candidateNames) {
-      const res = spawnSync('sc', ['query', '"' + name + '"'], { encoding: 'utf8' });
+      // Don't use quotes around the service name - causes issues
+      const res = spawnSync('sc', ['query', name], { encoding: 'utf8' });
       if (res && (res.stdout || res.stderr)) {
         lastOut = (res.stdout || res.stderr || '').toString();
         // If output indicates the service exists or not, return it for parsing

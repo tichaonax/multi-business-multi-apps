@@ -111,8 +111,12 @@ class HybridServiceWrapper extends EventEmitter {
       }
 
       // Run database migrations BEFORE starting sync service
-      if (process.env.SKIP_MIGRATIONS !== 'true') {
+      // ONLY if explicitly requested (default: skip to avoid startup failures)
+      if (process.env.RUN_MIGRATIONS_ON_START === 'true') {
         await this.runDatabaseMigrations();
+      } else {
+        console.log('⏭️  Skipping database migrations (RUN_MIGRATIONS_ON_START not set)');
+        console.log('   Database migrations should be run during installation, not on every service start');
       }
 
       // Prepare arguments for sync service runner
