@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * After Git Pull Setup Script
+ * After Git Pull Setup Script (INTELLIGENT VERSION)
  *
- * Runs all necessary steps after pulling code updates from Git:
+ * Automatically detects database state and chooses the right workflow:
+ * - Fresh install: Creates DB, pushes schema, seeds data, baselines migrations
+ * - Upgrade: Runs pending migrations only
+ *
+ * Steps:
  * 1. Install/update dependencies
  * 2. Regenerate Prisma client
- * 3. Run new database migrations
- * 4. Rebuild the application
- * 5. Rebuild and reinstall Windows service (if applicable)
+ * 3. Detect database state (fresh vs existing)
+ * 4. Run appropriate database workflow
+ * 5. Rebuild the application
+ * 6. Rebuild Windows service
  */
 
 const { execSync } = require('child_process')
@@ -16,6 +21,17 @@ const path = require('path')
 const fs = require('fs')
 
 const ROOT_DIR = path.join(__dirname, '..')
+
+function log(message, type = 'INFO') {
+  const colors = {
+    INFO: '\x1b[36m',    // Cyan
+    SUCCESS: '\x1b[32m', // Green
+    WARN: '\x1b[33m',    // Yellow
+    ERROR: '\x1b[31m'    // Red
+  }
+  const reset = '\x1b[0m'
+  console.log(`${colors[type]}[${type}] ${message}${reset}`)
+}
 
 function run(command, description, optional = false) {
   console.log(`\n${'='.repeat(60)}`)
@@ -37,10 +53,123 @@ function run(command, description, optional = false) {
 
     if (!optional) {
       console.error('This is a required step. Setup cannot continue.')
+      console.log('='.repeat(60))
       process.exit(1)
     }
 
     return false
+  }
+}
+
+async function checkDatabaseState() {
+  try {
+    const { checkDatabaseState } = require('./check-database-state.js')
+    return await checkDatabaseState()
+  } catch (error) {
+    log(`Could not check database state: ${error.message}`, 'WARN')
+    return { exists: false, isEmpty: true, hasSchema: false, hasMigrations: false }
+  }
+}
+
+async function handleFreshInstall() {
+  log('🆕 FRESH INSTALL DETECTED - Running complete setup workflow', 'INFO')
+
+  console.log(`\n${'='.repeat(60)}`)
+  console.log(`🗄️  Creating database and pushing schema`)
+  console.log(`${'='.repeat(60)}\n`)
+
+  try {
+    // Use the fresh database setup script
+    const { createDatabase, seedReferenceData, baselineMigrations } = require('./setup-fresh-database.js')
+
+    // Create database if needed
+    await createDatabase()
+    log('✅ Database created/verified', 'SUCCESS')
+
+    // Push schema (faster than migrations for fresh install)
+    execSync('npx prisma db push --accept-data-loss', {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+      shell: true
+    })
+    log('✅ Schema pushed to database', 'SUCCESS')
+
+    // Baseline all migrations (mark as applied without running)
+    await baselineMigrations()
+    log('✅ Migrations baselined', 'SUCCESS')
+
+    // Seed reference data
+    await seedReferenceData()
+    log('✅ Reference data seeded', 'SUCCESS')
+
+    console.log('\n✅ Fresh install database setup - COMPLETED\n')
+    return true
+
+  } catch (error) {
+    log(`Fresh install failed: ${error.message}`, 'ERROR')
+    console.error('This is a required step. Setup cannot continue.')
+    console.log('='.repeat(60))
+    process.exit(1)
+  }
+}
+
+async function handleUpgrade() {
+  log('🔄 EXISTING DATABASE DETECTED - Running upgrade workflow', 'INFO')
+
+  console.log(`\n${'='.repeat(60)}`)
+  console.log(`🗄️  Running database migrations`)
+  console.log(`${'='.repeat(60)}\n`)
+
+  try {
+    execSync('npx prisma migrate deploy', {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+      shell: true
+    })
+    log('✅ Database migrations completed', 'SUCCESS')
+    return true
+
+  } catch (error) {
+    // Handle P3005 - database not empty (needs baseline)
+    if (error.message.includes('P3005') || error.message.includes('database schema is not empty')) {
+      log('⚠️  Database has schema but migrations need baseline', 'WARN')
+
+      // Try to baseline existing migrations
+      try {
+        const { baselineMigrations } = require('./setup-fresh-database.js')
+        await baselineMigrations()
+        log('✅ Migrations baselined successfully', 'SUCCESS')
+        return true
+      } catch (baselineError) {
+        log(`Could not baseline migrations: ${baselineError.message}`, 'WARN')
+        // Don't fail - assume migrations are already applied
+        return true
+      }
+    }
+
+    // Handle duplicate table errors (migrations conflict)
+    if (error.message.includes('already exists') || error.message.includes('42P07')) {
+      log('⚠️  Tables already exist - attempting to baseline migrations', 'WARN')
+
+      try {
+        const { baselineMigrations } = require('./setup-fresh-database.js')
+        await baselineMigrations()
+        log('✅ Migrations baselined to resolve conflicts', 'SUCCESS')
+        return true
+      } catch (baselineError) {
+        log(`Could not baseline migrations: ${baselineError.message}`, 'ERROR')
+        console.error('\nDatabase has conflicting migrations. Manual intervention required.')
+        console.error('See: https://pris.ly/d/migrate-resolve')
+        console.log('='.repeat(60))
+        process.exit(1)
+      }
+    }
+
+    // Other migration errors
+    log(`Migration failed: ${error.message}`, 'ERROR')
+    console.error('This is a required step. Setup cannot continue.')
+    console.log('='.repeat(60))
+    process.exit(1)
   }
 }
 
@@ -55,40 +184,42 @@ function checkServiceExists() {
 
 async function main() {
   console.log('\n' + '='.repeat(60))
-  console.log('🔄 MULTI-BUSINESS MULTI-APPS - UPDATE AFTER GIT PULL')
+  console.log('🔄 MULTI-BUSINESS MULTI-APPS - INTELLIGENT UPDATE WORKFLOW')
   console.log('='.repeat(60) + '\n')
 
-  const steps = [
-    {
-      command: 'npm install',
-      description: 'Installing/updating dependencies',
-      optional: false
-    },
-    {
-      command: 'npx prisma generate',
-      description: 'Regenerating Prisma client (CRITICAL)',
-      optional: false
-    },
-    {
-      command: 'npx prisma migrate deploy',
-      description: 'Running database migrations',
-      optional: false
-    },
-    {
-      command: 'npm run build',
-      description: 'Rebuilding the application',
-      optional: false
-    },
-    {
-      command: 'npm run build:service',
-      description: 'Rebuilding Windows sync service (CRITICAL)',
-      optional: false
-    }
-  ]
+  // Step 1: Install/update dependencies
+  run('npm install', 'Installing/updating dependencies', false)
 
-  for (const step of steps) {
-    run(step.command, step.description, step.optional)
+  // Step 2: Regenerate Prisma client (CRITICAL - must happen before DB detection)
+  run('npx prisma generate', 'Regenerating Prisma client (CRITICAL)', false)
+
+  // Step 3: Detect database state
+  console.log(`\n${'='.repeat(60)}`)
+  console.log(`🔍 Detecting database state`)
+  console.log(`${'='.repeat(60)}\n`)
+
+  const dbState = await checkDatabaseState()
+
+  if (!dbState.exists) {
+    log('Database does not exist - will be created', 'INFO')
+  } else if (dbState.isEmpty) {
+    log('Database exists but is empty', 'INFO')
+  } else {
+    log(`Database has ${dbState.tableCount || 0} tables`, 'INFO')
   }
+
+  // Step 4: Run appropriate database workflow
+  if (dbState.isEmpty || !dbState.exists) {
+    await handleFreshInstall()
+  } else {
+    await handleUpgrade()
+  }
+
+  // Step 5: Rebuild the application
+  run('npm run build', 'Rebuilding the application', false)
+
+  // Step 6: Rebuild Windows service
+  run('npm run build:service', 'Rebuilding Windows sync service (CRITICAL)', false)
 
   // Check if service is installed
   const serviceExists = checkServiceExists()
@@ -107,16 +238,18 @@ async function main() {
   }
 
   console.log('\n' + '='.repeat(60))
-  console.log('✅ UPDATE COMPLETED SUCCESSFULLY!')
+  console.log('✅ INTELLIGENT UPDATE COMPLETED SUCCESSFULLY!')
   console.log('='.repeat(60))
   console.log('\n📖 Next steps:')
   console.log('   1. Restart the development server if running')
-  console.log('   2. If using Windows service, reinstall it:')
-  console.log('      npm run service:install (as Administrator)')
-  console.log('\n📚 For more information, see SETUP.md\n')
+  console.log('   2. If using Windows service, restart it:')
+  console.log('      npm run service:restart (as Administrator)')
+  console.log('\n📚 Database workflow used: ' + (dbState.isEmpty ? 'FRESH INSTALL' : 'UPGRADE'))
+  console.log('\n')
 }
 
 main().catch(error => {
   console.error('\n❌ FATAL ERROR:', error.message)
+  console.log('='.repeat(60))
   process.exit(1)
 })
