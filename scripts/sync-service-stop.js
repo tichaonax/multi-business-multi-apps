@@ -46,6 +46,22 @@ async function waitForServiceStopped() {
 
 async function run() {
   try {
+    // First check if service is already stopped
+    try {
+      const { stdout: statusOut } = await execAsync(`${SC} query ${SERVICE_NAME}`);
+
+      if (statusOut.includes('STOPPED')) {
+        console.log('ℹ️  Service is already stopped');
+        return;
+      }
+    } catch (statusErr) {
+      // If query fails, service might not be installed
+      if (statusErr.message.includes('1060') || statusErr.message.toLowerCase().includes('does not exist')) {
+        console.log('ℹ️  Service is not installed');
+        return;
+      }
+    }
+
     console.log(`Running: ${SC} stop ${SERVICE_NAME}`);
     const { stdout, stderr } = await execAsync(`${SC} stop ${SERVICE_NAME}`);
     console.log(stdout);
@@ -58,6 +74,18 @@ async function run() {
     const msg = String(err);
     const stdout = err && err.stdout ? String(err.stdout) : '';
     const stderr = err && err.stderr ? String(err.stderr) : '';
+
+    // Handle "service not started" error gracefully
+    const alreadyStopped = msg.includes('1062') ||
+                          msg.toLowerCase().includes('has not been started') ||
+                          stdout.includes('1062') ||
+                          stdout.toLowerCase().includes('has not been started');
+
+    if (alreadyStopped) {
+      console.log('ℹ️  Service is already stopped');
+      return;
+    }
+
     console.error('Failed to stop service:', msg);
 
     const looksLikeAccessDenied = msg.includes('FAILED 5') || msg.toLowerCase().includes('access is denied') || stdout.includes('FAILED 5') || stdout.toLowerCase().includes('access is denied') || stderr.toLowerCase().includes('access is denied');
