@@ -25,8 +25,22 @@ if ($changedFiles -match "package.json") {
   if ($changedFiles -match "src/") {
     Write-Host "🔧 Source files changed - rebuilding service..." -ForegroundColor Yellow
 
+    # Clean Prisma client to prevent EPERM errors (Windows file locks)
+    Write-Host "🧹 Cleaning Prisma client files..." -ForegroundColor Yellow
+    Remove-Item -Path "node_modules\.prisma\client" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "node_modules\@prisma\client" -Recurse -Force -ErrorAction SilentlyContinue
+
     # Regenerate Prisma client in case schema changed
-    npx prisma generate
+    Write-Host "🔄 Regenerating Prisma client..." -ForegroundColor Yellow
+    try {
+      npx prisma generate
+    } catch {
+      Write-Host "⚠️  Prisma generation failed, retrying after cleanup..." -ForegroundColor Yellow
+      Start-Sleep -Seconds 2
+      Remove-Item -Path "node_modules\.prisma\client" -Recurse -Force -ErrorAction SilentlyContinue
+      Remove-Item -Path "node_modules\@prisma\client" -Recurse -Force -ErrorAction SilentlyContinue
+      npx prisma generate
+    }
 
     # Rebuild sync service
     npm run build:service

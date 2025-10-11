@@ -22,8 +22,20 @@ else
   if git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD | grep --quiet "src/"; then
     echo "🔧 Source files changed - rebuilding service..."
 
+    # Clean Prisma client to prevent EPERM errors (Windows file locks)
+    echo "🧹 Cleaning Prisma client files..."
+    rm -rf node_modules/.prisma/client 2>/dev/null || true
+    rm -rf node_modules/@prisma/client 2>/dev/null || true
+
     # Regenerate Prisma client in case schema changed
-    npx prisma generate
+    echo "🔄 Regenerating Prisma client..."
+    npx prisma generate || {
+      echo "⚠️  Prisma generation failed, retrying after cleanup..."
+      sleep 2
+      rm -rf node_modules/.prisma/client 2>/dev/null || true
+      rm -rf node_modules/@prisma/client 2>/dev/null || true
+      npx prisma generate
+    }
 
     # Rebuild sync service
     npm run build:service
