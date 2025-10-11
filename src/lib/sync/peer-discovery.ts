@@ -190,6 +190,9 @@ export class PeerDiscoveryService extends EventEmitter {
         this.multicastAddress
       )
 
+      console.log(`📡 Broadcasting presence: ${this.options.nodeName} (${this.options.nodeId}) to ${this.multicastAddress}:${this.options.discoveryPort}`)
+      console.log(`   Registration key hash: ${message.registrationKeyHash.substring(0, 16)}...`)
+
       this.emit('broadcast', message)
     } catch (error) {
       console.error('Error broadcasting presence:', error)
@@ -271,11 +274,14 @@ export class PeerDiscoveryService extends EventEmitter {
 
       // Validate JSON format
       if (!messageStr.startsWith('{') || !messageStr.endsWith('}')) {
-        console.warn('Invalid message format - not JSON object')
+        // Don't log every non-JSON message (too noisy from other mDNS services)
         return
       }
 
       const message = JSON.parse(messageStr)
+
+      // Log all valid JSON messages for debugging
+      console.log(`📨 Received message from ${remoteInfo.address}:${remoteInfo.port} type=${message.type || 'unknown'}`)
 
       // Validate message structure
       if (!message || typeof message !== 'object' || !message.type) {
@@ -322,15 +328,24 @@ export class PeerDiscoveryService extends EventEmitter {
    * Handle presence message from another node
    */
   private handlePresenceMessage(message: any, remoteInfo: any): void {
+    console.log(`🔍 Processing presence from ${message.nodeName} (${message.nodeId})`)
+    console.log(`   Service: ${message.serviceName} (expected: ${this.options.serviceName})`)
+    console.log(`   Reg hash: ${message.registrationKeyHash?.substring(0, 16)}...`)
+
     // Verify service name matches
     if (message.serviceName !== this.options.serviceName) {
+      console.warn(`❌ Service name mismatch: got ${message.serviceName}, expected ${this.options.serviceName}`)
       return
     }
 
     // Verify registration key hash
     const expectedHash = this.hashRegistrationKey()
+    console.log(`   Expected: ${expectedHash.substring(0, 16)}...`)
+
     if (message.registrationKeyHash !== expectedHash) {
-      console.warn(`Registration key mismatch from node ${message.nodeId}`)
+      console.warn(`❌ Registration key mismatch from node ${message.nodeId}`)
+      console.warn(`   Got:      ${message.registrationKeyHash}`)
+      console.warn(`   Expected: ${expectedHash}`)
       return
     }
 
