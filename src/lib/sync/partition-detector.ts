@@ -564,7 +564,7 @@ export class PartitionDetector extends EventEmitter {
    */
   private async executeManualIntervention(partition: PartitionInfo): Promise<boolean> {
     // Mark as requiring manual intervention
-    await this.prisma.networkPartitions.update({
+    await this.prisma.networkPartition.update({
       where: { id: partition.partitionId },
       data: {
         partitionMetadata: {
@@ -588,7 +588,7 @@ export class PartitionDetector extends EventEmitter {
       console.log(`Data rebuild initiated for partition ${partition.partitionId}`)
 
       // Mark as requiring administrative action
-      await this.prisma.networkPartitions.update({
+      await this.prisma.networkPartition.update({
         where: { id: partition.partitionId },
         data: {
           partitionMetadata: {
@@ -611,7 +611,7 @@ export class PartitionDetector extends EventEmitter {
    */
   private async loadExistingPartitions(): Promise<void> {
     try {
-      const partitions = await this.prisma.networkPartitions.findMany({
+      const partitions = await this.prisma.networkPartition.findMany({
         where: {
           nodeId: this.nodeId,
           isResolved: false
@@ -678,7 +678,7 @@ export class PartitionDetector extends EventEmitter {
    */
   private async createPartitionRecord(partition: PartitionInfo): Promise<void> {
     try {
-      await this.prisma.networkPartitions.create({
+      await this.prisma.networkPartition.create({
         data: {
           id: partition.partitionId,
           nodeId: this.nodeId,
@@ -699,7 +699,7 @@ export class PartitionDetector extends EventEmitter {
    */
   private async markPartitionResolved(partitionId: string): Promise<void> {
     try {
-      await this.prisma.networkPartitions.update({
+      await this.prisma.networkPartition.update({
         where: { id: partitionId },
         data: {
           isResolved: true,

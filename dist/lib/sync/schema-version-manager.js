@@ -175,14 +175,14 @@ class SchemaVersionManager {
         }
         try {
             await this.prisma.$executeRaw `
-        UPDATE "sync_nodes"
+        UPDATE sync_nodes
         SET
-          "schemaVersion" = ${this.currentVersion.version},
-          "schemaHash" = ${this.currentVersion.hash},
-          "migrationName" = ${this.currentVersion.migrationName},
-          "schemaAppliedAt" = ${this.currentVersion.appliedAt},
-          "updatedAt" = NOW()
-        WHERE "nodeId" = ${this.nodeId};
+          schema_version = ${this.currentVersion.version},
+          schema_hash = ${this.currentVersion.hash},
+          migration_name = ${this.currentVersion.migrationName},
+          schema_applied_at = ${this.currentVersion.appliedAt},
+          updated_at = NOW()
+        WHERE node_id = ${this.nodeId};
       `;
         }
         catch (error) {
@@ -221,15 +221,15 @@ class SchemaVersionManager {
         try {
             const nodes = await this.prisma.$queryRaw `
         SELECT
-          "nodeId" AS "nodeId",
-          "nodeName" AS "nodeName",
-          "schemaVersion" AS "schemaVersion",
-          "schemaHash" AS "schemaHash",
-          "migrationName" AS "migrationName",
-          "schemaAppliedAt" AS "schemaAppliedAt",
-          "isActive" AS "isActive"
-        FROM "sync_nodes"
-        WHERE "isActive" = true AND "nodeId" != ${this.nodeId};
+          node_id AS "nodeId",
+          node_name AS "nodeName",
+          schema_version AS "schemaVersion",
+          schema_hash AS "schemaHash",
+          migration_name AS "migrationName",
+          schema_applied_at AS "schemaAppliedAt",
+          is_active AS "isActive"
+        FROM sync_nodes
+        WHERE is_active = true AND node_id != ${this.nodeId};
       `;
             const nodeDetails = [];
             let compatibleCount = 0;

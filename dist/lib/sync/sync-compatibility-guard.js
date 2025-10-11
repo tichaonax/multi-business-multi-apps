@@ -13,9 +13,9 @@ class SyncCompatibilityGuard {
             const compatibilityCheck = await this.schemaVersionManager.checkCompatibility(remoteNode);
             const attempt = {
                 remoteNode: {
-                    nodeId: String(remoteNode.nodeId || 'unknown'),
-                    nodeName: String(remoteNode.nodeName || 'unknown'),
-                    schemaVersion: String(remoteNode.schemaVersion || 'unknown')
+                    nodeId: String(remoteNode.nodeId || remoteNode.node_id || 'unknown'),
+                    nodeName: String(remoteNode.nodeName || remoteNode.node_name || 'unknown'),
+                    schemaVersion: String(remoteNode.schemaVersion || remoteNode.schema_version || 'unknown')
                 },
                 timestamp: new Date(),
                 allowed: compatibilityCheck.isCompatible,
@@ -26,7 +26,7 @@ class SyncCompatibilityGuard {
             this.recordAttempt(attempt);
             if (!compatibilityCheck.isCompatible) {
                 const reason = compatibilityCheck.reason || 'Schema versions are incompatible';
-                console.warn(`🚫 Sync blocked with ${remoteNode.nodeName}: ${reason}`);
+                console.warn(`🚫 Sync blocked with ${remoteNode.nodeName || remoteNode.node_name}: ${reason}`);
                 return {
                     allowed: false,
                     reason,
@@ -34,7 +34,7 @@ class SyncCompatibilityGuard {
                 };
             }
             const level = compatibilityCheck.compatibilityLevel;
-            console.log(`✅ Sync allowed with ${remoteNode.nodeName} (${level})`);
+            console.log(`✅ Sync allowed with ${remoteNode.nodeName || remoteNode.node_name} (${level})`);
             return {
                 allowed: true,
                 compatibilityCheck
@@ -44,8 +44,8 @@ class SyncCompatibilityGuard {
             console.error('Failed to check sync compatibility:', error);
             const attempt = {
                 remoteNode: {
-                    nodeId: String(remoteNode.nodeId || 'unknown'),
-                    nodeName: String(remoteNode.nodeName || 'unknown'),
+                    nodeId: String(remoteNode.nodeId || remoteNode.node_id || 'unknown'),
+                    nodeName: String(remoteNode.nodeName || remoteNode.node_name || 'unknown'),
                     schemaVersion: 'unknown'
                 },
                 timestamp: new Date(),
