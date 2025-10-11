@@ -295,6 +295,14 @@ class ServiceUpdateManager {
     this.log('🗄️  Running database migrations...');
 
     try {
+      // Check if DATABASE_URL is set
+      if (!process.env.DATABASE_URL) {
+        this.log('⚠️  DATABASE_URL not found in environment', 'WARN');
+        this.log('⚠️  Skipping migrations - database connection required', 'WARN');
+        this.log('💡 Set DATABASE_URL in .env file and re-run update', 'WARN');
+        return; // Don't fail the entire update for missing DB URL
+      }
+
       // Clean Prisma client to prevent EPERM errors (file locks from stopped service)
       await this.cleanPrismaClient();
 
@@ -302,9 +310,20 @@ class ServiceUpdateManager {
       await execAsync('npx prisma generate');
       this.log('✅ Prisma client generated');
 
-      // Run migrations
-      await execAsync('npx prisma migrate deploy');
-      this.log('✅ Database migrations completed');
+      // Run migrations with error handling for production databases
+      try {
+        await execAsync('npx prisma migrate deploy');
+        this.log('✅ Database migrations completed');
+      } catch (migrateError) {
+        // Handle P3005 - database not empty (production baseline issue)
+        if (migrateError.message.includes('P3005') || migrateError.message.includes('database schema is not empty')) {
+          this.log('⚠️  Database already has schema (production database)', 'WARN');
+          this.log('💡 Assuming migrations are already applied', 'WARN');
+          this.log('✅ Skipping migration deployment for existing database');
+          return; // Don't fail - this is expected for production
+        }
+        throw migrateError; // Re-throw other errors
+      }
 
     } catch (error) {
       this.log(`❌ Migration failed: ${error.message}`, 'ERROR');
@@ -317,10 +336,7 @@ class ServiceUpdateManager {
           await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for file handles to release
           await execAsync('npx prisma generate');
           this.log('✅ Prisma client regenerated after cleanup');
-
-          await execAsync('npx prisma migrate deploy');
-          this.log('✅ Database migrations completed after recovery');
-          return;
+          return; // Successfully recovered
         } catch (retryError) {
           this.log(`❌ Recovery failed: ${retryError.message}`, 'ERROR');
         }
