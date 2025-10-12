@@ -97,6 +97,16 @@ async function seedReferenceData() {
   log('Seeding reference data...', 'INFO');
 
   try {
+    // CRITICAL: Clear require cache for @prisma/client and production-setup
+    // This ensures we load the freshly generated Prisma client
+    const prismaClientPath = require.resolve('@prisma/client');
+    const productionSetupPath = path.join(__dirname, 'production-setup.js');
+
+    delete require.cache[prismaClientPath];
+    delete require.cache[productionSetupPath];
+
+    log('Cleared Prisma client cache - loading fresh client...', 'INFO');
+
     // Use the production-setup script which has all seeding functions
     const { runProductionSetup } = require('./production-setup.js');
 
@@ -189,15 +199,22 @@ async function main() {
     if (state.isEmpty || !state.hasSchema) {
       log('\nStep 3: Pushing Prisma schema (db push)...', 'INFO');
       execCommand('npx prisma db push --accept-data-loss', 'Pushing schema to database');
+
+      // CRITICAL: Regenerate Prisma client immediately after schema push
+      // This ensures the Prisma client matches the database schema
+      log('\nStep 4: Generating Prisma client after schema push...', 'INFO');
+      execCommand('npx prisma generate', 'Generating Prisma client');
     } else {
       log('\nStep 3: Schema already exists - skipping push', 'INFO');
+
+      // Still regenerate client to ensure it's up to date
+      log('\nStep 4: Regenerating Prisma client...', 'INFO');
+      execCommand('npx prisma generate', 'Regenerating Prisma client');
     }
 
-    // Step 4: Generate Prisma client
-    log('\nStep 4: Generating Prisma client...', 'INFO');
-    execCommand('npx prisma generate', 'Generating Prisma client');
-
     // Step 5: Seed reference data (idempotent)
+    // This will load production-setup.js which instantiates Prisma client
+    // The client will now see all the models from the freshly generated schema
     log('\nStep 5: Seeding reference data...', 'INFO');
     await seedReferenceData();
 
