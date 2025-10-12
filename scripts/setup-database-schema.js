@@ -46,6 +46,106 @@ function execCommand(command, description) {
 }
 
 /**
+ * Stop Windows service if running (critical for releasing Prisma DLL locks)
+ */
+function stopWindowsService() {
+  try {
+    const SERVICE_NAME = 'multibusinesssyncservice';
+    const SC = process.env.SC_COMMAND || 'sc.exe';
+
+    log('Checking Windows service status...', 'INFO');
+
+    // Check if service exists and is running
+    try {
+      const queryResult = spawnSync(SC, ['query', SERVICE_NAME], {
+        encoding: 'utf-8',
+        windowsHide: true
+      });
+
+      const output = queryResult.stdout || '';
+
+      if (output.includes('does not exist') || output.includes('1060')) {
+        log('Windows service is not installed - skipping service stop', 'INFO');
+        return true;
+      }
+
+      if (output.includes('STOPPED')) {
+        log('Windows service is already stopped', 'INFO');
+        return true;
+      }
+
+      if (output.includes('RUNNING') || output.includes('START_PENDING')) {
+        log('Windows service is running - stopping it to release file locks...', 'WARN');
+
+        // Stop the service
+        const stopResult = spawnSync(SC, ['stop', SERVICE_NAME], {
+          encoding: 'utf-8',
+          windowsHide: true
+        });
+
+        if (stopResult.stderr && stopResult.stderr.includes('Access is denied')) {
+          log('⚠️  Cannot stop service - requires Administrator privileges', 'WARN');
+          log('Please run this command as Administrator, or manually stop the service', 'WARN');
+          return false;
+        }
+
+        // Wait for service to fully stop (up to 30 seconds)
+        log('Waiting for service to stop completely...', 'INFO');
+        const maxWaitTime = 30000; // 30 seconds
+        const checkInterval = 1000; // 1 second
+        const startTime = Date.now();
+
+        while ((Date.now() - startTime) < maxWaitTime) {
+          const statusResult = spawnSync(SC, ['query', SERVICE_NAME], {
+            encoding: 'utf-8',
+            windowsHide: true
+          });
+
+          const statusOutput = statusResult.stdout || '';
+
+          if (statusOutput.includes('STOPPED')) {
+            log('✅ Service stopped successfully', 'SUCCESS');
+
+            // Extra wait for file handles to release
+            log('Waiting 5 seconds for file handles to release...', 'INFO');
+            const waitStart = Date.now();
+            while (Date.now() - waitStart < 5000) {
+              // Busy wait
+            }
+
+            return true;
+          }
+
+          if (statusOutput.includes('STOP_PENDING')) {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            log(`Service is stopping... (${elapsed}s)`, 'INFO');
+          }
+
+          // Wait before next check
+          const checkStart = Date.now();
+          while (Date.now() - checkStart < checkInterval) {
+            // Busy wait
+          }
+        }
+
+        log('⚠️  Service did not stop within 30 seconds', 'WARN');
+        return false;
+      }
+
+    } catch (err) {
+      log(`Could not check service status: ${err.message}`, 'WARN');
+      return false;
+    }
+
+    return true;
+
+  } catch (error) {
+    log(`Warning: Could not stop Windows service: ${error.message}`, 'WARN');
+    return false;
+  }
+}
+
+/**
  * Kill all Node.js processes that might have Prisma client loaded
  * This helps release file locks on query_engine-windows.dll.node
  */
@@ -246,10 +346,28 @@ async function main() {
   console.log('============================================================\n');
 
   try {
-    // Pre-check: Clean up any stale processes and temporary files
-    log('Pre-check: Cleaning up stale processes and temporary files...', 'INFO');
+    // Pre-check: Stop Windows service and clean up stale processes/files
+    log('Pre-check: Stopping Windows service and cleaning up...', 'INFO');
+    console.log('');
+
+    // CRITICAL: Stop Windows service first (it holds Prisma DLL locks)
+    const serviceStopped = stopWindowsService();
+
+    // Then kill any remaining Node processes
     killStaleNodeProcesses();
+
+    // Finally clean up temporary files
     cleanupPrismaTemporaryFiles();
+
+    console.log('');
+    if (!serviceStopped) {
+      log('⚠️  WARNING: Could not stop Windows service', 'WARN');
+      log('If Prisma generation fails with EPERM errors, manually stop the service:', 'WARN');
+      log('  1. Run as Administrator: sc stop multibusinesssyncservice', 'WARN');
+      log('  2. Or use: npm run service:stop', 'WARN');
+      console.log('');
+    }
+
     log('Pre-check completed\n', 'SUCCESS');
 
     // Step 1: Create database if needed

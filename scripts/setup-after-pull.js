@@ -274,10 +274,54 @@ async function handleFreshInstall() {
   }
 }
 
+/**
+ * Stop Windows service to release file locks before building
+ */
+function stopServiceBeforeBuild() {
+  try {
+    const SERVICE_NAME = 'multibusinesssyncservice'
+    const SC = process.env.SC_COMMAND || 'sc.exe'
+
+    log('Checking if Windows service needs to be stopped...', 'INFO')
+
+    // Check if service exists and is running
+    const queryResult = execSync(`${SC} query ${SERVICE_NAME}`, {
+      encoding: 'utf-8',
+      windowsHide: true,
+      stdio: 'pipe'
+    }).toString()
+
+    if (queryResult.includes('does not exist') || queryResult.includes('1060')) {
+      log('Service not installed - no need to stop', 'INFO')
+      return true
+    }
+
+    if (queryResult.includes('STOPPED')) {
+      log('Service is already stopped', 'INFO')
+      return true
+    }
+
+    if (queryResult.includes('RUNNING') || queryResult.includes('START_PENDING')) {
+      log('⚠️  Service is running - it will be stopped automatically during build', 'WARN')
+      log('The service must be restarted after setup completes', 'WARN')
+      console.log('')
+      return true
+    }
+
+    return true
+  } catch (error) {
+    // Service doesn't exist or query failed - that's okay
+    return true
+  }
+}
+
 async function main() {
   console.log('\n' + '='.repeat(60))
   console.log('🚀 MULTI-BUSINESS MULTI-APPS - SMART SETUP')
   console.log('='.repeat(60) + '\n')
+
+  // Pre-check: Warn about service if it's running
+  stopServiceBeforeBuild()
 
   // Step 1: Install/update dependencies
   run('npm install', 'Installing/updating dependencies', false)
