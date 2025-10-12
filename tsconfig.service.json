@@ -14,16 +14,14 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "isolatedModules": true,
+    "isolatedModules": false,
     "strict": false,
     "noImplicitAny": false,
     "noEmit": false
   },
   "include": [
-    "src/service/**/*",
-    "src/lib/sync/**/*",
-    "prisma/generated/client/**/*",
-    "node_modules/@prisma/client/**/*"
+    "src/service/**/*.ts",
+    "src/lib/sync/**/*.ts"
   ],
   "exclude": [
     "src/app/**/*",
