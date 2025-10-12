@@ -16,7 +16,7 @@ package-lock.json
 
 # production
 /build
-# /dist - TRACKED: Service requires compiled files for deployment
+/dist
 
 # misc
 .DS_Store
@@ -52,8 +52,7 @@ logs
 /generated/prisma
 
 # build artifacts and service files
-# /dist - TRACKED: Service requires compiled files for deployment
-/dist/service/build-info.json
+# /dist is now ignored - rebuilt automatically during deployment
 /windows-service/daemon/*.exe
 /windows-service/daemon/*.exe.config
 /windows-service/daemon/*.xml
