@@ -1,312 +1,393 @@
-# Deployment Guide
+# Deployment Guide - Multi-Business Management Platform
 
 ## Overview
 
-This document describes the automated deployment process for the Multi-Business Multi-Apps system, specifically focusing on the Windows sync service.
+This guide covers fresh deployment and upgrade procedures for Windows servers.
 
-## Automated Deployment System
-
-The project uses a multi-layered approach to ensure seamless deployments:
-
-1. **Tracked Build Artifacts** - The `dist/` directory is tracked in git
-2. **Post-Merge Git Hooks** - Automatically rebuild after `git pull`
-3. **Setup Scripts** - Manual rebuild when needed
+**IMPORTANT**: Database setup uses a two-step process to avoid Windows DLL file locking issues with Prisma.
 
 ---
 
-## 🚀 Quick Deployment (Remote Server)
+## Fresh Deployment (New Server)
 
-### First-Time Setup
+Follow these steps to deploy the application on a fresh Windows server.
 
-On the remote server, run these commands once:
+### Prerequisites
 
-```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd multi-business-multi-apps
+- Windows Server (any recent version)
+- PostgreSQL 12+ installed and running
+- Node.js 18+ installed
+- Git installed
+- Administrator access for Windows Service installation
 
-# 2. Install git hooks (enables automatic rebuilds)
-node scripts/install-git-hooks.js
-
-# 3. Run initial setup
-npm run setup:update
-```
-
-### Subsequent Deployments
-
-After the initial setup, deployments are **automatic**:
-
-```bash
-# Pull latest changes
-git pull
-
-# The post-merge hook automatically:
-# ✅ Detects changed files
-# ✅ Rebuilds the sync service if needed
-# ✅ Regenerates Prisma client if schema changed
-# ✅ Runs full setup if package.json changed
-```
-
-**After pulling, restart the Windows service:**
+### Step 1: Clone Repository
 
 ```powershell
-# As Administrator
-npm run service:restart
+cd C:\apps
+git clone <repository-url> multi-business-multi-apps
+cd multi-business-multi-apps
 ```
 
----
+### Step 2: Configure Environment
 
-## 📋 Deployment Components
+```powershell
+# Copy environment template
+copy .env.example .env
 
-### 1. Git Hooks
-
-**Location:** `.githooks/post-merge` and `.githooks/post-merge.ps1`
-
-**Purpose:** Automatically rebuild the service after `git pull`
-
-**Behavior:**
-- If `package.json` changed → Full setup (`npm run setup:update`)
-- If `src/` files changed → Rebuild service only
-- Otherwise → Skip rebuild
-
-**Installation:**
-```bash
-node scripts/install-git-hooks.js
+# Edit .env file with your settings
+notepad .env
 ```
 
-**Disable (if needed):**
-```bash
-git config core.hooksPath .git/hooks
+**Required settings:**
+- `DATABASE_URL` - Your PostgreSQL connection string
+- `NEXTAUTH_URL` - Your application URL
+- `NEXTAUTH_SECRET` - Generate with: `openssl rand -base64 32`
+
+### Step 3: Install Dependencies
+
+```powershell
+npm install
 ```
 
-### 2. Setup Script
+### Step 4: Setup Database Schema (Step 1 of 2)
 
-**Location:** `scripts/setup-after-pull.js`
+```powershell
+node scripts/setup-database-schema.js
+```
 
-**Command:** `npm run setup:update`
+**What this does:**
+- Creates database if it doesn't exist
+- Generates Prisma client
+- Deploys all migrations to database
 
-**Steps Performed:**
-1. Install/update dependencies (`npm install`)
-2. Regenerate Prisma client (`npx prisma generate`)
-3. Run database migrations (`npx prisma migrate deploy`)
-4. Rebuild Next.js app (`npm run build`)
-5. **Rebuild Windows sync service (`npm run build:service`)** ✨
+### Step 5: Seed Reference Data (Step 2 of 2)
 
-**When to Use:**
-- Manual deployments
-- When git hooks are not configured
-- After major dependency updates
+```powershell
+node scripts/production-setup.js
+```
 
-### 3. Build Artifacts in Git
+**What this does:**
+- Seeds all reference data (ID templates, job titles, compensation types, etc.)
+- Creates admin user: `admin@business.local` / `admin123`
+- Verifies setup completion
 
-**Location:** `dist/` directory
+**Why two steps?** Windows locks Prisma DLL files when loaded, preventing regeneration. Running seeding in a separate process avoids this issue.
 
-**Purpose:** Pre-compiled TypeScript service files
+### Step 6: Build Application
 
-**Why Tracked:**
-- Ensures remote server has working code immediately after pull
-- Fallback if rebuild fails
-- Faster deployments (no compilation needed if unchanged)
-
-**Build Command:**
-```bash
+```powershell
+npm run build
 npm run build:service
 ```
 
+### Step 7: Install Windows Service (Optional)
+
+```powershell
+# Run as Administrator
+npm run service:install
+npm run service:start
+```
+
+### Step 8: Verify Installation
+
+```powershell
+# Check service status
+npm run service:status
+
+# Test login
+# Navigate to: http://localhost:8080
+# Login: admin@business.local / admin123
+```
+
 ---
 
-## 🔄 Deployment Workflows
+## Upgrade Deployment (Existing Server)
 
-### Scenario 1: Normal Code Update
+Follow these steps to upgrade an existing installation.
 
-```bash
-# Developer commits and pushes changes
-git add .
-git commit -m "feat: update sync service logic"
-git push
+### Step 1: Stop Service (if running)
 
-# Remote server deployment
-git pull                    # Post-merge hook rebuilds automatically
-npm run service:restart     # Restart service as Administrator
+```powershell
+# Run as Administrator
+npm run service:stop
 ```
 
-### Scenario 2: Dependency Update
+### Step 2: Backup Database
 
-```bash
-# Developer updates dependencies
-npm install some-package
-git add package.json package-lock.json
-git commit -m "deps: add some-package"
-git push
+```powershell
+# Create backup directory if needed
+mkdir backups
 
-# Remote server deployment
-git pull                    # Post-merge hook runs full setup
-npm run service:restart     # Restart service as Administrator
+# Backup database
+pg_dump -h localhost -U postgres -d multi_business_db > backups\backup_$(Get-Date -Format "yyyyMMdd_HHmmss").sql
 ```
 
-### Scenario 3: Database Schema Change
+### Step 3: Pull Latest Code
 
-```bash
-# Developer creates migration
-npx prisma migrate dev --name add_new_field
-git add prisma/
-git commit -m "db: add new field"
-git push
-
-# Remote server deployment
-git pull                    # Post-merge hook runs full setup
-                           # Includes: prisma generate + migrate deploy
-npm run service:restart     # Restart service as Administrator
+```powershell
+git pull origin main
 ```
 
-### Scenario 4: Manual Deployment (No Git Hooks)
+**What happens automatically:**
+- Post-merge git hook runs `npm run setup:update`
+- Dependencies are updated
+- Prisma client is regenerated
+- Database migrations are applied
+- Reference data is seeded (idempotent - won't duplicate)
+- Application is rebuilt
+- Service files are rebuilt
 
-```bash
-# Pull changes
-git pull
+### Step 4: Restart Service
 
-# Run setup manually
-npm run setup:update
+```powershell
+# Run as Administrator
+npm run service:restart
+```
+
+### Step 5: Verify Upgrade
+
+```powershell
+# Check service status
+npm run service:status
+
+# Test application
+# Navigate to: http://localhost:8080
+```
+
+---
+
+## Manual Setup (If Automated Setup Fails)
+
+If the automated post-merge hook fails, run these commands manually:
+
+### Fresh Install:
+
+```powershell
+# Install dependencies
+npm install
+
+# Setup database schema (no seeding)
+node scripts/setup-database-schema.js
+
+# Seed reference data (separate process)
+node scripts/production-setup.js
+
+# Build application
+npm run build
+npm run build:service
 
 # Restart service
-npm run service:restart     # As Administrator
+npm run service:restart
 ```
 
----
+### Upgrade:
 
-## 🛠️ Troubleshooting
+```powershell
+# Install/update dependencies
+npm install
 
-### Issue: Service Fails After Deployment
-
-**Error:** `ReferenceError: client_1 is not defined`
-
-**Cause:** Outdated compiled files in `dist/`
-
-**Solution:**
-```bash
-# Rebuild the service
-npm run build:service
-
-# Restart the service
-npm run service:restart     # As Administrator
-```
-
-### Issue: Git Hooks Not Running
-
-**Symptoms:** No rebuild messages after `git pull`
-
-**Diagnosis:**
-```bash
-git config core.hooksPath
-# Should output: .githooks
-```
-
-**Solution:**
-```bash
-node scripts/install-git-hooks.js
-```
-
-### Issue: Prisma Client Out of Sync
-
-**Error:** `Unknown field` or schema-related errors
-
-**Solution:**
-```bash
+# Regenerate Prisma client
 npx prisma generate
+
+# Run pending migrations
+npx prisma migrate deploy
+
+# Seed any new reference data (idempotent)
+node scripts/production-setup.js
+
+# Rebuild application
+npm run build
 npm run build:service
-npm run service:restart     # As Administrator
-```
 
-### Issue: Permission Denied When Restarting Service
-
-**Error:** `Access denied when stopping the service`
-
-**Solution:**
-- Open PowerShell as Administrator
-- Run: `npm run service:restart`
-
----
-
-## 📦 Package.json Scripts Reference
-
-### Deployment Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `npm run setup:update` | Full post-pull setup (recommended) |
-| `npm run build:service` | Rebuild sync service only |
-| `npm run service:restart` | Restart Windows service |
-| `npm run service:start` | Start Windows service |
-| `npm run service:stop` | Stop Windows service |
-
-### Git Hook Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `node scripts/install-git-hooks.js` | Install post-merge hook |
-
----
-
-## 🔐 Production Best Practices
-
-1. **Always Test Locally First**
-   ```bash
-   npm run build:service
-   npm run sync-service:start:dev
-   ```
-
-2. **Use Git Hooks**
-   - Ensures consistent deployments
-   - Reduces human error
-   - Automatic rebuild on pull
-
-3. **Monitor Service Logs**
-   ```bash
-   npm run monitor:service
-   ```
-
-4. **Backup Before Major Changes**
-   ```bash
-   npm run backup:database
-   ```
-
-5. **Validate After Deployment**
-   ```bash
-   npm run service:smoke-check
-   npm run validate:setup
-   ```
-
----
-
-## 🎯 Summary
-
-### Developer Workflow
-1. Make changes to code
-2. Commit and push to git
-3. Build artifacts are tracked in git
-
-### Deployment Workflow (Remote Server)
-1. `git pull` → Hooks run automatically
-2. Service rebuilds if needed
-3. `npm run service:restart` (as Admin)
-
-### Manual Fallback
-If hooks fail or aren't configured:
-```bash
-npm run setup:update
+# Restart service
 npm run service:restart
 ```
 
 ---
 
-## 📚 Related Documentation
+## Troubleshooting
 
-- `SETUP.md` - Initial system setup
-- `README.md` - Project overview
-- `docs/sync-service-setup.md` - Sync service details
-- `.githooks/post-merge` - Hook implementation
+### Issue: "EPERM: operation not permitted" during Prisma generate
+
+**Cause:** Windows DLL file locking when Prisma client is already loaded in memory.
+
+**Solution:** Run seeding in a separate process:
+```powershell
+node scripts/setup-database-schema.js   # First (schema only)
+node scripts/production-setup.js         # Second (seeding only)
+```
+
+### Issue: "Model not found on Prisma client"
+
+**Cause:** Prisma client wasn't regenerated after schema changes.
+
+**Solution:**
+```powershell
+npx prisma generate
+node scripts/production-setup.js
+```
+
+### Issue: Migration conflicts
+
+**Cause:** Database schema doesn't match migration history.
+
+**Solution:**
+```powershell
+# Check migration status
+npx prisma migrate status
+
+# If needed, resolve conflicts
+npx prisma migrate resolve --applied <migration_name>
+```
+
+### Issue: Admin user not created
+
+**Cause:** Seeding script didn't run or failed.
+
+**Solution:**
+```powershell
+node scripts/production-setup.js
+# OR
+npm run create-admin
+```
+
+### Issue: Service won't start after upgrade
+
+**Cause:** Service files weren't rebuilt or service is locked.
+
+**Solution:**
+```powershell
+# Rebuild service files
+npm run build:service
+
+# Force restart service
+npm run service:stop
+timeout /t 5
+npm run service:start
+```
 
 ---
 
-**Last Updated:** 2025-01-XX
-**Maintained By:** Development Team
+## Important Notes
+
+### Windows-Specific Considerations
+
+1. **DLL File Locking**: Prisma query engine DLL files are locked by Node.js processes. Always run seeding in a separate process after schema setup.
+
+2. **Administrator Rights**: Service installation, start, stop, and restart require Administrator privileges.
+
+3. **File Paths**: Use Windows path format (`C:\apps\...`) not Unix format (`/c/apps/...`).
+
+4. **PowerShell**: Use PowerShell (not CMD) for better script compatibility.
+
+### Database Safety
+
+1. **Never use `prisma migrate reset` in production** - This destroys all data.
+
+2. **Always backup before major changes** - Use `pg_dump` to create backups.
+
+3. **Test migrations in development first** - Never apply untested migrations to production.
+
+4. **Migrations are forward-only** - Plan schema changes carefully.
+
+### Git Hooks
+
+The repository includes a post-merge hook (`.githooks/post-merge.ps1`) that automatically:
+- Detects what changed (dependencies, migrations, source code)
+- Runs appropriate setup commands
+- Rebuilds the application
+- Reminds you to restart the service
+
+**To install git hooks:**
+```powershell
+npm run hooks:install
+```
+
+---
+
+## Available Commands
+
+### Database
+
+```powershell
+npm run db:generate      # Generate Prisma client
+npm run db:migrate       # Create new migration (dev only)
+npm run db:deploy        # Deploy migrations (production)
+npm run db:studio        # Open Prisma Studio GUI
+npm run db:pull          # Pull schema from database
+npm run db:push          # Push schema to database (dev only)
+```
+
+### Setup
+
+```powershell
+npm run setup            # Fresh install setup
+npm run setup:update     # Update after git pull
+npm run setup:fresh-db   # Setup database only
+npm run check:db-state   # Check database state
+```
+
+### Service Management
+
+```powershell
+npm run service:install   # Install Windows service
+npm run service:uninstall # Uninstall Windows service
+npm run service:start     # Start service
+npm run service:stop      # Stop service
+npm run service:restart   # Restart service
+npm run service:status    # Check service status
+```
+
+### Admin User
+
+```powershell
+npm run create-admin     # Create admin user
+```
+
+**Default credentials:**
+- Email: `admin@business.local`
+- Password: `admin123`
+
+**IMPORTANT**: Change the default password after first login!
+
+---
+
+## Deployment Checklist
+
+### Fresh Deployment
+
+- [ ] PostgreSQL installed and running
+- [ ] Node.js 18+ installed
+- [ ] Repository cloned
+- [ ] `.env` file configured
+- [ ] Dependencies installed (`npm install`)
+- [ ] Database schema setup (`node scripts/setup-database-schema.js`)
+- [ ] Reference data seeded (`node scripts/production-setup.js`)
+- [ ] Application built (`npm run build && npm run build:service`)
+- [ ] Service installed (`npm run service:install`)
+- [ ] Service started (`npm run service:start`)
+- [ ] Admin user created and password changed
+- [ ] Application accessible at configured URL
+
+### Upgrade Deployment
+
+- [ ] Database backed up
+- [ ] Service stopped
+- [ ] Code pulled (`git pull`)
+- [ ] Setup completed (automatic via post-merge hook)
+- [ ] Service restarted
+- [ ] Application tested and verified
+
+---
+
+## Support
+
+For issues or questions:
+1. Check this documentation first
+2. Review error logs in `logs/` directory
+3. Check service logs: `npm run service:status`
+4. Consult the troubleshooting section above
+
+---
+
+**Last Updated:** 2025-01-11

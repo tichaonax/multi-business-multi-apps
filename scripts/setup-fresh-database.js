@@ -1,11 +1,12 @@
 /**
- * Fresh Database Setup Script
+ * Fresh Database Setup Script (Production-Safe)
  *
  * RERUNNABLE & NON-DESTRUCTIVE:
  * - Creates database if it doesn't exist (does NOT drop existing)
- * - Pushes schema only if database is empty
- * - Seeds data only if not already present
- * - Baselines migrations for clean state
+ * - Uses prisma migrate deploy (production-safe migrations)
+ * - Generates Prisma client before migrations (avoids Windows DLL locks)
+ * - Seeds reference data in separate process (prevents file lock issues)
+ * - Idempotent: Safe to run multiple times
  *
  * Usage: node scripts/setup-fresh-database.js
  */
@@ -97,33 +98,18 @@ async function seedReferenceData() {
   log('Seeding reference data...', 'INFO');
 
   try {
-    // CRITICAL: Clear require cache for @prisma/client and production-setup
-    // This ensures we load the freshly generated Prisma client
-    const prismaClientPath = require.resolve('@prisma/client');
-    const productionSetupPath = path.join(__dirname, 'production-setup.js');
+    // CRITICAL: Run production-setup in a SEPARATE Node.js process
+    // This is the only way to ensure the freshly generated Prisma client is loaded
+    // Windows locks DLL files, so we can't regenerate Prisma client in same process
+    log('Running production setup in separate process (to load fresh Prisma client)...', 'INFO');
 
-    delete require.cache[prismaClientPath];
-    delete require.cache[productionSetupPath];
-
-    log('Cleared Prisma client cache - loading fresh client...', 'INFO');
-
-    // Use the production-setup script which has all seeding functions
-    const { runProductionSetup } = require('./production-setup.js');
-
-    log('Running production setup with all reference data...', 'INFO');
-
-    // Run production setup (it's idempotent)
-    const success = await runProductionSetup({
-      createAdmin: true,
-      dryRun: false,
-      ignoreMissingModels: true // Don't fail on missing optional models
+    const result = execSync('node scripts/production-setup.js --ignore-missing-models', {
+      cwd: path.join(__dirname, '..'),
+      stdio: 'inherit',
+      encoding: 'utf-8'
     });
 
-    if (success) {
-      log('✅ Reference data seeding completed', 'SUCCESS');
-    } else {
-      log('⚠️  Reference data seeding completed with warnings', 'WARN');
-    }
+    log('✅ Reference data seeding completed', 'SUCCESS');
 
   } catch (error) {
     log(`Error seeding reference data: ${error.message}`, 'ERROR');
@@ -195,32 +181,23 @@ async function main() {
     log('\nStep 2: Ensuring database exists...', 'INFO');
     await createDatabase();
 
-    // Step 3: Push schema if database is empty
+    // Step 3: Generate Prisma client BEFORE running migrations
+    // This prevents Windows DLL lock issues
+    log('\nStep 3: Generating Prisma client...', 'INFO');
+    execCommand('npx prisma generate', 'Generating Prisma client');
+
+    // Step 4: Run database migrations (production-safe approach)
     if (state.isEmpty || !state.hasSchema) {
-      log('\nStep 3: Pushing Prisma schema (db push)...', 'INFO');
-      execCommand('npx prisma db push --accept-data-loss', 'Pushing schema to database');
-
-      // CRITICAL: Regenerate Prisma client immediately after schema push
-      // This ensures the Prisma client matches the database schema
-      log('\nStep 4: Generating Prisma client after schema push...', 'INFO');
-      execCommand('npx prisma generate', 'Generating Prisma client');
+      log('\nStep 4: Deploying database migrations...', 'INFO');
+      execCommand('npx prisma migrate deploy', 'Deploying migrations to database');
     } else {
-      log('\nStep 3: Schema already exists - skipping push', 'INFO');
-
-      // Still regenerate client to ensure it's up to date
-      log('\nStep 4: Regenerating Prisma client...', 'INFO');
-      execCommand('npx prisma generate', 'Regenerating Prisma client');
+      log('\nStep 4: Checking for pending migrations...', 'INFO');
+      execCommand('npx prisma migrate deploy', 'Deploying any pending migrations');
     }
 
-    // Step 5: Seed reference data (idempotent)
-    // This will load production-setup.js which instantiates Prisma client
-    // The client will now see all the models from the freshly generated schema
+    // Step 5: Seed reference data (runs in separate process to avoid DLL locks)
     log('\nStep 5: Seeding reference data...', 'INFO');
     await seedReferenceData();
-
-    // Step 6: Baseline migrations for clean state
-    log('\nStep 6: Baselining migrations...', 'INFO');
-    await baselineMigrations();
 
     console.log('\n============================================================');
     console.log('✅ Fresh Database Setup Completed Successfully!');

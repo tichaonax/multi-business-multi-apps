@@ -75,31 +75,42 @@ async function handleFreshInstall() {
   log('🆕 FRESH INSTALL DETECTED - Running complete setup workflow', 'INFO')
 
   console.log(`\n${'='.repeat(60)}`)
-  console.log(`🗄️  Creating database and pushing schema`)
+  console.log(`🗄️  Setting up database schema`)
   console.log(`${'='.repeat(60)}\n`)
 
   try {
-    // Use the fresh database setup script
-    const { createDatabase, seedReferenceData, baselineMigrations } = require('./setup-fresh-database.js')
+    // Step 1: Setup database schema (migrations only - no seeding)
+    const { createDatabase } = require('./setup-database-schema.js')
 
-    // Create database if needed
     await createDatabase()
     log('✅ Database created/verified', 'SUCCESS')
 
-    // Push schema (faster than migrations for fresh install)
-    execSync('npx prisma db push --accept-data-loss', {
+    // Generate Prisma client
+    execSync('npx prisma generate', {
       cwd: ROOT_DIR,
       stdio: 'inherit',
       shell: true
     })
-    log('✅ Schema pushed to database', 'SUCCESS')
+    log('✅ Prisma client generated', 'SUCCESS')
 
-    // Baseline all migrations (mark as applied without running)
-    await baselineMigrations()
-    log('✅ Migrations baselined', 'SUCCESS')
+    // Deploy migrations
+    execSync('npx prisma migrate deploy', {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+      shell: true
+    })
+    log('✅ Migrations deployed', 'SUCCESS')
 
-    // Seed reference data
-    await seedReferenceData()
+    console.log(`\n${'='.repeat(60)}`)
+    console.log(`🌱 Seeding reference data`)
+    console.log(`${'='.repeat(60)}\n`)
+
+    // Step 2: Seed reference data in SEPARATE process (avoids Windows DLL locks)
+    execSync('node scripts/production-setup.js --ignore-missing-models', {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+      shell: true
+    })
     log('✅ Reference data seeded', 'SUCCESS')
 
     console.log('\n✅ Fresh install database setup - COMPLETED\n')
