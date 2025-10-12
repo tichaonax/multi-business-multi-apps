@@ -96,54 +96,29 @@ async function checkDataExists(prisma, modelName) {
 async function seedReferenceData() {
   log('Seeding reference data...', 'INFO');
 
-  const { PrismaClient } = require('@prisma/client');
-  const prisma = new PrismaClient();
-
   try {
-    // Check if data already exists (idempotent)
-    const hasUsers = await checkDataExists(prisma, 'user');
-    const hasIdTemplates = await checkDataExists(prisma, 'idFormatTemplate');
-    const hasPhoneTemplates = await checkDataExists(prisma, 'phoneNumberTemplate');
-    const hasDateFormats = await checkDataExists(prisma, 'dateFormat');
-    const hasJobTitles = await checkDataExists(prisma, 'jobTitle');
-    const hasCompensationTypes = await checkDataExists(prisma, 'compensationType');
-    const hasBenefitTypes = await checkDataExists(prisma, 'benefitType');
+    // Use the production-setup script which has all seeding functions
+    const { runProductionSetup } = require('./production-setup.js');
 
-    if (hasUsers && hasIdTemplates && hasPhoneTemplates && hasDateFormats &&
-        hasJobTitles && hasCompensationTypes && hasBenefitTypes) {
-      log('Reference data already exists - skipping seeding', 'INFO');
-      await prisma.$disconnect();
-      return;
+    log('Running production setup with all reference data...', 'INFO');
+
+    // Run production setup (it's idempotent)
+    const success = await runProductionSetup({
+      createAdmin: true,
+      dryRun: false,
+      ignoreMissingModels: true // Don't fail on missing optional models
+    });
+
+    if (success) {
+      log('✅ Reference data seeding completed', 'SUCCESS');
+    } else {
+      log('⚠️  Reference data seeding completed with warnings', 'WARN');
     }
-
-    log('Reference data incomplete - running seed scripts...', 'INFO');
-
-    // Run seed scripts (they should be idempotent)
-    const seedScripts = [
-      'seed-id-templates.js',
-      'seed-phone-templates.js',
-      'seed-date-templates.js',
-      'seed-job-titles.js',
-      'seed-compensation-types.js',
-      'seed-benefit-types.js'
-    ];
-
-    for (const script of seedScripts) {
-      execCommand(`node scripts/${script}`, `Seeding ${script}`);
-    }
-
-    // Create admin user if doesn't exist
-    if (!hasUsers) {
-      execCommand('npm run create-admin', 'Creating admin user');
-    }
-
-    log('✅ Reference data seeding completed', 'SUCCESS');
 
   } catch (error) {
     log(`Error seeding reference data: ${error.message}`, 'ERROR');
-    throw error;
-  } finally {
-    await prisma.$disconnect();
+    // Don't throw - let the setup continue
+    log('⚠️  Continuing setup despite seeding errors', 'WARN');
   }
 }
 
