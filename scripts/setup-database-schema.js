@@ -99,39 +99,9 @@ async function main() {
     log('\nStep 2: Generating Prisma client...', 'INFO');
     execCommand('npx prisma generate', 'Generating Prisma client');
 
-    // Step 3: Push schema to database (for fresh installs)
-    // Use db push instead of migrate deploy for fresh databases
-    // This avoids migration ordering issues with baseline migrations
-    log('\nStep 3: Pushing schema to database...', 'INFO');
-    log('Using db push for fresh database setup (avoids migration conflicts)', 'INFO');
-    execCommand('npx prisma db push --accept-data-loss', 'Pushing schema to database');
-
-    // Step 4: Mark all migrations as applied (baseline)
-    log('\nStep 4: Marking migrations as applied (baseline)...', 'INFO');
-    log('This establishes a baseline for future migrations', 'INFO');
-
-    // Get all migration directories
-    const fs = require('fs');
-    const migrationsDir = path.join(__dirname, '..', 'prisma', 'migrations');
-
-    if (fs.existsSync(migrationsDir)) {
-      const migrations = fs.readdirSync(migrationsDir)
-        .filter(name => fs.statSync(path.join(migrationsDir, name)).isDirectory())
-        .sort();
-
-      log(`Found ${migrations.length} migrations to baseline`, 'INFO');
-
-      for (const migration of migrations) {
-        try {
-          execCommand(
-            `npx prisma migrate resolve --applied ${migration}`,
-            `Marking ${migration} as applied`
-          );
-        } catch (err) {
-          log(`Warning: Could not mark ${migration} as applied (may already be marked)`, 'WARN');
-        }
-      }
-    }
+    // Step 3: Deploy migrations (simple and clean)
+    log('\nStep 3: Deploying database migrations...', 'INFO');
+    execCommand('npx prisma migrate deploy', 'Deploying migrations');
 
     console.log('\n============================================================');
     console.log('✅ Database Schema Setup Completed!');
