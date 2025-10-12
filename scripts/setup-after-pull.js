@@ -281,8 +281,9 @@ function stopWindowsServiceAndCleanup() {
   const { spawnSync } = require('child_process')
 
   try {
-    const SERVICE_NAME = 'multibusinesssyncservice'
-    const SC = process.env.SC_COMMAND || 'sc.exe'
+    // CRITICAL: node-windows automatically appends .exe to service names
+    const SERVICE_NAME = 'multibusinesssyncservice.exe'
+    const SC = 'sc.exe'  // Use .exe to avoid PowerShell aliases
 
     log('Checking and stopping Windows service...', 'INFO')
 
@@ -353,13 +354,53 @@ function stopWindowsServiceAndCleanup() {
 }
 
 /**
+ * Find process ID by port using PowerShell (Windows-specific)
+ */
+function findProcessByPort(port = 8080) {
+  const { spawnSync } = require('child_process')
+  try {
+    // Use PowerShell to find process on port (more reliable than netstat)
+    const result = spawnSync('powershell', [
+      '-Command',
+      `Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess`
+    ], {
+      encoding: 'utf-8',
+      windowsHide: true
+    })
+
+    if (result.stdout) {
+      const pid = parseInt(result.stdout.trim(), 10)
+      if (!isNaN(pid) && pid > 0) {
+        log(`Found process on port ${port}: PID ${pid}`, 'INFO')
+        return pid
+      }
+    }
+  } catch (err) {
+    // Port not in use or PowerShell command failed
+  }
+  return null
+}
+
+/**
  * Kill stale Node.js processes that might hold Prisma file locks
  */
 function killStaleNodeProcesses() {
   const { spawnSync } = require('child_process')
   try {
     const currentPid = process.pid
-    const result = spawnSync('taskkill', ['/F', '/IM', 'node.exe', '/FI', `PID ne ${currentPid}`], {
+
+    // First, try to kill process on port 8080 (our app port)
+    const portPid = findProcessByPort(8080)
+    if (portPid && portPid !== currentPid) {
+      log(`Killing process on port 8080: PID ${portPid}`, 'INFO')
+      spawnSync('taskkill.exe', ['/F', '/PID', portPid.toString()], {
+        encoding: 'utf-8',
+        windowsHide: true
+      })
+    }
+
+    // Then kill other node.exe processes (excluding current)
+    const result = spawnSync('taskkill.exe', ['/F', '/IM', 'node.exe', '/FI', `PID ne ${currentPid}`], {
       encoding: 'utf-8',
       windowsHide: true
     })
