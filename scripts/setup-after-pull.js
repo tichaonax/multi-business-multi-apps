@@ -125,7 +125,7 @@ async function checkHasUsers() {
     const { PrismaClient } = require('@prisma/client')
     const prisma = new PrismaClient()
 
-    const count = await prisma.user.count()
+    const count = await prisma.users.count()
     await prisma.$disconnect()
 
     if (count === 0) {
@@ -275,43 +275,118 @@ async function handleFreshInstall() {
 }
 
 /**
- * Stop Windows service to release file locks before building
+ * Stop Windows service and clean up to release file locks before Prisma operations
  */
-function stopServiceBeforeBuild() {
+function stopWindowsServiceAndCleanup() {
+  const { spawnSync } = require('child_process')
+
   try {
     const SERVICE_NAME = 'multibusinesssyncservice'
     const SC = process.env.SC_COMMAND || 'sc.exe'
 
-    log('Checking if Windows service needs to be stopped...', 'INFO')
+    log('Checking and stopping Windows service...', 'INFO')
 
     // Check if service exists and is running
-    const queryResult = execSync(`${SC} query ${SERVICE_NAME}`, {
+    const queryResult = spawnSync(SC, ['query', SERVICE_NAME], {
       encoding: 'utf-8',
-      windowsHide: true,
-      stdio: 'pipe'
-    }).toString()
+      windowsHide: true
+    })
 
-    if (queryResult.includes('does not exist') || queryResult.includes('1060')) {
-      log('Service not installed - no need to stop', 'INFO')
+    const output = queryResult.stdout || ''
+
+    if (output.includes('does not exist') || output.includes('1060')) {
+      log('Service not installed - skipping', 'INFO')
       return true
     }
 
-    if (queryResult.includes('STOPPED')) {
-      log('Service is already stopped', 'INFO')
+    if (output.includes('STOPPED')) {
+      log('Service already stopped', 'INFO')
+      killStaleNodeProcesses()
+      cleanupPrismaTemp()
       return true
     }
 
-    if (queryResult.includes('RUNNING') || queryResult.includes('START_PENDING')) {
-      log('⚠️  Service is running - it will be stopped automatically during build', 'WARN')
-      log('The service must be restarted after setup completes', 'WARN')
-      console.log('')
-      return true
+    if (output.includes('RUNNING') || output.includes('START_PENDING')) {
+      log('Stopping Windows service...', 'INFO')
+
+      const stopResult = spawnSync(SC, ['stop', SERVICE_NAME], {
+        encoding: 'utf-8',
+        windowsHide: true
+      })
+
+      if (stopResult.stderr && stopResult.stderr.includes('Access is denied')) {
+        log('⚠️  Cannot stop service - requires Administrator privileges', 'WARN')
+        return false
+      }
+
+      // Wait for service to stop
+      const maxWait = 30000
+      const start = Date.now()
+      while (Date.now() - start < maxWait) {
+        const statusResult = spawnSync(SC, ['query', SERVICE_NAME], {
+          encoding: 'utf-8',
+          windowsHide: true
+        })
+        if ((statusResult.stdout || '').includes('STOPPED')) {
+          log('✅ Service stopped successfully', 'SUCCESS')
+          // Wait for file handles to release
+          const waitStart = Date.now()
+          while (Date.now() - waitStart < 3000) { }
+          killStaleNodeProcesses()
+          cleanupPrismaTemp()
+          return true
+        }
+        // Short wait before retry
+        const waitStart = Date.now()
+        while (Date.now() - waitStart < 1000) { }
+      }
+
+      log('⚠️  Service did not stop within 30 seconds', 'WARN')
+      return false
     }
 
     return true
   } catch (error) {
-    // Service doesn't exist or query failed - that's okay
-    return true
+    log(`Warning: ${error.message}`, 'WARN')
+    return false
+  }
+}
+
+/**
+ * Kill stale Node.js processes that might hold Prisma file locks
+ */
+function killStaleNodeProcesses() {
+  const { spawnSync } = require('child_process')
+  try {
+    const currentPid = process.pid
+    const result = spawnSync('taskkill', ['/F', '/IM', 'node.exe', '/FI', `PID ne ${currentPid}`], {
+      encoding: 'utf-8',
+      windowsHide: true
+    })
+    if (result.stdout && result.stdout.includes('SUCCESS')) {
+      log('Killed stale Node.js processes', 'INFO')
+    }
+  } catch (err) {
+    // Ignore - no processes to kill
+  }
+}
+
+/**
+ * Clean up Prisma temporary files
+ */
+function cleanupPrismaTemp() {
+  try {
+    const prismaClientDir = path.join(ROOT_DIR, 'node_modules', '.prisma', 'client')
+    if (fs.existsSync(prismaClientDir)) {
+      const files = fs.readdirSync(prismaClientDir)
+      files.filter(f => f.includes('.tmp')).forEach(f => {
+        try {
+          fs.unlinkSync(path.join(prismaClientDir, f))
+        } catch (err) { }
+      })
+    }
+  } catch (err) {
+    // Ignore cleanup errors
   }
 }
 
@@ -320,13 +395,13 @@ async function main() {
   console.log('🚀 MULTI-BUSINESS MULTI-APPS - SMART SETUP')
   console.log('='.repeat(60) + '\n')
 
-  // Pre-check: Warn about service if it's running
-  stopServiceBeforeBuild()
+  // CRITICAL: Stop Windows service and cleanup BEFORE Prisma operations to prevent EPERM
+  stopWindowsServiceAndCleanup()
 
   // Step 1: Install/update dependencies
   run('npm install', 'Installing/updating dependencies', false)
 
-  // Step 2: Regenerate Prisma client
+  // Step 2: Regenerate Prisma client (now safe from EPERM after cleanup)
   run('npx prisma generate', 'Regenerating Prisma client', false)
 
   // Step 3: Rebuild the application
