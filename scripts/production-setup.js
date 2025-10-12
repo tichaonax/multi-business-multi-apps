@@ -129,14 +129,16 @@ function resolveModelName(modelName, remap = {}) {
     if (!cand) continue
     if (available.includes(cand) || modelExists(cand)) {
       if (cand !== modelName) {
-        log(`Resolved seeder model '${modelName}' -> '${cand}'`, colors.magenta)
+        log(`Resolved seeder model '${modelName}' -> '${cand}'`, colors.cyan)
       }
       return cand
     }
   }
 
-  // If we couldn't find a candidate, return original and let caller handle the missing-model case
-  warning(`Could not resolve Prisma model for seeder key '${modelName}'. Tried: ${JSON.stringify(candidates)}. Ensure you ran 'npx prisma generate' and that the model exists in prisma/schema.prisma.`)
+  // If we couldn't find a candidate, log available models for debugging
+  warning(`Could not resolve Prisma model for seeder key '${modelName}'. Tried: ${JSON.stringify(candidates)}.`)
+  log(`Available Prisma models: ${available.length > 0 ? available.slice(0, 10).join(', ') + (available.length > 10 ? '...' : '') : 'NONE'}`, colors.yellow)
+  warning(`Ensure you ran 'npx prisma generate' and that the model exists in prisma/schema.prisma.`)
   return modelName
 }
 

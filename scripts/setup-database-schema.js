@@ -341,6 +341,9 @@ async function createDatabase() {
 }
 
 async function main() {
+  // Check if running in automated mode (from setup-after-pull.js)
+  const isAutomated = process.argv.includes('--automated');
+
   console.log('\n============================================================');
   console.log('🔧 Database Schema Setup');
   console.log('============================================================\n');
@@ -397,9 +400,13 @@ async function main() {
     console.log('\n============================================================');
     console.log('✅ Database Schema Setup Completed!');
     console.log('============================================================');
-    console.log('\n📋 Next Step:');
-    console.log('   Run: node scripts/production-setup.js');
-    console.log('   This will seed reference data and create admin user\n');
+
+    // Only show "Next Step" message when run manually (not from automated fresh install)
+    if (!isAutomated) {
+      console.log('\n📋 Next Step:');
+      console.log('   Run: node scripts/production-setup.js');
+      console.log('   This will seed reference data and create admin user\n');
+    }
 
     process.exit(0);
 
