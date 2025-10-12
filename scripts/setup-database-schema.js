@@ -103,6 +103,12 @@ async function main() {
     log('\nStep 3: Deploying database migrations...', 'INFO');
     execCommand('npx prisma migrate deploy', 'Deploying migrations');
 
+    // Step 4: Regenerate Prisma client AFTER migrations (critical!)
+    // This ensures the seeding script has access to all models
+    log('\nStep 4: Regenerating Prisma client with new schema...', 'INFO');
+    log('This ensures production-setup.js can access all models', 'INFO');
+    execCommand('npx prisma generate', 'Regenerating Prisma client');
+
     console.log('\n============================================================');
     console.log('✅ Database Schema Setup Completed!');
     console.log('============================================================');
