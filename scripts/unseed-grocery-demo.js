@@ -23,7 +23,7 @@ async function unseed() {
     await prisma.productAttribute.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
     await prisma.businessProduct.deleteMany({ where: { id: { in: demoProductIds } } }).catch(() => {})
     await prisma.businessCategory.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
-    await prisma.business.deleteMany({ where: { id: demoBusinessId } }).catch(() => {})
+    await prisma.businesses.deleteMany({ where: { id: demoBusinessId } }).catch(() => {})
 
     console.log('Grocery demo unseed complete')
   } catch (err) {

@@ -7,7 +7,7 @@ async function getRestaurantBusinessIds(session: any) {
   const { prisma } = await import('@/lib/prisma')
 
   // Check if user is system admin - they can access all restaurant orders
-  const user = await prisma.user.findUnique({
+  const user = await prisma.users.findUnique({
     where: { id: session.user.id },
     select: {
       role: true,
@@ -25,7 +25,7 @@ async function getRestaurantBusinessIds(session: any) {
 
   // If user is admin, get ALL restaurant businesses
   if (user?.role === 'admin') {
-    const allRestaurantBusinesses = await prisma.business.findMany({
+    const allRestaurantBusinesses = await prisma.businesses.findMany({
       where: { type: 'restaurant' },
       select: { id: true, name: true }
     })
@@ -108,7 +108,7 @@ export async function PUT(
     const { prisma } = await import('@/lib/prisma')
 
     // Check if user is admin first
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: session.user.id },
       select: { role: true }
     })
@@ -135,7 +135,7 @@ export async function PUT(
     // Update other attributes in the attributes JSON field
     if (Object.keys(otherUpdates).length > 0) {
       // Get current attributes and merge with new ones
-      const currentOrder = await prisma.businessOrder.findUnique({
+      const currentOrder = await prisma.businessOrders.findUnique({
         where: { id: orderId },
         select: { attributes: true }
       })
@@ -154,7 +154,7 @@ export async function PUT(
       whereClause.businessId = { in: restaurantBusinessIds }
     }
 
-    const updatedOrder = await prisma.businessOrder.update({
+    const updatedOrder = await prisma.businessOrders.update({
       where: whereClause,
       data: updateFields,
       include: {
@@ -211,7 +211,7 @@ export async function GET(
     // Get specific order directly from businessOrder table
     const { prisma } = await import('@/lib/prisma')
 
-    const order = await prisma.businessOrder.findFirst({
+    const order = await prisma.businessOrders.findFirst({
       where: {
         id: orderId,
         businessType: 'restaurant'
@@ -257,7 +257,7 @@ export async function GET(
     }
 
     // Verify user has access to restaurant businesses (skip for admin)
-    const userRole = await prisma.user.findUnique({
+    const userRole = await prisma.users.findUnique({
       where: { id: session.user.id },
       select: { role: true }
     })

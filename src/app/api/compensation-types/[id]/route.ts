@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
 
-    const compensationType = await prisma.compensationType.findUnique({
+    const compensationType = await prisma.compensationTypes.findUnique({
       where: { id },
       include: {
         _count: {
@@ -88,7 +88,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if compensation type exists
-    const existingCompensationType = await prisma.compensationType.findUnique({
+    const existingCompensationType = await prisma.compensationTypes.findUnique({
       where: { id }
     })
 
@@ -101,7 +101,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Check for duplicate name (if name is being changed)
     if (name !== existingCompensationType.name) {
-      const duplicateName = await prisma.compensationType.findUnique({
+      const duplicateName = await prisma.compensationTypes.findUnique({
         where: { name }
       })
 
@@ -113,7 +113,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const updatedCompensationType = await prisma.compensationType.update({
+    const updatedCompensationType = await prisma.compensationTypes.update({
       where: { id },
       data: {
         name,
@@ -167,7 +167,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { id } = await params
 
     // Check if compensation type exists
-    const existingCompensationType = await prisma.compensationType.findUnique({
+    const existingCompensationType = await prisma.compensationTypes.findUnique({
       where: { id },
       include: {
         _count: {
@@ -196,7 +196,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    await prisma.compensationType.delete({
+    await prisma.compensationTypes.delete({
       where: { id }
     })
 

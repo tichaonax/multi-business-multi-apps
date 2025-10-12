@@ -17,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const jobTitles = await prisma.jobTitle.findMany({
+    const jobTitles = await prisma.jobTitles.findMany({
       include: {
         _count: {
           select: {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     const data = await request.json()
     const { title, description, responsibilities, department, level } = data
 
-    const jobTitle = await prisma.jobTitle.create({
+    const jobTitle = await prisma.jobTitles.create({
       data: {
         title,
         description,

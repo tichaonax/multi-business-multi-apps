@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
 
-    const disciplinaryAction = await prisma.disciplinaryAction.findUnique({
+    const disciplinaryAction = await prisma.disciplinaryActions.findUnique({
       where: { id },
       include: {
         employee: {
@@ -111,7 +111,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     } = data
 
     // Check if disciplinary action exists
-    const existingAction = await prisma.disciplinaryAction.findUnique({
+    const existingAction = await prisma.disciplinaryActions.findUnique({
       where: { id }
     })
 
@@ -158,7 +158,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const updatedAction = await prisma.disciplinaryAction.update({
+    const updatedAction = await prisma.disciplinaryActions.update({
       where: { id },
       data: updateData,
       include: {
@@ -232,7 +232,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { id } = await params
 
     // Check if disciplinary action exists
-    const existingAction = await prisma.disciplinaryAction.findUnique({
+    const existingAction = await prisma.disciplinaryActions.findUnique({
       where: { id }
     })
 
@@ -243,7 +243,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    await prisma.disciplinaryAction.delete({
+    await prisma.disciplinaryActions.delete({
       where: { id }
     })
 

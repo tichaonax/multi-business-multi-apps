@@ -47,7 +47,7 @@ async function computeTotalsForEntry(entryId) {
   let contract = null
   try {
     const empId = entry.employee?.id || entry.employeeId
-    if (empId) contract = await prisma.employeeContract.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
+    if (empId) contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
   } catch (e) { contract = null }
 
   const contractBenefits = []

@@ -7,22 +7,22 @@ const { randomUUID } = require('crypto')
  */
 async function getOrCreateDevManager(prisma) {
   // Look for a well-known seeded dev manager first
-  const existing = await prisma.employee.findFirst({ where: { employeeNumber: 'DEV-MGR-1' } })
+  const existing = await prisma.employees.findFirst({ where: { employeeNumber: 'DEV-MGR-1' } })
   if (existing) return existing
 
   // Find a business to assign
-  const business = await prisma.business.findFirst()
+  const business = await prisma.businesses.findFirst()
 
   // Ensure a job title exists for the dev manager
-  let jobTitle = await prisma.jobTitle.findFirst({ where: { title: 'Dev Manager' } })
+  let jobTitle = await prisma.jobTitles.findFirst({ where: { title: 'Dev Manager' } })
   if (!jobTitle) {
-    jobTitle = await prisma.jobTitle.create({ data: { title: 'Dev Manager', department: 'Development', level: 'Manager', isActive: true } })
+    jobTitle = await prisma.jobTitles.create({ data: { title: 'Dev Manager', department: 'Development', level: 'Manager', isActive: true } })
   }
 
   // Find a compensation type or fallback
-  let compensationType = await prisma.compensationType.findFirst()
+  let compensationType = await prisma.compensationTypes.findFirst()
   if (!compensationType) {
-    compensationType = await prisma.compensationType.create({ data: { name: 'Dev Salary', type: 'salary' } })
+    compensationType = await prisma.compensationTypes.create({ data: { name: 'Dev Salary', type: 'salary' } })
   }
 
   const devMgrData = {
@@ -45,7 +45,7 @@ async function getOrCreateDevManager(prisma) {
     createdBy: 'seed-helper'
   }
 
-  const created = await prisma.employee.create({ data: devMgrData })
+  const created = await prisma.employees.create({ data: devMgrData })
   return created
 }
 

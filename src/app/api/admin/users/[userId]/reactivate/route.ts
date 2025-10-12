@@ -27,7 +27,7 @@ export async function POST(
     }
 
     // Get the user to be reactivated
-    const userToReactivate = await prisma.user.findUnique({
+    const userToReactivate = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         businessMemberships: {
@@ -47,7 +47,7 @@ export async function POST(
     }
 
     // Reactivate user and their business memberships
-    const updatedUser = await prisma.user.update({
+    const updatedUser = await prisma.users.update({
       where: { id: userId },
       data: {
         isActive: true,
@@ -79,7 +79,7 @@ export async function POST(
     })
 
     // Log the reactivation for audit purposes
-    await prisma.auditLog.create({
+    await prisma.auditLogs.create({
       data: {
         action: 'USER_REACTIVATED',
         entityType: 'User',

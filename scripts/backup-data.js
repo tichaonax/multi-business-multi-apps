@@ -10,8 +10,8 @@ async function backupData() {
     
     const backup = {
       timestamp: new Date().toISOString(),
-      users: await prisma.user.findMany(),
-      businesses: await prisma.business.findMany(),
+      users: await prisma.users.findMany(),
+      businesses: await prisma.businesses.findMany(),
       businessMemberships: await prisma.businessMembership.findMany(),
       permissionTemplates: await prisma.permissionTemplate.findMany(),
       constructionProjects: await prisma.constructionProject.findMany(),

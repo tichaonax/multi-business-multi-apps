@@ -11,7 +11,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const promotionId = id
     const data = await request.json()
 
-    const promotion = await prisma.menuPromotion.update({
+    const promotion = await prisma.menuPromotions.update({
       where: { id: promotionId },
       data: {
         ...data,
@@ -42,7 +42,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const promotionId = id
 
-    await prisma.menuPromotion.delete({
+    await prisma.menuPromotions.delete({
       where: { id: promotionId }
     })
 

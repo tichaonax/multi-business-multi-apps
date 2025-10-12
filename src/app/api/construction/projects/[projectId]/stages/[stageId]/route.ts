@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { projectId, stageId } = await params
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const stage = await prisma.projectStage.findFirst({
+    const stage = await prisma.projectStages.findFirst({
       where: {
         id: stageId,
         projectId
@@ -142,7 +142,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -157,7 +157,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if stage exists
-    const existingStage = await prisma.projectStage.findFirst({
+    const existingStage = await prisma.projectStages.findFirst({
       where: {
         id: stageId,
         projectId
@@ -177,7 +177,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       finalCompletionDate = new Date().toISOString()
     }
 
-    const updatedStage = await prisma.projectStage.update({
+    const updatedStage = await prisma.projectStages.update({
       where: { id: stageId },
       data: {
         name,
@@ -230,7 +230,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { projectId, stageId } = await params
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -245,7 +245,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if stage exists and has dependencies
-    const existingStage = await prisma.projectStage.findFirst({
+    const existingStage = await prisma.projectStages.findFirst({
       where: {
         id: stageId,
         projectId
@@ -280,7 +280,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Safe to delete
-    await prisma.projectStage.delete({
+    await prisma.projectStages.delete({
       where: { id: stageId }
     })
 

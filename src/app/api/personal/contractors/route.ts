@@ -19,7 +19,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
-    const contractors = await prisma.projectContractor.findMany({
+    const contractors = await prisma.projectContractors.findMany({
       include: {
         constructionProject: {
           select: {
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     let project = null
     if (projectId) {
       // Verify the project exists (removed user ownership restriction for global contractor access)
-      project = await prisma.constructionProject.findFirst({
+      project = await prisma.constructionProjects.findFirst({
         where: {
           id: projectId
         }
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // First create or find the person
-    let person = await prisma.person.findFirst({
+    let person = await prisma.persons.findFirst({
       where: {
         nationalId: nationalId
       }
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     if (!person) {
       // Create new person with automatic timestamp tracking
-      person = await prisma.person.create({
+      person = await prisma.persons.create({
         data: {
           fullName: name,
           email: email || null,
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       })
     } else {
       // Update existing person with new information if found by national ID
-      person = await prisma.person.update({
+      person = await prisma.persons.update({
         where: { id: person.id },
         data: {
           fullName: name,
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     // For personal finance, we can create a general contractor entry or just return the person
     if (projectId && project) {
       // Create project contractor if project is specified
-      const contractor = await prisma.projectContractor.create({
+      const contractor = await prisma.projectContractors.create({
         data: {
           projectId,
           personId: person.id,

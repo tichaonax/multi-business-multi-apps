@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const contract = await prisma.employeeContract.findUnique({
+    const contract = await prisma.employeeContracts.findUnique({
       where: {
         id: contractId,
         employeeId: employeeId
@@ -111,7 +111,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify contract exists and belongs to the employee
-    const existingContract = await prisma.employeeContract.findUnique({
+    const existingContract = await prisma.employeeContracts.findUnique({
       where: {
         id: contractId,
         employeeId: employeeId
@@ -139,12 +139,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Delete related contract benefits first
-    await prisma.contractBenefit.deleteMany({
+    await prisma.contractBenefits.deleteMany({
       where: { contractId }
     })
 
     // Delete the contract
-    await prisma.employeeContract.delete({
+    await prisma.employeeContracts.delete({
       where: { id: contractId }
     })
 
@@ -193,7 +193,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
 
       // Verify contract exists and belongs to the employee
-      const existingContract = await prisma.employeeContract.findUnique({
+      const existingContract = await prisma.employeeContracts.findUnique({
         where: {
           id: contractId,
           employeeId: employeeId
@@ -271,7 +271,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { status, endDate, terminationReason, notes } = data
 
     // Verify contract exists and belongs to the employee
-    const existingContract = await prisma.employeeContract.findUnique({
+    const existingContract = await prisma.employeeContracts.findUnique({
       where: {
         id: contractId,
         employeeId: employeeId

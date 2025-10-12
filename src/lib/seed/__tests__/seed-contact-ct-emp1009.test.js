@@ -12,7 +12,7 @@ describe('Seeded CT-EMP1009 data', () => {
   })
 
   test('employee EMP1009 has realistic contact info and contract has pdfGenerationData.benefits', async () => {
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { employeeNumber: 'EMP1009' }
     })
 
@@ -21,7 +21,7 @@ describe('Seeded CT-EMP1009 data', () => {
     expect(employee.phone).toBe('+263-78-545-3103')
     expect(employee.address).toBe('789 Pine St, City, State 12345')
 
-    const contract = await prisma.employeeContract.findFirst({
+    const contract = await prisma.employeeContracts.findFirst({
       where: { contractNumber: 'CT-EMP1009' },
       select: { pdfGenerationData: true, baseSalary: true, startDate: true }
     })

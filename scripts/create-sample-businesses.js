@@ -63,14 +63,14 @@ async function createSampleBusinesses() {
     let updatedCount = 0
 
     for (const businessData of SAMPLE_BUSINESSES) {
-      const existing = await prisma.business.findFirst({
+      const existing = await prisma.businesses.findFirst({
         where: {
           name: businessData.name,
           type: businessData.type
         }
       })
 
-      const result = await prisma.business.upsert({
+      const result = await prisma.businesses.upsert({
         where: {
           id: existing?.id || "non-existent-id"
         },

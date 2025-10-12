@@ -16,14 +16,14 @@ export async function GET() {
 
     // System admins can see all businesses
     if (isSystemAdmin(user)) {
-      const businesses = await prisma.business.findMany({
+      const businesses = await prisma.businesses.findMany({
         orderBy: { createdAt: 'desc' }
       })
       return NextResponse.json(businesses)
     }
 
     // Regular users see only their businesses
-    const userMemberships = await prisma.businessMembership.findMany({
+    const userMemberships = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         isActive: true
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const shortName = await generateUniqueShortName(prisma as any, name.trim())
-    const business = await prisma.business.create({
+    const business = await prisma.businesses.create({
       // Cast to any because local Prisma client may not include the newly added shortName field yet
       data: ({
         name: name.trim(),
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Create audit log
-    await prisma.auditLog.create({
+    await prisma.auditLogs.create({
       // Cast to any to avoid strict Prisma typing for optional fields like id
       data: ({
         action: 'BUSINESS_CREATED',

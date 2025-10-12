@@ -124,7 +124,7 @@ export async function canUserAccessEmployee(
   }
 
   // Check if employee belongs to user's accessible business/department
-  const employee = await prisma.employee.findUnique({
+  const employee = await prisma.employees.findUnique({
     where: { id: employeeId },
     include: {
       jobTitle: {

@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     if (!driverId) return NextResponse.json({ error: 'driverId is required' }, { status: 400 })
 
     // Lookup driver contact info (email/phone) and simulate sending notification
-  const driver = await prisma.vehicleDriver.findUnique({ where: { id: driverId }, select: { id: true, fullName: true, emailAddress: true, phoneNumber: true } })
+  const driver = await prisma.vehicleDrivers.findUnique({ where: { id: driverId }, select: { id: true, fullName: true, emailAddress: true, phoneNumber: true } })
 
   if (!driver) return NextResponse.json({ error: 'Driver not found' }, { status: 404 })
 

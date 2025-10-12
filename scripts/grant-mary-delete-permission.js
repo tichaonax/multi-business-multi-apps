@@ -11,7 +11,7 @@ async function main() {
 
   try {
     // Find Mary
-    const mary = await prisma.user.findFirst({
+    const mary = await prisma.users.findFirst({
       where: {
         OR: [
           { name: { contains: 'Mary', mode: 'insensitive' } },
@@ -30,7 +30,7 @@ async function main() {
     if (!mary) {
       console.log('❌ Mary not found in the database')
       // Let's see what users exist
-      const users = await prisma.user.findMany({
+      const users = await prisma.users.findMany({
         select: { id: true, name: true, email: true }
       })
       console.log('Available users:', users)

@@ -22,7 +22,7 @@ export async function GET(
     // Get order directly from businessOrder table
     const { prisma } = await import('@/lib/prisma')
 
-    const order = await prisma.businessOrder.findFirst({
+    const order = await prisma.businessOrders.findFirst({
       where: {
         id: cleanOrderId
       },
@@ -53,7 +53,7 @@ export async function GET(
     // System admins can access any business order
     if (!isSystemAdmin(user)) {
       // Verify user has access to the business that owns this order
-      const userHasAccess = await prisma.businessMembership.findFirst({
+      const userHasAccess = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: order.businessId,
@@ -148,7 +148,7 @@ export async function PUT(
     // Update other attributes in the attributes JSON field
     if (Object.keys(otherUpdates).length > 0) {
       // Get current attributes and merge with new ones
-      const currentOrder = await prisma.businessOrder.findUnique({
+      const currentOrder = await prisma.businessOrders.findUnique({
         where: { id: cleanOrderId },
         select: { attributes: true }
       })
@@ -157,7 +157,7 @@ export async function PUT(
       updateFields.attributes = { ...currentAttributes, ...otherUpdates }
     }
 
-    const updatedOrder = await prisma.businessOrder.update({
+    const updatedOrder = await prisma.businessOrders.update({
       where: {
         id: cleanOrderId
       },

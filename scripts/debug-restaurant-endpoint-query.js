@@ -3,7 +3,7 @@ const prisma = new PrismaClient()
 
 async function run() {
   try {
-    const restaurants = await prisma.business.findMany({ where: { type: 'restaurant' }, select: { id: true } })
+    const restaurants = await prisma.businesses.findMany({ where: { type: 'restaurant' }, select: { id: true } })
     const ids = restaurants.map(r => r.id)
     console.log('restaurant ids:', ids)
 

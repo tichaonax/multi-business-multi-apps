@@ -12,7 +12,7 @@ async function testLogin() {
   console.log('Testing admin login for', email)
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } })
+    const user = await prisma.users.findUnique({ where: { email } })
     if (!user) {
       console.error('User not found in users table:', email)
       process.exit(2)

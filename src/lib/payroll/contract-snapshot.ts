@@ -77,7 +77,7 @@ export async function captureContractSnapshot(
   captureDate: Date = new Date()
 ): Promise<ContractSnapshot> {
   // Fetch the complete contract with all related data
-  const contract = await prisma.employeeContract.findUnique({
+  const contract = await prisma.employeeContracts.findUnique({
     where: { id: contractId },
     include: {
       compensationTypes: {

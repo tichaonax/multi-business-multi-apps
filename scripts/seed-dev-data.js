@@ -3,9 +3,9 @@ const prisma = new PrismaClient()
 const { execSync } = require('child_process')
 
 async function upsertUser(id) {
-  const existing = await prisma.user.findUnique({ where: { id } })
+  const existing = await prisma.users.findUnique({ where: { id } })
   if (existing) return existing
-  return prisma.user.create({ data: { id, name: 'Dev User', email: `dev+${id}@example.com`, passwordHash: 'dev-seed-placeholder' } })
+  return prisma.users.create({ data: { id, name: 'Dev User', email: `dev+${id}@example.com`, passwordHash: 'dev-seed-placeholder' } })
 }
 
 async function upsertVehicle(id, plate, vin) {

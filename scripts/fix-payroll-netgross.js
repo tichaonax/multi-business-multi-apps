@@ -17,7 +17,7 @@ async function computeForEntry(entryId) {
 
   // contract
   let contract=null
-  try{ const empId = entry.employee?.id || entry.employeeId; if(empId) contract = await prisma.employeeContract.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } }) }catch(e){contract=null}
+  try{ const empId = entry.employee?.id || entry.employeeId; if(empId) contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } }) }catch(e){contract=null}
   const contractBenefits = []
   if (contract && contract.pdfGenerationData && Array.isArray(contract.pdfGenerationData.benefits)) {
     for (const cb of contract.pdfGenerationData.benefits) {

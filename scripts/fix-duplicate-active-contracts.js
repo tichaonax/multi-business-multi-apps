@@ -13,7 +13,7 @@ async function fixDuplicateActiveContracts() {
 
   try {
     // Get all employees with their active contracts
-    const employees = await prisma.employee.findMany({
+    const employees = await prisma.employees.findMany({
       include: {
         employee_contracts_employee_contracts_employeeIdToemployees: {
           where: {
@@ -56,7 +56,7 @@ async function fixDuplicateActiveContracts() {
           // Set end date to the start date of the newer contract, or today if no start date
           const endDate = keepContract.startDate || new Date()
 
-          await prisma.employeeContract.update({
+          await prisma.employeeContracts.update({
             where: { id: oldContract.id },
             data: {
               status: 'expired',

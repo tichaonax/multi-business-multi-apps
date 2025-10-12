@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     // 1. Restaurant Orders Revenue
     if (hasUserPermission(user, 'canViewOrders') || isSystemAdmin(user)) {
       try {
-        const restaurantData = await prisma.order.aggregate({
+        const restaurantData = await prisma.orders.aggregate({
           where: {
             status: 'completed'
           },
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
           businessWhereClause.businessId = { in: userBusinessIds }
         }
 
-        const businessData = await prisma.businessOrder.aggregate({
+        const businessData = await prisma.businessOrders.aggregate({
           where: businessWhereClause,
           _sum: {
             subtotal: true
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const projectData = await prisma.projectTransaction.aggregate({
+        const projectData = await prisma.projectTransactions.aggregate({
           where: projectWhereClause,
           _sum: {
             amount: true
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
         hasUserPermission(user, 'canCreatePersonalProjects') ||
         isSystemAdmin(user)) {
       try {
-        const personalData = await prisma.personalExpense.aggregate({
+        const personalData = await prisma.personalExpenses.aggregate({
           where: {
             userId: session.user.id,
             amount: { gt: 0 },

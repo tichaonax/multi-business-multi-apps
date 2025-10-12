@@ -60,11 +60,11 @@ export const authOptions: NextAuthOptions = {
 
         console.log('🔍 Searching for user in database...')
         // Try to find user by email first, then by username
-        let dbUser = await prisma.user.findUnique({ where: { email: credentials.identifier } }) as any
+        let dbUser = await prisma.users.findUnique({ where: { email: credentials.identifier } }) as any
 
         if (!dbUser) {
           // If not found by email, try finding by username
-          dbUser = await prisma.user.findUnique({ where: { username: credentials.identifier } }) as any
+          dbUser = await prisma.users.findUnique({ where: { username: credentials.identifier } }) as any
         }
 
         if (!dbUser) {
@@ -73,7 +73,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Fetch active business memberships separately (typed as any to avoid strict client shape differences)
-        const businessMemberships = await prisma.businessMembership.findMany({
+        const businessMemberships = await prisma.businessMemberships.findMany({
           where: { userId: dbUser.id, isActive: true },
           include: { business: true }
         }) as any[]

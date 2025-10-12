@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all personal expenses for the user in the date range
-    const personalExpenses = await prisma.personalExpense.findMany({
+    const personalExpenses = await prisma.personalExpenses.findMany({
       where: {
         userId: user.id,
         ...dateFilter
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all unique category IDs for lookup
     const categoryIds = [...new Set(personalExpenses.map(expense => expense.category).filter(Boolean))]
-    const categories = await prisma.expenseCategory.findMany({
+    const categories = await prisma.expenseCategories.findMany({
       where: { id: { in: categoryIds } }
     })
     const categoryMap = new Map(categories.map(cat => [cat.id, cat]))

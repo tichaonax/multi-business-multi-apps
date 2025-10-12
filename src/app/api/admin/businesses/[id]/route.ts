@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if business exists
-    const existingBusiness = await prisma.business.findUnique({
+    const existingBusiness = await prisma.businesses.findUnique({
       where: { id }
     })
 
@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Update the business
-    const updatedBusiness = await prisma.business.update({
+    const updatedBusiness = await prisma.businesses.update({
       where: { id },
       data: {
         name: name.trim(),
@@ -51,7 +51,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     })
 
     // Create audit log
-    await prisma.auditLog.create({
+    await prisma.auditLogs.create({
       data: {
         action: 'BUSINESS_UPDATED',
         entityType: 'Business',
@@ -98,7 +98,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if business exists
-    const existingBusiness = await prisma.business.findUnique({
+    const existingBusiness = await prisma.businesses.findUnique({
       where: { id },
       include: {
         businessMemberships: true,
@@ -121,7 +121,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Soft delete - just mark as inactive
-    const deletedBusiness = await prisma.business.update({
+    const deletedBusiness = await prisma.businesses.update({
       where: { id },
       data: {
         isActive: false,
@@ -130,7 +130,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     })
 
     // Create audit log
-    await prisma.auditLog.create({
+    await prisma.auditLogs.create({
       data: {
         action: 'BUSINESS_DELETED',
         entityType: 'Business',

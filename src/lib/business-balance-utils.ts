@@ -33,7 +33,7 @@ export interface BusinessTransactionData {
  */
 export async function getBusinessBalance(businessId: string): Promise<BusinessBalanceInfo> {
   try {
-    const account = await prisma.businessAccount.findUnique({
+    const account = await prisma.businessAccounts.findUnique({
       where: { businessId }
     }) as any
 
@@ -73,7 +73,7 @@ export async function initializeBusinessAccount(
 ): Promise<BusinessBalanceInfo> {
   try {
     // Check if account already exists
-    const existing = await prisma.businessAccount.findUnique({
+    const existing = await prisma.businessAccounts.findUnique({
       where: { businessId }
     }) as any
 
@@ -87,7 +87,7 @@ export async function initializeBusinessAccount(
     }
 
     // Create new account
-    const account = await prisma.businessAccount.create({
+    const account = await prisma.businessAccounts.create({
       // cast to any because Prisma generated types expect additional required fields
       data: ({
         businessId,
@@ -98,7 +98,7 @@ export async function initializeBusinessAccount(
 
     // Create initial transaction if balance > 0
     if (initialBalance > 0) {
-      await prisma.businessTransaction.create({
+      await prisma.businessTransactions.create({
         data: ({
           businessId,
           amount: initialBalance,
@@ -265,7 +265,7 @@ export async function getBusinessTransactionHistory(
   offset: number = 0
 ) {
   try {
-    const transactions = await prisma.businessTransaction.findMany({
+    const transactions = await prisma.businessTransactions.findMany({
       where: { businessId },
       orderBy: { createdAt: 'desc' },
       take: limit,

@@ -7,14 +7,14 @@ const { PrismaClient } = require('@prisma/client')
     const type = process.argv[4] || 'restaurant'
     if (!id) return console.error('Usage: node scripts/create-business.js <id> [name] [type]')
 
-    const existing = await prisma.business.findUnique({ where: { id } })
+    const existing = await prisma.businesses.findUnique({ where: { id } })
     if (existing) {
       console.log('Business already exists:')
       console.log(JSON.stringify(existing, null, 2))
       return
     }
 
-    const b = await prisma.business.create({
+    const b = await prisma.businesses.create({
       data: {
         id,
         name,

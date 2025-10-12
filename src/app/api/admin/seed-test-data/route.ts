@@ -57,10 +57,10 @@ export async function POST(_request: NextRequest) {
 
     const businesses = [];
     for (const businessData of testBusinesses) {
-      const existingBusiness = await prisma.business.findFirst({ where: { name: businessData.name } });
+      const existingBusiness = await prisma.businesses.findFirst({ where: { name: businessData.name } });
 
       if (!existingBusiness) {
-        const business = await prisma.business.create({
+        const business = await prisma.businesses.create({
           data: {
             id: randomUUID(),
             name: businessData.name,
@@ -88,12 +88,12 @@ export async function POST(_request: NextRequest) {
 
     const users = [];
     for (const userData of testUsers) {
-      const existingUser = await prisma.user.findUnique({ where: { email: userData.email } });
+      const existingUser = await prisma.users.findUnique({ where: { email: userData.email } });
 
       if (!existingUser) {
         // Add a simple passwordHash for seeded users so the DB required field is satisfied
         const passwordHash = `seeded-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const user = await prisma.user.create({
+        const user = await prisma.users.create({
           data: {
             id: randomUUID(),
             name: userData.name,
@@ -116,7 +116,7 @@ export async function POST(_request: NextRequest) {
       const user = users[i];
       const business = businesses[i % businesses.length]; // Distribute users across businesses
 
-      const existingMembership = await prisma.businessMembership.findFirst({
+      const existingMembership = await prisma.businessMemberships.findFirst({
         where: {
           userId: user.id,
           businessId: business.id
@@ -124,7 +124,7 @@ export async function POST(_request: NextRequest) {
       });
 
       if (!existingMembership) {
-        await prisma.businessMembership.create({
+        await prisma.businessMemberships.create({
           data: {
             id: randomUUID(),
             userId: user.id,
@@ -180,8 +180,8 @@ export async function POST(_request: NextRequest) {
 
     let employeeCount = 0;
     // Check for required reference data before creating employees (avoid FK failures)
-    const compType = await prisma.compensationType.findFirst();
-    const jobTitle = await prisma.jobTitle.findFirst();
+    const compType = await prisma.compensationTypes.findFirst();
+    const jobTitle = await prisma.jobTitles.findFirst();
     const canCreateEmployees = Boolean(compType && jobTitle);
 
     for (let businessIndex = 0; businessIndex < businesses.length; businessIndex++) {
@@ -199,7 +199,7 @@ export async function POST(_request: NextRequest) {
         // Adjust email to be unique
         const uniqueEmail = employeeData.email.replace('@company.com', `${employeeCount}@${business.name.toLowerCase().replace(/\s+/g, '')}.com`);
 
-        const existingEmployee = await prisma.employee.findFirst({
+        const existingEmployee = await prisma.employees.findFirst({
           where: {
             OR: [
               { email: uniqueEmail },
@@ -215,7 +215,7 @@ export async function POST(_request: NextRequest) {
             try {
               const [firstName, ...rest] = employeeData.fullName.split(' ')
               const lastName = rest.join(' ') || ''
-              const employee = await prisma.employee.create({
+              const employee = await prisma.employees.create({
                 data: {
                   id: randomUUID(),
                   employeeNumber,
@@ -240,7 +240,7 @@ export async function POST(_request: NextRequest) {
 
               // Create an employee contract with required FK references
               try {
-                await prisma.employeeContract.create({
+                await prisma.employeeContracts.create({
                   data: {
                     id: randomUUID(),
                     employeeId: employee.id,
@@ -269,11 +269,11 @@ export async function POST(_request: NextRequest) {
     }
 
     // Get summary of created data
-    const totalBusinesses = await prisma.business.count();
-    const totalUsers = await prisma.user.count();
-    const totalEmployees = await prisma.employee.count();
-    const totalContracts = await prisma.employeeContract.count();
-    const totalMemberships = await prisma.businessMembership.count();
+    const totalBusinesses = await prisma.businesses.count();
+    const totalUsers = await prisma.users.count();
+    const totalEmployees = await prisma.employees.count();
+    const totalContracts = await prisma.employeeContracts.count();
+    const totalMemberships = await prisma.businessMemberships.count();
 
     return NextResponse.json({
       message: 'Test data created successfully',
@@ -284,10 +284,10 @@ export async function POST(_request: NextRequest) {
         contracts: totalContracts,
         memberships: totalMemberships,
         businessTypes: {
-          construction: await prisma.business.count({ where: { type: 'construction' } }),
-          restaurant: await prisma.business.count({ where: { type: 'restaurant' } }),
-          grocery: await prisma.business.count({ where: { type: 'grocery' } }),
-          clothing: await prisma.business.count({ where: { type: 'clothing' } }),
+          construction: await prisma.businesses.count({ where: { type: 'construction' } }),
+          restaurant: await prisma.businesses.count({ where: { type: 'restaurant' } }),
+          grocery: await prisma.businesses.count({ where: { type: 'grocery' } }),
+          clothing: await prisma.businesses.count({ where: { type: 'clothing' } }),
         }
       }
     });

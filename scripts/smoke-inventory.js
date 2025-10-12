@@ -36,7 +36,7 @@ async function computeCurrentStockForProduct(product) {
 async function run() {
   try {
     console.log('Checking business', BUSINESS_ID)
-    const business = await prisma.business.findUnique({ where: { id: BUSINESS_ID } })
+    const business = await prisma.businesses.findUnique({ where: { id: BUSINESS_ID } })
     if (!business) {
       console.error('Business not found:', BUSINESS_ID)
       process.exit(1)

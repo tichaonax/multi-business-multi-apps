@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     
     if (businessId) {
       // Get business settings if joining existing business
-      const business = await prisma.business.findUnique({
+      const business = await prisma.businesses.findUnique({
         where: { id: businessId },
         select: { settings: true, isActive: true },
       });
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.users.findUnique({
       where: { email }
     });
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await hash(password, 12);
 
     // Create the user
-    const user = await prisma.user.create({
+    const user = await prisma.users.create({
       data: {
         name,
         email,
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     // If user wants to create a business, create it with them as owner
     if (createBusiness && businessName) {
       const shortName = await (await import('@/lib/business-shortname')).generateUniqueShortName(prisma as any, businessName)
-      const business = await prisma.business.create({
+      const business = await prisma.businesses.create({
         data: ({
           name: businessName,
           type: businessType || 'general',
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
       });
 
       // Create business membership with owner permissions
-      await prisma.businessMembership.create({
+      await prisma.businessMemberships.create({
         data: {
           userId: user.id,
           businessId: business.id,

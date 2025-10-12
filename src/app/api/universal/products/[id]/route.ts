@@ -62,7 +62,7 @@ export async function GET(
   try {
     const { id } = await params
 
-    const product = await prisma.businessProduct.findUnique({
+    const product = await prisma.businessProducts.findUnique({
       where: { id },
       include: {
         business: {
@@ -121,7 +121,7 @@ export async function PUT(
     const { variants, images, ...updateData } = validatedData
 
     // Verify product exists
-    const existingProduct = await prisma.businessProduct.findUnique({
+    const existingProduct = await prisma.businessProducts.findUnique({
       where: { id },
       include: {
           productVariants: true,
@@ -152,7 +152,7 @@ export async function PUT(
 
     // Check for duplicate SKU if SKU is being updated
     if (updateData.sku && updateData.sku !== existingProduct.sku) {
-      const duplicateProduct = await prisma.businessProduct.findFirst({
+      const duplicateProduct = await prisma.businessProducts.findFirst({
         where: {
           businessId: existingProduct.businessId,
           sku: updateData.sku,
@@ -238,7 +238,7 @@ export async function DELETE(
     const { id } = await params
 
     // Check if product has active orders
-    const productWithOrders = await prisma.businessProduct.findUnique({
+    const productWithOrders = await prisma.businessProducts.findUnique({
       where: { id },
       include: {
         productVariants: {
@@ -278,11 +278,11 @@ export async function DELETE(
 
     // Soft delete product and its variants
     await prisma.$transaction([
-      prisma.productVariant.updateMany({
+      prisma.productVariants.updateMany({
         where: { productId: id },
         data: { isActive: false }
       }),
-      prisma.businessProduct.update({
+      prisma.businessProducts.update({
         where: { id },
         data: { isActive: false }
       })

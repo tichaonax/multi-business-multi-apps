@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       whereClause.type = type
     }
 
-    const compensationTypes = await prisma.compensationType.findMany({
+    const compensationTypes = await prisma.compensationTypes.findMany({
       where: whereClause,
       orderBy: [
         { type: 'asc' },
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate name
-    const existingCompensationType = await prisma.compensationType.findUnique({
+    const existingCompensationType = await prisma.compensationTypes.findUnique({
       where: { name }
     })
 
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const newCompensationType = await prisma.compensationType.create({
+    const newCompensationType = await prisma.compensationTypes.create({
       data: {
         name,
         type,

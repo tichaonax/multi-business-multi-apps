@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [customers, totalCount] = await Promise.all([
-      prisma.businessCustomer.findMany({
+      prisma.businessCustomers.findMany({
         where,
         include: {
           business: {
@@ -104,11 +104,11 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.businessCustomer.count({ where })
+      prisma.businessCustomers.count({ where })
     ])
 
     // Calculate summary statistics
-    const summary = await prisma.businessCustomer.aggregate({
+    const summary = await prisma.businessCustomers.aggregate({
       where,
       _sum: {
         totalSpent: true,
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateCustomerSchema.parse(body)
 
     // Verify business exists
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: validatedData.businessId }
     })
 
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate email within the business if email provided
     if (validatedData.email) {
-      const existingCustomer = await prisma.businessCustomer.findFirst({
+      const existingCustomer = await prisma.businessCustomers.findFirst({
         where: {
           businessId: validatedData.businessId,
           email: validatedData.email
@@ -179,13 +179,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current customer count for customer number generation
-    const customerCount = await prisma.businessCustomer.count({
+    const customerCount = await prisma.businessCustomers.count({
       where: { businessId: validatedData.businessId }
     })
 
     const customerNumber = generateCustomerNumber(validatedData.businessType, customerCount)
 
-    const customer = await prisma.businessCustomer.create({
+    const customer = await prisma.businessCustomers.create({
       data: {
         id: randomUUID(),
         updatedAt: new Date(),
@@ -239,7 +239,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify customer exists
-    const existingCustomer = await prisma.businessCustomer.findUnique({
+    const existingCustomer = await prisma.businessCustomers.findUnique({
       where: { id }
     })
 
@@ -252,7 +252,7 @@ export async function PUT(request: NextRequest) {
 
     // Check for duplicate email if email is being updated
     if (updateData.email && updateData.email !== existingCustomer.email) {
-      const duplicateCustomer = await prisma.businessCustomer.findFirst({
+      const duplicateCustomer = await prisma.businessCustomers.findFirst({
         where: {
           businessId: existingCustomer.businessId,
           email: updateData.email,
@@ -268,7 +268,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const customer = await prisma.businessCustomer.update({
+    const customer = await prisma.businessCustomers.update({
       where: { id },
       data: {
         ...updateData,
@@ -322,7 +322,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if customer has orders
-    const customerWithOrders = await prisma.businessCustomer.findUnique({
+    const customerWithOrders = await prisma.businessCustomers.findUnique({
       where: { id },
       include: {
         businessOrders: {
@@ -354,7 +354,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete the customer
-    await prisma.businessCustomer.update({
+    await prisma.businessCustomers.update({
       where: { id },
       data: { isActive: false }
     })

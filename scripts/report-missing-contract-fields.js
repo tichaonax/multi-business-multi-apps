@@ -36,7 +36,7 @@ function isManagementRoleFromTitle(jobTitle) {
 
 async function run() {
   try {
-    const contracts = await prisma.employeeContract.findMany({ select: { id: true, employeeId: true, jobTitleId: true, compensationTypeId: true, baseSalary: true, startDate: true, primaryBusinessId: true, supervisorId: true } })
+    const contracts = await prisma.employeeContracts.findMany({ select: { id: true, employeeId: true, jobTitleId: true, compensationTypeId: true, baseSalary: true, startDate: true, primaryBusinessId: true, supervisorId: true } })
     console.log(`ℹ️  Found ${contracts.length} contracts`) 
 
     const report = []
@@ -44,7 +44,7 @@ async function run() {
     for (const c of contracts) {
       const missing = []
 
-      const employee = c.employeeId ? await prisma.employee.findUnique({ where: { id: c.employeeId } }).catch(() => null) : null
+      const employee = c.employeeId ? await prisma.employees.findUnique({ where: { id: c.employeeId } }).catch(() => null) : null
 
       const jobTitleId = c.jobTitleId || (employee && employee.jobTitleId) || null
       const compensationTypeId = c.compensationTypeId || (employee && employee.compensationTypeId) || null

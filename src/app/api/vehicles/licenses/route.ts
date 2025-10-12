@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [licenses, totalCount] = await Promise.all([
-      prisma.vehicleLicense.findMany({
+      prisma.vehicleLicenses.findMany({
         where,
         include: {
           // schema relation name is `vehicles`
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleLicense.count({ where })
+      prisma.vehicleLicenses.count({ where })
     ])
 
     const normalized = licenses.map(l => ({ ...l, vehicle: (l as any).vehicles || null }))
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateLicenseSchema.parse(body)
 
     // Verify vehicle exists
-    const vehicle = await prisma.vehicle.findUnique({
+    const vehicle = await prisma.vehicles.findUnique({
       where: { id: validatedData.vehicleId }
     })
 
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if an active license exists for this vehicle and type
-    const existingLicense = await prisma.vehicleLicense.findFirst({
+    const existingLicense = await prisma.vehicleLicenses.findFirst({
       where: {
         vehicleId: validatedData.vehicleId,
         licenseType: validatedData.licenseType,
@@ -141,8 +141,8 @@ export async function POST(request: NextRequest) {
 
         // Do the deactivation + creation transactionally
         const [deactivated, created] = await prisma.$transaction([
-          prisma.vehicleLicense.update({ where: { id: existingLicense.id }, data: { isActive: false } }),
-          prisma.vehicleLicense.create({
+          prisma.vehicleLicenses.update({ where: { id: existingLicense.id }, data: { isActive: false } }),
+          prisma.vehicleLicenses.create({
             data: {
               id: newLicenseId,
               ...validatedData,
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
 
         // Audit deactivation
         try {
-          await prisma.auditLog.create({
+          await prisma.auditLogs.create({
             data: {
               id: crypto.randomUUID(),
               userId: session.user.id,
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
         // Audit creation
         try {
           const normalizedCreated = { ...created, vehicle: (created as any).vehicles || null }
-          await prisma.auditLog.create({
+          await prisma.auditLogs.create({
             data: {
               id: crypto.randomUUID(),
               userId: session.user.id,
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
     }
 
     // No active license exists — create normally
-    const license = await prisma.vehicleLicense.create({
+    const license = await prisma.vehicleLicenses.create({
       data: {
         id: crypto.randomUUID(),
         ...validatedData,
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
 
     // Audit log for creation
     try {
-      await prisma.auditLog.create({
+      await prisma.auditLogs.create({
         data: {
           id: crypto.randomUUID(),
           userId: session.user.id,
@@ -272,7 +272,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify license exists
-    const existingLicense = await prisma.vehicleLicense.findUnique({
+    const existingLicense = await prisma.vehicleLicenses.findUnique({
       where: { id }
     })
 
@@ -285,7 +285,7 @@ export async function PUT(request: NextRequest) {
 
     // Check for duplicate license type if it's being updated
     if (updateData.licenseType) {
-      const duplicateCheck = await prisma.vehicleLicense.findFirst({
+      const duplicateCheck = await prisma.vehicleLicenses.findFirst({
         where: {
           AND: [
             { id: { not: id } },
@@ -305,7 +305,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update license
-    const license = await prisma.vehicleLicense.update({
+    const license = await prisma.vehicleLicenses.update({
       where: { id },
       data: { ...updateData, issueDate: updateData.issueDate ? new Date(updateData.issueDate) : undefined, expiryDate: updateData.expiryDate ? new Date(updateData.expiryDate) : undefined } as any,
       include: { vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } } }
@@ -315,7 +315,7 @@ export async function PUT(request: NextRequest) {
 
     // Audit log for update
     try {
-      await prisma.auditLog.create({
+      await prisma.auditLogs.create({
         data: {
           id: crypto.randomUUID(),
           userId: session.user.id,
@@ -379,7 +379,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Validate all ids exist and belong to the same vehicle (prevent cross-vehicle accidental deletes)
-    const licenses = await prisma.vehicleLicense.findMany({ where: { id: { in: idsToDelete } } })
+    const licenses = await prisma.vehicleLicenses.findMany({ where: { id: { in: idsToDelete } } })
     if (licenses.length !== idsToDelete.length) {
       return NextResponse.json({ error: 'One or more licenses not found' }, { status: 404 })
     }
@@ -396,7 +396,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete all selected licenses in a transaction and return deactivated ids
-    const updates = idsToDelete.map(id => prisma.vehicleLicense.update({ where: { id }, data: { isActive: false } }))
+    const updates = idsToDelete.map(id => prisma.vehicleLicenses.update({ where: { id }, data: { isActive: false } }))
     const results = await prisma.$transaction(updates)
     const deactivatedIds = results.map(r => (r as any).id)
 
@@ -404,7 +404,7 @@ export async function DELETE(request: NextRequest) {
     try {
       for (const r of results) {
         const rec: any = r
-        await prisma.auditLog.create({
+        await prisma.auditLogs.create({
           data: {
             id: crypto.randomUUID(),
             userId: session.user.id,

@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       where.employeeId = employeeId
     }
 
-    const entries = await prisma.payrollEntry.findMany({
+    const entries = await prisma.payrollEntries.findMany({
       where,
       include: {
         employee: {
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     // because employees can have multiple entries for different contracts.
     // If contractId is specified, check if that specific contract already has an entry.
     if (contractId) {
-      const existingEntry = await prisma.payrollEntry.findFirst({
+      const existingEntry = await prisma.payrollEntries.findFirst({
         where: {
           payrollPeriodId,
           employeeId,
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify period exists and is editable
-    const period = await prisma.payrollPeriod.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId }
     })
 
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch employee basic info
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       select: {
         id: true,
@@ -268,7 +268,7 @@ export async function POST(req: NextRequest) {
     const netPay = grossPay.sub(totalDeductions)
 
     // Create entry with contract tracking fields
-    const entry = await prisma.payrollEntry.create({
+    const entry = await prisma.payrollEntries.create({
       data: {
         id: `PE-${nanoid(12)}`,
         payrollPeriodId,
@@ -330,7 +330,7 @@ export async function POST(req: NextRequest) {
 
 // Helper function to update period totals
 async function updatePeriodTotals(periodId: string) {
-  const aggregates = await prisma.payrollEntry.aggregate({
+  const aggregates = await prisma.payrollEntries.aggregate({
     where: { payrollPeriodId: periodId },
     _sum: {
       grossPay: true,
@@ -340,7 +340,7 @@ async function updatePeriodTotals(periodId: string) {
     _count: true
   })
 
-  await prisma.payrollPeriod.update({
+  await prisma.payrollPeriods.update({
     where: { id: periodId },
     data: {
       totalEmployees: aggregates._count,

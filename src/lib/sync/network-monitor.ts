@@ -359,7 +359,7 @@ export class NetworkMonitor extends EventEmitter {
   private async handleOfflineTransition(): Promise<void> {
     try {
       // Record network partition in database
-      await this.prisma.networkPartition.create({
+      await this.prisma.networkPartitions.create({
         data: {
           id: uuidv4(),
           nodeId: this.nodeId,
@@ -387,7 +387,7 @@ export class NetworkMonitor extends EventEmitter {
   private async handleOnlineTransition(): Promise<void> {
     try {
       // Resolve any open network partitions
-      await this.prisma.networkPartition.updateMany({
+      await this.prisma.networkPartitions.updateMany({
         where: {
           nodeId: this.nodeId,
           isResolved: false,

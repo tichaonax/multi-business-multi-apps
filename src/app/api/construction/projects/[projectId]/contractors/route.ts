@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { projectId } = await params
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const projectContractors = await prisma.projectContractor.findMany({
+    const projectContractors = await prisma.projectContractors.findMany({
       where: { projectId },
       include: {
         person: {
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify person exists
-    const person = await prisma.person.findUnique({
+    const person = await prisma.persons.findUnique({
       where: { id: personId }
     })
 
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if person is already assigned to this project
-    const existingAssignment = await prisma.projectContractor.findFirst({
+    const existingAssignment = await prisma.projectContractors.findFirst({
       where: {
         projectId,
         personId
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // If setting as primary, ensure no other primary contractor exists
     if (isPrimary) {
-      const existingPrimary = await prisma.projectContractor.findFirst({
+      const existingPrimary = await prisma.projectContractors.findFirst({
         where: {
           projectId,
           isPrimary: true
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const newProjectContractor = await prisma.projectContractor.create({
+    const newProjectContractor = await prisma.projectContractors.create({
       data: {
         projectId,
         personId,

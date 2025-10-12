@@ -17,7 +17,7 @@ async function createAdminUser() {
       admin: ['manage_users', 'backup_restore'],
     };
 
-    const user = await prisma.user.upsert({
+    const user = await prisma.users.upsert({
       where: {
         email: 'admin@business.local'
       },

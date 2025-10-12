@@ -8,7 +8,7 @@ const empId = process.argv[2] || '148336d5-a366-444a-841a-57432c4b85d1';
 
 (async () => {
   try {
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId: empId },
       include: { contract_benefits: { include: { benefitType: true } } },
       orderBy: { createdAt: 'desc' },

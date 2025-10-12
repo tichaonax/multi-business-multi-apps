@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // Verify user has access to this business (system admins can access any business)
     if (!isSystemAdmin(user)) {
-      const membership = await prisma.businessMembership.findFirst({
+      const membership = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: businessId,
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Update user's last accessed business
-    const updatedUser = await prisma.user.update({
+    const updatedUser = await prisma.users.update({
       where: { id: session.user.id },
       data: {
         lastAccessedBusinessId: businessId,
@@ -81,7 +81,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: session.user.id },
       select: {
         lastAccessedBusinessId: true,

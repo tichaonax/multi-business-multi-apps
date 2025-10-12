@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
 
     // OPTIMIZED: Get employees with minimal essential data only
     const [employees, totalCount] = await Promise.all([
-      prisma.employee.findMany({
+      prisma.employees.findMany({
         where: whereClause,
         select: {
           id: true,
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.employee.count({ where: whereClause })
+      prisma.employees.count({ where: whereClause })
     ])
 
     // OPTIMIZED: Get related data in separate, lighter queries
@@ -109,15 +109,15 @@ export async function GET(req: NextRequest) {
     const businessIds = [...new Set(employees.map(e => e.primaryBusinessId).filter(Boolean))]
 
     const [jobTitles, compensationTypes, businesses] = await Promise.all([
-      jobTitleIds.length > 0 ? prisma.jobTitle.findMany({
+      jobTitleIds.length > 0 ? prisma.jobTitles.findMany({
         where: { id: { in: jobTitleIds } },
         select: { id: true, title: true, department: true, level: true }
       }) : [],
-      compensationTypeIds.length > 0 ? prisma.compensationType.findMany({
+      compensationTypeIds.length > 0 ? prisma.compensationTypes.findMany({
         where: { id: { in: compensationTypeIds } },
         select: { id: true, name: true, type: true, frequency: true }
       }) : [],
-      businessIds.length > 0 ? prisma.business.findMany({
+      businessIds.length > 0 ? prisma.businesses.findMany({
         where: { id: { in: businessIds } },
         select: { id: true, name: true, type: true }
       }) : []
@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch active employee contracts separately to avoid relying on fragile relation include names
     const employeeIds = employees.map(e => e.id)
-    const contracts = employeeIds.length > 0 ? await prisma.employeeContract.findMany({
+    const contracts = employeeIds.length > 0 ? await prisma.employeeContracts.findMany({
       where: {
         employeeId: { in: employeeIds },
         status: 'active'
@@ -256,7 +256,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate national ID
-    const existingEmployee = await prisma.employee.findUnique({
+    const existingEmployee = await prisma.employees.findUnique({
       where: { nationalId: nationalId }
     })
 
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
 
     // Check for duplicate email if provided
     if (email) {
-      const existingEmailEmployee = await prisma.employee.findUnique({
+      const existingEmailEmployee = await prisma.employees.findUnique({
         where: { email }
       })
 
@@ -283,12 +283,12 @@ export async function POST(req: NextRequest) {
 
     // Validate foreign key references (using correct table names)
     const [jobTitle, compensationType, business, supervisor, userAccount, idTemplate] = await Promise.all([
-      prisma.jobTitle.findUnique({ where: { id: jobTitleId } }),
-      prisma.compensationType.findUnique({ where: { id: compensationTypeId } }),
-      prisma.business.findUnique({ where: { id: primaryBusinessId } }),
-      supervisorId ? prisma.employee.findUnique({ where: { id: supervisorId } }) : null,
-      userId ? prisma.user.findUnique({ where: { id: userId } }) : null,
-      idFormatTemplateId ? prisma.idFormatTemplate.findUnique({ where: { id: idFormatTemplateId } }) : null
+      prisma.jobTitles.findUnique({ where: { id: jobTitleId } }),
+      prisma.compensationTypes.findUnique({ where: { id: compensationTypeId } }),
+      prisma.businesses.findUnique({ where: { id: primaryBusinessId } }),
+      supervisorId ? prisma.employees.findUnique({ where: { id: supervisorId } }) : null,
+      userId ? prisma.users.findUnique({ where: { id: userId } }) : null,
+      idFormatTemplateId ? prisma.idFormatTemplates.findUnique({ where: { id: idFormatTemplateId } }) : null
     ])
 
     if (!jobTitle || !compensationType || !business) {
@@ -313,7 +313,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate unique employee number
-    const employeeCount = await prisma.employee.count()
+    const employeeCount = await prisma.employees.count()
     const employeeNumber = `EMP${String(employeeCount + 1).padStart(6, '0')}`
 
     // Create employee in transaction

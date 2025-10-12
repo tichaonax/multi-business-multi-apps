@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch full user data with permissions and business memberships
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: session.user.id },
       select: {
         id: true,
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const activeProjects = await prisma.project.findMany({
+    const activeProjects = await prisma.projects.findMany({
       where: whereClause,
       include: {
         business: {

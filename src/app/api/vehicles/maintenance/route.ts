@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [maintenanceRecords, totalCount] = await Promise.all([
-      prisma.vehicleMaintenanceRecord.findMany({
+      prisma.vehicleMaintenanceRecords.findMany({
         where,
         include: {
           vehicles: {
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleMaintenanceRecord.count({ where })
+      prisma.vehicleMaintenanceRecords.count({ where })
     ])
 
     // Remap Prisma relation field names back to the API shape expected by callers
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateMaintenanceSchema.parse(body)
 
     // Verify vehicle exists
-    const vehicle = await prisma.vehicle.findUnique({
+    const vehicle = await prisma.vehicles.findUnique({
       where: { id: validatedData.vehicleId }
     })
 
@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create maintenance record (map front-end names to DB columns)
-    const maintenanceRecord = await prisma.vehicleMaintenanceRecord.create({
+    const maintenanceRecord = await prisma.vehicleMaintenanceRecords.create({
       data: {
         id: randomUUID(),
         vehicleId: validatedData.vehicleId,
@@ -341,7 +341,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify maintenance record exists
-    const existingRecord = await prisma.vehicleMaintenanceRecord.findUnique({
+    const existingRecord = await prisma.vehicleMaintenanceRecords.findUnique({
       where: { id },
       include: {
         vehicles: {
@@ -398,7 +398,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update maintenance record (map front-end fields to DB columns)
-    const maintenanceRecord = await prisma.vehicleMaintenanceRecord.update({
+    const maintenanceRecord = await prisma.vehicleMaintenanceRecords.update({
       where: { id },
       data: {
         serviceType: updateData.serviceType ? SERVICE_TYPE_MAP[updateData.serviceType as string] ?? undefined : undefined,
@@ -483,7 +483,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify maintenance record exists
-    const existingRecord = await prisma.vehicleMaintenanceRecord.findUnique({
+    const existingRecord = await prisma.vehicleMaintenanceRecords.findUnique({
       where: { id: recordId }
     })
 
@@ -495,7 +495,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete maintenance record
-    await prisma.vehicleMaintenanceRecord.delete({
+    await prisma.vehicleMaintenanceRecords.delete({
       where: { id: recordId }
     })
 

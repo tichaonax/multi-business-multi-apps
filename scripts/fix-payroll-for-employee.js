@@ -20,7 +20,7 @@ async function computeForEntry(entry) {
 
   // contract
   let contract = null
-  try { const empId = entry.employee?.id || entry.employeeId; if (empId) contract = await prisma.employeeContract.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } }) } catch(e){ contract = null }
+  try { const empId = entry.employee?.id || entry.employeeId; if (empId) contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } }) } catch(e){ contract = null }
   if (contract && contract.pdfGenerationData && Array.isArray(contract.pdfGenerationData.benefits)) {
     for (const cb of contract.pdfGenerationData.benefits) {
       const amount = Number(cb.amount || 0)
@@ -113,7 +113,7 @@ async function runForEmployee(employeeNumber, dry=true, inspect=false) {
       console.log('  contract baseSalary (if any):', comp.baseSalary)
       console.log('  employee.hourlyRate:', e.employee && e.employee.hourlyRate ? Number(e.employee.hourlyRate) : 0)
       try {
-        const contractRaw = await prisma.employeeContract.findFirst({ where: { employeeId: e.employee?.id || e.employeeId }, orderBy: { startDate: 'desc' } })
+        const contractRaw = await prisma.employeeContracts.findFirst({ where: { employeeId: e.employee?.id || e.employeeId }, orderBy: { startDate: 'desc' } })
         console.log('  contract.pdfGenerationData.basicSalary:', contractRaw && contractRaw.pdfGenerationData ? (contractRaw.pdfGenerationData.basicSalary || null) : null)
         console.log('  contract.pdfGenerationData.compensationType:', contractRaw && contractRaw.pdfGenerationData ? (contractRaw.pdfGenerationData.compensationType || null) : null)
       } catch (err) { /* ignore */ }

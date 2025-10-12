@@ -10,7 +10,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const projects = await prisma.constructionProject.findMany({
+    const projects = await prisma.constructionProjects.findMany({
       where: { 
         createdBy: session.user.id 
       },
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     console.log('Creating project:', { name, description, userId: session.user.id })
     
-    const newProject = await prisma.constructionProject.create({
+    const newProject = await prisma.constructionProjects.create({
       data: {
         name,
         description: description || null,

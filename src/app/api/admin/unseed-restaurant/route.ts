@@ -21,24 +21,24 @@ export async function POST(request: NextRequest) {
   const demoBusinessId = 'restaurant-demo'
 
     // Delete order items -> orders -> stock movements -> variants -> attributes -> products -> categories -> business
-    const demoOrderIds = await prisma.businessOrder.findMany({ where: { businessId: demoBusinessId }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => [])
+    const demoOrderIds = await prisma.businessOrders.findMany({ where: { businessId: demoBusinessId }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => [])
     if (demoOrderIds.length > 0) {
       await prisma.businessOrderItem.deleteMany({ where: { orderId: { in: demoOrderIds } } }).catch(() => {})
     }
-    await prisma.businessOrder.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
-    await prisma.businessStockMovement.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
+    await prisma.businessOrders.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
+    await prisma.businessStockMovements.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
 
-  const demoProducts = await prisma.businessProduct.findMany({ where: { businessId: demoBusinessId } })
+  const demoProducts = await prisma.businessProducts.findMany({ where: { businessId: demoBusinessId } })
   const demoProductIds = demoProducts.map(p => p.id)
-  const demoVariantIds = await prisma.productVariant.findMany({ where: { productId: { in: demoProductIds } }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => [])
+  const demoVariantIds = await prisma.productVariants.findMany({ where: { productId: { in: demoProductIds } }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => [])
 
   // Delete product images first to avoid FK restriction
-  await prisma.productImage.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
-  await prisma.productVariant.deleteMany({ where: { id: { in: demoVariantIds } } }).catch(() => {})
-  await prisma.productAttribute.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
-  await prisma.businessProduct.deleteMany({ where: { id: { in: demoProductIds } } }).catch(() => {})
-    await prisma.businessCategory.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
-    await prisma.business.deleteMany({ where: { id: demoBusinessId } }).catch(() => {})
+  await prisma.productImages.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
+  await prisma.productVariants.deleteMany({ where: { id: { in: demoVariantIds } } }).catch(() => {})
+  await prisma.productAttributes.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
+  await prisma.businessProducts.deleteMany({ where: { id: { in: demoProductIds } } }).catch(() => {})
+    await prisma.businessCategories.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
+    await prisma.businesses.deleteMany({ where: { id: demoBusinessId } }).catch(() => {})
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

@@ -12,7 +12,7 @@ async function main() {
 
   try {
     // Find or create a test user
-    let testUser = await prisma.user.findFirst({
+    let testUser = await prisma.users.findFirst({
       where: { email: 'admin@business.local' }
     })
 

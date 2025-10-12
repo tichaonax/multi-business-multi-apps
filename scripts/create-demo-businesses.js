@@ -7,7 +7,7 @@ async function createDemoBusinesses() {
     console.log('🏢 Creating demo businesses...')
 
     // Check if admin user exists
-    const adminUser = await prisma.user.findUnique({
+    const adminUser = await prisma.users.findUnique({
       where: { email: 'admin@business.local' }
     })
 
@@ -76,7 +76,7 @@ async function createDemoBusinesses() {
       console.log(`Creating business: ${businessData.name}...`)
 
       // Check if business already exists
-      const existingBusiness = await prisma.business.findUnique({
+      const existingBusiness = await prisma.businesses.findUnique({
         where: { id: businessData.id }
       })
 
@@ -86,7 +86,7 @@ async function createDemoBusinesses() {
       }
 
       // Create business
-      const business = await prisma.business.create({
+      const business = await prisma.businesses.create({
         data: businessData
       })
 

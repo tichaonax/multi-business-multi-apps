@@ -268,7 +268,7 @@ async function populateWorksheet(
  * This ensures historical accuracy even if contracts were modified after the period
  */
 export async function regeneratePeriodEntries(periodId: string): Promise<any[]> {
-  const period = await prisma.payrollPeriod.findUnique({
+  const period = await prisma.payrollPeriods.findUnique({
     where: { id: periodId },
     include: {
       payrollEntries: {
@@ -322,7 +322,7 @@ export async function regeneratePeriodEntries(periodId: string): Promise<any[]> 
 
     // Fall back to latest contract if no snapshot or snapshot invalid
     if (!contract && entry.employeeId) {
-      const liveContract = await prisma.employeeContract.findFirst({
+      const liveContract = await prisma.employeeContracts.findFirst({
         where: { employeeId: entry.employeeId },
         orderBy: { startDate: 'desc' },
         include: {
@@ -368,7 +368,7 @@ export async function getYearToDatePeriods(
   targetPeriodId: string
 ): Promise<any[]> {
   // Get the target period to determine year and month
-  const targetPeriod = await prisma.payrollPeriod.findUnique({
+  const targetPeriod = await prisma.payrollPeriods.findUnique({
     where: { id: targetPeriodId },
     select: { year: true, month: true }
   })
@@ -378,7 +378,7 @@ export async function getYearToDatePeriods(
   }
 
   // Find all approved periods in the same year, up to the target month
-  const periods = await prisma.payrollPeriod.findMany({
+  const periods = await prisma.payrollPeriods.findMany({
     where: {
       businessId,
       year: targetPeriod.year,

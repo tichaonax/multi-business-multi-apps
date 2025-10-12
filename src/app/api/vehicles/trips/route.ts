@@ -124,8 +124,8 @@ export async function GET(request: NextRequest) {
     }
 
     const [trips, totalCount] = await Promise.all([
-      prisma.vehicleTrip.findMany({ where, include, orderBy: { startTime: 'desc' }, skip, take: limit }),
-      prisma.vehicleTrip.count({ where })
+      prisma.vehicleTrips.findMany({ where, include, orderBy: { startTime: 'desc' }, skip, take: limit }),
+      prisma.vehicleTrips.count({ where })
     ])
 
     // Calculate trip mileage for completed trips
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
   const validatedData = CreateTripSchema.parse(body)
 
     // Verify vehicle exists
-    const vehicle = await prisma.vehicle.findUnique({
+    const vehicle = await prisma.vehicles.findUnique({
       where: { id: validatedData.vehicleId }
     })
 
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify driver exists
-    const driver = await prisma.vehicleDriver.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: validatedData.driverId }
     })
 
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify driver is authorized for this vehicle
-    const authorization = await prisma.driverAuthorization.findFirst({
+    const authorization = await prisma.driverAuthorizations.findFirst({
       where: {
         driverId: validatedData.driverId,
         vehicleId: validatedData.vehicleId,
@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
 
     // Verify business exists if provided
     if (validatedData.businessId) {
-      const business = await prisma.business.findUnique({
+      const business = await prisma.businesses.findUnique({
         where: { id: validatedData.businessId }
       })
 
@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
       delete createData.businessId
     }
 
-    const trip = await prisma.vehicleTrip.create({
+    const trip = await prisma.vehicleTrips.create({
       data: createData as any,
       include: {
         vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
 
     // Update vehicle mileage if trip is completed
     if (isCompleted && validatedData.endMileage) {
-      await prisma.vehicle.update({
+      await prisma.vehicles.update({
         where: { id: validatedData.vehicleId },
         data: { currentMileage: validatedData.endMileage }
       })
@@ -317,7 +317,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify trip exists
-    const existingTrip = await prisma.vehicleTrip.findUnique({
+    const existingTrip = await prisma.vehicleTrips.findUnique({
       where: { id }
     })
 
@@ -345,7 +345,7 @@ export async function PUT(request: NextRequest) {
       : !!(endMileage && endTime)
 
     // Update trip
-    const trip = await prisma.vehicleTrip.update({
+    const trip = await prisma.vehicleTrips.update({
       where: { id },
       data: { ...updateData, endTime: updateData.endTime ? new Date(updateData.endTime) : undefined, tripMileage, isCompleted } as any,
       include: {
@@ -357,7 +357,7 @@ export async function PUT(request: NextRequest) {
 
     // Update vehicle mileage if trip is completed and end mileage is provided
     if (isCompleted && endMileage) {
-      await prisma.vehicle.update({
+      await prisma.vehicles.update({
         where: { id: existingTrip.vehicleId },
         data: { currentMileage: endMileage }
       })
@@ -402,7 +402,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify trip exists
-    const existingTrip = await prisma.vehicleTrip.findUnique({ where: { id: tripId }, include: { vehicle_expenses: { take: 1 } } })
+    const existingTrip = await prisma.vehicleTrips.findUnique({ where: { id: tripId }, include: { vehicle_expenses: { take: 1 } } })
 
     if (!existingTrip) {
       return NextResponse.json(
@@ -422,7 +422,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete trip
-    await prisma.vehicleTrip.delete({
+    await prisma.vehicleTrips.delete({
       where: { id: tripId }
     })
 

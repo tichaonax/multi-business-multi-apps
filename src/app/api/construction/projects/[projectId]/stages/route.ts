@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { projectId } = await params
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const stages = await prisma.projectStage.findMany({
+    const stages = await prisma.projectStages.findMany({
       where: { projectId },
       include: {
         stageContractorAssignments: {
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -117,14 +117,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // If orderIndex is not provided, set it to the next available index
     let finalOrderIndex = orderIndex
     if (finalOrderIndex === undefined || finalOrderIndex === null) {
-      const maxOrderStage = await prisma.projectStage.findFirst({
+      const maxOrderStage = await prisma.projectStages.findFirst({
         where: { projectId },
         orderBy: { orderIndex: 'desc' }
       })
       finalOrderIndex = (maxOrderStage?.orderIndex || 0) + 1
     }
 
-    const newStage = await prisma.projectStage.create({
+    const newStage = await prisma.projectStages.create({
       data: {
         projectId,
         name,

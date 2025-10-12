@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get all persons (global contractor pool) with usage statistics
-    const contractors = await prisma.person.findMany({
+    const contractors = await prisma.persons.findMany({
       include: {
         // schema relation name is `idFormatTemplates` (plural)
         idFormatTemplates: {

@@ -69,12 +69,12 @@ export async function GET(req: NextRequest) {
       averageTenureData
     ] = await Promise.all([
       // Total employees
-      prisma.employee.count({
+      prisma.employees.count({
         where: businessWhereClause
       }),
       
       // Active employees
-      prisma.employee.count({
+      prisma.employees.count({
         where: {
           ...businessWhereClause,
           isActive: true,
@@ -83,20 +83,20 @@ export async function GET(req: NextRequest) {
       }),
 
       // Employees by status
-      prisma.employee.groupBy({
+      prisma.employees.groupBy({
         by: ['employmentStatus'],
         where: businessWhereClause,
         _count: true
       }),
 
       // Employees by department
-      prisma.employee.groupBy({
+      prisma.employees.groupBy({
         by: ['jobTitle'],
         where: businessWhereClause,
         _count: true
       }).then(async (results) => {
         const jobTitleIds = results.map(r => r.jobTitle).filter(Boolean)
-        const jobTitles = await prisma.jobTitle.findMany({
+        const jobTitles = await prisma.jobTitles.findMany({
           where: { id: { in: jobTitleIds } },
           select: { id: true, department: true }
         })
@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
       }),
 
       // Employees by business
-      prisma.business.findMany({
+      prisma.businesses.findMany({
         where: businessId ? { id: businessId } : {},
         include: {
           primaryEmployees: {
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
       ),
 
       // New hires this month
-      prisma.employee.count({
+      prisma.employees.count({
         where: {
           ...businessWhereClause,
           hireDate: {
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
       }),
 
       // New hires this year
-      prisma.employee.count({
+      prisma.employees.count({
         where: {
           ...businessWhereClause,
           hireDate: {
@@ -153,7 +153,7 @@ export async function GET(req: NextRequest) {
       }),
 
       // Terminations this month
-      prisma.employee.count({
+      prisma.employees.count({
         where: {
           ...businessWhereClause,
           terminationDate: {
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
       }),
 
       // Terminations this year
-      prisma.employee.count({
+      prisma.employees.count({
         where: {
           ...businessWhereClause,
           terminationDate: {
@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
       }),
 
       // Average tenure calculation
-      prisma.employee.findMany({
+      prisma.employees.findMany({
         where: {
           ...businessWhereClause,
           isActive: true
@@ -198,13 +198,13 @@ export async function GET(req: NextRequest) {
       contractsByStatus,
       contractFinancials
     ] = await Promise.all([
-      prisma.employeeContract.count({
+      prisma.employeeContracts.count({
         where: businessId ? {
           employee: businessWhereClause
         } : {}
       }),
 
-      prisma.employeeContract.groupBy({
+      prisma.employeeContracts.groupBy({
         by: ['status'],
         where: businessId ? {
           employee: businessWhereClause
@@ -212,7 +212,7 @@ export async function GET(req: NextRequest) {
         _count: true
       }),
 
-      prisma.employeeContract.aggregate({
+      prisma.employeeContracts.aggregate({
         where: businessId ? {
           employee: businessWhereClause
         } : {},
@@ -231,13 +231,13 @@ export async function GET(req: NextRequest) {
       disciplinaryThisYear,
       overdueDisciplinary
     ] = await Promise.all([
-      prisma.disciplinaryAction.count({
+      prisma.disciplinaryActions.count({
         where: businessId ? {
           employee: businessWhereClause
         } : {}
       }),
 
-      prisma.disciplinaryAction.groupBy({
+      prisma.disciplinaryActions.groupBy({
         by: ['isResolved'],
         where: businessId ? {
           employee: businessWhereClause
@@ -245,7 +245,7 @@ export async function GET(req: NextRequest) {
         _count: true
       }),
 
-      prisma.disciplinaryAction.groupBy({
+      prisma.disciplinaryActions.groupBy({
         by: ['severity'],
         where: businessId ? {
           employee: businessWhereClause
@@ -253,7 +253,7 @@ export async function GET(req: NextRequest) {
         _count: true
       }),
 
-      prisma.disciplinaryAction.groupBy({
+      prisma.disciplinaryActions.groupBy({
         by: ['type'],
         where: businessId ? {
           employee: businessWhereClause
@@ -261,7 +261,7 @@ export async function GET(req: NextRequest) {
         _count: true
       }),
 
-      prisma.disciplinaryAction.count({
+      prisma.disciplinaryActions.count({
         where: {
           ...(businessId ? { employee: businessWhereClause } : {}),
           actionDate: {
@@ -270,7 +270,7 @@ export async function GET(req: NextRequest) {
         }
       }),
 
-      prisma.disciplinaryAction.count({
+      prisma.disciplinaryActions.count({
         where: {
           ...(businessId ? { employee: businessWhereClause } : {}),
           actionDate: {
@@ -279,7 +279,7 @@ export async function GET(req: NextRequest) {
         }
       }),
 
-      prisma.disciplinaryAction.count({
+      prisma.disciplinaryActions.count({
         where: {
           ...(businessId ? { employee: businessWhereClause } : {}),
           isResolved: false,
@@ -297,18 +297,18 @@ export async function GET(req: NextRequest) {
       benefitFinancials,
       benefitsByType
     ] = await Promise.all([
-      prisma.benefitType.count(),
+      prisma.benefitTypes.count(),
       
-      prisma.benefitType.count({
+      prisma.benefitTypes.count({
         where: { isActive: true }
       }),
 
-      prisma.contractBenefit.aggregate({
+      prisma.contractBenefits.aggregate({
         _sum: { amount: true },
         _count: true
       }),
 
-      prisma.benefitType.groupBy({
+      prisma.benefitTypes.groupBy({
         by: ['type'],
         _count: true
       })

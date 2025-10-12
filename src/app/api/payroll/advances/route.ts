@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify employee exists
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId }
     })
 

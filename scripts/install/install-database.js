@@ -703,7 +703,7 @@ module.exports = { seedPermissionTemplates }`
       const adminEmail = 'admin@business.local'
 
       // Check if admin already exists
-      const existingAdmin = await prisma.user.findUnique({
+      const existingAdmin = await prisma.users.findUnique({
         where: { email: adminEmail }
       })
 
@@ -713,7 +713,7 @@ module.exports = { seedPermissionTemplates }`
       }
 
       // Create admin user
-      await prisma.user.create({
+      await prisma.users.create({
         data: {
           id: require('crypto').randomUUID(),
           email: adminEmail,
@@ -848,7 +848,7 @@ module.exports = { initializeSyncSystem }`
 
       // Check key tables exist and have data. Be resilient to renamed/missing models.
       const counts = {}
-      try { counts.users = await prisma.user.count() } catch (e) { logWarning('Model prisma.user missing or inaccessible') }
+      try { counts.users = await prisma.users.count() } catch (e) { logWarning('Model prisma.user missing or inaccessible') }
       try { counts.jobTitles = await prisma.jobTitle.count() } catch (e) { logWarning('Model prisma.jobTitle missing or inaccessible') }
       try { counts.nodeStates = await prisma.nodeState.count() } catch (e) { logWarning('Model prisma.nodeState missing or inaccessible') }
 

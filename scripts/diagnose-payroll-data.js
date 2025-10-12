@@ -19,7 +19,7 @@ async function main() {
 
   console.log('Payroll period:', { id: period.id, name: period.name || null, startDate: period.startDate, endDate: period.endDate })
 
-  const employees = await prisma.employee.findMany({
+  const employees = await prisma.employees.findMany({
     where: { primaryBusinessId: businessId, isActive: true },
     select: { id: true, employeeNumber: true, fullName: true, dateOfBirth: true },
     take: 50
@@ -33,7 +33,7 @@ async function main() {
   let zeroBaseSalaryCount = 0
 
   for (const emp of employees) {
-    const contract = await prisma.employeeContract.findFirst({ where: { employeeId: emp.id }, orderBy: { startDate: 'desc' } })
+    const contract = await prisma.employeeContracts.findFirst({ where: { employeeId: emp.id }, orderBy: { startDate: 'desc' } })
     const entry = await prisma.payrollEntry.findFirst({ where: { payrollPeriodId, employeeId: emp.id } })
 
     const baseSalaryRaw = contract?.baseSalary ? (typeof contract.baseSalary.toNumber === 'function' ? contract.baseSalary.toNumber() : String(contract.baseSalary)) : null

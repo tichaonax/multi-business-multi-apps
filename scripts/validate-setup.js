@@ -96,7 +96,7 @@ async function validateSystemAdmin() {
   log('\n👤 Validating system administrator...', colors.blue)
 
   try {
-    const admin = await prisma.user.findUnique({
+    const admin = await prisma.users.findUnique({
       where: { email: 'admin@business.local' }
     })
 
@@ -190,7 +190,7 @@ async function showSetupSummary() {
 
   try {
     const counts = {
-      users: await prisma.user.count(),
+      users: await prisma.users.count(),
       idTemplates: await prisma.idFormatTemplate.count(),
       phoneTemplates: await prisma.phoneNumberTemplate.count(),
       dateTemplates: await prisma.dateFormatTemplate.count(),

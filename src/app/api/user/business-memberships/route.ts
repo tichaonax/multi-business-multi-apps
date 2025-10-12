@@ -11,7 +11,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const memberships = await prisma.businessMembership.findMany({
+    const memberships = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
       },

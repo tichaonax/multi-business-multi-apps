@@ -37,7 +37,7 @@ export async function POST(
     }
 
     // Get employee details including contract information
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       include: {
         users: true,
@@ -100,7 +100,7 @@ export async function POST(
     }
 
     // Check if email is already taken
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.users.findUnique({
       where: { email }
     });
 

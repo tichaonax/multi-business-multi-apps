@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     console.log('🔍 Looking for project:', projectId, 'requested by:', session.user.id)
 
     // Fetch the project basic record first to diagnose not-found vs access-denied
-    const basicProject = await prisma.constructionProject.findUnique({
+    const basicProject = await prisma.constructionProjects.findUnique({
       where: { id: projectId },
       select: { id: true, name: true, createdBy: true }
     })
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Get project with all related data now that access is verified
-    const project = await prisma.constructionProject.findUnique({
+    const project = await prisma.constructionProjects.findUnique({
       where: { id: projectId },
       include: {
         projectStages: {
@@ -223,7 +223,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { name, description, status, budget, startDate, endDate } = data
 
     // Verify project exists and user has access (creator or with edit permissions)
-    const existingProject = await prisma.constructionProject.findFirst({
+    const existingProject = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         OR: [
@@ -241,7 +241,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Update project
-    const updatedProject = await prisma.constructionProject.update({
+    const updatedProject = await prisma.constructionProjects.update({
       where: { id: projectId },
       data: {
         name: name || existingProject.name,
@@ -282,7 +282,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { projectId } = await params
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -297,7 +297,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Delete project (cascade will handle related records)
-    await prisma.constructionProject.delete({
+    await prisma.constructionProjects.delete({
       where: { id: projectId }
     })
 

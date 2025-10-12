@@ -19,7 +19,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
-    const budgetEntries = await prisma.personalBudget.findMany({
+    const budgetEntries = await prisma.personalBudgets.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: 'desc' }
     })
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Valid amount required' }, { status: 400 })
     }
 
-    const budgetEntry = await prisma.personalBudget.create({
+    const budgetEntry = await prisma.personalBudgets.create({
       data: {
         userId: session.user.id,
         amount: Number(amount),

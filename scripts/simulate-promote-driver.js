@@ -26,7 +26,7 @@ const prisma = new PrismaClient()
       process.exit(1)
     }
 
-    const existing = await prisma.user.findUnique({ where: { email: userEmail } })
+    const existing = await prisma.users.findUnique({ where: { email: userEmail } })
     if (existing) {
       console.error('User with email already exists:', userEmail)
       process.exit(1)

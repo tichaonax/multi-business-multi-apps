@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     let benefitsLoadError: string | undefined
 
     try {
-      benefits = await prisma.payrollEntryBenefit.findMany({
+      benefits = await prisma.payrollEntryBenefits.findMany({
         where: { payrollEntryId: entryId },
         include: {
           benefitType: true
@@ -44,12 +44,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     let inferredBenefits: any[] = []
     try {
       // Fetch latest contract for the employee via payroll entry
-      const entry = await prisma.payrollEntry.findUnique({ where: { id: entryId }, select: { employeeId: true } })
+      const entry = await prisma.payrollEntries.findUnique({ where: { id: entryId }, select: { employeeId: true } })
       if (entry) {
         const empId = entry.employeeId
         let contract = null
         if (empId) {
-          contract = await prisma.employeeContract.findFirst({
+          contract = await prisma.employeeContracts.findFirst({
             where: { employeeId: empId },
             orderBy: { startDate: 'desc' },
             include: { contract_benefits: { include: { benefitType: true } } }
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify entry exists
-    const entry = await prisma.payrollEntry.findUnique({
+    const entry = await prisma.payrollEntries.findUnique({
       where: { id: entryId },
       include: { payrollPeriod: true }
     })
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Get benefit type info if an id was provided
     let benefitType = null
     if (bTypeId) {
-      benefitType = await prisma.benefitType.findUnique({ where: { id: bTypeId } })
+      benefitType = await prisma.benefitTypes.findUnique({ where: { id: bTypeId } })
       if (!benefitType) {
         return NextResponse.json({ error: 'Benefit type not found' }, { status: 404 })
       }
@@ -306,7 +306,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { id, amount, isActive, deactivatedReason } = data
     if (!id) return NextResponse.json({ error: 'Benefit id required' }, { status: 400 })
 
-    const existing = await prisma.payrollEntryBenefit.findUnique({ where: { id }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
+    const existing = await prisma.payrollEntryBenefits.findUnique({ where: { id }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
     if (!existing) return NextResponse.json({ error: 'Benefit not found' }, { status: 404 })
 
     // Ensure payrollEntry and payrollPeriod exist before checking status
@@ -351,7 +351,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const benefitId = searchParams.get('benefitId')
     if (!benefitId) return NextResponse.json({ error: 'benefitId required' }, { status: 400 })
 
-    const existing = await prisma.payrollEntryBenefit.findUnique({ where: { id: benefitId }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
+    const existing = await prisma.payrollEntryBenefits.findUnique({ where: { id: benefitId }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
     if (!existing) return NextResponse.json({ error: 'Benefit not found' }, { status: 404 })
 
     // Ensure payrollEntry and payrollPeriod exist before checking status

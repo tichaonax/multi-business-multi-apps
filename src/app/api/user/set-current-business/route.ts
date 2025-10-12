@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     // System admins can switch to any business
     if (isSystemAdmin(user)) {
       // For admin, just verify the business exists and is active
-      const business = await prisma.business.findUnique({
+      const business = await prisma.businesses.findUnique({
         where: { id: businessId },
         select: { id: true, name: true, isActive: true }
       });
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       };
     } else {
       // Verify user has access to this business
-      membership = await prisma.businessMembership.findFirst({
+      membership = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: businessId,
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     // Update last accessed timestamp only for real memberships (admins won't have a DB membership id)
     if (membership && membership.id) {
-      await prisma.businessMembership.update({
+      await prisma.businessMemberships.update({
         where: {
           id: membership.id,
         },

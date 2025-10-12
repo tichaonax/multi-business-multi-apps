@@ -26,7 +26,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { driverId } = await params
 
     // Find driver with linked user
-    const driver = await prisma.vehicleDriver.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: driverId },
       include: {
         users: {
@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // Deactivate the user account
-    const deactivatedUser = await prisma.user.update({
+    const deactivatedUser = await prisma.users.update({
       where: { id: driver.users.id },
       data: {
         isActive: false,
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { driverId } = await params
 
     // Find driver with linked user
-    const driver = await prisma.vehicleDriver.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: driverId },
       include: {
         users: {
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Reactivate the user account
-    const reactivatedUser = await prisma.user.update({
+    const reactivatedUser = await prisma.users.update({
       where: { id: driver.users.id },
       data: {
         isActive: true,

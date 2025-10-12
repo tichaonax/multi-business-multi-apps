@@ -80,7 +80,7 @@ async function run(payrollPeriodId) {
   if (employeeIds.length > 0) {
     // pdfGenerationData is a scalar JSON field on EmployeeContract, not a relation.
     // Use select to retrieve scalar fields instead of include.
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId: { in: employeeIds } },
       orderBy: { startDate: 'desc' },
     select: { id: true, employeeId: true, pdfGenerationData: true, startDate: true, endDate: true, jobTitles: { select: { title: true } } }

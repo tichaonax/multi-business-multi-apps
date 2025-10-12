@@ -3,7 +3,7 @@ const prisma = new PrismaClient()
 
 async function run(employeeNumber) {
   try {
-    const employees = await prisma.employee.findMany({
+    const employees = await prisma.employees.findMany({
       where: { employeeNumber: employeeNumber },
       take: 50,
       orderBy: [{ isActive: 'desc' }, { fullName: 'asc' }],

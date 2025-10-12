@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDriver.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { userId: session.user.id },
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get authorized vehicles for this driver
-    const authorizations = await prisma.driverAuthorization.findMany({
+    const authorizations = await prisma.driverAuthorizations.findMany({
       where: {
         driverId: driver.id,
         isActive: true,

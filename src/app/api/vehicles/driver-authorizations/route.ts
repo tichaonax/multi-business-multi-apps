@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [authorizations, totalCount] = await Promise.all([
-      prisma.driverAuthorization.findMany({
+      prisma.driverAuthorizations.findMany({
         where,
         include: {
           vehicleDrivers: {
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.driverAuthorization.count({ where })
+      prisma.driverAuthorizations.count({ where })
     ])
 
     return NextResponse.json({
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateAuthorizationSchema.parse(body)
 
     // Verify driver exists
-    const driver = await prisma.vehicleDriver.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: validatedData.driverId }
     })
 
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify vehicle exists
-    const vehicle = await prisma.vehicle.findUnique({
+    const vehicle = await prisma.vehicles.findUnique({
       where: { id: validatedData.vehicleId }
     })
 
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify authorizer exists
-    const authorizer = await prisma.user.findUnique({
+    const authorizer = await prisma.users.findUnique({
       where: { id: validatedData.authorizedBy }
     })
 
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if active authorization already exists
-    const existingAuthorization = await prisma.driverAuthorization.findFirst({
+    const existingAuthorization = await prisma.driverAuthorizations.findFirst({
       where: {
         driverId: validatedData.driverId,
         vehicleId: validatedData.vehicleId,
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
     const authorizationId = `auth-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
     // Create authorization
-    const authorization = await prisma.driverAuthorization.create({
+    const authorization = await prisma.driverAuthorizations.create({
       data: {
         id: authorizationId,
         ...validatedData,
@@ -268,7 +268,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify authorization exists
-    const existingAuthorization = await prisma.driverAuthorization.findUnique({
+    const existingAuthorization = await prisma.driverAuthorizations.findUnique({
       where: { id }
     })
 
@@ -281,7 +281,7 @@ export async function PUT(request: NextRequest) {
 
     // Verify authorizer exists if being updated
     if (updateData.authorizedBy) {
-      const authorizer = await prisma.user.findUnique({
+      const authorizer = await prisma.users.findUnique({
         where: { id: updateData.authorizedBy }
       })
 
@@ -294,7 +294,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update authorization
-    const authorization = await prisma.driverAuthorization.update({
+    const authorization = await prisma.driverAuthorizations.update({
       where: { id },
       data: {
         ...updateData,
@@ -372,7 +372,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify authorization exists
-    const existingAuthorization = await prisma.driverAuthorization.findUnique({
+    const existingAuthorization = await prisma.driverAuthorizations.findUnique({
       where: { id: authorizationId },
       include: {
         trips: { take: 1 }
@@ -391,7 +391,7 @@ export async function DELETE(request: NextRequest) {
 
     if (hasRelatedTrips) {
       // Soft delete - just mark as inactive
-      await prisma.driverAuthorization.update({
+      await prisma.driverAuthorizations.update({
         where: { id: authorizationId },
         data: { isActive: false }
       })
@@ -402,7 +402,7 @@ export async function DELETE(request: NextRequest) {
       })
     } else {
       // Hard delete - no related records
-      await prisma.driverAuthorization.delete({
+      await prisma.driverAuthorizations.delete({
         where: { id: authorizationId }
       })
 

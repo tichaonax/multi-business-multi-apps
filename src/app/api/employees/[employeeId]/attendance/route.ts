@@ -99,7 +99,7 @@ export async function POST(
     }
 
     // Check if employee exists and is active
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       select: { isActive: true, fullName: true }
     })

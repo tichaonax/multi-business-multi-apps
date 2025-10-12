@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { id: productId } = await params
     // verify product exists
-    const product = await prisma.businessProduct.findUnique({ where: { id: productId } })
+    const product = await prisma.businessProducts.findUnique({ where: { id: productId } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
 
     const data = await request.formData()
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const createdImages = []
 
     // determine current count for sortOrder baseline
-    const existingCount = await prisma.productImage.count({ where: { productId } }).catch(() => 0)
+    const existingCount = await prisma.productImages.count({ where: { productId } }).catch(() => 0)
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       const url = `/uploads/images/${filename}`
 
-      const img = await prisma.productImage.create({
+      const img = await prisma.productImages.create({
         data: {
           id: randomUUID(),
           productId,
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Return the updated product with images to simplify client updates
-    const productWithImages = await prisma.businessProduct.findUnique({
+    const productWithImages = await prisma.businessProducts.findUnique({
       where: { id: productId },
       include: {
         productImages: {
@@ -119,10 +119,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     let imgRecord = null
     if (imageId) {
-      imgRecord = await prisma.productImage.findUnique({ where: { id: imageId } })
+      imgRecord = await prisma.productImages.findUnique({ where: { id: imageId } })
     } else if (filename) {
       // try to find by imageUrl containing filename
-      imgRecord = await prisma.productImage.findFirst({ where: { imageUrl: { contains: filename } } })
+      imgRecord = await prisma.productImages.findFirst({ where: { imageUrl: { contains: filename } } })
     }
 
     if (!imgRecord) return NextResponse.json({ error: 'Image not found' }, { status: 404 })
@@ -139,7 +139,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       console.warn('Failed to delete image file:', err)
     }
 
-    await prisma.productImage.delete({ where: { id: imgRecord.id } })
+    await prisma.productImages.delete({ where: { id: imgRecord.id } })
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       where.year = parseInt(year)
     }
 
-    const exports = await prisma.payrollExport.findMany({
+    const exports = await prisma.payrollExports.findMany({
       where,
       include: {
         business: {
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify period exists
-    const period = await prisma.payrollPeriod.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId },
       include: {
         business: {
@@ -279,14 +279,14 @@ export async function POST(req: NextRequest) {
     // Fetch contracts for employees in this period to merge contract benefits
     const employeeIds = Array.from(new Set(period.payrollEntries.map(e => (e as any).employeeId).filter(Boolean)))
     // Fetch employee primaryBusinessId mapping so we can attach business info to exported rows
-    const employeesForBusiness = await prisma.employee.findMany({
+    const employeesForBusiness = await prisma.employees.findMany({
       where: { id: { in: employeeIds } },
       select: { id: true, primaryBusinessId: true }
     })
     const employeePrimaryBusinessIdMap: Record<string, string | null> = {}
     for (const e of employeesForBusiness) employeePrimaryBusinessIdMap[e.id] = e.primaryBusinessId || null
     const primaryBusinessIds = Array.from(new Set(Object.values(employeePrimaryBusinessIdMap).filter(Boolean))) as string[]
-    const businesses = primaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: primaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
+    const businesses = primaryBusinessIds.length > 0 ? await prisma.businesses.findMany({ where: { id: { in: primaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
     const businessById: Record<string, any> = {}
     for (const b of businesses) businessById[b.id] = b
     // Compute canonical shortName for export consistency
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
         // ignore
       }
     }
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId: { in: employeeIds } },
       orderBy: { startDate: 'desc' },
       select: {
@@ -343,7 +343,7 @@ export async function POST(req: NextRequest) {
     // Compute cumulative totals (sick/leave/absence) from prior payroll entries for each employee
     let priorPeriodIds: string[] = []
     if (period.periodStart) {
-      const priorPeriods = await prisma.payrollPeriod.findMany({
+      const priorPeriods = await prisma.payrollPeriods.findMany({
         where: {
           businessId: period.businessId,
           periodStart: { lt: period.periodStart }
@@ -355,7 +355,7 @@ export async function POST(req: NextRequest) {
 
     let cumulativeByEmployee: Record<string, any> = {}
     if (priorPeriodIds.length > 0) {
-      const grouped = await prisma.payrollEntry.groupBy({
+      const grouped = await prisma.payrollEntries.groupBy({
         by: ['employeeId'],
         where: { payrollPeriodId: { in: priorPeriodIds } },
         _sum: { sickDays: true, leaveDays: true, absenceDays: true }

@@ -8,12 +8,12 @@ async function verifyDatabaseData() {
     console.log('=' .repeat(50))
 
     // Check basic reference data
-    const businesses = await prisma.business.count()
+    const businesses = await prisma.businesses.count()
     const jobTitles = await prisma.jobTitle.count()
     const compensationTypes = await prisma.compensationType.count()
     const benefitTypes = await prisma.benefitType.count()
-    const employees = await prisma.employee.count()
-    const employeeContracts = await prisma.employeeContract.count()
+    const employees = await prisma.employees.count()
+    const employeeContracts = await prisma.employeeContracts.count()
 
     console.log('📊 Current Data Counts:')
     console.log(`   • Businesses: ${businesses}`)
@@ -26,7 +26,7 @@ async function verifyDatabaseData() {
 
     if (employees > 0) {
       console.log('👥 Sample Employees:')
-      const sampleEmployees = await prisma.employee.findMany({
+      const sampleEmployees = await prisma.employees.findMany({
         take: 5,
         include: {
           jobTitles: true,

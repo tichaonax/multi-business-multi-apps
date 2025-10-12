@@ -54,7 +54,7 @@ export async function GET(
 
     try {
       // Try to get basic products without complex relationships
-      const products = await prisma.businessProduct.findMany({
+      const products = await prisma.businessProducts.findMany({
         where: {
           businessId,
           isActive: true

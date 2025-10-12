@@ -15,7 +15,7 @@ async function run() {
     console.log('🔌 Connected to DB')
 
     // Pick the first employee in the DB
-    const employee = await prisma.employee.findFirst()
+    const employee = await prisma.employees.findFirst()
     if (!employee) {
       console.error('No employee found in DB. Seed some data first.')
       process.exit(2)
@@ -23,7 +23,7 @@ async function run() {
     console.log('👤 Using employee:', employee.id, employee.fullName)
 
     // Find latest contract for employee
-    const latest = await prisma.employeeContract.findFirst({ where: { employeeId: employee.id }, orderBy: { createdAt: 'desc' } })
+    const latest = await prisma.employeeContracts.findFirst({ where: { employeeId: employee.id }, orderBy: { createdAt: 'desc' } })
     if (!latest) {
       console.error('No existing contract found for employee. Creating a contract without previousContractId for test.')
     } else {
@@ -52,10 +52,10 @@ async function run() {
       notes: 'Smoke test contract'
     }
 
-    const created = await prisma.employeeContract.create({ data: createData })
+    const created = await prisma.employeeContracts.create({ data: createData })
     console.log('✅ Created contract:', created.id, created.contractNumber)
 
-    const fetched = await prisma.employeeContract.findUnique({ where: { id: created.id } })
+    const fetched = await prisma.employeeContracts.findUnique({ where: { id: created.id } })
     console.log('🔎 Fetched contract from DB:', {
       id: fetched.id,
       previousContractId: fetched.previousContractId,
@@ -84,7 +84,7 @@ async function run() {
     }
 
     // Cleanup: delete created contract
-    await prisma.employeeContract.delete({ where: { id: created.id } })
+    await prisma.employeeContracts.delete({ where: { id: created.id } })
     console.log('🧹 Deleted test contract')
 
     process.exit(0)

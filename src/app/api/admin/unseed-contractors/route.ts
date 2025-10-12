@@ -20,20 +20,20 @@ export async function POST(request: NextRequest) {
     const demoBusinessId = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'contractors-demo-business'
 
     // Remove project contractor assignments for projects owned by the demo business
-    const demoProjects = await prisma.project.findMany({ where: { businessId: demoBusinessId }, select: { id: true } }).catch(() => [])
+    const demoProjects = await prisma.projects.findMany({ where: { businessId: demoBusinessId }, select: { id: true } }).catch(() => [])
     const demoProjectIds = demoProjects.map(p => p.id)
     if (demoProjectIds.length) {
-      await prisma.projectContractor.deleteMany({ where: { projectId: { in: demoProjectIds } } }).catch(() => {})
+      await prisma.projectContractors.deleteMany({ where: { projectId: { in: demoProjectIds } } }).catch(() => {})
     }
 
     // Remove projects for business
-    await prisma.project.deleteMany({ where: { id: { in: demoProjectIds } } }).catch(() => {})
+    await prisma.projects.deleteMany({ where: { id: { in: demoProjectIds } } }).catch(() => {})
 
     // Remove person records whose id starts with the demo business id prefix
-    await prisma.person.deleteMany({ where: { id: { startsWith: demoBusinessId } } }).catch(() => {})
+    await prisma.persons.deleteMany({ where: { id: { startsWith: demoBusinessId } } }).catch(() => {})
 
     // Finally remove the business record
-    await prisma.business.deleteMany({ where: { id: demoBusinessId } }).catch(() => {})
+    await prisma.businesses.deleteMany({ where: { id: demoBusinessId } }).catch(() => {})
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

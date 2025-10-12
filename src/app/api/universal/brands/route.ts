@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    const brands = await prisma.businessBrand.findMany({
+    const brands = await prisma.businessBrands.findMany({
       where,
       include: {
         business: {
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateBrandSchema.parse(body)
 
     // Verify business exists
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: validatedData.businessId }
     })
 
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for duplicate name within the business
-    const existingBrand = await prisma.businessBrand.findFirst({
+    const existingBrand = await prisma.businessBrands.findFirst({
       where: {
         businessId: validatedData.businessId,
         name: validatedData.name
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const brand = await prisma.businessBrand.create({
+    const brand = await prisma.businessBrands.create({
       data: {
         ...validatedData,
         businessType: validatedData.businessType || business.type
@@ -177,7 +177,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify brand exists
-    const existingBrand = await prisma.businessBrand.findUnique({
+    const existingBrand = await prisma.businessBrands.findUnique({
       where: { id }
     })
 
@@ -190,7 +190,7 @@ export async function PUT(request: NextRequest) {
 
     // Check for duplicate name if name is being updated
     if (updateData.name && updateData.name !== existingBrand.name) {
-      const duplicateBrand = await prisma.businessBrand.findFirst({
+      const duplicateBrand = await prisma.businessBrands.findFirst({
         where: {
           businessId: existingBrand.businessId,
           name: updateData.name,
@@ -206,7 +206,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const brand = await prisma.businessBrand.update({
+    const brand = await prisma.businessBrands.update({
       where: { id },
       data: updateData as any,
       include: {
@@ -259,7 +259,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if brand has products
-    const brandWithProducts = await prisma.businessBrand.findUnique({
+    const brandWithProducts = await prisma.businessBrands.findUnique({
       where: { id },
       include: {
         businessProducts: {
@@ -287,7 +287,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete the brand
-    await prisma.businessBrand.update({
+    await prisma.businessBrands.update({
       where: { id },
       data: { isActive: false }
     })

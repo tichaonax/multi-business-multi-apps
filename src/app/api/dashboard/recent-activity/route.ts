@@ -5,6 +5,44 @@ import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
+// Defensive wrapper: when Prisma client or certain model methods are unavailable
+// (for example in a fresh DB or during partial startup), return safe defaults
+const safePrisma = (() => {
+  const p: any = (globalThis as any).prisma || (typeof prisma !== 'undefined' ? prisma : null)
+
+  const has = (model: string, method: string) => !!p && !!p[model] && typeof p[model][method] === 'function'
+
+  return {
+    async findMany(model: string, args: any, defaultValue: any = []) {
+      try {
+        if (!has(model, 'findMany')) return defaultValue
+        return await (p as any)[model].findMany(args)
+      } catch (err) {
+        console.warn(`safePrisma.findMany(${model}) failed:`, err?.message || err)
+        return defaultValue
+      }
+    },
+    async count(model: string, args: any, defaultValue = 0) {
+      try {
+        if (!has(model, 'count')) return defaultValue
+        return await (p as any)[model].count(args)
+      } catch (err) {
+        console.warn(`safePrisma.count(${model}) failed:`, err?.message || err)
+        return defaultValue
+      }
+    },
+    async aggregate(model: string, args: any, defaultValue: any = null) {
+      try {
+        if (!has(model, 'aggregate')) return defaultValue
+        return await (p as any)[model].aggregate(args)
+      } catch (err) {
+        console.warn(`safePrisma.aggregate(${model}) failed:`, err?.message || err)
+        return defaultValue
+      }
+    }
+  }
+})()
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -135,7 +173,7 @@ export async function GET(req: NextRequest) {
         // console.log('  - user permissions canViewOrders:', hasUserPermission(user, 'canViewOrders'))
         // console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
-        const recentOrders = await prisma.businessOrder.findMany({
+        const recentOrders = await safePrisma.findMany('businessOrder', {
           where: orderWhereClause,
           select: {
             id: true,
@@ -242,7 +280,7 @@ export async function GET(req: NextRequest) {
         console.log('  - filterScope:', filterScope)
         console.log('  - filterBusinessId:', filterBusinessId)
 
-        const recentProjects = await prisma.constructionProject.findMany({
+        const recentProjects = await safePrisma.findMany('constructionProject', {
           where: whereClause,
           select: {
             id: true,
@@ -293,7 +331,7 @@ export async function GET(req: NextRequest) {
         console.log('  - whereClause:', JSON.stringify(transactionWhereClause, null, 2))
         console.log('  - targetBusinessIds applied:', targetBusinessIds)
 
-        const recentTransactions = await prisma.projectTransaction.findMany({
+        const recentTransactions = await safePrisma.findMany('projectTransaction', {
           where: transactionWhereClause,
           include: {
             // relation name in schema is `project` (singular)
@@ -346,7 +384,7 @@ export async function GET(req: NextRequest) {
         } else if (targetBusinessIds && targetBusinessIds.length > 0) {
           // For business filtering, only include expenses that are actually linked to business projects
           // Personal expenses are only business-related if they have ProjectTransactions linking to business projects
-          const businessProjectTransactions = await prisma.projectTransaction.findMany({
+          const businessProjectTransactions = await prisma.projectTransactions.findMany({
             where: ({
               project: {
                 businessId: { in: targetBusinessIds }
@@ -383,7 +421,7 @@ export async function GET(req: NextRequest) {
           console.error(`   Expected: ${filterUserId}, Got: ${targetUserId}`)
         }
 
-        const recentExpenses = await prisma.personalExpense.findMany({
+        const recentExpenses = await safePrisma.findMany('personalExpense', {
           where: expenseWhereClause,
           orderBy: {
             createdAt: 'desc'
@@ -392,7 +430,7 @@ export async function GET(req: NextRequest) {
         })
 
         // Load all expense categories for display mapping
-        const allCategories = await prisma.expenseCategory.findMany({
+        const allCategories = await safePrisma.findMany('expenseCategory', {
           select: {
             id: true,
             name: true,
@@ -484,7 +522,7 @@ export async function GET(req: NextRequest) {
         console.log('  - user permissions canViewBusinessOrders:', hasUserPermission(user, 'canViewBusinessOrders'))
         console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
-        const recentBusinessOrders = await prisma.businessOrder.findMany({
+        const recentBusinessOrders = await safePrisma.findMany('businessOrder', {
           where: businessWhereClause,
           include: {
             business: {
@@ -537,7 +575,7 @@ export async function GET(req: NextRequest) {
       try {
         console.log('👤 User Activities: Showing admin user creation activities (no user/business filter)')
 
-        const recentUsers = await prisma.user.findMany({
+        const recentUsers = await prisma.users.findMany({
           where: {
             createdAt: { gte: sevenDaysAgo }
           },

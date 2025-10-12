@@ -19,15 +19,15 @@ export async function POST(req: NextRequest) {
     if (!isAdmin(session)) return NextResponse.json({ message: 'Admin access required' }, { status: 401 })
 
     // find seeded employees
-    const employees = await prisma.employee.findMany({ where: { employeeNumber: { in: SEEDED } } })
+    const employees = await prisma.employees.findMany({ where: { employeeNumber: { in: SEEDED } } })
 
     const created = []
     for (const emp of employees) {
-      const existing = await prisma.employeeContract.findFirst({ where: { employeeId: emp.id } })
+      const existing = await prisma.employeeContracts.findFirst({ where: { employeeId: emp.id } })
       if (existing) continue
 
       // create a simple contract using API helper shape (we create directly via DB here to avoid fetch requirements in admin)
-      const contract = await prisma.employeeContract.create({ data: {
+      const contract = await prisma.employeeContracts.create({ data: {
         id: randomUUID(),
         employeeId: emp.id,
         contractNumber: `CT-${emp.employeeNumber}`,

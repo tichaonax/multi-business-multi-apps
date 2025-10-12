@@ -80,7 +80,7 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
   // Use the hash as deterministic id for audit entries when not provided
   const id = hash
 
-    await prisma.auditLog.create({
+    await prisma.auditLogs.create({
       data: {
         id,
         userId: entry.userId,
@@ -291,7 +291,7 @@ export async function getEntityAuditTrail(
   entityId: string,
   limit: number = 50
 ) {
-  return await prisma.auditLog.findMany({
+  return await prisma.auditLogs.findMany({
     where: {
       entityType,
       entityId,
@@ -358,7 +358,7 @@ export async function detectSuspiciousActivity(timeWindowHours: number = 24): Pr
   `) as any[];
 
   // Unusual permission changes
-  const unusualPermissionChanges = await prisma.auditLog.findMany({
+  const unusualPermissionChanges = await prisma.auditLogs.findMany({
     where: {
       action: 'PERMISSION_CHANGED',
       timestamp: {
@@ -380,7 +380,7 @@ export async function detectSuspiciousActivity(timeWindowHours: number = 24): Pr
   });
 
   // Rapid data operations (exports, imports, backups)
-  const rapidDataOperations = await prisma.auditLog.findMany({
+  const rapidDataOperations = await prisma.auditLogs.findMany({
     where: {
       action: {
         in: ['DATA_EXPORT', 'DATA_IMPORT', 'BACKUP_CREATED', 'BACKUP_RESTORED']
@@ -417,7 +417,7 @@ export async function detectSuspiciousActivity(timeWindowHours: number = 24): Pr
 export async function getAuditStatistics(days: number = 30) {
   const timeThreshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const stats = await prisma.auditLog.groupBy({
+  const stats = await prisma.auditLogs.groupBy({
     by: ['action'],
     where: {
       timestamp: {
@@ -434,7 +434,7 @@ export async function getAuditStatistics(days: number = 30) {
     },
   });
 
-  const totalLogs = await prisma.auditLog.count({
+  const totalLogs = await prisma.auditLogs.count({
     where: {
       timestamp: {
         gt: timeThreshold,
@@ -442,7 +442,7 @@ export async function getAuditStatistics(days: number = 30) {
     },
   });
 
-  const uniqueUsers = await prisma.auditLog.groupBy({
+  const uniqueUsers = await prisma.auditLogs.groupBy({
     by: ['userId'],
     where: {
       timestamp: {
@@ -454,7 +454,7 @@ export async function getAuditStatistics(days: number = 30) {
     },
   });
 
-  const businessActivity = await prisma.auditLog.groupBy({
+  const businessActivity = await prisma.auditLogs.groupBy({
     by: ['entityType'],
     where: {
       timestamp: {
@@ -558,7 +558,7 @@ export async function getAuditLogs(options: {
   }
 
   const [logs, total] = await Promise.all([
-    prisma.auditLog.findMany({
+    prisma.auditLogs.findMany({
       where,
       include: {
         users: {
@@ -575,7 +575,7 @@ export async function getAuditLogs(options: {
       skip,
       take: limit,
     }),
-    prisma.auditLog.count({ where })
+    prisma.auditLogs.count({ where })
   ]);
 
   return {

@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get employees with payroll data for the specified month/year
-    const employees = await prisma.employee.findMany({
+    const employees = await prisma.employees.findMany({
       where: whereClause,
       include: {
         business: {

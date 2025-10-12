@@ -17,12 +17,12 @@ async function createTestEmployeeWithContract() {
     console.log('🔍 Creating test employee with contract for PDF validation...')
     
     // First, get or create a test business
-    let business = await prisma.business.findFirst({
+    let business = await prisma.businesses.findFirst({
       where: { name: { contains: 'Test' } }
     })
     
     if (!business) {
-      business = await prisma.business.create({
+      business = await prisma.businesses.create({
         data: {
           name: 'Test Construction Company',
           type: 'construction',
@@ -64,12 +64,12 @@ async function createTestEmployeeWithContract() {
     }
     
     // Create test employee (check for existing first)
-    let employee = await prisma.employee.findFirst({
+    let employee = await prisma.employees.findFirst({
       where: { employeeNumber: 'EMP001' }
     })
     
     if (!employee) {
-      employee = await prisma.employee.create({
+      employee = await prisma.employees.create({
         data: {
           employeeNumber: 'EMP001',
           firstName: 'John',
@@ -91,7 +91,7 @@ async function createTestEmployeeWithContract() {
     } else {
       console.log(`✅ Found existing employee: ${employee.fullName} (${employee.employeeNumber})`)
       // Update employee to ensure it has all required relationships
-      employee = await prisma.employee.update({
+      employee = await prisma.employees.update({
         where: { id: employee.id },
         data: {
           primaryBusinessId: business.id,
@@ -104,7 +104,7 @@ async function createTestEmployeeWithContract() {
     
     // Create employee contract matching Hwanda Enterprises template requirements
     // Check for existing active contract first
-    let contract = await prisma.employeeContract.findFirst({
+    let contract = await prisma.employeeContracts.findFirst({
       where: { 
         employeeId: employee.id,
         status: 'active'

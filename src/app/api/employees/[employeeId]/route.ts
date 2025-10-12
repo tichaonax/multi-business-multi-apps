@@ -77,7 +77,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       _count: { select: { otherEmployees: true, disciplinary_actions_disciplinary_actions_employeeIdToemployees: true } }
     }
 
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId }, include: includeAny })
+    const employee = await prisma.employees.findUnique({ where: { id: employeeId }, include: includeAny })
 
     if (!employee) {
       return NextResponse.json(
@@ -295,7 +295,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     } = data
 
     // Check if employee exists
-    const existingEmployee = await prisma.employee.findUnique({
+    const existingEmployee = await prisma.employees.findUnique({
       where: { id: employeeId }
     })
 
@@ -317,7 +317,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Check for duplicate national ID (excluding current employee)
     if (nationalId !== existingEmployee.nationalId) {
-      const duplicateNationalId = await prisma.employee.findUnique({
+      const duplicateNationalId = await prisma.employees.findUnique({
         where: { nationalId }
       })
 
@@ -331,7 +331,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Check for duplicate email (excluding current employee)
     if (email && email !== existingEmployee.email) {
-      const duplicateEmail = await prisma.employee.findUnique({
+      const duplicateEmail = await prisma.employees.findUnique({
         where: { email }
       })
 
@@ -345,12 +345,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Validate foreign key references
     const [jobTitle, compensationType, business, supervisor, user, idTemplate] = await Promise.all([
-      prisma.jobTitle.findUnique({ where: { id: jobTitleId } }),
-      prisma.compensationType.findUnique({ where: { id: compensationTypeId } }),
-      prisma.business.findUnique({ where: { id: primaryBusinessId } }),
-      supervisorId && supervisorId !== employeeId ? prisma.employee.findUnique({ where: { id: supervisorId } }) : null,
-      userId ? prisma.user.findUnique({ where: { id: userId } }) : null,
-      idFormatTemplateId ? prisma.idFormatTemplate.findUnique({ where: { id: idFormatTemplateId } }) : null
+      prisma.jobTitles.findUnique({ where: { id: jobTitleId } }),
+      prisma.compensationTypes.findUnique({ where: { id: compensationTypeId } }),
+      prisma.businesses.findUnique({ where: { id: primaryBusinessId } }),
+      supervisorId && supervisorId !== employeeId ? prisma.employees.findUnique({ where: { id: supervisorId } }) : null,
+      userId ? prisma.users.findUnique({ where: { id: userId } }) : null,
+      idFormatTemplateId ? prisma.idFormatTemplates.findUnique({ where: { id: idFormatTemplateId } }) : null
     ])
 
     if (!jobTitle || !compensationType || !business) {
@@ -580,7 +580,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if employee exists
-    const existingEmployee = await prisma.employee.findUnique({
+    const existingEmployee = await prisma.employees.findUnique({
       where: { id: employeeId },
       include: {
         // use generated relation name for contracts

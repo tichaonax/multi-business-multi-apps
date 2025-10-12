@@ -16,7 +16,7 @@ async function createSimpleEmployees() {
     console.log('👥 Creating simple sample employees...')
 
     // Get existing data
-    const businesses = await prisma.business.findMany()
+    const businesses = await prisma.businesses.findMany()
     const jobTitles = await prisma.jobTitle.findMany()
     const compensationTypes = await prisma.compensationType.findMany()
 
@@ -30,12 +30,12 @@ async function createSimpleEmployees() {
     const salaryCompensation = compensationTypes[0]
 
     // Create one simple employee
-    const existingEmployee = await prisma.employee.findUnique({
+    const existingEmployee = await prisma.employees.findUnique({
       where: { employeeNumber: 'EMP001' }
     })
 
     if (!existingEmployee) {
-      const employee = await prisma.employee.create({
+      const employee = await prisma.employees.create({
         data: {
           employeeNumber: 'EMP001',
           firstName: 'John',

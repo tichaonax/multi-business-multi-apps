@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { employeeId } = await params
 
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId },
       select: {
         id: true,
@@ -110,19 +110,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Invalid baseSalary. Must be a positive number' }, { status: 400 })
     }
 
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } })
+    const employee = await prisma.employees.findUnique({ where: { id: employeeId } })
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
     }
 
     // Fetch umbrella business data
-    const umbrellaBusinessData = await prisma.business.findFirst({
+    const umbrellaBusinessData = await prisma.businesses.findFirst({
       where: { isUmbrellaBusiness: true },
       select: { umbrellaBusinessName: true }
     })
 
     // Validate supervisor requirement based on job title
-    const jobTitle = await prisma.jobTitle.findUnique({ where: { id: jobTitleId } })
+    const jobTitle = await prisma.jobTitles.findUnique({ where: { id: jobTitleId } })
     const isManagementRole = jobTitle && (
       jobTitle.title.toLowerCase().includes('manager') ||
       jobTitle.title.toLowerCase().includes('director') ||
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Supervisor is required for non-management positions' }, { status: 400 })
     }
 
-    const supervisor = supervisorId ? await prisma.employee.findUnique({
+    const supervisor = supervisorId ? await prisma.employees.findUnique({
       where: { id: supervisorId },
       include: { jobTitles: true }
     }) : null

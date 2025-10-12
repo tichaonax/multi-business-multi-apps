@@ -7,10 +7,10 @@ const SEEDED = ['EMP001','EMP002','EMP003','EMP004','EMP1009']
 
 async function main() {
   try {
-    const employees = await prisma.employee.findMany({ where: { employeeNumber: { in: SEEDED } } })
+    const employees = await prisma.employees.findMany({ where: { employeeNumber: { in: SEEDED } } })
     let regenerated = 0
     for (const emp of employees) {
-      const latest = await prisma.employeeContract.findFirst({ where: { employeeId: emp.id }, orderBy: { createdAt: 'desc' } })
+      const latest = await prisma.employeeContracts.findFirst({ where: { employeeId: emp.id }, orderBy: { createdAt: 'desc' } })
       if (!latest) {
         console.log('No contract found for', emp.employeeNumber)
         continue

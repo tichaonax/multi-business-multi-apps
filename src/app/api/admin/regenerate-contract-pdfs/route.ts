@@ -26,29 +26,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contract service unavailable' }, { status: 500 })
     }
 
-    const employees = await prisma.employee.findMany({ where: { employeeNumber: { in: SEEDED } }, select: { id: true, fullName: true } })
+    const employees = await prisma.employees.findMany({ where: { employeeNumber: { in: SEEDED } }, select: { id: true, fullName: true } })
     let regenerated = 0
 
     for (const emp of employees) {
       try {
         // Fetch latest contract for employee
-        const latest = await prisma.employeeContract.findFirst({ where: { employeeId: emp.id }, orderBy: { createdAt: 'desc' } })
+        const latest = await prisma.employeeContracts.findFirst({ where: { employeeId: emp.id }, orderBy: { createdAt: 'desc' } })
         if (!latest) {
           console.warn('No contract found for', emp.id)
           continue
         }
 
   // Fetch benefits to include in payload (include benefitType relation)
-  const benefits = await prisma.contractBenefit.findMany({ where: { contractId: latest.id }, include: { benefitType: true } }).catch(() => [])
+  const benefits = await prisma.contractBenefits.findMany({ where: { contractId: latest.id }, include: { benefitType: true } }).catch(() => [])
 
         // Helper: build pdfContractData server-side when missing
         const buildPdfContractData = async (contract: any) => {
           // Fetch related records
           const [employee, jobTitle, compensationType, business] = await Promise.all([
-            prisma.employee.findUnique({ where: { id: contract.employeeId } }).catch(() => null),
-            prisma.jobTitle.findUnique({ where: { id: contract.jobTitleId } }).catch(() => null),
-            prisma.compensationType.findUnique({ where: { id: contract.compensationTypeId } }).catch(() => null),
-            prisma.business.findUnique({ where: { id: contract.primaryBusinessId } }).catch(() => null)
+            prisma.employees.findUnique({ where: { id: contract.employeeId } }).catch(() => null),
+            prisma.jobTitles.findUnique({ where: { id: contract.jobTitleId } }).catch(() => null),
+            prisma.compensationTypes.findUnique({ where: { id: contract.compensationTypeId } }).catch(() => null),
+            prisma.businesses.findUnique({ where: { id: contract.primaryBusinessId } }).catch(() => null)
           ])
 
           const mappedBenefits = benefits.map(b => ({

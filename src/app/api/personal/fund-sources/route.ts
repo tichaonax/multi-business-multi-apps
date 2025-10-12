@@ -19,7 +19,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
-    const fundSources = await prisma.fundSource.findMany({
+    const fundSources = await prisma.fundSources.findMany({
       where: { userId: session.user.id },
       orderBy: [
         { usageCount: 'desc' },
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Creating fund source:', { name, originalEmoji: emoji, cleanEmoji })
 
-    const fundSource = await prisma.fundSource.create({
+    const fundSource = await prisma.fundSources.create({
       data: {
         userId: session.user.id,
         name,
@@ -84,7 +84,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify ownership
-    const fundSource = await prisma.fundSource.findFirst({
+    const fundSource = await prisma.fundSources.findFirst({
       where: { id, userId: session.user.id }
     })
 
@@ -96,7 +96,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot delete default fund source' }, { status: 400 })
     }
 
-    await prisma.fundSource.delete({
+    await prisma.fundSources.delete({
       where: { id }
     })
 

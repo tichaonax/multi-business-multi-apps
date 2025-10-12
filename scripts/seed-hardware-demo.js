@@ -6,11 +6,11 @@ async function seed() {
     const businessId = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
 
   // Create business if not exists
-    const existing = await prisma.business.findUnique({ where: { id: businessId } })
+    const existing = await prisma.businesses.findUnique({ where: { id: businessId } })
     if (!existing) {
       // Use businessType to match other seed scripts and Prisma schema
       // The Business model requires a 'type' scalar; set it to the same as businessType for demo businesses
-      await prisma.business.create({ data: { id: businessId, name: 'Hardware Demo Store', type: 'hardware' } })
+      await prisma.businesses.create({ data: { id: businessId, name: 'Hardware Demo Store', type: 'hardware' } })
     }
 
   const now = new Date()

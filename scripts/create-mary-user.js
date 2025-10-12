@@ -6,12 +6,12 @@ async function createMaryUser() {
     console.log('🚀 Creating Mary user for testing filters...')
 
     // Create Mary user
-    let mary = await prisma.user.findFirst({
+    let mary = await prisma.users.findFirst({
       where: { email: 'mary@test.com' }
     })
 
     if (!mary) {
-      mary = await prisma.user.create({
+      mary = await prisma.users.create({
         data: {
           email: 'mary@test.com',
           name: 'Mary Johnson',

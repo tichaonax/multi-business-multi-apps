@@ -18,7 +18,7 @@ export async function GET(
     const user = session.user as SessionUser
     const { projectTypeId } = await params
 
-    const projectType = await prisma.projectType.findUnique({
+    const projectType = await prisma.projectTypes.findUnique({
       where: { id: projectTypeId }
     })
 
@@ -59,7 +59,7 @@ export async function PUT(
     const { name, description, isActive } = data
 
     // Find the existing project type
-    const existingProjectType = await prisma.projectType.findUnique({
+    const existingProjectType = await prisma.projectTypes.findUnique({
       where: { id: projectTypeId }
     })
 
@@ -97,7 +97,7 @@ export async function PUT(
 
     // Check for duplicate name (excluding current record)
     if (name !== existingProjectType.name) {
-      const duplicateProjectType = await prisma.projectType.findFirst({
+      const duplicateProjectType = await prisma.projectTypes.findFirst({
         where: {
           name,
           businessType: existingProjectType.businessType,
@@ -113,7 +113,7 @@ export async function PUT(
       }
     }
 
-    const updatedProjectType = await prisma.projectType.update({
+    const updatedProjectType = await prisma.projectTypes.update({
       where: { id: projectTypeId },
       data: {
         name,
@@ -155,7 +155,7 @@ export async function DELETE(
     const { projectTypeId } = await params
 
     // Find the existing project type
-    const existingProjectType = await prisma.projectType.findUnique({
+    const existingProjectType = await prisma.projectTypes.findUnique({
       where: { id: projectTypeId }
     })
 
@@ -184,11 +184,11 @@ export async function DELETE(
     }
 
     // Check if project type is in use before deletion
-    const projectsCount = await prisma.project.count({
+    const projectsCount = await prisma.projects.count({
       where: { projectTypeId: projectTypeId }
     })
 
-    const constructionProjectsCount = await prisma.constructionProject.count({
+    const constructionProjectsCount = await prisma.constructionProjects.count({
       where: { projectTypeId: projectTypeId }
     })
 
@@ -203,7 +203,7 @@ export async function DELETE(
       }, { status: 400 })
     }
 
-    await prisma.projectType.delete({
+    await prisma.projectTypes.delete({
       where: { id: projectTypeId }
     })
 

@@ -34,7 +34,7 @@ async function main() {
     if (currentBase && currentBase !== 0 && dob) continue // already good
 
     // find latest contract for employee
-    const contract = entry.employeeId ? await prisma.employeeContract.findFirst({
+    const contract = entry.employeeId ? await prisma.employeeContracts.findFirst({
       where: { employeeId: entry.employeeId },
       orderBy: { startDate: 'desc' },
       take: 1

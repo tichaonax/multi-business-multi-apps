@@ -8,7 +8,7 @@ async function testPDFGeneration() {
     console.log('🔍 Testing contract PDF generation...')
     
     // Get the test employee and contract
-    const employee = await prisma.employee.findFirst({
+    const employee = await prisma.employees.findFirst({
       where: { employeeNumber: 'EMP001' },
       include: {
         jobTitle: true,

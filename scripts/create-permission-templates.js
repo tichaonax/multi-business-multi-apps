@@ -119,7 +119,7 @@ async function main() {
   console.log('🛠️  Creating sample permission templates...');
   
   // Find the first admin user to assign as creator
-  const adminUser = await prisma.user.findFirst({
+  const adminUser = await prisma.users.findFirst({
     where: { role: 'admin' }
   });
   

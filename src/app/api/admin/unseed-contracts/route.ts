@@ -17,13 +17,13 @@ export async function POST(_req: NextRequest) {
     if (!isAdmin(session)) return NextResponse.json({ message: 'Admin access required' }, { status: 401 })
 
     // Delete contracts only for the seeded employeeNumbers
-    const employees = await prisma.employee.findMany({ where: { employeeNumber: { in: SEEDED } }, select: { id: true } })
+    const employees = await prisma.employees.findMany({ where: { employeeNumber: { in: SEEDED } }, select: { id: true } })
     const empIds = employees.map(e => e.id)
-    const contracts = await prisma.employeeContract.findMany({ where: { employeeId: { in: empIds } } })
+    const contracts = await prisma.employeeContracts.findMany({ where: { employeeId: { in: empIds } } })
     const deleted = []
     for (const c of contracts) {
       try {
-        await prisma.employeeContract.delete({ where: { id: c.id } })
+        await prisma.employeeContracts.delete({ where: { id: c.id } })
         deleted.push(c)
       } catch (err) {
         console.warn('Failed to delete contract', c.id, String(err))

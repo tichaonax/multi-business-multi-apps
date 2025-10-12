@@ -100,7 +100,7 @@ export async function POST(
     }
 
     // Verify business exists
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: validatedData.businessId },
       select: { id: true, name: true, type: true }
     })

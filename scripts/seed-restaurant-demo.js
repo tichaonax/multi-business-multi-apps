@@ -129,7 +129,7 @@ async function seed() {
     console.log('Seeding restaurant demo data for', businessId)
 
     // Ensure the demo business exists (idempotent)
-    const business = await prisma.business.upsert({
+    const business = await prisma.businesses.upsert({
       where: { id: businessId },
       update: {},
       create: {

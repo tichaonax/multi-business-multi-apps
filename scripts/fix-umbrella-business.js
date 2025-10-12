@@ -6,7 +6,7 @@ async function fixUmbrellaBusiness() {
     console.log('Starting umbrella business fix...')
 
     // First, find the current umbrella business (restaurant-demo)
-    const currentUmbrella = await prisma.business.findFirst({
+    const currentUmbrella = await prisma.businesses.findFirst({
       where: { isUmbrellaBusiness: true }
     })
 
@@ -16,7 +16,7 @@ async function fixUmbrellaBusiness() {
       // Remove umbrella flag from restaurant-demo
       if (currentUmbrella.id === 'restaurant-demo') {
         console.log('Removing umbrella flag from restaurant-demo...')
-        await prisma.business.update({
+        await prisma.businesses.update({
           where: { id: 'restaurant-demo' },
           data: {
             isUmbrellaBusiness: false,
@@ -28,14 +28,14 @@ async function fixUmbrellaBusiness() {
     }
 
     // Check if a proper umbrella business already exists with ID 'umbrella-business'
-    const properUmbrella = await prisma.business.findUnique({
+    const properUmbrella = await prisma.businesses.findUnique({
       where: { id: 'umbrella-business' }
     })
 
     if (properUmbrella) {
       console.log('Proper umbrella business already exists:', properUmbrella.name)
       // Just ensure it's flagged correctly
-      await prisma.business.update({
+      await prisma.businesses.update({
         where: { id: 'umbrella-business' },
         data: {
           isUmbrellaBusiness: true,
@@ -46,7 +46,7 @@ async function fixUmbrellaBusiness() {
     } else {
       // Create a new dedicated umbrella business
       console.log('Creating new umbrella business...')
-      const newUmbrella = await prisma.business.create({
+      const newUmbrella = await prisma.businesses.create({
         data: {
           id: 'umbrella-business',
           name: 'Umbrella Business Settings',
@@ -67,7 +67,7 @@ async function fixUmbrellaBusiness() {
     }
 
     // Verify the fix
-    const allUmbrellas = await prisma.business.findMany({
+    const allUmbrellas = await prisma.businesses.findMany({
       where: { isUmbrellaBusiness: true }
     })
 

@@ -106,7 +106,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const comboId = id
 
     // Delete combo and its items (cascade should handle items automatically)
-    await prisma.menuCombo.delete({
+    await prisma.menuCombos.delete({
       where: { id: comboId }
     })
 

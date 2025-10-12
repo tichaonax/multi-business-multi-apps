@@ -6,7 +6,7 @@ async function createRealRestaurantOrders() {
     console.log('🍽️ Creating real restaurant orders in database...')
 
     // Get HXI EATS restaurant business
-    const hxiEats = await prisma.business.findFirst({
+    const hxiEats = await prisma.businesses.findFirst({
       where: { name: 'HXI EATS', type: 'restaurant' }
     })
 
@@ -17,12 +17,12 @@ async function createRealRestaurantOrders() {
     console.log('✅ Found HXI EATS restaurant:', hxiEats.id)
 
     // Get Mary user
-    const mary = await prisma.user.findFirst({
+    const mary = await prisma.users.findFirst({
       where: { email: 'mary@hxi.com' }
     })
 
     // Get admin user
-    const admin = await prisma.user.findFirst({
+    const admin = await prisma.users.findFirst({
       where: { email: 'admin@business.local' }
     })
 

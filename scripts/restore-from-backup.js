@@ -20,7 +20,7 @@ async function restore(backupPath) {
     // Restore users
     for (const u of backup.users || []) {
       if (!u.id) throw new Error('User missing id')
-      await prisma.user.upsert({ where: { id: u.id }, update: u, create: u })
+      await prisma.users.upsert({ where: { id: u.id }, update: u, create: u })
     }
 
     // Restore vehicles

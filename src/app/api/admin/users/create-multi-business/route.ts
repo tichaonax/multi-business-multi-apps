@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user has permission to create users
-    const userMemberships = await prisma.businessMembership.findMany({
+    const userMemberships = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         isActive: true,
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.users.findUnique({
       where: { email: basicInfo.email }
     })
 

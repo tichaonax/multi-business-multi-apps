@@ -15,7 +15,7 @@ function randomDob(minAge = 18, maxAge = 65) {
 
 async function backfill(options = {}) {
   try {
-    const missing = await prisma.employee.findMany({
+    const missing = await prisma.employees.findMany({
       where: { dateOfBirth: null },
       select: { id: true, employeeNumber: true, fullName: true, email: true }
     })
@@ -48,7 +48,7 @@ async function backfill(options = {}) {
     const updates = []
     for (const e of missing) {
       const dobToSet = useFixed ? fixedParsed : randomDob()
-      await prisma.employee.update({ where: { id: e.id }, data: { dateOfBirth: dobToSet } })
+      await prisma.employees.update({ where: { id: e.id }, data: { dateOfBirth: dobToSet } })
       updates.push({ id: e.id, employeeNumber: e.employeeNumber, fullName: e.fullName, newDob: dobToSet.toISOString().slice(0,10) })
     }
 

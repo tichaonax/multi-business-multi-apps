@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const { periodId } = await params
 
-    const existingPeriod = await prisma.payrollPeriod.findUnique({ where: { id: periodId }, include: { business: { select: { id: true } } } })
+    const existingPeriod = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, include: { business: { select: { id: true } } } })
     if (!existingPeriod) {
       return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
     }
@@ -35,14 +35,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const apply = Boolean(body && body.apply)
 
     // Load entries for the period
-    const entries = await prisma.payrollEntry.findMany({ where: { payrollPeriodId: periodId }, include: { employee: true } })
+    const entries = await prisma.payrollEntries.findMany({ where: { payrollPeriodId: periodId }, include: { employee: true } })
 
     const offenders: { entryId: string; employeeId: string | null; employeeNumber?: string | null; employeeName?: string | null }[] = []
 
     for (const e of entries) {
       const employeeId = e.employeeId
       // Find any contract for the employee that overlaps the period
-      const contract = await prisma.employeeContract.findFirst({
+      const contract = await prisma.employeeContracts.findFirst({
         where: {
           employeeId,
           startDate: { lte: existingPeriod.endDate },

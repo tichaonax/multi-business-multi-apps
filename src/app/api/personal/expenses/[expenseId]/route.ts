@@ -34,7 +34,7 @@ export async function GET(
       whereClause.userId = session.user.id
     }
 
-    const expense = await prisma.personalExpense.findFirst({
+    const expense = await prisma.personalExpenses.findFirst({
       where: whereClause,
       include: {
         projectTransactions: {
@@ -57,7 +57,7 @@ export async function GET(
     // Fetch category information if available
     let categoryObject = null
     if (expense.category) {
-      categoryObject = await prisma.expenseCategory.findUnique({
+      categoryObject = await prisma.expenseCategories.findUnique({
         where: { id: expense.category }
       })
     }
@@ -101,7 +101,7 @@ export async function PUT(
     }
 
     // Find the existing expense
-    const existingExpense = await prisma.personalExpense.findFirst({
+    const existingExpense = await prisma.personalExpenses.findFirst({
       where: {
         id: expenseId,
         userId: session.user.id
@@ -139,7 +139,7 @@ export async function PUT(
 
     // If amount is increasing, check available balance
     if (amountDifference > 0) {
-      const budgetEntries = await prisma.personalBudget.findMany({
+      const budgetEntries = await prisma.personalBudgets.findMany({
         where: { userId: session.user.id },
         orderBy: { createdAt: 'desc' }
       })
@@ -158,7 +158,7 @@ export async function PUT(
     }
 
     // Update the expense
-    const updatedExpense = await prisma.personalExpense.update({
+    const updatedExpense = await prisma.personalExpenses.update({
       where: { id: expenseId },
       data: {
         description,
@@ -173,7 +173,7 @@ export async function PUT(
 
     // If amount changed, update the budget accordingly
     if (amountDifference !== 0) {
-      await prisma.personalBudget.create({
+      await prisma.personalBudgets.create({
         data: {
           userId: session.user.id,
           amount: Math.abs(amountDifference), // Always positive amount
@@ -188,7 +188,7 @@ export async function PUT(
       if (projectId && (paymentType !== 'contractor' || contractorId)) {
         // For contractor payments, validate that the person is active
         if (paymentType === 'contractor' && contractorId) {
-          const projectContractor = await prisma.projectContractor.findUnique({
+          const projectContractor = await prisma.projectContractors.findUnique({
             where: { id: contractorId },
             select: {
               person: {
@@ -213,13 +213,13 @@ export async function PUT(
         }
         
         // Check if ProjectTransaction already exists
-        const existingTransaction = await prisma.projectTransaction.findFirst({
+        const existingTransaction = await prisma.projectTransactions.findFirst({
           where: { personalExpenseId: expenseId }
         })
 
         if (existingTransaction) {
           // Update existing transaction
-          await prisma.projectTransaction.update({
+          await prisma.projectTransactions.update({
             where: { id: existingTransaction.id },
             data: {
               projectId,
@@ -231,7 +231,7 @@ export async function PUT(
           })
         } else {
           // Create new transaction
-          await prisma.projectTransaction.create({
+          await prisma.projectTransactions.create({
             data: {
               projectId,
               personalExpenseId: expenseId,
@@ -247,13 +247,13 @@ export async function PUT(
       }
     } else {
       // If changing away from contractor/project payment, delete any existing ProjectTransaction
-      await prisma.projectTransaction.deleteMany({
+      await prisma.projectTransactions.deleteMany({
         where: { personalExpenseId: expenseId }
       })
     }
 
     // Fetch the complete expense data with all relationships to return updated information
-    const completeExpense = await prisma.personalExpense.findUnique({
+    const completeExpense = await prisma.personalExpenses.findUnique({
       where: { id: expenseId },
       include: {
         projectTransactions: {
@@ -313,7 +313,7 @@ export async function DELETE(
     }
 
     // Verify expense exists and ownership
-    const expense = await prisma.personalExpense.findUnique({
+    const expense = await prisma.personalExpenses.findUnique({
       where: { id: expenseId },
       select: {
         id: true,

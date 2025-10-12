@@ -18,7 +18,7 @@ async function cleanup() {
     const tripsToDelete = await prisma.vehicleTrip.findMany({ where: { vehicleId: { in: ['dev-vehicle-1', 'dev-vehicle-2'] } } })
     const driversToDelete = await prisma.vehicleDriver.findMany({ where: { id: { in: ['dev-driver-1', 'dev-driver-2', 'dev-driver-3'] } } })
     const vehiclesToDelete = await prisma.vehicle.findMany({ where: { id: { in: ['dev-vehicle-1', 'dev-vehicle-2'] } } })
-    const usersToDelete = await prisma.user.findMany({ where: { id: 'dev-user-1' } })
+    const usersToDelete = await prisma.users.findMany({ where: { id: 'dev-user-1' } })
 
     const backup = {
       createdAt: new Date().toISOString(),
@@ -48,7 +48,7 @@ async function cleanup() {
   // Then drivers, vehicles, and finally users
   const delDrivers = await prisma.vehicleDriver.deleteMany({ where: { id: { in: backup.drivers.map(r => r.id) } } })
   const delVehicles = await prisma.vehicle.deleteMany({ where: { id: { in: backup.vehicles.map(r => r.id) } } })
-  const delUser = await prisma.user.deleteMany({ where: { id: { in: backup.users.map(r => r.id) } } })
+  const delUser = await prisma.users.deleteMany({ where: { id: { in: backup.users.map(r => r.id) } } })
 
   // --- Restaurant cleanup ---
   // Remove products/variants/stock movements created for restaurant-demo
@@ -64,10 +64,10 @@ async function cleanup() {
     const delAttrsDemo = await prisma.productAttribute.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => ({ count: 0 }))
     const delProductsDemo = await prisma.businessProduct.deleteMany({ where: { id: { in: demoProductIds } } }).catch(() => ({ count: 0 }))
     const delCategoriesDemo = await prisma.businessCategory.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => ({ count: 0 }))
-    const delBusinessDemo = await prisma.business.deleteMany({ where: { id: demoBusinessId } }).catch(() => ({ count: 0 }))
+    const delBusinessDemo = await prisma.businesses.deleteMany({ where: { id: demoBusinessId } }).catch(() => ({ count: 0 }))
 
     // Also remove orders created for named restaurant HXI EATS (some scripts target that business)
-    const hxi = await prisma.business.findFirst({ where: { name: { contains: 'HXI', mode: 'insensitive' }, type: 'restaurant' } })
+    const hxi = await prisma.businesses.findFirst({ where: { name: { contains: 'HXI', mode: 'insensitive' }, type: 'restaurant' } })
     let delOrderItemsHxi = { count: 0 }
     let delOrdersHxi = { count: 0 }
     if (hxi) {

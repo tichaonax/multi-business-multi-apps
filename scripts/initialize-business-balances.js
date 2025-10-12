@@ -136,7 +136,7 @@ async function initializeBusinessAccount(businessId, balance, createdBy, dryRun 
 
 // Get system admin user for audit trail
 async function getSystemAdminUser() {
-  const adminUser = await prisma.user.findFirst({
+  const adminUser = await prisma.users.findFirst({
     where: {
       OR: [
         { role: 'admin' },
@@ -187,7 +187,7 @@ async function main() {
       // Initialize specific business
       console.log(`\n🎯 Initializing specific business: ${options.businessId}`)
 
-      const business = await prisma.business.findUnique({
+      const business = await prisma.businesses.findUnique({
         where: { id: options.businessId },
         select: { id: true, name: true, type: true }
       })
@@ -220,7 +220,7 @@ async function main() {
       // Initialize all businesses
       console.log(`\n🏢 Finding all active businesses...`)
 
-      const businesses = await prisma.business.findMany({
+      const businesses = await prisma.businesses.findMany({
         where: { isActive: true },
         select: { id: true, name: true, type: true },
         orderBy: { name: 'asc' }

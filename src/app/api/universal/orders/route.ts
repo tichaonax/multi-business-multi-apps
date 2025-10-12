@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [orders, totalCount] = await Promise.all([
-      prisma.businessOrder.findMany({
+      prisma.businessOrders.findMany({
         where,
         include: {
           business: {
@@ -128,11 +128,11 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.businessOrder.count({ where })
+      prisma.businessOrders.count({ where })
     ])
 
     // Calculate summary statistics
-    const summary = await prisma.businessOrder.aggregate({
+    const summary = await prisma.businessOrders.aggregate({
       where,
       _sum: {
         totalAmount: true,
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     const { items, ...orderData } = validatedData
 
     // Verify business exists
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: orderData.businessId }
     })
 
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
 
     // Verify customer exists if specified (supports both old and new systems)
     if (orderData.customerId) {
-      const customer = await prisma.businessCustomer.findFirst({
+      const customer = await prisma.businessCustomers.findFirst({
         where: {
           id: orderData.customerId,
           businessId: orderData.businessId
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
 
     // Verify employee exists if specified
     if (orderData.employeeId) {
-      const employee = await prisma.employee.findUnique({
+      const employee = await prisma.employees.findUnique({
         where: { id: orderData.employeeId }
       })
 
@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
 
     // Verify all product variants exist and get their details
     const variantIds = items.map(item => item.productVariantId)
-    const variants = await prisma.productVariant.findMany({
+    const variants = await prisma.productVariants.findMany({
       where: {
         id: { in: variantIds },
         isActive: true,
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
     const totalAmount = subtotal + orderData.taxAmount - orderData.discountAmount
 
     // Get current order count for order number generation
-    const orderCount = await prisma.businessOrder.count({
+    const orderCount = await prisma.businessOrders.count({
       where: { businessId: orderData.businessId }
     })
 
@@ -433,7 +433,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify order exists
-    const existingOrder = await prisma.businessOrder.findUnique({
+    const existingOrder = await prisma.businessOrders.findUnique({
       where: { id },
       include: { items: true }
     })
@@ -495,7 +495,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update the order
-    const order = await prisma.businessOrder.update({
+    const order = await prisma.businessOrders.update({
       where: { id },
       data: updateData,
       include: {

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     const whereClause = includeInactive ? {} : { isActive: true }
 
-    const jobTitles = await prisma.jobTitle.findMany({
+    const jobTitles = await prisma.jobTitles.findMany({
       where: whereClause,
       orderBy: [
         { level: 'asc' },
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate title
-    const existingJobTitle = await prisma.jobTitle.findUnique({
+    const existingJobTitle = await prisma.jobTitles.findUnique({
       where: { title }
     })
 
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const newJobTitle = await prisma.jobTitle.create({
+    const newJobTitle = await prisma.jobTitles.create({
       data: {
         title,
         description: description || null,

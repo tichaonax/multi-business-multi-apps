@@ -45,7 +45,7 @@ async function main() {
   for (const e of entries) {
     const employeeId = e.employeeId
     // Find any contract for the employee that overlaps the period
-    const contract = await prisma.employeeContract.findFirst({
+    const contract = await prisma.employeeContracts.findFirst({
       where: {
         employeeId,
         startDate: { lte: period.endDate },

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const combos = await prisma.menuCombo.findMany({
+    const combos = await prisma.menuCombos.findMany({
       where: {
         businessId
       },
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     // Validate that all products exist
     const productIds = comboItems.map((item: any) => item.productId)
-    const existingProducts = await prisma.businessProduct.findMany({
+    const existingProducts = await prisma.businessProducts.findMany({
       where: {
         id: { in: productIds },
         businessId

@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const promotions = await prisma.menuPromotion.findMany({
+    const promotions = await prisma.menuPromotions.findMany({
       where: {
         businessId
       },
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const promotion = await prisma.menuPromotion.create({
+    const promotion = await prisma.menuPromotions.create({
       data: {
         id: randomUUID(),
         businessId,

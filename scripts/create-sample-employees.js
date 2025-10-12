@@ -18,7 +18,7 @@ async function createSampleEmployees() {
     console.log('🧑‍💼 Creating sample employees and contracts...')
 
     // Get existing data
-    const businesses = await prisma.business.findMany()
+    const businesses = await prisma.businesses.findMany()
     const jobTitles = await prisma.jobTitle.findMany()
     const compensationTypes = await prisma.compensationType.findMany()
     const benefitTypes = await prisma.benefitType.findMany()
@@ -111,7 +111,7 @@ async function createSampleEmployees() {
     
     for (const empData of employees) {
       // Check if employee already exists
-      const existingEmployee = await prisma.employee.findUnique({
+      const existingEmployee = await prisma.employees.findUnique({
         where: { employeeNumber: empData.employeeNumber }
       })
 
@@ -124,7 +124,7 @@ async function createSampleEmployees() {
       // Ensure we provide an id if the model requires it (some environments
       // don't auto-generate string UUIDs). Use a UUID when missing.
       empData.id = empData.id || randomUUID()
-      const employee = await prisma.employee.create({
+      const employee = await prisma.employees.create({
         data: empData
       })
       
@@ -134,7 +134,7 @@ async function createSampleEmployees() {
 
     const manager = createdEmployees.find(e => e.employeeNumber === 'EMP001')
     if (manager) {
-      await prisma.employee.updateMany({
+      await prisma.employees.updateMany({
         where: { employeeNumber: { in: ['EMP002', 'EMP003', 'EMP004'] } },
         data: { supervisorId: manager.id }
       })
@@ -193,7 +193,7 @@ async function createSampleEmployees() {
       if (!employee) continue
 
       // Check if contract already exists
-      const existingContract = await prisma.employeeContract.findFirst({
+      const existingContract = await prisma.employeeContracts.findFirst({
         where: { employeeId: employee.id }
       })
 
@@ -203,7 +203,7 @@ async function createSampleEmployees() {
       }
 
       // Generate contract number
-      const contractCount = await prisma.employeeContract.count()
+      const contractCount = await prisma.employeeContracts.count()
       const contractNumber = `CON${String(contractCount + 1).padStart(6, '0')}`
 
       // Try to create contract via the application's contracts API so seeded

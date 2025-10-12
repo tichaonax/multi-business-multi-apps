@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     if (type === 'recipients') {
       // Return available businesses to create loans to (exclude user's own businesses)
-      const userBusinesses = await prisma.businessMembership.findMany({
+      const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
       const userBusinessIds = userBusinesses.map(membership => membership.businessId)
 
-      const availableBusinesses = await prisma.business.findMany({
+      const availableBusinesses = await prisma.businesses.findMany({
         where: {
           isActive: true,
           id: { notIn: userBusinessIds } // Exclude user's own businesses
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       })
 
       // Get all active individuals/persons
-      const availablePersons = await prisma.person.findMany({
+      const availablePersons = await prisma.persons.findMany({
         where: {
           isActive: true
         },
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(recipients)
     } else {
       // Return existing loans where user is involved for making payments
-      const personalLoansGiven = await prisma.interBusinessLoan.findMany({
+      const personalLoansGiven = await prisma.interBusinessLoans.findMany({
         where: {
           lenderUserId: session.user.id,
           status: 'active'
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
       })
 
       // Get business loans where user has access through business membership
-      const userBusinesses = await prisma.businessMembership.findMany({
+      const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true
@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
 
       const businessIds = userBusinesses.map(membership => membership.businessId)
 
-      const businessLoansReceived = await prisma.interBusinessLoan.findMany({
+      const businessLoansReceived = await prisma.interBusinessLoans.findMany({
         where: {
           borrowerBusinessId: { in: businessIds },
           status: 'active'
@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
         }
       })
 
-      const businessLoansGiven = await prisma.interBusinessLoan.findMany({
+      const businessLoansGiven = await prisma.interBusinessLoans.findMany({
         where: {
           lenderBusinessId: { in: businessIds },
           status: 'active'

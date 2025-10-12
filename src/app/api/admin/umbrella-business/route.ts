@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Find an existing umbrella business or any business to store umbrella settings
-    let umbrellaBusinessData = await prisma.business.findFirst({
+    let umbrellaBusinessData = await prisma.businesses.findFirst({
       where: {
         isUmbrellaBusiness: true
       },
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     // If no umbrella business exists, create one or use the first business
     if (!umbrellaBusinessData) {
-      const firstBusiness = await prisma.business.findFirst({
+      const firstBusiness = await prisma.businesses.findFirst({
         select: {
           id: true,
           umbrellaBusinessName: true,
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
       if (firstBusiness) {
         // Update the first business to be the umbrella business
-        umbrellaBusinessData = await prisma.business.update({
+        umbrellaBusinessData = await prisma.businesses.update({
           where: { id: firstBusiness.id },
           data: {
             isUmbrellaBusiness: true,
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
       } else {
         // Create a new umbrella business
         const shortName = await (await import('@/lib/business-shortname')).generateUniqueShortName(prisma as any, 'Umbrella Business Settings')
-        umbrellaBusinessData = await prisma.business.create({
+        umbrellaBusinessData = await prisma.businesses.create({
           // Cast data to any to avoid Prisma client schema mismatch issues for shortName
           data: ({
             name: 'Umbrella Business Settings',
@@ -119,14 +119,14 @@ export async function PUT(req: NextRequest) {
     }
 
     // Find the umbrella business
-    let umbrellaBusinessRecord = await prisma.business.findFirst({
+    let umbrellaBusinessRecord = await prisma.businesses.findFirst({
       where: { isUmbrellaBusiness: true }
     })
 
     if (!umbrellaBusinessRecord) {
       // Create umbrella business if it doesn't exist
       const shortName = await (await import('@/lib/business-shortname')).generateUniqueShortName(prisma as any, 'Umbrella Business Settings')
-      umbrellaBusinessRecord = await prisma.business.create({
+      umbrellaBusinessRecord = await prisma.businesses.create({
         data: ({
           name: 'Umbrella Business Settings',
           type: 'umbrella',
@@ -142,7 +142,7 @@ export async function PUT(req: NextRequest) {
       })
     } else {
       // Update existing umbrella business
-      umbrellaBusinessRecord = await prisma.business.update({
+      umbrellaBusinessRecord = await prisma.businesses.update({
         where: { id: umbrellaBusinessRecord.id },
         data: {
           umbrellaBusinessName,
@@ -156,7 +156,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Also update all existing contracts with the new umbrella business name
-    await prisma.employeeContract.updateMany({
+    await prisma.employeeContracts.updateMany({
       data: {
         umbrellaBusinessName,
       }

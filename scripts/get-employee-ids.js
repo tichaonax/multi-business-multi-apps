@@ -4,7 +4,7 @@ const prisma = new PrismaClient()
 
 async function getEmployeeIds() {
   try {
-    const employees = await prisma.employee.findMany({
+    const employees = await prisma.employees.findMany({
       select: {
         id: true,
         fullName: true,

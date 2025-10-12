@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     const where = businessType ? { businessType, isActive: true } : { isActive: true }
 
-    const templates = await prisma.permissionTemplate.findMany({
+    const templates = await prisma.permissionTemplates.findMany({
       where,
       include: {
         users: {
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if template name already exists for this business type
-    const existingTemplate = await prisma.permissionTemplate.findFirst({
+    const existingTemplate = await prisma.permissionTemplates.findFirst({
       where: {
         name,
         businessType,
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const template = await prisma.permissionTemplate.create({
+    const template = await prisma.permissionTemplates.create({
       data: {
         id: randomUUID(),
         name,

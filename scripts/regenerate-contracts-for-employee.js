@@ -33,7 +33,7 @@ async function regenerate(employeeNumber = 'EMP1009') {
   try {
     console.log(`🔁 Regenerating contract pdfGenerationData for employee ${employeeNumber}...`)
 
-    const employee = await prisma.employee.findUnique({ where: { employeeNumber } })
+    const employee = await prisma.employees.findUnique({ where: { employeeNumber } })
     if (!employee) {
       console.error(`❌ Employee not found: ${employeeNumber}`)
       return
@@ -42,10 +42,10 @@ async function regenerate(employeeNumber = 'EMP1009') {
     const [jobTitle, compensationType, business] = await Promise.all([
       prisma.jobTitle.findUnique({ where: { id: employee.jobTitleId } }).catch(() => null),
       prisma.compensationType.findUnique({ where: { id: employee.compensationTypeId } }).catch(() => null),
-      prisma.business.findUnique({ where: { id: employee.primaryBusinessId } }).catch(() => null)
+      prisma.businesses.findUnique({ where: { id: employee.primaryBusinessId } }).catch(() => null)
     ])
 
-    const contracts = await prisma.employeeContract.findMany({ where: { employeeId: employee.id } })
+    const contracts = await prisma.employeeContracts.findMany({ where: { employeeId: employee.id } })
     if (!contracts || contracts.length === 0) {
       console.log('ℹ️  No contracts found for employee; nothing to regenerate')
       return
@@ -55,7 +55,7 @@ async function regenerate(employeeNumber = 'EMP1009') {
       const pdfData = await buildPdfData(employee, jobTitle, compensationType, business)
       pdfData.contractNumber = contract.contractNumber || pdfData.contractNumber || `CT-${employee.employeeNumber}`
 
-      await prisma.employeeContract.update({
+      await prisma.employeeContracts.update({
         where: { id: contract.id },
         data: {
           pdfGenerationData: pdfData,
@@ -63,7 +63,7 @@ async function regenerate(employeeNumber = 'EMP1009') {
         }
       })
 
-      const fetched = await prisma.employeeContract.findUnique({ where: { id: contract.id }, select: { contractNumber: true, pdfGenerationData: true } })
+      const fetched = await prisma.employeeContracts.findUnique({ where: { id: contract.id }, select: { contractNumber: true, pdfGenerationData: true } })
       console.log('✅ Regenerated for contract:', fetched.contractNumber)
       console.log('   pdfGenerationData:', fetched.pdfGenerationData)
     }

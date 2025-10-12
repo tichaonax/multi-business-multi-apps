@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get all users with their personal expense counts
-    const usersWithExpenses = await prisma.user.findMany({
+    const usersWithExpenses = await prisma.users.findMany({
       select: {
         id: true,
         name: true,
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       usersWithExpenses.map(async (user) => {
         if (user._count.personalExpenses > 0) {
           // Get total amount and recent activity
-          const expenseSummary = await prisma.personalExpense.aggregate({
+          const expenseSummary = await prisma.personalExpenses.aggregate({
             where: {
               userId: user.id
             },
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
             }
           })
 
-          const recentExpense = await prisma.personalExpense.findFirst({
+          const recentExpense = await prisma.personalExpenses.findFirst({
             where: {
               userId: user.id
             },
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
           })
 
           // Calculate available amount (budget balance)
-          const budgetEntries = await prisma.personalBudget.findMany({
+          const budgetEntries = await prisma.personalBudgets.findMany({
             where: { userId: user.id },
             orderBy: { createdAt: 'desc' }
           })

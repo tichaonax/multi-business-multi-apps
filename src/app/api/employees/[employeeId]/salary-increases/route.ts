@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     }
 
     // Get employee to verify they exist and user has access
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       include: {
         businesses: {
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     }
 
     // Get salary increases
-    const salaryIncreases = await prisma.employeeSalaryIncrease.findMany({
+    const salaryIncreases = await prisma.employeeSalaryIncreases.findMany({
       where: { employeeId: employeeId },
       include: {
         approver: {
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
     }
 
     // Get employee with current contract (use canonical relation names)
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       include: {
         employee_contracts_employee_contracts_employeeIdToemployees: {

@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    const projects = await prisma.project.findMany({
+    const projects = await prisma.projects.findMany({
       where: whereClause,
       include: {
         projectType: {
@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify project type exists and matches business type
-    const projectType = await prisma.projectType.findUnique({
+    const projectType = await prisma.projectTypes.findUnique({
       where: { id: projectTypeId }
     })
 
@@ -272,7 +272,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const newProject = await prisma.project.create({
+    const newProject = await prisma.projects.create({
       data: {
         name,
         description: description || null,

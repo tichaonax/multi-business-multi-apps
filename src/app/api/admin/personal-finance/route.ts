@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Verify user exists
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get user's personal finance transactions
-    const personalExpenses = await prisma.personalExpense.findMany({
+    const personalExpenses = await prisma.personalExpenses.findMany({
       where: {
         userId: userId
       },
@@ -149,7 +149,7 @@ export async function GET(req: NextRequest) {
     }, {} as Record<string, number>)
 
     // Calculate available amount (budget balance)
-    const budgetEntries = await prisma.personalBudget.findMany({
+    const budgetEntries = await prisma.personalBudgets.findMany({
       where: { userId: userId },
       orderBy: { createdAt: 'desc' }
     })
@@ -195,7 +195,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Get the expense to check ownership and timing
-    const expense = await prisma.personalExpense.findUnique({
+    const expense = await prisma.personalExpenses.findUnique({
       where: { id: expenseId },
       select: {
         id: true,
@@ -231,7 +231,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Update the personal expense
-    const updatedExpense = await prisma.personalExpense.update({
+    const updatedExpense = await prisma.personalExpenses.update({
       where: { id: expenseId },
       data: {
         amount: amount ? Number(amount) : undefined,

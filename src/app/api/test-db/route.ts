@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: NextRequest) {
   try {
     // Test basic database connectivity
-    const products = await prisma.businessProduct.findMany({
+    const products = await prisma.businessProducts.findMany({
       take: 1,
       select: {
         id: true,

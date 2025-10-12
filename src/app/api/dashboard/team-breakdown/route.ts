@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       try {
         if (isSystemAdmin(user)) {
           // System admin can see all users
-          const allUsers = await prisma.user.findMany({
+          const allUsers = await prisma.users.findMany({
             where: {
               isActive: true
             },
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
 
         } else if (userBusinessIds.length > 0) {
           // Count users in the same businesses
-          const businessUsers = await prisma.businessMembership.findMany({
+          const businessUsers = await prisma.businessMemberships.findMany({
             where: {
               businessId: { in: userBusinessIds },
               isActive: true
@@ -158,7 +158,7 @@ export async function GET(req: NextRequest) {
 
           // Get complete user data with all business memberships
           const userIds = uniqueUsers.map(m => m.user.id)
-          const completeUsers = await prisma.user.findMany({
+          const completeUsers = await prisma.users.findMany({
             where: {
               id: { in: userIds },
               isActive: true
@@ -254,7 +254,7 @@ export async function GET(req: NextRequest) {
     // 3. Create business breakdown
     if (isSystemAdmin(user)) {
       try {
-        const businesses = await prisma.business.findMany({
+        const businesses = await prisma.businesses.findMany({
           where: { isActive: true },
           include: {
             _count: {
@@ -283,7 +283,7 @@ export async function GET(req: NextRequest) {
       }
     } else if (userBusinessIds.length > 0) {
       try {
-        const userBusinesses = await prisma.business.findMany({
+        const userBusinesses = await prisma.businesses.findMany({
           where: {
             id: { in: userBusinessIds },
             isActive: true

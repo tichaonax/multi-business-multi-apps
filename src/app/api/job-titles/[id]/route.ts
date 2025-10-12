@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
 
-    const jobTitle = await prisma.jobTitle.findUnique({
+    const jobTitle = await prisma.jobTitles.findUnique({
       where: { id },
       include: {
         _count: {
@@ -78,7 +78,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if job title exists
-    const existingJobTitle = await prisma.jobTitle.findUnique({
+    const existingJobTitle = await prisma.jobTitles.findUnique({
       where: { id }
     })
 
@@ -91,7 +91,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Check for duplicate title (if title is being changed)
     if (title !== existingJobTitle.title) {
-      const duplicateTitle = await prisma.jobTitle.findUnique({
+      const duplicateTitle = await prisma.jobTitles.findUnique({
         where: { title }
       })
 
@@ -103,7 +103,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const updatedJobTitle = await prisma.jobTitle.update({
+    const updatedJobTitle = await prisma.jobTitles.update({
       where: { id },
       data: {
         title,
@@ -157,7 +157,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { id } = await params
 
     // Check if job title exists
-    const existingJobTitle = await prisma.jobTitle.findUnique({
+    const existingJobTitle = await prisma.jobTitles.findUnique({
       where: { id },
       include: {
         _count: {
@@ -186,7 +186,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    await prisma.jobTitle.delete({
+    await prisma.jobTitles.delete({
       where: { id }
     })
 

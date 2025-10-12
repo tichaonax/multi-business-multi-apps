@@ -20,11 +20,11 @@ export async function POST(req: NextRequest) {
     if (!payrollPeriodId) return NextResponse.json({ error: 'Missing payrollPeriodId' }, { status: 400 })
 
     // Find most recent export record for this period
-    const existing = await prisma.payrollExport.findFirst({ where: { payrollPeriodId }, orderBy: { exportedAt: 'desc' } })
+    const existing = await prisma.payrollExports.findFirst({ where: { payrollPeriodId }, orderBy: { exportedAt: 'desc' } })
     if (!existing) return NextResponse.json({ error: 'No existing export found for this period' }, { status: 404 })
 
     // Load the period and entries similarly to the original export flow
-    const period = await prisma.payrollPeriod.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId },
       include: {
         business: { select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true } },
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     let latestContractByEmployee: Record<string, any> = {}
     if (employeeIds.length > 0) {
       // pdfGenerationData is a JSON scalar field; select scalar fields and related jobTitles
-      const contracts = await prisma.employeeContract.findMany({
+      const contracts = await prisma.employeeContracts.findMany({
         where: { employeeId: { in: employeeIds } },
         orderBy: { startDate: 'desc' },
         select: { id: true, employeeId: true, pdfGenerationData: true, startDate: true, endDate: true, jobTitles: { select: { title: true } } }
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     // the period API. This prevents missing days/company/job titles in exports.
     try {
       const employeePrimaryBusinessIds = Array.from(new Set(enrichedEntries.map((e: any) => (e.employee?.primaryBusinessId) || (e.primaryBusiness?.id) || null).filter(Boolean))) as string[]
-      const empBusinesses = employeePrimaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: employeePrimaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
+      const empBusinesses = employeePrimaryBusinessIds.length > 0 ? await prisma.businesses.findMany({ where: { id: { in: employeePrimaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
       const empBusinessById: Record<string, any> = {}
       for (const b of empBusinesses) empBusinessById[b.id] = b
 
@@ -325,7 +325,7 @@ export async function POST(req: NextRequest) {
     const fileSize = excelBuffer.length
 
     // Update export record and its timestamps
-  const updated = await prisma.payrollExport.update({ where: { id: existing.id }, data: { fileName, fileUrl, fileSize, exportedAt: new Date(), exportedBy: session.user.id } })
+  const updated = await prisma.payrollExports.update({ where: { id: existing.id }, data: { fileName, fileUrl, fileSize, exportedAt: new Date(), exportedBy: session.user.id } })
 
   return NextResponse.json({ message: 'Export regenerated', export: updated, fileUrl }, { status: 200 })
   } catch (error) {

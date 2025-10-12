@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
 async function signActiveUnsignedContracts() {
   try {
     // Find all active contracts that are not fully signed
-    const unsignedActive = await prisma.employeeContract.findMany({
+    const unsignedActive = await prisma.employeeContracts.findMany({
       where: {
         status: 'active',
         OR: [
@@ -53,7 +53,7 @@ async function signActiveUnsignedContracts() {
     for (const contract of unsignedActive) {
       const employee = contract.employees_employee_contracts_employeeIdToemployees;
 
-      await prisma.employeeContract.update({
+      await prisma.employeeContracts.update({
         where: { id: contract.id },
         data: {
           employeeSignedAt: contract.employeeSignedAt || now,

@@ -6,7 +6,7 @@ async function analyzeMultiBusinessSystem() {
   console.log('='.repeat(50));
 
   // 1. Check users and their business memberships
-  const users = await prisma.user.findMany({
+  const users = await prisma.users.findMany({
     include: {
       businessMemberships: {
         include: {
@@ -59,7 +59,7 @@ async function analyzeMultiBusinessSystem() {
   });
 
   // 2. Check all businesses
-  const businesses = await prisma.business.findMany({
+  const businesses = await prisma.businesses.findMany({
     select: {
       id: true,
       name: true,
@@ -88,7 +88,7 @@ async function analyzeMultiBusinessSystem() {
   console.log('\n\n⚠️  DATA CONSISTENCY CHECKS:');
 
   // Check for employees without user accounts
-  const employeesWithoutUsers = await prisma.employee.findMany({
+  const employeesWithoutUsers = await prisma.employees.findMany({
     where: { userId: null },
     select: { id: true, fullName: true, email: true, employmentStatus: true }
   });

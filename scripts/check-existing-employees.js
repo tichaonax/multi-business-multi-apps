@@ -6,7 +6,7 @@ async function checkExistingEmployees() {
   try {
     console.log('Checking existing employees...')
     
-    const employees = await prisma.employee.findMany({
+    const employees = await prisma.employees.findMany({
       select: {
         id: true,
         email: true,
@@ -22,7 +22,7 @@ async function checkExistingEmployees() {
     
     if (employees.length > 0) {
       console.log('\nDeleting existing employees to avoid duplicates...')
-      await prisma.employee.deleteMany()
+      await prisma.employees.deleteMany()
       console.log('✅ Existing employees deleted')
     }
     

@@ -25,7 +25,7 @@ export async function GET(
     }
 
     // Find the business
-    const business = await prisma.business.findFirst({
+    const business = await prisma.businesses.findFirst({
       where: { id: businessId }
     })
 
@@ -68,7 +68,7 @@ export async function PUT(
     }
 
     // Find the business
-    const business = await prisma.business.findFirst({
+    const business = await prisma.businesses.findFirst({
       where: { id: supplierData.businessId }
     })
 
@@ -97,7 +97,7 @@ export async function PUT(
     suppliers[supplierIndex] = updatedSupplier
 
     // Update business metadata
-    await prisma.business.update({
+    await prisma.businesses.update({
       where: { id: business.id },
       data: {
         metadata: {
@@ -135,7 +135,7 @@ export async function DELETE(
     }
 
     // Find the business
-    const business = await prisma.business.findFirst({
+    const business = await prisma.businesses.findFirst({
       where: { id: businessId }
     })
 
@@ -156,7 +156,7 @@ export async function DELETE(
     suppliers.splice(supplierIndex, 1)
 
     // Update business metadata
-    await prisma.business.update({
+    await prisma.businesses.update({
       where: { id: business.id },
       data: {
         metadata: {

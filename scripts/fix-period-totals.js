@@ -20,7 +20,7 @@ async function computeDerivedTotalsForEntry(entry) {
   let contract = null
   try {
     const empId = entry.employeeId || (entry.employee && entry.employee.id)
-    if (empId) contract = await prisma.employeeContract.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
+    if (empId) contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
   } catch (e) { contract = null }
 
   const contractBenefits = []

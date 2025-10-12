@@ -21,7 +21,7 @@ export async function GET(
     }
 
     const { jobTitleId } = await params
-    const jobTitle = await prisma.jobTitle.findUnique({
+    const jobTitle = await prisma.jobTitles.findUnique({
       where: { id: jobTitleId },
       include: {
         _count: {
@@ -64,7 +64,7 @@ export async function PUT(
     const data = await request.json()
     const { title, description, responsibilities, department, level, isActive } = data
 
-    const jobTitle = await prisma.jobTitle.update({
+    const jobTitle = await prisma.jobTitles.update({
       where: { id: jobTitleId },
       data: {
         title,
@@ -101,7 +101,7 @@ export async function DELETE(
 
     const { jobTitleId } = await params
     // Check if job title is being used
-    const jobTitleInUse = await prisma.jobTitle.findUnique({
+    const jobTitleInUse = await prisma.jobTitles.findUnique({
       where: { id: jobTitleId },
       include: {
         _count: {
@@ -124,7 +124,7 @@ export async function DELETE(
       }, { status: 400 })
     }
 
-    await prisma.jobTitle.delete({
+    await prisma.jobTitles.delete({
       where: { id: params.jobTitleId }
     })
 

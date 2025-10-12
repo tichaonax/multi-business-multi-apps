@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const stageId = searchParams.get('stageId')
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       where.stageId = stageId
     }
 
-    const transactions = await prisma.projectTransaction.findMany({
+    const transactions = await prisma.projectTransactions.findMany({
       where,
       include: {
         personalExpense: {
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -205,7 +205,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify personal expense exists and belongs to user
-    const personalExpense = await prisma.personalExpense.findFirst({
+    const personalExpense = await prisma.personalExpenses.findFirst({
       where: {
         id: personalExpenseId,
         userId: session.user.id
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Verify optional foreign keys exist
     if (stageId) {
-      const stage = await prisma.projectStage.findFirst({
+      const stage = await prisma.projectStages.findFirst({
         where: { id: stageId, projectId }
       })
       if (!stage) {
@@ -251,7 +251,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     if (recipientPersonId) {
-      const person = await prisma.person.findUnique({
+      const person = await prisma.persons.findUnique({
         where: { id: recipientPersonId }
       })
       if (!person) {
@@ -263,7 +263,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     if (projectContractorId) {
-      const contractor = await prisma.projectContractor.findFirst({
+      const contractor = await prisma.projectContractors.findFirst({
         where: { id: projectContractorId, projectId }
       })
       if (!contractor) {
@@ -275,7 +275,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     if (stageAssignmentId) {
-      const assignment = await prisma.stageContractorAssignment.findUnique({
+      const assignment = await prisma.stageContractorAssignments.findUnique({
         where: { id: stageAssignmentId },
         include: { projectStage: true }
       })
@@ -287,7 +287,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const newTransaction = await prisma.projectTransaction.create({
+    const newTransaction = await prisma.projectTransactions.create({
       data: {
         projectId,
         stageId: stageId || null,
@@ -366,7 +366,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // If this is a deposit, update the stage assignment
     if (transactionType === 'deposit' && stageAssignmentId) {
-      await prisma.stageContractorAssignment.update({
+      await prisma.stageContractorAssignments.update({
         where: { id: stageAssignmentId },
         data: {
           isDepositPaid: true,
@@ -413,7 +413,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -428,7 +428,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify transaction exists and belongs to this project
-    const transaction = await prisma.projectTransaction.findFirst({
+    const transaction = await prisma.projectTransactions.findFirst({
       where: {
         id: transactionId,
         projectId: projectId,
@@ -462,7 +462,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const updatedTransaction = await prisma.projectTransaction.update({
+    const updatedTransaction = await prisma.projectTransactions.update({
       where: { id: transactionId },
       data: updatedData,
       include: {

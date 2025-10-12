@@ -8,7 +8,7 @@ async function testApiEndpoints() {
 
   try {
     // Get a clothing business ID for testing
-    const clothingBusiness = await prisma.business.findFirst({
+    const clothingBusiness = await prisma.businesses.findFirst({
       where: { type: 'clothing', isActive: true }
     })
 

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { personId } = await params
 
-    const person = await prisma.person.findUnique({
+    const person = await prisma.persons.findUnique({
       where: { id: personId },
       include: {
         idFormatTemplate: true,
@@ -75,7 +75,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if person exists
-    const existingPerson = await prisma.person.findUnique({
+    const existingPerson = await prisma.persons.findUnique({
       where: { id: personId }
     })
 
@@ -88,7 +88,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Validate national ID format if template is provided
     if (idFormatTemplateId) {
-      const template = await prisma.idFormatTemplate.findUnique({
+      const template = await prisma.idFormatTemplates.findUnique({
         where: { id: idFormatTemplateId }
       })
       
@@ -110,7 +110,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Check for duplicate national ID (excluding current person)
     if (nationalId !== existingPerson.nationalId) {
-      const duplicateNationalId = await prisma.person.findUnique({
+      const duplicateNationalId = await prisma.persons.findUnique({
         where: { nationalId }
       })
 
@@ -124,7 +124,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Check for duplicate email (excluding current person)
     if (email && email !== existingPerson.email) {
-      const duplicateEmail = await prisma.person.findUnique({
+      const duplicateEmail = await prisma.persons.findUnique({
         where: { email }
       })
 
@@ -136,7 +136,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const updatedPerson = await prisma.person.update({
+    const updatedPerson = await prisma.persons.update({
       where: { id: personId },
       data: {
         fullName,
@@ -192,7 +192,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const data = await req.json()
 
     // Check if person exists
-    const existingPerson = await prisma.person.findUnique({
+    const existingPerson = await prisma.persons.findUnique({
       where: { id: personId }
     })
 
@@ -204,7 +204,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Only update the fields that are provided
-    const updatedPerson = await prisma.person.update({
+    const updatedPerson = await prisma.persons.update({
       where: { id: personId },
       data: data,
       include: {
@@ -232,7 +232,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { personId } = await params
 
     // Check if person exists
-    const existingPerson = await prisma.person.findUnique({
+    const existingPerson = await prisma.persons.findUnique({
       where: { id: personId },
       include: {
         projectContractors: true,
@@ -268,7 +268,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Safe to delete - no active assignments or transaction history
-    await prisma.person.delete({
+    await prisma.persons.delete({
       where: { id: personId }
     })
 

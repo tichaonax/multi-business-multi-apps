@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { projectId, stageId } = await params
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const assignments = await prisma.stageContractorAssignment.findMany({
+    const assignments = await prisma.stageContractorAssignments.findMany({
       where: { stageId },
       include: {
         stage: {
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify stage exists and belongs to project
-    const stage = await prisma.projectStage.findFirst({
+    const stage = await prisma.projectStages.findFirst({
       where: {
         id: stageId,
         projectId
@@ -151,7 +151,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify project contractor exists and belongs to project
-    const projectContractor = await prisma.projectContractor.findFirst({
+    const projectContractor = await prisma.projectContractors.findFirst({
       where: {
         id: projectContractorId,
         projectId
@@ -166,7 +166,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if assignment already exists
-    const existingAssignment = await prisma.stageContractorAssignment.findFirst({
+    const existingAssignment = await prisma.stageContractorAssignments.findFirst({
       where: {
         stageId,
         projectContractorId
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       finalDepositAmount = (parseFloat(predeterminedAmount) * parseFloat(depositPercentage)) / 100
     }
 
-    const newAssignment = await prisma.stageContractorAssignment.create({
+    const newAssignment = await prisma.stageContractorAssignments.create({
       data: {
         stageId,
         projectContractorId,

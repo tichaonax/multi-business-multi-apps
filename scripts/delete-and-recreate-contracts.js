@@ -15,10 +15,10 @@ async function deleteContracts({ all = false, seededOnly = true }) {
   console.log('🧹 Deleting contracts...')
 
   if (all) {
-    const contracts = await prisma.employeeContract.findMany({ select: { id: true, contractNumber: true, employeeId: true } })
+    const contracts = await prisma.employeeContracts.findMany({ select: { id: true, contractNumber: true, employeeId: true } })
     for (const c of contracts) {
       try {
-        await prisma.employeeContract.delete({ where: { id: c.id } })
+        await prisma.employeeContracts.delete({ where: { id: c.id } })
         console.log(`🗑️  Deleted contract ${c.contractNumber || c.id}`)
       } catch (err) {
         console.warn(`⚠️  Failed to delete contract ${c.contractNumber || c.id}: ${err.message}`)
@@ -29,17 +29,17 @@ async function deleteContracts({ all = false, seededOnly = true }) {
 
   // default: delete contracts for known seeded employee numbers
   const seededNumbers = ['EMP001','EMP002','EMP003','EMP004','EMP1009']
-  const employees = await prisma.employee.findMany({ where: { employeeNumber: { in: seededNumbers } }, select: { id: true, employeeNumber: true, fullName: true } })
+  const employees = await prisma.employees.findMany({ where: { employeeNumber: { in: seededNumbers } }, select: { id: true, employeeNumber: true, fullName: true } })
   if (employees.length === 0) {
     console.log('ℹ️  No seeded employees found to delete contracts for')
     return
   }
 
   const empIds = employees.map(e => e.id)
-  const contracts = await prisma.employeeContract.findMany({ where: { employeeId: { in: empIds } }, select: { id: true, contractNumber: true, employeeId: true } })
+  const contracts = await prisma.employeeContracts.findMany({ where: { employeeId: { in: empIds } }, select: { id: true, contractNumber: true, employeeId: true } })
   for (const c of contracts) {
     try {
-      await prisma.employeeContract.delete({ where: { id: c.id } })
+      await prisma.employeeContracts.delete({ where: { id: c.id } })
       console.log(`🗑️  Deleted contract ${c.contractNumber || c.id}`)
     } catch (err) {
       console.warn(`⚠️  Failed to delete contract ${c.contractNumber || c.id}: ${err.message}`)
@@ -51,7 +51,7 @@ async function recreateContractsForSamples() {
   console.log('🔁 Recreating contracts via API helper (will prefer API when SEED_API_KEY is set)...')
   const { createContractViaApiOrDb } = require('../src/lib/services/contract-service')
   const seededNumbers = ['EMP001','EMP002','EMP003','EMP004','EMP1009']
-  const employees = await prisma.employee.findMany({ where: { employeeNumber: { in: seededNumbers } } })
+  const employees = await prisma.employees.findMany({ where: { employeeNumber: { in: seededNumbers } } })
   if (employees.length === 0) {
     console.log('ℹ️  No seeded employees found to recreate contracts for')
     return
@@ -68,7 +68,7 @@ async function recreateContractsForSamples() {
 
   for (const employee of employees) {
     // Skip if contract already exists (safety)
-    const existing = await prisma.employeeContract.findFirst({ where: { employeeId: employee.id } })
+    const existing = await prisma.employeeContracts.findFirst({ where: { employeeId: employee.id } })
     if (existing) {
       console.log(`⏭️  Contract for ${employee.fullName || employee.employeeNumber} already exists, skipping...`)
       continue

@@ -24,7 +24,7 @@ async function traceWorkDaysCalculation() {
     console.log('Period End:', period?.periodEnd?.toISOString().split('T')[0]);
 
     // Get EMP003's contract
-    const employee = await prisma.employee.findFirst({
+    const employee = await prisma.employees.findFirst({
       where: { employeeNumber: 'EMP003' },
       include: {
         employee_contracts_employee_contracts_employeeIdToemployees: {

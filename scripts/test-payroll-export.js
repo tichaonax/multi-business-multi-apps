@@ -7,7 +7,7 @@ async function testPayrollExport() {
     console.log('🔍 Testing payroll export data retrieval...')
     
     // Get the test business
-    const business = await prisma.business.findFirst({
+    const business = await prisma.businesses.findFirst({
       where: { name: { contains: 'Test' } }
     })
     
@@ -25,7 +25,7 @@ async function testPayrollExport() {
     console.log(`📊 Retrieving payroll data for ${currentMonth}/${currentYear}...`)
     
     // Get employees with payroll data for the specified month/year
-    const employees = await prisma.employee.findMany({
+    const employees = await prisma.employees.findMany({
       where: {
         primaryBusinessId: business.id,
         isActive: true,

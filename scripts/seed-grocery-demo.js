@@ -108,10 +108,10 @@ async function seed() {
     console.log('Seeding grocery demo data for', businessId)
 
     // Ensure business exists (create placeholder if missing)
-    let business = await prisma.business.findUnique({ where: { id: businessId } })
+    let business = await prisma.businesses.findUnique({ where: { id: businessId } })
     const now = new Date()
     if (!business) {
-      business = await prisma.business.create({ data: { id: businessId, name: 'Grocery Demo', type: 'grocery', description: 'Auto-created for demo', isActive: true, createdAt: now, updatedAt: now } })
+      business = await prisma.businesses.create({ data: { id: businessId, name: 'Grocery Demo', type: 'grocery', description: 'Auto-created for demo', isActive: true, createdAt: now, updatedAt: now } })
       console.log('Created placeholder business for grocery demo:', businessId)
     }
 

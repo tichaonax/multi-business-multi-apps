@@ -33,7 +33,7 @@ export async function PUT(
     }
 
     // Get employee basic fields and linked user separately to avoid complex include typing
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       select: {
         id: true,
@@ -52,14 +52,14 @@ export async function PUT(
 
     // Fetch linked user (if any)
     const linkedUser = employee.userId
-      ? await prisma.user.findUnique({
+      ? await prisma.users.findUnique({
         where: { id: employee.userId },
         select: { id: true, name: true, email: true, isActive: true }
       })
       : null;
 
     // Fetch the most recent contract for the employee (if any)
-    const currentContract = await prisma.employeeContract.findFirst({
+    const currentContract = await prisma.employeeContracts.findFirst({
       where: { employeeId: employeeId },
       orderBy: { createdAt: 'desc' },
       select: { id: true, status: true, endDate: true }
@@ -246,7 +246,7 @@ export async function GET(
 
     const { employeeId } = await params;
 
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       select: {
         id: true,

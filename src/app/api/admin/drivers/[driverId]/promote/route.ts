@@ -40,7 +40,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const validatedData = PromoteDriverSchema.parse(body)
 
     // Check if driver exists
-    const driver = await prisma.vehicleDriver.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: driverId },
       include: {
         users: {
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check if email is already in use
-    const existingUserByEmail = await prisma.user.findUnique({
+    const existingUserByEmail = await prisma.users.findUnique({
       where: { email: userEmail }
     })
 
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check if username is already in use
-    const existingUserByUsername = await prisma.user.findUnique({
+    const existingUserByUsername = await prisma.users.findUnique({
       where: { username: validatedData.username }
     })
 
@@ -207,7 +207,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { driverId } = await params
 
-    const driver = await prisma.vehicleDriver.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: driverId },
       include: {
         users: {

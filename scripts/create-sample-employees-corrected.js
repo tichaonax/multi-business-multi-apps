@@ -70,7 +70,7 @@ async function createSampleEmployeesCorrected() {
     console.log('🌱 Creating corrected sample employees with contracts...')
     
     // Get required business and reference data
-    const business = await prisma.business.findFirst({
+    const business = await prisma.businesses.findFirst({
       where: { isActive: true }
     })
     
@@ -98,11 +98,11 @@ async function createSampleEmployeesCorrected() {
       }
 
       // Generate employee number
-      const employeeCount = await prisma.employee.count()
+      const employeeCount = await prisma.employees.count()
       const employeeNumber = `EMP${String(employeeCount + 1).padStart(6, '0')}`
 
       // Check if employee already exists
-      const existingEmployee = await prisma.employee.findUnique({
+      const existingEmployee = await prisma.employees.findUnique({
         where: { nationalId: employeeData.nationalId }
       })
 

@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       where.parentId = parentId || null
     }
 
-    const categories = await prisma.businessCategory.findMany({
+    const categories = await prisma.businessCategories.findMany({
       where,
       include: {
         business: {
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateCategorySchema.parse(body)
 
     // Verify business exists and user has access
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: validatedData.businessId }
     })
 
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for duplicate name within the business
-    const existingCategory = await prisma.businessCategory.findFirst({
+    const existingCategory = await prisma.businessCategories.findFirst({
       where: {
         businessId: validatedData.businessId,
         name: validatedData.name,
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     // Verify parent category exists if specified
     if (validatedData.parentId) {
-      const parentCategory = await prisma.businessCategory.findFirst({
+      const parentCategory = await prisma.businessCategories.findFirst({
         where: {
           id: validatedData.parentId,
           businessId: validatedData.businessId
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const category = await prisma.businessCategory.create({
+    const category = await prisma.businessCategories.create({
       data: {
         ...validatedData,
         businessType: validatedData.businessType || business.type
@@ -205,7 +205,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify category exists
-    const existingCategory = await prisma.businessCategory.findUnique({
+    const existingCategory = await prisma.businessCategories.findUnique({
       where: { id }
     })
 
@@ -218,7 +218,7 @@ export async function PUT(request: NextRequest) {
 
     // Check for duplicate name if name is being updated
     if (updateData.name) {
-      const duplicateCategory = await prisma.businessCategory.findFirst({
+      const duplicateCategory = await prisma.businessCategories.findFirst({
         where: {
           businessId: existingCategory.businessId,
           name: updateData.name,
@@ -235,7 +235,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const category = await prisma.businessCategory.update({
+    const category = await prisma.businessCategories.update({
       where: { id },
       data: updateData as any,
       include: {
@@ -289,7 +289,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if category has products
-    const categoryWithProducts = await prisma.businessCategory.findUnique({
+    const categoryWithProducts = await prisma.businessCategories.findUnique({
       where: { id },
       include: {
         businessProducts: {
@@ -325,7 +325,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete the category
-    await prisma.businessCategory.update({
+    await prisma.businessCategories.update({
       where: { id },
       data: { isActive: false }
     })

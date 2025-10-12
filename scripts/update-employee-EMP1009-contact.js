@@ -26,13 +26,13 @@ const prisma = new PrismaClient()
 
 async function update() {
   try {
-    const emp = await prisma.employee.findFirst({ where: { employeeNumber: 'EMP1009' } })
+    const emp = await prisma.employees.findFirst({ where: { employeeNumber: 'EMP1009' } })
     if (!emp) {
       console.error('Employee EMP1009 not found')
       process.exit(1)
     }
 
-    const updated = await prisma.employee.update({
+    const updated = await prisma.employees.update({
       where: { id: emp.id },
       data: {
         nationalId: 'SEED-1009-3434',

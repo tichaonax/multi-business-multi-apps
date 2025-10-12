@@ -39,7 +39,7 @@ export async function GET(
     const includeInactive = searchParams.get('includeInactive') === 'true'
 
     // Get categories for the business from database
-    const businessCategories = await prisma.businessCategory.findMany({
+    const businessCategories = await prisma.businessCategories.findMany({
       where: {
         businessId,
         ...(includeInactive ? {} : { isActive: true })
@@ -121,12 +121,12 @@ export async function POST(
     let business: any = null
     if (isSystemAdmin(user)) {
       // For admin, just verify the business exists
-      business = await prisma.business.findUnique({
+      business = await prisma.businesses.findUnique({
         where: { id: businessId }
       })
     } else {
       // Verify business exists and user has access
-      business = await prisma.business.findFirst({
+      business = await prisma.businesses.findFirst({
         where: {
           id: businessId,
           businessMemberships: {
@@ -147,7 +147,7 @@ export async function POST(
     }
 
     // Create the category
-    const category = await prisma.businessCategory.create({
+    const category = await prisma.businessCategories.create({
       data: {
         businessId,
         name: body.name,

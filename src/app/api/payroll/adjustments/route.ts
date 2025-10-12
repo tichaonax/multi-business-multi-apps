@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       where.payrollEntryId = payrollEntryId
     }
 
-    const adjustments = await prisma.payrollAdjustment.findMany({
+    const adjustments = await prisma.payrollAdjustments.findMany({
       where,
       include: {
         payrollEntry: {
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify entry exists
-    const entry = await prisma.payrollEntry.findUnique({
+    const entry = await prisma.payrollEntries.findUnique({
       where: { id: payrollEntryId },
       include: {
         payrollPeriod: true
@@ -190,7 +190,7 @@ export async function PUT(req: NextRequest) {
     const { id, amount, description, isAddition, type, reason } = data
     if (!id) return NextResponse.json({ error: 'Adjustment id required' }, { status: 400 })
 
-    const existing = await prisma.payrollAdjustment.findUnique({ where: { id }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
+    const existing = await prisma.payrollAdjustments.findUnique({ where: { id }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
     if (!existing) return NextResponse.json({ error: 'Adjustment not found' }, { status: 404 })
     if (existing.payrollEntry?.payrollPeriod?.status === 'exported' || existing.payrollEntry?.payrollPeriod?.status === 'closed') {
       return NextResponse.json({ error: 'Cannot modify adjustments on exported or closed payroll period' }, { status: 400 })
@@ -249,7 +249,7 @@ export async function DELETE(req: NextRequest) {
     const adjustmentId = searchParams.get('adjustmentId')
     if (!adjustmentId) return NextResponse.json({ error: 'adjustmentId required' }, { status: 400 })
 
-    const existing = await prisma.payrollAdjustment.findUnique({ where: { id: adjustmentId }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
+    const existing = await prisma.payrollAdjustments.findUnique({ where: { id: adjustmentId }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
     if (!existing) return NextResponse.json({ error: 'Adjustment not found' }, { status: 404 })
     if (existing.payrollEntry?.payrollPeriod?.status === 'exported' || existing.payrollEntry?.payrollPeriod?.status === 'closed') {
       return NextResponse.json({ error: 'Cannot delete adjustments on exported or closed payroll period' }, { status: 400 })

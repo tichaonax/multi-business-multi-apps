@@ -31,7 +31,7 @@ export async function POST(
     }
 
     // Get the user to be deactivated
-    const userToDeactivate = await prisma.user.findUnique({
+    const userToDeactivate = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         businessMemberships: {
@@ -51,7 +51,7 @@ export async function POST(
     }
 
     // Deactivate user and their business memberships
-    const updatedUser = await prisma.user.update({
+    const updatedUser = await prisma.users.update({
       where: { id: userId },
       data: {
         isActive: false,
@@ -79,7 +79,7 @@ export async function POST(
     })
 
     // Log the deactivation for audit purposes
-    await prisma.auditLog.create({
+    await prisma.auditLogs.create({
       data: {
         action: 'USER_DEACTIVATED',
         entityType: 'User',

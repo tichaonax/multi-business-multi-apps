@@ -76,9 +76,9 @@ async function seedBusinessCategories() {
 
     // BusinessCategory has a unique constraint on [businessId, name].
     // Seed into a default system/business context. If no business exists, create a default one.
-    let defaultBusiness = await prisma.business.findFirst({ where: { name: 'Default Business' } })
+    let defaultBusiness = await prisma.businesses.findFirst({ where: { name: 'Default Business' } })
     if (!defaultBusiness) {
-      defaultBusiness = await prisma.business.create({
+      defaultBusiness = await prisma.businesses.create({
         data: {
           id: require('crypto').randomUUID(),
           name: 'Default Business',

@@ -15,7 +15,7 @@ const prisma = new PrismaClient()
 
 async function run() {
   try {
-    const list = await prisma.employee.findMany({ where: { supervisorId: null }, select: { id: true, employeeNumber: true, fullName: true, jobTitleId: true } })
+    const list = await prisma.employees.findMany({ where: { supervisorId: null }, select: { id: true, employeeNumber: true, fullName: true, jobTitleId: true } })
     console.log(`ℹ️ Found ${list.length} employees without supervisorId`)
     for (const e of list) console.log(`- ${e.employeeNumber} • ${e.fullName} (id: ${e.id}) jobTitleId: ${e.jobTitleId || 'null'}`)
   } catch (err) {

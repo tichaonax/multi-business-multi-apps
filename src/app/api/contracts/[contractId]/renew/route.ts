@@ -38,7 +38,7 @@ export async function POST(
     const validatedData = RenewalSchema.parse(body)
 
     // Fetch the original contract
-    const originalContract = await prisma.employeeContract.findUnique({
+    const originalContract = await prisma.employeeContracts.findUnique({
       where: { id: contractId },
       include: {
         contract_benefits: true,
@@ -208,7 +208,7 @@ export async function POST(
     // otherwise fall back to the new start date so the field is always populated.
     const renewalDueDate = newEndDate ? newEndDate : newStartDate
 
-    await prisma.contractRenewal.create({
+    await prisma.contractRenewals.create({
       data: {
         id: randomUUID(),
         employeeId: originalContract.employeeId,
@@ -220,7 +220,7 @@ export async function POST(
     })
 
     // Fetch the complete renewed contract for response
-    const completeRenewedContract = await prisma.employeeContract.findUnique({
+    const completeRenewedContract = await prisma.employeeContracts.findUnique({
       where: { id: renewedContract.id },
       include: {
         contract_benefits: {

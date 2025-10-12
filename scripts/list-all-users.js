@@ -4,7 +4,7 @@ const prisma = new PrismaClient()
 
 async function listAllUsers() {
   try {
-    const users = await prisma.user.findMany({
+    const users = await prisma.users.findMany({
       select: {
         id: true,
         email: true,

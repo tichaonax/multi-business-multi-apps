@@ -5,7 +5,7 @@ async function findUser() {
   try {
     console.log('🔍 Finding users...')
     
-    const users = await prisma.user.findMany({
+    const users = await prisma.users.findMany({
       select: {
         id: true,
         name: true,

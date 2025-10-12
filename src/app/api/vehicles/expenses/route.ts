@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [expenses, totalCount] = await Promise.all([
-      prisma.vehicleExpense.findMany({
+      prisma.vehicleExpenses.findMany({
         where,
         include: {
           vehicles: {
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleExpense.count({ where })
+      prisma.vehicleExpenses.count({ where })
     ])
 
     return NextResponse.json({
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateExpenseSchema.parse(body)
 
     // Verify vehicle exists
-    const vehicle = await prisma.vehicle.findUnique({
+    const vehicle = await prisma.vehicles.findUnique({
       where: { id: validatedData.vehicleId }
     })
 
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     // Verify trip exists if provided
     if (validatedData.tripId) {
-      const trip = await prisma.vehicleTrip.findUnique({
+      const trip = await prisma.vehicleTrips.findUnique({
         where: { id: validatedData.tripId }
       })
 
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
 
     // Verify business exists if provided
     if (validatedData.businessId) {
-      const business = await prisma.business.findUnique({
+      const business = await prisma.businesses.findUnique({
         where: { id: validatedData.businessId }
       })
 
@@ -229,7 +229,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create expense
-    const expense = await prisma.vehicleExpense.create({
+    const expense = await prisma.vehicleExpenses.create({
       data: {
         id: randomUUID(),
         ...validatedData,
@@ -310,7 +310,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify expense exists
-    const existingExpense = await prisma.vehicleExpense.findUnique({
+    const existingExpense = await prisma.vehicleExpenses.findUnique({
       where: { id }
     })
 
@@ -335,7 +335,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update expense
-    const expense = await prisma.vehicleExpense.update({
+    const expense = await prisma.vehicleExpenses.update({
       where: { id },
       data: {
         ...updateData,
@@ -420,7 +420,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify expense exists
-    const existingExpense = await prisma.vehicleExpense.findUnique({
+    const existingExpense = await prisma.vehicleExpenses.findUnique({
       where: { id: expenseId }
     })
 
@@ -432,7 +432,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete expense
-    await prisma.vehicleExpense.delete({
+    await prisma.vehicleExpenses.delete({
       where: { id: expenseId }
     })
 

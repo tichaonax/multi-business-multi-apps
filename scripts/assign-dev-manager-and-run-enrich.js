@@ -37,16 +37,16 @@ async function run() {
     }
 
     // Pick a business to attach the manager to (use first existing business)
-    const business = await prisma.business.findFirst()
+    const business = await prisma.businesses.findFirst()
     if (!business) {
       console.error('No business found in DB; cannot create manager')
       return
     }
 
     // Find or create the dev manager employee
-    let devMgr = await prisma.employee.findFirst({ where: { employeeNumber: 'DEV-MGR-1' } })
+    let devMgr = await prisma.employees.findFirst({ where: { employeeNumber: 'DEV-MGR-1' } })
     if (!devMgr) {
-      devMgr = await prisma.employee.create({ data: {
+      devMgr = await prisma.employees.create({ data: {
         id: `dev-mgr-1`,
         employeeNumber: 'DEV-MGR-1',
         firstName: 'Dev',
@@ -68,7 +68,7 @@ async function run() {
     }
 
     // Assign dev manager as supervisor for employees missing supervisorId, excluding management roles
-    const employees = await prisma.employee.findMany({ where: { supervisorId: null } })
+    const employees = await prisma.employees.findMany({ where: { supervisorId: null } })
     let assigned = 0
     for (const e of employees) {
       // skip manager itself
@@ -78,12 +78,12 @@ async function run() {
       const jt = await prisma.jobTitle.findUnique({ where: { id: e.jobTitleId } }).catch(() => null)
       if (isManagementRoleFromTitle(jt)) continue
 
-      await prisma.employee.update({ where: { id: e.id }, data: { supervisorId: devMgr.id, updatedAt: new Date() } })
+      await prisma.employees.update({ where: { id: e.id }, data: { supervisorId: devMgr.id, updatedAt: new Date() } })
       // update existing contracts for this employee to have supervisor fields
       const supTitle = jt ? jt.title : null
-      const contracts = await prisma.employeeContract.findMany({ where: { employeeId: e.id } })
+      const contracts = await prisma.employeeContracts.findMany({ where: { employeeId: e.id } })
       for (const c of contracts) {
-        await prisma.employeeContract.update({ where: { id: c.id }, data: { supervisorId: devMgr.id, supervisorName: devMgr.fullName, supervisorTitle: supTitle, updatedAt: new Date() } })
+        await prisma.employeeContracts.update({ where: { id: c.id }, data: { supervisorId: devMgr.id, supervisorName: devMgr.fullName, supervisorTitle: supTitle, updatedAt: new Date() } })
       }
       assigned++
       console.log(`Assigned supervisor Dev Manager to ${e.employeeNumber} (${e.fullName}) and updated ${contracts.length} contract(s)`)

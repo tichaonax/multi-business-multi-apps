@@ -159,10 +159,10 @@ async function seedPermissionTemplates() {
 
     // PermissionTemplate model does not expose a compound unique for (name, businessType).
     // Use findFirst by natural key then update/create accordingly. Use a default admin user as createdBy
-    let adminUser = await prisma.user.findFirst({ where: { email: 'admin@business.local' } })
+    let adminUser = await prisma.users.findFirst({ where: { email: 'admin@business.local' } })
     if (!adminUser) {
       // create a minimal system admin for ownership of templates
-      adminUser = await prisma.user.create({
+      adminUser = await prisma.users.create({
         data: {
           id: require('crypto').randomUUID(),
           email: 'admin@business.local',

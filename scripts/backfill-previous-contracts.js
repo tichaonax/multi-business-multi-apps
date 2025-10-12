@@ -18,7 +18,7 @@ async function run() {
   try {
     console.log('🔌 Backfill start: connecting to DB')
 
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { previousContractId: null },
       select: { id: true, pdfGenerationData: true, notes: true }
     })
@@ -62,7 +62,7 @@ async function run() {
       }
 
       try {
-        await prisma.employeeContract.update({
+        await prisma.employeeContracts.update({
           where: { id },
           data: {
             previousContractId: parsedId,

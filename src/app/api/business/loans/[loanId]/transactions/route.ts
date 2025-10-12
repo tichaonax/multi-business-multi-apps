@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify the loan exists and user has access to it
-    const userBusinesses = await prisma.businessMembership.findMany({
+    const userBusinesses = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         isActive: true
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const businessIds = userBusinesses.map(membership => membership.businessId)
 
-    const loan = await prisma.interBusinessLoan.findFirst({
+    const loan = await prisma.interBusinessLoans.findFirst({
       where: {
         id: loanId,
         status: 'active',
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Create the loan transaction record (business-initiated)
-    const businessTransaction = await prisma.loanTransaction.create({
+    const businessTransaction = await prisma.loanTransactions.create({
       data: {
         loanId,
         transactionType,
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     })
 
     // Update the loan balance
-    await prisma.interBusinessLoan.update({
+    await prisma.interBusinessLoans.update({
       where: { id: loanId },
       data: { 
         remainingBalance: newBalance,
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Update the loan status if it's fully paid
     if (newBalance === 0 && transactionType === 'payment') {
-      await prisma.interBusinessLoan.update({
+      await prisma.interBusinessLoans.update({
         where: { id: loanId },
         data: { status: 'paid' }
       })
@@ -186,12 +186,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       if (!transactionResult.success) {
         // Rollback the loan transaction if balance deduction fails
-        await prisma.loanTransaction.delete({
+        await prisma.loanTransactions.delete({
           where: { id: businessTransaction.id }
         })
 
         // Restore original loan balance
-        await prisma.interBusinessLoan.update({
+        await prisma.interBusinessLoans.update({
           where: { id: loanId },
           data: {
             remainingBalance: currentBalance,
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       ? `Auto: Loan payment received from Business account - ${description}`
       : `Auto: Loan advance from Business account - ${description}`
 
-    const reciprocalTransaction = await prisma.loanTransaction.create({
+    const reciprocalTransaction = await prisma.loanTransactions.create({
       data: {
         loanId,
         transactionType,

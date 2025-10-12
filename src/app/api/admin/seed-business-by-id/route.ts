@@ -66,19 +66,19 @@ export async function POST(request: NextRequest) {
   let createdPlaceholder = false
   let createdMembership = false
   try {
-    const existingBusiness = await prisma.business.findUnique({ where: { id: businessId } })
+    const existingBusiness = await prisma.businesses.findUnique({ where: { id: businessId } })
     if (!existingBusiness) {
       const now = new Date()
       const name = `Demo - ${businessId}`
-      await prisma.business.create({ data: { id: businessId, name, type: type || 'demo', description: `Auto-created for seed: ${businessId}`, isActive: true, createdAt: now, updatedAt: now } })
+      await prisma.businesses.create({ data: { id: businessId, name, type: type || 'demo', description: `Auto-created for seed: ${businessId}`, isActive: true, createdAt: now, updatedAt: now } })
       createdPlaceholder = true
 
       // Also create a membership for the requesting admin so they can switch to the new business
       try {
-        const existingMembership = await prisma.businessMembership.findFirst({ where: { userId: currentUser.id, businessId } })
+        const existingMembership = await prisma.businessMemberships.findFirst({ where: { userId: currentUser.id, businessId } })
         if (!existingMembership) {
           const membershipId = `${currentUser.id}-${businessId}`
-          await prisma.businessMembership.create({ data: { id: membershipId, userId: currentUser.id, businessId, role: 'business-owner', isActive: true, permissions: {}, joinedAt: now } as any })
+          await prisma.businessMemberships.create({ data: { id: membershipId, userId: currentUser.id, businessId, role: 'business-owner', isActive: true, permissions: {}, joinedAt: now } as any })
           createdMembership = true
         }
       } catch (err2) {
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     } else if (!existingBusiness.isActive) {
       // If the business exists but is inactive, activate it so seed scripts can attach children
       try {
-        await prisma.business.update({ where: { id: businessId }, data: { isActive: true, updatedAt: new Date() } })
+        await prisma.businesses.update({ where: { id: businessId }, data: { isActive: true, updatedAt: new Date() } })
       } catch (err3) {
         console.warn('Failed to activate existing business prior to seeding:', String(err3))
       }

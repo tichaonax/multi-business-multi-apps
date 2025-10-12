@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 async function checkEmployee() {
   try {
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { employeeNumber: 'EMP000002' },
       include: {
         employeeBusinessAssignments: {

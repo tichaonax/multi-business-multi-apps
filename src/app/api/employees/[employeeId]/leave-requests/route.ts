@@ -26,7 +26,7 @@ export async function GET(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const leaveRequests = await prisma.employeeLeaveRequest.findMany({
+    const leaveRequests = await prisma.employeeLeaveRequests.findMany({
       where: { employeeId },
       include: {
         employees_employee_leave_requests_approvedByToemployees: {
@@ -113,7 +113,7 @@ export async function POST(
     }
 
     // Check if employee exists and is active
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       select: { isActive: true, fullName: true }
     })
@@ -154,7 +154,7 @@ export async function POST(
       updatedAt: new Date()
     }
 
-    const leaveRequest = await prisma.employeeLeaveRequest.create({
+    const leaveRequest = await prisma.employeeLeaveRequests.create({
       data: leaveRequestData,
       include: {
         employee: {

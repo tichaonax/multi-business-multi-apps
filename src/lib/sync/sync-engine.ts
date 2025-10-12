@@ -518,7 +518,7 @@ export class SyncEngine extends EventEmitter {
    */
   private async getLastSyncTime(peerNodeId: string): Promise<Date | null> {
     try {
-      const lastSession = await this.prisma.syncSession.findFirst({
+      const lastSession = await this.prisma.syncSessions.findFirst({
         where: {
           sourceNodeId: this.options.nodeId,
           targetNodeId: peerNodeId,
@@ -539,7 +539,7 @@ export class SyncEngine extends EventEmitter {
    */
   private async recordSyncSession(session: SyncSession): Promise<void> {
     try {
-      await this.prisma.syncSession.create({
+      await this.prisma.syncSessions.create({
         data: {
           id: crypto.randomUUID(),
           sessionId: session.sessionId,

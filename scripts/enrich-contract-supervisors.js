@@ -30,18 +30,18 @@ async function enrich() {
     console.log('🔎 Scanning contracts for missing supervisorId...')
 
     // Find contracts with no supervisorId
-    const contracts = await prisma.employeeContract.findMany({ where: { supervisorId: null } , select: { id: true, employeeId: true } })
+    const contracts = await prisma.employeeContracts.findMany({ where: { supervisorId: null } , select: { id: true, employeeId: true } })
     console.log(`ℹ️  Found ${contracts.length} contracts without supervisorId`)
 
     let updatedCount = 0
 
     for (const c of contracts) {
-      const emp = await prisma.employee.findUnique({ where: { id: c.employeeId } })
+      const emp = await prisma.employees.findUnique({ where: { id: c.employeeId } })
       if (!emp) continue
 
       if (!emp.supervisorId) continue // nothing to copy
 
-      const sup = await prisma.employee.findUnique({ where: { id: emp.supervisorId } })
+      const sup = await prisma.employees.findUnique({ where: { id: emp.supervisorId } })
       if (!sup) continue
 
       // try to get supervisor's job title
@@ -51,7 +51,7 @@ async function enrich() {
         if (jt) supTitle = jt.title
       }
 
-      await prisma.employeeContract.update({ where: { id: c.id }, data: { supervisorId: sup.id, supervisorName: sup.fullName, supervisorTitle: supTitle, updatedAt: new Date() } })
+      await prisma.employeeContracts.update({ where: { id: c.id }, data: { supervisorId: sup.id, supervisorName: sup.fullName, supervisorTitle: supTitle, updatedAt: new Date() } })
       updatedCount++
       console.log(`✅ Updated contract ${c.id} with supervisor ${sup.fullName} (${sup.id})`)
     }

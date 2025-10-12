@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
 
-    const templates = await prisma.idFormatTemplate.findMany({
+    const templates = await prisma.idFormatTemplates.findMany({
       where: isActive ? { isActive: true } : undefined,
       orderBy: [
         { countryCode: 'asc' },

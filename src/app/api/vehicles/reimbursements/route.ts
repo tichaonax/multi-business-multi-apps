@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [reimbursements, totalCount] = await Promise.all([
-      prisma.vehicleReimbursement.findMany({
+      prisma.vehicleReimbursements.findMany({
         where,
         include: {
           // schema relation names (remap below to legacy keys)
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleReimbursement.count({ where })
+      prisma.vehicleReimbursements.count({ where })
     ])
 
     // normalize reimbursements to legacy API shape
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateReimbursementSchema.parse(body)
 
     // Verify user exists
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: validatedData.userId }
     })
 
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify vehicle exists and is personal (business vehicles don't need reimbursement)
-    const vehicle = await prisma.vehicle.findUnique({
+    const vehicle = await prisma.vehicles.findUnique({
       where: { id: validatedData.vehicleId }
     })
 
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify business exists
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: validatedData.businessId }
     })
 
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for duplicate reimbursement for the same period
-    const existingReimbursement = await prisma.vehicleReimbursement.findFirst({
+    const existingReimbursement = await prisma.vehicleReimbursements.findFirst({
       where: {
         userId: validatedData.userId,
         vehicleId: validatedData.vehicleId,
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
     const totalAmount = validatedData.businessMileage * validatedData.statutoryRate
 
     // Create reimbursement
-    const reimbursement = await prisma.vehicleReimbursement.create({
+    const reimbursement = await prisma.vehicleReimbursements.create({
       // cast to any to avoid strict typed create errors (schema expects id/updatedAt values in some generator configs)
       data: {
         ...validatedData,
@@ -274,7 +274,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify reimbursement exists
-    const existingReimbursement = await prisma.vehicleReimbursement.findUnique({
+    const existingReimbursement = await prisma.vehicleReimbursements.findUnique({
       where: { id }
     })
 
@@ -287,7 +287,7 @@ export async function PUT(request: NextRequest) {
 
     // Verify approver exists if being set
     if (updateData.approvedBy) {
-      const approver = await prisma.user.findUnique({
+      const approver = await prisma.users.findUnique({
         where: { id: updateData.approvedBy }
       })
 
@@ -314,7 +314,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update reimbursement
-    const reimbursement = await prisma.vehicleReimbursement.update({
+    const reimbursement = await prisma.vehicleReimbursements.update({
       where: { id },
       data: statusUpdateData as any,
       include: {
@@ -367,7 +367,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify reimbursement exists
-    const existingReimbursement = await prisma.vehicleReimbursement.findUnique({
+    const existingReimbursement = await prisma.vehicleReimbursements.findUnique({
       where: { id: reimbursementId }
     })
 
@@ -387,7 +387,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete reimbursement
-    await prisma.vehicleReimbursement.delete({
+    await prisma.vehicleReimbursements.delete({
       where: { id: reimbursementId }
     })
 

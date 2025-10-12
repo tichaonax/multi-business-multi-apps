@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   // 1. Pending Orders (Restaurant business)
   if (hasUserPermission(user, 'canViewOrders' as any) || isSystemAdmin(user)) {
       try {
-        const pendingOrders = await prisma.order.findMany({
+        const pendingOrders = await prisma.orders.findMany({
           where: {
             status: 'pending'
           },
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const pendingStages = await prisma.projectStage.findMany({
+        const pendingStages = await prisma.projectStages.findMany({
           where: whereClause,
           include: {
             project: {
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const pendingTransactions = await prisma.projectTransaction.findMany({
+        const pendingTransactions = await prisma.projectTransactions.findMany({
           where: whereClause,
           include: {
             project: {
@@ -191,7 +191,7 @@ export async function GET(req: NextRequest) {
     hasUserPermission(user, 'canManageEmployees' as any) ||
     isSystemAdmin(user)) {
       try {
-        const pendingLeaveRequests = await prisma.employeeLeaveRequest.findMany({
+        const pendingLeaveRequests = await prisma.employeeLeaveRequests.findMany({
           where: {
             status: 'pending'
           },
@@ -235,7 +235,7 @@ export async function GET(req: NextRequest) {
     hasUserPermission(user, 'canManageEmployees' as any) ||
     isSystemAdmin(user)) {
       try {
-        const pendingRenewals = await prisma.contractRenewal.findMany({
+        const pendingRenewals = await prisma.contractRenewals.findMany({
           where: {
             status: 'pending'
           },

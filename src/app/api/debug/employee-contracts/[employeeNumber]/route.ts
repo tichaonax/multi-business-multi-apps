@@ -14,12 +14,12 @@ export async function GET(_req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Missing employeeNumber' }, { status: 400 })
     }
 
-    const employee = await prisma.employee.findFirst({ where: { employeeNumber } })
+    const employee = await prisma.employees.findFirst({ where: { employeeNumber } })
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
     }
 
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId: employee.id },
       select: { id: true, contractNumber: true, pdfGenerationData: true, baseSalary: true, startDate: true }
     })

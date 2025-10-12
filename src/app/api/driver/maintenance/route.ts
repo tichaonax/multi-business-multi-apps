@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const vehicleId = searchParams.get('vehicleId')
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDriver.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { emailAddress: session.user.email || '' },
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get vehicles the driver is authorized to operate
-    const authorizedVehicles = await prisma.driverAuthorization.findMany({
+    const authorizedVehicles = await prisma.driverAuthorizations.findMany({
       where: {
         driverId: driver.id,
         isActive: true,
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [maintenanceRecords, totalCount] = await Promise.all([
-      prisma.vehicleMaintenanceRecord.findMany({
+      prisma.vehicleMaintenanceRecords.findMany({
         where,
         include: {
           vehicles: {
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleMaintenanceRecord.count({ where })
+      prisma.vehicleMaintenanceRecords.count({ where })
     ])
 
     // Format response for driver UI
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDriver.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { emailAddress: session.user.email || '' },
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify vehicle exists and driver is authorized
-    const authorization = await prisma.driverAuthorization.findFirst({
+    const authorization = await prisma.driverAuthorizations.findFirst({
       where: {
         driverId: driver.id,
         vehicleId: validatedData.vehicleId,
@@ -464,7 +464,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify record exists and belongs to this driver
-    const existingRecord = await prisma.vehicleMaintenanceRecord.findFirst({
+    const existingRecord = await prisma.vehicleMaintenanceRecords.findFirst({
       where: {
         id,
         createdBy: session.user.id // Only allow updating own records
@@ -476,7 +476,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update record
-    const record = await prisma.vehicleMaintenanceRecord.update({
+    const record = await prisma.vehicleMaintenanceRecords.update({
       where: { id },
       data: {
         ...updateData,
@@ -535,7 +535,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify record exists and check permissions
-    const existingRecord = await prisma.vehicleMaintenanceRecord.findFirst({
+    const existingRecord = await prisma.vehicleMaintenanceRecords.findFirst({
       where: {
         id: recordId,
         createdBy: session.user.id // Only allow deleting own records for drivers
@@ -559,7 +559,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete record and all related services and expenses (cascade delete)
-    await prisma.vehicleMaintenanceRecord.delete({
+    await prisma.vehicleMaintenanceRecords.delete({
       where: { id: recordId }
     })
 

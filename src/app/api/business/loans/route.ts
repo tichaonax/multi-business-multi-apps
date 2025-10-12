@@ -19,13 +19,13 @@ export async function GET() {
     // System admins can see all loans
     if (isSystemAdmin(user)) {
       // Get all business IDs for system admin
-      const allBusinesses = await prisma.business.findMany({
+      const allBusinesses = await prisma.businesses.findMany({
         select: { id: true }
       })
       businessIds = allBusinesses.map(b => b.id)
     } else {
       // Get user's business memberships to determine which loans they can see
-      const userBusinesses = await prisma.businessMembership.findMany({
+      const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true
@@ -36,7 +36,7 @@ export async function GET() {
     }
 
     // Get loans where user's businesses are either lenders or borrowers
-    const loans = await prisma.interBusinessLoan.findMany({
+    const loans = await prisma.interBusinessLoans.findMany({
       where: {
         OR: [
           { borrowerBusinessId: { in: businessIds } }, // Loans received by user's businesses
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       hasLenderAccess = true
     } else {
       // Check if user is a member of the lender business
-      const lenderMembership = await prisma.businessMembership.findFirst({
+      const lenderMembership = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: lenderBusinessId,
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify borrower business exists
-    const borrowerBusiness = await prisma.business.findUnique({
+    const borrowerBusiness = await prisma.businesses.findUnique({
       where: { id: borrowerBusinessId },
       select: { name: true }
     })
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate loan number
-    const loanCount = await prisma.interBusinessLoan.count()
+    const loanCount = await prisma.interBusinessLoans.count()
     const loanNumber = `BL${String(loanCount + 1).padStart(6, '0')}`
 
     // Calculate total amount (principal + interest if applicable)
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
       : terms
 
     // Create the loan
-    const loan = await prisma.interBusinessLoan.create({
+    const loan = await prisma.interBusinessLoans.create({
       data: {
         loanNumber,
         principalAmount: principal,
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
 
     if (!transactionResult.success) {
       // Rollback the loan creation if balance deduction fails
-      await prisma.interBusinessLoan.delete({
+      await prisma.interBusinessLoans.delete({
         where: { id: loan.id }
       })
 

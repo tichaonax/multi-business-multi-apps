@@ -24,7 +24,7 @@ export async function GET(
   const { contractId } = resolvedParams
 
     // Fetch contract data with all related information needed for copying
-    const contract = await prisma.employeeContract.findUnique({
+    const contract = await prisma.employeeContracts.findUnique({
       where: { id: contractId },
       include: {
         // Include all copyable data

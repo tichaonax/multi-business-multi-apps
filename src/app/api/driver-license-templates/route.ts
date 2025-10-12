@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       where.countryCode = countryCode
     }
 
-    const templates = await prisma.driverLicenseTemplate.findMany({
+    const templates = await prisma.driverLicenseTemplates.findMany({
       where,
       include: {
         _count: {
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate names
-    const existingTemplate = await prisma.driverLicenseTemplate.findFirst({
+    const existingTemplate = await prisma.driverLicenseTemplates.findFirst({
       where: { name }
     })
 
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const newTemplate = await prisma.driverLicenseTemplate.create({
+    const newTemplate = await prisma.driverLicenseTemplates.create({
       data: {
         name,
         description: description || null,

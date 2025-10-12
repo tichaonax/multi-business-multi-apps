@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function checkContract() {
-  const contract = await prisma.employeeContract.findFirst({
+  const contract = await prisma.employeeContracts.findFirst({
     where: { contractNumber: 'CON1759232800545' }
   });
 

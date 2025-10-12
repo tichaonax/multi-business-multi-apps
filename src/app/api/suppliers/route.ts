@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // For now, we'll store suppliers in a simple JSON structure in the database
     // This can be expanded to use a proper relational structure later
-    let business = await prisma.business.findFirst({
+    let business = await prisma.businesses.findFirst({
       where: {
         id: businessId,
         businessType: businessType
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the business
-    let business = await prisma.business.findFirst({
+    let business = await prisma.businesses.findFirst({
       where: {
         id: supplierData.businessId,
         businessType: supplierData.businessType
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
     suppliers.push(newSupplier)
 
     // Update business metadata
-    await prisma.business.update({
+    await prisma.businesses.update({
       where: { id: business.id },
       data: {
         metadata: {

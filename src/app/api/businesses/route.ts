@@ -21,7 +21,7 @@ export async function GET() {
     const isAdmin = isSystemAdmin(user)
 
     if (isAdmin) {
-      businesses = await prisma.business.findMany({
+      businesses = await prisma.businesses.findMany({
         where: {
           isActive: true,
           type: {
@@ -44,7 +44,7 @@ export async function GET() {
       });
     } else {
       // Regular users: Get businesses where user is a member (excluding umbrella businesses)
-      businesses = await prisma.business.findMany({
+      businesses = await prisma.businesses.findMany({
         where: {
           businessMemberships: {
             some: {
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
 
     // Generate a unique shortName and create business and make the creator the owner
     const shortName = await generateUniqueShortName(prisma as any, name)
-    const business = await prisma.business.create({
+    const business = await prisma.businesses.create({
       // Cast data to any to avoid TypeScript strict input type issues (id generation handled at runtime)
       data: ({
         name,

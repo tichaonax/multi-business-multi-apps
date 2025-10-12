@@ -17,7 +17,7 @@ export async function GET() {
 
     // System admins can access all users
     if (isSystemAdmin(user)) {
-      const users = await prisma.user.findMany({
+      const users = await prisma.users.findMany({
         include: {
           // relation from User -> Employee in schema is `employees`
           employees: {
@@ -54,7 +54,7 @@ export async function GET() {
     }
 
     // Check if user has admin permissions in current business
-    const userMembership = await prisma.businessMembership.findFirst({
+    const userMembership = await prisma.businessMemberships.findFirst({
       where: {
         userId: session.user.id,
         isActive: true,
@@ -74,7 +74,7 @@ export async function GET() {
     }
 
     // Get all users in the current business
-    const users = await prisma.user.findMany({
+    const users = await prisma.users.findMany({
       include: {
         employees: {
           select: {
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     // System admins can create users without business context
     if (!isSystemAdmin(user)) {
       // Check if user has admin permissions
-      const userMembership = await prisma.businessMembership.findFirst({
+      const userMembership = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           isActive: true,
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
     // If linking to employee, validate employee exists and is available
     let employeeToLink = null;
     if (linkToEmployee && employeeId) {
-      employeeToLink = await prisma.employee.findFirst({
+      employeeToLink = await prisma.employees.findFirst({
         where: {
           id: employeeId,
           userId: null, // Employee must not already have a user account
@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.users.findUnique({
       where: { email }
     });
 

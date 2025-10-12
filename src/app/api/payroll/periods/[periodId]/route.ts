@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const period = await prisma.payrollPeriod.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
       include: {
         business: {
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   const employeeId = entry.employeeId || undefined
         const employeeNumber = entry.employee?.employeeNumber || entry.employeeNumber || null
         // Find any contract for the employee that overlaps the period
-        const contract = await prisma.employeeContract.findFirst({
+        const contract = await prisma.employeeContracts.findFirst({
           where: {
             employeeId,
             startDate: { lte: periodEnd },
@@ -118,7 +118,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // We used to restrict to active benefits here which caused `payrollEntryBenefits`
         // to be empty while `mergedBenefits` (computed later) included inactive/manual overrides.
         // Returning all persisted benefits keeps the API consistent for the client.
-        benefits = await prisma.payrollEntryBenefit.findMany({
+        benefits = await prisma.payrollEntryBenefits.findMany({
           where: { payrollEntryId: { in: entryIds } },
           include: { benefitType: { select: { id: true, name: true, type: true, defaultAmount: true } } }
         })
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       // inconsistencies where the UI shows different signs for adjustments.
       let adjustments: any[] = []
       try {
-        adjustments = await prisma.payrollAdjustment.findMany({
+        adjustments = await prisma.payrollAdjustments.findMany({
           where: { payrollEntryId: { in: entryIds } }
         })
       } catch (err) {
@@ -167,7 +167,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       // Fetch latest contracts for all employees in this period so we can combine benefits.
       try {
         const employeeIds = Array.from(new Set(enrichedEntries.map(e => e.employeeId).filter((id): id is string => !!id)))
-        const contracts = await prisma.employeeContract.findMany({
+        const contracts = await prisma.employeeContracts.findMany({
           where: { employeeId: { in: employeeIds } },
           orderBy: { startDate: 'desc' },
           include: {
@@ -200,7 +200,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // Compute cumulative totals (sick/leave/absence) from prior payroll entries for each employee
         let priorPeriodIds: string[] = []
         if (period.periodStart) {
-          const priorPeriods = await prisma.payrollPeriod.findMany({
+          const priorPeriods = await prisma.payrollPeriods.findMany({
             where: {
               businessId: period.businessId,
               periodStart: { lt: period.periodStart }
@@ -212,7 +212,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
         let cumulativeByEmployee: Record<string, any> = {}
         if (priorPeriodIds.length > 0) {
-          const grouped = await prisma.payrollEntry.groupBy({
+          const grouped = await prisma.payrollEntries.groupBy({
             by: ['employeeId'],
             where: { payrollPeriodId: { in: priorPeriodIds } },
             _sum: { sickDays: true, leaveDays: true, absenceDays: true }
@@ -449,7 +449,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
       // Fetch businesses for employee.primaryBusinessId and attach to enriched entries
       const employeePrimaryBusinessIds = Array.from(new Set(enrichedEntries.map((e: any) => (e.employee?.primaryBusinessId) || null).filter(Boolean))) as string[]
-      const empBusinesses = employeePrimaryBusinessIds.length > 0 ? await prisma.business.findMany({ where: { id: { in: employeePrimaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
+      const empBusinesses = employeePrimaryBusinessIds.length > 0 ? await prisma.businesses.findMany({ where: { id: { in: employeePrimaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
       const empBusinessById: Record<string, any> = {}
       for (const b of empBusinesses) empBusinessById[b.id] = b
 
@@ -479,7 +479,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             // Persist computed shortName back to DB for future queries (best-effort)
             try {
               if (((e as any).primaryBusiness) && ((e as any).primaryBusiness).id) {
-                prisma.business.update({ where: { id: ((e as any).primaryBusiness).id }, data: { shortName: short } }).catch(() => null)
+                prisma.businesses.update({ where: { id: ((e as any).primaryBusiness).id }, data: { shortName: short } }).catch(() => null)
               }
             } catch (err) { /* ignore persistence errors */ }
           }
@@ -490,7 +490,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             ;(((e as any).employee.primaryBusiness) as any).shortName = shortEmp
             try {
               if (empPb && empPb.id) {
-                prisma.business.update({ where: { id: empPb.id }, data: { shortName: shortEmp } }).catch(() => null)
+                prisma.businesses.update({ where: { id: empPb.id }, data: { shortName: shortEmp } }).catch(() => null)
               }
             } catch (err) { /* ignore */ }
           }
@@ -627,7 +627,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { status, notes } = data
 
     // Verify period exists
-    const existingPeriod = await prisma.payrollPeriod.findUnique({
+    const existingPeriod = await prisma.payrollPeriods.findUnique({
       where: { id: periodId }
     })
 
@@ -674,7 +674,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       updateData.notes = notes
     }
 
-    const period = await prisma.payrollPeriod.update({
+    const period = await prisma.payrollPeriods.update({
       where: { id: periodId },
       data: updateData,
       include: {
@@ -711,7 +711,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { periodId } = await params
 
     // Verify period exists (need businessId and approvedAt)
-    const existingPeriod = await prisma.payrollPeriod.findUnique({
+    const existingPeriod = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
       include: {
         business: { select: { id: true } },

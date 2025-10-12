@@ -26,7 +26,7 @@ export async function DELETE(
     const { reason, notes } = await req.json();
 
     // Get user details including employee relationship
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         employees: {
@@ -148,7 +148,7 @@ export async function POST(
     const { notes } = await req.json();
 
     // Get user details
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         employees: {

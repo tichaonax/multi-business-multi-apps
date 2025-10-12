@@ -63,7 +63,7 @@ export class DatabaseChangeTracker {
     try {
       // simple checks for a couple of core models
       // @ts-ignore - runtime check
-      this['prismaReady'] = typeof this.prisma.syncConfiguration?.upsert === 'function' && typeof this.prisma.syncEvent?.create === 'function'
+      this['prismaReady'] = typeof this.prisma.syncConfigurations?.upsert === 'function' && typeof this.prisma.syncEvents?.create === 'function'
     } catch (e) {
       // @ts-ignore
       this['prismaReady'] = false
@@ -84,7 +84,7 @@ export class DatabaseChangeTracker {
 
     // Load existing vector clock state from database
     try {
-      const syncConfig = await this.prisma.syncConfiguration.findUnique({
+      const syncConfig = await this.prisma.syncConfigurations.findUnique({
         where: { nodeId: this.nodeId }
       })
 
@@ -148,7 +148,7 @@ export class DatabaseChangeTracker {
 
     try {
       // Store the sync event
-      await this.prisma.syncEvent.create({
+      await this.prisma.syncEvents.create({
         data: {
           eventId: changeEvent.eventId,
           sourceNodeId: changeEvent.sourceNodeId,
@@ -266,7 +266,7 @@ export class DatabaseChangeTracker {
         console.warn('Skipping updateVectorClockState: Prisma client model methods unavailable')
         return
       }
-      await this.prisma.syncConfiguration.upsert({
+      await this.prisma.syncConfigurations.upsert({
         where: { nodeId: this.nodeId },
         update: {
           lastConfigUpdate: new Date(),
@@ -299,7 +299,7 @@ export class DatabaseChangeTracker {
       console.warn('getUnprocessedEvents: Prisma client model methods unavailable; returning empty list')
       return []
     }
-    const events = await this.prisma.syncEvent.findMany({
+    const events = await this.prisma.syncEvents.findMany({
       where: {
         processed: false,
         sourceNodeId: this.nodeId
@@ -336,7 +336,7 @@ export class DatabaseChangeTracker {
       console.warn('markEventsProcessed: Prisma client model methods unavailable; skipping')
       return
     }
-    await this.prisma.syncEvent.updateMany({
+    await this.prisma.syncEvents.updateMany({
       where: {
         eventId: { in: eventIds }
       },
@@ -385,7 +385,7 @@ export class DatabaseChangeTracker {
         console.warn('initializeNode: Prisma client model methods unavailable; skipping node registration')
         return
       }
-      await this.prisma.syncNode.upsert({
+      await this.prisma.syncNodes.upsert({
         where: { nodeId: this.nodeId },
         update: {
           nodeName,
@@ -455,7 +455,7 @@ export class DatabaseChangeTracker {
     }
 
     try {
-      await this.prisma.syncEvent.create({
+      await this.prisma.syncEvents.create({
         data: {
           eventId,
           sourceNodeId: event.sourceNodeId || this.nodeId,

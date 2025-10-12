@@ -75,7 +75,7 @@ export async function findOverlappingContracts(
     where.primaryBusinessId = businessId
   }
 
-  const contracts = await prisma.employeeContract.findMany({
+  const contracts = await prisma.employeeContracts.findMany({
     where,
     include: {
       compensationTypes: {

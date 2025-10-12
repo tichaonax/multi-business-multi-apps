@@ -11,7 +11,7 @@ export async function GET() {
     }
 
     // Get the user's businesses (to exclude them from borrower options since you can't loan to yourself)
-    const userBusinesses = await prisma.businessMembership.findMany({
+    const userBusinesses = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         isActive: true
@@ -22,7 +22,7 @@ export async function GET() {
     const userBusinessIds = userBusinesses.map(membership => membership.businessId)
 
     // Fetch all active businesses
-    const availableBusinesses = await prisma.business.findMany({
+    const availableBusinesses = await prisma.businesses.findMany({
       where: {
         isActive: true
       },
@@ -37,7 +37,7 @@ export async function GET() {
     })
 
     // Fetch all active persons
-    const availablePersons = await prisma.person.findMany({
+    const availablePersons = await prisma.persons.findMany({
       where: {
         isActive: true
       },

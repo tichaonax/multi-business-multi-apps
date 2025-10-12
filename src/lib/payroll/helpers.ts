@@ -22,7 +22,7 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
     // load persisted benefits
     let persistedBenefits: any[] = []
     try {
-        persistedBenefits = await prisma.payrollEntryBenefit.findMany({
+        persistedBenefits = await prisma.payrollEntryBenefits.findMany({
             where: { payrollEntryId: entryId },
             include: { benefitType: true }
         })
@@ -96,7 +96,7 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
 
 // Compute gross/net for an entry by recomputing using components and combined benefits
 export async function computeTotalsForEntry(entryId: string) {
-    const entry = await prisma.payrollEntry.findUnique({
+    const entry = await prisma.payrollEntries.findUnique({
         where: { id: entryId },
         include: { employee: true }
     })
@@ -113,7 +113,7 @@ export async function computeTotalsForEntry(entryId: string) {
     try {
         const empId = entry.employee?.id || (entry as any).employeeId
         if (empId) {
-            contract = await prisma.employeeContract.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
+            contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
         }
     } catch (err) {
         contract = null
@@ -233,7 +233,7 @@ export async function computeTotalsForEntry(entryId: string) {
     let adjustmentsAsDeductions = 0
     let absenceDeduction = 0
     try {
-        const adjustments = await prisma.payrollAdjustment.findMany({ where: { payrollEntryId: entryId } })
+        const adjustments = await prisma.payrollAdjustments.findMany({ where: { payrollEntryId: entryId } })
         for (const a of adjustments) {
             const amt = Number(a.amount || 0)
             if (amt >= 0) additionsTotal += amt

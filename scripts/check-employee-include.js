@@ -5,7 +5,7 @@ const prisma = new PrismaClient()
 ;(async ()=>{
   try{
     await prisma.$connect()
-    const e = await prisma.employee.findUnique({
+    const e = await prisma.employees.findUnique({
       where: { id: 'test-employee' },
       include: {
         idFormatTemplates: true,

@@ -3,7 +3,7 @@ const prisma = new PrismaClient()
 
 async function run(empId) {
   try {
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId: empId },
       include: { contract_benefits: { include: { benefitType: true } } },
       orderBy: { createdAt: 'desc' }

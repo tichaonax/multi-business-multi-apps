@@ -29,7 +29,7 @@ const MODELS_TO_UPDATE = [
 async function convertBusinessId(oldId) {
   console.log(`\n--- Converting business id: ${oldId} ---`)
 
-  const oldBusiness = await prisma.business.findUnique({ where: { id: oldId } })
+  const oldBusiness = await prisma.businesses.findUnique({ where: { id: oldId } })
   if (!oldBusiness) {
     console.log(`Skipping ${oldId}: not found.`)
     return
@@ -59,7 +59,7 @@ async function convertBusinessId(oldId) {
   }
 
   // Create new business record
-  await prisma.business.create({ data: createData })
+  await prisma.businesses.create({ data: createData })
   console.log('New business created')
 
   // Update known models that have businessId FK
@@ -81,7 +81,7 @@ async function convertBusinessId(oldId) {
 
   // After updating references, try to delete the old business
   try {
-    await prisma.business.delete({ where: { id: oldId } })
+    await prisma.businesses.delete({ where: { id: oldId } })
     console.log(`Deleted old business ${oldId}`)
   } catch (err) {
     console.warn(`Could not delete old business ${oldId} (likely still referenced). Manual cleanup required. Error:`, err.message || err)

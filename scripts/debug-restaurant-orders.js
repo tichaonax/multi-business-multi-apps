@@ -8,7 +8,7 @@ async function debugRestaurantOrders() {
 
     // 1. Check admin user exists and get their business memberships
     console.log('1. Checking admin user business memberships:')
-    const adminUser = await prisma.user.findUnique({
+    const adminUser = await prisma.users.findUnique({
       where: { email: 'admin@business.local' },
       include: {
         businessMemberships: {
@@ -116,7 +116,7 @@ async function debugRestaurantOrders() {
 
     // 6. Check for HXI-EATS specifically
     console.log('\n6. Checking for HXI-EATS business:')
-    const hxiEats = await prisma.business.findFirst({
+    const hxiEats = await prisma.businesses.findFirst({
       where: {
         OR: [
           { name: { contains: 'HXI', mode: 'insensitive' } },

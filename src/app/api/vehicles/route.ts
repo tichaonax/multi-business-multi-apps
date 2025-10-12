@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [vehicles, totalCount] = await Promise.all([
-      prisma.vehicle.findMany({
+      prisma.vehicles.findMany({
         where,
         include: {
           businesses: {
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicle.count({ where })
+      prisma.vehicles.count({ where })
     ])
 
     const normalizedVehicles = vehicles.map((v: any) => ({
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateVehicleSchema.parse(body)
 
     // Check if license plate or VIN already exists
-    const existingVehicle = await prisma.vehicle.findFirst({
+    const existingVehicle = await prisma.vehicles.findFirst({
       where: {
         OR: [
           { licensePlate: validatedData.licensePlate },
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
 
     // Verify business exists if businessId is provided
     if (validatedData.businessId) {
-      const business = await prisma.business.findUnique({
+      const business = await prisma.businesses.findUnique({
         where: { id: validatedData.businessId }
       })
 
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
     if (!createData.businessId) delete createData.businessId
     if (!createData.userId) delete createData.userId
 
-    const vehicle = await prisma.vehicle.create({
+    const vehicle = await prisma.vehicles.create({
       data: createData,
       include: {
         businesses: {
@@ -256,7 +256,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify vehicle exists
-    const existingVehicle = await prisma.vehicle.findUnique({
+    const existingVehicle = await prisma.vehicles.findUnique({
       where: { id }
     })
 
@@ -269,7 +269,7 @@ export async function PUT(request: NextRequest) {
 
     // Check for duplicate license plate or VIN if they're being updated
     if (updateData.licensePlate || updateData.vin) {
-      const duplicateCheck = await prisma.vehicle.findFirst({
+      const duplicateCheck = await prisma.vehicles.findFirst({
         where: {
           AND: [
             { id: { not: id } },
@@ -293,7 +293,7 @@ export async function PUT(request: NextRequest) {
 
     // Verify business exists if businessId is being updated
     if (updateData.businessId) {
-      const business = await prisma.business.findUnique({
+      const business = await prisma.businesses.findUnique({
         where: { id: updateData.businessId }
       })
 
@@ -325,7 +325,7 @@ export async function PUT(request: NextRequest) {
     if (updatePayload.businessId === undefined) delete updatePayload.businessId
     if (updatePayload.userId === undefined) delete updatePayload.userId
 
-    const vehicle = await prisma.vehicle.update({
+    const vehicle = await prisma.vehicles.update({
       where: { id },
       data: updatePayload,
       include: {
@@ -379,7 +379,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify vehicle exists
-    const existingVehicle = await prisma.vehicle.findUnique({
+    const existingVehicle = await prisma.vehicles.findUnique({
       where: { id: vehicleId },
       include: {
         vehicleTrips: { take: 1 },
@@ -402,7 +402,7 @@ export async function DELETE(request: NextRequest) {
 
     if (hasRelatedRecords) {
       // Soft delete - just mark as inactive
-      await prisma.vehicle.update({
+      await prisma.vehicles.update({
         where: { id: vehicleId },
         data: { isActive: false }
       })
@@ -413,7 +413,7 @@ export async function DELETE(request: NextRequest) {
       })
     } else {
       // Hard delete - no related records
-      await prisma.vehicle.delete({
+      await prisma.vehicles.delete({
         where: { id: vehicleId }
       })
 

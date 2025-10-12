@@ -20,13 +20,13 @@ export async function GET(req: NextRequest, { params }: Context) {
 
     // System admins can view any business
     if (isSystemAdmin(user)) {
-      const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, name: true, isActive: true, type: true } })
+      const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true, name: true, isActive: true, type: true } })
       if (!business || !business.isActive) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       return NextResponse.json({ success: true, business })
     }
 
     // Non-admins must be a member of the business
-    const membership = await prisma.businessMembership.findFirst({ where: { userId: session.user.id, businessId, isActive: true }, include: { business: { select: { id: true, name: true, isActive: true, type: true } } } })
+    const membership = await prisma.businessMemberships.findFirst({ where: { userId: session.user.id, businessId, isActive: true }, include: { business: { select: { id: true, name: true, isActive: true, type: true } } } })
     if (!membership || !membership.business || !membership.business.isActive) return NextResponse.json({ error: 'Not found or access denied' }, { status: 404 })
 
     return NextResponse.json({ success: true, business: membership.business })

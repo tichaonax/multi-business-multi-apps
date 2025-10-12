@@ -44,7 +44,7 @@ async function migrateUserLevelPermissions() {
 
   try {
     // Get all users with business memberships
-    const users = await prisma.user.findMany({
+    const users = await prisma.users.findMany({
       include: {
         businessMemberships: {
           where: { isActive: true }
@@ -85,7 +85,7 @@ async function migrateUserLevelPermissions() {
         }
 
         // Update user record
-        await prisma.user.update({
+        await prisma.users.update({
           where: { id: user.id },
           data: {
             permissions: updatedUserPermissions
@@ -141,7 +141,7 @@ async function ensureAdminUserPermissions() {
   console.log('\n🔧 Ensuring admin user has full user-level permissions...')
 
   try {
-    const adminUsers = await prisma.user.findMany({
+    const adminUsers = await prisma.users.findMany({
       where: { role: 'admin' }
     })
 
@@ -157,7 +157,7 @@ async function ensureAdminUserPermissions() {
         ...fullUserPermissions
       }
 
-      await prisma.user.update({
+      await prisma.users.update({
         where: { id: admin.id },
         data: {
           permissions: updatedPermissions

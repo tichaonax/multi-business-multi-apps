@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       whereClause.isActive = true
     }
 
-    const assignments = await prisma.employeeBusinessAssignment.findMany({
+    const assignments = await prisma.employeeBusinessAssignments.findMany({
       where: whereClause,
       include: {
         employee: {
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify employee exists. Include businesses list and derive primaryBusiness as the first item for compatibility.
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       include: {
         businesses: {
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify business exists
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: businessId }
     })
 
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if assignment already exists
-    const existingAssignment = await prisma.employeeBusinessAssignment.findUnique({
+    const existingAssignment = await prisma.employeeBusinessAssignments.findUnique({
       where: {
         employeeId_businessId: {
           employeeId,
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
     // Verify supervisor exists if provided
     let supervisor = null
     if (supervisorId) {
-      supervisor = await prisma.employee.findUnique({
+      supervisor = await prisma.employees.findUnique({
         where: { id: supervisorId }
       })
 
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create the assignment
-    const assignment = await prisma.employeeBusinessAssignment.create({
+    const assignment = await prisma.employeeBusinessAssignments.create({
       data: {
         employeeId,
         businessId,
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
       // For cross-business assignments, we may want business-specific supervisors.
       // For now, update the main supervisor only when the assignment's businessId matches the employee's primary business.
       if (primaryBusiness && primaryBusiness.id === businessId) {
-        await prisma.employee.update({
+        await prisma.employees.update({
           where: { id: employeeId },
           data: { supervisorId }
         })
@@ -259,7 +259,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Check if assignment exists
-    const existingAssignment = await prisma.employeeBusinessAssignment.findUnique({
+    const existingAssignment = await prisma.employeeBusinessAssignments.findUnique({
       where: {
         employeeId_businessId: {
           employeeId,
@@ -276,7 +276,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Update the assignment
-    const updatedAssignment = await prisma.employeeBusinessAssignment.update({
+    const updatedAssignment = await prisma.employeeBusinessAssignments.update({
       where: {
         employeeId_businessId: {
           employeeId,
@@ -346,7 +346,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Check if assignment exists
-    const existingAssignment = await prisma.employeeBusinessAssignment.findUnique({
+    const existingAssignment = await prisma.employeeBusinessAssignments.findUnique({
       where: {
         employeeId_businessId: {
           employeeId,
@@ -363,7 +363,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Delete the assignment
-    await prisma.employeeBusinessAssignment.delete({
+    await prisma.employeeBusinessAssignments.delete({
       where: {
         employeeId_businessId: {
           employeeId,

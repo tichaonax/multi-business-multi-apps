@@ -24,14 +24,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Find entries in the period (minimal fields)
-    const entries = await prisma.payrollEntry.findMany({
+    const entries = await prisma.payrollEntries.findMany({
       where: { payrollPeriodId: periodId },
       select: { id: true, employeeId: true }
     })
 
     // Find any existing benefits for these entries
     const entryIds = entries.map(e => e.id)
-    const existingBenefits = await prisma.payrollEntryBenefit.findMany({ where: { payrollEntryId: { in: entryIds } }, select: { payrollEntryId: true } })
+    const existingBenefits = await prisma.payrollEntryBenefits.findMany({ where: { payrollEntryId: { in: entryIds } }, select: { payrollEntryId: true } })
     const entriesWithBenefits = new Set(existingBenefits.map((b: any) => b.payrollEntryId))
     const entriesNoBenefits = entries.filter(e => !entriesWithBenefits.has(e.id))
     if (entriesNoBenefits.length === 0) {
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const employeeIds = Array.from(new Set(entriesNoBenefits.map(e => e.employeeId)))
 
     // Fetch latest contracts for these employees (fallback to most recent regardless of status)
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId: { in: employeeIds } },
       orderBy: { startDate: 'desc' },
       include: { contract_benefits: { include: { benefitType: true } } }

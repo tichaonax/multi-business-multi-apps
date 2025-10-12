@@ -176,7 +176,7 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   async getRecoveryMetrics(): Promise<RecoveryMetrics> {
     try {
-      const sessions = await this.prisma.syncSession.findMany({
+      const sessions = await this.prisma.syncSessions.findMany({
         where: { sourceNodeId: this.nodeId },
         orderBy: { startedAt: 'desc' }
       })
@@ -430,7 +430,7 @@ export class PartitionRecoveryService extends EventEmitter {
     await this.updateSessionProgress(session, 20, 'Clearing failed sync sessions')
 
     // Clear failed sessions
-    await this.prisma.syncSession.updateMany({
+    await this.prisma.syncSessions.updateMany({
       where: {
         sourceNodeId: this.nodeId,
         status: 'FAILED'
@@ -479,7 +479,7 @@ export class PartitionRecoveryService extends EventEmitter {
     await this.updateSessionProgress(session, 30, 'Marking as requiring manual intervention')
 
     // Update partition metadata
-    await this.prisma.networkPartition.update({
+    await this.prisma.networkPartitions.update({
       where: { id: session.partitionId },
       data: {
         partitionMetadata: {
@@ -500,7 +500,7 @@ export class PartitionRecoveryService extends EventEmitter {
     await this.updateSessionProgress(session, 20, 'Preparing for data rebuild')
 
     // This is a critical operation - mark for admin action
-    await this.prisma.networkPartition.update({
+    await this.prisma.networkPartitions.update({
       where: { id: session.partitionId },
       data: {
         partitionMetadata: {
@@ -579,7 +579,7 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async loadActiveSessions(): Promise<void> {
     try {
-      const sessions = await this.prisma.syncSession.findMany({
+      const sessions = await this.prisma.syncSessions.findMany({
         where: {
           sourceNodeId: this.nodeId,
           status: 'RUNNING'
@@ -618,7 +618,7 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async createRecoverySession(session: RecoverySession): Promise<void> {
     try {
-      await this.prisma.syncSession.create({
+      await this.prisma.syncSessions.create({
         data: {
           id: session.sessionId,
           sessionId: session.sessionId,
@@ -644,7 +644,7 @@ export class PartitionRecoveryService extends EventEmitter {
    */
   private async updateRecoverySession(session: RecoverySession): Promise<void> {
     try {
-      await this.prisma.syncSession.update({
+      await this.prisma.syncSessions.update({
         where: { sessionId: session.sessionId },
         data: {
           status: session.status,

@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 async function fixUnsignedRenewedContracts() {
   try {
     // Find all renewed contracts that are active but not signed
-    const unsignedRenewed = await prisma.employeeContract.findMany({
+    const unsignedRenewed = await prisma.employeeContracts.findMany({
       where: {
         isRenewal: true,
         status: 'active',
@@ -45,7 +45,7 @@ async function fixUnsignedRenewedContracts() {
       const employee = contract.employees_employee_contracts_employeeIdToemployees;
       console.log(`Signing contract ${contract.contractNumber} for ${employee?.employeeNumber} - ${employee?.fullName}`);
 
-      await prisma.employeeContract.update({
+      await prisma.employeeContracts.update({
         where: { id: contract.id },
         data: {
           employeeSignedAt: contract.employeeSignedAt || now,

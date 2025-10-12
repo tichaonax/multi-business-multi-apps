@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Search employees
-    const employees = await prisma.employee.findMany({
+    const employees = await prisma.employees.findMany({
       where: whereClause,
       take: limit,
       orderBy: [

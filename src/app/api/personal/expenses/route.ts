@@ -22,7 +22,7 @@ export async function GET() {
 
     console.log('Fetching expenses for user:', session.user.id)
 
-    const expenses = await prisma.personalExpense.findMany({
+    const expenses = await prisma.personalExpenses.findMany({
       where: { userId: session.user.id },
       include: {
         projectTransactions: {
@@ -71,7 +71,7 @@ export async function GET() {
     const categoryIds = [...new Set(expenses.map(expense => expense.category).filter(Boolean))]
 
     // Fetch category information
-    const categories = await prisma.expenseCategory.findMany({
+    const categories = await prisma.expenseCategories.findMany({
       where: { id: { in: categoryIds } }
     })
 
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check available balance before creating expense
-    const budgetEntries = await prisma.personalBudget.findMany({
+    const budgetEntries = await prisma.personalBudgets.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: 'desc' }
     })

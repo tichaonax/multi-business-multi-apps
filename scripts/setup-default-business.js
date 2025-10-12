@@ -44,7 +44,7 @@ async function setupDefaultBusiness() {
     console.log('🚀 Setting up default business...');
 
     // Get the first user (assuming this is you)
-    const user = await prisma.user.findFirst({
+    const user = await prisma.users.findFirst({
       orderBy: { createdAt: 'asc' }
     });
 
@@ -66,7 +66,7 @@ async function setupDefaultBusiness() {
     }
 
     // Create a default business
-    const business = await prisma.business.create({
+    const business = await prisma.businesses.create({
       data: {
         name: 'My Business',
         type: 'general',

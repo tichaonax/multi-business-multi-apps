@@ -33,7 +33,7 @@ export async function PATCH(
     }
 
     // Check if template exists
-    const existingTemplate = await prisma.permissionTemplate.findUnique({
+    const existingTemplate = await prisma.permissionTemplates.findUnique({
       where: { id: templateId }
     })
 
@@ -56,7 +56,7 @@ export async function PATCH(
 
     // Check if template name conflicts with another template of same business type
     if (name !== existingTemplate.name) {
-      const nameConflict = await prisma.permissionTemplate.findFirst({
+      const nameConflict = await prisma.permissionTemplates.findFirst({
         where: {
           name,
           businessType: existingTemplate.businessType,
@@ -73,7 +73,7 @@ export async function PATCH(
       }
     }
 
-    const updatedTemplate = await prisma.permissionTemplate.update({
+    const updatedTemplate = await prisma.permissionTemplates.update({
       where: { id: templateId },
       data: {
         name,
@@ -129,7 +129,7 @@ export async function DELETE(
     }
 
     // Check if template exists
-    const existingTemplate = await prisma.permissionTemplate.findUnique({
+    const existingTemplate = await prisma.permissionTemplates.findUnique({
       where: { id: templateId }
     })
 
@@ -141,7 +141,7 @@ export async function DELETE(
     }
 
     // Soft delete - set inactive instead of actual deletion
-    await prisma.permissionTemplate.update({
+    await prisma.permissionTemplates.update({
       where: { id: templateId },
       data: { 
         isActive: false,

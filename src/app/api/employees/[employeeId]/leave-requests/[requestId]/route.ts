@@ -33,7 +33,7 @@ export async function PUT(
     }
 
     // Get the leave request
-    const leaveRequest = await prisma.employeeLeaveRequest.findUnique({
+    const leaveRequest = await prisma.employeeLeaveRequests.findUnique({
       where: { id: requestId },
       include: {
         employees_employee_leave_requests_employeeIdToemployees: {
@@ -57,7 +57,7 @@ export async function PUT(
     }
 
     // Update the leave request
-    const updatedRequest = await prisma.employeeLeaveRequest.update({
+    const updatedRequest = await prisma.employeeLeaveRequests.update({
       where: { id: requestId },
       data: {
         status,
@@ -182,7 +182,7 @@ export async function DELETE(
     }
 
     // Only allow deletion of pending requests
-    const leaveRequest = await prisma.employeeLeaveRequest.findUnique({
+    const leaveRequest = await prisma.employeeLeaveRequests.findUnique({
       where: { id: requestId }
     })
 
@@ -196,7 +196,7 @@ export async function DELETE(
       }, { status: 400 })
     }
 
-    await prisma.employeeLeaveRequest.delete({
+    await prisma.employeeLeaveRequests.delete({
       where: { id: requestId }
     })
 

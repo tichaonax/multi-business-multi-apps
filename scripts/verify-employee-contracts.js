@@ -8,7 +8,7 @@ async function verifyEmployeeContracts() {
     console.log('=' .repeat(50))
     
     // Check employees with contracts
-    const employeesWithContracts = await prisma.employee.findMany({
+    const employeesWithContracts = await prisma.employees.findMany({
       include: {
         employeeContracts: true,
         jobTitles: true,

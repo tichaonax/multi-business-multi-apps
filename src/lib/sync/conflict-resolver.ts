@@ -527,7 +527,7 @@ export class ConflictResolver {
    */
   async loadNodePriorities(): Promise<void> {
     try {
-      const nodes = await this.prisma.syncNode.findMany({
+      const nodes = await this.prisma.syncNodes.findMany({
         where: { isActive: true },
         select: {
           nodeId: true,

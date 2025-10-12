@@ -17,7 +17,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
   // Check if user is system admin - they can see all restaurant orders
   // If session already indicates admin (useful for dev bypass), return all restaurant businesses
   if (session?.user?.role === 'admin') {
-    const allRestaurantBusinesses = await prisma.business.findMany({
+    const allRestaurantBusinesses = await prisma.businesses.findMany({
       where: { type: 'restaurant' },
       select: { id: true, name: true }
     })
@@ -26,7 +26,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
   }
 
   // Otherwise fetch the user record to determine memberships
-  const user = await prisma.user.findUnique({
+  const user = await prisma.users.findUnique({
     where: { id: session.user.id },
     select: {
       role: true,
@@ -44,7 +44,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
 
   // If user is admin in DB, return all restaurants
   if (user?.role === 'admin') {
-    const allRestaurantBusinesses = await prisma.business.findMany({
+    const allRestaurantBusinesses = await prisma.businesses.findMany({
       where: { type: 'restaurant' },
       select: { id: true }
     })
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       const { searchParams } = new URL(request.url)
       const devUserId = searchParams.get('_devUserId')
       if (devUserId) {
-        const devUser = await prisma.user.findUnique({ where: { id: devUserId } })
+        const devUser = await prisma.users.findUnique({ where: { id: devUserId } })
         if (devUser) {
           // Check if caller asked to be treated as admin for local testing
           const devAdminFlag = searchParams.get('_devAdmin')
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
       whereClause.paymentStatus = paymentStatusMap[paymentStatus] || paymentStatus
     }
 
-    const orders = await prisma.businessOrder.findMany({
+    const orders = await prisma.businessOrders.findMany({
       where: whereClause,
       include: {
         business: {
@@ -210,7 +210,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate pagination metadata
-    const totalCount = await prisma.businessOrder.count({
+    const totalCount = await prisma.businessOrders.count({
       where: whereClause
     })
 
@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
     const orderNumber = `ORD-${Date.now()}`
 
     // Create the order first
-    const newOrder = await prisma.order.create({
+    const newOrder = await prisma.orders.create({
       data: {
         orderNumber,
         status: 'pending',
@@ -314,12 +314,12 @@ export async function POST(req: NextRequest) {
       // product/variant IDs are sent. Try to find a MenuItem first; if missing, create one
       // from BusinessProduct or ProductVariant information.
       let menuItemId = item.id
-      const existingMenuItem = await prisma.menuItem.findUnique({ where: { id: item.id } })
+      const existingMenuItem = await prisma.menuItems.findUnique({ where: { id: item.id } })
       if (!existingMenuItem) {
-        const bp = await prisma.businessProduct.findUnique({ where: { id: item.id } }).catch(() => null)
+        const bp = await prisma.businessProducts.findUnique({ where: { id: item.id } }).catch(() => null)
         let variant = null
         if (!bp) {
-          variant = await prisma.productVariant.findUnique({ where: { id: item.id } }).catch(() => null)
+          variant = await prisma.productVariants.findUnique({ where: { id: item.id } }).catch(() => null)
         }
 
         if (bp || variant) {
@@ -327,10 +327,10 @@ export async function POST(req: NextRequest) {
             // If variant exists, fetch its parent business product for richer data
             let sourceProduct = bp
             if (variant && !bp) {
-              sourceProduct = await prisma.businessProduct.findUnique({ where: { id: variant.productId } }).catch(() => null)
+              sourceProduct = await prisma.businessProducts.findUnique({ where: { id: variant.productId } }).catch(() => null)
             }
 
-            const created = await prisma.menuItem.create({
+            const created = await prisma.menuItems.create({
               data: {
                 name: sourceProduct?.name || variant?.name || item.name || 'Menu Item',
                 description: sourceProduct?.description || null,
@@ -347,7 +347,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      await prisma.orderItem.create({
+      await prisma.orderItems.create({
         data: {
           orderId: newOrder.id,
           menuItemId: menuItemId,

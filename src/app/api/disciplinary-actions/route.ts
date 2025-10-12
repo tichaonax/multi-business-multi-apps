@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       whereClause.type = type
     }
 
-    const disciplinaryActions = await prisma.disciplinaryAction.findMany({
+    const disciplinaryActions = await prisma.disciplinaryActions.findMany({
       where: whereClause,
       include: {
         employee: {
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify employee exists
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId }
     })
 
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const disciplinaryAction = await prisma.disciplinaryAction.create({
+    const disciplinaryAction = await prisma.disciplinaryActions.create({
       data: {
         employeeId,
         type,

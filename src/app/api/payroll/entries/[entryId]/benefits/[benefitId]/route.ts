@@ -26,7 +26,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { isActive, deactivatedReason, amount } = data
 
     // Verify benefit exists
-    const benefit = await prisma.payrollEntryBenefit.findUnique({
+    const benefit = await prisma.payrollEntryBenefits.findUnique({
       where: { id: benefitId },
       include: {
         payrollEntry: {
@@ -103,7 +103,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify benefit exists
-    const benefit = await prisma.payrollEntryBenefit.findUnique({
+    const benefit = await prisma.payrollEntryBenefits.findUnique({
       where: { id: benefitId },
       include: {
         payrollEntry: {

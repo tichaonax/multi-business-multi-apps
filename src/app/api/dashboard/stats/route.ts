@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const activeProjectsCount = await prisma.project.count({
+        const activeProjectsCount = await prisma.projects.count({
           where: whereClause
         })
 
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       // Revenue from Restaurant Orders (completed orders)
       if (hasUserPermission(user, 'canViewOrders') || isSystemAdmin(user)) {
         try {
-          const restaurantRevenue = await prisma.businessOrder.aggregate({
+          const restaurantRevenue = await prisma.businessOrders.aggregate({
             where: {
               status: 'COMPLETED'
             },
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
             businessWhereClause.businessId = { in: userBusinessIds }
           }
 
-          const businessRevenue = await prisma.businessOrder.aggregate({
+          const businessRevenue = await prisma.businessOrders.aggregate({
             where: businessWhereClause,
             _sum: {
               subtotal: true
@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
             }
           }
 
-          const projectRevenue = await prisma.projectTransaction.aggregate({
+          const projectRevenue = await prisma.projectTransactions.aggregate({
             where: projectWhereClause,
             _sum: {
               amount: true
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
           hasUserPermission(user, 'canCreatePersonalProjects') ||
           isSystemAdmin(user)) {
         try {
-          const personalIncome = await prisma.personalExpense.aggregate({
+          const personalIncome = await prisma.personalExpenses.aggregate({
             where: {
               userId: session.user.id,
               amount: { gt: 0 }, // Only positive amounts
@@ -184,7 +184,7 @@ export async function GET(req: NextRequest) {
 
         if (isSystemAdmin(user)) {
           // System admin can see all users
-          const allUsersCount = await prisma.user.count({
+          const allUsersCount = await prisma.users.count({
             where: {
               isActive: true
             }
@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
           stats.teamMembers = allUsersCount
         } else if (userBusinessIds.length > 0) {
           // Count users in the same businesses
-          const businessUsers = await prisma.businessMembership.findMany({
+          const businessUsers = await prisma.businessMemberships.findMany({
             where: {
               businessId: { in: userBusinessIds },
               isActive: true

@@ -12,7 +12,7 @@ async function createTestBusinesses() {
 
   try {
     for (const businessData of businesses) {
-      const business = await prisma.business.create({
+      const business = await prisma.businesses.create({
         data: {
           name: businessData.name,
           type: businessData.type,

@@ -65,7 +65,7 @@ async function createContractViaApiOrDb(employeeId, payload = {}) {
     notes: payload.notes || ''
   }
 
-  return await prisma.employeeContract.create({ data: createData })
+  return await prisma.employeeContracts.create({ data: createData })
 }
 
 module.exports = { createContractViaApiOrDb }

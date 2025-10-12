@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify employee exists
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id }
     })
 
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId: id },
       include: {
         jobTitles: true,
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify employee exists
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id }
     })
 
@@ -137,10 +137,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Validate foreign key references
     const [jobTitle, compensationType, business, supervisor] = await Promise.all([
-      prisma.jobTitle.findUnique({ where: { id: jobTitleId } }),
-      prisma.compensationType.findUnique({ where: { id: compensationTypeId } }),
-      prisma.business.findUnique({ where: { id: primaryBusinessId } }),
-      prisma.employee.findUnique({ where: { id: supervisorId } })
+      prisma.jobTitles.findUnique({ where: { id: jobTitleId } }),
+      prisma.compensationTypes.findUnique({ where: { id: compensationTypeId } }),
+      prisma.businesses.findUnique({ where: { id: primaryBusinessId } }),
+      prisma.employees.findUnique({ where: { id: supervisorId } })
     ])
 
     if (!jobTitle || !compensationType || !business || !supervisor) {
@@ -151,11 +151,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Generate unique contract number
-    const contractCount = await prisma.employeeContract.count()
+    const contractCount = await prisma.employeeContracts.count()
     const contractNumber = `CON${String(contractCount + 1).padStart(6, '0')}`
 
     // Get next version number for this employee
-    const lastContract = await prisma.employeeContract.findFirst({
+    const lastContract = await prisma.employeeContracts.findFirst({
       where: { employeeId: id },
       orderBy: { version: 'desc' }
     })
@@ -206,7 +206,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     })
 
     // Fetch the complete contract data
-    const completeContract = await prisma.employeeContract.findUnique({
+    const completeContract = await prisma.employeeContracts.findUnique({
       where: { id: contract.id },
       include: {
         jobTitles: true,

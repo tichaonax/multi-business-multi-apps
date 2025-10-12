@@ -15,7 +15,7 @@ async function resetSeededEmployees() {
 
   try {
     // Find employees matching these numbers
-    const employees = await prisma.employee.findMany({ where: { employeeNumber: { in: seededNumbers } } })
+    const employees = await prisma.employees.findMany({ where: { employeeNumber: { in: seededNumbers } } })
     if (employees.length === 0) {
       console.log('ℹ️  No matching seeded employees found')
       return
@@ -23,10 +23,10 @@ async function resetSeededEmployees() {
 
     // Delete contracts tied to these employees
     const empIds = employees.map(e => e.id)
-    const contracts = await prisma.employeeContract.findMany({ where: { employeeId: { in: empIds } } })
+    const contracts = await prisma.employeeContracts.findMany({ where: { employeeId: { in: empIds } } })
     for (const c of contracts) {
       try {
-        await prisma.employeeContract.delete({ where: { id: c.id } })
+        await prisma.employeeContracts.delete({ where: { id: c.id } })
         console.log(`🗑️  Deleted contract ${c.contractNumber}`)
       } catch (err) {
         console.warn(`⚠️  Failed to delete contract ${c.contractNumber}: ${err.message}`)
@@ -36,7 +36,7 @@ async function resetSeededEmployees() {
     // Delete the employees
     for (const e of employees) {
       try {
-        await prisma.employee.delete({ where: { id: e.id } })
+        await prisma.employees.delete({ where: { id: e.id } })
         console.log(`🗑️  Deleted employee ${e.fullName} (${e.employeeNumber})`)
       } catch (err) {
         console.warn(`⚠️  Failed to delete employee ${e.employeeNumber}: ${err.message}`)

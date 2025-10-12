@@ -90,7 +90,7 @@ async function createUser() {
     console.log('🚀 Creating user...');
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.users.findUnique({
       where: { email }
     });
 
@@ -103,7 +103,7 @@ async function createUser() {
     const hashedPassword = await hash(password, 12);
 
     // Create user
-    const user = await prisma.user.create({
+    const user = await prisma.users.create({
       data: {
         name,
         email,
@@ -118,7 +118,7 @@ async function createUser() {
     // If business ID is provided, add user to that business
     if (businessId) {
       // Check if business exists
-      const business = await prisma.business.findUnique({
+      const business = await prisma.businesses.findUnique({
         where: { id: businessId }
       });
 
@@ -155,7 +155,7 @@ async function createUser() {
 // Also provide a function to list businesses for reference
 async function listBusinesses() {
   try {
-    const businesses = await prisma.business.findMany({
+    const businesses = await prisma.businesses.findMany({
       select: {
         id: true,
         name: true,

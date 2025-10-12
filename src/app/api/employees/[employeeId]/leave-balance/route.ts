@@ -29,7 +29,7 @@ export async function GET(
     }
 
     // Check if employee exists
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       select: { 
         isActive: true, 

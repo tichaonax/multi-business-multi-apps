@@ -23,7 +23,7 @@ async function seedDemoBusinesses() {
       updatedAt: now
     }
 
-    const rec = await prisma.business.upsert({ where: { id: b.id }, update: { ...data, updatedAt: now }, create: data })
+    const rec = await prisma.businesses.upsert({ where: { id: b.id }, update: { ...data, updatedAt: now }, create: data })
     created.push(rec.id)
   }
 
@@ -35,7 +35,7 @@ async function unseedDemoBusinesses() {
   // Delete in safe order (cascade relations may exist)
   for (const id of ids) {
     try {
-      await prisma.business.deleteMany({ where: { id } })
+      await prisma.businesses.deleteMany({ where: { id } })
     } catch (err) {
       // ignore errors; best-effort cleanup
       console.warn('Failed to remove business', id, err.message)

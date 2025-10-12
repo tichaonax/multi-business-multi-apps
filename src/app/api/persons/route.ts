@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       where.isActive = isActive === 'true'
     }
 
-    const persons = await prisma.person.findMany({
+    const persons = await prisma.persons.findMany({
       where,
       include: {
         idFormatTemplates: true,
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
 
     // Validate national ID format if template is provided
     if (idFormatTemplateId) {
-      const template = await prisma.idFormatTemplate.findUnique({
+      const template = await prisma.idFormatTemplates.findUnique({
         where: { id: idFormatTemplateId }
       })
       
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate national ID
-    const existingPerson = await prisma.person.findUnique({
+    const existingPerson = await prisma.persons.findUnique({
       where: { nationalId }
     })
 
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
 
     // Check for duplicate email if provided
     if (email) {
-      const existingEmail = await prisma.person.findUnique({
+      const existingEmail = await prisma.persons.findUnique({
         where: { email }
       })
 
@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
       createdBy: session.user.id,
     }
 
-    const newPerson = await prisma.person.create({
+    const newPerson = await prisma.persons.create({
       data: createData as any,
       include: {
         idFormatTemplates: true,

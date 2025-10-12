@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const employees = await prisma.employee.findMany({
+    const employees = await prisma.employees.findMany({
       where: whereClause,
       select: {
         id: true,

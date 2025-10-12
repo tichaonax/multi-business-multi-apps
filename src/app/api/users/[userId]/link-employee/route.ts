@@ -31,7 +31,7 @@ export async function PUT(
     }
 
     // Get user details
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         employees: true,
@@ -51,7 +51,7 @@ export async function PUT(
     }
 
     // Get employee details
-    const employee = await prisma.employee.findUnique({
+    const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
       include: {
         users: true,
@@ -201,7 +201,7 @@ export async function DELETE(
     const { userId } = await params;
 
     // Get user details
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: userId },
         include: {
           employees: {

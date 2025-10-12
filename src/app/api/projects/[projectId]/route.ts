@@ -18,7 +18,7 @@ export async function GET(
     const user = session.user as SessionUser
     const { projectId } = await params
 
-    const project = await prisma.project.findUnique({
+    const project = await prisma.projects.findUnique({
       where: { id: projectId },
       include: {
         projectType: {
@@ -181,7 +181,7 @@ export async function PUT(
     } = data
 
     // Find the existing project
-    const existingProject = await prisma.project.findUnique({
+    const existingProject = await prisma.projects.findUnique({
       where: { id: projectId },
       include: {
         projectType: true
@@ -243,7 +243,7 @@ export async function PUT(
       )
     }
 
-    const updatedProject = await prisma.project.update({
+    const updatedProject = await prisma.projects.update({
       where: { id: projectId },
       data: {
         name,
@@ -303,7 +303,7 @@ export async function DELETE(
     const { projectId } = await params
 
     // Find the existing project
-    const existingProject = await prisma.project.findUnique({
+    const existingProject = await prisma.projects.findUnique({
       where: { id: projectId },
       include: {
         _count: {
@@ -357,7 +357,7 @@ export async function DELETE(
       }, { status: 400 })
     }
 
-    await prisma.project.delete({
+    await prisma.projects.delete({
       where: { id: projectId }
     })
 

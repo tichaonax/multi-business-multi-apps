@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     switch (backupType) {
       case 'full':
         // Full backup with all data
-        backupData.users = await prisma.user.findMany({
+        backupData.users = await prisma.users.findMany({
           include: {
             businessMemberships: {
               include: {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.businesses = await prisma.business.findMany({
+        backupData.businesses = await prisma.businesses.findMany({
           include: {
             businessMemberships: true,
             employees: true,
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.employees = await prisma.employee.findMany({
+        backupData.employees = await prisma.employees.findMany({
           include: {
             jobTitles: true,
             compensationTypes: true,
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.businessMemberships = await prisma.businessMembership.findMany({
+        backupData.businessMemberships = await prisma.businessMemberships.findMany({
           include: {
             user: true,
             business: true,
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.employeeContracts = await prisma.employeeContract.findMany({
+        backupData.employeeContracts = await prisma.employeeContracts.findMany({
           include: {
             employee: true,
             business: true,
@@ -76,15 +76,15 @@ export async function GET(request: NextRequest) {
         });
 
         // Reference data
-        backupData.jobTitles = await prisma.jobTitle.findMany();
-        backupData.compensationTypes = await prisma.compensationType.findMany();
-        backupData.benefitTypes = await prisma.benefitType.findMany();
-        backupData.idFormatTemplates = await prisma.idFormatTemplate.findMany();
-        backupData.driverLicenseTemplates = await prisma.driverLicenseTemplate.findMany();
-        backupData.permissionTemplates = await prisma.permissionTemplate.findMany();
+        backupData.jobTitles = await prisma.jobTitles.findMany();
+        backupData.compensationTypes = await prisma.compensationTypes.findMany();
+        backupData.benefitTypes = await prisma.benefitTypes.findMany();
+        backupData.idFormatTemplates = await prisma.idFormatTemplates.findMany();
+        backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany();
+        backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
 
         if (includeAuditLogs) {
-          backupData.auditLogs = await prisma.auditLog.findMany({
+          backupData.auditLogs = await prisma.auditLogs.findMany({
             orderBy: { timestamp: 'desc' },
             take: 10000,
             include: {
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 
       case 'users':
         // Users and permissions only
-        backupData.users = await prisma.user.findMany({
+        backupData.users = await prisma.users.findMany({
           include: {
             businessMemberships: {
               include: {
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.businessMemberships = await prisma.businessMembership.findMany({
+        backupData.businessMemberships = await prisma.businessMemberships.findMany({
           include: {
             user: true,
             business: true,
@@ -117,19 +117,19 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.permissionTemplates = await prisma.permissionTemplate.findMany();
+        backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
         break;
 
       case 'business-data':
         // Business information and settings
-        backupData.businesses = await prisma.business.findMany({
+        backupData.businesses = await prisma.businesses.findMany({
           include: {
             businessMemberships: true,
             childBusinesses: true
           }
         });
 
-        backupData.businessMemberships = await prisma.businessMembership.findMany({
+        backupData.businessMemberships = await prisma.businessMemberships.findMany({
           include: {
             user: {
               select: { id: true, name: true, email: true }
@@ -140,16 +140,16 @@ export async function GET(request: NextRequest) {
         });
 
         // Business products and categories
-        backupData.businessCategories = await prisma.businessCategory.findMany();
-        backupData.businessBrands = await prisma.businessBrand.findMany();
-        backupData.businessProducts = await prisma.businessProduct.findMany();
-        backupData.businessCustomers = await prisma.businessCustomer.findMany();
-        backupData.businessSuppliers = await prisma.businessSupplier.findMany();
+        backupData.businessCategories = await prisma.businessCategories.findMany();
+        backupData.businessBrands = await prisma.businessBrands.findMany();
+        backupData.businessProducts = await prisma.businessProducts.findMany();
+        backupData.businessCustomers = await prisma.businessCustomers.findMany();
+        backupData.businessSuppliers = await prisma.businessSuppliers.findMany();
         break;
 
       case 'employees':
         // Employee data
-        backupData.employees = await prisma.employee.findMany({
+        backupData.employees = await prisma.employees.findMany({
           include: {
             jobTitles: true,
             compensationTypes: true,
@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.employeeContracts = await prisma.employeeContract.findMany({
+        backupData.employeeContracts = await prisma.employeeContracts.findMany({
           include: {
             employee: true,
             business: true,
@@ -171,20 +171,20 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.employeeBusinessAssignments = await prisma.employeeBusinessAssignment.findMany();
-        backupData.employeeBenefits = await prisma.employeeBenefit.findMany();
+        backupData.employeeBusinessAssignments = await prisma.employeeBusinessAssignments.findMany();
+        backupData.employeeBenefits = await prisma.employeeBenefits.findMany();
         backupData.employeeAttendance = await prisma.employeeAttendance.findMany();
-        backupData.disciplinaryActions = await prisma.disciplinaryAction.findMany();
+        backupData.disciplinaryActions = await prisma.disciplinaryActions.findMany();
         break;
 
       case 'reference-data':
         // Reference data only
-        backupData.jobTitles = await prisma.jobTitle.findMany();
-        backupData.compensationTypes = await prisma.compensationType.findMany();
-        backupData.benefitTypes = await prisma.benefitType.findMany();
-        backupData.idFormatTemplates = await prisma.idFormatTemplate.findMany();
-        backupData.driverLicenseTemplates = await prisma.driverLicenseTemplate.findMany();
-        backupData.permissionTemplates = await prisma.permissionTemplate.findMany();
+        backupData.jobTitles = await prisma.jobTitles.findMany();
+        backupData.compensationTypes = await prisma.compensationTypes.findMany();
+        backupData.benefitTypes = await prisma.benefitTypes.findMany();
+        backupData.idFormatTemplates = await prisma.idFormatTemplates.findMany();
+        backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany();
+        backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
         break;
 
       default:

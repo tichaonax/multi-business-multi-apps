@@ -18,7 +18,7 @@ async function createTestEmployee() {
     console.log('🧪 Creating test employee for verification...')
 
     // Get required references first
-    const business = await prisma.business.findFirst({
+    const business = await prisma.businesses.findFirst({
       where: { isActive: true }
     })
     
@@ -36,7 +36,7 @@ async function createTestEmployee() {
     }
 
     // Create a test employee using correct camelCase field names
-    const testEmployee = await prisma.employee.create({
+    const testEmployee = await prisma.employees.create({
       data: {
         id: crypto.randomUUID(),
         employeeNumber: 'TEST001',

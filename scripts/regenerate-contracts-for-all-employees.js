@@ -59,7 +59,7 @@ async function regenerateAll() {
     // Fetch benefit types to randomly assign benefits per contract
     const benefitTypes = await prisma.benefitType.findMany()
 
-    const employees = await prisma.employee.findMany({ select: { id: true, employeeNumber: true, fullName: true, address: true, phone: true, email: true, nationalId: true, hireDate: true, jobTitleId: true, compensationTypeId: true, primaryBusinessId: true } })
+    const employees = await prisma.employees.findMany({ select: { id: true, employeeNumber: true, fullName: true, address: true, phone: true, email: true, nationalId: true, hireDate: true, jobTitleId: true, compensationTypeId: true, primaryBusinessId: true } })
 
     console.log(`ℹ️  Found ${employees.length} employees`) 
 
@@ -93,10 +93,10 @@ async function regenerateAll() {
         const [jobTitle, compensationType, business] = await Promise.all([
           employee.jobTitleId ? prisma.jobTitle.findUnique({ where: { id: employee.jobTitleId } }).catch(() => null) : null,
           employee.compensationTypeId ? prisma.compensationType.findUnique({ where: { id: employee.compensationTypeId } }).catch(() => null) : null,
-          employee.primaryBusinessId ? prisma.business.findUnique({ where: { id: employee.primaryBusinessId } }).catch(() => null) : null
+          employee.primaryBusinessId ? prisma.businesses.findUnique({ where: { id: employee.primaryBusinessId } }).catch(() => null) : null
         ])
 
-        const contracts = await prisma.employeeContract.findMany({ where: { employeeId: employee.id } })
+        const contracts = await prisma.employeeContracts.findMany({ where: { employeeId: employee.id } })
         if (!contracts || contracts.length === 0) continue
 
   for (const contract of contracts) {
@@ -190,7 +190,7 @@ async function regenerateAll() {
 
           if (!apiUsed) {
             // Fallback to direct DB update of pdfGenerationData
-            await prisma.employeeContract.update({ where: { id: contract.id }, data: { pdfGenerationData: pdfData, updatedAt: new Date() } })
+            await prisma.employeeContracts.update({ where: { id: contract.id }, data: { pdfGenerationData: pdfData, updatedAt: new Date() } })
             totalUpdated++
             console.log(`🔁 DB fallback used for ${employee.employeeNumber} (contract ${contract.id})`)
           }

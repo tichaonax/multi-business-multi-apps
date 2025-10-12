@@ -6,7 +6,7 @@ async function main() {
     console.log('🔍 Analyzing admin user business access patterns...\n');
 
     // Find users with admin role
-    const adminUsers = await prisma.user.findMany({
+    const adminUsers = await prisma.users.findMany({
       where: {
         OR: [
           { role: 'admin' },
@@ -43,7 +43,7 @@ async function main() {
 
     // Get business statistics by type
     console.log('📊 Business Distribution Analysis:');
-    const businessStats = await prisma.business.groupBy({
+    const businessStats = await prisma.businesses.groupBy({
       by: ['type'],
       _count: {
         type: true
@@ -53,7 +53,7 @@ async function main() {
       }
     });
 
-    const totalBusinesses = await prisma.business.count({
+    const totalBusinesses = await prisma.businesses.count({
       where: { isActive: true }
     });
 
@@ -64,7 +64,7 @@ async function main() {
 
     // Get all businesses for admin access pattern analysis
     console.log('\n🏢 All Active Businesses:');
-    const allBusinesses = await prisma.business.findMany({
+    const allBusinesses = await prisma.businesses.findMany({
       where: { isActive: true },
       select: {
         id: true,

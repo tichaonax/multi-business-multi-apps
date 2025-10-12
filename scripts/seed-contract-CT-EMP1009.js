@@ -22,7 +22,7 @@ async function seedContractCTEMP1009(options = {}) {
   // Reasonable assumption: employeeNumber EMP1009 for this seeded contract
   const employeeNumber = 'EMP1009'
 
-  let employee = await prisma.employee.findUnique({ where: { employeeNumber } })
+  let employee = await prisma.employees.findUnique({ where: { employeeNumber } })
   if (!employee) {
       const newEmp = {
       id: randomUUID(),
@@ -45,13 +45,13 @@ async function seedContractCTEMP1009(options = {}) {
       updatedAt: new Date('2025-09-29')
     }
 
-    employee = await prisma.employee.create({ data: newEmp })
+    employee = await prisma.employees.create({ data: newEmp })
     console.log(`✅ Created employee ${employee.fullName} (${employee.employeeNumber})`)
   } else {
     console.log(`ℹ️  Employee ${employee.fullName} (${employee.employeeNumber}) already exists`)
     // Update existing employee with more realistic contact/address details requested
     try {
-      const updatedEmp = await prisma.employee.update({ where: { id: employee.id }, data: {
+      const updatedEmp = await prisma.employees.update({ where: { id: employee.id }, data: {
         fullName: 'Michael Davis',
         firstName: 'Michael',
         lastName: 'Davis',
@@ -167,9 +167,9 @@ async function seedContractCTEMP1009(options = {}) {
   }
 
     if (!apiSucceeded) {
-      const existing = await prisma.employeeContract.findUnique({ where: { contractNumber: 'CT-EMP1009' } })
+      const existing = await prisma.employeeContracts.findUnique({ where: { contractNumber: 'CT-EMP1009' } })
       if (existing) {
-        const updated = await prisma.employeeContract.update({
+        const updated = await prisma.employeeContracts.update({
           where: { id: existing.id },
           data: {
             pdfGenerationData,
@@ -205,7 +205,7 @@ async function seedContractCTEMP1009(options = {}) {
     }
 
   // Quick verification read
-  const fetched = await prisma.employeeContract.findUnique({ where: { contractNumber: 'CT-EMP1009' }, select: { id: true, contractNumber: true, pdfGenerationData: true, baseSalary: true, status: true, startDate: true } })
+  const fetched = await prisma.employeeContracts.findUnique({ where: { contractNumber: 'CT-EMP1009' }, select: { id: true, contractNumber: true, pdfGenerationData: true, baseSalary: true, status: true, startDate: true } })
   console.log('📋 Verification fetch:', fetched)
 
   await prisma.$disconnect()

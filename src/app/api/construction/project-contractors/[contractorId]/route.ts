@@ -19,7 +19,7 @@ export async function DELETE(
     const { contractorId } = await params
 
     // Verify the project contractor exists and user has access
-    const projectContractor = await prisma.projectContractor.findUnique({
+    const projectContractor = await prisma.projectContractors.findUnique({
       where: { id: contractorId },
       include: {
         constructionProject: {
@@ -48,7 +48,7 @@ export async function DELETE(
     }
 
     // Delete the project contractor assignment
-    await prisma.projectContractor.delete({
+    await prisma.projectContractors.delete({
       where: { id: contractorId }
     })
 

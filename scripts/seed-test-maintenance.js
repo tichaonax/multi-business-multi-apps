@@ -8,9 +8,9 @@ async function seed() {
 
     // Ensure a creator user exists
     const creatorId = 'dev-user-1'
-    let user = await prisma.user.findUnique({ where: { id: creatorId } })
+    let user = await prisma.users.findUnique({ where: { id: creatorId } })
     if (!user) {
-      user = await prisma.user.create({
+      user = await prisma.users.create({
         data: {
           id: creatorId,
           name: 'Dev User',

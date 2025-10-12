@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { projectId } = await params
 
     // Verify project exists and user has access
-    const project = await prisma.constructionProject.findFirst({
+    const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
         createdBy: session.user.id
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Get all transactions for this project
-    const transactions = await prisma.projectTransaction.findMany({
+    const transactions = await prisma.projectTransactions.findMany({
       where: { projectId },
       include: {
         personalExpense: {
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     })
 
     // Get all stages with their assignments
-    const stages = await prisma.projectStage.findMany({
+    const stages = await prisma.projectStages.findMany({
       where: { projectId },
       include: {
         stageContractorAssignments: {
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     })
 
     // Calculate contractor breakdown (across all stages)
-    const contractorBreakdown = await prisma.projectContractor.findMany({
+    const contractorBreakdown = await prisma.projectContractors.findMany({
       where: { projectId },
       include: {
         person: {

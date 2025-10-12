@@ -8,11 +8,11 @@ async function createDashboardTestData() {
     // 1. Get or create test businesses
     console.log('📊 Creating test businesses...')
 
-    let restaurantBusiness = await prisma.business.findFirst({
+    let restaurantBusiness = await prisma.businesses.findFirst({
       where: { name: 'Test Restaurant', type: 'restaurant' }
     })
     if (!restaurantBusiness) {
-      restaurantBusiness = await prisma.business.create({
+      restaurantBusiness = await prisma.businesses.create({
         data: {
           name: 'Test Restaurant',
           type: 'restaurant',
@@ -22,11 +22,11 @@ async function createDashboardTestData() {
       })
     }
 
-    let groceryBusiness = await prisma.business.findFirst({
+    let groceryBusiness = await prisma.businesses.findFirst({
       where: { name: 'Test Grocery Store', type: 'grocery' }
     })
     if (!groceryBusiness) {
-      groceryBusiness = await prisma.business.create({
+      groceryBusiness = await prisma.businesses.create({
         data: {
           name: 'Test Grocery Store',
           type: 'grocery',
@@ -36,11 +36,11 @@ async function createDashboardTestData() {
       })
     }
 
-    let clothingBusiness = await prisma.business.findFirst({
+    let clothingBusiness = await prisma.businesses.findFirst({
       where: { name: 'Test Clothing Store', type: 'clothing' }
     })
     if (!clothingBusiness) {
-      clothingBusiness = await prisma.business.create({
+      clothingBusiness = await prisma.businesses.create({
         data: {
           name: 'Test Clothing Store',
           type: 'clothing',
@@ -50,11 +50,11 @@ async function createDashboardTestData() {
       })
     }
 
-    let hardwareBusiness = await prisma.business.findFirst({
+    let hardwareBusiness = await prisma.businesses.findFirst({
       where: { name: 'Test Hardware Store', type: 'hardware' }
     })
     if (!hardwareBusiness) {
-      hardwareBusiness = await prisma.business.create({
+      hardwareBusiness = await prisma.businesses.create({
         data: {
           name: 'Test Hardware Store',
           type: 'hardware',
@@ -69,7 +69,7 @@ async function createDashboardTestData() {
     // 2. Get admin user and assign to businesses
     console.log('👤 Setting up admin user business memberships...')
 
-    const adminUser = await prisma.user.findFirst({
+    const adminUser = await prisma.users.findFirst({
       where: {
         OR: [
           { email: 'admin@business.local' },
@@ -243,7 +243,7 @@ async function createDashboardTestData() {
 
     const testUsers = []
     for (let i = 0; i < 3; i++) {
-      const user = await prisma.user.create({
+      const user = await prisma.users.create({
         data: {
           email: `testuser${i + 1}@test.com`,
           name: `Test User ${i + 1}`,

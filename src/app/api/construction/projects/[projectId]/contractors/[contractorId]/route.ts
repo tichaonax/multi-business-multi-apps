@@ -23,7 +23,7 @@ export async function GET(
     }
 
     // First verify the project exists and user has access
-    const project = await prisma.constructionProject.findUnique({
+    const project = await prisma.constructionProjects.findUnique({
       where: { id: projectId }
     })
 
@@ -32,7 +32,7 @@ export async function GET(
     }
 
     // Get contractor details with all related information
-    const contractor = await prisma.projectContractor.findFirst({
+    const contractor = await prisma.projectContractors.findFirst({
       where: {
         id: contractorId,
         projectId: projectId

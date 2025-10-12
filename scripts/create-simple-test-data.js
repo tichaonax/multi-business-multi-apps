@@ -6,7 +6,7 @@ async function createSimpleTestData() {
     console.log('🚀 Starting simple test data creation for modal testing...')
 
     // 1. Get admin user
-    const adminUser = await prisma.user.findFirst({
+    const adminUser = await prisma.users.findFirst({
       where: {
         OR: [
           { email: 'admin@business.local' },
@@ -25,11 +25,11 @@ async function createSimpleTestData() {
     // 2. Create test businesses
     console.log('📊 Creating test businesses...')
 
-    let restaurantBusiness = await prisma.business.findFirst({
+    let restaurantBusiness = await prisma.businesses.findFirst({
       where: { name: 'Test Restaurant', type: 'restaurant' }
     })
     if (!restaurantBusiness) {
-      restaurantBusiness = await prisma.business.create({
+      restaurantBusiness = await prisma.businesses.create({
         data: {
           name: 'Test Restaurant',
           type: 'restaurant',
@@ -39,11 +39,11 @@ async function createSimpleTestData() {
       })
     }
 
-    let groceryBusiness = await prisma.business.findFirst({
+    let groceryBusiness = await prisma.businesses.findFirst({
       where: { name: 'Test Grocery Store', type: 'grocery' }
     })
     if (!groceryBusiness) {
-      groceryBusiness = await prisma.business.create({
+      groceryBusiness = await prisma.businesses.create({
         data: {
           name: 'Test Grocery Store',
           type: 'grocery',
@@ -149,7 +149,7 @@ async function createSimpleTestData() {
     const testUsers = []
     for (let i = 0; i < 2; i++) {
       try {
-        const user = await prisma.user.create({
+        const user = await prisma.users.create({
           data: {
             email: `testuser${i + 1}@test.com`,
             name: `Test User ${i + 1}`,

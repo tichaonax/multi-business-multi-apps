@@ -6,7 +6,7 @@ async function fixContractBenefitIds() {
 
   try {
     // Get all contracts with pdfGenerationData
-    const contracts = await prisma.employeeContract.findMany({
+    const contracts = await prisma.employeeContracts.findMany({
       where: {
         pdfGenerationData: { not: null }
       },
@@ -85,7 +85,7 @@ async function fixContractBenefitIds() {
       );
 
       if (needsUpdate) {
-        await prisma.employeeContract.update({
+        await prisma.employeeContracts.update({
           where: { id: contract.id },
           data: {
             pdfGenerationData: {

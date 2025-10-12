@@ -145,7 +145,7 @@ async function generateFleetOverviewReport(vehicleId?: string, businessId?: stri
   }
 
   const [vehicles, totalTrips, totalExpenses, maintenanceRecords, totalDrivers, activeDrivers] = await Promise.all([
-    prisma.vehicle.findMany({
+    prisma.vehicles.findMany({
       where: vehicleFilter,
       include: {
         // schema relation names are pluralized
@@ -153,19 +153,19 @@ async function generateFleetOverviewReport(vehicleId?: string, businessId?: stri
         users: { select: { name: true, email: true } }
       }
     }),
-    prisma.vehicleTrip.count({ where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {} }),
-    prisma.vehicleExpense.aggregate({
+    prisma.vehicleTrips.count({ where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {} }),
+    prisma.vehicleExpenses.aggregate({
       where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {},
       _sum: { amount: true },
       _count: true
     }),
-    prisma.vehicleMaintenanceRecord.count({
+    prisma.vehicleMaintenanceRecords.count({
       where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {}
     })
     , // end maintenanceRecords entry
     // Driver counts
-    prisma.vehicleDriver.count({ where: driverFilter }),
-    prisma.vehicleDriver.count({ where: { ...driverFilter, isActive: true } })
+    prisma.vehicleDrivers.count({ where: driverFilter }),
+    prisma.vehicleDrivers.count({ where: { ...driverFilter, isActive: true } })
   ])
 
   return {
@@ -196,7 +196,7 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
   if (driverId) tripFilter.driverId = driverId
   if (businessId) tripFilter.businessId = businessId
 
-  const trips = await prisma.vehicleTrip.findMany({
+  const trips = await prisma.vehicleTrips.findMany({
     where: tripFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true, mileageUnit: true } },
@@ -300,7 +300,7 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
   if (vehicleId) expenseFilter.vehicleId = vehicleId
   if (businessId) expenseFilter.businessId = businessId
 
-  const expenses = await prisma.vehicleExpense.findMany({
+  const expenses = await prisma.vehicleExpenses.findMany({
     where: expenseFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true } },
@@ -380,7 +380,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
 
   const [upcomingMaintenance, overdueMaintenance, recentMaintenance, maintenanceServices] = await Promise.all([
     // Upcoming maintenance (next 30 days)
-    prisma.vehicleMaintenanceRecord.findMany({
+    prisma.vehicleMaintenanceRecords.findMany({
       where: {
         ...maintenanceFilter,
         nextServiceDue: {
@@ -398,7 +398,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
       }
     }),
     // Overdue maintenance
-  prisma.vehicleMaintenanceRecord.findMany({
+  prisma.vehicleMaintenanceRecords.findMany({
       where: {
         ...maintenanceFilter,
         nextServiceDue: {
@@ -415,7 +415,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
       }
     }),
     // Recent maintenance (last 90 days)
-  prisma.vehicleMaintenanceRecord.findMany({
+  prisma.vehicleMaintenanceRecords.findMany({
       where: {
         ...maintenanceFilter,
         serviceDate: {
@@ -433,7 +433,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
       orderBy: { serviceDate: 'desc' }
     }),
     // Get all maintenance services for detailed breakdown
-    prisma.vehicleMaintenanceService.findMany({
+    prisma.vehicleMaintenanceServices.findMany({
       where: {
         maintenanceRecord: maintenanceFilter
       },
@@ -512,7 +512,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
 
   const [expiringLicenses, expiringDriverLicenses, inactiveAuthorizations] = await Promise.all([
     // Vehicle licenses expiring in 60 days
-    prisma.vehicleLicense.findMany({
+    prisma.vehicleLicenses.findMany({
       where: {
         // relation name is 'vehicles' on VehicleLicense
         vehicles: vehicleFilter,
@@ -527,7 +527,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
       }
     }),
     // Driver licenses expiring in 60 days
-    prisma.vehicleDriver.findMany({
+    prisma.vehicleDrivers.findMany({
       where: {
         ...driverFilter,
         isActive: true,
@@ -538,7 +538,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
       }
     }),
     // Expired or inactive driver authorizations
-    prisma.driverAuthorization.findMany({
+    prisma.driverAuthorizations.findMany({
       where: {
         // relation name is 'vehicleDrivers' on DriverAuthorization
         vehicleDrivers: driverFilter,
@@ -627,7 +627,7 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
   if (driverId) tripFilter.driverId = driverId
   if (vehicleId) tripFilter.vehicleId = vehicleId
 
-  const driverActivity = await prisma.vehicleDriver.findMany({
+  const driverActivity = await prisma.vehicleDrivers.findMany({
     where: driverId ? { id: driverId } : { isActive: true },
     include: {
       vehicleTrips: {
@@ -723,7 +723,7 @@ async function generateBusinessAttributionReport(dateFilter?: any, businessId?: 
   if (businessId) tripFilter.businessId = businessId
   if (vehicleId) tripFilter.vehicleId = vehicleId
 
-  const businessTrips = await prisma.vehicleTrip.findMany({
+  const businessTrips = await prisma.vehicleTrips.findMany({
     where: tripFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },
@@ -761,7 +761,7 @@ async function generateReimbursementSummaryReport(dateFilter?: any, businessId?:
   if (businessId) reimbursementFilter.businessId = businessId
   if (userId) reimbursementFilter.userId = userId
 
-  const reimbursements = await prisma.vehicleReimbursement.findMany({
+  const reimbursements = await prisma.vehicleReimbursements.findMany({
     where: reimbursementFilter,
     include: {
       // use generated relation name for user relation and plural relation names

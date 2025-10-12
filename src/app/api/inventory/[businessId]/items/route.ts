@@ -100,7 +100,7 @@ export async function GET(
     }
 
     // Get products from database with proper relationships
-    const products = await prisma.businessProduct.findMany({
+    const products = await prisma.businessProducts.findMany({
       where,
       include: {
         businessCategory: true,
@@ -116,7 +116,7 @@ export async function GET(
       take: limit
     })
 
-    const total = await prisma.businessProduct.count({ where })
+    const total = await prisma.businessProducts.count({ where })
 
     // Transform to match the expected interface
     const items = products.map(product => {
@@ -206,7 +206,7 @@ export async function POST(
     }
 
     // Verify business exists and user has access
-    const business = await prisma.business.findFirst({
+    const business = await prisma.businesses.findFirst({
       where: {
         id: businessId,
         businessMemberships: {
@@ -228,7 +228,7 @@ export async function POST(
     // Get or create category
     let categoryId = body.categoryId
     if (!categoryId && body.category) {
-      const category = await prisma.businessCategory.upsert({
+      const category = await prisma.businessCategories.upsert({
         where: {
           businessId_name: {
             businessId,
@@ -248,7 +248,7 @@ export async function POST(
     }
 
     // Create the product
-    const product = await prisma.businessProduct.create({
+    const product = await prisma.businessProducts.create({
       data: {
         id: randomUUID(),
         businessId,
@@ -270,7 +270,7 @@ export async function POST(
     })
 
     // Create default variant
-    const variant = await prisma.productVariant.create({
+    const variant = await prisma.productVariants.create({
       data: {
         id: randomUUID(),
         productId: product.id,
@@ -285,7 +285,7 @@ export async function POST(
 
     // If initial stock is provided, create stock movement
     if (body.currentStock && parseFloat(body.currentStock) > 0) {
-      await prisma.businessStockMovement.create({
+      await prisma.businessStockMovements.create({
         data: {
           id: randomUUID(),
           businessId,
@@ -301,7 +301,7 @@ export async function POST(
       })
 
       // Update variant stock
-      await prisma.productVariant.update({
+      await prisma.productVariants.update({
         where: { id: variant.id },
         data: { stockQuantity: parseInt(body.currentStock), updatedAt: new Date() }
       })
@@ -316,7 +316,7 @@ export async function POST(
         value: String(value)
       }))
 
-      await prisma.productAttribute.createMany({
+      await prisma.productAttributes.createMany({
         data: attributeData
       })
     }

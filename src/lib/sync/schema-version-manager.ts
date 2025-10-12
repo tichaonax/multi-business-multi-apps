@@ -258,7 +258,7 @@ export class SchemaVersionManager {
 
     try {
       // Use Prisma client to update the SyncNode record so field mappings are respected
-      await this.prisma.syncNode.upsert({
+      await this.prisma.syncNodes.upsert({
         where: { nodeId: this.nodeId },
         update: {
           schemaVersion: this.currentVersion.version,
@@ -352,7 +352,7 @@ export class SchemaVersionManager {
     try {
       // Get all sync nodes
       // Use Prisma client to fetch active nodes, excluding this node
-      const nodes = await this.prisma.syncNode.findMany({
+      const nodes = await this.prisma.syncNodes.findMany({
         where: {
           isActive: true,
           nodeId: { not: this.nodeId }

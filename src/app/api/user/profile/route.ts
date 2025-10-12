@@ -12,7 +12,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: {
         id: session.user.id
       },
@@ -74,7 +74,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     // For now, only allow name updates. Email changes require admin approval
-    const updatedUser = await prisma.user.update({
+    const updatedUser = await prisma.users.update({
       where: {
         id: session.user.id
       },

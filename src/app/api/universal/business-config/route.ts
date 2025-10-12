@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: businessId },
       select: {
         id: true,
@@ -369,7 +369,7 @@ export async function PUT(request: NextRequest) {
     const { businessId, businessType, ...configData } = validatedData
 
     // Verify business exists
-    const business = await prisma.business.findUnique({
+    const business = await prisma.businesses.findUnique({
       where: { id: businessId }
     })
 
@@ -396,7 +396,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update business settings
-    const updatedBusiness = await prisma.business.update({
+    const updatedBusiness = await prisma.businesses.update({
       where: { id: businessId },
       data: {
         settings: updatedSettings
