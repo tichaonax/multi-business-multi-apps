@@ -50,6 +50,153 @@ Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess -Force
 
 **Note:** The PowerShell command only works on Windows. It kills ALL associated processes for the port automatically, which is much more effective than killing individual processes. For other platforms, use standard process management commands.
 
+## Windows Service Management (node-windows)
+
+**CRITICAL:** Windows services created by `node-windows` have specific requirements for detection and management. ALWAYS follow these patterns.
+
+### Critical Rule #1: Service Name Suffix
+
+**node-windows automatically appends `.exe` to service names during registration.**
+
+```javascript
+// ❌ INCORRECT - Service will NOT be found
+const SERVICE_NAME = 'multibusinesssyncservice'
+spawnSync('sc', ['query', SERVICE_NAME])  // FAILS
+
+// ✅ CORRECT - Service will be found
+const SERVICE_NAME = 'multibusinesssyncservice.exe'
+spawnSync('sc.exe', ['query', SERVICE_NAME])  // WORKS
+```
+
+**Pattern from electricity-tokens:**
+```javascript
+// Helper function to build correct service name
+const buildServiceExpectedName = (serviceName) => `${serviceName}.exe`
+
+// Usage in queries
+const queryResult = spawnSync('sc.exe', ['query', buildServiceExpectedName('ElectricityTracker')], {
+  encoding: 'utf-8',
+  windowsHide: true
+})
+```
+
+### Critical Rule #2: Use Explicit .exe Commands
+
+**Always use `.exe` suffix for Windows commands to avoid PowerShell alias conflicts.**
+
+```javascript
+// ❌ INCORRECT - May use PowerShell aliases
+const SC = process.env.SC_COMMAND || 'sc'
+const result = spawnSync('taskkill', ['/F', '/PID', pid])
+
+// ✅ CORRECT - Explicit .exe commands
+const SC = 'sc.exe'  // Not just 'sc'
+const result = spawnSync('taskkill.exe', ['/F', '/PID', pid])
+```
+
+**From electricity-tokens config.js:**
+```javascript
+commands: {
+  SC_COMMAND: 'sc.exe',           // Not 'sc'
+  TASKKILL_COMMAND: 'taskkill.exe', // Not 'taskkill'
+  NETSTAT_COMMAND: 'netstat.exe'    // Not 'netstat'
+}
+```
+
+### Service Detection Pattern
+
+**Complete working pattern from electricity-tokens:**
+
+```javascript
+function stopWindowsServiceAndCleanup() {
+  const { spawnSync } = require('child_process')
+
+  // CRITICAL: Use .exe suffix for both service name and command
+  const SERVICE_NAME = 'multibusinesssyncservice.exe'
+  const SC = 'sc.exe'
+
+  // Query service status
+  const queryResult = spawnSync(SC, ['query', SERVICE_NAME], {
+    encoding: 'utf-8',
+    windowsHide: true
+  })
+
+  const output = queryResult.stdout || ''
+
+  // Check various states
+  if (output.includes('does not exist') || output.includes('1060')) {
+    return true  // Not installed
+  }
+
+  if (output.includes('RUNNING') || output.includes('START_PENDING')) {
+    // Stop the service
+    spawnSync(SC, ['stop', SERVICE_NAME], {
+      encoding: 'utf-8',
+      windowsHide: true
+    })
+  }
+}
+```
+
+### PowerShell Port Detection
+
+**Use PowerShell Get-NetTCPConnection for reliable port detection (more reliable than netstat):**
+
+```javascript
+function findProcessByPort(port = 8080) {
+  const { spawnSync } = require('child_process')
+
+  const result = spawnSync('powershell', [
+    '-Command',
+    `Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess`
+  ], {
+    encoding: 'utf-8',
+    windowsHide: true
+  })
+
+  if (result.stdout) {
+    const pid = parseInt(result.stdout.trim(), 10)
+    if (!isNaN(pid) && pid > 0) {
+      return pid
+    }
+  }
+
+  return null
+}
+```
+
+### Complete Service Stop Flow
+
+**From electricity-tokens hybrid-service-manager.js:**
+
+1. **Check service status** using `sc.exe query servicename.exe`
+2. **Stop service gracefully** using `sc.exe stop servicename.exe`
+3. **Wait for STOPPED state** (up to 30 seconds)
+4. **Kill process on port** using PowerShell Get-NetTCPConnection
+5. **Kill stale node.exe processes** using `taskkill.exe /F /IM node.exe`
+6. **Clean up Prisma temp files** (remove `.tmp` files from `.prisma/client/`)
+7. **Wait for file handles to release** (3 seconds)
+
+### Common Mistakes to Avoid
+
+1. **❌ Missing .exe suffix**: `sc query multibusinesssyncservice` (FAILS)
+2. **✅ Correct with .exe**: `sc.exe query multibusinesssyncservice.exe` (WORKS)
+
+3. **❌ Using sc without .exe**: May use PowerShell alias
+4. **✅ Using sc.exe explicitly**: Avoids alias conflicts
+
+5. **❌ Using netstat for port detection**: Less reliable on modern Windows
+6. **✅ Using PowerShell Get-NetTCPConnection**: More reliable and accurate
+
+### Reference Implementation
+
+**Location**: `C:/electricity-app/electricity-tokens/scripts/windows-service/`
+- `hybrid-service-manager.js` - Complete service management
+- `buildexpectedservicename.js` - Helper for .exe suffix
+- `config.js` - Command configuration with .exe extensions
+
+**Always reference electricity-tokens implementation when working with Windows services.**
+
 ## Security & Permissions
 
 **CRITICAL:** Every UI component, page, and feature MUST implement proper user permissions from the start. Do NOT develop any UI without considering security implications.
