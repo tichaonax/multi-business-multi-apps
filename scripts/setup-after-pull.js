@@ -194,7 +194,7 @@ async function handleFreshInstall() {
   try {
     // Step 1: Database schema setup
     log('Starting database schema setup...', 'INFO')
-    schemaSetupSuccess = run('node scripts/setup-database-schema.js --automated',
+    schemaSetupSuccess = run('node scripts/setup-database-schema.js',
         'Step 1: Setting up database schema and migrations',
         false)
 

@@ -340,10 +340,20 @@ async function createDatabase() {
   }
 }
 
-async function main() {
-  // Check if running in automated mode (from setup-after-pull.js)
-  const isAutomated = process.argv.includes('--automated');
+async function checkHasUsers() {
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    const count = await prisma.users.count();
+    await prisma.$disconnect();
+    return count > 0;
+  } catch (error) {
+    // Table doesn't exist or other error - assume no users
+    return false;
+  }
+}
 
+async function main() {
   console.log('\n============================================================');
   console.log('🔧 Database Schema Setup');
   console.log('============================================================\n');
@@ -401,8 +411,9 @@ async function main() {
     console.log('✅ Database Schema Setup Completed!');
     console.log('============================================================');
 
-    // Only show "Next Step" message when run manually (not from automated fresh install)
-    if (!isAutomated) {
+    // Only show "Next Step" message if database has no users (fresh install needs seeding)
+    const hasUsers = await checkHasUsers();
+    if (!hasUsers) {
       console.log('\n📋 Next Step:');
       console.log('   Run: node scripts/production-setup.js');
       console.log('   This will seed reference data and create admin user\n');
