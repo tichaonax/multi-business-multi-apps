@@ -99,12 +99,12 @@ async function seedIdTemplates() {
   ]
 
   for (const template of templates) {
-    if (!prisma.idFormatTemplate || typeof prisma.idFormatTemplate.upsert !== 'function') {
-      console.warn('Prisma model idFormatTemplate not available - skipping ID format templates seeding');
+    if (!prisma.idFormatTemplates || typeof prisma.idFormatTemplates.upsert !== 'function') {
+      console.warn('Prisma model idFormatTemplates not available - skipping ID format templates seeding');
       break;
     }
 
-    await prisma.idFormatTemplate.upsert({
+    await prisma.idFormatTemplates.upsert({
       where: { id: template.id },
       update: template,
       create: template
@@ -184,12 +184,12 @@ async function seedJobTitles() {
   ]
 
   for (const jobTitle of jobTitles) {
-    if (!prisma.jobTitle || typeof prisma.jobTitle.upsert !== 'function') {
-      console.warn('Prisma model jobTitle not available - skipping job titles seeding');
+    if (!prisma.jobTitles || typeof prisma.jobTitles.upsert !== 'function') {
+      console.warn('Prisma model jobTitles not available - skipping job titles seeding');
       break;
     }
 
-    await prisma.jobTitle.upsert({
+    await prisma.jobTitles.upsert({
       where: { title: jobTitle.title },
       update: jobTitle,
       create: {
@@ -231,12 +231,12 @@ async function seedCompensationTypes() {
   ]
 
   for (const compensationType of compensationTypes) {
-    if (!prisma.compensationType || typeof prisma.compensationType.upsert !== 'function') {
-      console.warn('Prisma model compensationType not available - skipping compensation types seeding');
+    if (!prisma.compensationTypes || typeof prisma.compensationTypes.upsert !== 'function') {
+      console.warn('Prisma model compensationTypes not available - skipping compensation types seeding');
       break;
     }
 
-    await prisma.compensationType.upsert({
+    await prisma.compensationTypes.upsert({
       where: { name: compensationType.name },
       update: compensationType,
       create: {
@@ -301,12 +301,12 @@ async function seedBenefitTypes() {
   ]
 
   for (const benefitType of benefitTypes) {
-    if (!prisma.benefitType || typeof prisma.benefitType.upsert !== 'function') {
-      console.warn('Prisma model benefitType not available - skipping benefit types seeding');
+    if (!prisma.benefitTypes || typeof prisma.benefitTypes.upsert !== 'function') {
+      console.warn('Prisma model benefitTypes not available - skipping benefit types seeding');
       break;
     }
 
-    await prisma.benefitType.upsert({
+    await prisma.benefitTypes.upsert({
       where: { name: benefitType.name },
       update: benefitType,
       create: {
@@ -331,7 +331,7 @@ async function createAdminUser() {
   const adminEmail = 'admin@business.local'
 
   // Check if admin already exists
-  const existingAdmin = await prisma.user.findUnique({
+  const existingAdmin = await prisma.users.findUnique({
     where: { email: adminEmail }
   })
 
@@ -344,7 +344,7 @@ async function createAdminUser() {
   const hashedPassword = await bcrypt.hash('admin123', 12)
 
   // Create admin user
-  const adminUser = await prisma.user.create({
+  const adminUser = await prisma.users.create({
     data: {
       id: require('crypto').randomUUID(),
       email: adminEmail,
@@ -452,11 +452,11 @@ if (require.main === module) {
 
     // Utility: list all benefit types
     async function listBenefitTypes() {
-      if (!prisma.benefitType || typeof prisma.benefitType.findMany !== 'function') {
-        console.warn('Prisma model benefitType not available - cannot list benefit types')
+      if (!prisma.benefitTypes || typeof prisma.benefitTypes.findMany !== 'function') {
+        console.warn('Prisma model benefitTypes not available - cannot list benefit types')
         return
       }
-      const rows = await prisma.benefitType.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] })
+      const rows = await prisma.benefitTypes.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] })
       console.log(`Found ${rows.length} benefit types:`)
       for (const r of rows) {
         console.log(` - ${r.name} [type=${r.type}]${r.isActive ? '' : ' (inactive)'}${r.defaultAmount !== null && r.defaultAmount !== undefined ? ` default=${r.defaultAmount}` : ''}`)
@@ -469,19 +469,19 @@ if (require.main === module) {
         console.error('Please provide a search term after --search-benefit')
         process.exit(2)
       }
-      if (!prisma.benefitType || typeof prisma.benefitType.findMany !== 'function') {
-        console.warn('Prisma model benefitType not available - cannot search benefit types')
+      if (!prisma.benefitTypes || typeof prisma.benefitTypes.findMany !== 'function') {
+        console.warn('Prisma model benefitTypes not available - cannot search benefit types')
         return
       }
-      const rows = await prisma.benefitType.findMany({ where: { name: { contains: term, mode: 'insensitive' } }, orderBy: [{ name: 'asc' }] })
+      const rows = await prisma.benefitTypes.findMany({ where: { name: { contains: term, mode: 'insensitive' } }, orderBy: [{ name: 'asc' }] })
       console.log(`Search results for "${term}": ${rows.length} matches`)
       for (const r of rows) console.log(` - ${r.name} [type=${r.type}]`)
     }
 
     // Utility: add a benefit type (JSON string or simple name:type pair)
     async function addBenefitType(payload) {
-      if (!prisma.benefitType || typeof prisma.benefitType.upsert !== 'function') {
-        console.warn('Prisma model benefitType not available - cannot add benefit type')
+      if (!prisma.benefitTypes || typeof prisma.benefitTypes.upsert !== 'function') {
+        console.warn('Prisma model benefitTypes not available - cannot add benefit type')
         return
       }
 
@@ -507,13 +507,13 @@ if (require.main === module) {
       }
 
       // Normalize: prevent duplicates by name (case-insensitive)
-      const existing = await prisma.benefitType.findFirst({ where: { name: { equals: obj.name, mode: 'insensitive' } } })
+      const existing = await prisma.benefitTypes.findFirst({ where: { name: { equals: obj.name, mode: 'insensitive' } } })
       if (existing) {
         console.log(`Benefit type already exists: ${existing.name} [type=${existing.type}]`)
         return
       }
 
-      const created = await prisma.benefitType.create({ data: {
+      const created = await prisma.benefitTypes.create({ data: {
         id: require('crypto').randomUUID(),
         name: obj.name,
         type: obj.type,
