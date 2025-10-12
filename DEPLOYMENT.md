@@ -4,7 +4,7 @@
 
 This guide covers fresh deployment and upgrade procedures for Windows servers.
 
-**IMPORTANT**: Database setup uses a two-step process to avoid Windows DLL file locking issues with Prisma.
+**Key Design Principle**: The Windows service handles ALL database operations (migrations, seeding) automatically when enabled.
 
 ---
 
@@ -42,51 +42,62 @@ notepad .env
 - `DATABASE_URL` - Your PostgreSQL connection string
 - `NEXTAUTH_URL` - Your application URL
 - `NEXTAUTH_SECRET` - Generate with: `openssl rand -base64 32`
+- `RUN_MIGRATIONS_ON_START=true` - **CRITICAL**: Enables automatic migrations
 
-### Step 3: Install Dependencies
+### Step 3: Fresh Database Setup (One-Time Only)
 
-```powershell
-npm install
-```
-
-### Step 4: Setup Database Schema (Step 1 of 2)
+For a completely fresh database, run these two steps ONCE:
 
 ```powershell
+# Step 1: Create database and deploy schema
 node scripts/setup-database-schema.js
-```
 
-**What this does:**
-- Creates database if it doesn't exist
-- Generates Prisma client
-- Deploys all migrations to database
-
-### Step 5: Seed Reference Data (Step 2 of 2)
-
-```powershell
+# Step 2: Seed reference data (runs in separate process)
 node scripts/production-setup.js
 ```
 
-**What this does:**
-- Seeds all reference data (ID templates, job titles, compensation types, etc.)
-- Creates admin user: `admin@business.local` / `admin123`
-- Verifies setup completion
+**Why two steps?** Windows locks Prisma DLL files when loaded. Running seeding in a separate process avoids DLL lock issues.
 
-**Why two steps?** Windows locks Prisma DLL files when loaded, preventing regeneration. Running seeding in a separate process avoids this issue.
+**Note**: After this initial setup, ALL future migrations and seeding are handled automatically by the service.
 
-### Step 6: Build Application
+### Step 4: Install Dependencies & Build
 
 ```powershell
+npm install
 npm run build
 npm run build:service
 ```
 
-### Step 7: Install Windows Service (Optional)
+### Step 5: Install Windows Service
 
 ```powershell
 # Run as Administrator
 npm run service:install
+```
+
+### Step 6: Enable Automatic Migrations (IMPORTANT)
+
+Add this to your `.env` file:
+
+```
+RUN_MIGRATIONS_ON_START=true
+```
+
+This tells the service wrapper to automatically run migrations and seeding on startup.
+
+### Step 7: Start Service
+
+```powershell
+# Run as Administrator
 npm run service:start
 ```
+
+**What happens automatically:**
+- Service checks migration status
+- Runs pending migrations (`prisma migrate deploy`)
+- Seeds reference data (`npm run seed:migration`)
+- Starts sync service
+- Starts main application
 
 ### Step 8: Verify Installation
 
@@ -105,14 +116,14 @@ npm run service:status
 
 Follow these steps to upgrade an existing installation.
 
-### Step 1: Stop Service (if running)
+### Step 1: Stop Service
 
 ```powershell
 # Run as Administrator
 npm run service:stop
 ```
 
-### Step 2: Backup Database
+### Step 2: Backup Database (CRITICAL)
 
 ```powershell
 # Create backup directory if needed
@@ -130,12 +141,12 @@ git pull origin main
 
 **What happens automatically:**
 - Post-merge git hook runs `npm run setup:update`
-- Dependencies are updated
-- Prisma client is regenerated
-- Database migrations are applied
-- Reference data is seeded (idempotent - won't duplicate)
-- Application is rebuilt
-- Service files are rebuilt
+- Dependencies are updated (`npm install`)
+- Prisma client is regenerated (`npx prisma generate`)
+- Application is rebuilt (`npm run build`)
+- Service files are rebuilt (`npm run build:service`)
+
+**NOT done by hook:** Database migrations (handled by service restart)
 
 ### Step 4: Restart Service
 
@@ -143,6 +154,13 @@ git pull origin main
 # Run as Administrator
 npm run service:restart
 ```
+
+**What happens automatically during service startup:**
+- Service wrapper checks migration status
+- Applies any pending migrations
+- Seeds any new reference data
+- Starts sync service
+- Starts main application
 
 ### Step 5: Verify Upgrade
 
@@ -156,9 +174,46 @@ npm run service:status
 
 ---
 
-## Manual Setup (If Automated Setup Fails)
+## How Automatic Migrations Work
 
-If the automated post-merge hook fails, run these commands manually:
+### Environment Variable Control
+
+Set `RUN_MIGRATIONS_ON_START=true` in your `.env` file to enable automatic migrations.
+
+### Service Startup Flow
+
+When the service starts (see `windows-service/service-wrapper-hybrid.js`):
+
+1. **Migration Status Check** (`prisma migrate status`)
+   - Determines if database is up to date
+   - Checks for pending migrations
+   - Detects if initial schema is needed
+
+2. **Smart Migration Strategy**:
+   - **Up to date**: Skip migrations, run seeding only
+   - **Pending migrations**: Run `prisma migrate deploy`
+   - **Fresh database**: Run `prisma db push`
+
+3. **Automatic Seeding** (`npm run seed:migration`)
+   - Runs after migrations complete
+   - Idempotent - won't duplicate data
+   - Creates/updates reference data
+
+4. **Process Isolation**:
+   - Migrations run in separate spawned process
+   - Avoids Windows DLL file locking issues
+   - Migration lock prevents concurrent runs
+
+### Migration Lock
+
+The service uses a `.migration.lock` file to prevent concurrent migrations:
+- Created before migrations start
+- Automatically removed when complete
+- 2-minute timeout if lock gets stuck
+
+---
+
+## Manual Setup (If Automated Setup Fails)
 
 ### Fresh Install:
 
@@ -176,28 +231,45 @@ node scripts/production-setup.js
 npm run build
 npm run build:service
 
-# Restart service
-npm run service:restart
+# Install and start service
+npm run service:install
+npm run service:start
 ```
 
 ### Upgrade:
 
 ```powershell
+# Stop service
+npm run service:stop
+
+# Pull code
+git pull origin main
+
 # Install/update dependencies
 npm install
 
 # Regenerate Prisma client
 npx prisma generate
 
-# Run pending migrations
-npx prisma migrate deploy
-
-# Seed any new reference data (idempotent)
-node scripts/production-setup.js
-
 # Rebuild application
 npm run build
 npm run build:service
+
+# Restart service (handles migrations automatically)
+npm run service:restart
+```
+
+### Manual Migration (Emergency Only):
+
+```powershell
+# Check migration status
+npx prisma migrate status
+
+# Deploy pending migrations
+npx prisma migrate deploy
+
+# Seed reference data
+node scripts/production-setup.js
 
 # Restart service
 npm run service:restart
@@ -211,11 +283,7 @@ npm run service:restart
 
 **Cause:** Windows DLL file locking when Prisma client is already loaded in memory.
 
-**Solution:** Run seeding in a separate process:
-```powershell
-node scripts/setup-database-schema.js   # First (schema only)
-node scripts/production-setup.js         # Second (seeding only)
-```
+**Solution:** The service wrapper handles this automatically by running migrations in separate processes.
 
 ### Issue: "Model not found on Prisma client"
 
@@ -224,31 +292,33 @@ node scripts/production-setup.js         # Second (seeding only)
 **Solution:**
 ```powershell
 npx prisma generate
-node scripts/production-setup.js
+npm run service:restart
 ```
 
-### Issue: Migration conflicts
+### Issue: Migrations not running automatically
 
-**Cause:** Database schema doesn't match migration history.
+**Cause:** `RUN_MIGRATIONS_ON_START` not set in `.env` file.
 
 **Solution:**
 ```powershell
-# Check migration status
-npx prisma migrate status
+# Add to .env file
+echo RUN_MIGRATIONS_ON_START=true >> .env
 
-# If needed, resolve conflicts
-npx prisma migrate resolve --applied <migration_name>
+# Restart service
+npm run service:restart
 ```
 
-### Issue: Admin user not created
+### Issue: Migration lock timeout
 
-**Cause:** Seeding script didn't run or failed.
+**Cause:** Previous migration crashed and left lock file.
 
 **Solution:**
 ```powershell
-node scripts/production-setup.js
-# OR
-npm run create-admin
+# Remove lock file
+del .migration.lock
+
+# Restart service
+npm run service:restart
 ```
 
 ### Issue: Service won't start after upgrade
@@ -272,7 +342,7 @@ npm run service:start
 
 ### Windows-Specific Considerations
 
-1. **DLL File Locking**: Prisma query engine DLL files are locked by Node.js processes. Always run seeding in a separate process after schema setup.
+1. **DLL File Locking**: The service wrapper automatically handles Prisma DLL locking by running migrations in separate processes.
 
 2. **Administrator Rights**: Service installation, start, stop, and restart require Administrator privileges.
 
@@ -294,14 +364,35 @@ npm run service:start
 
 The repository includes a post-merge hook (`.githooks/post-merge.ps1`) that automatically:
 - Detects what changed (dependencies, migrations, source code)
-- Runs appropriate setup commands
+- Updates dependencies
+- Regenerates Prisma client
 - Rebuilds the application
-- Reminds you to restart the service
+- Rebuilds service files
+- **Does NOT run migrations** (handled by service startup)
 
 **To install git hooks:**
 ```powershell
 npm run hooks:install
 ```
+
+### Service Lifecycle
+
+**Service Install** (`npm run service:install`):
+- Installs Windows service
+- Does NOT start service
+- Does NOT run migrations
+
+**Service Start** (`npm run service:start`):
+- Starts Windows service
+- **Automatically runs migrations** (if `RUN_MIGRATIONS_ON_START=true`)
+- **Automatically seeds data**
+- Starts sync service
+- Starts main application
+
+**Service Restart** (`npm run service:restart`):
+- Stops service
+- Starts service (with automatic migrations)
+- Best way to apply code and database changes
 
 ---
 
@@ -323,8 +414,7 @@ npm run db:push          # Push schema to database (dev only)
 ```powershell
 npm run setup            # Fresh install setup
 npm run setup:update     # Update after git pull
-npm run setup:fresh-db   # Setup database only
-npm run check:db-state   # Check database state
+npm run hooks:install    # Install git hooks
 ```
 
 ### Service Management
@@ -332,9 +422,9 @@ npm run check:db-state   # Check database state
 ```powershell
 npm run service:install   # Install Windows service
 npm run service:uninstall # Uninstall Windows service
-npm run service:start     # Start service
+npm run service:start     # Start service (runs migrations automatically)
 npm run service:stop      # Stop service
-npm run service:restart   # Restart service
+npm run service:restart   # Restart service (best for updates)
 npm run service:status    # Check service status
 ```
 
@@ -359,10 +449,10 @@ npm run create-admin     # Create admin user
 - [ ] PostgreSQL installed and running
 - [ ] Node.js 18+ installed
 - [ ] Repository cloned
-- [ ] `.env` file configured
-- [ ] Dependencies installed (`npm install`)
+- [ ] `.env` file configured with `RUN_MIGRATIONS_ON_START=true`
 - [ ] Database schema setup (`node scripts/setup-database-schema.js`)
 - [ ] Reference data seeded (`node scripts/production-setup.js`)
+- [ ] Dependencies installed (`npm install`)
 - [ ] Application built (`npm run build && npm run build:service`)
 - [ ] Service installed (`npm run service:install`)
 - [ ] Service started (`npm run service:start`)
@@ -375,7 +465,8 @@ npm run create-admin     # Create admin user
 - [ ] Service stopped
 - [ ] Code pulled (`git pull`)
 - [ ] Setup completed (automatic via post-merge hook)
-- [ ] Service restarted
+- [ ] Service restarted (`npm run service:restart`)
+- [ ] Migrations applied (automatic on service start)
 - [ ] Application tested and verified
 
 ---
@@ -386,7 +477,8 @@ For issues or questions:
 1. Check this documentation first
 2. Review error logs in `logs/` directory
 3. Check service logs: `npm run service:status`
-4. Consult the troubleshooting section above
+4. Check Windows service logs in `windows-service/daemon/service.log`
+5. Consult the troubleshooting section above
 
 ---
 
