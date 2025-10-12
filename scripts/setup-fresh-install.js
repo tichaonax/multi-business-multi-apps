@@ -148,6 +148,11 @@ async function main() {
       command: 'npm run build',
       description: 'Building the application',
       required: true
+    },
+    {
+      command: 'npm run build:service',
+      description: 'Building the Windows service',
+      required: true
     }
   ]
 
@@ -177,9 +182,16 @@ async function main() {
   }
   console.log('='.repeat(60))
   console.log('\n📖 Next steps:')
-  console.log('   1. Start the development server: npm run dev')
-  console.log('   2. Access the app at: http://localhost:8080')
-  console.log('   3. Login with: admin@business.local / admin123')
+  console.log('   For Development:')
+  console.log('     1. Start the dev server: npm run dev')
+  console.log('     2. Access the app at: http://localhost:8080')
+  console.log('     3. Login with: admin@business.local / admin123')
+  console.log('')
+  console.log('   For Production (Windows Service):')
+  console.log('     1. Install service (as Administrator): npm run service:install')
+  console.log('     2. Start service (as Administrator): npm run service:start')
+  console.log('     3. Access the app at: http://localhost:8080')
+  console.log('     4. Login with: admin@business.local / admin123')
   console.log('\n📚 For more information, see SETUP.md\n')
 }
 
