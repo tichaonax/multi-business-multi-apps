@@ -7,10 +7,9 @@
  * - FRESH INSTALL: Automatically runs database setup + seeding
  * - EXISTING DEPLOYMENT: Only rebuilds (service handles migrations)
  *
- * Fresh Install Detection (ALL must be true):
- * 1. No dist/service directory (service never built)
- * 2. Database not initialized or doesn't exist
- * 3. No users in database (empty)
+ * Fresh Install Detection:
+ * PRIMARY: Database does not exist or cannot be accessed
+ * SECONDARY: No users in database (empty database)
  *
  * Fresh Install Flow:
  * 1. npm install + build
@@ -82,50 +81,51 @@ function checkServiceInstalled() {
 // ============================================================================
 
 /**
- * Check if database is initialized (migrations applied)
- * Returns: true if initialized, false if not
+ * Check if database exists and is accessible
+ * Returns: true if exists and accessible, false if not
  */
-async function checkDatabaseInitialized() {
+async function checkDatabaseExists() {
   try {
-    log('  Checking database initialization status...', 'INFO')
-    const output = execSync('npx prisma migrate status', {
-      cwd: ROOT_DIR,
-      encoding: 'utf-8',
-      stdio: 'pipe'
-    })
+    log('  Checking if database exists...', 'INFO')
 
-    // Look for indicators of uninitialized database
-    const notInitialized = output.includes('Database schema is not initialized') ||
-                          output.includes('never been applied') ||
-                          output.includes('No migration found')
+    // Try to connect to database using Prisma
+    const { PrismaClient } = require('@prisma/client')
+    const prisma = new PrismaClient()
 
-    if (notInitialized) {
-      log('  ✓ Database: NOT INITIALIZED', 'WARN')
-      return false
-    }
+    // Try a simple query to verify database connection
+    await prisma.$queryRaw`SELECT 1`
+    await prisma.$disconnect()
 
-    log('  ✓ Database: INITIALIZED', 'SUCCESS')
+    log('  ✓ Database: EXISTS and ACCESSIBLE', 'SUCCESS')
     return true
   } catch (error) {
-    // If command fails, assume database doesn't exist or not initialized
-    log('  ✓ Database: NOT ACCESSIBLE (likely doesn\'t exist)', 'WARN')
+    // Database doesn't exist or cannot connect
+    if (error.message.includes('does not exist') ||
+        error.message.includes('Unknown database') ||
+        error.message.includes('cannot connect') ||
+        error.code === 'P1003' || // Database doesn't exist
+        error.code === 'P1001') { // Can't reach database server
+      log('  ✓ Database: DOES NOT EXIST', 'WARN')
+    } else {
+      log('  ✓ Database: NOT ACCESSIBLE', 'WARN')
+    }
     return false
   }
 }
 
 /**
  * Check if database has any users
- * Returns: true if users exist, false if empty or database doesn't exist
+ * Only called if database exists
+ * Returns: true if users exist, false if empty
  */
 async function checkHasUsers() {
   try {
     log('  Checking user count in database...', 'INFO')
 
-    // Dynamically require Prisma to avoid loading it if not generated yet
     const { PrismaClient } = require('@prisma/client')
     const prisma = new PrismaClient()
 
-    const count = await prisma.users.count()
+    const count = await prisma.user.count()
     await prisma.$disconnect()
 
     if (count === 0) {
@@ -136,42 +136,46 @@ async function checkHasUsers() {
     log(`  ✓ User count: ${count}`, 'SUCCESS')
     return true
   } catch (error) {
-    // Database doesn't exist, Prisma not generated, or users table missing
-    log('  ✓ User count: 0 (database empty or not accessible)', 'WARN')
+    // Table doesn't exist or other error - treat as empty
+    log('  ✓ User count: 0 (table not found or error)', 'WARN')
     return false
   }
 }
 
 /**
  * Determine if this is a fresh install
- * ALL conditions must be true for fresh install:
- * 1. Service never built (no dist/service)
- * 2. Database not initialized
- * 3. No users in database
+ * Primary check: Database doesn't exist
+ * Secondary check: Database exists but has no users (empty)
  */
 async function isFreshInstall() {
   console.log('\n' + '='.repeat(60))
   console.log('🔍 DETECTING INSTALLATION TYPE...')
   console.log('='.repeat(60))
 
-  const serviceExists = checkServiceInstalled()
-  log(`  Service directory: ${serviceExists ? 'FOUND' : 'NOT FOUND'}`, serviceExists ? 'SUCCESS' : 'WARN')
+  // Primary check: Does database exist?
+  const dbExists = await checkDatabaseExists()
 
-  const dbInitialized = await checkDatabaseInitialized()
+  if (!dbExists) {
+    // Database doesn't exist = definitely fresh install
+    console.log('\n' + '-'.repeat(60))
+    log('✓ DETECTION RESULT: FRESH INSTALL (database does not exist)', 'WARN')
+    console.log('-'.repeat(60) + '\n')
+    return true
+  }
+
+  // Database exists - check if it has users
   const hasUsers = await checkHasUsers()
 
-  // Conservative approach: ALL must indicate fresh install
-  const isFresh = !serviceExists && !dbInitialized && !hasUsers
-
   console.log('\n' + '-'.repeat(60))
-  if (isFresh) {
-    log('✓ DETECTION RESULT: FRESH INSTALL', 'WARN')
+  if (!hasUsers) {
+    log('✓ DETECTION RESULT: FRESH INSTALL (database empty)', 'WARN')
   } else {
     log('✓ DETECTION RESULT: EXISTING DEPLOYMENT', 'SUCCESS')
   }
   console.log('-'.repeat(60) + '\n')
 
-  return isFresh
+  // Fresh install if database doesn't exist OR database exists but is empty
+  return !hasUsers
 }
 
 /**
@@ -272,7 +276,7 @@ async function handleFreshInstall() {
 
 async function main() {
   console.log('\n' + '='.repeat(60))
-  console.log('🔄 MULTI-BUSINESS MULTI-APPS - UPDATE WORKFLOW')
+  console.log('🚀 MULTI-BUSINESS MULTI-APPS - SMART SETUP')
   console.log('='.repeat(60) + '\n')
 
   // Step 1: Install/update dependencies
