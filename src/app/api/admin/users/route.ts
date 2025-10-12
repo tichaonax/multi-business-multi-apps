@@ -28,7 +28,7 @@ export async function GET() {
               employmentStatus: true,
             },
           },
-          businessMemberships: {
+          business_memberships: {
             include: {
               business: {
                 select: {

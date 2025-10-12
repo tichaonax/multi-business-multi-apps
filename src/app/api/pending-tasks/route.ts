@@ -80,8 +80,8 @@ export async function GET(req: NextRequest) {
 
           if (!canAccessCrossBusinessProjects) {
             whereClause.OR = [
-              { project: { businessId: null } }, // Personal projects
-              { project: { businessId: { in: userBusinessIds } } } // Projects from user's businesses
+              { projects: { businessId: null } }, // Personal projects
+              { projects: { businessId: { in: userBusinessIds } } } // Projects from user's businesses
             ]
           }
         }
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
         const pendingStages = await prisma.projectStages.findMany({
           where: whereClause,
           include: {
-            project: {
+            projects: {
               select: {
                 id: true,
                 name: true,
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
             id: `stage-${stage.id}`,
             type: 'project_stage',
             title: `Project Stage: ${stage.name}`,
-            description: `Pending stage in "${stage.project?.name}" project`,
+            description: `Pending stage in "${stage.projects?.name}" project`,
             createdAt: stage.createdAt,
             priority: 'medium',
             module: 'projects',
@@ -137,8 +137,8 @@ export async function GET(req: NextRequest) {
 
           if (!canAccessCrossBusinessProjects) {
             whereClause.OR = [
-              { project: { businessId: null } }, // Personal projects
-              { project: { businessId: { in: userBusinessIds } } } // Projects from user's businesses
+              { projects: { businessId: null } }, // Personal projects
+              { projects: { businessId: { in: userBusinessIds } } } // Projects from user's businesses
             ]
           }
         }
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
         const pendingTransactions = await prisma.projectTransactions.findMany({
           where: whereClause,
           include: {
-            project: {
+            projects: {
               select: {
                 id: true,
                 name: true,
@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
             id: `transaction-${transaction.id}`,
             type: 'project_transaction',
             title: `Transaction Approval: $${Number(transaction.amount).toFixed(2)}`,
-            description: `${transaction.description} in "${transaction.project?.name}" project`,
+            description: `${transaction.description} in "${transaction.projects?.name}" project`,
             createdAt: transaction.createdAt,
             priority: 'high',
             module: 'projects',
