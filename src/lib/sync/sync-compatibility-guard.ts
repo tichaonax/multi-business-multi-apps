@@ -6,6 +6,34 @@
 
 import { SchemaVersionManager } from './schema-version-manager'
 
+// Normalize remote node objects from either snake_case (DB/raw) or camelCase (Prisma)
+function getField(obj: any, ...keys: string[]) {
+  if (!obj || typeof obj !== 'object') return undefined
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== undefined) return obj[k]
+  }
+  return undefined
+}
+
+function normalizeRemoteNode(remoteNode: any) {
+  if (!remoteNode || typeof remoteNode !== 'object') return {
+    nodeId: 'unknown', nodeName: 'unknown', schemaVersion: 'unknown'
+  }
+
+  return {
+    nodeId: String(getField(remoteNode, 'nodeId') || 'unknown'),
+    nodeName: String(getField(remoteNode, 'nodeName') || 'unknown'),
+    schemaVersion: String(getField(remoteNode, 'schemaVersion') || 'unknown'),
+    schemaHash: getField(remoteNode, 'schemaHash'),
+    migrationName: getField(remoteNode, 'migrationName'),
+    schemaAppliedAt: getField(remoteNode, 'schemaAppliedAt'),
+    schemaCompatible: ((): boolean => {
+      const v = getField(remoteNode, 'schemaCompatible')
+      return v !== undefined ? Boolean(v) : true
+    })()
+  }
+}
+
 export interface SyncAttempt {
   remoteNode: any
   timestamp: Date
@@ -37,14 +65,17 @@ export class SyncCompatibilityGuard {
     compatibilityCheck?: any
   }> {
     try {
+      // Normalize remote node fields so callers can pass either snake_case or camelCase
+      const normalized = normalizeRemoteNode(remoteNode)
+
       // Check schema compatibility
-      const compatibilityCheck = await this.schemaVersionManager.checkCompatibility(remoteNode)
+      const compatibilityCheck = await this.schemaVersionManager.checkCompatibility(normalized)
 
       const attempt: SyncAttempt = {
         remoteNode: {
-          nodeId: String(remoteNode.nodeId || remoteNode.node_id || 'unknown'),
-          nodeName: String(remoteNode.nodeName || remoteNode.node_name || 'unknown'),
-          schemaVersion: String(remoteNode.schemaVersion || remoteNode.schema_version || 'unknown')
+          nodeId: normalized.nodeId,
+          nodeName: normalized.nodeName,
+          schemaVersion: normalized.schemaVersion
         },
         timestamp: new Date(),
         allowed: compatibilityCheck.isCompatible,
@@ -57,8 +88,8 @@ export class SyncCompatibilityGuard {
       this.recordAttempt(attempt)
 
       if (!compatibilityCheck.isCompatible) {
-        const reason = compatibilityCheck.reason || 'Schema versions are incompatible'
-  console.warn(`🚫 Sync blocked with ${remoteNode.nodeName || remoteNode.node_name}: ${reason}`)
+    const reason = compatibilityCheck.reason || 'Schema versions are incompatible'
+  console.warn(`🚫 Sync blocked with ${normalized.nodeName}: ${reason}`)
 
         return {
           allowed: false,
@@ -69,7 +100,7 @@ export class SyncCompatibilityGuard {
 
       // Log compatible sync
       const level = compatibilityCheck.compatibilityLevel
-  console.log(`✅ Sync allowed with ${remoteNode.nodeName || remoteNode.node_name} (${level})`)
+  console.log(`✅ Sync allowed with ${normalized.nodeName} (${level})`)
 
       return {
         allowed: true,
@@ -80,16 +111,18 @@ export class SyncCompatibilityGuard {
       console.error('Failed to check sync compatibility:', error)
 
       // Record failed attempt
+        const normalized = normalizeRemoteNode(remoteNode)
+
         const attempt: SyncAttempt = {
-        remoteNode: {
-          nodeId: String(remoteNode.nodeId || remoteNode.node_id || 'unknown'),
-          nodeName: String(remoteNode.nodeName || remoteNode.node_name || 'unknown'),
-          schemaVersion: 'unknown'
-        },
-        timestamp: new Date(),
-        allowed: false,
-        reason: `Compatibility check failed: ${error instanceof Error ? error.message : String(error)}`
-      }
+          remoteNode: {
+            nodeId: normalized.nodeId,
+            nodeName: normalized.nodeName,
+            schemaVersion: 'unknown'
+          },
+          timestamp: new Date(),
+          allowed: false,
+          reason: `Compatibility check failed: ${error instanceof Error ? error.message : String(error)}`
+        }
 
       this.recordAttempt(attempt)
 

@@ -2,6 +2,31 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SyncCompatibilityGuard = void 0;
 exports.createSyncCompatibilityGuard = createSyncCompatibilityGuard;
+// Normalize remote node objects from either snake_case (DB/raw) or camelCase (Prisma)
+function getField(obj) {
+    for (var _i = 1; _i < arguments.length; _i++) {
+        var k = arguments[_i];
+        if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== undefined)
+            return obj[k];
+    }
+    return undefined;
+}
+function normalizeRemoteNode(remoteNode) {
+    if (!remoteNode || typeof remoteNode !== 'object')
+        return { nodeId: 'unknown', nodeName: 'unknown', schemaVersion: 'unknown' };
+    return {
+        nodeId: String(getField(remoteNode, 'nodeId') || 'unknown'),
+        nodeName: String(getField(remoteNode, 'nodeName') || 'unknown'),
+        schemaVersion: String(getField(remoteNode, 'schemaVersion') || 'unknown'),
+        schemaHash: getField(remoteNode, 'schemaHash'),
+        migrationName: getField(remoteNode, 'migrationName'),
+        schemaAppliedAt: getField(remoteNode, 'schemaAppliedAt'),
+        schemaCompatible: (function () {
+            var v = getField(remoteNode, 'schemaCompatible');
+            return v !== undefined ? Boolean(v) : true;
+        })()
+    };
+}
 class SyncCompatibilityGuard {
     constructor(schemaVersionManager) {
         this.recentAttempts = [];
@@ -10,12 +35,13 @@ class SyncCompatibilityGuard {
     }
     async isSyncAllowed(remoteNode) {
         try {
-            const compatibilityCheck = await this.schemaVersionManager.checkCompatibility(remoteNode);
+            const normalized = normalizeRemoteNode(remoteNode);
+            const compatibilityCheck = await this.schemaVersionManager.checkCompatibility(normalized);
             const attempt = {
                 remoteNode: {
-                    nodeId: String(remoteNode.nodeId || remoteNode.node_id || 'unknown'),
-                    nodeName: String(remoteNode.nodeName || remoteNode.node_name || 'unknown'),
-                    schemaVersion: String(remoteNode.schemaVersion || remoteNode.schema_version || 'unknown')
+                    nodeId: normalized.nodeId,
+                    nodeName: normalized.nodeName,
+                    schemaVersion: normalized.schemaVersion
                 },
                 timestamp: new Date(),
                 allowed: compatibilityCheck.isCompatible,
@@ -26,7 +52,7 @@ class SyncCompatibilityGuard {
             this.recordAttempt(attempt);
             if (!compatibilityCheck.isCompatible) {
                 const reason = compatibilityCheck.reason || 'Schema versions are incompatible';
-                console.warn(`🚫 Sync blocked with ${remoteNode.nodeName || remoteNode.node_name}: ${reason}`);
+                console.warn(`🚫 Sync blocked with ${normalized.nodeName}: ${reason}`);
                 return {
                     allowed: false,
                     reason,
@@ -34,7 +60,7 @@ class SyncCompatibilityGuard {
                 };
             }
             const level = compatibilityCheck.compatibilityLevel;
-            console.log(`✅ Sync allowed with ${remoteNode.nodeName || remoteNode.node_name} (${level})`);
+            console.log(`✅ Sync allowed with ${normalized.nodeName} (${level})`);
             return {
                 allowed: true,
                 compatibilityCheck
@@ -42,10 +68,11 @@ class SyncCompatibilityGuard {
         }
         catch (error) {
             console.error('Failed to check sync compatibility:', error);
+            const normalized = normalizeRemoteNode(remoteNode);
             const attempt = {
                 remoteNode: {
-                    nodeId: String(remoteNode.nodeId || remoteNode.node_id || 'unknown'),
-                    nodeName: String(remoteNode.nodeName || remoteNode.node_name || 'unknown'),
+                    nodeId: normalized.nodeId,
+                    nodeName: normalized.nodeName,
                     schemaVersion: 'unknown'
                 },
                 timestamp: new Date(),

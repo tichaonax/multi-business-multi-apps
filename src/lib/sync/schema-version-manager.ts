@@ -257,16 +257,27 @@ export class SchemaVersionManager {
     }
 
     try {
-      await this.prisma.$executeRaw`
-        UPDATE sync_nodes
-        SET
-          schema_version = ${this.currentVersion.version},
-          schema_hash = ${this.currentVersion.hash},
-          migration_name = ${this.currentVersion.migrationName},
-          schema_applied_at = ${this.currentVersion.appliedAt},
-          updated_at = NOW()
-        WHERE node_id = ${this.nodeId};
-      `
+      // Use Prisma client to update the SyncNode record so field mappings are respected
+      await this.prisma.syncNode.upsert({
+        where: { nodeId: this.nodeId },
+        update: {
+          schemaVersion: this.currentVersion.version,
+          schemaHash: this.currentVersion.hash,
+          migrationName: this.currentVersion.migrationName,
+          schemaAppliedAt: this.currentVersion.appliedAt,
+          updatedAt: new Date()
+        },
+        create: {
+          id: this.nodeId, // assume nodeId can be used as id when creating - keep existing behavior if desired
+          nodeId: this.nodeId,
+          nodeName: this.nodeId,
+          schemaVersion: this.currentVersion.version,
+          schemaHash: this.currentVersion.hash,
+          migrationName: this.currentVersion.migrationName,
+          schemaAppliedAt: this.currentVersion.appliedAt,
+          updatedAt: new Date()
+        }
+      })
     } catch (error) {
       console.error('Failed to update node schema version:', error)
       // Don't throw - this is not critical for operation
@@ -340,18 +351,22 @@ export class SchemaVersionManager {
   }> {
     try {
       // Get all sync nodes
-      const nodes = await this.prisma.$queryRaw`
-        SELECT
-          node_id AS "nodeId",
-          node_name AS "nodeName",
-          schema_version AS "schemaVersion",
-          schema_hash AS "schemaHash",
-          migration_name AS "migrationName",
-          schema_applied_at AS "schemaAppliedAt",
-          is_active AS "isActive"
-        FROM sync_nodes
-        WHERE is_active = true AND node_id != ${this.nodeId};
-      ` as any[]
+      // Use Prisma client to fetch active nodes, excluding this node
+      const nodes = await this.prisma.syncNode.findMany({
+        where: {
+          isActive: true,
+          nodeId: { not: this.nodeId }
+        },
+        select: {
+          nodeId: true,
+          nodeName: true,
+          schemaVersion: true,
+          schemaHash: true,
+          migrationName: true,
+          schemaAppliedAt: true,
+          isActive: true
+        }
+      }) as any[]
 
       const nodeDetails = []
       let compatibleCount = 0
