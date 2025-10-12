@@ -68,30 +68,75 @@ function modelExists(modelName) {
     return false
   }
 }
+// Build a list of available Prisma model names (keys on the client that look like model delegates)
+function getAvailablePrismaModels() {
+  try {
+    return Object.keys(prisma).filter(k => {
+      try {
+        const maybe = prisma[k]
+        return maybe && (typeof maybe.count === 'function' || typeof maybe.findFirst === 'function' || typeof maybe.findMany === 'function')
+      } catch (e) {
+        return false
+      }
+    })
+  } catch (err) {
+    return []
+  }
+}
+
+function toSnakeCase(str) {
+  return str.replace(/([A-Z])/g, '_$1').replace(/\./g, '_').toLowerCase().replace(/^_/, '')
+}
+
+function toCamelCase(str) {
+  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+}
 
 function resolveModelName(modelName, remap = {}) {
   // User-supplied remap (CLI or programmatic) takes highest precedence
   if (remap && remap[modelName]) return remap[modelName]
 
   // Default internal remaps for legacy seeder names that no longer match
-  // current Prisma model names. Schema uses snake_case model names!
+  // current Prisma model names. We'll try candidates dynamically against the generated client.
   const DEFAULT_MODEL_REMAP = {
-    // Legacy camelCase seeder names -> actual snake_case Prisma model names
-    phoneNumberTemplate: 'id_format_templates',
-    dateFormatTemplate: 'id_format_templates',
-    idFormatTemplate: 'id_format_templates',
-    driverLicenseTemplate: 'driver_license_templates',
-    jobTitle: 'job_titles',
-    compensationType: 'compensation_types',
-    benefitType: 'benefit_types',
-    projectType: 'project_types',
-    personalCategory: 'expense_categories',
-    expenseCategory: 'expense_categories',
-    user: 'users'
+    // Legacy seeder names -> actual Prisma camelCase model names (after PascalCase conversion)
+    phoneNumberTemplate: 'idFormatTemplates',    // PhoneNumber templates are stored in IdFormatTemplates
+    dateFormatTemplate: 'idFormatTemplates',     // Date templates are stored in IdFormatTemplates
+    idFormatTemplate: 'idFormatTemplates',       // ID Format Templates (camelCase plural)
+    driverLicenseTemplate: 'driverLicenseTemplates', // Driver License Templates (camelCase plural)
+    jobTitle: 'jobTitles',                       // Job Titles (camelCase plural)
+    compensationType: 'compensationTypes',       // Compensation Types (camelCase plural)
+    benefitType: 'benefitTypes',                 // Benefit Types (camelCase plural)
+    projectType: 'projectTypes',                 // Project Types (camelCase plural)
+    personalCategory: 'expenseCategories',       // Personal categories stored in ExpenseCategories
+    expenseCategory: 'expenseCategories',        // Expense Categories (camelCase plural)
+    user: 'users'                                // Users (camelCase plural)
   }
 
-  if (DEFAULT_MODEL_REMAP[modelName]) return DEFAULT_MODEL_REMAP[modelName]
+  // Start from explicit default remap value if present
+  const candidates = []
+  if (DEFAULT_MODEL_REMAP[modelName]) candidates.push(DEFAULT_MODEL_REMAP[modelName])
+  // also try the original modelName as declared in legacy scripts
+  candidates.push(modelName)
+  // try common case conversions
+  candidates.push(toSnakeCase(modelName))
+  candidates.push(toCamelCase(modelName))
 
+  // gather available models from the generated Prisma client
+  const available = getAvailablePrismaModels()
+
+  for (const cand of candidates) {
+    if (!cand) continue
+    if (available.includes(cand) || modelExists(cand)) {
+      if (cand !== modelName) {
+        log(`Resolved seeder model '${modelName}' -> '${cand}'`, colors.magenta)
+      }
+      return cand
+    }
+  }
+
+  // If we couldn't find a candidate, return original and let caller handle the missing-model case
+  warning(`Could not resolve Prisma model for seeder key '${modelName}'. Tried: ${JSON.stringify(candidates)}. Ensure you ran 'npx prisma generate' and that the model exists in prisma/schema.prisma.`)
   return modelName
 }
 

@@ -372,18 +372,35 @@ async function main() {
     // Preflight: ensure critical tables exist before attempting upserts
     try {
         // Cast regclass to text so Prisma can deserialize the value
-        const tableCheck = await prisma.$queryRaw`SELECT to_regclass('public.idFormatTemplates')::text as tbl`
+        // Check both the Prisma model-based name (camelCase) and the actual DB table (snake_case)
+        const candidates = ['public.idFormatTemplates', 'public.id_format_templates']
 
-        // Normalize result shapes returned by Prisma: could be array of rows or single object
-        let exists = false
-        if (Array.isArray(tableCheck)) {
-          exists = !!(tableCheck[0] && (tableCheck[0].tbl || tableCheck[0].tbl === '')) && tableCheck[0].tbl !== null
-        } else if (tableCheck && typeof tableCheck === 'object') {
-          exists = !!(tableCheck.tbl || tableCheck.tbl === '')
+        let found = false
+        let foundName = null
+
+        for (const candidate of candidates) {
+          // parameterize candidate so we don't interpolate raw strings into SQL
+          const tableCheck = await prisma.$queryRaw`SELECT to_regclass(${candidate})::text as tbl`
+
+          // Normalize result shapes returned by Prisma: could be array of rows or single object
+          let exists = false
+          if (Array.isArray(tableCheck)) {
+            exists = !!(tableCheck[0] && (tableCheck[0].tbl || tableCheck[0].tbl === '')) && tableCheck[0].tbl !== null
+          } else if (tableCheck && typeof tableCheck === 'object') {
+            exists = !!(tableCheck.tbl || tableCheck.tbl === '')
+          }
+
+          if (exists) {
+            found = true
+            foundName = candidate
+            break
+          }
         }
 
-        if (!exists) {
-          throw new Error('Required table public.idFormatTemplates not found. Ensure database exists and run `npx prisma db push --force-reset` or apply migrations before seeding.')
+        if (!found) {
+          throw new Error('Required table not found. Expected one of: public.idFormatTemplates or public.id_format_templates. Ensure database exists and run `npx prisma db push --force-reset` or apply migrations before seeding.')
+        } else {
+          console.log(`✅ Preflight: found table ${foundName}`)
         }
     } catch (err) {
       console.error('❌ Preflight check failed:', err && err.message ? err.message : err)
