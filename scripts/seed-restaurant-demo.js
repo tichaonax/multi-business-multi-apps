@@ -6,7 +6,7 @@ async function upsertCategory(businessId, name, description) {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
   const id = `${businessId}-cat-${slug}`
   const now = new Date()
-  return prisma.businessCategory.upsert({
+  return prisma.businessCategories.upsert({
     where: { businessId_name: { businessId, name } },
     update: { description, updatedAt: now },
     create: { id, businessId, name, description, businessType: 'restaurant', createdAt: now, updatedAt: now }
@@ -17,7 +17,7 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   let product
 
   if (itemData.sku) {
-    product = await prisma.businessProduct.upsert({
+    product = await prisma.businessProducts.upsert({
       where: { businessId_sku: { businessId, sku: itemData.sku } },
       update: { description: itemData.description || '', basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, attributes: itemData.attributes || {}, updatedAt: new Date() },
       create: {
@@ -38,17 +38,17 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
       }
     })
   } else {
-    const existing = await prisma.businessProduct.findFirst({ where: { businessId, name: itemData.name } })
+    const existing = await prisma.businessProducts.findFirst({ where: { businessId, name: itemData.name } })
     if (existing) {
-      product = await prisma.businessProduct.update({ where: { id: existing.id }, data: { description: itemData.description || '', basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, attributes: itemData.attributes || {} } })
+      product = await prisma.businessProducts.update({ where: { id: existing.id }, data: { description: itemData.description || '', basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, attributes: itemData.attributes || {} } })
     } else {
-      product = await prisma.businessProduct.create({ data: { id: `${businessId}-prod-${itemData.name.replace(/\s+/g,'-').toUpperCase()}`, businessId, name: itemData.name, description: itemData.description || '', sku: null, barcode: itemData.barcode || null, categoryId: categoryId || undefined, basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, businessType: 'restaurant', isActive: true, attributes: itemData.attributes || {}, createdAt: new Date(), updatedAt: new Date() } })
+      product = await prisma.businessProducts.create({ data: { id: `${businessId}-prod-${itemData.name.replace(/\s+/g,'-').toUpperCase()}`, businessId, name: itemData.name, description: itemData.description || '', sku: null, barcode: itemData.barcode || null, categoryId: categoryId || undefined, basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, businessType: 'restaurant', isActive: true, attributes: itemData.attributes || {}, createdAt: new Date(), updatedAt: new Date() } })
     }
   }
 
   // Create default variant
   const variantSku = itemData.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-DFT`
-  const variant = await prisma.productVariant.upsert({
+  const variant = await prisma.productVariants.upsert({
     where: { sku: variantSku },
     update: { price: itemData.basePrice, stockQuantity: initialStock || 0, isActive: true, updatedAt: new Date() },
     create: {
@@ -77,7 +77,7 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
     for (const s of sizes) {
       const sku = `${product.name.replace(/\s+/g, '-').toUpperCase()}-${s.name.toUpperCase().slice(0,3)}`.replace(/[^A-Z0-9-]/g, '')
       const price = Math.round((itemData.basePrice * s.factor + Number.EPSILON) * 100) / 100
-      await prisma.productVariant.upsert({
+      await prisma.productVariants.upsert({
         where: { sku },
         update: { price, stockQuantity: initialStock || 0, isActive: true, name: s.name, updatedAt: new Date() },
         create: { id: `${product.id}-variant-${sku}`, productId: product.id, name: s.name, sku, barcode: itemData.barcode || null, price, stockQuantity: initialStock || 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }
@@ -86,7 +86,7 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   }
 
   if (initialStock && initialStock > 0) {
-    await prisma.businessStockMovement.create({
+    await prisma.businessStockMovements.create({
       data: {
           id: `${businessId}-stock-${variant.id}-${Date.now()}`,
         businessId,
@@ -101,13 +101,13 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
       }
     })
 
-    await prisma.productVariant.update({ where: { id: variant.id }, data: { stockQuantity: initialStock } })
+    await prisma.productVariants.update({ where: { id: variant.id }, data: { stockQuantity: initialStock } })
   }
 
   if (itemData.attributes) {
     const attrData = Object.entries(itemData.attributes).map(([key, value], idx) => ({ id: `${product.id}-attr-${idx}-${key}`, productId: product.id, key, value: String(value), createdAt: new Date() }))
-    await prisma.productAttribute.deleteMany({ where: { productId: product.id } }).catch(() => {})
-    if (attrData.length > 0) await prisma.productAttribute.createMany({ data: attrData })
+    await prisma.productAttributes.deleteMany({ where: { productId: product.id } }).catch(() => {})
+    if (attrData.length > 0) await prisma.productAttributes.createMany({ data: attrData })
   }
 
   // Ensure POS attributes exist on the businessProduct.attributes JSON for POS behavior
@@ -117,7 +117,7 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   // printToKitchen true for food-like items, false for drinks
   const isDrink = (itemData.category || '').toLowerCase().includes('drink') || (itemData.attributes && itemData.attributes.chilled)
   posAttrs.printToKitchen = typeof posAttrs.printToKitchen === 'boolean' ? posAttrs.printToKitchen : !isDrink
-  await prisma.businessProduct.update({ where: { id: product.id }, data: { attributes: posAttrs } })
+  await prisma.businessProducts.update({ where: { id: product.id }, data: { attributes: posAttrs } })
 
   return { product, variant }
 }
@@ -178,7 +178,7 @@ async function seed() {
           ]
 
           // delete existing images for product (idempotent)
-          await prisma.productImage.deleteMany({ where: { productId: product.id } }).catch(() => {})
+          await prisma.productImages.deleteMany({ where: { productId: product.id } }).catch(() => {})
 
           const imgData = sampleImages.map((url, idx) => ({
             id: `${product.id}-img-${idx}`,
@@ -193,7 +193,7 @@ async function seed() {
             updatedAt: new Date()
           }))
 
-          await prisma.productImage.createMany({ data: imgData })
+          await prisma.productImages.createMany({ data: imgData })
         } catch (err) {
           console.error('Failed to attach product images for', product.id, err)
         }
@@ -201,7 +201,7 @@ async function seed() {
 
     // Create a few sample orders referencing created products (idempotent upsert)
     try {
-      const products = await prisma.businessProduct.findMany({ where: { businessId } })
+      const products = await prisma.businessProducts.findMany({ where: { businessId } })
       if (products.length > 0) {
         console.log('\n🍽️ Creating sample restaurant orders...')
         const sampleOrders = [
@@ -211,7 +211,7 @@ async function seed() {
         ]
 
         for (const o of sampleOrders) {
-          const existing = await prisma.businessOrder.findFirst({ where: { businessId, orderNumber: o.orderNumber } })
+          const existing = await prisma.businessOrders.findFirst({ where: { businessId, orderNumber: o.orderNumber } })
           const orderData = {
             businessId,
             orderNumber: o.orderNumber,
@@ -226,27 +226,27 @@ async function seed() {
             attributes: { demoSeed: true }
           }
 
-          const order = await prisma.businessOrder.upsert({ where: { businessId_orderNumber: { businessId, orderNumber: o.orderNumber } }, update: { ...orderData, updatedAt: new Date() }, create: { ...orderData, id: `${businessId}-order-${o.orderNumber}`, createdAt: new Date(), updatedAt: new Date() } })
+          const order = await prisma.businessOrders.upsert({ where: { businessId_orderNumber: { businessId, orderNumber: o.orderNumber } }, update: { ...orderData, updatedAt: new Date() }, create: { ...orderData, id: `${businessId}-order-${o.orderNumber}`, createdAt: new Date(), updatedAt: new Date() } })
 
           // Build order items by looking up product variants (prefer Regular variant if exists)
           let subtotal = 0
-          await prisma.businessOrderItem.deleteMany({ where: { orderId: order.id } }).catch(() => {})
+          await prisma.businessOrderItems.deleteMany({ where: { orderId: order.id } }).catch(() => {})
           for (const it of o.items) {
             const prod = products.find(p => p.name === it.name)
             if (!prod) continue
             // Prefer 'Regular' variant
-            const variant = await prisma.productVariant.findFirst({ where: { productId: prod.id, name: 'Regular' } })
-            const chosen = variant || await prisma.productVariant.findFirst({ where: { productId: prod.id } })
+            const variant = await prisma.productVariants.findFirst({ where: { productId: prod.id, name: 'Regular' } })
+            const chosen = variant || await prisma.productVariants.findFirst({ where: { productId: prod.id } })
             if (!chosen) continue
             const unitPrice = Number(chosen.price || prod.basePrice || 0)
             const totalPrice = Math.round((unitPrice * it.qty + Number.EPSILON) * 100) / 100
             subtotal += totalPrice
-            await prisma.businessOrderItem.create({ data: { id: `${order.id}-item-${chosen.id}-${Math.random().toString(36).slice(2,8)}`, orderId: order.id, productVariantId: chosen.id, quantity: it.qty, unitPrice, totalPrice, createdAt: new Date() } })
+            await prisma.businessOrderItems.create({ data: { id: `${order.id}-item-${chosen.id}-${Math.random().toString(36).slice(2,8)}`, orderId: order.id, productVariantId: chosen.id, quantity: it.qty, unitPrice, totalPrice, createdAt: new Date() } })
           }
 
           const tax = Math.round((subtotal * 0.15 + Number.EPSILON) * 100) / 100
           const total = Math.round((subtotal + tax + Number.EPSILON) * 100) / 100
-          await prisma.businessOrder.update({ where: { id: order.id }, data: { subtotal, taxAmount: tax, totalAmount: total } })
+          await prisma.businessOrders.update({ where: { id: order.id }, data: { subtotal, taxAmount: tax, totalAmount: total } })
 
           console.log('Created/updated sample order', order.orderNumber, 'total', total)
 
@@ -268,7 +268,7 @@ async function seed() {
             attributes: { parentOrderId: order.id, ticketStatus: 'OPEN', ticketType: 'KITCHEN', demoSeed: true }
           }
 
-          await prisma.businessOrder.upsert({ where: { businessId_orderNumber: { businessId, orderNumber: ticketNumber } }, update: { ...ticketData, updatedAt: new Date() }, create: { ...ticketData, id: `${businessId}-order-${ticketNumber}`, createdAt: new Date(), updatedAt: new Date() } })
+          await prisma.businessOrders.upsert({ where: { businessId_orderNumber: { businessId, orderNumber: ticketNumber } }, update: { ...ticketData, updatedAt: new Date() }, create: { ...ticketData, id: `${businessId}-order-${ticketNumber}`, createdAt: new Date(), updatedAt: new Date() } })
           console.log('Created kitchen ticket for', order.orderNumber)
         }
       }

@@ -108,14 +108,14 @@ async function createSimpleRestaurantOrders() {
         createdAt: new Date(Date.now() - (orderInfo.hoursAgo * 60 * 60 * 1000))
       }
 
-      const order = await prisma.businessOrder.upsert({
+      const order = await prisma.businessOrders.upsert({
         where: { businessId_orderNumber: { businessId: hxiEats.id, orderNumber: orderInfo.orderNumber } },
         update: orderDataObj,
         create: orderDataObj
       })
 
       // Ensure order items are idempotent: remove existing items then recreate
-      await prisma.businessOrderItem.deleteMany({ where: { orderId: order.id } }).catch(() => {})
+      await prisma.businessOrderItems.deleteMany({ where: { orderId: order.id } }).catch(() => {})
 
       // Create order items
       const items = []
@@ -123,7 +123,7 @@ async function createSimpleRestaurantOrders() {
         for (const item of orderInfo.items) {
           const productVariant = item.productVariant || null
           if (productVariant) {
-            const createdItem = await prisma.businessOrderItem.create({
+            const createdItem = await prisma.businessOrderItems.create({
               data: {
                 orderId: order.id,
                 productVariantId: productVariant.id,
