@@ -22,12 +22,22 @@ interface User {
   isActive: boolean
   passwordResetRequired: boolean
   permissions?: Partial<UserLevelPermissions>
-  businessMemberships: Array<{
+  employee?: {
+    id: string
+    fullName: string
+    employeeNumber: string
+    employmentStatus: string
+  }
+  businessMemberships?: Array<{
     businessId: string
     role: string
     permissions: any
     templateId?: string
     isActive: boolean
+    template?: {
+      id: string
+      name: string
+    }
     business: {
       id: string
       name: string
@@ -126,7 +136,7 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
     setUserLevelPermissions(currentUserPermissions)
 
     // Initialize business memberships from user data
-    const initialMemberships = user.businessMemberships.map((membership, index) => {
+    const initialMemberships = (user.businessMemberships || []).map((membership, index) => {
       const roleKey = membership.role as keyof typeof BUSINESS_PERMISSION_PRESETS
       const defaultPermissions = BUSINESS_PERMISSION_PRESETS[roleKey] || BUSINESS_PERMISSION_PRESETS.employee
       const currentPermissions = membership.permissions as Partial<BusinessPermissions>

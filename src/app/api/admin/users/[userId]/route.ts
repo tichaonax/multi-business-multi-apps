@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
 import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions, UserLevelPermissions } from '@/types/permissions'
 
 interface UserUpdateRequest {
@@ -66,7 +66,7 @@ export async function GET(
       include: {
         businessMemberships: {
           include: {
-            business: {
+            businesses: {
               select: {
                 id: true,
                 name: true,
@@ -95,16 +95,16 @@ export async function GET(
       updatedAt: user.updatedAt,
       businessMemberships: user.businessMemberships.map(membership => ({
         businessId: membership.businessId,
-        businessName: membership.business.name,
-        businessType: membership.business.type,
+        businessName: membership.businesses.name,
+        businessType: membership.businesses.type,
         role: membership.role,
         permissions: membership.permissions,
         templateId: membership.templateId,
         isActive: membership.isActive,
-        business: {
-          id: membership.business.id,
-          name: membership.business.name,
-          type: membership.business.type
+        businesses: {
+          id: membership.businesses.id,
+          name: membership.businesses.name,
+          type: membership.businesses.type
         }
       }))
     }
@@ -144,7 +144,7 @@ export async function PATCH(
           isActive: true,
         },
         include: {
-          business: true,
+          businesses: true,
         }
       })
 
@@ -196,7 +196,7 @@ export async function PATCH(
       include: {
         businessMemberships: {
           include: {
-            business: {
+            businesses: {
               select: { name: true }
             }
           }
@@ -214,7 +214,7 @@ export async function PATCH(
     // Update user and business memberships with transaction
     const result = await prisma.$transaction(async (tx) => {
       // Update basic user info and user-level permissions
-      const updatedUser = await tx.user.update({
+      const updatedUser = await tx.users.update({
         where: { id: userId },
         data: {
           name: basicInfo.name,
@@ -226,13 +226,13 @@ export async function PATCH(
       })
 
       // Get current business memberships
-      const currentMemberships = await tx.businessMembership.findMany({
+      const currentMemberships = await tx.businessMemberships.findMany({
         where: { userId }
       })
 
       // Delete existing memberships that are not in the new list
       const newBusinessIds = businessMemberships.map(m => m.businessId)
-      await tx.businessMembership.deleteMany({
+      await tx.businessMemberships.deleteMany({
         where: {
           userId,
           businessId: {
@@ -273,7 +273,7 @@ export async function PATCH(
           }
         }
 
-        const membership = await tx.businessMembership.upsert({
+        const membership = await tx.businessMemberships.upsert({
           where: {
             userId_businessId: {
               userId,
@@ -281,7 +281,7 @@ export async function PATCH(
             }
           },
           create: {
-            id: randomUUID(),
+            id: randomBytes(12).toString('hex'),
             userId,
             businessId: membershipData.businessId,
             role: membershipData.role,
@@ -300,7 +300,7 @@ export async function PATCH(
             lastAccessedAt: new Date(),
           },
           include: {
-            business: {
+            businesses: {
               select: { name: true }
             }
           }
@@ -322,7 +322,7 @@ export async function PATCH(
         isActive: result.user.isActive,
         businessMemberships: result.memberships.map(m => ({
           businessId: m.businessId,
-          businessName: m.business.name,
+          businessName: m.businesses.name,
           role: m.role,
           isActive: m.isActive
         }))
