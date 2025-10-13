@@ -390,10 +390,10 @@ export function ProjectDetailModal({ projectId, isOpen, onClose, onUpdate }: Pro
                     {project.contractors.map((contractor) => (
                       <div key={contractor.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
                         <div>
-                          <p className="font-medium text-primary">{contractor.person.fullName}</p>
+                          <p className="font-medium text-primary">{contractor.persons.fullName}</p>
                           <div className="flex gap-4 text-sm text-secondary">
-                            {contractor.person.phone && <span>📞 {contractor.person.phone}</span>}
-                            {contractor.person.email && <span>📧 {contractor.person.email}</span>}
+                            {contractor.persons.phone && <span>📞 {contractor.persons.phone}</span>}
+                            {contractor.persons.email && <span>📧 {contractor.persons.email}</span>}
                           </div>
                         </div>
                       </div>
@@ -467,8 +467,8 @@ export function ProjectDetailModal({ projectId, isOpen, onClose, onUpdate }: Pro
               {project.business && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 border border-blue-200 dark:border-blue-700 rounded-md">
                   <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Business</h3>
-                  <p className="text-blue-900 dark:text-blue-100">{project.business.businessName}</p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300 capitalize">{project.business.businessType}</p>
+                  <p className="text-blue-900 dark:text-blue-100">{project.businesses.businessName}</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 capitalize">{project.businesses.businessType}</p>
                 </div>
               )}
 

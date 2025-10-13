@@ -237,18 +237,18 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
 
                       {vehicle.business && (
                         <div className="mt-2 text-sm text-secondary">
-                          <span className="font-medium">Business:</span> {vehicle.business.name}
+                          <span className="font-medium">Business:</span> {vehicle.businesses.name}
                         </div>
                       )}
 
                       {vehicle.user && (
                         <div className="mt-1 text-sm text-secondary">
-                          <span className="font-medium">Owner:</span> {vehicle.user.name}
+                          <span className="font-medium">Owner:</span> {vehicle.users.name}
                         </div>
                       )}
 
                       {/* License Status */}
-                      {vehicle.vehicleLicenses && vehicle.vehicleLicenses.length > 0 && (
+                      {vehicle.vehicleLicenses && vehicle.vehicle_licenses.length > 0 && (
                         <div className="mt-2">
                           <LicenseStatusIndicator
                             licenses={vehicle.vehicleLicenses}

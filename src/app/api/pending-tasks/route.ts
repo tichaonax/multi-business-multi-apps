@@ -8,7 +8,7 @@ import { SessionUser } from '@/lib/permission-utils'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const pendingTransactions = await prisma.projectTransactions.findMany({
+        const pendingTransactions = await prisma.project_transactions.findMany({
           where: whereClause,
           include: {
             projects: {

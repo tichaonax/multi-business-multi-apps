@@ -62,7 +62,7 @@ export default function Dashboard() {
 
   // Fetch available users for filtering (admin only)
   const fetchAvailableUsers = async () => {
-    if (session?.user?.role !== 'admin') return
+    if (session?.users?.role !== 'admin') return
 
     try {
       const response = await fetch('/api/admin/users')
@@ -377,7 +377,7 @@ export default function Dashboard() {
     <ProtectedRoute>
       <MainLayout>
         <ContentLayout
-          title={`🏠 Welcome back, ${session?.user?.name}!`}
+          title={`🏠 Welcome back, ${session?.users?.name}!`}
           subtitle={isDriver
             ? "Your driver dashboard - log trips and maintenance for your authorized vehicles."
             : "Here's what's happening across your business operations today."
@@ -414,7 +414,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-secondary mb-1">Driver Name</p>
-                  <p className="font-medium text-primary">{session?.user?.name}</p>
+                  <p className="font-medium text-primary">{session?.users?.name}</p>
                 </div>
                 <div>
                   <p className="text-sm text-secondary mb-1">Account Type</p>
@@ -630,14 +630,14 @@ export default function Dashboard() {
                   className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 >
                   <option value="my">My Activities</option>
-                  {session?.user?.role === 'admin' && <option value="all">All Activities</option>}
-                  {session?.user?.role === 'admin' && <option value="user">By User</option>}
+                  {session?.users?.role === 'admin' && <option value="all">All Activities</option>}
+                  {session?.users?.role === 'admin' && <option value="user">By User</option>}
                   <option value="business">By Business</option>
                 </select>
               </div>
 
               {/* User Selector (when scope is 'user') */}
-              {activityFilterScope === 'user' && session?.user?.role === 'admin' && (
+              {activityFilterScope === 'user' && session?.users?.role === 'admin' && (
                 <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
                   <label className="text-sm font-medium text-primary flex-shrink-0">User:</label>
                   <select
@@ -1020,22 +1020,22 @@ export default function Dashboard() {
                             <h4 className="font-medium text-gray-900 dark:text-gray-100">Business Sales</h4>
                           </div>
                           <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                            {revenueBreakdown.business.percentage?.toFixed(1)}%
+                            {revenueBreakdown.businesses.percentage?.toFixed(1)}%
                           </span>
                         </div>
                         <div className="space-y-2">
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-600 dark:text-gray-400">Revenue:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">${revenueBreakdown.business.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">${revenueBreakdown.businesses.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-600 dark:text-gray-400">Orders:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{revenueBreakdown.business.count}</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{revenueBreakdown.businesses.count}</span>
                           </div>
                           <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
                             <div
                               className="bg-green-500 h-2 rounded-full"
-                              style={{ width: `${revenueBreakdown.business.percentage || 0}%` }}
+                              style={{ width: `${revenueBreakdown.businesses.percentage || 0}%` }}
                             ></div>
                           </div>
                         </div>
@@ -1117,7 +1117,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-green-600">
-                          ${revenueBreakdown.business?.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
+                          ${revenueBreakdown.businesses?.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">Business</div>
                       </div>
@@ -1431,7 +1431,7 @@ export default function Dashboard() {
                               <div className="flex items-center mt-2 space-x-4">
                                 {project.business ? (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
-                                    {project.business.businessName} ({project.business.businessType})
+                                    {project.businesses.businessName} ({project.businesses.businessType})
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">

@@ -93,8 +93,8 @@ export function calculateRollbackAmounts(
   const expenseAmount = Number(expense.amount)
 
   // Calculate project transaction rollbacks
-  if (expense.projectTransactions && expense.projectTransactions.length > 0) {
-    expense.projectTransactions.forEach(transaction => {
+  if (expense.projectTransactions && expense.project_transactions.length > 0) {
+    expense.project_transactions.forEach(transaction => {
       const projectAmount = Number(transaction.personalExpense?.amount || 0)
       if (projectAmount > 0 && transaction.constructionProject) {
         result.projectAdjustments.push({

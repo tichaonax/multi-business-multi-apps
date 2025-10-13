@@ -389,12 +389,12 @@ export default function NewExpensePage() {
         if (Array.isArray(data)) {
           const projectContractorData = data.map(pc => ({
             id: pc.id,
-            name: pc.person?.fullName || 'Unknown',
+            name: pc.persons?.fullName || 'Unknown',
             projectId: pc.projectId,
-            email: pc.person?.email,
-            phone: pc.person?.phone,
-            nationalId: pc.person?.nationalId,
-            idTemplateId: pc.person?.idFormatTemplateId,
+            email: pc.persons?.email,
+            phone: pc.persons?.phone,
+            nationalId: pc.persons?.nationalId,
+            idTemplateId: pc.persons?.idFormatTemplateId,
             createdAt: pc.createdAt,
             person: pc.person
           }))
@@ -594,12 +594,12 @@ export default function NewExpensePage() {
     if (formData.paymentType === 'contractor') {
       // Show all active contractors for direct contractor payments (person.id)
       return (Array.isArray(contractors) ? contractors : []).filter(c =>
-        c.person?.isActive === true
+        c.persons?.isActive === true
       )
     } else if (formData.paymentType === 'project') {
       // Show project-specific contractors for project payments (projectContractor.id)
       return (Array.isArray(projectContractors) ? projectContractors : []).filter(c =>
-        c.person?.isActive === true
+        c.persons?.isActive === true
       )
     }
     return []
@@ -930,8 +930,8 @@ export default function NewExpensePage() {
                       {Array.isArray(projects) && projects.map(project => (
                         <option key={project.id} value={project.id}>
                           ⚡ {project.name}
-                          {project.projectType && ` (${project.projectType.name})`}
-                          {project.business && ` - ${project.business.name}`}
+                          {project.projectType && ` (${project.project_types.name})`}
+                          {project.business && ` - ${project.businesses.name}`}
                           {!project.business && ' - Personal'}
                         </option>
                       ))}
@@ -1006,7 +1006,7 @@ export default function NewExpensePage() {
                   <option value="">Select a contractor</option>
                   {filteredContractors.map(contractor => (
                     <option key={contractor.id} value={contractor.id}>
-                      👷 {contractor.person?.fullName || contractor.name || 'Unnamed Contractor'}
+                      👷 {contractor.persons?.fullName || contractor.name || 'Unnamed Contractor'}
                     </option>
                   ))}
                 </select>
@@ -1039,8 +1039,8 @@ export default function NewExpensePage() {
                   <option value="">Select a project contractor</option>
                   {Array.isArray(projectContractors) && projectContractors.map(contractor => (
                     <option key={contractor.id} value={contractor.id}>
-                      👷 {contractor.person?.fullName || contractor.name || 'Unnamed Contractor'}
-                      {contractor.person?.phone && ` (${contractor.person.phone})`}
+                      👷 {contractor.persons?.fullName || contractor.name || 'Unnamed Contractor'}
+                      {contractor.persons?.phone && ` (${contractor.persons.phone})`}
                     </option>
                   ))}
                 </select>

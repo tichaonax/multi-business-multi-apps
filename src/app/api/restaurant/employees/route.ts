@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userPermissions = session.user.permissions || {}
+  const userPermissions = session.users.permissions || {}
   if (!hasPermission(userPermissions, 'restaurant', 'write')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }

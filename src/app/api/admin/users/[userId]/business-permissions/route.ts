@@ -16,7 +16,7 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -103,7 +103,7 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: `Permissions updated for ${updatedMembership.business?.name || existingMembership.businessId}` + (warning ? ` — ${warning}` : ''),
+      message: `Permissions updated for ${updatedMembership.businesses?.name || existingMembership.businessId}` + (warning ? ` — ${warning}` : ''),
       membership: updatedMembership,
       warning
     })

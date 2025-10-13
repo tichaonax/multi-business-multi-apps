@@ -11,7 +11,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: session.users.id
       }
     })
 
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: session.users.id
       }
     })
 
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify project contractor exists and belongs to project
-    const projectContractor = await prisma.projectContractors.findFirst({
+    const projectContractor = await prisma.project_contractors.findFirst({
       where: {
         id: projectContractorId,
         projectId

@@ -47,7 +47,7 @@ export function EmployeeContractViewer() {
   }, [session])
 
   const loadEmployeeContracts = async () => {
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       setLoading(false)
       return
     }
@@ -66,7 +66,7 @@ export function EmployeeContractViewer() {
       }
 
       const employeeData = await employeeResponse.json()
-      const currentUserEmployee = employeeData.employees?.find((emp: any) => emp.user?.id === session.user.id)
+      const currentUserEmployee = employeeData.employees?.find((emp: any) => emp.users?.id === session.users.id)
 
       if (!currentUserEmployee) {
         setError('No employee record found for your user account')
@@ -251,7 +251,7 @@ export function EmployeeContractViewer() {
                       </div>
                       <div>
                         <p className="text-gray-600 dark:text-gray-400">Business</p>
-                        <p className="font-medium text-gray-900 dark:text-white">{contract.business.name}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{contract.businesses.name}</p>
                       </div>
                       <div>
                         <p className="text-gray-600 dark:text-gray-400">Start Date</p>

@@ -23,7 +23,7 @@ async function seed() {
     ]
 
     for (const c of categories) {
-      await prisma.businessCategory.upsert({ where: { id: c.id }, update: { description: c.desc }, create: { id: c.id, businessId, businessType: 'clothing', name: c.name, description: c.desc, updatedAt: now } }).catch(() => null)
+      await prisma.businessCategories.upsert({ where: { id: c.id }, update: { description: c.desc }, create: { id: c.id, businessId, businessType: 'clothing', name: c.name, description: c.desc, updatedAt: now } }).catch(() => null)
     }
 
     // Sample products with variants (sizes/colors)
@@ -34,7 +34,7 @@ async function seed() {
 
     for (const p of products) {
       // Upsert product
-      const prod = await prisma.businessProduct.upsert({
+      const prod = await prisma.businessProducts.upsert({
         where: { id: p.id },
         update: { description: p.name, basePrice: p.basePrice, costPrice: p.costPrice, attributes: {} },
         create: { id: p.id, businessId, name: p.name, description: p.name, sku: p.sku, barcode: null, categoryId: p.categoryId, basePrice: p.basePrice, costPrice: p.costPrice, businessType: 'clothing', isActive: true, attributes: {}, updatedAt: now }
@@ -45,7 +45,7 @@ async function seed() {
       // Create variants
       for (const v of p.variants || []) {
         const variantId = `${prod.id}-variant-${v.idSuffix}`
-        await prisma.productVariant.upsert({
+        await prisma.productVariants.upsert({
           where: { id: variantId },
           update: { price: v.price, stockQuantity: v.stock, isActive: true },
           create: { id: variantId, productId: prod.id, name: v.name, sku: v.sku, barcode: null, price: v.price, stockQuantity: v.stock, isActive: true, updatedAt: now }
@@ -54,13 +54,13 @@ async function seed() {
         // initial stock movements
         if (v.stock && v.stock > 0) {
           const movementId = `${variantId}-stock-1`
-          await prisma.businessStockMovement.createMany({ data: [{ id: movementId, businessId, productVariantId: variantId, movementType: 'PURCHASE_RECEIVED', quantity: v.stock, unitCost: p.costPrice || null, reference: 'Seed initial stock', reason: 'Initial demo stock', businessType: 'clothing', businessProductId: prod.id, createdAt: now }], skipDuplicates: true }).catch(() => null)
+          await prisma.businessStockMovements.createMany({ data: [{ id: movementId, businessId, productVariantId: variantId, movementType: 'PURCHASE_RECEIVED', quantity: v.stock, unitCost: p.costPrice || null, reference: 'Seed initial stock', reason: 'Initial demo stock', businessType: 'clothing', businessProductId: prod.id, createdAt: now }], skipDuplicates: true }).catch(() => null)
         }
       }
     }
 
     // Sample images (paths assumed to exist in public/images/seed/clothing)
-    await prisma.productImage.createMany({ data: [ { id: `${businessId}-prod-tshirt-img-1`, productId: `${businessId}-prod-tshirt`, imageUrl: '/images/seed/clothing/tshirt.jpg', altText: "Men's T-Shirt", businessType: 'clothing' }, { id: `${businessId}-prod-dress-img-1`, productId: `${businessId}-prod-dress`, imageUrl: '/images/seed/clothing/dress.jpg', altText: "Women's Dress", businessType: 'clothing' } ], skipDuplicates: true }).catch(() => null)
+    await prisma.productImages.createMany({ data: [ { id: `${businessId}-prod-tshirt-img-1`, productId: `${businessId}-prod-tshirt`, imageUrl: '/images/seed/clothing/tshirt.jpg', altText: "Men's T-Shirt", businessType: 'clothing' }, { id: `${businessId}-prod-dress-img-1`, productId: `${businessId}-prod-dress`, imageUrl: '/images/seed/clothing/dress.jpg', altText: "Women's Dress", businessType: 'clothing' } ], skipDuplicates: true }).catch(() => null)
 
     console.log('Clothing demo seed complete')
   } catch (err) {

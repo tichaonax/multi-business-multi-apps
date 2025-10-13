@@ -46,7 +46,7 @@ const DriverMaintenanceSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -62,11 +62,11 @@ export async function GET(request: NextRequest) {
     const vehicleId = searchParams.get('vehicleId')
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDrivers.findFirst({
+    const driver = await prisma.vehicle_drivers.findFirst({
       where: {
         OR: [
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { emailAddress: session.users.email || '' },
+          { fullName: session.users.name || '' }
         ]
       }
     })
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     // Build where clause for maintenance records
     const where: any = {
       vehicleId: { in: authorizedVehicleIds },
-      createdBy: session.user.id // Only records created by this driver
+      createdBy: session.users.id // Only records created by this driver
     }
 
     if (vehicleId && authorizedVehicleIds.includes(vehicleId)) {
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [maintenanceRecords, totalCount] = await Promise.all([
-      prisma.vehicleMaintenanceRecords.findMany({
+      prisma.vehicle_maintenance_records.findMany({
         where,
         include: {
           vehicles: {
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleMaintenanceRecords.count({ where })
+      prisma.vehicle_maintenance_records.count({ where })
     ])
 
     // Format response for driver UI
@@ -225,7 +225,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -250,11 +250,11 @@ export async function POST(request: NextRequest) {
     })
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDrivers.findFirst({
+    const driver = await prisma.vehicle_drivers.findFirst({
       where: {
         OR: [
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { emailAddress: session.users.email || '' },
+          { fullName: session.users.name || '' }
         ]
       }
     })
@@ -340,7 +340,7 @@ export async function POST(request: NextRequest) {
           receiptUrl: null,
           notes: validatedData.notes || null,
           isScheduledService: validatedData.services.some(s => s.isScheduledService),
-          createdBy: session.user.id,
+          createdBy: session.users.id,
           updatedAt: new Date()
         }
       })
@@ -448,7 +448,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -464,10 +464,10 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify record exists and belongs to this driver
-    const existingRecord = await prisma.vehicleMaintenanceRecords.findFirst({
+    const existingRecord = await prisma.vehicle_maintenance_records.findFirst({
       where: {
         id,
-        createdBy: session.user.id // Only allow updating own records
+        createdBy: session.users.id // Only allow updating own records
       }
     })
 
@@ -476,7 +476,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update record
-    const record = await prisma.vehicleMaintenanceRecords.update({
+    const record = await prisma.vehicle_maintenance_records.update({
       where: { id },
       data: {
         ...updateData,
@@ -519,7 +519,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -535,10 +535,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify record exists and check permissions
-    const existingRecord = await prisma.vehicleMaintenanceRecords.findFirst({
+    const existingRecord = await prisma.vehicle_maintenance_records.findFirst({
       where: {
         id: recordId,
-        createdBy: session.user.id // Only allow deleting own records for drivers
+        createdBy: session.users.id // Only allow deleting own records for drivers
       }
     })
 
@@ -559,7 +559,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete record and all related services and expenses (cascade delete)
-    await prisma.vehicleMaintenanceRecords.delete({
+    await prisma.vehicle_maintenance_records.delete({
       where: { id: recordId }
     })
 

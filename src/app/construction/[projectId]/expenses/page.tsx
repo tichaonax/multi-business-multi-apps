@@ -382,7 +382,7 @@ export default function ProjectExpensesPage() {
         setShowContractorModal(false)
         
         // Show success message
-        alert(`Contractor "${newContractor.person.fullName}" has been added to the project and selected for payment.`)
+        alert(`Contractor "${newContractor.persons.fullName}" has been added to the project and selected for payment.`)
       } else {
         const error = await contractorResponse.json()
         alert('Failed to assign contractor to project: ' + error.error)
@@ -732,7 +732,7 @@ export default function ProjectExpensesPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary">
                         {transaction.recipientPerson?.fullName || 
-                         transaction.projectContractor?.person?.fullName || 
+                         transaction.projectContractor?.persons?.fullName || 
                          transaction.stage?.name || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
@@ -970,7 +970,7 @@ export default function ProjectExpensesPage() {
                       <option value="">Select contractor...</option>
                       {contractors.map((contractor) => (
                         <option key={contractor.id} value={contractor.id}>
-                          {contractor.person.fullName} - {contractor.role || 'No role specified'}
+                          {contractor.persons.fullName} - {contractor.role || 'No role specified'}
                         </option>
                       ))}
                       <option value="ADD_NEW" className="font-semibold text-blue-600">+ Add New Contractor</option>
@@ -1231,16 +1231,16 @@ export default function ProjectExpensesPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="text-primary font-medium">
-                            {showEditModal.projectContractor.person?.fullName || 'Unknown Contractor'}
+                            {showEditModal.projectContractor.persons?.fullName || 'Unknown Contractor'}
                           </div>
-                          {showEditModal.projectContractor.person?.email && (
+                          {showEditModal.projectContractor.persons?.email && (
                             <div className="text-secondary text-sm">
-                              {showEditModal.projectContractor.person.email}
+                              {showEditModal.projectContractor.persons.email}
                             </div>
                           )}
-                          {showEditModal.projectContractor.person?.phone && (
+                          {showEditModal.projectContractor.persons?.phone && (
                             <div className="text-secondary text-sm">
-                              {formatPhoneNumberForDisplay(showEditModal.projectContractor.person.phone)}
+                              {formatPhoneNumberForDisplay(showEditModal.projectContractor.persons.phone)}
                             </div>
                           )}
                         </div>

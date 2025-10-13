@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const devBypass = process.env.FORCE_ADMIN_SESSION === 'true' && body._forceAdmin
     if (!devBypass) {
         const session = await getServerSession(authOptions)
-        if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        if (!session?.users?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const isAdmin = (session.user as any)?.role === 'admin' || (session.user as any)?.isAdmin
         if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
         const demoBusinessId = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
 
         // Delete order items and orders for that business
-        await prisma.businessOrderItem.deleteMany({ where: { order: { businessId: demoBusinessId } } }).catch(() => { })
+        await prisma.businessOrderItems.deleteMany({ where: { order: { businessId: demoBusinessId } } }).catch(() => { })
         await prisma.businessOrders.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => { })
 
         // Delete stock movements, product images, variants, attributes, products, categories

@@ -16,20 +16,20 @@ async function seed() {
   const now = new Date()
 
     // Categories
-    const cat1 = await prisma.businessCategory.upsert({
+    const cat1 = await prisma.businessCategories.upsert({
       where: { id: `${businessId}-cat-fasteners` },
       update: {},
       create: { id: `${businessId}-cat-fasteners`, businessId, businessType: 'hardware', name: 'Fasteners & Hardware', updatedAt: now }
     })
 
-    const cat2 = await prisma.businessCategory.upsert({
+    const cat2 = await prisma.businessCategories.upsert({
       where: { id: `${businessId}-cat-tools` },
       update: {},
       create: { id: `${businessId}-cat-tools`, businessId, businessType: 'hardware', name: 'Tools', updatedAt: now }
     })
 
     // Suppliers
-    const supplier = await prisma.businessSupplier.upsert({
+    const supplier = await prisma.businessSuppliers.upsert({
       where: { id: `${businessId}-sup-1` },
       update: {},
       create: {
@@ -44,7 +44,7 @@ async function seed() {
     })
 
     // Products
-    const p1 = await prisma.businessProduct.upsert({
+    const p1 = await prisma.businessProducts.upsert({
       where: { id: `${businessId}-prod-1` },
       update: {},
       create: {
@@ -61,7 +61,7 @@ async function seed() {
       }
     })
 
-    const p2 = await prisma.businessProduct.upsert({
+    const p2 = await prisma.businessProducts.upsert({
       where: { id: `${businessId}-prod-2` },
       update: {},
       create: {
@@ -79,19 +79,19 @@ async function seed() {
     })
 
     // Variants / images
-    const v1 = await prisma.productVariant.upsert({
+    const v1 = await prisma.productVariants.upsert({
       where: { id: `${p1.id}-variant-default` },
       update: {},
       create: { id: `${p1.id}-variant-default`, productId: p1.id, sku: `${p1.sku}-STD`, price: p1.basePrice, stockQuantity: 500, updatedAt: now }
     }).catch(() => null)
 
-    const v2 = await prisma.productVariant.upsert({
+    const v2 = await prisma.productVariants.upsert({
       where: { id: `${p2.id}-variant-default` },
       update: {},
       create: { id: `${p2.id}-variant-default`, productId: p2.id, sku: `${p2.sku}-STD`, price: p2.basePrice, stockQuantity: 25, updatedAt: now }
     }).catch(() => null)
 
-    await prisma.productImage.createMany({
+    await prisma.productImages.createMany({
       data: [
         { id: `${p1.id}-img-1`, productId: p1.id, imageUrl: '/images/seed/hardware/hex-bolt.jpg', altText: 'Hex Bolt', businessType: 'hardware' },
         { id: `${p2.id}-img-1`, productId: p2.id, imageUrl: '/images/seed/hardware/drill.jpg', altText: 'Cordless Drill', businessType: 'hardware' }
@@ -100,7 +100,7 @@ async function seed() {
     }).catch(() => null)
 
     // Initial stock movements
-    await prisma.businessStockMovement.createMany({
+    await prisma.businessStockMovements.createMany({
       data: [
         { id: `${p1.id}-stock-1`, businessId, productVariantId: `${p1.id}-variant-default`, movementType: 'PURCHASE_RECEIVED', quantity: 500, notes: 'Initial seed stock', createdAt: new Date(), businessType: 'hardware' },
         { id: `${p2.id}-stock-1`, businessId, productVariantId: `${p2.id}-variant-default`, movementType: 'PURCHASE_RECEIVED', quantity: 25, notes: 'Initial seed stock', createdAt: new Date(), businessType: 'hardware' }

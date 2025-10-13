@@ -243,7 +243,7 @@ export function DriverPromotionModal({
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Permissions Granted</Label>
                   <div className="flex flex-wrap gap-1">
-                    {promotionResult.user.permissions.map((permission, index) => (
+                    {promotionResult.users.permissions.map((permission, index) => (
                       <Badge key={index} variant="secondary" className="text-xs">
                         {permission}
                       </Badge>

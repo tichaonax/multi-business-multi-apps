@@ -340,8 +340,8 @@ export default function ProjectDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-secondary/60 uppercase tracking-wide">Project Type</p>
                   <p className="text-sm font-medium mt-1">
-                    {project.projectType.name}
-                    {project.projectType.isSystem && (
+                    {project.project_types.name}
+                    {project.project_types.isSystem && (
                       <span className="ml-2 text-xs text-secondary/60">(System)</span>
                     )}
                   </p>
@@ -375,7 +375,7 @@ export default function ProjectDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-secondary/60 uppercase tracking-wide">Created By</p>
                   <p className="text-sm font-medium mt-1">
-                    {project.user.name} ({project.user.email})
+                    {project.users.name} ({project.users.email})
                   </p>
                 </div>
               )}
@@ -529,17 +529,17 @@ export default function ProjectDetailPage() {
                             <div className="flex items-center gap-3">
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <h4 className="font-semibold">{contractor.person.fullName}</h4>
+                                  <h4 className="font-semibold">{contractor.persons.fullName}</h4>
                                   {contractor.isPrimary && (
                                     <Badge variant="outline" className="text-xs">Primary</Badge>
                                   )}
-                                  {!contractor.person.isActive && (
+                                  {!contractor.persons.isActive && (
                                     <Badge variant="destructive" className="text-xs">Inactive</Badge>
                                   )}
                                 </div>
-                                <p className="text-sm text-secondary/80">{contractor.person.phone}</p>
-                                {contractor.person.email && (
-                                  <p className="text-sm text-secondary/80">{contractor.person.email}</p>
+                                <p className="text-sm text-secondary/80">{contractor.persons.phone}</p>
+                                {contractor.persons.email && (
+                                  <p className="text-sm text-secondary/80">{contractor.persons.email}</p>
                                 )}
                               </div>
                             </div>
@@ -563,7 +563,7 @@ export default function ProjectDetailPage() {
               </TabsContent>
 
               <TabsContent value="transactions" className="p-6">
-                {project.projectTransactions.length === 0 ? (
+                {project.project_transactions.length === 0 ? (
                   <div className="text-center py-8">
                     <DollarSign className="h-12 w-12 text-secondary/40 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-secondary mb-2">No Transactions</h3>
@@ -571,7 +571,7 @@ export default function ProjectDetailPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {project.projectTransactions.map((transaction) => (
+                    {project.project_transactions.map((transaction) => (
                       <Card key={transaction.id}>
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">
@@ -586,7 +586,7 @@ export default function ProjectDetailPage() {
                                 </div>
                                 {transaction.projectContractor && (
                                   <p className="text-sm text-secondary/80">
-                                    To: {transaction.projectContractor.person.fullName}
+                                    To: {transaction.projectContractor.persons.fullName}
                                   </p>
                                 )}
                                 <p className="text-xs text-secondary/60">

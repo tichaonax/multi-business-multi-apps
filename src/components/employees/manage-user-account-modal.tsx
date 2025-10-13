@@ -101,7 +101,7 @@ export function ManageUserAccountModal({
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/users/${employee.user.id}/link-employee`, {
+      const response = await fetch(`/api/users/${employee.users.id}/link-employee`, {
         method: 'DELETE'
       })
 
@@ -129,7 +129,7 @@ export function ManageUserAccountModal({
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/users/${employee.user.id}/revoke-account`, {
+      const response = await fetch(`/api/users/${employee.users.id}/revoke-account`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -185,7 +185,7 @@ export function ManageUserAccountModal({
                   <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded">
                     Has User Account
                   </span>
-                  <p className="text-xs text-secondary mt-1">{employee.user.email}</p>
+                  <p className="text-xs text-secondary mt-1">{employee.users.email}</p>
                 </div>
               ) : (
                 <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200 rounded">
@@ -206,16 +206,16 @@ export function ManageUserAccountModal({
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-primary">{employee.user.name}</p>
-                        <p className="text-sm text-secondary">{employee.user.email}</p>
-                        <p className="text-xs text-secondary capitalize">Role: {employee.user.role}</p>
+                        <p className="font-medium text-primary">{employee.users.name}</p>
+                        <p className="text-sm text-secondary">{employee.users.email}</p>
+                        <p className="text-xs text-secondary capitalize">Role: {employee.users.role}</p>
                       </div>
                       <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
-                        employee.user.isActive 
+                        employee.users.isActive 
                           ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200'
                           : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200'
                       }`}>
-                        {employee.user.isActive ? 'Active' : 'Inactive'}
+                        {employee.users.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                   </div>

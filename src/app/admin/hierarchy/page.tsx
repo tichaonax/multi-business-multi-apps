@@ -126,7 +126,7 @@ export default function HierarchyPage() {
       filteredEmployees = (employees || []).filter(emp => 
         emp.primaryBusiness.id === selectedBusiness ||
         emp.businessAssignments.some(assignment => 
-          assignment.business.id === selectedBusiness && assignment.isActive
+          assignment.businesses.id === selectedBusiness && assignment.isActive
         )
       )
     }

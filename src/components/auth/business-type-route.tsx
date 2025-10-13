@@ -36,7 +36,7 @@ export function BusinessTypeRoute({
     //     type: currentBusiness.businessType
     //   } : null,
     //   isAuthenticated,
-    //   userRole: session?.user?.role
+    //   userRole: session?.users?.role
     // })
 
     if (requireAuth && !session) {

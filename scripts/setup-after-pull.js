@@ -212,6 +212,17 @@ async function handleFreshInstall() {
       throw new Error('Production data seeding failed')
     }
 
+    // Step 3: Validate UI Relations (Critical for preventing runtime errors)
+    log('Starting UI relation validation...', 'INFO')
+    const uiValidationSuccess = run('node scripts/validate-ui-relations.js',
+        'Step 3: Validating UI component compatibility',
+        true) // Optional - don't fail setup if validation has warnings
+
+    if (!uiValidationSuccess) {
+      log('UI validation found issues - review output above', 'WARN')
+      log('This may cause runtime errors in UI components', 'WARN')
+    }
+
     // Success!
     console.log('\n' + '='.repeat(60))
     console.log('✅ FRESH INSTALL SETUP COMPLETED!')
@@ -469,10 +480,26 @@ async function main() {
     console.log('✅ UPGRADE BUILD COMPLETED SUCCESSFULLY!')
     console.log('='.repeat(60))
     console.log('')
+    
+    // ENHANCEMENT: Quick UI validation check for upgrades too
+    console.log('🔍 Quick UI validation check...')
+    const quickValidation = run('node scripts/validate-ui-relations.js',
+        'Quick UI compatibility validation',
+        true) // Optional - don't fail on warnings
+    
+    if (quickValidation) {
+      log('UI compatibility check: PASSED', 'SUCCESS')
+    } else {
+      log('UI compatibility check: WARNINGS FOUND', 'WARN')
+      log('Review validation output above - may need UI component updates', 'WARN')
+    }
+    console.log('')
+    
     console.log('⚠️  IMPORTANT: Service restart will handle:')
     console.log('   • Database migrations (automatic)')
     console.log('   • Reference data seeding (automatic)')
     console.log('   • Schema updates (automatic)')
+    console.log('   • Additional UI validation (automatic)')
     console.log('')
     console.log('🚀 To apply all changes, restart the service:')
     console.log('   npm run service:restart (as Administrator)')
@@ -480,6 +507,7 @@ async function main() {
     console.log('   The service startup automatically runs:')
     console.log('   - npx prisma migrate deploy')
     console.log('   - npm run seed:migration')
+    console.log('   - UI compatibility validation')
     console.log('')
   }
 }

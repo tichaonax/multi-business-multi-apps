@@ -514,14 +514,14 @@ export default function ContractorsPage() {
                             <p className="font-medium text-primary">
                               {person._count.projectContractors} projects
                             </p>
-                            {person.projectContractors.slice(0, 2).map((contractor) => (
+                            {person.project_contractors.slice(0, 2).map((contractor) => (
                               <p key={contractor.id} className="text-xs text-secondary">
                                 • {contractor.project.name} ({contractor.project.status})
                               </p>
                             ))}
-                            {person.projectContractors.length > 2 && (
+                            {person.project_contractors.length > 2 && (
                               <p className="text-xs text-secondary">
-                                +{person.projectContractors.length - 2} more
+                                +{person.project_contractors.length - 2} more
                               </p>
                             )}
                           </div>

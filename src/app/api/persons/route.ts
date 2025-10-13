@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     // Map constructionProject to project for UI compatibility
     const personsWithMappedProjects = persons.map(person => ({
       ...person,
-      projectContractors: person.projectContractors.map(contractor => ({
+      projectContractors: person.project_contractors.map(contractor => ({
         ...contractor,
         project: (contractor as any).construction_projects
       }))
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       address: address || null,
       notes: notes || null,
-      createdBy: session.user.id,
+      createdBy: session.users.id,
     }
 
     const newPerson = await prisma.persons.create({

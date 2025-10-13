@@ -94,7 +94,7 @@ export async function GET(
     }
 
     if (category && category !== 'all') {
-      where.businessCategory = {
+      where.business_categories = {
         name: { contains: category, mode: 'insensitive' }
       }
     }
@@ -103,11 +103,11 @@ export async function GET(
     const products = await prisma.businessProducts.findMany({
       where,
       include: {
-        businessCategory: true,
-        businessBrand: true,
-        productVariants: {
+        business_categories: true,
+        business_brands: true,
+        product_variants: {
           include: {
-            businessStockMovements: true
+            business_stock_movements: true
           }
         }
       },
@@ -122,8 +122,8 @@ export async function GET(
     const items = products.map(product => {
       // Calculate current stock from stock movements
       // Sum stockQuantity from movements (movements may have positive/negative quantities)
-      const currentStock = product.productVariants.reduce((total, variant) => {
-        const stockMovements = variant.businessStockMovements || []
+      const currentStock = product.product_variants.reduce((total, variant) => {
+        const stockMovements = variant.business_stock_movements || []
         const variantStock = stockMovements.reduce((sum, movement) => {
           return sum + Number(movement.quantity)
         }, 0)
@@ -137,7 +137,7 @@ export async function GET(
         name: product.name,
         sku: product.sku || '',
         description: product.description || '',
-  category: product.businessCategory?.name || 'Uncategorized',
+        category: product.business_categories?.name || 'Uncategorized',
         currentStock,
         unit: 'units',
   costPrice: parseFloat(product.costPrice?.toString() || '0'),
@@ -211,7 +211,7 @@ export async function POST(
         id: businessId,
         businessMemberships: {
           some: {
-            userId: session.user.id,
+            userId: session.users.id,
             isActive: true
           }
         }
@@ -265,7 +265,7 @@ export async function POST(
         updatedAt: new Date()
       },
       include: {
-        businessCategory: true
+        business_categories: true
       }
     })
 
@@ -330,7 +330,7 @@ export async function POST(
         name: product.name,
         sku: variant.sku,
         description: product.description,
-  category: (product as any).businessCategory?.name || 'Uncategorized',
+        category: (product as any).business_categories?.name || 'Uncategorized',
   currentStock: (variant as any).stockQuantity,
         unit: 'units',
         costPrice: parseFloat(product.costPrice?.toString() || '0'),

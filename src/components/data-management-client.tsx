@@ -33,7 +33,7 @@ export function DataManagementClient() {
     return null;
   }
 
-  const isAdmin = session.user?.role === 'admin';
+  const isAdmin = session.users?.role === 'admin';
 
   return (
     <ProtectedRoute>
@@ -98,7 +98,7 @@ export function DataManagementClient() {
         {/* Tab Content */}
         <div className="bg-white rounded-lg shadow-lg dark:bg-slate-800 p-6">
           {activeTab === 'export' && (
-            <DataExport userRole={session.user?.role} />
+            <DataExport userRole={session.users?.role} />
           )}
 
           {activeTab === 'import' && (

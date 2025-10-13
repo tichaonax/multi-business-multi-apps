@@ -29,7 +29,7 @@ const UpdateAuthorizationSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       prisma.driverAuthorizations.findMany({
         where,
         include: {
-          vehicleDrivers: {
+          vehicle_drivers: {
             select: {
               id: true,
               fullName: true,
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateAuthorizationSchema.parse(body)
 
     // Verify driver exists
-    const driver = await prisma.vehicleDrivers.findUnique({
+    const driver = await prisma.vehicle_drivers.findUnique({
       where: { id: validatedData.driverId }
     })
 
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date()
       },
       include: {
-        vehicleDrivers: {
+        vehicle_drivers: {
           select: {
             id: true,
             fullName: true,
@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -303,7 +303,7 @@ export async function PUT(request: NextRequest) {
         expiryDate: updateData.expiryDate ? new Date(updateData.expiryDate) : undefined
       },
       include: {
-        vehicleDrivers: {
+        vehicle_drivers: {
           select: {
             id: true,
             fullName: true,
@@ -358,7 +358,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -376,7 +376,7 @@ export async function DELETE(request: NextRequest) {
     const existingAuthorization = await prisma.driverAuthorizations.findUnique({
       where: { id: authorizationId },
       include: {
-        trips: { take: 1 }
+        vehicle_trips: { take: 1 }
       }
     })
 
@@ -388,7 +388,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if authorization has related trips
-    const hasRelatedTrips = existingAuthorization.trips.length > 0
+    const hasRelatedTrips = existingAuthorization.vehicle_trips.length > 0
 
     if (hasRelatedTrips) {
       // Soft delete - just mark as inactive

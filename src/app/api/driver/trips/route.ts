@@ -38,7 +38,7 @@ const DriverTripSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -53,12 +53,12 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDrivers.findFirst({
+    const driver = await prisma.vehicle_drivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: session.users.id },
+          { emailAddress: session.users.email || '' },
+          { fullName: session.users.name || '' }
         ]
       }
     })
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [trips, totalCount] = await Promise.all([
-      prisma.vehicleTrips.findMany({
+      prisma.vehicle_trips.findMany({
         where,
         include: {
           vehicles: {
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleTrips.count({ where })
+      prisma.vehicle_trips.count({ where })
     ])
 
     // Format response for driver UI
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -199,12 +199,12 @@ export async function POST(request: NextRequest) {
     const validatedData = DriverTripSchema.parse(body)
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDrivers.findFirst({
+    const driver = await prisma.vehicle_drivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: session.users.id },
+          { emailAddress: session.users.email || '' },
+          { fullName: session.users.name || '' }
         ]
       }
     })
@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
               receiptUrl: expense.receiptUrl || null,
               expenseDate: new Date(validatedData.startTime), // Use trip start time
               mileageAtExpense: validatedData.startMileage,
-              createdBy: session.user.id,
+              createdBy: session.users.id,
               createdAt: new Date(),
               updatedAt: new Date()
             }
@@ -401,7 +401,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -417,12 +417,12 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get driver record
-    const driver = await prisma.vehicleDrivers.findFirst({
+    const driver = await prisma.vehicle_drivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: session.users.id },
+          { emailAddress: session.users.email || '' },
+          { fullName: session.users.name || '' }
         ]
       }
     })
@@ -432,7 +432,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify trip exists and belongs to this driver
-    const existingTrip = await prisma.vehicleTrips.findFirst({
+    const existingTrip = await prisma.vehicle_trips.findFirst({
       where: {
         id,
         driverId: driver.id // Only allow updating own trips
@@ -459,7 +459,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update trip
-    const trip = await prisma.vehicleTrips.update({
+    const trip = await prisma.vehicle_trips.update({
       where: { id },
       data: {
         ...updateData,
@@ -508,7 +508,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -524,12 +524,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Get driver record
-    const driver = await prisma.vehicleDrivers.findFirst({
+    const driver = await prisma.vehicle_drivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: session.users.id },
+          { emailAddress: session.users.email || '' },
+          { fullName: session.users.name || '' }
         ]
       }
     })
@@ -539,7 +539,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify trip exists and belongs to this driver
-    const existingTrip = await prisma.vehicleTrips.findFirst({
+    const existingTrip = await prisma.vehicle_trips.findFirst({
       where: {
         id: tripId,
         driverId: driver.id

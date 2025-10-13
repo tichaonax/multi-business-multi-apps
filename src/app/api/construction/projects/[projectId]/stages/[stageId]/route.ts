@@ -10,7 +10,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: session.users.id
       }
     })
 
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -145,7 +145,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: session.users.id
       }
     })
 
@@ -223,7 +223,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -233,7 +233,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: session.users.id
       }
     })
 
@@ -272,7 +272,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check for transactions
-    if (existingStage.projectTransactions.length > 0) {
+    if (existingStage.project_transactions.length > 0) {
       return NextResponse.json(
         { error: 'Cannot delete stage with transaction history.' },
         { status: 400 }

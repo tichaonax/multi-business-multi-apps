@@ -72,6 +72,9 @@ class ServiceUpdateManager {
       // Step 7: Start service
       await this.startServiceSafely();
 
+      // Step 8: Validate UI compatibility
+      await this.validateUICompatibility();
+
       // Step 8: Verify update
       await this.verifyUpdate();
 
@@ -498,32 +501,308 @@ class ServiceUpdateManager {
         isFresh = false
       }
 
-      if (isFresh) {
-        this.log('Fresh database detected - running production reference seeder (this may take a while)')
-        try {
-          const setup = require(path.join(__dirname, '..', 'scripts', 'production-setup.js'))
-          if (setup && typeof setup.runProductionSetup === 'function') {
-            const ok = await setup.runProductionSetup({ createAdmin: true })
-            if (!ok) {
-              throw new Error('Production setup reported failures')
+        if (isFresh) {
+          this.log('Fresh database detected - running production reference seeder (this may take a while)')
+          try {
+            const setup = require(path.join(__dirname, '..', 'scripts', 'production-setup.js'))
+            if (setup && typeof setup.runProductionSetup === 'function') {
+              const ok = await setup.runProductionSetup({ createAdmin: true })
+              if (!ok) {
+                throw new Error('Production setup reported failures')
+              }
+              this.log('✅ Reference data seeded successfully')
+            } else if (setup && typeof setup === 'function') {
+              // Legacy default export
+              await setup()
+            } else {
+              this.log('Production setup module does not expose a runProductionSetup function', 'WARN')
             }
-            this.log('✅ Reference data seeded successfully')
-          } else if (setup && typeof setup === 'function') {
-            // Legacy default export
-            await setup()
-          } else {
-            this.log('Production setup module does not expose a runProductionSetup function', 'WARN')
+          } catch (seedErr) {
+            this.log(`❌ Reference seeding failed: ${seedErr.message}`, 'ERROR')
+            // Don't auto-rollback the DB. Fail the update process to let operator inspect logs.
+            throw seedErr
           }
-        } catch (seedErr) {
-          this.log(`❌ Reference seeding failed: ${seedErr.message}`, 'ERROR')
-          // Don't auto-rollback the DB. Fail the update process to let operator inspect logs.
-          throw seedErr
+        } else {
+          this.log('Existing data detected - running enhanced migration seeding')
+          try {
+            const enhancedSeeder = require(path.join(__dirname, '..', 'scripts', 'migration-seed-enhanced.js'))
+            if (enhancedSeeder && typeof enhancedSeeder.runEnhancedMigrationSeed === 'function') {
+              const success = await enhancedSeeder.runEnhancedMigrationSeed()
+              if (!success) {
+                throw new Error('Enhanced migration seeding reported failures')
+              }
+              this.log('✅ Enhanced migration seeding completed')
+            } else {
+              this.log('Enhanced migration seeder not found, skipping additional validation', 'WARN')
+            }
+          } catch (seedErr) {
+            this.log(`❌ Enhanced migration seeding failed: ${seedErr.message}`, 'ERROR')
+            // Don't fail the entire update for seeding issues - log and continue
+            this.log('Continuing with update despite seeding issues', 'WARN')
+          }
         }
-      } else {
-        this.log('Reference data present (or cannot determine fresh DB). Skipping auto-seed')
-      }
+
+      // ENHANCEMENT: Validate Prisma relation naming conventions after seeding/migration
+      await this.validatePrismaRelations();
+
     } catch (error) {
       this.log(`Error ensuring reference data: ${error.message}`, 'WARN')
+    }
+  }
+
+  /**
+   * Validate that Prisma relation naming conventions are working correctly
+   * This prevents UI runtime errors from relation access issues
+   */
+  async validatePrismaRelations() {
+    this.log('🔍 Validating Prisma relation naming conventions...');
+
+    try {
+      const validationScript = `
+const { PrismaClient } = require('@prisma/client');
+(async () => {
+  const prisma = new PrismaClient();
+  let errors = [];
+  
+  try {
+    await prisma.$connect();
+    
+    // Test 1: User -> businesses relation (plural)
+    try {
+      const userWithBusinesses = await prisma.users.findFirst({
+        include: { businesses: true }
+      });
+      if (userWithBusinesses && userWithBusinesses.businesses !== undefined) {
+        console.log('✅ User.businesses relation: OK');
+      } else {
+        console.log('⚠️  User.businesses relation: No data to test');
+      }
+    } catch (e) {
+      errors.push('User.businesses relation failed: ' + e.message);
+    }
+    
+    // Test 2: Project -> project_types relation (snake_case)
+    try {
+      const projectWithType = await prisma.projects.findFirst({
+        include: { project_types: true }
+      });
+      if (projectWithType && projectWithType.project_types !== undefined) {
+        console.log('✅ Project.project_types relation: OK');
+      } else {
+        console.log('⚠️  Project.project_types relation: No data to test');
+      }
+    } catch (e) {
+      errors.push('Project.project_types relation failed: ' + e.message);
+    }
+    
+    // Test 3: Vehicle -> vehicle_drivers relation (snake_case)
+    try {
+      const vehicleWithDrivers = await prisma.vehicles.findFirst({
+        include: { vehicle_drivers: true }
+      });
+      if (vehicleWithDrivers && vehicleWithDrivers.vehicle_drivers !== undefined) {
+        console.log('✅ Vehicle.vehicle_drivers relation: OK');
+      } else {
+        console.log('⚠️  Vehicle.vehicle_drivers relation: No data to test');
+      }
+    } catch (e) {
+      errors.push('Vehicle.vehicle_drivers relation failed: ' + e.message);
+    }
+    
+    // Test 4: Project -> project_contractors relation (snake_case)
+    try {
+      const projectWithContractors = await prisma.projects.findFirst({
+        include: { project_contractors: true }
+      });
+      if (projectWithContractors && projectWithContractors.project_contractors !== undefined) {
+        console.log('✅ Project.project_contractors relation: OK');
+      } else {
+        console.log('⚠️  Project.project_contractors relation: No data to test');
+      }
+    } catch (e) {
+      errors.push('Project.project_contractors relation failed: ' + e.message);
+    }
+    
+    // Test 5: Project -> project_transactions relation (snake_case)
+    try {
+      const projectWithTransactions = await prisma.projects.findFirst({
+        include: { project_transactions: true }
+      });
+      if (projectWithTransactions && projectWithTransactions.project_transactions !== undefined) {
+        console.log('✅ Project.project_transactions relation: OK');
+      } else {
+        console.log('⚠️  Project.project_transactions relation: No data to test');
+      }
+    } catch (e) {
+      errors.push('Project.project_transactions relation failed: ' + e.message);
+    }
+    
+    if (errors.length > 0) {
+      console.error('VALIDATION_ERRORS:', errors.join('; '));
+      process.exit(1);
+    } else {
+      console.log('✅ All Prisma relation validations passed');
+    }
+    
+  } finally {
+    await prisma.$disconnect();
+  }
+})();
+      `;
+
+      const { stdout, stderr } = await execAsync(`node -e "${validationScript}"`, {
+        cwd: path.join(__dirname, '..')
+      });
+
+      if (stdout.includes('VALIDATION_ERRORS:')) {
+        const errorMessage = stdout.split('VALIDATION_ERRORS:')[1].trim();
+        throw new Error(`Prisma relation validation failed: ${errorMessage}`);
+      }
+
+      // Log validation results
+      const lines = stdout.split('\n').filter(line => line.trim());
+      lines.forEach(line => {
+        if (line.includes('✅') || line.includes('⚠️')) {
+          this.log(`  ${line.trim()}`);
+        }
+      });
+
+      this.log('✅ Prisma relation naming convention validation passed');
+
+    } catch (error) {
+      this.log(`❌ Prisma relation validation failed: ${error.message}`, 'ERROR');
+      throw error;
+    }
+  }
+
+  /**
+   * Validate UI component compatibility with updated Prisma relations
+   */
+  async validateUICompatibility() {
+    this.log('📱 Validating UI component compatibility...');
+
+    try {
+      // Create a test validation script that simulates UI component data access
+      const uiValidationScript = `
+const { PrismaClient } = require('@prisma/client');
+(async () => {
+  const prisma = new PrismaClient();
+  let validationResults = [];
+  
+  try {
+    await prisma.$connect();
+    
+    // Simulate user-edit-modal.tsx data access patterns
+    try {
+      const user = await prisma.users.findFirst({
+        include: {
+          businesses: {
+            select: { id: true, name: true }
+          }
+        }
+      });
+      
+      if (user && user.businesses) {
+        // Test accessing business name (common UI pattern)
+        const businessNames = user.businesses.map(b => b.name);
+        validationResults.push('user-edit-modal: businesses relation access - PASS');
+      } else {
+        validationResults.push('user-edit-modal: businesses relation access - NO_DATA');
+      }
+    } catch (e) {
+      validationResults.push('user-edit-modal: businesses relation access - FAIL: ' + e.message);
+    }
+    
+    // Simulate project management UI data access
+    try {
+      const project = await prisma.projects.findFirst({
+        include: {
+          project_types: {
+            select: { id: true, name: true }
+          },
+          project_contractors: {
+            select: { id: true }
+          },
+          project_transactions: {
+            select: { id: true, amount: true }
+          }
+        }
+      });
+      
+      if (project) {
+        validationResults.push('project-ui: project_types relation - PASS');
+        validationResults.push('project-ui: project_contractors relation - PASS');
+        validationResults.push('project-ui: project_transactions relation - PASS');
+      } else {
+        validationResults.push('project-ui: relations - NO_DATA');
+      }
+    } catch (e) {
+      validationResults.push('project-ui: relations - FAIL: ' + e.message);
+    }
+    
+    // Simulate vehicle management UI data access
+    try {
+      const vehicle = await prisma.vehicles.findFirst({
+        include: {
+          vehicle_drivers: {
+            select: { id: true, licenseNumber: true }
+          }
+        }
+      });
+      
+      if (vehicle && vehicle.vehicle_drivers) {
+        validationResults.push('vehicle-ui: vehicle_drivers relation - PASS');
+      } else {
+        validationResults.push('vehicle-ui: vehicle_drivers relation - NO_DATA');
+      }
+    } catch (e) {
+      validationResults.push('vehicle-ui: vehicle_drivers relation - FAIL: ' + e.message);
+    }
+    
+    console.log('UI_VALIDATION_RESULTS:', validationResults.join(' | '));
+    
+  } finally {
+    await prisma.$disconnect();
+  }
+})();
+      `;
+
+      const { stdout, stderr } = await execAsync(`node -e "${uiValidationScript}"`, {
+        cwd: path.join(__dirname, '..')
+      });
+
+      if (stdout.includes('UI_VALIDATION_RESULTS:')) {
+        const results = stdout.split('UI_VALIDATION_RESULTS:')[1].trim().split(' | ');
+        let failCount = 0;
+        
+        results.forEach(result => {
+          if (result.includes('FAIL')) {
+            this.log(`  ❌ ${result}`, 'ERROR');
+            failCount++;
+          } else if (result.includes('PASS')) {
+            this.log(`  ✅ ${result}`);
+          } else if (result.includes('NO_DATA')) {
+            this.log(`  ⚠️  ${result}`, 'WARN');
+          }
+        });
+        
+        if (failCount > 0) {
+          throw new Error(`${failCount} UI compatibility validation(s) failed`);
+        }
+        
+        this.log('✅ UI component compatibility validation passed');
+      }
+
+    } catch (error) {
+      this.log(`❌ UI compatibility validation failed: ${error.message}`, 'ERROR');
+      
+      // Log remediation steps
+      this.log('🛠️  Remediation steps:', 'WARN');
+      this.log('  1. Check that UI components use correct relation names (businesses, project_types, etc.)', 'WARN');
+      this.log('  2. Update any hardcoded relation names in React components', 'WARN');
+      this.log('  3. Verify Prisma client regeneration completed successfully', 'WARN');
+      
+      throw error;
     }
   }
 

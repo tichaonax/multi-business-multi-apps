@@ -8,7 +8,7 @@ async function getRestaurantBusinessIds(session: any) {
 
   // Check if user is system admin - they can access all restaurant orders
   const user = await prisma.users.findUnique({
-    where: { id: session.user.id },
+    where: { id: session.users.id },
     select: {
       role: true,
       businessMemberships: {
@@ -44,7 +44,7 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -109,7 +109,7 @@ export async function PUT(
 
     // Check if user is admin first
     const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+      where: { id: session.users.id },
       select: { role: true }
     })
 
@@ -201,7 +201,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -258,7 +258,7 @@ export async function GET(
 
     // Verify user has access to restaurant businesses (skip for admin)
     const userRole = await prisma.users.findUnique({
-      where: { id: session.user.id },
+      where: { id: session.users.id },
       select: { role: true }
     })
 

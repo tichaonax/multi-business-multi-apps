@@ -158,7 +158,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
 
   useEffect(() => {
     if (expense) {
-      const transaction = expense.projectTransactions?.[0]
+      const transaction = expense.project_transactions?.[0]
       const loanTransaction = expense.loanTransactions?.[0]
       let paymentType = 'category'
 
@@ -255,7 +255,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
         setIsEditing(false)
         
         // Force the modal to re-render with updated data by updating form state
-        const transaction = updatedExpense.projectTransactions?.[0]
+        const transaction = updatedExpense.project_transactions?.[0]
         let paymentType = 'category'
         if (transaction?.paymentType) {
           paymentType = transaction.paymentType
@@ -287,7 +287,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
 
   const handleCancel = () => {
     setIsEditing(false)
-    const transaction = expense.projectTransactions?.[0]
+    const transaction = expense.project_transactions?.[0]
     let paymentType = 'category'
     if (transaction?.paymentType) {
       paymentType = transaction.paymentType
@@ -309,7 +309,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
     })
   }
 
-  const transaction = expense.projectTransactions?.[0]
+  const transaction = expense.project_transactions?.[0]
   const loanTransaction = expense.loanTransactions?.[0]
   const contractorFromTags = parseContractorFromTags(expense.tags || '')
   const isProjectPayment = transaction?.paymentType === 'project' || expense.tags === 'project'
@@ -482,10 +482,10 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                   >
                     <option value="">Select a contractor</option>
                     {contractors
-                      .filter(contractor => contractor.person?.isActive !== false)
+                      .filter(contractor => contractor.persons?.isActive !== false)
                       .map(contractor => (
                         <option key={contractor.id} value={contractor.id}>
-                          {contractor.person?.fullName || contractor.name || 'Unnamed Contractor'}
+                          {contractor.persons?.fullName || contractor.name || 'Unnamed Contractor'}
                         </option>
                       ))}
                   </select>
@@ -611,12 +611,12 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-blue-900 dark:text-blue-100">
-                          {transaction.projectContractor.person.fullName}
+                          {transaction.projectContractor.persons.fullName}
                         </p>
                         <p className="text-sm text-blue-700 dark:text-blue-300">
                           Contractor
-                          {transaction.projectContractor.person.phone && ` • ${formatPhoneNumberForDisplay(transaction.projectContractor.person.phone)}`}
-                          {transaction.projectContractor.person.email && ` • ${transaction.projectContractor.person.email}`}
+                          {transaction.projectContractor.persons.phone && ` • ${formatPhoneNumberForDisplay(transaction.projectContractor.persons.phone)}`}
+                          {transaction.projectContractor.persons.email && ` • ${transaction.projectContractor.persons.email}`}
                         </p>
                       </div>
                     </div>
@@ -692,7 +692,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                     )}
                     {transaction?.projectContractor?.person ? (
                       <div className="flex items-center justify-between">
-                        <p className="text-primary">Contractor: {transaction.projectContractor.person.fullName}</p>
+                        <p className="text-primary">Contractor: {transaction.projectContractor.persons.fullName}</p>
                       </div>
                     ) : isContractorPayment && contractorFromTags ? (
                       <p className="text-primary">Contractor: {contractorFromTags.name}</p>

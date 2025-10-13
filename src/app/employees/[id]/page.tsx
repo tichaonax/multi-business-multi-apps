@@ -765,11 +765,11 @@ export default function EmployeeDetailPage() {
                     <div className="space-y-3">
                       <div>
                         <label className="block text-sm font-medium text-secondary">User Name</label>
-                        <p className="mt-1 text-sm text-primary">{employee.user.name}</p>
+                        <p className="mt-1 text-sm text-primary">{employee.users.name}</p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-secondary">Email</label>
-                        <p className="mt-1 text-sm text-primary">{employee.user.email}</p>
+                        <p className="mt-1 text-sm text-primary">{employee.users.email}</p>
                       </div>
                       <div className="pt-3 space-y-2">
                         <button
@@ -1081,8 +1081,8 @@ export default function EmployeeDetailPage() {
                             : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                         }`}>
                           <div>
-                            <p className="font-medium text-primary">{assignment.business.name}</p>
-                            <p className="text-sm text-secondary capitalize">{assignment.business.type} Business</p>
+                            <p className="font-medium text-primary">{assignment.businesses.name}</p>
+                            <p className="text-sm text-secondary capitalize">{assignment.businesses.type} Business</p>
                             {assignment.role && (
                               <p className="text-xs text-secondary">Role: {assignment.role}</p>
                             )}

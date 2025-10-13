@@ -7,13 +7,13 @@ import { BUSINESS_PERMISSION_PRESETS, mergeWithBusinessPermissions } from '@/typ
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const memberships = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.user.id,
+        userId: session.users.id,
       },
       include: {
         businesses: {

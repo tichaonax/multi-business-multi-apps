@@ -161,8 +161,8 @@ export default function PersonalPage() {
     )) return true
 
     // Search in project transactions
-    if (expense.projectTransactions?.some(transaction =>
-      transaction.projectContractor?.person.name.toLowerCase().includes(search)
+    if (expense.project_transactions?.some(transaction =>
+      transaction.projectContractor?.persons.name.toLowerCase().includes(search)
     )) return true
 
     // Search in amount

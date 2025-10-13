@@ -12,7 +12,7 @@ import path from 'path'
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.users?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!hasPermission(session.user, 'canExportPayroll')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
   const data = await req.json()
@@ -325,7 +325,7 @@ export async function POST(req: NextRequest) {
     const fileSize = excelBuffer.length
 
     // Update export record and its timestamps
-  const updated = await prisma.payrollExports.update({ where: { id: existing.id }, data: { fileName, fileUrl, fileSize, exportedAt: new Date(), exportedBy: session.user.id } })
+  const updated = await prisma.payrollExports.update({ where: { id: existing.id }, data: { fileName, fileUrl, fileSize, exportedAt: new Date(), exportedBy: session.users.id } })
 
   return NextResponse.json({ message: 'Export regenerated', export: updated, fileUrl }, { status: 200 })
   } catch (error) {

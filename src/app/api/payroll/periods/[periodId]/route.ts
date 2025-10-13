@@ -16,7 +16,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -614,7 +614,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -659,7 +659,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       // Update timestamps based on status
       if (status === 'approved' && !existingPeriod.approvedAt) {
         updateData.approvedAt = new Date()
-        updateData.approvedBy = session.user.id
+        updateData.approvedBy = session.users.id
       }
 
       if (status === 'exported' && !existingPeriod.exportedAt) {
@@ -705,7 +705,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -761,7 +761,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       await tx.auditLogs.create({
         data: {
           id: `AL-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-          userId: session.user.id,
+          userId: session.users.id,
           action: 'DELETE',
           entityType: 'PayrollPeriod',
           entityId: periodId,

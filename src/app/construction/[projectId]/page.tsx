@@ -569,13 +569,13 @@ export default function ProjectDetailsPage() {
                 Add Contractor
               </button>
             </div>
-            {project.projectContractors && project.projectContractors.length > 0 ? (
+            {project.projectContractors && project.project_contractors.length > 0 ? (
               <div className="space-y-4">
-                {project.projectContractors.map((contractor) => (
+                {project.project_contractors.map((contractor) => (
                   <div key={contractor.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <h4 className="font-medium text-primary">{contractor.person.fullName}</h4>
+                        <h4 className="font-medium text-primary">{contractor.persons.fullName}</h4>
                         {contractor.role && (
                           <p className="text-sm text-secondary">{contractor.role}</p>
                         )}
@@ -589,11 +589,11 @@ export default function ProjectDetailsPage() {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                       <div>
                         <span className="text-secondary">Email: </span>
-                        <span className="text-primary">{contractor.person.email || 'N/A'}</span>
+                        <span className="text-primary">{contractor.persons.email || 'N/A'}</span>
                       </div>
                       <div>
                         <span className="text-secondary">Phone: </span>
-                        <span className="text-primary">{contractor.person.phone ? formatPhoneNumberForDisplay(contractor.person.phone) : 'N/A'}</span>
+                        <span className="text-primary">{contractor.persons.phone ? formatPhoneNumberForDisplay(contractor.persons.phone) : 'N/A'}</span>
                       </div>
                     </div>
                   </div>

@@ -14,7 +14,7 @@ export async function DELETE(
     const { userId } = await params
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -55,7 +55,7 @@ export async function DELETE(
         data: {
           isActive: false,
           deactivatedAt: new Date(),
-          deactivatedBy: session.user.id,
+          deactivatedBy: session.users.id,
           deactivationReason: reason || 'Account revoked',
           deactivationNotes: notes,
         }
@@ -78,7 +78,7 @@ export async function DELETE(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: session.users.id,
           action: 'USER_ACCOUNT_REVOKED',
           resourceType: 'User',
           resourceId: userId,
@@ -92,7 +92,7 @@ export async function DELETE(
             notes,
             businessMemberships: user.businessMemberships.map(m => ({
               businessId: m.businessId,
-              businessName: (m as any).business?.name || null
+              businessName: (m as any).businesses?.name || null
             }))
           },
           businessId: (user as any).businessMemberships.find((m: any) => m.isActive)?.businessId,
@@ -136,7 +136,7 @@ export async function POST(
     const { userId } = await params
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -178,7 +178,7 @@ export async function POST(
         data: {
           isActive: true,
           reactivatedAt: new Date(),
-          reactivatedBy: session.user.id,
+          reactivatedBy: session.users.id,
           reactivationNotes: notes,
           deactivatedAt: null,
           deactivatedBy: null,
@@ -207,7 +207,7 @@ export async function POST(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: session.users.id,
           action: 'USER_ACCOUNT_REACTIVATED',
           resourceType: 'User',
           resourceId: userId,

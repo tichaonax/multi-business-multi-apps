@@ -10,7 +10,7 @@ import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -70,7 +70,7 @@ export async function GET() {
     // Check if user has admin permissions in current business
     const userMembership = await prisma.businessMemberships.findFirst({
       where: {
-        userId: session.user.id,
+        userId: session.users.id,
         isActive: true,
       },
       include: {
@@ -149,7 +149,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
       // Check if user has admin permissions
       const userMembership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           isActive: true,
         },
       });
@@ -297,7 +297,7 @@ export async function POST(req: NextRequest) {
               permissions: assignmentPermissions,
               templateId: assignment.selectedTemplate || null,
               isActive: true,
-              invitedBy: session.user.id,
+              invitedBy: session.users.id,
               joinedAt: new Date(),
               lastAccessedAt: new Date(),
             }
@@ -316,7 +316,7 @@ export async function POST(req: NextRequest) {
               role: 'employee',
               permissions: BUSINESS_PERMISSION_PRESETS['employee'],
               isActive: true,
-              invitedBy: session.user.id,
+              invitedBy: session.users.id,
               joinedAt: new Date(),
               lastAccessedAt: new Date(),
             }
@@ -327,7 +327,7 @@ export async function POST(req: NextRequest) {
         // Fallback to old logic for backwards compatibility
         const userMembership = await tx.businessMemberships.findFirst({
           where: {
-            userId: session.user.id,
+            userId: session.users.id,
             isActive: true,
           },
         });
@@ -351,7 +351,7 @@ export async function POST(req: NextRequest) {
               role: role,
               permissions: userPermissions,
               isActive: true,
-              invitedBy: session.user.id,
+              invitedBy: session.users.id,
               joinedAt: new Date(),
               lastAccessedAt: new Date(),
             }

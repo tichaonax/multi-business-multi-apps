@@ -310,7 +310,7 @@ export default function ContractorsPage() {
   const getAvailableProjects = () => {
     if (!selectedContractor) return projects
     
-    const assignedProjectIds = selectedContractor.projectContractors.map(pc => pc.project.id)
+    const assignedProjectIds = selectedContractor.project_contractors.map(pc => pc.project.id)
     return projects.filter(project => !assignedProjectIds.includes(project.id))
   }
 
@@ -430,7 +430,7 @@ export default function ContractorsPage() {
       contractor.phone.includes(search) ||
       contractor.nationalId.toLowerCase().includes(search) ||
       // Also search in project assignments
-      contractor.projectContractors.some(pc => 
+      contractor.project_contractors.some(pc => 
         pc.project.name.toLowerCase().includes(search) ||
         pc.role?.toLowerCase().includes(search)
       )
@@ -570,9 +570,9 @@ export default function ContractorsPage() {
                       </span>
                     </div>
                     
-                    {contractor.projectContractors.length > 0 ? (
+                    {contractor.project_contractors.length > 0 ? (
                       <div className="space-y-2">
-                        {contractor.projectContractors.slice(0, 3).map((assignment) => (
+                        {contractor.project_contractors.slice(0, 3).map((assignment) => (
                           <div key={assignment.id} className="flex items-center justify-between text-sm">
                             <div className="flex-1">
                               <span className="text-primary font-medium">{assignment.project.name}</span>
@@ -596,9 +596,9 @@ export default function ContractorsPage() {
                             </span>
                           </div>
                         ))}
-                        {contractor.projectContractors.length > 3 && (
+                        {contractor.project_contractors.length > 3 && (
                           <div className="text-xs text-secondary">
-                            +{contractor.projectContractors.length - 3} more projects
+                            +{contractor.project_contractors.length - 3} more projects
                           </div>
                         )}
                       </div>
@@ -1119,17 +1119,17 @@ export default function ContractorsPage() {
                 {/* Project Assignments */}
                 <div>
                   <h4 className="text-md font-semibold text-primary mb-4">
-                    Project Assignments ({selectedContractor.projectContractors.length})
+                    Project Assignments ({selectedContractor.project_contractors.length})
                   </h4>
                   
-                  {selectedContractor.projectContractors.length === 0 ? (
+                  {selectedContractor.project_contractors.length === 0 ? (
                     <div className="text-center py-8">
                       <div className="text-4xl mb-2">📋</div>
                       <p className="text-secondary">No project assignments yet</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {selectedContractor.projectContractors.map((assignment) => (
+                      {selectedContractor.project_contractors.map((assignment) => (
                         <div key={assignment.id} className="card p-4">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">

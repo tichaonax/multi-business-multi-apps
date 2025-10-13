@@ -160,10 +160,10 @@ export const authOptions: NextAuthOptions = {
         const s: any = session
         const t: any = token
         s.user = s.user || {}
-        s.user.id = t.sub || s.user.id
-        s.user.role = t.role
-        s.user.permissions = t.permissions
-        s.user.businessMemberships = t.businessMemberships
+        s.users.id = t.sub || s.users.id
+        s.users.role = t.role
+        s.users.permissions = t.permissions
+        s.users.businessMemberships = t.businessMemberships
         s.sessionId = t.sessionId
         s.loginTime = t.loginTime
       }
@@ -182,7 +182,7 @@ export const authOptions: NextAuthOptions = {
     async signOut({ token, session }) {
       console.log('🚪 Sign-out event:', {
         sessionId: (token as any)?.sessionId || (session as any)?.sessionId,
-        userId: (token as any)?.sub || (session as any)?.user?.id,
+        userId: (token as any)?.sub || (session as any)?.users?.id,
         timestamp: new Date().toISOString()
       })
     },

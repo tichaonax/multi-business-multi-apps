@@ -8,13 +8,13 @@ import { SessionUser } from '@/lib/permission-utils'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Fetch full user data with permissions and business memberships
     const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+      where: { id: session.users.id },
       select: {
         id: true,
         email: true,
@@ -88,12 +88,12 @@ export async function GET(req: NextRequest) {
 
       if (filterType === 'own') {
         // Only projects created by this user
-        whereClause.createdBy = session.user.id
+        whereClause.createdBy = session.users.id
       } else if (filterType === 'personal') {
         // Only personal projects (no business) that user created or has access to
         whereClause.AND = [
           { businessId: null },
-          { createdBy: session.user.id }
+          { createdBy: session.users.id }
         ]
       } else if (filterType === 'business') {
         // Only business projects user has access to
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
             {
               AND: [
                 { businessId: null }, // Personal projects
-                { createdBy: session.user.id } // Only personal projects user created
+                { createdBy: session.users.id } // Only personal projects user created
               ]
             },
             { businessId: { in: userBusinessIds } } // Projects from user's businesses
@@ -155,8 +155,8 @@ export async function GET(req: NextRequest) {
 
     // Calculate project progress and financial summaries
     const projectsWithDetails = activeProjects.map(project => {
-      const completedTransactions = project.projectTransactions.filter(t => t.status === 'completed')
-      const activeTransactions = project.projectTransactions.filter(t => t.status === 'completed' || t.status === 'pending')
+      const completedTransactions = project.project_transactions.filter(t => t.status === 'completed')
+      const activeTransactions = project.project_transactions.filter(t => t.status === 'completed' || t.status === 'pending')
       const totalBudget = Number(project.budget || 0)
       const totalSpent = activeTransactions
         .filter(t => Number(t.amount) > 0)
@@ -189,12 +189,12 @@ export async function GET(req: NextRequest) {
           type: project.businesses.type
         } : null,
         createdBy: project.user ? {
-          id: project.user.id,
-          name: project.user.name,
-          email: project.user.email
+          id: project.users.id,
+          name: project.users.name,
+          email: project.users.email
         } : null,
         isPersonal: !project.businessId,
-        isOwnProject: project.user?.id === session.user.id,
+        isOwnProject: project.users?.id === session.users.id,
         netProfit: totalReceived - totalSpent
       }
     })

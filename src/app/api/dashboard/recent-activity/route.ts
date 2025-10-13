@@ -46,7 +46,7 @@ const safePrisma = (() => {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -64,11 +64,11 @@ export async function GET(req: NextRequest) {
     console.log('  - filterScope:', filterScope)
     console.log('  - filterUserId:', filterUserId)
     console.log('  - filterBusinessId:', filterBusinessId)
-    console.log('  - session.user.id:', session.user.id)
+    console.log('  - session.users.id:', session.users.id)
     console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
     // Determine filtering based on scope and permissions
-  let targetUserId: string | null = session.user.id // Default to current user
+  let targetUserId: string | null = session.users.id // Default to current user
   let targetBusinessIds: string[] | null = userBusinessIds // Default to user's businesses
     let shouldReturnEmptyResults = false // Flag to return empty results when required selection is missing
 
@@ -197,7 +197,7 @@ export async function GET(req: NextRequest) {
 
         // console.log(`🍽️ Found ${recentOrders.length} orders matching filter`)
         // recentOrders.forEach((order, index) => {
-        //   console.log(`  ${index + 1}. ${order.orderNumber}: ${order.status} - $${order.totalAmount} (Business: ${order.business?.name})`)
+        //   console.log(`  ${index + 1}. ${order.orderNumber}: ${order.status} - $${order.totalAmount} (Business: ${order.businesses?.name})`)
         // })
 
         recentOrders.forEach(order => {
@@ -384,7 +384,7 @@ export async function GET(req: NextRequest) {
         } else if (targetBusinessIds && targetBusinessIds.length > 0) {
           // For business filtering, only include expenses that are actually linked to business projects
           // Personal expenses are only business-related if they have ProjectTransactions linking to business projects
-          const businessProjectTransactions = await prisma.projectTransactions.findMany({
+          const businessProjectTransactions = await prisma.project_transactions.findMany({
             where: ({
               project: {
                 businessId: { in: targetBusinessIds }
@@ -540,14 +540,14 @@ export async function GET(req: NextRequest) {
 
         console.log(`🏪 Found ${recentBusinessOrders.length} business orders matching filter`)
         recentBusinessOrders.forEach((order, index) => {
-          console.log(`  ${index + 1}. ${order.orderNumber}: ${order.business?.type} - ${order.business?.name}`)
+          console.log(`  ${index + 1}. ${order.orderNumber}: ${order.businesses?.type} - ${order.businesses?.name}`)
         })
         // recentBusinessOrders.forEach((order, index) => {
-        //   console.log(`  ${index + 1}. ${order.orderNumber}: ${order.status} - $${order.subtotal} (Business: ${order.business?.name})`)
+        //   console.log(`  ${index + 1}. ${order.orderNumber}: ${order.status} - $${order.subtotal} (Business: ${order.businesses?.name})`)
         // })
 
         recentBusinessOrders.forEach(order => {
-          const businessType = order.business?.type || 'business'
+          const businessType = order.businesses?.type || 'business'
           const businessIcon = businessType === 'grocery' ? '🛒' :
                               businessType === 'clothing' ? '👕' :
                               businessType === 'hardware' ? '🔧' : '🏪'
@@ -556,7 +556,7 @@ export async function GET(req: NextRequest) {
             id: `business-order-${order.id}`,
             type: 'business_order',
             title: `${businessType.charAt(0).toUpperCase() + businessType.slice(1)} Order`,
-            description: `${order.status} order from ${order.business?.name || 'Business'} - $${Number(order.totalAmount).toFixed(2)}`,
+            description: `${order.status} order from ${order.businesses?.name || 'Business'} - $${Number(order.totalAmount).toFixed(2)}`,
             createdAt: order.createdAt,
             module: businessType,
             icon: businessIcon,

@@ -278,7 +278,7 @@ function UserRow({
                       {membership.businessId === primaryMembership?.businessId && (
                         <span className="text-xs">⭐</span>
                       )}
-                      {membership.business.name}
+                      {membership.businesses.name}
                     </span>
                   ))}
                   {activeMemberships.length > 2 && (
@@ -356,7 +356,7 @@ function UserRow({
                           {membership.businessId === primaryMembership?.businessId && (
                             <span className="text-sm">⭐</span>
                           )}
-                          <span className="font-medium text-gray-900 dark:text-white">{membership.business.name}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{membership.businesses.name}</span>
                           {membership.businessId === primaryMembership?.businessId && (
                             <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">
                               Primary

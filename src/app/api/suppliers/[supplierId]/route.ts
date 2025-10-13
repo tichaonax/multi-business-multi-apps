@@ -13,7 +13,7 @@ export async function GET(
     const { supplierId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -57,7 +57,7 @@ export async function PUT(
     const { supplierId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -91,7 +91,7 @@ export async function PUT(
       ...supplierData,
       id: supplierId, // Ensure ID doesn't change
       updatedAt: new Date().toISOString(),
-      lastUpdatedBy: session.user.id
+      lastUpdatedBy: session.users.id
     }
 
     suppliers[supplierIndex] = updatedSupplier
@@ -123,7 +123,7 @@ export async function DELETE(
     const { supplierId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

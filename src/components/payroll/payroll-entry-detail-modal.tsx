@@ -1011,7 +1011,7 @@ export function PayrollEntryDetailModal({
                        undefined
 
       // Get business name from payroll period
-      const businessName = (entry as any).payrollPeriod?.business?.name || undefined
+      const businessName = (entry as any).payrollPeriod?.businesses?.name || undefined
 
       // Get start date (contract start date / hire date)
       const startDate = entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : undefined

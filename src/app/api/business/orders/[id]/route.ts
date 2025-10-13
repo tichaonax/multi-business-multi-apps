@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -55,7 +55,7 @@ export async function GET(
       // Verify user has access to the business that owns this order
       const userHasAccess = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           businessId: order.businessId,
           isActive: true
         }
@@ -111,7 +111,7 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

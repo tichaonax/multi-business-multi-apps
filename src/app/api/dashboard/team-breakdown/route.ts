@@ -8,7 +8,7 @@ import { SessionUser } from '@/lib/permission-utils'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -61,20 +61,20 @@ export async function GET(req: NextRequest) {
             const validBusinessMemberships = u.businessMemberships.filter(bm => bm.business)
 
             // Find primary business
-            const primaryBusiness = validBusinessMemberships.find(bm => bm.business?.id === u.lastAccessedBusinessId) || validBusinessMemberships[0]
+            const primaryBusiness = validBusinessMemberships.find(bm => bm.businesses?.id === u.lastAccessedBusinessId) || validBusinessMemberships[0]
 
             // Filter other businesses (exclude the primary one)
             const otherBusinesses = validBusinessMemberships.filter(bm =>
-              bm.business && bm.businesses.id !== primaryBusiness?.business?.id
+              bm.business && bm.businesses.id !== primaryBusiness?.businesses?.id
             )
 
             // Debug info temporarily added to response
             const debugInfo = {
               totalMemberships: u.businessMemberships.length,
               validMemberships: validBusinessMemberships.length,
-              primaryBusiness: primaryBusiness?.business?.name,
+              primaryBusiness: primaryBusiness?.businesses?.name,
               otherBusinessCount: otherBusinesses.length,
-              otherBusinessNames: otherBusinesses.map(bm => bm.business?.name),
+              otherBusinessNames: otherBusinesses.map(bm => bm.businesses?.name),
               lastAccessedBusinessId: u.lastAccessedBusinessId
             }
 
@@ -95,16 +95,16 @@ export async function GET(req: NextRequest) {
                 isPrimary: true
               } : null,
               otherBusinesses: otherBusinesses.map(bm => ({
-                id: bm.business?.id,
-                name: bm.business?.name,
-                type: bm.business?.type,
+                id: bm.businesses?.id,
+                name: bm.businesses?.name,
+                type: bm.businesses?.type,
                 role: bm.role,
                 isPrimary: false
               })),
               // Keep old format for backward compatibility
               businesses: u.businessMemberships.map(bm => ({
-                businessName: bm.business?.name,
-                businessType: bm.business?.type,
+                businessName: bm.businesses?.name,
+                businessType: bm.businesses?.type,
                 role: bm.role
               }))
             }
@@ -150,14 +150,14 @@ export async function GET(req: NextRequest) {
 
           // Remove duplicates by userId
           const uniqueUsers = businessUsers.reduce((acc, membership) => {
-            if (!acc.find(u => u.user.id === membership.user.id)) {
+            if (!acc.find(u => u.users.id === membership.users.id)) {
               acc.push(membership)
             }
             return acc
           }, [] as typeof businessUsers)
 
           // Get complete user data with all business memberships
-          const userIds = uniqueUsers.map(m => m.user.id)
+          const userIds = uniqueUsers.map(m => m.users.id)
           const completeUsers = await prisma.users.findMany({
             where: {
               id: { in: userIds },
@@ -187,20 +187,20 @@ export async function GET(req: NextRequest) {
             const validBusinessMemberships = u.businessMemberships.filter(bm => bm.business)
 
             // Find primary business
-            const primaryBusiness = validBusinessMemberships.find(bm => bm.business?.id === u.lastAccessedBusinessId) || validBusinessMemberships[0]
+            const primaryBusiness = validBusinessMemberships.find(bm => bm.businesses?.id === u.lastAccessedBusinessId) || validBusinessMemberships[0]
 
             // Filter other businesses (exclude the primary one)
             const otherBusinesses = validBusinessMemberships.filter(bm =>
-              bm.business && bm.businesses.id !== primaryBusiness?.business?.id
+              bm.business && bm.businesses.id !== primaryBusiness?.businesses?.id
             )
 
             // Debug info temporarily added to response
             const debugInfo = {
               totalMemberships: u.businessMemberships.length,
               validMemberships: validBusinessMemberships.length,
-              primaryBusiness: primaryBusiness?.business?.name,
+              primaryBusiness: primaryBusiness?.businesses?.name,
               otherBusinessCount: otherBusinesses.length,
-              otherBusinessNames: otherBusinesses.map(bm => bm.business?.name),
+              otherBusinessNames: otherBusinesses.map(bm => bm.businesses?.name),
               lastAccessedBusinessId: u.lastAccessedBusinessId
             }
 
@@ -221,16 +221,16 @@ export async function GET(req: NextRequest) {
                 isPrimary: true
               } : null,
               otherBusinesses: otherBusinesses.map(bm => ({
-                id: bm.business?.id,
-                name: bm.business?.name,
-                type: bm.business?.type,
+                id: bm.businesses?.id,
+                name: bm.businesses?.name,
+                type: bm.businesses?.type,
                 role: bm.role,
                 isPrimary: false
               })),
               // Keep old format for backward compatibility
               businesses: u.businessMemberships.map(bm => ({
-                businessName: bm.business?.name,
-                businessType: bm.business?.type,
+                businessName: bm.businesses?.name,
+                businessType: bm.businesses?.type,
                 role: bm.role
               }))
             }
@@ -238,7 +238,7 @@ export async function GET(req: NextRequest) {
 
           // Count roles
           uniqueUsers.forEach(membership => {
-            breakdown.roles[membership.user.role] = (breakdown.roles[membership.user.role] || 0) + 1
+            breakdown.roles[membership.users.role] = (breakdown.roles[membership.users.role] || 0) + 1
           })
         }
       } catch (error) {

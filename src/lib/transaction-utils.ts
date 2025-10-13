@@ -114,7 +114,7 @@ async function handlePaymentTypeOperations(
       }
 
       // Verify contractor exists and is active
-      const person = await tx.person.findUnique({
+      const person = await tx.persons.findUnique({
         where: { id: data.contractorId },
         select: {
           id: true,
@@ -194,7 +194,7 @@ async function createNewLoanTransaction(
   // Verify recipient exists
   let recipientName = ''
   if (data.recipientType === 'business') {
-    const borrowerBusiness = await tx.business.findUnique({
+    const borrowerBusiness = await tx.businesses.findUnique({
       where: { id: recipientId },
       select: { name: true }
     })
@@ -204,7 +204,7 @@ async function createNewLoanTransaction(
     }
     recipientName = borrowerBusiness.name
   } else if (data.recipientType === 'person') {
-    const borrowerPerson = await tx.person.findUnique({
+    const borrowerPerson = await tx.persons.findUnique({
       where: { id: recipientId },
       select: { fullName: true }
     })
@@ -606,8 +606,8 @@ async function handleGenericProjectPayment(
       throw new Error('Contractor is not assigned to the specified project')
     }
 
-    if (!projectContractor.person?.isActive) {
-      throw new Error(`Cannot make payment to inactive person: ${projectContractor.person.fullName}. Please reactivate the person first.`)
+    if (!projectContractor.persons?.isActive) {
+      throw new Error(`Cannot make payment to inactive person: ${projectContractor.persons.fullName}. Please reactivate the person first.`)
     }
 
     // Create project transaction for contractor payment
@@ -680,8 +680,8 @@ async function handleConstructionProjectPayment(
     throw new Error('Contractor is not assigned to the specified project')
   }
 
-  if (!projectContractor.person?.isActive) {
-    throw new Error(`Cannot make payment to inactive person: ${projectContractor.person.fullName}. Please reactivate the person first.`)
+  if (!projectContractor.persons?.isActive) {
+    throw new Error(`Cannot make payment to inactive person: ${projectContractor.persons.fullName}. Please reactivate the person first.`)
   }
 
   // Create project transaction (legacy style)

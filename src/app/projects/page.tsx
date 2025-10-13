@@ -133,10 +133,10 @@ export default function ProjectsPage() {
     // Text search filter
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         project.projectType.name.toLowerCase().includes(searchTerm.toLowerCase())
+                         project.project_types.name.toLowerCase().includes(searchTerm.toLowerCase())
 
     // My Projects filter
-    const matchesMyProjects = !showMyProjectsOnly || project.user?.id === session?.user?.id
+    const matchesMyProjects = !showMyProjectsOnly || project.users?.id === session?.users?.id
 
     return matchesSearch && matchesMyProjects
   })
@@ -423,13 +423,13 @@ export default function ProjectsPage() {
                           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md">
                             {project.businessType}
                           </span>
-                          <span>{project.projectType.name}</span>
+                          <span>{project.project_types.name}</span>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-secondary/60">
                           {project.user && (
                             <div className="flex items-center gap-1">
                               <User className="h-3 w-3" />
-                              <span>Created by: {project.user.name}</span>
+                              <span>Created by: {project.users.name}</span>
                             </div>
                           )}
                           <div className="flex items-center gap-1">
@@ -521,12 +521,12 @@ export default function ProjectsPage() {
                     )}
 
                     {/* Primary Contractor */}
-                    {project.projectContractors.length > 0 && (
+                    {project.project_contractors.length > 0 && (
                       <div>
-                        {project.projectContractors.filter(pc => pc.isPrimary).map(primaryContractor => (
+                        {project.project_contractors.filter(pc => pc.isPrimary).map(primaryContractor => (
                           <div key={primaryContractor.id} className="flex items-center gap-2 text-sm">
                             <span className="font-medium">Primary Contractor:</span>
-                            <span>{primaryContractor.person.fullName}</span>
+                            <span>{primaryContractor.persons.fullName}</span>
                             <Badge variant="outline" className="text-xs">Primary</Badge>
                           </div>
                         ))}

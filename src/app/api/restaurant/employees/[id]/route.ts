@@ -77,7 +77,7 @@ export async function PUT(
     const { id } = await params
   }
 
-  const userPermissions = session.user.permissions || {}
+  const userPermissions = session.users.permissions || {}
   if (!hasPermission(userPermissions, 'restaurant', 'write')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
@@ -124,7 +124,7 @@ export async function DELETE(
     const { id } = await params
   }
 
-  const userPermissions = session.user.permissions || {}
+  const userPermissions = session.users.permissions || {}
   if (!hasPermission(userPermissions, 'restaurant', 'write')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }

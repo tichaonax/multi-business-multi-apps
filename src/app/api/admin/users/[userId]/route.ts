@@ -32,7 +32,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -42,10 +42,10 @@ export async function GET(
     }
 
     // Check permissions - system admins can view any user
-    if (session.user.role !== 'admin') {
+    if (session.users.role !== 'admin') {
       const userMemberships = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           isActive: true,
         }
       })
@@ -126,7 +126,7 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -137,10 +137,10 @@ export async function PATCH(
 
     // Check if current user has permission to edit users
     // System admins can edit any user
-    if (session.user.role !== 'admin') {
+    if (session.users.role !== 'admin') {
       const userMemberships = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           isActive: true,
         },
         include: {
@@ -169,10 +169,10 @@ export async function PATCH(
     }
 
     // Validate that the user has permission to assign users to the requested businesses
-    if (session.user.role !== 'admin') {
+    if (session.users.role !== 'admin') {
       const userMemberships = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           isActive: true,
         }
       })
@@ -288,7 +288,7 @@ export async function PATCH(
             permissions: finalPermissions as any,
             templateId: finalTemplateId,
             isActive: membershipData.isActive,
-            invitedBy: session.user.id,
+            invitedBy: session.users.id,
             joinedAt: new Date(),
             lastAccessedAt: new Date(),
           },
@@ -315,11 +315,11 @@ export async function PATCH(
       success: true,
       message: `User updated successfully`,
       user: {
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
-        systemRole: result.user.role,
-        isActive: result.user.isActive,
+        id: result.users.id,
+        name: result.users.name,
+        email: result.users.email,
+        systemRole: result.users.role,
+        isActive: result.users.isActive,
         businessMemberships: result.memberships.map(m => ({
           businessId: m.businessId,
           businessName: m.businesses.name,
@@ -345,7 +345,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -355,10 +355,10 @@ export async function DELETE(
     }
 
     // Check permissions - system admins can delete any user
-    if (session.user.role !== 'admin') {
+    if (session.users.role !== 'admin') {
       const userMemberships = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           isActive: true,
         }
       })

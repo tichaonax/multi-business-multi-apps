@@ -10,7 +10,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: session.users.id
       }
     })
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Get all transactions for this project
-    const transactions = await prisma.projectTransactions.findMany({
+    const transactions = await prisma.project_transactions.findMany({
       where: { projectId },
       include: {
         personalExpense: {
@@ -136,14 +136,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         stageTotal: stageContractorTotal + stageExpenseTotal,
         contractors: stage.stageContractorAssignments.map(assignment => ({
-          contractorId: assignment.projectContractor.person.id,
-          contractorName: assignment.projectContractor.person.fullName,
+          contractorId: assignment.projectContractor.persons.id,
+          contractorName: assignment.projectContractor.persons.fullName,
           assignedAmount: parseFloat(assignment.predeterminedAmount.toString()),
           depositAmount: assignment.depositAmount ? parseFloat(assignment.depositAmount.toString()) : 0,
           isDepositPaid: assignment.isDepositPaid,
           isFinalPaymentMade: assignment.isFinalPaymentMade,
           payments: stageContractorPayments.filter(t => 
-            t.recipientPersonId === assignment.projectContractor.person.id
+            t.recipientPersonId === assignment.projectContractor.persons.id
           ).map(t => ({
             amount: parseFloat(t.amount.toString()),
             date: t.personalExpense?.date,
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     })
 
     // Calculate contractor breakdown (across all stages)
-    const contractorBreakdown = await prisma.projectContractors.findMany({
+    const contractorBreakdown = await prisma.project_contractors.findMany({
       where: { projectId },
       include: {
         person: {
@@ -181,7 +181,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const contractorSummary = contractorBreakdown.map(contractor => {
       const contractorTransactions = transactions.filter(t => 
-        t.recipientPersonId === contractor.person.id &&
+        t.recipientPersonId === contractor.persons.id &&
         (t.transactionType === 'contractor_payment' || t.transactionType === 'deposit')
       )
       

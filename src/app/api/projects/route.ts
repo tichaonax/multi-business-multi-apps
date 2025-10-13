@@ -15,7 +15,7 @@ import { randomBytes } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     const projects = await prisma.projects.findMany({
       where: whereClause,
       include: {
-        projectType: {
+        project_types: {
           select: {
             id: true,
             name: true,
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
             businessType: true
           }
         },
-        user: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -102,9 +102,9 @@ export async function GET(req: NextRequest) {
             type: true
           }
         },
-        projectContractors: {
+        project_contractors: {
           include: {
-            person: {
+            persons: {
               select: {
                 id: true,
                 fullName: true,
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
             }
           }
         },
-        projectTransactions: {
+        project_transactions: {
           select: {
             id: true,
             amount: true,
@@ -130,8 +130,8 @@ export async function GET(req: NextRequest) {
         },
         _count: {
           select: {
-            projectContractors: true,
-            projectTransactions: true
+            project_contractors: true,
+            project_transactions: true
           }
         }
       },
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
 
     // Calculate financial summaries for each project
     const projectsWithSummaries = projects.map(project => {
-      const transactions = project.projectTransactions
+      const transactions = project.project_transactions
       const totalBudget = project.budget ? Number(project.budget) : 0
       const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0)
       const contractorPayments = transactions.filter(t => t.transactionType === 'contractor_payment').reduce((sum, t) => sum + Number(t.amount), 0)
@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
       return {
         ...project,
         budget: totalBudget,
-        projectTransactions: project.projectTransactions.map(t => ({
+        projectTransactions: project.project_transactions.map(t => ({
           ...t,
           amount: Number(t.amount)
         })),
@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -283,11 +283,11 @@ export async function POST(req: NextRequest) {
         budget: budget ? Number(budget) : null,
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
-        createdBy: session.user.id,
+        createdBy: session.users.id,
         status: 'active'
       },
       include: {
-        projectType: {
+        project_types: {
           select: {
             id: true,
             name: true,
@@ -295,7 +295,7 @@ export async function POST(req: NextRequest) {
             businessType: true
           }
         },
-        user: {
+        users: {
           select: {
             id: true,
             name: true,

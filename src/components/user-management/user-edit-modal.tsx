@@ -148,8 +148,8 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
 
       return {
         businessId: membership.businessId,
-        businessName: membership.business.name,
-        businessType: (membership.business.type as BusinessType) || 'other',
+        businessName: membership.businesses.name,
+        businessType: (membership.businesses.type as BusinessType) || 'other',
         role: roleKey,
         isActive: membership.isActive,
         useCustomPermissions: hasCustomPermissions,

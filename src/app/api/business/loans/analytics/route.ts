@@ -6,14 +6,14 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user's business memberships to determine which loans they can see
     const userBusinesses = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.user.id,
+        userId: session.users.id,
         isActive: true
       },
       select: { businessId: true }

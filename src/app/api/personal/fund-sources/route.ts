@@ -9,7 +9,7 @@ import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -21,7 +21,7 @@ export async function GET() {
     }
 
     const fundSources = await prisma.fundSources.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.users.id },
       orderBy: [
         { usageCount: 'desc' },
         { createdAt: 'asc' }
@@ -38,7 +38,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     const fundSource = await prisma.fundSources.create({
       data: {
-        userId: session.user.id,
+        userId: session.users.id,
         name,
         emoji: cleanEmoji,
         isDefault: false
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -86,7 +86,7 @@ export async function DELETE(request: NextRequest) {
 
     // Verify ownership
     const fundSource = await prisma.fundSources.findFirst({
-      where: { id, userId: session.user.id }
+      where: { id, userId: session.users.id }
     })
 
     if (!fundSource) {

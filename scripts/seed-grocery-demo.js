@@ -4,7 +4,7 @@ const prisma = new PrismaClient()
 async function upsertCategory(businessId, name, description) {
   const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '')
   const id = `${businessId}-cat-${slug}`
-  return prisma.businessCategory.upsert({
+  return prisma.businessCategories.upsert({
     where: { businessId_name: { businessId, name } },
     update: { description },
     create: { id, businessId, name, description, businessType: 'grocery', updatedAt: new Date() }
@@ -17,7 +17,7 @@ async function createProductWithStock(businessId, categoryId, productData, initi
   // Prefer upsert by sku (there is a unique constraint @@unique([businessId, sku]))
   if (productData.sku) {
     const prodId = `${businessId}-prod-${productData.sku}`
-    product = await prisma.businessProduct.upsert({
+    product = await prisma.businessProducts.upsert({
       where: { businessId_sku: { businessId, sku: productData.sku } },
       update: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {} },
       create: {
@@ -35,23 +35,23 @@ async function createProductWithStock(businessId, categoryId, productData, initi
         attributes: productData.attributes || {},
         updatedAt: new Date()
       },
-    include: { businessCategory: true }
+    include: { business_categories: true }
     })
   } else {
     // No sku provided: try finding by businessId+name, then update or create
-    const existing = await prisma.businessProduct.findFirst({ where: { businessId, name: productData.name } })
+    const existing = await prisma.businessProducts.findFirst({ where: { businessId, name: productData.name } })
     if (existing) {
-      product = await prisma.businessProduct.update({ where: { id: existing.id }, data: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {} } })
+      product = await prisma.businessProducts.update({ where: { id: existing.id }, data: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {} } })
     } else {
       const prodId = `${businessId}-prod-${productData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '')}`
-      product = await prisma.businessProduct.create({ data: { id: prodId, businessId, name: productData.name, description: productData.description || '', sku: null, barcode: productData.barcode || null, categoryId: categoryId || undefined, basePrice: productData.basePrice, costPrice: productData.costPrice || null, businessType: 'grocery', isActive: true, attributes: productData.attributes || {}, updatedAt: new Date() } })
+      product = await prisma.businessProducts.create({ data: { id: prodId, businessId, name: productData.name, description: productData.description || '', sku: null, barcode: productData.barcode || null, categoryId: categoryId || undefined, basePrice: productData.basePrice, costPrice: productData.costPrice || null, businessType: 'grocery', isActive: true, attributes: productData.attributes || {}, updatedAt: new Date() } })
     }
   }
 
   // Create default variant (idempotent by sku)
   const variantSku = productData.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-DFT`
   const variantId = `${product.id}-variant-default`
-  const variant = await prisma.productVariant.upsert({
+  const variant = await prisma.productVariants.upsert({
     where: { sku: variantSku },
     update: { price: productData.basePrice, stockQuantity: initialStock || 0, isActive: true },
     create: {
@@ -70,7 +70,7 @@ async function createProductWithStock(businessId, categoryId, productData, initi
   // If initial stock specified, create a stock movement
   if (initialStock && initialStock > 0) {
     const movementId = `${variant.id}-stock-1`
-    await prisma.businessStockMovement.createMany({
+    await prisma.businessStockMovements.createMany({
       data: [{
         id: movementId,
         businessId,
@@ -87,15 +87,15 @@ async function createProductWithStock(businessId, categoryId, productData, initi
       skipDuplicates: true
     })
 
-    await prisma.productVariant.update({ where: { id: variant.id }, data: { stockQuantity: initialStock } })
+    await prisma.productVariants.update({ where: { id: variant.id }, data: { stockQuantity: initialStock } })
   }
 
   // Create product attributes
     if (productData.attributes) {
     const attrData = Object.entries(productData.attributes).map(([key, value], idx) => ({ id: `${product.id}-attr-${idx}-${key}`, productId: product.id, key, value: String(value) }))
     // Upsert naive: delete existing attributes for this product and recreate for idempotence
-    await prisma.productAttribute.deleteMany({ where: { productId: product.id } }).catch(() => {})
-    if (attrData.length > 0) await prisma.productAttribute.createMany({ data: attrData, skipDuplicates: true })
+    await prisma.productAttributes.deleteMany({ where: { productId: product.id } }).catch(() => {})
+    if (attrData.length > 0) await prisma.productAttributes.createMany({ data: attrData, skipDuplicates: true })
   }
 
   return { product, variant }

@@ -13,7 +13,7 @@ interface RouteParams {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const user = session.user as any
     const isAdmin = isSystemAdmin(user)
-    const role = getUserRoleInBusiness(user, existingPeriod.business?.id)
+    const role = getUserRoleInBusiness(user, existingPeriod.businesses?.id)
     if (!(isAdmin || role === 'business-manager' || role === 'business-owner' || hasPermission(user, 'canManagePayroll'))) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }

@@ -626,7 +626,7 @@ export default function EmployeesPage() {
                                     key={idx}
                                     className="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 rounded mr-1 mb-1"
                                   >
-                                    {assignment.business?.name || assignment.businessName || 'Unknown Business'}
+                                    {assignment.businesses?.name || assignment.businessName || 'Unknown Business'}
                                   </span>
                                 ))}
                                 {employee.businessAssignments.length > 2 && (

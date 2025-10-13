@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.users?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const isAdmin = (session.user as any)?.role === 'admin' || (session.user as any)?.isAdmin
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const demoProjects = await prisma.projects.findMany({ where: { businessId: demoBusinessId }, select: { id: true } }).catch(() => [])
     const demoProjectIds = demoProjects.map(p => p.id)
     if (demoProjectIds.length) {
-      await prisma.projectContractors.deleteMany({ where: { projectId: { in: demoProjectIds } } }).catch(() => {})
+      await prisma.project_contractors.deleteMany({ where: { projectId: { in: demoProjectIds } } }).catch(() => {})
     }
 
     // Remove projects for business

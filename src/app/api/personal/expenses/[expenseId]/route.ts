@@ -13,7 +13,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -32,7 +32,7 @@ export async function GET(
 
     // Non-admin users can only access their own expenses
     if (!isSystemAdmin(user)) {
-      whereClause.userId = session.user.id
+      whereClause.userId = session.users.id
     }
 
     const expense = await prisma.personalExpenses.findFirst({
@@ -83,7 +83,7 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -105,7 +105,7 @@ export async function PUT(
     const existingExpense = await prisma.personalExpenses.findFirst({
       where: {
         id: expenseId,
-        userId: session.user.id
+        userId: session.users.id
       }
     })
 
@@ -118,7 +118,7 @@ export async function PUT(
     // Check ownership and time-based permissions for editing
     if (!isAdmin) {
       // Non-admin users can only edit their own expenses
-      if (existingExpense.userId !== session.user.id) {
+      if (existingExpense.userId !== session.users.id) {
         return NextResponse.json({ error: 'Insufficient permissions to edit this expense' }, { status: 403 })
       }
 
@@ -141,7 +141,7 @@ export async function PUT(
     // If amount is increasing, check available balance
     if (amountDifference > 0) {
       const budgetEntries = await prisma.personalBudgets.findMany({
-        where: { userId: session.user.id },
+        where: { userId: session.users.id },
         orderBy: { createdAt: 'desc' }
       })
 
@@ -176,7 +176,7 @@ export async function PUT(
     if (amountDifference !== 0) {
       await prisma.personalBudgets.create({
         data: {
-          userId: session.user.id,
+          userId: session.users.id,
           amount: Math.abs(amountDifference), // Always positive amount
           description: `Expense adjustment: ${description}`,
           type: amountDifference > 0 ? 'expense' : 'deposit' // If increase = expense, if decrease = deposit
@@ -189,7 +189,7 @@ export async function PUT(
       if (projectId && (paymentType !== 'contractor' || contractorId)) {
         // For contractor payments, validate that the person is active
         if (paymentType === 'contractor' && contractorId) {
-          const projectContractor = await prisma.projectContractors.findUnique({
+          const projectContractor = await prisma.project_contractors.findUnique({
             where: { id: contractorId },
             select: {
               person: {
@@ -206,21 +206,21 @@ export async function PUT(
           }
           
           // Check if the person is inactive
-          if (projectContractor.person?.isActive === false) {
+          if (projectContractor.persons?.isActive === false) {
             return NextResponse.json({ 
-              error: `Cannot make payment to inactive person: ${projectContractor.person.fullName}. Please reactivate the person first.` 
+              error: `Cannot make payment to inactive person: ${projectContractor.persons.fullName}. Please reactivate the person first.` 
             }, { status: 400 })
           }
         }
         
         // Check if ProjectTransaction already exists
-        const existingTransaction = await prisma.projectTransactions.findFirst({
+        const existingTransaction = await prisma.project_transactions.findFirst({
           where: { personalExpenseId: expenseId }
         })
 
         if (existingTransaction) {
           // Update existing transaction
-          await prisma.projectTransactions.update({
+          await prisma.project_transactions.update({
             where: { id: existingTransaction.id },
             data: {
               projectId,
@@ -232,7 +232,7 @@ export async function PUT(
           })
         } else {
           // Create new transaction
-          await prisma.projectTransactions.create({
+          await prisma.project_transactions.create({
             data: {
               projectId,
               personalExpenseId: expenseId,
@@ -241,14 +241,14 @@ export async function PUT(
               amount: Number(amount),
               description,
               status: 'pending',
-              createdBy: session.user.id
+              createdBy: session.users.id
             }
           })
         }
       }
     } else {
       // If changing away from contractor/project payment, delete any existing ProjectTransaction
-      await prisma.projectTransactions.deleteMany({
+      await prisma.project_transactions.deleteMany({
         where: { personalExpenseId: expenseId }
       })
     }
@@ -301,7 +301,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -333,7 +333,7 @@ export async function DELETE(
     // Check ownership and time-based permissions
     if (!isAdmin) {
       // Non-admin users can only delete their own expenses
-      if (expense.userId !== session.user.id) {
+      if (expense.userId !== session.users.id) {
         return NextResponse.json({ error: 'Insufficient permissions to delete this expense' }, { status: 403 })
       }
 
@@ -354,9 +354,9 @@ export async function DELETE(
     // Use atomic transaction for deletion with complete rollback
     const result = await deleteExpenseWithRollback({
       expenseId: expenseId,
-      userId: session.user.id,
+      userId: session.users.id,
       rollbackReason: isAdmin ? 'Admin deletion' : 'User deletion within 24-hour window',
-      auditNotes: `Expense deleted by ${session.user.name} (${session.user.email})`
+      auditNotes: `Expense deleted by ${session.users.name} (${session.users.email})`
     })
 
     if (!result.success) {

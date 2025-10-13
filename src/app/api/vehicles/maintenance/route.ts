@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [maintenanceRecords, totalCount] = await Promise.all([
-      prisma.vehicleMaintenanceRecords.findMany({
+      prisma.vehicle_maintenance_records.findMany({
         where,
         include: {
           vehicles: {
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleMaintenanceRecords.count({ where })
+      prisma.vehicle_maintenance_records.count({ where })
     ])
 
     // Remap Prisma relation field names back to the API shape expected by callers
@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create maintenance record (map front-end names to DB columns)
-    const maintenanceRecord = await prisma.vehicleMaintenanceRecords.create({
+    const maintenanceRecord = await prisma.vehicle_maintenance_records.create({
       data: {
         id: randomUUID(),
         vehicleId: validatedData.vehicleId,
@@ -332,7 +332,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -341,7 +341,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify maintenance record exists
-    const existingRecord = await prisma.vehicleMaintenanceRecords.findUnique({
+    const existingRecord = await prisma.vehicle_maintenance_records.findUnique({
       where: { id },
       include: {
         vehicles: {
@@ -398,7 +398,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update maintenance record (map front-end fields to DB columns)
-    const maintenanceRecord = await prisma.vehicleMaintenanceRecords.update({
+    const maintenanceRecord = await prisma.vehicle_maintenance_records.update({
       where: { id },
       data: {
         serviceType: updateData.serviceType ? SERVICE_TYPE_MAP[updateData.serviceType as string] ?? undefined : undefined,
@@ -468,7 +468,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -483,7 +483,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify maintenance record exists
-    const existingRecord = await prisma.vehicleMaintenanceRecords.findUnique({
+    const existingRecord = await prisma.vehicle_maintenance_records.findUnique({
       where: { id: recordId }
     })
 
@@ -495,7 +495,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete maintenance record
-    await prisma.vehicleMaintenanceRecords.delete({
+    await prisma.vehicle_maintenance_records.delete({
       where: { id: recordId }
     })
 

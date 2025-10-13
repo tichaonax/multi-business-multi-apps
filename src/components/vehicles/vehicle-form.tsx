@@ -38,7 +38,7 @@ export function VehicleForm({ vehicle, onSuccess, onCancel }: VehicleFormProps) 
     currentMileage: 0,
     mileageUnit: defaultMileageUnit as MileageUnit,
     businessId: '',
-    userId: session?.user?.id || '',
+    userId: session?.users?.id || '',
     purchaseDate: '',
     purchasePrice: 0,
     notes: ''
@@ -62,13 +62,13 @@ export function VehicleForm({ vehicle, onSuccess, onCancel }: VehicleFormProps) 
         currentMileage: vehicle.currentMileage,
         mileageUnit: vehicle.mileageUnit,
         businessId: vehicle.businessId || '',
-        userId: vehicle.userId || session?.user?.id || '',
+        userId: vehicle.userId || session?.users?.id || '',
         purchaseDate: vehicle.purchaseDate || '',
         purchasePrice: vehicle.purchasePrice || 0,
         notes: vehicle.notes || ''
       })
     }
-  }, [vehicle, session?.user?.id])
+  }, [vehicle, session?.users?.id])
 
   const { format: globalDateFormat } = useDateFormat()
   const mileageUnitOptions = getMileageUnitOptions()

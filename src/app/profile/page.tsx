@@ -46,7 +46,7 @@ export default function ProfilePage() {
   }, [])
 
   const loadProfile = async () => {
-    if (!session?.user?.id) return
+    if (!session?.users?.id) return
 
     try {
       const response = await fetch(`/api/user/profile`)
@@ -266,10 +266,10 @@ export default function ProfilePage() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
                         <h4 className="font-medium text-gray-900 dark:text-white">
-                          {membership.business.name}
+                          {membership.businesses.name}
                         </h4>
                         <span className="px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                          {membership.business.type}
+                          {membership.businesses.type}
                         </span>
                         <span className={`px-2 py-1 text-xs rounded ${
                           membership.isActive 

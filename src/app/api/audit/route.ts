@@ -6,7 +6,7 @@ import { getAuditLogs } from '@/lib/audit'
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   
-  if (!session || session.user.role !== 'admin') {
+  if (!session || session.users.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

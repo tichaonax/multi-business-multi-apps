@@ -284,7 +284,7 @@ export default function AdminPersonalFinancePage() {
     if (isAdmin) return true
 
     // For non-admin users, check if the expense belongs to the selected user and is within 24 hours
-    if (transaction.user?.id !== selectedUserId) return false
+    if (transaction.users?.id !== selectedUserId) return false
 
     const creationDate = new Date(transaction.createdAt)
     const now = new Date()
@@ -301,14 +301,14 @@ export default function AdminPersonalFinancePage() {
     }
 
     // Legacy: Check project transactions for contractor info
-    if (transaction.projectTransactions && transaction.projectTransactions.length > 0) {
+    if (transaction.projectTransactions && transaction.project_transactions.length > 0) {
       const projectTransaction = transaction.projectTransactions[0]
 
       // Check for project contractor
       if (projectTransaction.projectContractor?.person) {
         return {
-          id: projectTransaction.projectContractor.person.id,
-          name: projectTransaction.projectContractor.person.fullName
+          id: projectTransaction.projectContractor.persons.id,
+          name: projectTransaction.projectContractor.persons.fullName
         }
       }
 
@@ -332,7 +332,7 @@ export default function AdminPersonalFinancePage() {
     return paymentType.includes('contractor') ||
            paymentType.includes('person payment') ||
            paymentType.includes('project payment') ||
-           Boolean(transaction.projectTransactions && transaction.projectTransactions.length > 0)
+           Boolean(transaction.projectTransactions && transaction.project_transactions.length > 0)
   }
 
   // Function to show project details modal
@@ -384,7 +384,7 @@ export default function AdminPersonalFinancePage() {
     }
 
     // Legacy fallback logic for backward compatibility
-    if (transaction.projectTransactions && transaction.projectTransactions.length > 0) {
+    if (transaction.projectTransactions && transaction.project_transactions.length > 0) {
       const projectTransaction = transaction.projectTransactions[0]
 
       // Use paymentCategory if available
@@ -546,7 +546,7 @@ export default function AdminPersonalFinancePage() {
                   {/* User vs Global Statistics */}
                   <div className="card p-6">
                     <h2 className="text-xl font-semibold text-primary mb-4">
-                      {financeData.user.name} vs Global Statistics
+                      {financeData.users.name} vs Global Statistics
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -615,7 +615,7 @@ export default function AdminPersonalFinancePage() {
                   {/* Transactions Table */}
                   <div className="card p-6">
                     <h3 className="text-lg font-semibold text-primary mb-4">
-                      Transactions for {financeData.user.name}
+                      Transactions for {financeData.users.name}
                     </h3>
 
                     <div className="overflow-x-auto">
@@ -682,11 +682,11 @@ export default function AdminPersonalFinancePage() {
                                         {paymentType}
                                       </button>
                                     )
-                                  } else if (transaction.projectTransactions?.[0]?.constructionProject?.id) {
+                                  } else if (transaction.project_transactions?.[0]?.constructionProject?.id) {
                                     // Project-related payment
                                     return (
                                       <button
-                                        onClick={() => showProjectDetails(transaction.projectTransactions?.[0]?.constructionProject?.id || '')}
+                                        onClick={() => showProjectDetails(transaction.project_transactions?.[0]?.constructionProject?.id || '')}
                                         className="capitalize text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline cursor-pointer transition-colors"
                                         title="View project details"
                                       >
@@ -715,7 +715,7 @@ export default function AdminPersonalFinancePage() {
                                     {transaction.category.emoji} {transaction.category.name}
                                   </span>
                                 )}
-                                {transaction.projectTransactions?.map((projectTransaction, index) => (
+                                {transaction.project_transactions?.map((projectTransaction, index) => (
                                   <div key={projectTransaction.id} className="space-y-1">
                                     {projectTransaction.constructionProject && (
                                       <button
@@ -728,11 +728,11 @@ export default function AdminPersonalFinancePage() {
                                     )}
                                     {projectTransaction.projectContractor?.person && (
                                       <button
-                                        onClick={() => showContractorDetails(projectTransaction.projectContractor!.person.id)}
+                                        onClick={() => showContractorDetails(projectTransaction.projectContractor!.persons.id)}
                                         className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors cursor-pointer mr-1 mb-1"
-                                        title={`View contractor: ${projectTransaction.projectContractor.person.fullName}`}
+                                        title={`View contractor: ${projectTransaction.projectContractor.persons.fullName}`}
                                       >
-                                        💰 {projectTransaction.projectContractor.person.fullName}
+                                        💰 {projectTransaction.projectContractor.persons.fullName}
                                       </button>
                                     )}
                                     {projectTransaction.recipientPerson && (
@@ -852,11 +852,11 @@ export default function AdminPersonalFinancePage() {
                             {paymentType}
                           </button>
                         )
-                      } else if (editingExpense.projectTransactions?.[0]?.constructionProject?.id) {
+                      } else if (editingExpense.project_transactions?.[0]?.constructionProject?.id) {
                         // Project-related payment
                         return (
                           <button
-                            onClick={() => showProjectDetails(editingExpense.projectTransactions?.[0]?.constructionProject?.id || '')}
+                            onClick={() => showProjectDetails(editingExpense.project_transactions?.[0]?.constructionProject?.id || '')}
                             className="capitalize text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline cursor-pointer transition-colors"
                             title="View project details"
                           >

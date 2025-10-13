@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!session?.user || session.users.role !== 'admin') {
       return NextResponse.json(
         { message: 'Admin access required' },
         { status: 401 }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🚨 Data reset initiated by ${session.user.name} (${session.user.email})`);
+    console.log(`🚨 Data reset initiated by ${session.users.name} (${session.users.email})`);
 
     // Start transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
@@ -38,16 +38,16 @@ export async function POST(request: NextRequest) {
       const beforeCounts = {
         businesses: await tx.businesses.count(),
         employees: await tx.employees.count(),
-        employeeContracts: await tx.employeeContract.count(),
+        employeeContracts: await tx.employeeContracts.count(),
         businessMemberships: await tx.businessMemberships.count(),
         auditLogs: await tx.auditLogs.count(),
         users: await tx.users.count(),
         // Reference data that will be reset and recreated
-        idFormatTemplates: await tx.idFormatTemplate.count(),
+        idFormatTemplates: await tx.idFormatTemplates.count(),
         compensationTypes: await tx.compensationTypes.count(),
         jobTitles: await tx.jobTitles.count(),
         benefitTypes: await tx.benefitTypes.count(),
-        driverLicenseTemplates: await tx.driverLicenseTemplate.count(),
+        driverLicenseTemplates: await tx.driverLicenseTemplates.count(),
       };
 
       console.log(`📊 Before reset: ${beforeCounts.businesses} businesses, ${beforeCounts.employees} employees, ${beforeCounts.employeeContracts} contracts, ${beforeCounts.users} users`);
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
       // Delete in order to respect foreign key constraints
       console.log('🗑️ Deleting all employee contracts...');
-      const deletedContracts = await tx.employeeContract.deleteMany({});
+      const deletedContracts = await tx.employeeContracts.deleteMany({});
       console.log(`✅ Deleted ${deletedContracts.count} employee contracts`);
 
       console.log('🗑️ Deleting all employees...');
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       // Delete reference data that will be recreated by seeding
       console.log('🗑️ Deleting reference data for fresh seeding...');
 
-      const deletedIdTemplates = await tx.idFormatTemplate.deleteMany({});
+      const deletedIdTemplates = await tx.idFormatTemplates.deleteMany({});
       console.log(`✅ Deleted ${deletedIdTemplates.count} ID format templates`);
 
       const deletedCompensationTypes = await tx.compensationTypes.deleteMany({});
@@ -107,29 +107,29 @@ export async function POST(request: NextRequest) {
       const deletedBenefitTypes = await tx.benefitTypes.deleteMany({});
       console.log(`✅ Deleted ${deletedBenefitTypes.count} benefit types`);
 
-      const deletedDriverLicenseTemplates = await tx.driverLicenseTemplate.deleteMany({});
+      const deletedDriverLicenseTemplates = await tx.driverLicenseTemplates.deleteMany({});
       console.log(`✅ Deleted ${deletedDriverLicenseTemplates.count} driver license templates`);
 
       // Verify deletion
       const afterCounts = {
         businesses: await tx.businesses.count(),
         employees: await tx.employees.count(),
-        employeeContracts: await tx.employeeContract.count(),
+        employeeContracts: await tx.employeeContracts.count(),
         businessMemberships: await tx.businessMemberships.count(),
         users: await tx.users.count(),
         // Reference data counts after deletion
-        idFormatTemplates: await tx.idFormatTemplate.count(),
+        idFormatTemplates: await tx.idFormatTemplates.count(),
         compensationTypes: await tx.compensationTypes.count(),
         jobTitles: await tx.jobTitles.count(),
         benefitTypes: await tx.benefitTypes.count(),
-        driverLicenseTemplates: await tx.driverLicenseTemplate.count(),
+        driverLicenseTemplates: await tx.driverLicenseTemplates.count(),
       };
 
       console.log(`📊 After reset: ${afterCounts.businesses} businesses, ${afterCounts.employees} employees, ${afterCounts.employeeContracts} contracts, ${afterCounts.users} users`);
 
       // Create audit log entry for this critical action
       await createAuditLog({
-        userId: session.user.id!,
+        userId: session.users.id!,
         action: 'BACKUP_RESTORED' as any, // Using existing audit action
         entityType: 'Backup',
         entityId: 'data-reset-' + Date.now(),
@@ -143,9 +143,9 @@ export async function POST(request: NextRequest) {
           afterCounts,
           resetTimestamp: new Date().toISOString(),
           resetBy: {
-            userId: session.user.id,
-            userName: session.user.name,
-            userEmail: session.user.email,
+            userId: session.users.id,
+            userName: session.users.name,
+            userEmail: session.users.email,
           },
           confirmationMessage: confirmMessage,
           dataPreserved: {
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
       const session = await getServerSession(authOptions);
       if (session?.user) {
         await createAuditLog({
-          userId: session.user.id!,
+          userId: session.users.id!,
           action: 'BACKUP_RESTORED' as any,
           entityType: 'Backup',
           entityId: 'data-reset-failed-' + Date.now(),
@@ -256,9 +256,9 @@ export async function POST(request: NextRequest) {
             error: error instanceof Error ? error.message : 'Unknown error',
             failedAt: new Date().toISOString(),
             attemptedBy: {
-              userId: session.user.id,
-              userName: session.user.name,
-              userEmail: session.user.email,
+              userId: session.users.id,
+              userName: session.users.name,
+              userEmail: session.users.email,
             }
           },
         });

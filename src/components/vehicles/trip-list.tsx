@@ -289,7 +289,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
 
                       {trip.business && (
                         <div className="text-sm text-secondary mb-2">
-                          <span className="font-medium">Business:</span> {trip.business.name}
+                          <span className="font-medium">Business:</span> {trip.businesses.name}
                         </div>
                       )}
 

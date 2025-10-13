@@ -261,7 +261,7 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
                 <div>
                   <h3 className="text-sm font-medium text-secondary mb-1">Order Number</h3>
                   <p className="text-lg font-bold text-primary">
-                    {getOrderTypeIcon(order.attributes?.orderType || order.orderType || 'Unknown', order.business?.type)} #{order.orderNumber || order.id.slice(-8)}
+                    {getOrderTypeIcon(order.attributes?.orderType || order.orderType || 'Unknown', order.businesses?.type)} #{order.orderNumber || order.id.slice(-8)}
                   </p>
                 </div>
                 <div>
@@ -448,8 +448,8 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
               {order.business && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 border border-blue-200 dark:border-blue-700 rounded-md">
                   <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Business</h3>
-                  <p className="text-blue-900 dark:text-blue-100">{order.business.businessName}</p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300 capitalize">{order.business.businessType}</p>
+                  <p className="text-blue-900 dark:text-blue-100">{order.businesses.businessName}</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 capitalize">{order.businesses.businessType}</p>
                 </div>
               )}
 

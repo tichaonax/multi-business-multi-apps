@@ -114,7 +114,7 @@ export default function ReceiveGroceryInventoryPage() {
           newStock: item.currentStock + data.quantity,
           reason: 'Stock Receipt',
           notes: `Received ${data.quantity} units${data.batchNumber ? ` (Batch: ${data.batchNumber})` : ''}${data.expirationDate ? ` (Expires: ${data.expirationDate})` : ''}`,
-          employeeName: session.user.name || 'System',
+          employeeName: session.users.name || 'System',
           batchNumber: data.batchNumber || '',
           expirationDate: data.expirationDate || '',
           location: 'Warehouse'

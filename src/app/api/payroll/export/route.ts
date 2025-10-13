@@ -14,7 +14,7 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    const businessName = businessId ? employees[0]?.business?.name || 'Business' : 'All-Businesses'
+    const businessName = businessId ? employees[0]?.businesses?.name || 'Business' : 'All-Businesses'
     const exportOptions = {
       month: Number(month),
       year: Number(year),

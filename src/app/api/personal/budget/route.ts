@@ -9,7 +9,7 @@ import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -21,7 +21,7 @@ export async function GET() {
     }
 
     const budgetEntries = await prisma.personalBudgets.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.users.id },
       orderBy: { createdAt: 'desc' }
     })
 
@@ -50,7 +50,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     const budgetEntry = await prisma.personalBudgets.create({
       data: {
-        userId: session.user.id,
+        userId: session.users.id,
         amount: Number(amount),
         description: description || '',
         type

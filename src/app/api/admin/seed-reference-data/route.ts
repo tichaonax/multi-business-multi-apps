@@ -11,14 +11,14 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!session?.user || session.users.role !== 'admin') {
       return NextResponse.json(
         { message: 'Admin access required' },
         { status: 401 }
       );
     }
 
-    console.log(`🌱 Reference data seeding initiated by ${session.user.name} (${session.user.email})`);
+    console.log(`🌱 Reference data seeding initiated by ${session.users.name} (${session.users.email})`);
 
     // Run the reference data seeding script
     const { stdout, stderr } = await execAsync('node scripts/seed-all-employee-data.js', {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     // Create audit log entry
     await createAuditLog({
-      userId: session.user.id!,
+      userId: session.users.id!,
       action: 'DATA_IMPORT' as any,
       entityType: 'ReferenceData',
       entityId: 'reference-data-seed-' + Date.now(),
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       newValues: {
         seededAt: new Date().toISOString(),
         seededBy: {
-          userId: session.user.id,
-          userName: session.user.name,
-          userEmail: session.user.email,
+          userId: session.users.id,
+          userName: session.users.name,
+          userEmail: session.users.email,
         },
         seededData: {
           idTemplates: 5,
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       const session = await getServerSession(authOptions);
       if (session?.user) {
         await createAuditLog({
-          userId: session.user.id!,
+          userId: session.users.id!,
           action: 'DATA_IMPORT' as any,
           entityType: 'ReferenceData',
           entityId: 'reference-data-seed-failed-' + Date.now(),
@@ -92,9 +92,9 @@ export async function POST(request: NextRequest) {
             error: error instanceof Error ? error.message : 'Unknown error',
             failedAt: new Date().toISOString(),
             attemptedBy: {
-              userId: session.user.id,
-              userName: session.user.name,
-              userEmail: session.user.email,
+              userId: session.users.id,
+              userName: session.users.name,
+              userEmail: session.users.email,
             }
           },
         });

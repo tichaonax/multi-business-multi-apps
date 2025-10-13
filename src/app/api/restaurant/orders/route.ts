@@ -17,7 +17,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
 
   // Check if user is system admin - they can see all restaurant orders
   // If session already indicates admin (useful for dev bypass), return all restaurant businesses
-  if (session?.user?.role === 'admin') {
+  if (session?.users?.role === 'admin') {
     const allRestaurantBusinesses = await prisma.businesses.findMany({
       where: { type: 'restaurant' },
       select: { id: true, name: true }
@@ -28,7 +28,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
 
   // Otherwise fetch the user record to determine memberships
   const user = await prisma.users.findUnique({
-    where: { id: session.user.id },
+    where: { id: session.users.id },
     select: {
       role: true,
       businessMemberships: {
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     let session = await getServerSession(authOptions)
 
     // Dev-only bypass: allow passing _devUserId for local testing when not in production
-    if ((!session || !session?.user?.id) && process.env.NODE_ENV !== 'production') {
+    if ((!session || !session?.users?.id) && process.env.NODE_ENV !== 'production') {
       const { searchParams } = new URL(request.url)
       const devUserId = searchParams.get('_devUserId')
       if (devUserId) {
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -275,7 +275,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userPermissions = session.user.permissions || {}
+  const userPermissions = session.users.permissions || {}
   if (!hasPermission(userPermissions, 'restaurant', 'pos')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
@@ -301,7 +301,7 @@ export async function POST(req: NextRequest) {
         status: 'pending',
         total: total,
         tableNumber: tableNumber || null,
-        createdBy: session.user.id,
+        createdBy: session.users.id,
       }
     })
 
@@ -380,7 +380,7 @@ export async function POST(req: NextRequest) {
                 unit: ingredient.unit || 'units',
                 reason: `Used in order ${orderNumber} - ${menuItem.name}`,
                 notes: `Order item: ${item.quantity}x ${menuItem.name}`,
-                employeeName: session.user.name,
+                employeeName: session.users.name,
                 referenceNumber: orderNumber
               }
 
@@ -424,7 +424,7 @@ export async function POST(req: NextRequest) {
 
     // Record audit entry for order creation
     try {
-      await auditCreate({ userId: session.user.id }, 'Business', newOrder.id, {
+      await auditCreate({ userId: session.users.id }, 'Business', newOrder.id, {
         orderNumber,
         total,
         itemCount: items.length,

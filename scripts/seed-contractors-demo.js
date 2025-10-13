@@ -13,7 +13,7 @@ async function seed() {
     }
 
     // Create some demo contractors (persons)
-    const c1 = await prisma.person.upsert({
+    const c1 = await prisma.persons.upsert({
       where: { id: `${businessId}-person-1` },
       update: {},
       create: {
@@ -28,7 +28,7 @@ async function seed() {
       }
     }).catch(() => null)
 
-    const c2 = await prisma.person.upsert({
+    const c2 = await prisma.persons.upsert({
       where: { id: `${businessId}-person-2` },
       update: {},
       create: {
@@ -44,13 +44,13 @@ async function seed() {
     }).catch(() => null)
 
     // Ensure a ProjectType exists, then create a Project for this business
-    const pt = await prisma.projectType.upsert({
+    const pt = await prisma.projectTypes.upsert({
       where: { id: `${businessId}-project-type-1` },
       update: {},
       create: { id: `${businessId}-project-type-1`, name: 'Demo Project Type', businessType: 'construction' }
     }).catch(() => null)
 
-    const proj = await prisma.project.upsert({
+    const proj = await prisma.projects.upsert({
       where: { id: `${businessId}-proj-1` },
       update: {},
       create: {
@@ -64,7 +64,7 @@ async function seed() {
     }).catch(() => null)
 
     // Assign contractors to project via ProjectContractor
-    await prisma.projectContractor.upsert({
+    await prisma.projectContractors.upsert({
       where: { id: `${businessId}-assign-1` },
       update: {},
       create: {
@@ -76,7 +76,7 @@ async function seed() {
       }
     }).catch(() => null)
 
-    await prisma.projectContractor.upsert({
+    await prisma.projectContractors.upsert({
       where: { id: `${businessId}-assign-2` },
       update: {},
       create: {

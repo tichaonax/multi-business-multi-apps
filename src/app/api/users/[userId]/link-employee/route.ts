@@ -15,7 +15,7 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions);
     const currentUser = session?.user as any
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -99,7 +99,7 @@ export async function PUT(
               canViewReports: false,
             },
             isActive: true,
-          invitedBy: session.user.id,
+          invitedBy: session.users.id,
             joinedAt: new Date(),
             lastAccessedAt: new Date(),
           }
@@ -122,7 +122,7 @@ export async function PUT(
                 canViewReports: false,
               },
               isActive: true,
-              invitedBy: session.user.id,
+              invitedBy: session.users.id,
               joinedAt: new Date(),
               lastAccessedAt: new Date(),
             }
@@ -133,7 +133,7 @@ export async function PUT(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: session.users.id,
           action: 'USER_EMPLOYEE_LINKED',
           resourceType: 'User',
           resourceId: userId,
@@ -192,7 +192,7 @@ export async function DELETE(
     const { userId } = await params
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -237,7 +237,7 @@ export async function DELETE(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: session.users.id,
           action: 'USER_EMPLOYEE_UNLINKED',
           resourceType: 'User',
           resourceId: userId,

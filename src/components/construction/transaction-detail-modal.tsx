@@ -71,7 +71,7 @@ export function TransactionDetailModal({ transactionId, isOpen, onClose, onUpdat
 
     // Check if user has access to this transaction's project business
     const userBusinessIds = (currentUser.businessMemberships || []).map((m: any) => m.businessId)
-    if (transaction.project?.business && !userBusinessIds.includes(transaction.project.business.businessName)) return false
+    if (transaction.project?.business && !userBusinessIds.includes(transaction.project.businesses.businessName)) return false
 
     // Check if user created this transaction (for personal projects)
     if (!transaction.project?.business && transaction.createdBy?.email !== currentUser.email) return false
@@ -330,7 +330,7 @@ export function TransactionDetailModal({ transactionId, isOpen, onClose, onUpdat
                     <p className="text-sm text-blue-700 dark:text-blue-300">Status: {transaction.project.status}</p>
                     {transaction.project.business && (
                       <p className="text-sm text-blue-700 dark:text-blue-300">
-                        Business: {transaction.project.business.businessName} ({transaction.project.business.businessType})
+                        Business: {transaction.project.businesses.businessName} ({transaction.project.businesses.businessType})
                       </p>
                     )}
                   </div>
@@ -342,13 +342,13 @@ export function TransactionDetailModal({ transactionId, isOpen, onClose, onUpdat
                 <div className="p-4 bg-purple-50 dark:bg-purple-900 dark:bg-opacity-20 border border-purple-200 dark:border-purple-700 rounded-md">
                   <h3 className="text-sm font-medium text-purple-800 dark:text-purple-200 mb-2">Contractor Information</h3>
                   <div className="space-y-1">
-                    <p className="font-medium text-purple-900 dark:text-purple-100">{transaction.contractor.person.fullName}</p>
+                    <p className="font-medium text-purple-900 dark:text-purple-100">{transaction.contractor.persons.fullName}</p>
                     <div className="flex gap-4 text-sm text-purple-700 dark:text-purple-300">
-                      {transaction.contractor.person.phone && (
-                        <span>📞 {formatPhoneNumberForDisplay(transaction.contractor.person.phone)}</span>
+                      {transaction.contractor.persons.phone && (
+                        <span>📞 {formatPhoneNumberForDisplay(transaction.contractor.persons.phone)}</span>
                       )}
-                      {transaction.contractor.person.email && (
-                        <span>📧 {transaction.contractor.person.email}</span>
+                      {transaction.contractor.persons.email && (
+                        <span>📧 {transaction.contractor.persons.email}</span>
                       )}
                     </div>
                   </div>

@@ -182,18 +182,18 @@ export default function ContractorDetailsPage() {
     )
   }
 
-  const totalPaid = contractor.projectTransactions?.reduce((sum, transaction) => {
+  const totalPaid = contractor.project_transactions?.reduce((sum, transaction) => {
     return transaction.status === 'paid' ? sum + transaction.amount : sum
   }, 0) || 0
 
-  const totalPending = contractor.projectTransactions?.reduce((sum, transaction) => {
+  const totalPending = contractor.project_transactions?.reduce((sum, transaction) => {
     return transaction.status === 'pending' ? sum + transaction.amount : sum
   }, 0) || 0
 
   return (
     <BusinessTypeRoute requiredBusinessType="construction">
       <ContentLayout
-        title={`👷 ${contractor.person.fullName}`}
+        title={`👷 ${contractor.persons.fullName}`}
         subtitle={contractor.isPrimary ? "Primary Contractor" : "Contractor"}
         breadcrumb={[
           { label: 'Dashboard', href: '/dashboard' },
@@ -248,43 +248,43 @@ export default function ContractorDetailsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-secondary mb-1">Full Name</h3>
-                  <p className="text-primary font-medium">{contractor.person.fullName}</p>
+                  <p className="text-primary font-medium">{contractor.persons.fullName}</p>
                 </div>
                 
                 <div>
                   <h3 className="text-sm font-medium text-secondary mb-1">Phone</h3>
-                  <p className="text-primary">{formatPhoneNumberForDisplay(contractor.person.phone)}</p>
+                  <p className="text-primary">{formatPhoneNumberForDisplay(contractor.persons.phone)}</p>
                 </div>
                 
-                {contractor.person.email && (
+                {contractor.persons.email && (
                   <div>
                     <h3 className="text-sm font-medium text-secondary mb-1">Email</h3>
-                    <p className="text-primary">{contractor.person.email}</p>
+                    <p className="text-primary">{contractor.persons.email}</p>
                   </div>
                 )}
                 
                 <div>
                   <h3 className="text-sm font-medium text-secondary mb-1">National ID</h3>
-                  <p className="text-primary">{contractor.person.nationalId}</p>
-                  {contractor.person.idFormatTemplate && (
+                  <p className="text-primary">{contractor.persons.nationalId}</p>
+                  {contractor.persons.idFormatTemplate && (
                     <p className="text-xs text-secondary mt-1">
-                      Format: {contractor.person.idFormatTemplate.name}
-                      {contractor.person.idFormatTemplate.countryCode && ` (${contractor.person.idFormatTemplate.countryCode})`}
+                      Format: {contractor.persons.idFormatTemplate.name}
+                      {contractor.persons.idFormatTemplate.countryCode && ` (${contractor.persons.idFormatTemplate.countryCode})`}
                     </p>
                   )}
                 </div>
                 
-                {contractor.person.address && (
+                {contractor.persons.address && (
                   <div className="md:col-span-2">
                     <h3 className="text-sm font-medium text-secondary mb-1">Address</h3>
-                    <p className="text-primary">{contractor.person.address}</p>
+                    <p className="text-primary">{contractor.persons.address}</p>
                   </div>
                 )}
                 
-                {contractor.person.notes && (
+                {contractor.persons.notes && (
                   <div className="md:col-span-2">
                     <h3 className="text-sm font-medium text-secondary mb-1">Notes</h3>
-                    <p className="text-primary">{contractor.person.notes}</p>
+                    <p className="text-primary">{contractor.persons.notes}</p>
                   </div>
                 )}
               </div>
@@ -330,7 +330,7 @@ export default function ContractorDetailsPage() {
           </div>
 
           {/* Payment Transactions */}
-          {contractor.projectTransactions && contractor.projectTransactions.length > 0 && (
+          {contractor.projectTransactions && contractor.project_transactions.length > 0 && (
             <div className="card">
               <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-xl font-semibold text-primary">💸 Payment History</h2>
@@ -348,7 +348,7 @@ export default function ContractorDetailsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {contractor.projectTransactions.map(transaction => (
+                    {contractor.project_transactions.map(transaction => (
                       <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-primary">
                           {formatDate(transaction.personalExpense?.date || transaction.createdAt)}

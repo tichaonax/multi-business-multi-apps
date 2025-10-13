@@ -9,7 +9,7 @@ import { createExpenseWithTransaction } from '@/lib/transaction-utils'
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -20,10 +20,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
-    console.log('Fetching expenses for user:', session.user.id)
+    console.log('Fetching expenses for user:', session.users.id)
 
     const expenses = await prisma.personalExpenses.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.users.id },
       include: {
         projectTransactions: {
           include: {
@@ -117,7 +117,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     // Check available balance before creating expense
     const budgetEntries = await prisma.personalBudgets.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.users.id },
       orderBy: { createdAt: 'desc' }
     })
 
@@ -192,8 +192,8 @@ export async function POST(request: NextRequest) {
       terms,
       notes,
       date: new Date(date),
-      userId: session.user.id,
-      createdBy: session.user.id
+      userId: session.users.id,
+      createdBy: session.users.id
     })
 
     if (!result.success) {

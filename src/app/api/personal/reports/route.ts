@@ -8,7 +8,7 @@ import { SessionUser } from '@/lib/permission-utils'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -136,10 +136,10 @@ export async function GET(request: NextRequest) {
       let contractorName = 'Direct Expense'
 
       // Check if this expense is linked to a project contractor
-      if (expense.projectTransactions && expense.projectTransactions.length > 0) {
+      if (expense.projectTransactions && expense.project_transactions.length > 0) {
         const projectTransaction = expense.projectTransactions[0]
-        if (projectTransaction.projectContractor?.person?.fullName) {
-          contractorName = projectTransaction.projectContractor.person.fullName
+        if (projectTransaction.projectContractor?.persons?.fullName) {
+          contractorName = projectTransaction.projectContractor.persons.fullName
         } else if (projectTransaction.constructionProject?.name) {
           contractorName = `Project: ${projectTransaction.constructionProject.name}`
         }

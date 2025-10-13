@@ -10,7 +10,7 @@ import { SessionUser } from '@/lib/permission-utils'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -207,7 +207,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -431,7 +431,7 @@ export async function POST(req: NextRequest) {
         jobTitle: result.jobTitles?.title,
         department: result.jobTitles?.department,
         compensationType: result.compensationTypes?.name,
-        primaryBusiness: result.business?.name
+        primaryBusiness: result.businesses?.name
       }
     })
   } catch (error: any) {

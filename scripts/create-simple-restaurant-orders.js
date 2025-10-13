@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client')
+const { v4: uuidv4 } = require('uuid')
 const prisma = new PrismaClient()
 
 async function createSimpleRestaurantOrders() {
@@ -88,7 +89,7 @@ async function createSimpleRestaurantOrders() {
       // Use upsert so script is idempotent (unique index on businessId+orderNumber)
       const orderDataObj = {
         businessId: hxiEats.id,
-        employeeId: maryEmployee?.id, // Mary processed the order
+        employeeId: maryEmployee?.id || null, // Mary processed the order, null if no employee record
         orderNumber: orderInfo.orderNumber,
         orderType: 'SALE',
         status: orderInfo.status,
@@ -108,10 +109,17 @@ async function createSimpleRestaurantOrders() {
         createdAt: new Date(Date.now() - (orderInfo.hoursAgo * 60 * 60 * 1000))
       }
 
+      // Add ID and updatedAt for create operation
+      const createDataObj = {
+        id: `hxi-order-${orderInfo.orderNumber.toLowerCase()}-${Date.now()}`,
+        ...orderDataObj,
+        updatedAt: orderDataObj.createdAt
+      }
+
       const order = await prisma.businessOrders.upsert({
         where: { businessId_orderNumber: { businessId: hxiEats.id, orderNumber: orderInfo.orderNumber } },
         update: orderDataObj,
-        create: orderDataObj
+        create: createDataObj
       })
 
       // Ensure order items are idempotent: remove existing items then recreate

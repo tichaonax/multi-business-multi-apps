@@ -13,7 +13,7 @@ export async function GET(
     const { projectId, contractorId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -32,7 +32,7 @@ export async function GET(
     }
 
     // Get contractor details with all related information
-    const contractor = await prisma.projectContractors.findFirst({
+    const contractor = await prisma.project_contractors.findFirst({
       where: {
         id: contractorId,
         projectId: projectId
@@ -98,7 +98,7 @@ export async function GET(
       })),
       hourlyRate: contractor.hourlyRate ? Number(contractor.hourlyRate) : null,
       totalContractAmount: contractor.totalContractAmount ? Number(contractor.totalContractAmount) : null,
-      projectTransactions: contractor.projectTransactions?.map(transaction => ({
+      projectTransactions: contractor.project_transactions?.map(transaction => ({
         ...transaction,
         amount: transaction.amount ? Number(transaction.amount) : 0
       }))

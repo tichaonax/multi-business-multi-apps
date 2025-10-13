@@ -8,13 +8,13 @@ export async function GET() {
     // Get current user session
     const session = await getServerSession(authOptions)
     
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const user = await prisma.users.findUnique({
       where: {
-        id: session.user.id
+        id: session.users.id
       },
       select: {
         id: true,
@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest) {
     // For now, only allow name updates. Email changes require admin approval
     const updatedUser = await prisma.users.update({
       where: {
-        id: session.user.id
+        id: session.users.id
       },
       data: {
         name: name.trim()

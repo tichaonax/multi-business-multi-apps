@@ -9,7 +9,7 @@ import { SessionUser } from '@/lib/permission-utils'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       // Return available businesses to create loans to (exclude user's own businesses)
       const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           isActive: true
         },
         select: { businessId: true }
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
       // Return existing loans where user is involved for making payments
       const personalLoansGiven = await prisma.interBusinessLoans.findMany({
         where: {
-          lenderUserId: session.user.id,
+          lenderUserId: session.users.id,
           status: 'active'
         },
         include: {
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       // Get business loans where user has access through business membership
       const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           isActive: true
         },
         select: { businessId: true }

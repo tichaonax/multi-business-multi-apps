@@ -123,10 +123,10 @@ export default function PayrollPeriodDetailPage() {
   }, [periodId])
 
   useEffect(() => {
-    if (period?.business?.id) {
+    if (period?.businesses?.id) {
       loadAvailableEmployeesCount()
     }
-  }, [period?.business?.id])
+  }, [period?.businesses?.id])
 
   const loadPeriod = async () => {
     try {
@@ -172,9 +172,9 @@ export default function PayrollPeriodDetailPage() {
   }
 
   const loadAvailableEmployeesCount = async () => {
-    if (!period?.business?.id) return
+    if (!period?.businesses?.id) return
     try {
-      const response = await fetch(`/api/employees?businessId=${period.business.id}`)
+      const response = await fetch(`/api/employees?businessId=${period.businesses.id}`)
       if (response.ok) {
         const employees = await response.json()
         setAvailableEmployeesCount(Array.isArray(employees) ? employees.length : 0)
@@ -201,7 +201,7 @@ export default function PayrollPeriodDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payrollPeriodId: period.id,
-          businessId: period.business.id
+          businessId: period.businesses.id
         })
       })
 
@@ -380,7 +380,7 @@ export default function PayrollPeriodDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payrollPeriodId: period.id,
-          businessId: period.business.id,
+          businessId: period.businesses.id,
           generationType: includePastPeriods ? 'year_to_date' : 'single_month',
           includePastPeriods
         })
@@ -815,17 +815,17 @@ export default function PayrollPeriodDetailPage() {
   const canEditEntry = hasPermission(session?.user, 'canEditPayrollEntry')
   const canApprove = hasPermission(session?.user, 'canApprovePayroll')
   const canExport = hasPermission(session?.user, 'canExportPayroll')
-  const canResetExported = isSystemAdmin(session?.user) || hasPermission(session?.user, 'canResetExportedPayrollToPreview', period.business.id)
+  const canResetExported = isSystemAdmin(session?.user) || hasPermission(session?.user, 'canResetExportedPayrollToPreview', period.businesses.id)
 
   // Diagnostic code removed: rely on server-provided totals (mergedBenefits / totalBenefitsAmount)
 
   // Use the new canDeletePayroll helper function which checks both business-level and business-agnostic permissions
-  const canDeletePeriodButton = canDeletePayroll(session?.user, period.business.id)
+  const canDeletePeriodButton = canDeletePayroll(session?.user, period.businesses.id)
 
   return (
     <ContentLayout
       title={`${getMonthName(period.month)} ${period.year} Payroll`}
-      subtitle={period.business.name}
+      subtitle={period.businesses.name}
       breadcrumb={[
         { label: 'Dashboard', href: '/dashboard' },
         { label: 'Payroll', href: '/payroll' },
@@ -884,7 +884,7 @@ export default function PayrollPeriodDetailPage() {
               } else if (isSystemAdmin(session.user)) {
                 disabledReason = null
               } else {
-                const role = getUserRoleInBusiness(session.user, period.business.id)
+                const role = getUserRoleInBusiness(session.user, period.businesses.id)
                 if (!role || (role !== 'business-owner' && role !== 'business-manager')) {
                   disabledReason = 'Only business owners or managers can delete payroll periods'
                 } else if (period.status === 'approved') {

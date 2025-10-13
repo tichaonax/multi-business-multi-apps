@@ -235,7 +235,7 @@ export function CustomerDetailModal({ customerId, onClose, onUpdate }: CustomerD
                   <div key={account.id} className="card p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h4 className="font-semibold text-primary">{account.business.name}</h4>
+                        <h4 className="font-semibold text-primary">{account.businesses.name}</h4>
                         <p className="text-sm text-secondary">{account.divisionCustomerNumber}</p>
                       </div>
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${

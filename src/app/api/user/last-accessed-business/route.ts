@@ -8,7 +8,7 @@ import { SessionUser } from '@/lib/permission-utils';
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           businessId: businessId,
           isActive: true,
         },
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // Update user's last accessed business
     const updatedUser = await prisma.users.update({
-      where: { id: session.user.id },
+      where: { id: session.users.id },
       data: {
         lastAccessedBusinessId: businessId,
         lastAccessedBusinessType: businessType,
@@ -77,12 +77,12 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+      where: { id: session.users.id },
       select: {
         lastAccessedBusinessId: true,
         lastAccessedBusinessType: true,

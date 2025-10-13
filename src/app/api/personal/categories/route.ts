@@ -9,7 +9,7 @@ import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -21,7 +21,7 @@ export async function GET() {
     }
 
     const categories = await prisma.expenseCategories.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.users.id },
       orderBy: { createdAt: 'asc' }
     })
 
@@ -43,7 +43,7 @@ export async function GET() {
         defaultCategories.map(cat => 
           prisma.expenseCategories.create({
             data: {
-              userId: session.user.id,
+              userId: session.users.id,
               name: cat.name,
               emoji: cat.emoji,
               color: cat.color,
@@ -66,7 +66,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     const category = await prisma.expenseCategories.create({
       data: {
-        userId: session.user.id,
+        userId: session.users.id,
         name,
         emoji,
         color: color || '#3B82F6',

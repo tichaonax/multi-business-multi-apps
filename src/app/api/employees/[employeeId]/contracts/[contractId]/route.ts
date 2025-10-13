@@ -12,7 +12,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -178,7 +178,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -257,7 +257,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -361,7 +361,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             data: {
               isActive: false,
               deactivatedAt: new Date(),
-              deactivatedBy: session.user.id,
+              deactivatedBy: session.users.id,
               deactivationReason: 'Contract terminated',
               deactivationNotes: `Automatically deactivated due to contract termination. Contract: ${contractId}`
             }
@@ -377,7 +377,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         // Create audit log for contract termination
         await tx.auditLogs.create({
           data: {
-            userId: session.user.id,
+            userId: session.users.id,
             action: 'CONTRACT_TERMINATED',
             resourceType: 'EmployeeContract',
             resourceId: contractId,

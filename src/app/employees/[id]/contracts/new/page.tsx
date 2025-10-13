@@ -476,8 +476,8 @@ export default function NewContractPage() {
           })).filter(benefit => benefit.benefitTypeId && benefit.amount),
           businessAssignments: employee?.employeeBusinessAssignments?.map(assignment => ({
             businessId: assignment.businessId,
-            businessName: assignment.business?.name || '',
-            businessType: assignment.business?.type || '',
+            businessName: assignment.businesses?.name || '',
+            businessType: assignment.businesses?.type || '',
             isPrimary: assignment.isPrimary,
             role: assignment.role || '',
             startDate: assignment.startDate
@@ -550,8 +550,8 @@ export default function NewContractPage() {
       notes: formData.notes,
       businessAssignments: employee.employeeBusinessAssignments?.map(assignment => ({
         businessId: assignment.businessId,
-        businessName: assignment.business?.name || selectedBusiness?.name || '',
-        businessType: assignment.business?.type || selectedBusiness?.type || '',
+        businessName: assignment.businesses?.name || selectedBusiness?.name || '',
+        businessType: assignment.businesses?.type || selectedBusiness?.type || '',
         isPrimary: assignment.isPrimary,
         role: assignment.role || '',
         startDate: assignment.startDate
@@ -603,12 +603,12 @@ export default function NewContractPage() {
       specialDuties: '',
       responsibilities: data.jobTitle.responsibilities || [],
       customResponsibilities: data.customResponsibilities || '',
-      businessName: data.business.name,
-      businessType: data.business.type || '',
-      businessAddress: data.business.address || '',
-      businessPhone: data.business.phone || '',
-      businessEmail: data.business.email || '',
-      businessRegistrationNumber: data.business.registrationNumber || '',
+      businessName: data.businesses.name,
+      businessType: data.businesses.type || '',
+      businessAddress: data.businesses.address || '',
+      businessPhone: data.businesses.phone || '',
+      businessEmail: data.businesses.email || '',
+      businessRegistrationNumber: data.businesses.registrationNumber || '',
       supervisorName: data.supervisor?.fullName || '',
       supervisorTitle: data.supervisor?.jobTitle?.title || '',
       probationPeriodMonths: data.probationPeriodMonths || undefined,
@@ -622,9 +622,9 @@ export default function NewContractPage() {
       umbrellaBusinessEmail: '',
       umbrellaBusinessRegistration: '',
       businessAssignments: data.businessAssignments || [{
-        businessId: data.business.id,
-        businessName: data.business.name,
-        businessType: data.business.type || '',
+        businessId: data.businesses.id,
+        businessName: data.businesses.name,
+        businessType: data.businesses.type || '',
         isPrimary: true,
         role: '',
         startDate: data.startDate

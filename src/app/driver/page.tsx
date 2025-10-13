@@ -15,7 +15,7 @@ export default function DriverPortalPage() {
   useEffect(() => {
     if (status === 'loading') return
 
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       router.push('/auth/signin')
       return
     }
@@ -35,7 +35,7 @@ export default function DriverPortalPage() {
     )
   }
 
-  if (!session?.user?.id || (!hasUserPermission(session.user, 'canLogDriverTrips') && !hasUserPermission(session.user, 'canLogDriverMaintenance'))) {
+  if (!session?.users?.id || (!hasUserPermission(session.user, 'canLogDriverTrips') && !hasUserPermission(session.user, 'canLogDriverMaintenance'))) {
     return null
   }
 

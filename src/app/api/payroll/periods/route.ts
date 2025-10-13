@@ -13,7 +13,7 @@ import { randomBytes } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
       
       if (constraint.includes('createdBy')) {
         return NextResponse.json(
-          { error: `User not found or invalid user ID: ${session.user.id}` },
+          { error: `User not found or invalid user ID: ${session.users.id}` },
           { status: 400 }
         )
       }
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -293,7 +293,7 @@ export async function POST(req: NextRequest) {
 
     // Verify the user exists before creating the payroll period
     const user = await prisma.users.findUnique({
-      where: { id: session.user.id }
+      where: { id: session.users.id }
     })
 
     if (!user) {
@@ -305,11 +305,11 @@ export async function POST(req: NextRequest) {
 
     // Verify the user exists in the database
     const currentUser = await prisma.users.findUnique({
-      where: { id: session.user.id }
+      where: { id: session.users.id }
     })
 
     if (!currentUser) {
-      console.error(`User not found in database: ${session.user.id}`)
+      console.error(`User not found in database: ${session.users.id}`)
       
       // Debug: List all users in the database
       const allUsers = await prisma.users.findMany({
@@ -318,7 +318,7 @@ export async function POST(req: NextRequest) {
       console.error('All users in database:', allUsers)
       
       return NextResponse.json(
-        { error: `User not found: ${session.user.id}. Available users: ${allUsers.map(u => `${u.name} (${u.id})`).join(', ')}` },
+        { error: `User not found: ${session.users.id}. Available users: ${allUsers.map(u => `${u.name} (${u.id})`).join(', ')}` },
         { status: 404 }
       )
     }
@@ -339,7 +339,7 @@ export async function POST(req: NextRequest) {
       totalGrossPay: 0,
       totalDeductions: 0,
       totalNetPay: 0,
-      createdBy: session.user.id,
+      createdBy: session.users.id,
       notes: notes || null,
       createdAt: new Date(),
       updatedAt: new Date()

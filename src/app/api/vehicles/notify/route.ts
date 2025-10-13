@@ -6,14 +6,14 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.users?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
     const { driverId, message } = body
     if (!driverId) return NextResponse.json({ error: 'driverId is required' }, { status: 400 })
 
     // Lookup driver contact info (email/phone) and simulate sending notification
-  const driver = await prisma.vehicleDrivers.findUnique({ where: { id: driverId }, select: { id: true, fullName: true, emailAddress: true, phoneNumber: true } })
+  const driver = await prisma.vehicle_drivers.findUnique({ where: { id: driverId }, select: { id: true, fullName: true, emailAddress: true, phoneNumber: true } })
 
   if (!driver) return NextResponse.json({ error: 'Driver not found' }, { status: 404 })
 

@@ -7,7 +7,7 @@ import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       // Verify user has access to this business
       membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: session.users.id,
           businessId: businessId,
           isActive: true,
         },

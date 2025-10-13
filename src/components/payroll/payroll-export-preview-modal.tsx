@@ -328,7 +328,7 @@ export function PayrollExportPreviewModal({
             {/* Header Info */}
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
               <h3 className="text-lg font-semibold text-primary mb-2">
-                {period.business.name} - {getMonthName(period.month)} {period.year}
+                {period.businesses.name} - {getMonthName(period.month)} {period.year}
               </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>

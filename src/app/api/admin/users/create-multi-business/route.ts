@@ -26,14 +26,14 @@ interface UserCreationRequest {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has permission to create users
     const userMemberships = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.user.id,
+        userId: session.users.id,
         isActive: true,
       },
       include: {
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       const membership = userMemberships.find(m => m.businessId === businessId)
       const permissions = membership?.permissions as any
       
-      if (!permissions?.canManageBusinessUsers && session.user.role !== 'admin') {
+      if (!permissions?.canManageBusinessUsers && session.users.role !== 'admin') {
         return NextResponse.json(
           { error: `Insufficient permissions to manage users in business ${membership?.businesses.name}` },
           { status: 403 }
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
             role: assignment.role,
             permissions: finalPermissions,
             isActive: true,
-            invitedBy: session.user.id,
+            invitedBy: session.users.id,
             joinedAt: new Date(),
             lastAccessedAt: new Date(),
           },
@@ -167,11 +167,11 @@ export async function POST(req: NextRequest) {
       success: true,
       message: `User created successfully with access to ${result.memberships.length} business(es)`,
       user: {
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
-        systemRole: result.user.role,
-        passwordResetRequired: result.user.passwordResetRequired,
+        id: result.users.id,
+        name: result.users.name,
+        email: result.users.email,
+        systemRole: result.users.role,
+        passwordResetRequired: result.users.passwordResetRequired,
         businessMemberships: result.memberships.map(m => ({
           businessId: m.businessId,
           businessName: m.businesses.name,

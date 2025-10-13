@@ -431,8 +431,8 @@ export default function TestPage() {
                         <h4 className="font-medium text-sm text-gray-700 mb-2">🏢 Business</h4>
                         {employee.business ? (
                           <div className="text-sm">
-                            <div>Name: {employee.business.name}</div>
-                            <div>Type: {employee.business.type}</div>
+                            <div>Name: {employee.businesses.name}</div>
+                            <div>Type: {employee.businesses.type}</div>
                           </div>
                         ) : (
                           <div className="text-sm text-gray-500">No business</div>

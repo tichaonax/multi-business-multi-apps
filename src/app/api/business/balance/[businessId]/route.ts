@@ -11,7 +11,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Verify user has access to this business
     const userBusinesses = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.user.id,
+        userId: session.users.id,
         businessId: businessId,
         isActive: true
       }

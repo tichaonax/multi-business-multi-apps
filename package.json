@@ -68,7 +68,11 @@
     "setup:fresh-db": "node scripts/setup-fresh-database.js",
     "check:db-state": "node scripts/check-database-state.js",
     "hooks:install": "node scripts/install-git-hooks.js",
-    "deploy": "npm run setup:update && npm run service:restart"
+    "deploy": "npm run setup:update && npm run service:restart",
+    "deploy:upgrade": "node scripts/production-upgrade.js",
+    "deploy:fresh": "node scripts/fresh-install.js",
+    "deploy:upgrade:dry-run": "node scripts/production-upgrade.js --dry-run",
+    "deploy:fresh:help": "node scripts/fresh-install.js --help"
   },
   "keywords": [],
   "author": "",

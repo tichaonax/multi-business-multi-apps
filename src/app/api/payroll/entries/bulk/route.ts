@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
           contractStartDate: effectiveStartDate,
           contractEndDate: effectiveEndDate,
           isProrated,
-          processedBy: session.user.id,
+          processedBy: session.users.id,
           createdAt: new Date(),
           updatedAt: new Date()
         })

@@ -51,7 +51,7 @@ const UpdateVehicleSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -98,24 +98,24 @@ export async function GET(request: NextRequest) {
             select: { id: true, name: true, email: true }
           },
           ...(includeLicenses && {
-            vehicleLicenses: {
+            vehicle_licenses: {
               where: { isActive: true },
               orderBy: { expiryDate: 'asc' }
             }
           }),
           ...(includeTrips && {
-            vehicleTrips: {
+            vehicle_trips: {
               take: 5,
               orderBy: { startTime: 'desc' },
               include: {
-                vehicleDrivers: {
+                vehicle_drivers: {
                   select: { id: true, fullName: true }
                 }
               }
             }
           }),
           ...(includeMaintenance && {
-            vehicleMaintenanceRecords: {
+            vehicle_maintenance_records: {
               take: 5,
               orderBy: { serviceDate: 'desc' }
             }
@@ -132,9 +132,9 @@ export async function GET(request: NextRequest) {
       ...v,
       business: v.businesses || null,
       user: v.users || null,
-      trips: v.vehicleTrips || [],
-      maintenanceRecords: v.vehicleMaintenanceRecords || [],
-      expenseRecords: v.vehicleExpenses || [],
+      trips: v.vehicle_trips || [],
+      maintenanceRecords: v.vehicle_maintenance_records || [],
+      expenseRecords: v.vehicle_expenses || [],
     }))
 
     return NextResponse.json({
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -365,7 +365,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -383,9 +383,9 @@ export async function DELETE(request: NextRequest) {
     const existingVehicle = await prisma.vehicles.findUnique({
       where: { id: vehicleId },
       include: {
-        vehicleTrips: { take: 1 },
-        vehicleMaintenanceRecords: { take: 1 },
-        vehicleExpenses: { take: 1 }
+        vehicle_trips: { take: 1 },
+        vehicle_maintenance_records: { take: 1 },
+        vehicle_expenses: { take: 1 }
       }
     })
 
@@ -397,9 +397,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if vehicle has related records
-    const hasRelatedRecords = (existingVehicle as any).vehicleTrips.length > 0 ||
-                 (existingVehicle as any).vehicleMaintenanceRecords.length > 0 ||
-                 (existingVehicle as any).vehicleExpenses.length > 0
+    const hasRelatedRecords = (existingVehicle as any).vehicle_trips.length > 0 ||
+                 (existingVehicle as any).vehicle_maintenance_records.length > 0 ||
+                 (existingVehicle as any).vehicle_expenses.length > 0
 
     if (hasRelatedRecords) {
       // Soft delete - just mark as inactive

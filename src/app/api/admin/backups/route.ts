@@ -12,7 +12,7 @@ function isAdminRequest(req: NextRequest) {
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
   const currentUser = session?.user as any
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.users?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 

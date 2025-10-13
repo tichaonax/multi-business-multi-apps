@@ -199,7 +199,7 @@ export function CreateUserModal({
                       key={idx}
                       className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded"
                     >
-                      {assignment.business.name}
+                      {assignment.businesses.name}
                       {assignment.role && ` (${assignment.role})`}
                     </span>
                   ))}
@@ -326,7 +326,7 @@ export function CreateUserModal({
                 </div>
                 {employee.businessAssignments.map((assignment, idx) => (
                   <div key={idx} className="flex items-center justify-between">
-                    <span className="text-sm text-primary">{assignment.business.name}</span>
+                    <span className="text-sm text-primary">{assignment.businesses.name}</span>
                     <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 px-2 py-1 rounded">
                       {assignment.role || 'Employee'}
                     </span>

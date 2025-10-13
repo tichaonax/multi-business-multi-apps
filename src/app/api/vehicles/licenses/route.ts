@@ -34,7 +34,7 @@ const UpdateLicenseSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [licenses, totalCount] = await Promise.all([
-      prisma.vehicleLicenses.findMany({
+      prisma.vehicle_licenses.findMany({
         where,
         include: {
           // schema relation name is `vehicles`
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleLicenses.count({ where })
+      prisma.vehicle_licenses.count({ where })
     ])
 
     const normalized = licenses.map(l => ({ ...l, vehicle: (l as any).vehicles || null }))
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if an active license exists for this vehicle and type
-    const existingLicense = await prisma.vehicleLicenses.findFirst({
+    const existingLicense = await prisma.vehicle_licenses.findFirst({
       where: {
         vehicleId: validatedData.vehicleId,
         licenseType: validatedData.licenseType,
@@ -141,8 +141,8 @@ export async function POST(request: NextRequest) {
 
         // Do the deactivation + creation transactionally
         const [deactivated, created] = await prisma.$transaction([
-          prisma.vehicleLicenses.update({ where: { id: existingLicense.id }, data: { isActive: false } }),
-          prisma.vehicleLicenses.create({
+          prisma.vehicle_licenses.update({ where: { id: existingLicense.id }, data: { isActive: false } }),
+          prisma.vehicle_licenses.create({
             data: {
               id: newLicenseId,
               ...validatedData,
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
           await prisma.auditLogs.create({
             data: {
               id: crypto.randomUUID(),
-              userId: session.user.id,
+              userId: session.users.id,
               action: 'DEACTIVATE',
               entityType: 'VehicleLicense',
               entityId: deactivated.id,
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
           await prisma.auditLogs.create({
             data: {
               id: crypto.randomUUID(),
-              userId: session.user.id,
+              userId: session.users.id,
               action: 'CREATE',
               entityType: 'VehicleLicense',
               entityId: created.id,
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
     }
 
     // No active license exists — create normally
-    const license = await prisma.vehicleLicenses.create({
+    const license = await prisma.vehicle_licenses.create({
       data: {
         id: crypto.randomUUID(),
         ...validatedData,
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
       await prisma.auditLogs.create({
         data: {
           id: crypto.randomUUID(),
-          userId: session.user.id,
+          userId: session.users.id,
           action: 'CREATE',
           entityType: 'VehicleLicense',
           entityId: license.id,
@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -272,7 +272,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify license exists
-    const existingLicense = await prisma.vehicleLicenses.findUnique({
+    const existingLicense = await prisma.vehicle_licenses.findUnique({
       where: { id }
     })
 
@@ -285,7 +285,7 @@ export async function PUT(request: NextRequest) {
 
     // Check for duplicate license type if it's being updated
     if (updateData.licenseType) {
-      const duplicateCheck = await prisma.vehicleLicenses.findFirst({
+      const duplicateCheck = await prisma.vehicle_licenses.findFirst({
         where: {
           AND: [
             { id: { not: id } },
@@ -305,7 +305,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update license
-    const license = await prisma.vehicleLicenses.update({
+    const license = await prisma.vehicle_licenses.update({
       where: { id },
       data: { ...updateData, issueDate: updateData.issueDate ? new Date(updateData.issueDate) : undefined, expiryDate: updateData.expiryDate ? new Date(updateData.expiryDate) : undefined } as any,
       include: { vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } } }
@@ -318,7 +318,7 @@ export async function PUT(request: NextRequest) {
       await prisma.auditLogs.create({
         data: {
           id: crypto.randomUUID(),
-          userId: session.user.id,
+          userId: session.users.id,
           action: 'UPDATE',
           entityType: 'VehicleLicense',
           entityId: license.id,
@@ -353,7 +353,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -379,7 +379,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Validate all ids exist and belong to the same vehicle (prevent cross-vehicle accidental deletes)
-    const licenses = await prisma.vehicleLicenses.findMany({ where: { id: { in: idsToDelete } } })
+    const licenses = await prisma.vehicle_licenses.findMany({ where: { id: { in: idsToDelete } } })
     if (licenses.length !== idsToDelete.length) {
       return NextResponse.json({ error: 'One or more licenses not found' }, { status: 404 })
     }
@@ -396,7 +396,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete all selected licenses in a transaction and return deactivated ids
-    const updates = idsToDelete.map(id => prisma.vehicleLicenses.update({ where: { id }, data: { isActive: false } }))
+    const updates = idsToDelete.map(id => prisma.vehicle_licenses.update({ where: { id }, data: { isActive: false } }))
     const results = await prisma.$transaction(updates)
     const deactivatedIds = results.map(r => (r as any).id)
 
@@ -407,7 +407,7 @@ export async function DELETE(request: NextRequest) {
         await prisma.auditLogs.create({
           data: {
             id: crypto.randomUUID(),
-            userId: session.user.id,
+            userId: session.users.id,
             action: 'DEACTIVATE',
             entityType: 'VehicleLicense',
             entityId: rec.id,

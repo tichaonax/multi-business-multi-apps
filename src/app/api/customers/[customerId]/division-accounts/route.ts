@@ -24,7 +24,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -78,7 +78,7 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -146,7 +146,7 @@ export async function POST(
         creditLimit: validatedData.creditLimit,
         allowLayby: validatedData.allowLayby,
         allowCredit: validatedData.allowCredit,
-        createdBy: session.user.id
+        createdBy: session.users.id
       },
       include: {
         businesses: {

@@ -165,9 +165,9 @@ export function UserDetailModal({ isOpen, onClose, userId }: UserDetailModalProp
                     <div key={index} className="bg-white rounded-md p-3 border border-gray-200">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium text-gray-900">{membership.business.name}</h4>
+                          <h4 className="font-medium text-gray-900">{membership.businesses.name}</h4>
                           <p className="text-sm text-gray-600">
-                            {membership.business.type} • Role: {membership.role}
+                            {membership.businesses.type} • Role: {membership.role}
                           </p>
                         </div>
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

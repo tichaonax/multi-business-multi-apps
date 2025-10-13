@@ -11,13 +11,13 @@ function devScriptsAllowed(): boolean {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions as any)
-  if (!session || !(session as any).user || (session as any).user.role !== 'admin') {
+  if (!session || !(session as any).user || (session as any).users.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   // Deny in production always and require explicit flag for dev environments
   if (!devScriptsAllowed()) {
-    console.warn('Blocked attempt to run migration seeding via API by user:', (session as any).user?.email || (session as any).user?.id)
+    console.warn('Blocked attempt to run migration seeding via API by user:', (session as any).users?.email || (session as any).users?.id)
     return NextResponse.json({ error: 'Seeding disabled in this environment' }, { status: 403 })
   }
 

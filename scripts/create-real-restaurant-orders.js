@@ -5,28 +5,47 @@ async function createRealRestaurantOrders() {
   try {
     console.log('🍽️ Creating real restaurant orders in database...')
 
-    // Get HXI EATS restaurant business
-    const hxiEats = await prisma.businesses.findFirst({
+    // Create or get HXI EATS restaurant business
+    let hxiEats = await prisma.businesses.findFirst({
       where: { name: 'HXI EATS', type: 'restaurant' }
     })
 
     if (!hxiEats) {
-      throw new Error('HXI EATS restaurant not found')
+      console.log('📝 Creating HXI EATS restaurant business...')
+      hxiEats = await prisma.businesses.create({
+        data: {
+          id: `hxi-eats-${Date.now()}`,
+          name: 'HXI EATS',
+          type: 'restaurant',
+          description: 'Demo restaurant for order testing',
+          isActive: true
+        }
+      })
+      console.log('✅ Created HXI EATS restaurant:', hxiEats.id)
+    } else {
+      console.log('✅ Found existing HXI EATS restaurant:', hxiEats.id)
     }
 
-    console.log('✅ Found HXI EATS restaurant:', hxiEats.id)
-
-    // Get Mary user
-    const mary = await prisma.users.findFirst({
+    // Create or get Mary user
+    let mary = await prisma.users.findFirst({
       where: { email: 'mary@hxi.com' }
     })
 
-    // Get admin user
-    const admin = await prisma.users.findFirst({
-      where: { email: 'admin@business.local' }
-    })
-
-    console.log('✅ Found users - Mary:', mary?.id, 'Admin:', admin?.id)
+    if (!mary) {
+      console.log('📝 Creating Mary user...')
+      mary = await prisma.users.create({
+        data: {
+          id: `mary-${Date.now()}`,
+          email: 'mary@hxi.com',
+          name: 'Mary Hwandaza',
+          passwordHash: 'demo-placeholder',
+          role: 'employee'
+        }
+      })
+      console.log('✅ Created Mary user:', mary.id)
+    } else {
+      console.log('✅ Found existing Mary user:', mary.id)
+    }
 
     // Create some customers first
     const customers = []
@@ -37,22 +56,52 @@ async function createRealRestaurantOrders() {
     ]
 
     for (const customerInfo of customerData) {
-      const customer = await prisma.businessCustomer.create({
+      const customer = await prisma.businessCustomers.create({
         data: {
+          id: `${hxiEats.id}-customer-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
           businessId: hxiEats.id,
           name: customerInfo.name,
           phone: customerInfo.phone,
           email: customerInfo.email,
           customerNumber: `CUST-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
           businessType: 'restaurant',
-          isActive: true
+          isActive: true,
+          updatedAt: new Date()
         }
       })
       customers.push(customer)
       console.log(`✅ Created customer: ${customer.name}`)
     }
 
-    // Create some products/menu items first
+    // Create business categories first
+    const categories = ['Burgers', 'Appetizers', 'Salads', 'Drinks', 'Main Course']
+    const categoryMap = {}
+    
+    for (const categoryName of categories) {
+      const categoryId = `${hxiEats.id}-category-${categoryName.toLowerCase().replace(/\s+/g, '-')}`
+      const category = await prisma.businessCategories.upsert({
+        where: { id: categoryId },
+        update: {
+          description: `${categoryName} menu items`,
+          businessType: 'restaurant',
+          isActive: true,
+          updatedAt: new Date()
+        },
+        create: {
+          id: categoryId,
+          businessId: hxiEats.id,
+          name: categoryName,
+          description: `${categoryName} menu items`,
+          businessType: 'restaurant',
+          isActive: true,
+          updatedAt: new Date()
+        }
+      })
+      categoryMap[categoryName] = category.id
+      console.log(`✅ Created/updated category: ${categoryName}`)
+    }
+
+    // Create some products/menu items
     const products = []
     const menuItems = [
       { name: 'Beef Burger', price: 12.50, type: 'FOOD', category: 'Burgers' },
@@ -63,31 +112,57 @@ async function createRealRestaurantOrders() {
     ]
 
     for (const item of menuItems) {
-      const product = await prisma.businessProduct.create({
-        data: {
-          businessId: hxiEats.id,
-          name: item.name,
-          productType: 'CONSUMABLE',
-          businessType: 'restaurant',
-          category: item.category,
+      const productId = `${hxiEats.id}-product-${item.name.replace(/\s+/g, '-').toLowerCase()}`
+      const product = await prisma.businessProducts.upsert({
+        where: { id: productId },
+        update: {
+          description: `Delicious ${item.name}`,
+          categoryId: categoryMap[item.category],
           basePrice: item.price,
-          stockQuantity: 100,
           isActive: true,
           attributes: {
             menuCategory: item.category,
             foodType: item.type
-          }
+          },
+          updatedAt: new Date()
+        },
+        create: {
+          id: productId,
+          businessId: hxiEats.id,
+          name: item.name,
+          description: `Delicious ${item.name}`,
+          categoryId: categoryMap[item.category],
+          productType: 'PHYSICAL',
+          basePrice: item.price,
+          isActive: true,
+          businessType: 'restaurant',
+          attributes: {
+            menuCategory: item.category,
+            foodType: item.type
+          },
+          updatedAt: new Date()
         }
       })
 
       // Create a default variant
-      const variant = await prisma.productVariant.create({
-        data: {
-          productId: product.id,
-          name: 'Default',
+      const variantSku = `${item.name.replace(/\s+/g, '-').toUpperCase()}-DFT`
+      const variant = await prisma.productVariants.upsert({
+        where: { sku: variantSku },
+        update: {
           price: item.price,
           stockQuantity: 100,
-          isActive: true
+          isActive: true,
+          updatedAt: new Date()
+        },
+        create: {
+          id: `${product.id}-variant-default`,
+          productId: product.id,
+          name: 'Default',
+          sku: variantSku,
+          price: item.price,
+          stockQuantity: 100,
+          isActive: true,
+          updatedAt: new Date()
         }
       })
 
@@ -172,12 +247,14 @@ async function createRealRestaurantOrders() {
       const totalAmount = subtotal + taxAmount
 
       // Create order
-      const order = await prisma.businessOrder.create({
+      const orderNumber = `HXI-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(i + 1).padStart(4, '0')}`
+      const order = await prisma.businessOrders.create({
         data: {
+          id: `${hxiEats.id}-order-${orderNumber}-${Date.now()}`,
           businessId: hxiEats.id,
           customerId: customer?.id,
-          employeeId: mary?.id, // Mary served the order
-          orderNumber: `HXI-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(i + 1).padStart(4, '0')}`,
+          employeeId: null, // No employee record needed for demo
+          orderNumber,
           orderType: 'SALE',
           status: orderInfo.status,
           paymentStatus: orderInfo.paymentStatus,
@@ -191,14 +268,16 @@ async function createRealRestaurantOrders() {
             tableNumber: Math.floor(Math.random() * 10) + 1,
             orderType: customer ? 'DINE_IN' : 'TAKEOUT'
           },
-          createdAt: new Date(Date.now() - (orderInfo.hoursAgo * 60 * 60 * 1000))
+          createdAt: new Date(Date.now() - (orderInfo.hoursAgo * 60 * 60 * 1000)),
+          updatedAt: new Date(Date.now() - (orderInfo.hoursAgo * 60 * 60 * 1000))
         }
       })
 
       // Create order items
       for (const item of orderItems) {
-        await prisma.businessOrderItem.create({
+        await prisma.businessOrderItems.create({
           data: {
+            id: `${order.id}-item-${item.productVariantId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
             orderId: order.id,
             productVariantId: item.productVariantId,
             quantity: item.quantity,

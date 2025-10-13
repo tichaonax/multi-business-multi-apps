@@ -11,7 +11,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -113,7 +113,7 @@ export async function GET(
     const projectExpenses = transactions.filter(t => t.transactionType === 'project_expense').reduce((sum, t) => sum + Number(t.amount), 0)
 
     // Group contractor payments by contractor
-    const contractorSummaries = project.projectContractors.map(contractor => {
+    const contractorSummaries = project.project_contractors.map(contractor => {
       const payments = transactions.filter(t =>
         t.transactionType === 'contractor_payment' &&
         t.projectContractorId === contractor.id
@@ -131,7 +131,7 @@ export async function GET(
     const projectWithSummaries = {
       ...project,
       budget: totalBudget,
-      projectTransactions: project.projectTransactions.map(t => ({
+      projectTransactions: project.project_transactions.map(t => ({
         ...t,
         amount: Number(t.amount)
       })),
@@ -164,7 +164,7 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -295,7 +295,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.users?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

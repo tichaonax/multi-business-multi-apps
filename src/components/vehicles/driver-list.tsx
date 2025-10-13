@@ -286,7 +286,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
       )
     }
 
-    if (driver.user.isActive) {
+    if (driver.users.isActive) {
       return (
         <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
           Active Login
@@ -322,7 +322,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
       )
     }
 
-    if (driver.user.isActive) {
+    if (driver.users.isActive) {
       // Active user - show deactivate button
       return (
         <button
@@ -476,7 +476,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
 
                         {driver.user && (
                           <div className="mt-2 text-sm text-secondary">
-                            <span className="font-medium">Linked User:</span> {driver.user.name} ({driver.user.email})
+                            <span className="font-medium">Linked User:</span> {driver.users.name} ({driver.users.email})
                           </div>
                         )}
 
