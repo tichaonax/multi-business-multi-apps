@@ -481,25 +481,14 @@ async function main() {
     console.log('='.repeat(60))
     console.log('')
     
-    // ENHANCEMENT: Quick UI validation check for upgrades too
-    console.log('🔍 Quick UI validation check...')
-    const quickValidation = run('node scripts/validate-ui-relations.js',
-        'Quick UI compatibility validation',
-        true) // Optional - don't fail on warnings
-    
-    if (quickValidation) {
-      log('UI compatibility check: PASSED', 'SUCCESS')
-    } else {
-      log('UI compatibility check: WARNINGS FOUND', 'WARN')
-      log('Review validation output above - may need UI component updates', 'WARN')
-    }
-    console.log('')
+    // NOTE: UI validation will run automatically after migrations complete during service startup
+    console.log('🔍 UI validation will run after service starts and migrations complete...')
     
     console.log('⚠️  IMPORTANT: Service restart will handle:')
     console.log('   • Database migrations (automatic)')
     console.log('   • Reference data seeding (automatic)')
     console.log('   • Schema updates (automatic)')
-    console.log('   • Additional UI validation (automatic)')
+    console.log('   • UI relations validation AFTER migrations (automatic)')
     console.log('')
     console.log('🚀 To apply all changes, restart the service:')
     console.log('   npm run service:restart (as Administrator)')
@@ -507,7 +496,7 @@ async function main() {
     console.log('   The service startup automatically runs:')
     console.log('   - npx prisma migrate deploy')
     console.log('   - npm run seed:migration')
-    console.log('   - UI compatibility validation')
+    console.log('   - UI compatibility validation (AFTER migrations)')
     console.log('')
   }
 }
