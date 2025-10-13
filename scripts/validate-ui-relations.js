@@ -40,33 +40,38 @@ async function validatePrismaRelations() {
   try {
     await prisma.$connect();
 
-    // Test 1: User -> businesses relation (used in user-edit-modal, user-detail-modal)
+    // Test 1: User -> businessMemberships relation (used in user-edit-modal, user-detail-modal)
     try {
       const userWithBusinesses = await prisma.users.findFirst({
         include: { 
-          businesses: {
-            select: { id: true, name: true, businessType: true }
+          businessMemberships: {
+            include: {
+              businesses: {
+                select: { id: true, name: true, type: true }
+              }
+            }
           }
         }
       });
       
-      if (userWithBusinesses && userWithBusinesses.businesses) {
+      if (userWithBusinesses && userWithBusinesses.businessMemberships) {
         // Test common UI operations
-        const businessNames = userWithBusinesses.businesses.map(b => b.name);
-        const businessCount = userWithBusinesses.businesses.length;
+        const businesses = userWithBusinesses.businessMemberships.map(m => m.businesses);
+        const businessNames = businesses.map(b => b.name);
+        const businessCount = businesses.length;
         
         results.passed++;
-        results.details.push('✅ User.businesses relation: PASS (UI can access business names)');
-        log(`  ✅ User.businesses: ${businessCount} businesses found`, 'SUCCESS');
+        results.details.push('✅ User.businessMemberships -> businesses relation: PASS (UI can access business names)');
+        log(`  ✅ User.businessMemberships: ${businessCount} businesses found`, 'SUCCESS');
       } else {
         results.warnings++;
-        results.details.push('⚠️  User.businesses relation: NO_DATA (relation structure OK, no test data)');
-        log('  ⚠️  User.businesses: No data to validate, but structure is correct', 'WARN');
+        results.details.push('⚠️  User.businessMemberships relation: NO_DATA (relation structure OK, no test data)');
+        log('  ⚠️  User.businessMemberships: No data to validate, but structure is correct', 'WARN');
       }
     } catch (error) {
       results.failed++;
-      results.details.push(`❌ User.businesses relation: FAIL (${error.message})`);
-      log(`  ❌ User.businesses: ${error.message}`, 'ERROR');
+      results.details.push(`❌ User.businessMemberships relation: FAIL (${error.message})`);
+      log(`  ❌ User.businessMemberships: ${error.message}`, 'ERROR');
     }
 
     // Test 2: Project -> project_types relation
@@ -94,30 +99,35 @@ async function validatePrismaRelations() {
       log(`  ❌ Project.project_types: ${error.message}`, 'ERROR');
     }
 
-    // Test 3: Vehicle -> vehicle_drivers relation
+    // Test 3: Vehicle -> driver_authorizations relation
     try {
       const vehicleWithDrivers = await prisma.vehicles.findFirst({
         include: { 
-          vehicle_drivers: {
-            select: { id: true, licenseNumber: true }
+          driver_authorizations: {
+            include: {
+              vehicle_drivers: {
+                select: { id: true, licenseNumber: true }
+              }
+            }
           }
         }
       });
       
-      if (vehicleWithDrivers && vehicleWithDrivers.vehicle_drivers) {
-        const driverCount = vehicleWithDrivers.vehicle_drivers.length;
+      if (vehicleWithDrivers && vehicleWithDrivers.driver_authorizations) {
+        const drivers = vehicleWithDrivers.driver_authorizations.map(auth => auth.vehicle_drivers);
+        const driverCount = drivers.length;
         results.passed++;
-        results.details.push('✅ Vehicle.vehicle_drivers relation: PASS');
-        log(`  ✅ Vehicle.vehicle_drivers: ${driverCount} drivers found`, 'SUCCESS');
+        results.details.push('✅ Vehicle.driver_authorizations -> vehicle_drivers relation: PASS');
+        log(`  ✅ Vehicle.driver_authorizations: ${driverCount} drivers found`, 'SUCCESS');
       } else {
         results.warnings++;
-        results.details.push('⚠️  Vehicle.vehicle_drivers relation: NO_DATA');
-        log('  ⚠️  Vehicle.vehicle_drivers: No data to validate', 'WARN');
+        results.details.push('⚠️  Vehicle.driver_authorizations relation: NO_DATA');
+        log('  ⚠️  Vehicle.driver_authorizations: No data to validate', 'WARN');
       }
     } catch (error) {
       results.failed++;
-      results.details.push(`❌ Vehicle.vehicle_drivers relation: FAIL (${error.message})`);
-      log(`  ❌ Vehicle.vehicle_drivers: ${error.message}`, 'ERROR');
+      results.details.push(`❌ Vehicle.driver_authorizations relation: FAIL (${error.message})`);
+      log(`  ❌ Vehicle.driver_authorizations: ${error.message}`, 'ERROR');
     }
 
     // Test 4: Project -> project_contractors relation
@@ -125,7 +135,7 @@ async function validatePrismaRelations() {
       const projectWithContractors = await prisma.projects.findFirst({
         include: { 
           project_contractors: {
-            select: { id: true, contractValue: true }
+            select: { id: true, totalContractAmount: true }
           }
         }
       });
