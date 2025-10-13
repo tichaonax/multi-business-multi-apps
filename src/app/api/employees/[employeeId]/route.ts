@@ -13,7 +13,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -258,7 +258,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -466,7 +466,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           data: {
             isActive: false,
             deactivatedAt: new Date(),
-            deactivatedBy: session.users.id,
+            deactivatedBy: session.user.id,
             deactivationReason: `Employee ${newEmploymentStatus}`,
             deactivationNotes: `Automatically deactivated due to employee status change to ${newEmploymentStatus}`
           }
@@ -485,7 +485,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       if (statusChanged && updatedEmployee.users) {
         await tx.auditLogs.create({
           data: {
-            userId: session.users.id,
+            userId: session.user.id,
             action: 'EMPLOYEE_STATUS_SYNC',
             resourceType: 'Employee',
             resourceId: employeeId,
@@ -569,7 +569,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -629,8 +629,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
           employmentStatus: 'terminated',
           terminationDate: new Date(),
           notes: existingEmployee.notes ? 
-            `${existingEmployee.notes}\n\n[${new Date().toISOString()}] Account deactivated by ${session.users.name}` :
-            `[${new Date().toISOString()}] Account deactivated by ${session.users.name}`
+            `${existingEmployee.notes}\n\n[${new Date().toISOString()}] Account deactivated by ${session.user.name}` :
+            `[${new Date().toISOString()}] Account deactivated by ${session.user.name}`
         },
         include: {
           users: {
@@ -653,9 +653,9 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
           data: {
             isActive: false,
             deactivatedAt: new Date(),
-            deactivatedBy: session.users.id,
+            deactivatedBy: session.user.id,
             deactivationReason: 'Employee terminated',
-            deactivationNotes: `Automatically deactivated due to employee termination by ${session.users.name}`
+            deactivationNotes: `Automatically deactivated due to employee termination by ${session.user.name}`
           }
         })
 
@@ -671,7 +671,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       // Create audit log for termination and synchronization
       await tx.auditLogs.create({
         data: {
-          userId: session.users.id,
+          userId: session.user.id,
           action: 'EMPLOYEE_TERMINATED',
           resourceType: 'Employee',
           resourceId: employeeId,

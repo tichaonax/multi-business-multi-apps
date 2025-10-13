@@ -438,6 +438,8 @@ export default function AdminPage() {
                     if (endpoint.includes('unseed-grocery')) confirmText = `UNSEED-GROCERY-${nowSuffix}`
                     if (endpoint.includes('seed-contractors')) confirmText = `SEED-CONTRACTORS-${nowSuffix}`
                     if (endpoint.includes('unseed-contractors')) confirmText = `UNSEED-CONTRACTORS-${nowSuffix}`
+                    if (endpoint.includes('seed-clothing')) confirmText = `SEED-CLOTHING-${nowSuffix}`
+                    if (endpoint.includes('unseed-clothing')) confirmText = `UNSEED-CLOTHING-${nowSuffix}`
                     if (endpoint.includes('seed-restaurant')) confirmText = `SEED-RESTAURANT-${nowSuffix}`
                     if (endpoint.includes('unseed-restaurant') || endpoint.includes('cleanup-dev-data')) confirmText = `UNSEED-RESTAURANT-${nowSuffix}`
                     if (endpoint.includes('seed-dev-data')) confirmText = `CREATE-DEV-SEED-${nowSuffix}`

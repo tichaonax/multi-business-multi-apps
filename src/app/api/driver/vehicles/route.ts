@@ -8,7 +8,7 @@ import { hasUserPermission } from '@/lib/permission-utils'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -18,12 +18,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Get driver record for current user
-    const driver = await prisma.vehicle_drivers.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
-          { userId: session.users.id },
-          { emailAddress: session.users.email || '' },
-          { fullName: session.users.name || '' }
+          { userId: session.user.id },
+          { emailAddress: session.user.email || '' },
+          { fullName: session.user.name || '' }
         ]
       }
     })

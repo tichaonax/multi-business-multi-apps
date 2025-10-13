@@ -13,7 +13,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         isCommissionBased: !!isCommissionBased,
         isSalaryBased: isSalaryBased !== false, // Default to true unless explicitly false
         notes: notes || null,
-        createdBy: session.users.id
+        createdBy: session.user.id
       }
       const newContract = await tx.employeeContract.create({ data: contractCreateData })
 

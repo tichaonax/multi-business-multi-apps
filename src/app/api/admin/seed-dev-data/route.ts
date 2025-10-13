@@ -18,7 +18,7 @@ async function runScript(scriptPath: string) {
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
   const currentUser = session?.user as any
-  if (!session?.users?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Simple admin guard - adjust as your app's role model requires
   const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin

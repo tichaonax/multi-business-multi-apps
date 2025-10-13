@@ -17,7 +17,7 @@ import { randomBytes } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
             employeeCount,
             totalGrossPay,
             totalNetPay,
-            exportedBy: session.users.id,
+            exportedBy: session.user.id,
             generationType: 'year_to_date',
             notes: notes || `Year-to-date export with ${ytdPeriods.length} tabs`,
             exportedAt: new Date()
@@ -581,7 +581,7 @@ export async function POST(req: NextRequest) {
           employeeCount,
           totalGrossPay,
           totalNetPay,
-          exportedBy: session.users.id,
+          exportedBy: session.user.id,
           generationType: generationType || 'single_month',
           notes: notes || null,
           exportedAt: new Date()

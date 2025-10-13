@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
     const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

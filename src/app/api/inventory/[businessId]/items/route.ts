@@ -211,7 +211,7 @@ export async function POST(
         id: businessId,
         businessMemberships: {
           some: {
-            userId: session.users.id,
+            userId: session.user.id,
             isActive: true
           }
         }

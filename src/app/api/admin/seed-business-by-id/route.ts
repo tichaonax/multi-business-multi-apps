@@ -23,7 +23,7 @@ async function runScript(scriptPath: string, args: string[] = []) {
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
   const currentUser = session?.user as any
-  if (!session?.users?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 

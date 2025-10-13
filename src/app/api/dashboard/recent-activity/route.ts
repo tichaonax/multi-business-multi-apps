@@ -46,7 +46,7 @@ const safePrisma = (() => {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -64,11 +64,11 @@ export async function GET(req: NextRequest) {
     console.log('  - filterScope:', filterScope)
     console.log('  - filterUserId:', filterUserId)
     console.log('  - filterBusinessId:', filterBusinessId)
-    console.log('  - session.users.id:', session.users.id)
+    console.log('  - session.user.id:', session.user.id)
     console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
     // Determine filtering based on scope and permissions
-  let targetUserId: string | null = session.users.id // Default to current user
+  let targetUserId: string | null = session.user.id // Default to current user
   let targetBusinessIds: string[] | null = userBusinessIds // Default to user's businesses
     let shouldReturnEmptyResults = false // Flag to return empty results when required selection is missing
 
@@ -384,7 +384,7 @@ export async function GET(req: NextRequest) {
         } else if (targetBusinessIds && targetBusinessIds.length > 0) {
           // For business filtering, only include expenses that are actually linked to business projects
           // Personal expenses are only business-related if they have ProjectTransactions linking to business projects
-          const businessProjectTransactions = await prisma.project_transactions.findMany({
+          const businessProjectTransactions = await prisma.projectTransactions.findMany({
             where: ({
               project: {
                 businessId: { in: targetBusinessIds }

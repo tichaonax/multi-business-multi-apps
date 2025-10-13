@@ -12,7 +12,7 @@ interface RouteParams {
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -26,7 +26,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { driverId } = await params
 
     // Find driver with linked user
-    const driver = await prisma.vehicle_drivers.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: driverId },
       include: {
         users: {
@@ -99,7 +99,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { driverId } = await params
 
     // Find driver with linked user
-    const driver = await prisma.vehicle_drivers.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: driverId },
       include: {
         users: {

@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user || session.users.role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
       return NextResponse.json(
         { message: 'Admin access required' },
         { status: 401 }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🚨 Data reset initiated by ${session.users.name} (${session.users.email})`);
+    console.log(`🚨 Data reset initiated by ${session.user.name} (${session.user.email})`);
 
     // Start transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 
       // Create audit log entry for this critical action
       await createAuditLog({
-        userId: session.users.id!,
+        userId: session.user.id!,
         action: 'BACKUP_RESTORED' as any, // Using existing audit action
         entityType: 'Backup',
         entityId: 'data-reset-' + Date.now(),
@@ -143,9 +143,9 @@ export async function POST(request: NextRequest) {
           afterCounts,
           resetTimestamp: new Date().toISOString(),
           resetBy: {
-            userId: session.users.id,
-            userName: session.users.name,
-            userEmail: session.users.email,
+            userId: session.user.id,
+            userName: session.user.name,
+            userEmail: session.user.email,
           },
           confirmationMessage: confirmMessage,
           dataPreserved: {
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
       const session = await getServerSession(authOptions);
       if (session?.user) {
         await createAuditLog({
-          userId: session.users.id!,
+          userId: session.user.id!,
           action: 'BACKUP_RESTORED' as any,
           entityType: 'Backup',
           entityId: 'data-reset-failed-' + Date.now(),
@@ -256,9 +256,9 @@ export async function POST(request: NextRequest) {
             error: error instanceof Error ? error.message : 'Unknown error',
             failedAt: new Date().toISOString(),
             attemptedBy: {
-              userId: session.users.id,
-              userName: session.users.name,
-              userEmail: session.users.email,
+              userId: session.user.id,
+              userName: session.user.name,
+              userEmail: session.user.email,
             }
           },
         });

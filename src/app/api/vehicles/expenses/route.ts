@@ -43,7 +43,7 @@ const UpdateExpenseSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [expenses, totalCount] = await Promise.all([
-      prisma.vehicle_expenses.findMany({
+      prisma.vehicleExpenses.findMany({
         where,
         include: {
           vehicles: {
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicle_expenses.count({ where })
+      prisma.vehicleExpenses.count({ where })
     ])
 
     return NextResponse.json({
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     // Verify trip exists if provided
     if (validatedData.tripId) {
-      const trip = await prisma.vehicle_trips.findUnique({
+      const trip = await prisma.vehicleTrips.findUnique({
         where: { id: validatedData.tripId }
       })
 
@@ -229,12 +229,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Create expense
-    const expense = await prisma.vehicle_expenses.create({
+    const expense = await prisma.vehicleExpenses.create({
       data: {
         id: randomUUID(),
         ...validatedData,
         expenseDate: new Date(validatedData.expenseDate),
-        createdBy: session.users.id,
+        createdBy: session.user.id,
         updatedAt: new Date()
       },
       include: {
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -310,7 +310,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify expense exists
-    const existingExpense = await prisma.vehicle_expenses.findUnique({
+    const existingExpense = await prisma.vehicleExpenses.findUnique({
       where: { id }
     })
 
@@ -335,7 +335,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update expense
-    const expense = await prisma.vehicle_expenses.update({
+    const expense = await prisma.vehicleExpenses.update({
       where: { id },
       data: {
         ...updateData,
@@ -405,7 +405,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -420,7 +420,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify expense exists
-    const existingExpense = await prisma.vehicle_expenses.findUnique({
+    const existingExpense = await prisma.vehicleExpenses.findUnique({
       where: { id: expenseId }
     })
 
@@ -432,7 +432,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete expense
-    await prisma.vehicle_expenses.delete({
+    await prisma.vehicleExpenses.delete({
       where: { id: expenseId }
     })
 

@@ -409,7 +409,7 @@ export async function GET(
       businessId,
       reportType,
       generatedAt: new Date().toISOString(),
-      generatedBy: session.users.name || 'Unknown',
+      generatedBy: session.user.name || 'Unknown',
       dateRange: { startDate, endDate },
       data: reportData,
       summary: reportSummary

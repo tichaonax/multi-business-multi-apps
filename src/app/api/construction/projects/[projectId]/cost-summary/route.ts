@@ -10,7 +10,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.users.id
+        createdBy: session.user.id
       }
     })
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Get all transactions for this project
-    const transactions = await prisma.project_transactions.findMany({
+    const transactions = await prisma.projectTransactions.findMany({
       where: { projectId },
       include: {
         personalExpense: {
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     })
 
     // Calculate contractor breakdown (across all stages)
-    const contractorBreakdown = await prisma.project_contractors.findMany({
+    const contractorBreakdown = await prisma.projectContractors.findMany({
       where: { projectId },
       include: {
         person: {

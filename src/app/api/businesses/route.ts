@@ -9,7 +9,7 @@ import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -48,7 +48,7 @@ export async function GET() {
         where: {
           businessMemberships: {
             some: {
-              userId: session.users.id,
+              userId: session.user.id,
               isActive: true,
             },
           },
@@ -59,7 +59,7 @@ export async function GET() {
         include: {
           businessMemberships: {
             where: {
-              userId: session.users.id,
+              userId: session.user.id,
             },
             select: {
               role: true,
@@ -87,7 +87,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -109,10 +109,10 @@ export async function POST(req: NextRequest) {
         type,
         description: description || null,
         shortName,
-        createdBy: session.users.id,
+        createdBy: session.user.id,
         businessMemberships: {
           create: ({
-            userId: session.users.id,
+            userId: session.user.id,
             role: 'business-owner',
             permissions: BUSINESS_PERMISSION_PRESETS['business-owner'],
             isActive: true,
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       include: {
         businessMemberships: {
           where: {
-            userId: session.users.id,
+            userId: session.user.id,
           },
         },
       },

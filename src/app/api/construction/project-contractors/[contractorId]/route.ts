@@ -12,14 +12,14 @@ export async function DELETE(
     const { contractorId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { contractorId } = await params
 
     // Verify the project contractor exists and user has access
-    const projectContractor = await prisma.project_contractors.findUnique({
+    const projectContractor = await prisma.projectContractors.findUnique({
       where: { id: contractorId },
       include: {
         constructionProject: {
@@ -43,12 +43,12 @@ export async function DELETE(
     }
 
     // Check if user owns the project (basic access control)
-    if (projectContractor.constructionProject.createdBy !== session.users.id) {
+    if (projectContractor.constructionProject.createdBy !== session.user.id) {
       return NextResponse.json({ error: 'You do not have permission to modify this project' }, { status: 403 })
     }
 
     // Delete the project contractor assignment
-    await prisma.project_contractors.delete({
+    await prisma.projectContractors.delete({
       where: { id: contractorId }
     })
 

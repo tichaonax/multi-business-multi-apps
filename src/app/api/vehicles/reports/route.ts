@@ -153,19 +153,19 @@ async function generateFleetOverviewReport(vehicleId?: string, businessId?: stri
         users: { select: { name: true, email: true } }
       }
     }),
-    prisma.vehicle_trips.count({ where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {} }),
-    prisma.vehicle_expenses.aggregate({
+    prisma.vehicleTrips.count({ where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {} }),
+    prisma.vehicleExpenses.aggregate({
       where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {},
       _sum: { amount: true },
       _count: true
     }),
-    prisma.vehicle_maintenance_records.count({
+    prisma.vehicleMaintenanceRecords.count({
       where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {}
     })
     , // end maintenanceRecords entry
     // Driver counts
-    prisma.vehicle_drivers.count({ where: driverFilter }),
-    prisma.vehicle_drivers.count({ where: { ...driverFilter, isActive: true } })
+    prisma.vehicleDrivers.count({ where: driverFilter }),
+    prisma.vehicleDrivers.count({ where: { ...driverFilter, isActive: true } })
   ])
 
   return {
@@ -196,7 +196,7 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
   if (driverId) tripFilter.driverId = driverId
   if (businessId) tripFilter.businessId = businessId
 
-  const trips = await prisma.vehicle_trips.findMany({
+  const trips = await prisma.vehicleTrips.findMany({
     where: tripFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true, mileageUnit: true } },
@@ -300,7 +300,7 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
   if (vehicleId) expenseFilter.vehicleId = vehicleId
   if (businessId) expenseFilter.businessId = businessId
 
-  const expenses = await prisma.vehicle_expenses.findMany({
+  const expenses = await prisma.vehicleExpenses.findMany({
     where: expenseFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true } },
@@ -380,7 +380,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
 
   const [upcomingMaintenance, overdueMaintenance, recentMaintenance, maintenanceServices] = await Promise.all([
     // Upcoming maintenance (next 30 days)
-    prisma.vehicle_maintenance_records.findMany({
+    prisma.vehicleMaintenanceRecords.findMany({
       where: {
         ...maintenanceFilter,
         nextServiceDue: {
@@ -398,7 +398,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
       }
     }),
     // Overdue maintenance
-  prisma.vehicle_maintenance_records.findMany({
+  prisma.vehicleMaintenanceRecords.findMany({
       where: {
         ...maintenanceFilter,
         nextServiceDue: {
@@ -415,7 +415,7 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
       }
     }),
     // Recent maintenance (last 90 days)
-  prisma.vehicle_maintenance_records.findMany({
+  prisma.vehicleMaintenanceRecords.findMany({
       where: {
         ...maintenanceFilter,
         serviceDate: {
@@ -512,7 +512,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
 
   const [expiringLicenses, expiringDriverLicenses, inactiveAuthorizations] = await Promise.all([
     // Vehicle licenses expiring in 60 days
-    prisma.vehicle_licenses.findMany({
+    prisma.vehicleLicenses.findMany({
       where: {
         // relation name is 'vehicles' on VehicleLicense
         vehicles: vehicleFilter,
@@ -527,7 +527,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
       }
     }),
     // Driver licenses expiring in 60 days
-    prisma.vehicle_drivers.findMany({
+    prisma.vehicleDrivers.findMany({
       where: {
         ...driverFilter,
         isActive: true,
@@ -627,7 +627,7 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
   if (driverId) tripFilter.driverId = driverId
   if (vehicleId) tripFilter.vehicleId = vehicleId
 
-  const driverActivity = await prisma.vehicle_drivers.findMany({
+  const driverActivity = await prisma.vehicleDrivers.findMany({
     where: driverId ? { id: driverId } : { isActive: true },
     include: {
       vehicleTrips: {
@@ -723,7 +723,7 @@ async function generateBusinessAttributionReport(dateFilter?: any, businessId?: 
   if (businessId) tripFilter.businessId = businessId
   if (vehicleId) tripFilter.vehicleId = vehicleId
 
-  const businessTrips = await prisma.vehicle_trips.findMany({
+  const businessTrips = await prisma.vehicleTrips.findMany({
     where: tripFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },

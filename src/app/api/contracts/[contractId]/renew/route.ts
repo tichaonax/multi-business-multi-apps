@@ -22,7 +22,7 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -138,7 +138,7 @@ export async function POST(
         status: 'active', // Auto-activate renewed contracts
         employeeSignedAt: new Date(), // Auto-sign renewed contracts (employee)
         managerSignedAt: new Date(), // Auto-sign renewed contracts (manager)
-        createdBy: session.users.id,
+        createdBy: session.user.id,
 
         // Renewal tracking fields
         isRenewal: true,

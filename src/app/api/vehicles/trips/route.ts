@@ -38,7 +38,7 @@ const UpdateTripSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -124,8 +124,8 @@ export async function GET(request: NextRequest) {
     }
 
     const [trips, totalCount] = await Promise.all([
-      prisma.vehicle_trips.findMany({ where, include, orderBy: { startTime: 'desc' }, skip, take: limit }),
-      prisma.vehicle_trips.count({ where })
+      prisma.vehicleTrips.findMany({ where, include, orderBy: { startTime: 'desc' }, skip, take: limit }),
+      prisma.vehicleTrips.count({ where })
     ])
 
     // Calculate trip mileage for completed trips
@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify driver exists
-    const driver = await prisma.vehicle_drivers.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: validatedData.driverId }
     })
 
@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
       delete createData.businessId
     }
 
-    const trip = await prisma.vehicle_trips.create({
+    const trip = await prisma.vehicleTrips.create({
       data: createData as any,
       include: {
         vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
@@ -308,7 +308,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -317,7 +317,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify trip exists
-    const existingTrip = await prisma.vehicle_trips.findUnique({
+    const existingTrip = await prisma.vehicleTrips.findUnique({
       where: { id }
     })
 
@@ -345,7 +345,7 @@ export async function PUT(request: NextRequest) {
       : !!(endMileage && endTime)
 
     // Update trip
-    const trip = await prisma.vehicle_trips.update({
+    const trip = await prisma.vehicleTrips.update({
       where: { id },
       data: { ...updateData, endTime: updateData.endTime ? new Date(updateData.endTime) : undefined, tripMileage, isCompleted } as any,
       include: {
@@ -387,7 +387,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -402,7 +402,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify trip exists
-    const existingTrip = await prisma.vehicle_trips.findUnique({ where: { id: tripId }, include: { vehicle_expenses: { take: 1 } } })
+    const existingTrip = await prisma.vehicleTrips.findUnique({ where: { id: tripId }, include: { vehicle_expenses: { take: 1 } } })
 
     if (!existingTrip) {
       return NextResponse.json(
@@ -422,7 +422,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete trip
-    await prisma.vehicle_trips.delete({
+    await prisma.vehicleTrips.delete({
       where: { id: tripId }
     })
 

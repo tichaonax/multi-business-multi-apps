@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user has admin permissions
     const user = await prisma.users.findUnique({
-      where: { email: session.users.email! },
+      where: { email: session.user.email! },
       select: { role: true }
     })
 
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user has admin permissions
     const user = await prisma.users.findUnique({
-      where: { email: session.users.email! },
+      where: { email: session.user.email! },
       select: { role: true }
     })
 

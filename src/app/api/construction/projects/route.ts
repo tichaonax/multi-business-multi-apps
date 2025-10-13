@@ -7,13 +7,13 @@ import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const projects = await prisma.constructionProjects.findMany({
       where: { 
-        createdBy: session.users.id 
+        createdBy: session.user.id 
       },
       orderBy: { 
         createdAt: 'desc' 
@@ -32,7 +32,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Project name is required' }, { status: 400 })
     }
 
-    console.log('Creating project:', { name, description, userId: session.users.id })
+    console.log('Creating project:', { name, description, userId: session.user.id })
     
     const newProject = await prisma.constructionProjects.create({
       data: {
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         budget: budget ? parseFloat(budget) : null,
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
-        createdBy: session.users.id,
+        createdBy: session.user.id,
       }
     })
 

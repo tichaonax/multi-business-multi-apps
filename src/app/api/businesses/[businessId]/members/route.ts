@@ -15,7 +15,7 @@ interface Context {
 export async function GET(req: NextRequest, { params }: Context) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: Context) {
       // Check if user has permission to view members through business membership
       const userMembership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.users.id,
+          userId: session.user.id,
           businessId: businessId,
           isActive: true,
         },
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest, { params }: Context) {
 export async function POST(req: NextRequest, { params }: Context) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest, { params }: Context) {
       // Check if user has permission to invite members through business membership
       const userMembership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.users.id,
+          userId: session.user.id,
           businessId: businessId,
           isActive: true,
         },
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest, { params }: Context) {
             role: role,
             // Ensure manager-only permissions are not accidentally granted to non-manager roles
             permissions: BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS] as any,
-            invitedBy: session.users.id,
+            invitedBy: session.user.id,
           },
           include: {
             user: {
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest, { params }: Context) {
         businessId: businessId,
         role: role,
             permissions: presetPermissions as any,
-        invitedBy: session.users.id,
+        invitedBy: session.user.id,
         isActive: true,
       },
       include: {

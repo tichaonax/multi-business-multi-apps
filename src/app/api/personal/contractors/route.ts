@@ -9,7 +9,7 @@ import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -20,7 +20,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
-    const contractors = await prisma.project_contractors.findMany({
+    const contractors = await prisma.projectContractors.findMany({
       include: {
         construction_projects: {
           select: {
@@ -58,7 +58,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
           nationalId: nationalId,
           idFormatTemplateId: idTemplateId || null,
           notes: description || null,
-          createdBy: session.users.id,
+          createdBy: session.user.id,
           isActive: true
         }
       })
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     // For personal finance, we can create a general contractor entry or just return the person
     if (projectId && project) {
       // Create project contractor if project is specified
-      const contractor = await prisma.project_contractors.create({
+      const contractor = await prisma.projectContractors.create({
         data: {
           projectId,
           personId: person.id,

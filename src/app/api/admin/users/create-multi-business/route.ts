@@ -26,14 +26,14 @@ interface UserCreationRequest {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has permission to create users
     const userMemberships = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.users.id,
+        userId: session.user.id,
         isActive: true,
       },
       include: {
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       const membership = userMemberships.find(m => m.businessId === businessId)
       const permissions = membership?.permissions as any
       
-      if (!permissions?.canManageBusinessUsers && session.users.role !== 'admin') {
+      if (!permissions?.canManageBusinessUsers && session.user.role !== 'admin') {
         return NextResponse.json(
           { error: `Insufficient permissions to manage users in business ${membership?.businesses.name}` },
           { status: 403 }
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
             role: assignment.role,
             permissions: finalPermissions,
             isActive: true,
-            invitedBy: session.users.id,
+            invitedBy: session.user.id,
             joinedAt: new Date(),
             lastAccessedAt: new Date(),
           },

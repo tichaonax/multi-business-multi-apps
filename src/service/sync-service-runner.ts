@@ -8,14 +8,49 @@
 // Load environment variables from .env.local and .env files
 import dotenv from 'dotenv'
 import path from 'path'
+import fs from 'fs'
+
+// CRITICAL: When running as Windows service, process.cwd() may not be the app directory
+// Navigate from dist/service/ to project root (when compiled, this is dist/service/sync-service-runner.js)
+// __dirname will be dist/service in compiled code
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..')
 
 // Load .env.local first (higher priority), then .env
-dotenv.config({ path: path.join(process.cwd(), '.env.local') })
-dotenv.config({ path: path.join(process.cwd(), '.env') })
+const envLocalPath = path.join(PROJECT_ROOT, '.env.local')
+const envPath = path.join(PROJECT_ROOT, '.env')
+
+console.log('📂 Loading environment variables...')
+console.log(`   Project root: ${PROJECT_ROOT}`)
+
+if (fs.existsSync(envLocalPath)) {
+  console.log(`   Loading: .env.local`)
+  dotenv.config({ path: envLocalPath })
+} else {
+  console.warn(`   ⚠️  .env.local not found at: ${envLocalPath}`)
+}
+
+if (fs.existsSync(envPath)) {
+  console.log(`   Loading: .env`)
+  dotenv.config({ path: envPath })
+} else {
+  console.warn(`   ⚠️  .env not found at: ${envPath}`)
+}
+
+// CRITICAL: Verify DATABASE_URL is loaded
+if (!process.env.DATABASE_URL) {
+  console.error('❌ CRITICAL: DATABASE_URL not found in environment!')
+  console.error('   Checked paths:')
+  console.error(`     - ${envLocalPath}`)
+  console.error(`     - ${envPath}`)
+  console.error('   This sync service requires DATABASE_URL to run migrations and access the database.')
+  console.error('   Please ensure .env or .env.local contains DATABASE_URL before starting the service.')
+  process.exit(1)
+}
+
+console.log('✅ DATABASE_URL loaded successfully')
 
 import { createSyncService, getDefaultSyncConfig, SyncServiceConfig } from '../lib/sync/sync-service'
 import { generateNodeId } from '../lib/sync/database-hooks'
-import fs from 'fs'
 import { hostname } from 'os'
 import { exec } from 'child_process'
 import { promisify } from 'util'

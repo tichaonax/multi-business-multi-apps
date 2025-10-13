@@ -8,13 +8,13 @@ import { SessionUser } from '@/lib/permission-utils'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Fetch full user data with permissions and business memberships
     const user = await prisma.users.findUnique({
-      where: { id: session.users.id },
+      where: { id: session.user.id },
       select: {
         id: true,
         email: true,
@@ -88,12 +88,12 @@ export async function GET(req: NextRequest) {
 
       if (filterType === 'own') {
         // Only projects created by this user
-        whereClause.createdBy = session.users.id
+        whereClause.createdBy = session.user.id
       } else if (filterType === 'personal') {
         // Only personal projects (no business) that user created or has access to
         whereClause.AND = [
           { businessId: null },
-          { createdBy: session.users.id }
+          { createdBy: session.user.id }
         ]
       } else if (filterType === 'business') {
         // Only business projects user has access to
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
             {
               AND: [
                 { businessId: null }, // Personal projects
-                { createdBy: session.users.id } // Only personal projects user created
+                { createdBy: session.user.id } // Only personal projects user created
               ]
             },
             { businessId: { in: userBusinessIds } } // Projects from user's businesses
@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
           email: project.users.email
         } : null,
         isPersonal: !project.businessId,
-        isOwnProject: project.users?.id === session.users.id,
+        isOwnProject: project.users?.id === session.user.id,
         netProfit: totalReceived - totalSpent
       }
     })

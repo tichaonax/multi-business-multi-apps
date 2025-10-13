@@ -15,7 +15,7 @@ export async function PUT(
     const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -138,7 +138,7 @@ export async function PUT(
             data: {
               isActive: false,
               deactivatedAt: new Date(),
-              deactivatedBy: session.users.id,
+              deactivatedBy: session.user.id,
               deactivationReason: `Employee ${employmentStatus || 'deactivated'}`,
               deactivationNotes: notes || `Automatically deactivated due to employee status change`
             }
@@ -161,7 +161,7 @@ export async function PUT(
         // Create audit log for synchronization
         await tx.auditLogs.create({
           data: {
-            userId: session.users.id,
+            userId: session.user.id,
             action: 'EMPLOYEE_STATUS_SYNC',
             resourceType: 'Employee',
             resourceId: employeeId,
@@ -236,7 +236,7 @@ export async function GET(
     const { employeeId } = await params
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

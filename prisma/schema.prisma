@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model accounts {
+model Accounts {
   id                String  @id
   userId            String
   type              String
@@ -20,12 +20,13 @@ model accounts {
   scope             String?
   idToken           String?
   sessionState      String?
-  users             users   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  users             Users   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@map("accounts")
 }
 
-model audit_logs {
+model AuditLogs {
   id         String   @id
   userId     String
   action     String
@@ -39,10 +40,11 @@ model audit_logs {
   recordId   String?
   changes    Json?
   details    Json?
-  users      users    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  users      Users    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@map("audit_logs")
 }
 
-model benefit_types {
+model BenefitTypes {
   id                     String                   @id
   name                   String                   @unique
   description            String?
@@ -52,23 +54,25 @@ model benefit_types {
   isActive               Boolean                  @default(true)
   isPercentage           Boolean                  @default(false)
   updatedAt              DateTime                 @default(now())
-  contract_benefits      contract_benefits[]
-  employee_benefits      employee_benefits[]
-  payroll_entry_benefits payroll_entry_benefits[]
+  contract_benefits      ContractBenefits[]
+  employee_benefits      EmployeeBenefits[]
+  payroll_entry_benefits PayrollEntryBenefits[]
+  @@map("benefit_types")
 }
 
-model business_accounts {
+model BusinessAccounts {
   id         String     @id
   businessId String     @unique
   balance    Decimal    @default(0) @db.Decimal(12, 2)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime
   createdBy  String?
-  businesses businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users      users?     @relation(fields: [createdBy], references: [id])
+  businesses Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users      Users?     @relation(fields: [createdBy], references: [id])
+  @@map("business_accounts")
 }
 
-model business_brands {
+model BusinessBrands {
   id                String              @id
   businessId        String
   name              String
@@ -80,13 +84,14 @@ model business_brands {
   attributes        Json?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime
-  businesses        businesses          @relation(fields: [businessId], references: [id])
-  business_products business_products[]
+  businesses        Businesses          @relation(fields: [businessId], references: [id])
+  business_products BusinessProducts[]
 
   @@unique([businessId, name])
+  @@map("business_brands")
 }
 
-model business_categories {
+model BusinessCategories {
   id                        String                @id
   businessId                String
   name                      String
@@ -98,15 +103,16 @@ model business_categories {
   attributes                Json?
   createdAt                 DateTime              @default(now())
   updatedAt                 DateTime
-  businesses                businesses            @relation(fields: [businessId], references: [id])
-  business_categories       business_categories?  @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
-  other_business_categories business_categories[] @relation("business_categoriesTobusiness_categories")
-  business_products         business_products[]
+  businesses                Businesses            @relation(fields: [businessId], references: [id])
+  business_categories       BusinessCategories?  @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
+  other_business_categories BusinessCategories[] @relation("business_categoriesTobusiness_categories")
+  business_products         BusinessProducts[]
 
   @@unique([businessId, name])
+  @@map("business_categories")
 }
 
-model business_customers {
+model BusinessCustomers {
   id              String            @id
   businessId      String
   customerNumber  String
@@ -126,13 +132,14 @@ model business_customers {
   attributes      Json?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime
-  businesses      businesses        @relation(fields: [businessId], references: [id])
-  business_orders business_orders[]
+  businesses      Businesses        @relation(fields: [businessId], references: [id])
+  business_orders BusinessOrders[]
 
   @@unique([businessId, customerNumber])
+  @@map("business_customers")
 }
 
-model business_memberships {
+model BusinessMemberships {
   id                   String                @id
   userId               String
   businessId           String
@@ -143,14 +150,15 @@ model business_memberships {
   joinedAt             DateTime              @default(now())
   lastAccessedAt       DateTime?
   templateId           String?
-  businesses           businesses            @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  permission_templates permission_templates? @relation(fields: [templateId], references: [id])
-  users                users                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businesses           Businesses            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  permission_templates PermissionTemplates? @relation(fields: [templateId], references: [id])
+  users                Users                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, businessId])
+  @@map("business_memberships")
 }
 
-model business_order_items {
+model BusinessOrderItems {
   id               String           @id
   orderId          String
   productVariantId String
@@ -160,11 +168,12 @@ model business_order_items {
   totalPrice       Decimal          @db.Decimal(10, 2)
   attributes       Json?
   createdAt        DateTime         @default(now())
-  business_orders  business_orders  @relation(fields: [orderId], references: [id])
-  product_variants product_variants @relation(fields: [productVariantId], references: [id])
+  business_orders  BusinessOrders  @relation(fields: [orderId], references: [id])
+  product_variants ProductVariants @relation(fields: [productVariantId], references: [id])
+  @@map("business_order_items")
 }
 
-model business_orders {
+model BusinessOrders {
   id                   String                 @id
   businessId           String
   orderNumber          String
@@ -184,15 +193,16 @@ model business_orders {
   processedAt          DateTime?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime
-  business_order_items business_order_items[]
-  businesses           businesses             @relation(fields: [businessId], references: [id])
-  business_customers   business_customers?    @relation(fields: [customerId], references: [id])
-  employees            employees?             @relation(fields: [employeeId], references: [id])
+  business_order_items BusinessOrderItems[]
+  businesses           Businesses             @relation(fields: [businessId], references: [id])
+  business_customers   BusinessCustomers?    @relation(fields: [customerId], references: [id])
+  employees            Employees?             @relation(fields: [employeeId], references: [id])
 
   @@unique([businessId, orderNumber])
+  @@map("business_orders")
 }
 
-model business_products {
+model BusinessProducts {
   id                       String                     @id
   businessId               String
   name                     String
@@ -224,20 +234,21 @@ model business_products {
   promotionName            String?
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime
-  business_brands          business_brands?           @relation(fields: [brandId], references: [id])
-  businesses               businesses                 @relation(fields: [businessId], references: [id])
-  business_categories      business_categories        @relation(fields: [categoryId], references: [id])
-  business_stock_movements business_stock_movements[]
-  menu_combo_items         menu_combo_items[]
-  product_attributes       product_attributes[]
-  product_images           product_images[]
-  product_variants         product_variants[]
-  supplier_products        supplier_products[]
+  business_brands          BusinessBrands?           @relation(fields: [brandId], references: [id])
+  businesses               Businesses                 @relation(fields: [businessId], references: [id])
+  business_categories      BusinessCategories        @relation(fields: [categoryId], references: [id])
+  business_stock_movements BusinessStockMovements[]
+  menu_combo_items         MenuComboItems[]
+  product_attributes       ProductAttributes[]
+  product_images           ProductImages[]
+  product_variants         ProductVariants[]
+  supplier_products        SupplierProducts[]
 
   @@unique([businessId, sku])
+  @@map("business_products")
 }
 
-model business_stock_movements {
+model BusinessStockMovements {
   id                String             @id
   businessId        String
   productVariantId  String
@@ -251,13 +262,14 @@ model business_stock_movements {
   attributes        Json?
   createdAt         DateTime           @default(now())
   businessProductId String?
-  businesses        businesses         @relation(fields: [businessId], references: [id])
-  business_products business_products? @relation(fields: [businessProductId], references: [id])
-  employees         employees?         @relation(fields: [employeeId], references: [id])
-  product_variants  product_variants   @relation(fields: [productVariantId], references: [id])
+  businesses        Businesses         @relation(fields: [businessId], references: [id])
+  business_products BusinessProducts? @relation(fields: [businessProductId], references: [id])
+  employees         Employees?         @relation(fields: [employeeId], references: [id])
+  product_variants  ProductVariants   @relation(fields: [productVariantId], references: [id])
+  @@map("business_stock_movements")
 }
 
-model business_suppliers {
+model BusinessSuppliers {
   id                String              @id
   businessId        String
   supplierNumber    String
@@ -273,13 +285,14 @@ model business_suppliers {
   attributes        Json?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime
-  businesses        businesses          @relation(fields: [businessId], references: [id])
-  supplier_products supplier_products[]
+  businesses        Businesses          @relation(fields: [businessId], references: [id])
+  supplier_products SupplierProducts[]
 
   @@unique([businessId, supplierNumber])
+  @@map("business_suppliers")
 }
 
-model business_transactions {
+model BusinessTransactions {
   id            String     @id
   businessId    String
   amount        Decimal    @db.Decimal(12, 2)
@@ -292,11 +305,12 @@ model business_transactions {
   createdBy     String
   notes         String?
   metadata      Json?
-  businesses    businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users         users      @relation(fields: [createdBy], references: [id])
+  businesses    Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users         Users      @relation(fields: [createdBy], references: [id])
+  @@map("business_transactions")
 }
 
-model businesses {
+model Businesses {
   id                                                                       String                          @id
   name                                                                     String
   type                                                                     String
@@ -314,66 +328,70 @@ model businesses {
   umbrellaBusinessPhone                                                    String?
   umbrellaBusinessRegistration                                             String?
   shortName                                                                String?
-  business_accounts                                                        business_accounts?
-  business_brands                                                          business_brands[]
-  business_categories                                                      business_categories[]
-  business_customers                                                       business_customers[]
-  business_memberships                                                     business_memberships[]
-  business_orders                                                          business_orders[]
-  business_products                                                        business_products[]
-  business_stock_movements                                                 business_stock_movements[]
-  business_suppliers                                                       business_suppliers[]
-  business_transactions                                                    business_transactions[]
-  businesses                                                               businesses?                     @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
-  other_businesses                                                         businesses[]                    @relation("businessesTobusinesses")
-  employee_business_assignments                                            employee_business_assignments[]
-  employee_contracts_employee_contracts_primaryBusinessIdTobusinesses      employee_contracts[]            @relation("employee_contracts_primaryBusinessIdTobusinesses")
-  employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     employee_contracts[]            @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
-  employees                                                                employees[]
-  inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses inter_business_loans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
-  inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   inter_business_loans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
-  menu_combos                                                              menu_combos[]
-  menu_promotions                                                          menu_promotions[]
-  payroll_exports                                                          payroll_exports[]
-  payroll_periods                                                          payroll_periods[]
-  projects                                                                 projects[]
-  vehicle_expenses                                                         vehicle_expenses[]
-  vehicle_reimbursements                                                   vehicle_reimbursements[]
-  vehicle_trips                                                            vehicle_trips[]
-  vehicles                                                                 vehicles[]
+  business_accounts                                                        BusinessAccounts?
+  business_brands                                                          BusinessBrands[]
+  business_categories                                                      BusinessCategories[]
+  business_customers                                                       BusinessCustomers[]
+  business_memberships                                                     BusinessMemberships[]
+  business_orders                                                          BusinessOrders[]
+  business_products                                                        BusinessProducts[]
+  business_stock_movements                                                 BusinessStockMovements[]
+  business_suppliers                                                       BusinessSuppliers[]
+  business_transactions                                                    BusinessTransactions[]
+  businesses                                                               Businesses?                     @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
+  other_businesses                                                         Businesses[]                    @relation("businessesTobusinesses")
+  employee_business_assignments                                            EmployeeBusinessAssignments[]
+  employee_contracts_employee_contracts_primaryBusinessIdTobusinesses      EmployeeContracts[]            @relation("employee_contracts_primaryBusinessIdTobusinesses")
+  employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     EmployeeContracts[]            @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
+  employees                                                                Employees[]
+  inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
+  inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
+  menu_combos                                                              MenuCombos[]
+  menu_promotions                                                          MenuPromotions[]
+  payroll_exports                                                          PayrollExports[]
+  payroll_periods                                                          PayrollPeriods[]
+  projects                                                                 Projects[]
+  vehicle_expenses                                                         VehicleExpenses[]
+  vehicle_reimbursements                                                   VehicleReimbursements[]
+  vehicle_trips                                                            VehicleTrips[]
+  vehicles                                                                 Vehicles[]
+  @@map("businesses")
 }
 
-model chat_messages {
+model ChatMessages {
   id         String      @id
   message    String
   createdAt  DateTime    @default(now())
   roomId     String?
   userId     String?
-  chat_rooms chat_rooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  users      users?      @relation(fields: [userId], references: [id])
+  chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  users      Users?      @relation(fields: [userId], references: [id])
+  @@map("chat_messages")
 }
 
-model chat_participants {
+model ChatParticipants {
   id         String      @id
   joinedAt   DateTime    @default(now())
   roomId     String?
   userId     String?
-  chat_rooms chat_rooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  users      users?      @relation(fields: [userId], references: [id])
+  chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  users      Users?      @relation(fields: [userId], references: [id])
+  @@map("chat_participants")
 }
 
-model chat_rooms {
+model ChatRooms {
   id                String              @id
   name              String
   type              String              @default("group")
   createdAt         DateTime            @default(now())
   createdBy         String?
-  chat_messages     chat_messages[]
-  chat_participants chat_participants[]
-  users             users?              @relation(fields: [createdBy], references: [id])
+  chat_messages     ChatMessages[]
+  chat_participants ChatParticipants[]
+  users             Users?              @relation(fields: [createdBy], references: [id])
+  @@map("chat_rooms")
 }
 
-model compensation_types {
+model CompensationTypes {
   id                   String               @id
   name                 String               @unique
   type                 String
@@ -384,11 +402,12 @@ model compensation_types {
   isActive             Boolean              @default(true)
   updatedAt            DateTime             @default(now())
   frequency            String?              @default("monthly")
-  employee_contracts   employee_contracts[]
-  employees            employees[]
+  employee_contracts   EmployeeContracts[]
+  employees            Employees[]
+  @@map("compensation_types")
 }
 
-model conflict_resolutions {
+model ConflictResolutions {
   id                 String             @id
   conflictType       ConflictType
   resolutionStrategy ResolutionStrategy
@@ -402,9 +421,10 @@ model conflict_resolutions {
   strategy           String?
   metadata           Json?
   createdAt          DateTime           @default(now())
+  @@map("conflict_resolutions")
 }
 
-model construction_expenses {
+model ConstructionExpenses {
   id                    String                 @id
   category              String
   description           String
@@ -414,11 +434,12 @@ model construction_expenses {
   createdBy             String?
   projectId             String?
   receiptUrl            String?
-  users                 users?                 @relation(fields: [createdBy], references: [id])
-  construction_projects construction_projects? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  users                 Users?                 @relation(fields: [createdBy], references: [id])
+  construction_projects ConstructionProjects? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@map("construction_expenses")
 }
 
-model construction_projects {
+model ConstructionProjects {
   id                    String                  @id
   name                  String
   description           String?
@@ -431,15 +452,16 @@ model construction_projects {
   updatedAt             DateTime                @default(now())
   businessType          String                  @default("construction")
   projectTypeId         String?
-  construction_expenses construction_expenses[]
-  users                 users?                  @relation(fields: [createdBy], references: [id])
-  project_types         project_types?          @relation(fields: [projectTypeId], references: [id])
-  project_contractors   project_contractors[]
-  project_stages        project_stages[]
-  project_transactions  project_transactions[]
+  construction_expenses ConstructionExpenses[]
+  users                 Users?                  @relation(fields: [createdBy], references: [id])
+  project_types         ProjectTypes?          @relation(fields: [projectTypeId], references: [id])
+  project_contractors   ProjectContractors[]
+  project_stages        ProjectStages[]
+  project_transactions  ProjectTransactions[]
+  @@map("construction_projects")
 }
 
-model contract_benefits {
+model ContractBenefits {
   id                 String             @id
   amount             Decimal            @db.Decimal(12, 2)
   notes              String?
@@ -447,11 +469,12 @@ model contract_benefits {
   contractId         String
   createdAt          DateTime           @default(now())
   isPercentage       Boolean            @default(false)
-  benefit_types      benefit_types      @relation(fields: [benefitTypeId], references: [id])
-  employee_contracts employee_contracts @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  benefit_types      BenefitTypes      @relation(fields: [benefitTypeId], references: [id])
+  employee_contracts EmployeeContracts @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  @@map("contract_benefits")
 }
 
-model contract_renewals {
+model ContractRenewals {
   id                                                                          String              @id
   status                                                                      String              @default("pending")
   notes                                                                       String?
@@ -471,12 +494,13 @@ model contract_renewals {
   salaryChange                                                                Decimal?            @db.Decimal(12, 2)
   salaryChangeType                                                            String?
   updatedAt                                                                   DateTime            @default(now())
-  employees                                                                   employees           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employee_contracts_contract_renewals_newContractIdToemployee_contracts      employee_contracts? @relation("contract_renewals_newContractIdToemployee_contracts", fields: [newContractId], references: [id])
-  employee_contracts_contract_renewals_originalContractIdToemployee_contracts employee_contracts  @relation("contract_renewals_originalContractIdToemployee_contracts", fields: [originalContractId], references: [id])
+  employees                                                                   Employees           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee_contracts_contract_renewals_newContractIdToemployee_contracts      EmployeeContracts? @relation("contract_renewals_newContractIdToemployee_contracts", fields: [newContractId], references: [id])
+  employee_contracts_contract_renewals_originalContractIdToemployee_contracts EmployeeContracts  @relation("contract_renewals_originalContractIdToemployee_contracts", fields: [originalContractId], references: [id])
+  @@map("contract_renewals")
 }
 
-model data_snapshots {
+model DataSnapshots {
   id                  String   @id
   nodeId              String
   tableName           String
@@ -494,9 +518,10 @@ model data_snapshots {
   proRataReason       String?
   processedBy         String?
   totalDeductions     Decimal  @default(0) @db.Decimal(12, 2)
+  @@map("data_snapshots")
 }
 
-model disciplinary_actions {
+model DisciplinaryActions {
   id                                                   String    @id
   employeeId                                           String
   actionType                                           String
@@ -521,11 +546,12 @@ model disciplinary_actions {
   attachments                                          String[]
   createdAt                                            DateTime  @default(now())
   updatedAt                                            DateTime  @default(now())
-  employees_disciplinary_actions_createdByToemployees  employees @relation("disciplinary_actions_createdByToemployees", fields: [createdBy], references: [id], map: "disciplinary_actions_created_by_fkey")
-  employees_disciplinary_actions_employeeIdToemployees employees @relation("disciplinary_actions_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade, map: "disciplinary_actions_employee_id_fkey")
+  employees_disciplinary_actions_createdByToemployees  Employees @relation("disciplinary_actions_createdByToemployees", fields: [createdBy], references: [id], map: "disciplinary_actions_created_by_fkey")
+  employees_disciplinary_actions_employeeIdToemployees Employees @relation("disciplinary_actions_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade, map: "disciplinary_actions_employee_id_fkey")
+  @@map("disciplinary_actions")
 }
 
-model driver_authorizations {
+model DriverAuthorizations {
   id                 String             @id
   driverId           String
   vehicleId          String
@@ -537,15 +563,16 @@ model driver_authorizations {
   notes              String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime
-  users              users              @relation(fields: [authorizedBy], references: [id])
-  vehicle_drivers    vehicle_drivers    @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  vehicles           vehicles           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  vehicle_trips      vehicle_trips[]
+  users              Users              @relation(fields: [authorizedBy], references: [id])
+  vehicle_drivers    VehicleDrivers    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicles           Vehicles           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicle_trips      VehicleTrips[]
 
   @@unique([driverId, vehicleId])
+  @@map("driver_authorizations")
 }
 
-model driver_license_templates {
+model DriverLicenseTemplates {
   id          String      @id
   name        String
   description String?
@@ -555,11 +582,12 @@ model driver_license_templates {
   createdAt   DateTime    @default(now())
   isActive    Boolean     @default(true)
   updatedAt   DateTime    @default(now())
-  employees   employees[]
-  persons     persons[]
+  employees   Employees[]
+  persons     Persons[]
+  @@map("driver_license_templates")
 }
 
-model employee_allowances {
+model EmployeeAllowances {
   id                                                  String     @id
   employeeId                                          String
   type                                                String
@@ -570,11 +598,12 @@ model employee_allowances {
   approvedBy                                          String?
   approvedAt                                          DateTime?
   createdAt                                           DateTime   @default(now())
-  employees_employee_allowances_approvedByToemployees employees? @relation("employee_allowances_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_allowances_employeeIdToemployees employees  @relation("employee_allowances_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  employees_employee_allowances_approvedByToemployees Employees? @relation("employee_allowances_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_allowances_employeeIdToemployees Employees  @relation("employee_allowances_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  @@map("employee_allowances")
 }
 
-model employee_attendance {
+model EmployeeAttendance {
   id          String    @id
   date        DateTime
   status      String    @default("present")
@@ -584,12 +613,13 @@ model employee_attendance {
   createdAt   DateTime  @default(now())
   employeeId  String
   hoursWorked Decimal?  @db.Decimal(4, 2)
-  employees   employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employees   Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, date])
+  @@map("employee_attendance")
 }
 
-model employee_benefits {
+model EmployeeBenefits {
   id            String        @id
   amount        Decimal       @db.Decimal(12, 2)
   notes         String?
@@ -601,11 +631,12 @@ model employee_benefits {
   isActive      Boolean       @default(true)
   isPercentage  Boolean       @default(false)
   updatedAt     DateTime      @default(now())
-  benefit_types benefit_types @relation(fields: [benefitTypeId], references: [id])
-  employees     employees     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  benefit_types BenefitTypes @relation(fields: [benefitTypeId], references: [id])
+  employees     Employees     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@map("employee_benefits")
 }
 
-model employee_bonuses {
+model EmployeeBonuses {
   id                                               String     @id
   amount                                           Decimal    @db.Decimal(12, 2)
   approvedAt                                       DateTime?
@@ -614,11 +645,12 @@ model employee_bonuses {
   employeeId                                       String
   reason                                           String?
   type                                             String
-  employees_employee_bonuses_approvedByToemployees employees? @relation("employee_bonuses_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_bonuses_employeeIdToemployees employees  @relation("employee_bonuses_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  employees_employee_bonuses_approvedByToemployees Employees? @relation("employee_bonuses_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_bonuses_employeeIdToemployees Employees  @relation("employee_bonuses_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  @@map("employee_bonuses")
 }
 
-model employee_business_assignments {
+model EmployeeBusinessAssignments {
   id         String     @id
   role       String?
   notes      String?
@@ -631,13 +663,14 @@ model employee_business_assignments {
   isPrimary  Boolean    @default(false)
   startDate  DateTime   @default(now())
   updatedAt  DateTime   @default(now())
-  businesses businesses @relation(fields: [businessId], references: [id])
-  employees  employees  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  businesses Businesses @relation(fields: [businessId], references: [id])
+  employees  Employees  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, businessId])
+  @@map("employee_business_assignments")
 }
 
-model employee_contracts {
+model EmployeeContracts {
   id                                                                         String               @id
   version                                                                    Int                  @default(1)
   status                                                                     String               @default("draft")
@@ -679,31 +712,33 @@ model employee_contracts {
   isRenewal                                                                  Boolean              @default(false)
   originalContractId                                                         String?
   renewalCount                                                               Int                  @default(0)
-  contract_benefits                                                          contract_benefits[]
-  contract_renewals_contract_renewals_newContractIdToemployee_contracts      contract_renewals[]  @relation("contract_renewals_newContractIdToemployee_contracts")
-  contract_renewals_contract_renewals_originalContractIdToemployee_contracts contract_renewals[]  @relation("contract_renewals_originalContractIdToemployee_contracts")
-  compensation_types                                                         compensation_types   @relation(fields: [compensationTypeId], references: [id])
-  employees_employee_contracts_employeeIdToemployees                         employees            @relation("employee_contracts_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-  job_titles                                                                 job_titles           @relation(fields: [jobTitleId], references: [id])
-  employee_contracts                                                         employee_contracts?  @relation("employee_contractsToemployee_contracts", fields: [previousContractId], references: [id])
-  other_employee_contracts                                                   employee_contracts[] @relation("employee_contractsToemployee_contracts")
-  businesses_employee_contracts_primaryBusinessIdTobusinesses                businesses           @relation("employee_contracts_primaryBusinessIdTobusinesses", fields: [primaryBusinessId], references: [id])
-  employees_employee_contracts_supervisorIdToemployees                       employees?           @relation("employee_contracts_supervisorIdToemployees", fields: [supervisorId], references: [id])
-  businesses_employee_contracts_umbrellaBusinessIdTobusinesses               businesses?          @relation("employee_contracts_umbrellaBusinessIdTobusinesses", fields: [umbrellaBusinessId], references: [id])
+  contract_benefits                                                          ContractBenefits[]
+  contract_renewals_contract_renewals_newContractIdToemployee_contracts      ContractRenewals[]  @relation("contract_renewals_newContractIdToemployee_contracts")
+  contract_renewals_contract_renewals_originalContractIdToemployee_contracts ContractRenewals[]  @relation("contract_renewals_originalContractIdToemployee_contracts")
+  compensation_types                                                         CompensationTypes   @relation(fields: [compensationTypeId], references: [id])
+  employees_employee_contracts_employeeIdToemployees                         Employees            @relation("employee_contracts_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  job_titles                                                                 JobTitles           @relation(fields: [jobTitleId], references: [id])
+  employee_contracts                                                         EmployeeContracts?  @relation("employee_contractsToemployee_contracts", fields: [previousContractId], references: [id])
+  other_employee_contracts                                                   EmployeeContracts[] @relation("employee_contractsToemployee_contracts")
+  businesses_employee_contracts_primaryBusinessIdTobusinesses                Businesses           @relation("employee_contracts_primaryBusinessIdTobusinesses", fields: [primaryBusinessId], references: [id])
+  employees_employee_contracts_supervisorIdToemployees                       Employees?           @relation("employee_contracts_supervisorIdToemployees", fields: [supervisorId], references: [id])
+  businesses_employee_contracts_umbrellaBusinessIdTobusinesses               Businesses?          @relation("employee_contracts_umbrellaBusinessIdTobusinesses", fields: [umbrellaBusinessId], references: [id])
+  @@map("employee_contracts")
 }
 
-model employee_deduction_payments {
+model EmployeeDeductionPayments {
   id                  String              @id
   amount              Decimal             @db.Decimal(12, 2)
   createdAt           DateTime            @default(now())
   deductionId         String
   paymentDate         DateTime
   processedBy         String?
-  employee_deductions employee_deductions @relation(fields: [deductionId], references: [id], onDelete: Cascade)
-  employees           employees?          @relation(fields: [processedBy], references: [id])
+  employee_deductions EmployeeDeductions @relation(fields: [deductionId], references: [id], onDelete: Cascade)
+  employees           Employees?          @relation(fields: [processedBy], references: [id])
+  @@map("employee_deduction_payments")
 }
 
-model employee_deductions {
+model EmployeeDeductions {
   id                                                  String                        @id
   amount                                              Decimal                       @db.Decimal(12, 2)
   approvedAt                                          DateTime?
@@ -712,12 +747,13 @@ model employee_deductions {
   employeeId                                          String
   reason                                              String?
   type                                                String
-  employee_deduction_payments                         employee_deduction_payments[]
-  employees_employee_deductions_approvedByToemployees employees?                    @relation("employee_deductions_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_deductions_employeeIdToemployees employees                     @relation("employee_deductions_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  employee_deduction_payments                         EmployeeDeductionPayments[]
+  employees_employee_deductions_approvedByToemployees Employees?                    @relation("employee_deductions_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_deductions_employeeIdToemployees Employees                     @relation("employee_deductions_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  @@map("employee_deductions")
 }
 
-model employee_leave_balance {
+model EmployeeLeaveBalance {
   id              String    @id
   year            Int
   annualLeaveDays Int       @default(0)
@@ -729,12 +765,13 @@ model employee_leave_balance {
   updatedAt       DateTime
   usedAnnualDays  Int       @default(0)
   usedSickDays    Int       @default(0)
-  employees       employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employees       Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, year])
+  @@map("employee_leave_balance")
 }
 
-model employee_leave_requests {
+model EmployeeLeaveRequests {
   id                                                      String     @id
   reason                                                  String?
   status                                                  String     @default("pending")
@@ -748,22 +785,24 @@ model employee_leave_requests {
   rejectionReason                                         String?
   startDate                                               DateTime
   updatedAt                                               DateTime
-  employees_employee_leave_requests_approvedByToemployees employees? @relation("employee_leave_requests_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_leave_requests_employeeIdToemployees employees  @relation("employee_leave_requests_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  employees_employee_leave_requests_approvedByToemployees Employees? @relation("employee_leave_requests_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_leave_requests_employeeIdToemployees Employees  @relation("employee_leave_requests_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  @@map("employee_leave_requests")
 }
 
-model employee_loan_payments {
+model EmployeeLoanPayments {
   id             String         @id
   amount         Decimal        @db.Decimal(12, 2)
   createdAt      DateTime       @default(now())
   loanId         String
   paymentDate    DateTime
   processedBy    String?
-  employee_loans employee_loans @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  employees      employees?     @relation(fields: [processedBy], references: [id])
+  employee_loans EmployeeLoans @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  employees      Employees?     @relation(fields: [processedBy], references: [id])
+  @@map("employee_loan_payments")
 }
 
-model employee_loans {
+model EmployeeLoans {
   id                                             String                   @id
   status                                         String                   @default("active")
   approvedAt                                     DateTime?
@@ -776,12 +815,13 @@ model employee_loans {
   remainingMonths                                Int
   totalMonths                                    Int
   updatedAt                                      DateTime
-  employee_loan_payments                         employee_loan_payments[]
-  employees_employee_loans_approvedByToemployees employees?               @relation("employee_loans_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_loans_employeeIdToemployees employees                @relation("employee_loans_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  employee_loan_payments                         EmployeeLoanPayments[]
+  employees_employee_loans_approvedByToemployees Employees?               @relation("employee_loans_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_loans_employeeIdToemployees Employees                @relation("employee_loans_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  @@map("employee_loans")
 }
 
-model employee_salary_increases {
+model EmployeeSalaryIncreases {
   id                                                        String     @id
   reason                                                    String?
   approvedAt                                                DateTime?
@@ -793,11 +833,12 @@ model employee_salary_increases {
   increasePercent                                           Decimal    @db.Decimal(5, 2)
   newSalary                                                 Decimal    @db.Decimal(12, 2)
   previousSalary                                            Decimal    @db.Decimal(12, 2)
-  employees_employee_salary_increases_approvedByToemployees employees? @relation("employee_salary_increases_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_salary_increases_employeeIdToemployees employees  @relation("employee_salary_increases_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  employees_employee_salary_increases_approvedByToemployees Employees? @relation("employee_salary_increases_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_salary_increases_employeeIdToemployees Employees  @relation("employee_salary_increases_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  @@map("employee_salary_increases")
 }
 
-model employee_time_tracking {
+model EmployeeTimeTracking {
   id            String    @id
   employeeId    String
   year          Int
@@ -807,12 +848,13 @@ model employee_time_tracking {
   overtimeHours Decimal?  @db.Decimal(5, 2)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime
-  employees     employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employees     Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, year, month])
+  @@map("employee_time_tracking")
 }
 
-model employees {
+model Employees {
   id                                                                        String                          @id
   email                                                                     String?                         @unique
   phone                                                                     String
@@ -842,44 +884,45 @@ model employees {
   userId                                                                    String?                         @unique
   driverLicenseNumber                                                       String?
   driverLicenseTemplateId                                                   String?
-  business_orders                                                           business_orders[]
-  business_stock_movements                                                  business_stock_movements[]
-  contract_renewals                                                         contract_renewals[]
-  disciplinary_actions_disciplinary_actions_createdByToemployees            disciplinary_actions[]          @relation("disciplinary_actions_createdByToemployees")
-  disciplinary_actions_disciplinary_actions_employeeIdToemployees           disciplinary_actions[]          @relation("disciplinary_actions_employeeIdToemployees")
-  employee_allowances_employee_allowances_approvedByToemployees             employee_allowances[]           @relation("employee_allowances_approvedByToemployees")
-  employee_allowances_employee_allowances_employeeIdToemployees             employee_allowances[]           @relation("employee_allowances_employeeIdToemployees")
-  employee_attendance                                                       employee_attendance[]
-  employee_benefits                                                         employee_benefits[]
-  employee_bonuses_employee_bonuses_approvedByToemployees                   employee_bonuses[]              @relation("employee_bonuses_approvedByToemployees")
-  employee_bonuses_employee_bonuses_employeeIdToemployees                   employee_bonuses[]              @relation("employee_bonuses_employeeIdToemployees")
-  employee_business_assignments                                             employee_business_assignments[]
-  employee_contracts_employee_contracts_employeeIdToemployees               employee_contracts[]            @relation("employee_contracts_employeeIdToemployees")
-  employee_contracts_employee_contracts_supervisorIdToemployees             employee_contracts[]            @relation("employee_contracts_supervisorIdToemployees")
-  employee_deduction_payments                                               employee_deduction_payments[]
-  employee_deductions_employee_deductions_approvedByToemployees             employee_deductions[]           @relation("employee_deductions_approvedByToemployees")
-  employee_deductions_employee_deductions_employeeIdToemployees             employee_deductions[]           @relation("employee_deductions_employeeIdToemployees")
-  employee_leave_balance                                                    employee_leave_balance[]
-  employee_leave_requests_employee_leave_requests_approvedByToemployees     employee_leave_requests[]       @relation("employee_leave_requests_approvedByToemployees")
-  employee_leave_requests_employee_leave_requests_employeeIdToemployees     employee_leave_requests[]       @relation("employee_leave_requests_employeeIdToemployees")
-  employee_loan_payments                                                    employee_loan_payments[]
-  employee_loans_employee_loans_approvedByToemployees                       employee_loans[]                @relation("employee_loans_approvedByToemployees")
-  employee_loans_employee_loans_employeeIdToemployees                       employee_loans[]                @relation("employee_loans_employeeIdToemployees")
-  employee_salary_increases_employee_salary_increases_approvedByToemployees employee_salary_increases[]     @relation("employee_salary_increases_approvedByToemployees")
-  employee_salary_increases_employee_salary_increases_employeeIdToemployees employee_salary_increases[]     @relation("employee_salary_increases_employeeIdToemployees")
-  employee_time_tracking                                                    employee_time_tracking[]
-  compensation_types                                                        compensation_types              @relation(fields: [compensationTypeId], references: [id])
-  driver_license_templates                                                  driver_license_templates?       @relation(fields: [driverLicenseTemplateId], references: [id])
-  id_format_templates                                                       id_format_templates?            @relation(fields: [idFormatTemplateId], references: [id])
-  job_titles                                                                job_titles                      @relation(fields: [jobTitleId], references: [id])
-  businesses                                                                businesses                      @relation(fields: [primaryBusinessId], references: [id])
-  employees                                                                 employees?                      @relation("employeesToemployees", fields: [supervisorId], references: [id])
-  other_employees                                                           employees[]                     @relation("employeesToemployees")
-  users                                                                     users?                          @relation(fields: [userId], references: [id])
-  payroll_entries                                                           payroll_entries[]
+  business_orders                                                           BusinessOrders[]
+  business_stock_movements                                                  BusinessStockMovements[]
+  contract_renewals                                                         ContractRenewals[]
+  disciplinary_actions_disciplinary_actions_createdByToemployees            DisciplinaryActions[]          @relation("disciplinary_actions_createdByToemployees")
+  disciplinary_actions_disciplinary_actions_employeeIdToemployees           DisciplinaryActions[]          @relation("disciplinary_actions_employeeIdToemployees")
+  employee_allowances_employee_allowances_approvedByToemployees             EmployeeAllowances[]           @relation("employee_allowances_approvedByToemployees")
+  employee_allowances_employee_allowances_employeeIdToemployees             EmployeeAllowances[]           @relation("employee_allowances_employeeIdToemployees")
+  employee_attendance                                                       EmployeeAttendance[]
+  employee_benefits                                                         EmployeeBenefits[]
+  employee_bonuses_employee_bonuses_approvedByToemployees                   EmployeeBonuses[]              @relation("employee_bonuses_approvedByToemployees")
+  employee_bonuses_employee_bonuses_employeeIdToemployees                   EmployeeBonuses[]              @relation("employee_bonuses_employeeIdToemployees")
+  employee_business_assignments                                             EmployeeBusinessAssignments[]
+  employee_contracts_employee_contracts_employeeIdToemployees               EmployeeContracts[]            @relation("employee_contracts_employeeIdToemployees")
+  employee_contracts_employee_contracts_supervisorIdToemployees             EmployeeContracts[]            @relation("employee_contracts_supervisorIdToemployees")
+  employee_deduction_payments                                               EmployeeDeductionPayments[]
+  employee_deductions_employee_deductions_approvedByToemployees             EmployeeDeductions[]           @relation("employee_deductions_approvedByToemployees")
+  employee_deductions_employee_deductions_employeeIdToemployees             EmployeeDeductions[]           @relation("employee_deductions_employeeIdToemployees")
+  employee_leave_balance                                                    EmployeeLeaveBalance[]
+  employee_leave_requests_employee_leave_requests_approvedByToemployees     EmployeeLeaveRequests[]       @relation("employee_leave_requests_approvedByToemployees")
+  employee_leave_requests_employee_leave_requests_employeeIdToemployees     EmployeeLeaveRequests[]       @relation("employee_leave_requests_employeeIdToemployees")
+  employee_loan_payments                                                    EmployeeLoanPayments[]
+  employee_loans_employee_loans_approvedByToemployees                       EmployeeLoans[]                @relation("employee_loans_approvedByToemployees")
+  employee_loans_employee_loans_employeeIdToemployees                       EmployeeLoans[]                @relation("employee_loans_employeeIdToemployees")
+  employee_salary_increases_employee_salary_increases_approvedByToemployees EmployeeSalaryIncreases[]     @relation("employee_salary_increases_approvedByToemployees")
+  employee_salary_increases_employee_salary_increases_employeeIdToemployees EmployeeSalaryIncreases[]     @relation("employee_salary_increases_employeeIdToemployees")
+  employee_time_tracking                                                    EmployeeTimeTracking[]
+  compensation_types                                                        CompensationTypes              @relation(fields: [compensationTypeId], references: [id])
+  driver_license_templates                                                  DriverLicenseTemplates?       @relation(fields: [driverLicenseTemplateId], references: [id])
+  id_format_templates                                                       IdFormatTemplates?            @relation(fields: [idFormatTemplateId], references: [id])
+  job_titles                                                                JobTitles                      @relation(fields: [jobTitleId], references: [id])
+  businesses                                                                Businesses                      @relation(fields: [primaryBusinessId], references: [id])
+  employees                                                                 Employees?                      @relation("employeesToemployees", fields: [supervisorId], references: [id])
+  other_employees                                                           Employees[]                     @relation("employeesToemployees")
+  users                                                                     Users?                          @relation(fields: [userId], references: [id])
+  payroll_entries                                                           PayrollEntries[]
+  @@map("employees")
 }
 
-model expense_categories {
+model ExpenseCategories {
   id        String   @id
   name      String
   emoji     String?  @default("💰")
@@ -887,10 +930,11 @@ model expense_categories {
   createdAt DateTime @default(now())
   isDefault Boolean  @default(false)
   userId    String?
-  users     users?   @relation(fields: [userId], references: [id])
+  users     Users?   @relation(fields: [userId], references: [id])
+  @@map("expense_categories")
 }
 
-model fund_sources {
+model FundSources {
   id         String   @id
   name       String
   emoji      String?  @default("💰")
@@ -898,10 +942,11 @@ model fund_sources {
   isDefault  Boolean  @default(false)
   usageCount Int      @default(0)
   userId     String?
-  users      users?   @relation(fields: [userId], references: [id])
+  users      Users?   @relation(fields: [userId], references: [id])
+  @@map("fund_sources")
 }
 
-model id_format_templates {
+model IdFormatTemplates {
   id          String      @id
   name        String
   description String?
@@ -911,11 +956,12 @@ model id_format_templates {
   createdAt   DateTime    @default(now())
   isActive    Boolean     @default(true)
   updatedAt   DateTime    @default(now())
-  employees   employees[]
-  persons     persons[]
+  employees   Employees[]
+  persons     Persons[]
+  @@map("id_format_templates")
 }
 
-model initial_load_sessions {
+model InitialLoadSessions {
   id               String    @id
   sessionId        String    @unique
   sourceNodeId     String
@@ -931,9 +977,10 @@ model initial_load_sessions {
   currentBatch     Int       @default(0)
   metadata         Json?
   createdAt        DateTime  @default(now())
+  @@map("initial_load_sessions")
 }
 
-model inter_business_loans {
+model InterBusinessLoans {
   id                                                             String              @id
   loanNumber                                                     String              @unique
   principalAmount                                                Decimal             @db.Decimal(12, 2)
@@ -954,15 +1001,16 @@ model inter_business_loans {
   createdBy                                                      String
   borrowerPersonId                                               String?
   borrowerType                                                   String
-  businesses_inter_business_loans_borrowerBusinessIdTobusinesses businesses?         @relation("inter_business_loans_borrowerBusinessIdTobusinesses", fields: [borrowerBusinessId], references: [id])
-  persons                                                        persons?            @relation(fields: [borrowerPersonId], references: [id])
-  users_inter_business_loans_createdByTousers                    users               @relation("inter_business_loans_createdByTousers", fields: [createdBy], references: [id])
-  businesses_inter_business_loans_lenderBusinessIdTobusinesses   businesses?         @relation("inter_business_loans_lenderBusinessIdTobusinesses", fields: [lenderBusinessId], references: [id])
-  users_inter_business_loans_lenderUserIdTousers                 users?              @relation("inter_business_loans_lenderUserIdTousers", fields: [lenderUserId], references: [id])
-  loan_transactions                                              loan_transactions[]
+  businesses_inter_business_loans_borrowerBusinessIdTobusinesses Businesses?         @relation("inter_business_loans_borrowerBusinessIdTobusinesses", fields: [borrowerBusinessId], references: [id])
+  persons                                                        Persons?            @relation(fields: [borrowerPersonId], references: [id])
+  users_inter_business_loans_createdByTousers                    Users               @relation("inter_business_loans_createdByTousers", fields: [createdBy], references: [id])
+  businesses_inter_business_loans_lenderBusinessIdTobusinesses   Businesses?         @relation("inter_business_loans_lenderBusinessIdTobusinesses", fields: [lenderBusinessId], references: [id])
+  users_inter_business_loans_lenderUserIdTousers                 Users?              @relation("inter_business_loans_lenderUserIdTousers", fields: [lenderUserId], references: [id])
+  loan_transactions                                              LoanTransactions[]
+  @@map("inter_business_loans")
 }
 
-model job_titles {
+model JobTitles {
   id                 String               @id
   title              String               @unique
   description        String?
@@ -972,11 +1020,12 @@ model job_titles {
   isActive           Boolean              @default(true)
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @default(now())
-  employee_contracts employee_contracts[]
-  employees          employees[]
+  employee_contracts EmployeeContracts[]
+  employees          Employees[]
+  @@map("job_titles")
 }
 
-model loan_transactions {
+model LoanTransactions {
   id                    String               @id
   loanId                String
   transactionType       String
@@ -991,12 +1040,13 @@ model loan_transactions {
   balanceAfter          Decimal              @db.Decimal(12, 2)
   createdAt             DateTime             @default(now())
   createdBy             String
-  users                 users                @relation(fields: [createdBy], references: [id])
-  inter_business_loans  inter_business_loans @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  personal_expenses     personal_expenses?   @relation(fields: [personalExpenseId], references: [id])
+  users                 Users                @relation(fields: [createdBy], references: [id])
+  inter_business_loans  InterBusinessLoans @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  personal_expenses     PersonalExpenses?   @relation(fields: [personalExpenseId], references: [id])
+  @@map("loan_transactions")
 }
 
-model menu_combo_items {
+model MenuComboItems {
   id                String            @id
   comboId           String
   productId         String
@@ -1005,12 +1055,13 @@ model menu_combo_items {
   isRequired        Boolean           @default(true)
   sortOrder         Int               @default(0)
   createdAt         DateTime          @default(now())
-  menu_combos       menu_combos       @relation(fields: [comboId], references: [id], onDelete: Cascade)
-  business_products business_products @relation(fields: [productId], references: [id], onDelete: Cascade)
-  product_variants  product_variants? @relation(fields: [variantId], references: [id])
+  menu_combos       MenuCombos       @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  business_products BusinessProducts @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product_variants  ProductVariants? @relation(fields: [variantId], references: [id])
+  @@map("menu_combo_items")
 }
 
-model menu_combos {
+model MenuCombos {
   id                 String             @id
   businessId         String
   name               String
@@ -1026,11 +1077,12 @@ model menu_combos {
   promotionEndDate   DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime
-  menu_combo_items   menu_combo_items[]
-  businesses         businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  menu_combo_items   MenuComboItems[]
+  businesses         Businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  @@map("menu_combos")
 }
 
-model menu_items {
+model MenuItems {
   id          String        @id
   name        String
   description String?
@@ -1040,10 +1092,11 @@ model menu_items {
   createdAt   DateTime      @default(now())
   isAvailable Boolean       @default(true)
   updatedAt   DateTime      @default(now())
-  order_items order_items[]
+  order_items OrderItems[]
+  @@map("menu_items")
 }
 
-model menu_promotions {
+model MenuPromotions {
   id                   String        @id
   businessId           String
   name                 String
@@ -1064,10 +1117,11 @@ model menu_promotions {
   applicableProducts   String[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime
-  businesses           businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businesses           Businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  @@map("menu_promotions")
 }
 
-model network_partitions {
+model NetworkPartitions {
   id                 String    @id
   nodeId             String
   partitionType      String
@@ -1078,9 +1132,10 @@ model network_partitions {
   partitionMetadata  Json?
   resolutionMetadata Json?
   createdAt          DateTime  @default(now())
+  @@map("network_partitions")
 }
 
-model node_states {
+model NodeStates {
   id          String   @id
   nodeId      String   @unique
   nodeName    String
@@ -1090,9 +1145,10 @@ model node_states {
   metadata    Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime
+  @@map("node_states")
 }
 
-model offline_queue {
+model OfflineQueue {
   id           String    @id
   nodeId       String
   eventId      String
@@ -1108,20 +1164,22 @@ model offline_queue {
   errorMessage String?
   dependencies Json?
   isProcessed  Boolean   @default(false)
+  @@map("offline_queue")
 }
 
-model order_items {
+model OrderItems {
   id         String      @id
   quantity   Int
   price      Decimal     @db.Decimal(10, 2)
   notes      String?
   menuItemId String?
   orderId    String?
-  menu_items menu_items? @relation(fields: [menuItemId], references: [id])
-  orders     orders?     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menu_items MenuItems? @relation(fields: [menuItemId], references: [id])
+  orders     Orders?     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@map("order_items")
 }
 
-model orders {
+model Orders {
   id          String        @id
   total       Decimal       @db.Decimal(10, 2)
   status      String        @default("pending")
@@ -1129,11 +1187,12 @@ model orders {
   createdBy   String?
   orderNumber String        @unique
   tableNumber String?
-  order_items order_items[]
-  users       users?        @relation(fields: [createdBy], references: [id])
+  order_items OrderItems[]
+  users       Users?        @relation(fields: [createdBy], references: [id])
+  @@map("orders")
 }
 
-model payroll_adjustments {
+model PayrollAdjustments {
   id                                          String           @id
   payrollEntryId                              String?
   amount                                      Decimal          @db.Decimal(12, 2)
@@ -1145,14 +1204,15 @@ model payroll_adjustments {
   approvedBy                                  String?
   status                                      String           @default("pending")
   updatedAt                                   DateTime         @default(now())
-  users_payroll_adjustments_approvedByTousers users?           @relation("payroll_adjustments_approvedByTousers", fields: [approvedBy], references: [id])
-  users_payroll_adjustments_createdByTousers  users?           @relation("payroll_adjustments_createdByTousers", fields: [createdBy], references: [id])
-  payroll_entries                             payroll_entries? @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+  users_payroll_adjustments_approvedByTousers Users?           @relation("payroll_adjustments_approvedByTousers", fields: [approvedBy], references: [id])
+  users_payroll_adjustments_createdByTousers  Users?           @relation("payroll_adjustments_createdByTousers", fields: [createdBy], references: [id])
+  payroll_entries                             PayrollEntries? @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
 
   @@index([payrollEntryId])
+  @@map("payroll_adjustments")
 }
 
-model payroll_entries {
+model PayrollEntries {
   id                      String                   @id
   payrollPeriodId         String?
   employeeId              String?
@@ -1196,18 +1256,19 @@ model payroll_entries {
   doubleTimeOvertimeHours Decimal                  @default(0) @db.Decimal(10, 2)
   standardOvertimeHours   Decimal                  @default(0) @db.Decimal(10, 2)
   contractSnapshot        Json?
-  payroll_adjustments     payroll_adjustments[]
-  employees               employees?               @relation(fields: [employeeId], references: [id])
-  payroll_periods         payroll_periods?         @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
-  users                   users?                   @relation(fields: [processedBy], references: [id])
-  payroll_entry_benefits  payroll_entry_benefits[]
+  payroll_adjustments     PayrollAdjustments[]
+  employees               Employees?               @relation(fields: [employeeId], references: [id])
+  payroll_periods         PayrollPeriods?         @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+  users                   Users?                   @relation(fields: [processedBy], references: [id])
+  payroll_entry_benefits  PayrollEntryBenefits[]
 
   @@index([contractId])
   @@index([employeeId])
   @@index([payrollPeriodId])
+  @@map("payroll_entries")
 }
 
-model payroll_entry_benefits {
+model PayrollEntryBenefits {
   id                String          @id
   payrollEntryId    String
   benefitTypeId     String
@@ -1218,14 +1279,15 @@ model payroll_entry_benefits {
   source            String          @default("contract")
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @default(now())
-  benefit_types     benefit_types   @relation(fields: [benefitTypeId], references: [id], onDelete: Cascade)
-  payroll_entries   payroll_entries @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+  benefit_types     BenefitTypes   @relation(fields: [benefitTypeId], references: [id], onDelete: Cascade)
+  payroll_entries   PayrollEntries @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
 
   @@index([benefitTypeId])
   @@index([payrollEntryId])
+  @@map("payroll_entry_benefits")
 }
 
-model payroll_exports {
+model PayrollExports {
   id              String          @id
   payrollPeriodId String
   businessId      String
@@ -1243,12 +1305,13 @@ model payroll_exports {
   exportedBy      String
   generationType  String
   notes           String?
-  businesses      businesses      @relation(fields: [businessId], references: [id], map: "payroll_exports_businessid_fkey")
-  users           users           @relation(fields: [exportedBy], references: [id], map: "payroll_exports_exportedby_fkey")
-  payroll_periods payroll_periods @relation(fields: [payrollPeriodId], references: [id], map: "payroll_exports_payrollperiodid_fkey")
+  businesses      Businesses      @relation(fields: [businessId], references: [id], map: "payroll_exports_businessid_fkey")
+  users           Users           @relation(fields: [exportedBy], references: [id], map: "payroll_exports_exportedby_fkey")
+  payroll_periods PayrollPeriods @relation(fields: [payrollPeriodId], references: [id], map: "payroll_exports_payrollperiodid_fkey")
+  @@map("payroll_exports")
 }
 
-model payroll_periods {
+model PayrollPeriods {
   id                                      String            @id
   businessId                              String
   year                                    Int
@@ -1268,18 +1331,19 @@ model payroll_periods {
   closedAt                                DateTime?
   notes                                   String?
   updatedAt                               DateTime          @default(now())
-  payroll_entries                         payroll_entries[]
-  payroll_exports                         payroll_exports[]
-  users_payroll_periods_approvedByTousers users?            @relation("payroll_periods_approvedByTousers", fields: [approvedBy], references: [id])
-  businesses                              businesses        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users_payroll_periods_createdByTousers  users?            @relation("payroll_periods_createdByTousers", fields: [createdBy], references: [id])
+  payroll_entries                         PayrollEntries[]
+  payroll_exports                         PayrollExports[]
+  users_payroll_periods_approvedByTousers Users?            @relation("payroll_periods_approvedByTousers", fields: [approvedBy], references: [id])
+  businesses                              Businesses        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users_payroll_periods_createdByTousers  Users?            @relation("payroll_periods_createdByTousers", fields: [createdBy], references: [id])
 
   @@unique([businessId, year, month])
   @@index([businessId])
   @@index([year, month])
+  @@map("payroll_periods")
 }
 
-model permission_templates {
+model PermissionTemplates {
   id                   String                 @id
   name                 String
   permissions          Json                   @default("{}")
@@ -1288,21 +1352,23 @@ model permission_templates {
   createdBy            String
   isActive             Boolean                @default(true)
   updatedAt            DateTime               @default(now())
-  business_memberships business_memberships[]
-  users                users                  @relation(fields: [createdBy], references: [id])
+  business_memberships BusinessMemberships[]
+  users                Users                  @relation(fields: [createdBy], references: [id])
+  @@map("permission_templates")
 }
 
-model personal_budgets {
+model PersonalBudgets {
   id          String   @id
   amount      Decimal  @db.Decimal(12, 2)
   description String?
   type        String   @default("deposit")
   createdAt   DateTime @default(now())
   userId      String?
-  users       users?   @relation(fields: [userId], references: [id])
+  users       Users?   @relation(fields: [userId], references: [id])
+  @@map("personal_budgets")
 }
 
-model personal_expenses {
+model PersonalExpenses {
   id                   String                 @id
   category             String
   description          String
@@ -1314,12 +1380,13 @@ model personal_expenses {
   userId               String?
   notes                String?
   updatedAt            DateTime               @default(now())
-  loan_transactions    loan_transactions[]
-  users                users?                 @relation(fields: [userId], references: [id])
-  project_transactions project_transactions[]
+  loan_transactions    LoanTransactions[]
+  users                Users?                 @relation(fields: [userId], references: [id])
+  project_transactions ProjectTransactions[]
+  @@map("personal_expenses")
 }
 
-model persons {
+model Persons {
   id                       String                    @id
   email                    String?                   @unique
   phone                    String
@@ -1334,15 +1401,16 @@ model persons {
   updatedAt                DateTime                  @default(now())
   driverLicenseNumber      String?
   driverLicenseTemplateId  String?
-  inter_business_loans     inter_business_loans[]
-  users                    users?                    @relation(fields: [createdBy], references: [id])
-  driver_license_templates driver_license_templates? @relation(fields: [driverLicenseTemplateId], references: [id])
-  id_format_templates      id_format_templates?      @relation(fields: [idFormatTemplateId], references: [id])
-  project_contractors      project_contractors[]
-  project_transactions     project_transactions[]
+  inter_business_loans     InterBusinessLoans[]
+  users                    Users?                    @relation(fields: [createdBy], references: [id])
+  driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
+  id_format_templates      IdFormatTemplates?      @relation(fields: [idFormatTemplateId], references: [id])
+  project_contractors      ProjectContractors[]
+  project_transactions     ProjectTransactions[]
+  @@map("persons")
 }
 
-model product_attributes {
+model ProductAttributes {
   id                String            @id
   productId         String
   key               String
@@ -1350,12 +1418,13 @@ model product_attributes {
   dataType          AttributeDataType @default(TEXT)
   displayOrder      Int               @default(0)
   createdAt         DateTime          @default(now())
-  business_products business_products @relation(fields: [productId], references: [id])
+  business_products BusinessProducts @relation(fields: [productId], references: [id])
 
   @@unique([productId, key])
+  @@map("product_attributes")
 }
 
-model product_images {
+model ProductImages {
   id                String            @id
   productId         String
   imageUrl          String
@@ -1367,10 +1436,11 @@ model product_images {
   attributes        Json?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime
-  business_products business_products @relation(fields: [productId], references: [id])
+  business_products BusinessProducts @relation(fields: [productId], references: [id])
+  @@map("product_images")
 }
 
-model product_variants {
+model ProductVariants {
   id                       String                     @id
   productId                String
   name                     String?
@@ -1387,13 +1457,14 @@ model product_variants {
   discountAmount           Decimal?                   @db.Decimal(10, 2)
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime
-  business_order_items     business_order_items[]
-  business_stock_movements business_stock_movements[]
-  menu_combo_items         menu_combo_items[]
-  business_products        business_products          @relation(fields: [productId], references: [id])
+  business_order_items     BusinessOrderItems[]
+  business_stock_movements BusinessStockMovements[]
+  menu_combo_items         MenuComboItems[]
+  business_products        BusinessProducts          @relation(fields: [productId], references: [id])
+  @@map("product_variants")
 }
 
-model project_contractors {
+model ProjectContractors {
   id                           String                         @id
   role                         String?
   status                       String                         @default("active")
@@ -1408,16 +1479,17 @@ model project_contractors {
   totalContractAmount          Decimal?                       @db.Decimal(12, 2)
   updatedAt                    DateTime                       @default(now())
   constructionProjectId        String?
-  construction_projects        construction_projects?         @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
-  persons                      persons                        @relation(fields: [personId], references: [id], onDelete: Cascade)
-  projects                     projects                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  project_transactions         project_transactions[]
-  stage_contractor_assignments stage_contractor_assignments[]
+  construction_projects        ConstructionProjects?         @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  persons                      Persons                        @relation(fields: [personId], references: [id], onDelete: Cascade)
+  projects                     Projects                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project_transactions         ProjectTransactions[]
+  stage_contractor_assignments StageContractorAssignments[]
 
   @@unique([projectId, personId])
+  @@map("project_contractors")
 }
 
-model project_stages {
+model ProjectStages {
   id                           String                         @id
   name                         String
   description                  String?
@@ -1432,13 +1504,14 @@ model project_stages {
   startDate                    DateTime?
   updatedAt                    DateTime                       @default(now())
   constructionProjectId        String?
-  construction_projects        construction_projects?         @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
-  projects                     projects                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  project_transactions         project_transactions[]
-  stage_contractor_assignments stage_contractor_assignments[]
+  construction_projects        ConstructionProjects?         @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  projects                     Projects                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project_transactions         ProjectTransactions[]
+  stage_contractor_assignments StageContractorAssignments[]
+  @@map("project_stages")
 }
 
-model project_transactions {
+model ProjectTransactions {
   id                                           String                        @id
   amount                                       Decimal                       @db.Decimal(12, 2)
   description                                  String
@@ -1463,18 +1536,19 @@ model project_transactions {
   updatedAt                                    DateTime                      @default(now())
   constructionProjectId                        String?
   transactionSubType                           String?
-  users_project_transactions_approvedByTousers users?                        @relation("project_transactions_approvedByTousers", fields: [approvedBy], references: [id])
-  construction_projects                        construction_projects?        @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
-  users_project_transactions_createdByTousers  users?                        @relation("project_transactions_createdByTousers", fields: [createdBy], references: [id])
-  personal_expenses                            personal_expenses             @relation(fields: [personalExpenseId], references: [id], onDelete: Cascade)
-  project_contractors                          project_contractors?          @relation(fields: [projectContractorId], references: [id])
-  projects                                     projects                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  persons                                      persons?                      @relation(fields: [recipientPersonId], references: [id])
-  stage_contractor_assignments                 stage_contractor_assignments? @relation(fields: [stageAssignmentId], references: [id])
-  project_stages                               project_stages?               @relation(fields: [stageId], references: [id])
+  users_project_transactions_approvedByTousers Users?                        @relation("project_transactions_approvedByTousers", fields: [approvedBy], references: [id])
+  construction_projects                        ConstructionProjects?        @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  users_project_transactions_createdByTousers  Users?                        @relation("project_transactions_createdByTousers", fields: [createdBy], references: [id])
+  personal_expenses                            PersonalExpenses             @relation(fields: [personalExpenseId], references: [id], onDelete: Cascade)
+  project_contractors                          ProjectContractors?          @relation(fields: [projectContractorId], references: [id])
+  projects                                     Projects                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  persons                                      Persons?                      @relation(fields: [recipientPersonId], references: [id])
+  stage_contractor_assignments                 StageContractorAssignments? @relation(fields: [stageAssignmentId], references: [id])
+  project_stages                               ProjectStages?               @relation(fields: [stageId], references: [id])
+  @@map("project_transactions")
 }
 
-model project_types {
+model ProjectTypes {
   id                    String                  @id
   name                  String                  @unique
   description           String?
@@ -1483,11 +1557,12 @@ model project_types {
   isSystem              Boolean                 @default(false)
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @default(now())
-  construction_projects construction_projects[]
-  projects              projects[]
+  construction_projects ConstructionProjects[]
+  projects              Projects[]
+  @@map("project_types")
 }
 
-model projects {
+model Projects {
   id                   String                 @id
   name                 String
   description          String?
@@ -1501,23 +1576,25 @@ model projects {
   createdAt            DateTime               @default(now())
   createdBy            String?
   updatedAt            DateTime               @default(now())
-  project_contractors  project_contractors[]
-  project_stages       project_stages[]
-  project_transactions project_transactions[]
-  businesses           businesses?            @relation(fields: [businessId], references: [id])
-  users                users?                 @relation(fields: [createdBy], references: [id])
-  project_types        project_types          @relation(fields: [projectTypeId], references: [id])
+  project_contractors  ProjectContractors[]
+  project_stages       ProjectStages[]
+  project_transactions ProjectTransactions[]
+  businesses           Businesses?            @relation(fields: [businessId], references: [id])
+  users                Users?                 @relation(fields: [createdBy], references: [id])
+  project_types        ProjectTypes          @relation(fields: [projectTypeId], references: [id])
+  @@map("projects")
 }
 
-model sessions {
+model Sessions {
   id           String   @id
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  users        users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  users        Users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("sessions")
 }
 
-model stage_contractor_assignments {
+model StageContractorAssignments {
   id                   String                 @id
   notes                String?
   createdAt            DateTime               @default(now())
@@ -1531,14 +1608,15 @@ model stage_contractor_assignments {
   projectContractorId  String
   stageId              String
   updatedAt            DateTime               @default(now())
-  project_transactions project_transactions[]
-  project_contractors  project_contractors    @relation(fields: [projectContractorId], references: [id], onDelete: Cascade)
-  project_stages       project_stages         @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  project_transactions ProjectTransactions[]
+  project_contractors  ProjectContractors    @relation(fields: [projectContractorId], references: [id], onDelete: Cascade)
+  project_stages       ProjectStages         @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
   @@unique([stageId, projectContractorId])
+  @@map("stage_contractor_assignments")
 }
 
-model supplier_products {
+model SupplierProducts {
   id                 String             @id
   supplierId         String
   productId          String
@@ -1550,22 +1628,24 @@ model supplier_products {
   attributes         Json?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime
-  business_products  business_products  @relation(fields: [productId], references: [id])
-  business_suppliers business_suppliers @relation(fields: [supplierId], references: [id])
+  business_products  BusinessProducts  @relation(fields: [productId], references: [id])
+  business_suppliers BusinessSuppliers @relation(fields: [supplierId], references: [id])
 
   @@unique([supplierId, productId])
+  @@map("supplier_products")
 }
 
-model sync_configurations {
+model SyncConfigurations {
   id                  String    @id
   nodeId              String    @unique
   registrationKeyHash String?
   lastConfigUpdate    DateTime?
   configMetadata      Json?
   createdAt           DateTime  @default(now())
+  @@map("sync_configurations")
 }
 
-model sync_events {
+model SyncEvents {
   eventId         String        @id
   sourceNodeId    String
   tableName       String
@@ -1583,9 +1663,10 @@ model sync_events {
   processingError String?
   retryCount      Int           @default(0)
   createdAt       DateTime      @default(now())
+  @@map("sync_events")
 }
 
-model sync_metrics {
+model SyncMetrics {
   id                   String   @id
   nodeId               String
   metricDate           DateTime
@@ -1603,9 +1684,10 @@ model sync_metrics {
   createdAt            DateTime @default(now())
 
   @@unique([nodeId, metricDate], map: "nodeId_metricDate")
+  @@map("sync_metrics")
 }
 
-model sync_nodes {
+model SyncNodes {
   id               String    @id
   nodeId           String    @unique
   nodeName         String
@@ -1626,9 +1708,10 @@ model sync_nodes {
   capabilities     Json?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @default(now())
+  @@map("sync_nodes")
 }
 
-model sync_sessions {
+model SyncSessions {
   id           String    @id
   sessionId    String    @unique
   sourceNodeId String
@@ -1640,9 +1723,10 @@ model sync_sessions {
   errorMessage String?
   metadata     Json?
   createdAt    DateTime  @default(now())
+  @@map("sync_sessions")
 }
 
-model users {
+model Users {
   id                                                              String                        @id
   email                                                           String                        @unique
   passwordHash                                                    String
@@ -1664,47 +1748,48 @@ model users {
   lastAccessedBusinessId                                          String?
   lastAccessedBusinessType                                        String?
   username                                                        String?                       @unique
-  accounts                                                        accounts[]
-  audit_logs                                                      audit_logs[]
-  business_accounts                                               business_accounts[]
-  business_memberships                                            business_memberships[]
-  business_transactions                                           business_transactions[]
-  chat_messages                                                   chat_messages[]
-  chat_participants                                               chat_participants[]
-  chat_rooms                                                      chat_rooms[]
-  construction_expenses                                           construction_expenses[]
-  construction_projects                                           construction_projects[]
-  driver_authorizations                                           driver_authorizations[]
-  employees                                                       employees?
-  expense_categories                                              expense_categories[]
-  fund_sources                                                    fund_sources[]
-  inter_business_loans_inter_business_loans_createdByTousers      inter_business_loans[]        @relation("inter_business_loans_createdByTousers")
-  inter_business_loans_inter_business_loans_lenderUserIdTousers   inter_business_loans[]        @relation("inter_business_loans_lenderUserIdTousers")
-  loan_transactions                                               loan_transactions[]
-  orders                                                          orders[]
-  payroll_adjustments_payroll_adjustments_approvedByTousers       payroll_adjustments[]         @relation("payroll_adjustments_approvedByTousers")
-  payroll_adjustments_payroll_adjustments_createdByTousers        payroll_adjustments[]         @relation("payroll_adjustments_createdByTousers")
-  payroll_entries                                                 payroll_entries[]
-  payroll_exports                                                 payroll_exports[]
-  payroll_periods_payroll_periods_approvedByTousers               payroll_periods[]             @relation("payroll_periods_approvedByTousers")
-  payroll_periods_payroll_periods_createdByTousers                payroll_periods[]             @relation("payroll_periods_createdByTousers")
-  permission_templates                                            permission_templates[]
-  personal_budgets                                                personal_budgets[]
-  personal_expenses                                               personal_expenses[]
-  persons                                                         persons[]
-  project_transactions_project_transactions_approvedByTousers     project_transactions[]        @relation("project_transactions_approvedByTousers")
-  project_transactions_project_transactions_createdByTousers      project_transactions[]        @relation("project_transactions_createdByTousers")
-  projects                                                        projects[]
-  sessions                                                        sessions[]
-  vehicle_drivers                                                 vehicle_drivers[]
-  vehicle_expenses                                                vehicle_expenses[]
-  vehicle_maintenance_records                                     vehicle_maintenance_records[]
-  vehicle_reimbursements_vehicle_reimbursements_approvedByTousers vehicle_reimbursements[]      @relation("vehicle_reimbursements_approvedByTousers")
-  vehicle_reimbursements_vehicle_reimbursements_userIdTousers     vehicle_reimbursements[]      @relation("vehicle_reimbursements_userIdTousers")
-  vehicles                                                        vehicles[]
+  accounts                                                        Accounts[]
+  audit_logs                                                      AuditLogs[]
+  business_accounts                                               BusinessAccounts[]
+  business_memberships                                            BusinessMemberships[]
+  business_transactions                                           BusinessTransactions[]
+  chat_messages                                                   ChatMessages[]
+  chat_participants                                               ChatParticipants[]
+  chat_rooms                                                      ChatRooms[]
+  construction_expenses                                           ConstructionExpenses[]
+  construction_projects                                           ConstructionProjects[]
+  driver_authorizations                                           DriverAuthorizations[]
+  employees                                                       Employees?
+  expense_categories                                              ExpenseCategories[]
+  fund_sources                                                    FundSources[]
+  inter_business_loans_inter_business_loans_createdByTousers      InterBusinessLoans[]        @relation("inter_business_loans_createdByTousers")
+  inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]        @relation("inter_business_loans_lenderUserIdTousers")
+  loan_transactions                                               LoanTransactions[]
+  orders                                                          Orders[]
+  payroll_adjustments_payroll_adjustments_approvedByTousers       PayrollAdjustments[]         @relation("payroll_adjustments_approvedByTousers")
+  payroll_adjustments_payroll_adjustments_createdByTousers        PayrollAdjustments[]         @relation("payroll_adjustments_createdByTousers")
+  payroll_entries                                                 PayrollEntries[]
+  payroll_exports                                                 PayrollExports[]
+  payroll_periods_payroll_periods_approvedByTousers               PayrollPeriods[]             @relation("payroll_periods_approvedByTousers")
+  payroll_periods_payroll_periods_createdByTousers                PayrollPeriods[]             @relation("payroll_periods_createdByTousers")
+  permission_templates                                            PermissionTemplates[]
+  personal_budgets                                                PersonalBudgets[]
+  personal_expenses                                               PersonalExpenses[]
+  persons                                                         Persons[]
+  project_transactions_project_transactions_approvedByTousers     ProjectTransactions[]        @relation("project_transactions_approvedByTousers")
+  project_transactions_project_transactions_createdByTousers      ProjectTransactions[]        @relation("project_transactions_createdByTousers")
+  projects                                                        Projects[]
+  sessions                                                        Sessions[]
+  vehicle_drivers                                                 VehicleDrivers[]
+  vehicle_expenses                                                VehicleExpenses[]
+  vehicle_maintenance_records                                     VehicleMaintenanceRecords[]
+  vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursements[]      @relation("vehicle_reimbursements_approvedByTousers")
+  vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]      @relation("vehicle_reimbursements_userIdTousers")
+  vehicles                                                        Vehicles[]
+  @@map("users")
 }
 
-model vehicle_drivers {
+model VehicleDrivers {
   id                    String                  @id
   fullName              String
   licenseNumber         String                  @unique
@@ -1719,12 +1804,13 @@ model vehicle_drivers {
   address               String?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime
-  driver_authorizations driver_authorizations[]
-  users                 users?                  @relation(fields: [userId], references: [id])
-  vehicle_trips         vehicle_trips[]
+  driver_authorizations DriverAuthorizations[]
+  users                 Users?                  @relation(fields: [userId], references: [id])
+  vehicle_trips         VehicleTrips[]
+  @@map("vehicle_drivers")
 }
 
-model vehicle_expenses {
+model VehicleExpenses {
   id                   String         @id
   vehicleId            String
   tripId               String?
@@ -1744,13 +1830,14 @@ model vehicle_expenses {
   createdBy            String
   createdAt            DateTime       @default(now())
   updatedAt            DateTime
-  businesses           businesses?    @relation(fields: [businessId], references: [id])
-  users                users          @relation(fields: [createdBy], references: [id])
-  vehicle_trips        vehicle_trips? @relation(fields: [tripId], references: [id])
-  vehicles             vehicles       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  businesses           Businesses?    @relation(fields: [businessId], references: [id])
+  users                Users          @relation(fields: [createdBy], references: [id])
+  vehicle_trips        VehicleTrips? @relation(fields: [tripId], references: [id])
+  vehicles             Vehicles       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  @@map("vehicle_expenses")
 }
 
-model vehicle_licenses {
+model VehicleLicenses {
   id               String      @id
   vehicleId        String
   licenseType      LicenseType
@@ -1764,10 +1851,11 @@ model vehicle_licenses {
   reminderDays     Int         @default(30)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime
-  vehicles         vehicles    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicles         Vehicles    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  @@map("vehicle_licenses")
 }
 
-model vehicle_maintenance_records {
+model VehicleMaintenanceRecords {
   id                           String                         @id
   vehicleId                    String
   serviceType                  ServiceType
@@ -1788,12 +1876,13 @@ model vehicle_maintenance_records {
   createdBy                    String
   createdAt                    DateTime                       @default(now())
   updatedAt                    DateTime
-  users                        users                          @relation(fields: [createdBy], references: [id])
-  vehicles                     vehicles                       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  vehicle_maintenance_services vehicle_maintenance_services[]
+  users                        Users                          @relation(fields: [createdBy], references: [id])
+  vehicles                     Vehicles                       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicle_maintenance_services VehicleMaintenanceServices[]
+  @@map("vehicle_maintenance_records")
 }
 
-model vehicle_maintenance_service_expenses {
+model VehicleMaintenanceServiceExpenses {
   id                           String                       @id
   serviceId                    String
   expenseType                  String
@@ -1805,10 +1894,11 @@ model vehicle_maintenance_service_expenses {
   receiptUrl                   String?
   createdAt                    DateTime                     @default(now())
   updatedAt                    DateTime
-  vehicle_maintenance_services vehicle_maintenance_services @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  vehicle_maintenance_services VehicleMaintenanceServices @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  @@map("vehicle_maintenance_service_expenses")
 }
 
-model vehicle_maintenance_services {
+model VehicleMaintenanceServices {
   id                                   String                                 @id
   maintenanceRecordId                  String
   serviceName                          String
@@ -1822,11 +1912,12 @@ model vehicle_maintenance_services {
   receiptUrl                           String?
   createdAt                            DateTime                               @default(now())
   updatedAt                            DateTime
-  vehicle_maintenance_service_expenses vehicle_maintenance_service_expenses[]
-  vehicle_maintenance_records          vehicle_maintenance_records            @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+  vehicle_maintenance_service_expenses VehicleMaintenanceServiceExpenses[]
+  vehicle_maintenance_records          VehicleMaintenanceRecords            @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+  @@map("vehicle_maintenance_services")
 }
 
-model vehicle_reimbursements {
+model VehicleReimbursements {
   id                                             String              @id
   userId                                         String
   vehicleId                                      String
@@ -1845,13 +1936,14 @@ model vehicle_reimbursements {
   notes                                          String?
   createdAt                                      DateTime            @default(now())
   updatedAt                                      DateTime
-  users_vehicle_reimbursements_approvedByTousers users?              @relation("vehicle_reimbursements_approvedByTousers", fields: [approvedBy], references: [id])
-  businesses                                     businesses          @relation(fields: [businessId], references: [id])
-  users_vehicle_reimbursements_userIdTousers     users               @relation("vehicle_reimbursements_userIdTousers", fields: [userId], references: [id])
-  vehicles                                       vehicles            @relation(fields: [vehicleId], references: [id])
+  users_vehicle_reimbursements_approvedByTousers Users?              @relation("vehicle_reimbursements_approvedByTousers", fields: [approvedBy], references: [id])
+  businesses                                     Businesses          @relation(fields: [businessId], references: [id])
+  users_vehicle_reimbursements_userIdTousers     Users               @relation("vehicle_reimbursements_userIdTousers", fields: [userId], references: [id])
+  vehicles                                       Vehicles            @relation(fields: [vehicleId], references: [id])
+  @@map("vehicle_reimbursements")
 }
 
-model vehicle_trips {
+model VehicleTrips {
   id                    String                @id
   vehicleId             String
   driverId              String
@@ -1870,14 +1962,15 @@ model vehicle_trips {
   gpsTrackingData       Json?
   createdAt             DateTime              @default(now())
   updatedAt             DateTime
-  vehicle_expenses      vehicle_expenses[]
-  businesses            businesses?           @relation(fields: [businessId], references: [id])
-  vehicle_drivers       vehicle_drivers       @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  driver_authorizations driver_authorizations @relation(fields: [driverId, vehicleId], references: [driverId, vehicleId])
-  vehicles              vehicles              @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicle_expenses      VehicleExpenses[]
+  businesses            Businesses?           @relation(fields: [businessId], references: [id])
+  vehicle_drivers       VehicleDrivers       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driver_authorizations DriverAuthorizations @relation(fields: [driverId, vehicleId], references: [driverId, vehicleId])
+  vehicles              Vehicles              @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  @@map("vehicle_trips")
 }
 
-model vehicles {
+model Vehicles {
   id                          String                        @id
   licensePlate                String                        @unique
   vin                         String                        @unique
@@ -1899,14 +1992,15 @@ model vehicles {
   updatedAt                   DateTime
   hasInitialMileage           Boolean                       @default(false)
   mileageUnit                 String                        @default("km")
-  driver_authorizations       driver_authorizations[]
-  vehicle_expenses            vehicle_expenses[]
-  vehicle_licenses            vehicle_licenses[]
-  vehicle_maintenance_records vehicle_maintenance_records[]
-  vehicle_reimbursements      vehicle_reimbursements[]
-  vehicle_trips               vehicle_trips[]
-  businesses                  businesses?                   @relation(fields: [businessId], references: [id])
-  users                       users?                        @relation(fields: [userId], references: [id])
+  driver_authorizations       DriverAuthorizations[]
+  vehicle_expenses            VehicleExpenses[]
+  vehicle_licenses            VehicleLicenses[]
+  vehicle_maintenance_records VehicleMaintenanceRecords[]
+  vehicle_reimbursements      VehicleReimbursements[]
+  vehicle_trips               VehicleTrips[]
+  businesses                  Businesses?                   @relation(fields: [businessId], references: [id])
+  users                       Users?                        @relation(fields: [userId], references: [id])
+  @@map("vehicles")
 }
 
 enum AttributeDataType {

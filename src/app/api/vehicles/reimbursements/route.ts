@@ -28,7 +28,7 @@ const UpdateReimbursementSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -305,11 +305,11 @@ export async function PUT(request: NextRequest) {
 
     if (updateData.status === 'APPROVED') {
       statusUpdateData.approvalDate = new Date()
-      statusUpdateData.approvedBy = updateData.approvedBy || session.users.id
+      statusUpdateData.approvedBy = updateData.approvedBy || session.user.id
     } else if (updateData.status === 'PAID') {
       statusUpdateData.paymentDate = new Date()
       if (!existingReimbursement.approvedBy) {
-        statusUpdateData.approvedBy = session.users.id
+        statusUpdateData.approvedBy = session.user.id
         statusUpdateData.approvalDate = new Date()
       }
     }
@@ -353,7 +353,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

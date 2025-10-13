@@ -11,7 +11,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.users.id
+        createdBy: session.user.id
       }
     })
 
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       where.stageId = stageId
     }
 
-    const transactions = await prisma.project_transactions.findMany({
+    const transactions = await prisma.projectTransactions.findMany({
       where,
       include: {
         personalExpense: {
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -194,7 +194,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.users.id
+        createdBy: session.user.id
       }
     })
 
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const personalExpense = await prisma.personalExpenses.findFirst({
       where: {
         id: personalExpenseId,
-        userId: session.users.id
+        userId: session.user.id
       }
     })
 
@@ -264,7 +264,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     if (projectContractorId) {
-      const contractor = await prisma.project_contractors.findFirst({
+      const contractor = await prisma.projectContractors.findFirst({
         where: { id: projectContractorId, projectId }
       })
       if (!contractor) {
@@ -288,7 +288,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const newTransaction = await prisma.project_transactions.create({
+    const newTransaction = await prisma.projectTransactions.create({
       data: {
         projectId,
         stageId: stageId || null,
@@ -303,7 +303,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         paymentMethod: paymentMethod || null,
         referenceNumber: referenceNumber || null,
         notes: notes || null,
-        createdBy: session.users.id
+        createdBy: session.user.id
       },
       include: {
         personalExpense: {
@@ -389,7 +389,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -417,7 +417,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.users.id
+        createdBy: session.user.id
       }
     })
 
@@ -429,11 +429,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify transaction exists and belongs to this project
-    const transaction = await prisma.project_transactions.findFirst({
+    const transaction = await prisma.projectTransactions.findFirst({
       where: {
         id: transactionId,
         projectId: projectId,
-        createdBy: session.users.id // Only creator can update status
+        createdBy: session.user.id // Only creator can update status
       }
     })
 
@@ -452,18 +452,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     // Set timestamp fields based on status
     if (status === 'approved') {
-      updatedData.approvedBy = session.users.id
+      updatedData.approvedBy = session.user.id
       updatedData.approvedAt = new Date()
     } else if (status === 'paid') {
       updatedData.paidAt = new Date()
       // If not already approved, also set approval
       if (transaction.status === 'pending') {
-        updatedData.approvedBy = session.users.id
+        updatedData.approvedBy = session.user.id
         updatedData.approvedAt = new Date()
       }
     }
 
-    const updatedTransaction = await prisma.project_transactions.update({
+    const updatedTransaction = await prisma.projectTransactions.update({
       where: { id: transactionId },
       data: updatedData,
       include: {

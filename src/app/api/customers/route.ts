@@ -43,7 +43,7 @@ const CreateCustomerSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
           linkedUserId: validatedData.linkedUserId,
           linkedEmployeeId: validatedData.linkedEmployeeId,
           tags: validatedData.tags || [],
-          createdBy: session.users.id
+          createdBy: session.user.id
         }
       })
 
@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
             segment: validatedData.segment,
             allowLayby: validatedData.allowLayby,
             allowCredit: validatedData.allowCredit,
-            createdBy: session.users.id
+            createdBy: session.user.id
           }
         })
       }

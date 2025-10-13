@@ -8,7 +8,7 @@ import { SessionUser } from '@/lib/permission-utils'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const projectData = await prisma.project_transactions.aggregate({
+        const projectData = await prisma.projectTransactions.aggregate({
           where: projectWhereClause,
           _sum: {
             amount: true
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
       try {
         const personalData = await prisma.personalExpenses.aggregate({
           where: {
-            userId: session.users.id,
+            userId: session.user.id,
             amount: { gt: 0 },
             OR: [
               { category: { contains: 'income', mode: 'insensitive' } },

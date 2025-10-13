@@ -7,7 +7,7 @@ import { isSystemAdmin } from '@/lib/permission-utils'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -183,7 +183,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -214,7 +214,7 @@ export async function PUT(req: NextRequest) {
     // Check edit permissions: Admin can always edit, users can edit their own within 24 hours
     if (!isAdmin) {
       // Check if user owns the expense
-      if (expense.userId !== session.users.id) {
+      if (expense.userId !== session.user.id) {
         return NextResponse.json({ error: 'Insufficient permissions to edit this expense' }, { status: 403 })
       }
 

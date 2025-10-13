@@ -12,7 +12,7 @@ interface RouteParams {
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         action: 'BUSINESS_UPDATED',
         entityType: 'Business',
         entityId: updatedBusiness.id,
-        userId: session.users.id,
+        userId: session.user.id,
         details: {
           businessName: updatedBusiness.name,
           businessType: updatedBusiness.type,
@@ -86,7 +86,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -136,7 +136,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
         action: 'BUSINESS_DELETED',
         entityType: 'Business',
         entityId: deletedBusiness.id,
-        userId: session.users.id,
+        userId: session.user.id,
         details: {
           businessName: deletedBusiness.name,
           businessType: deletedBusiness.type

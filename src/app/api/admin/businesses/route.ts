@@ -8,7 +8,7 @@ import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -25,7 +25,7 @@ export async function GET() {
     // Regular users see only their businesses
     const userMemberships = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.users.id,
+        userId: session.user.id,
         isActive: true
       },
       include: {
@@ -44,7 +44,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         shortName,
         isActive: true,
         settings: {},
-        createdBy: session.users.id
+        createdBy: session.user.id
       } as any)
     })
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
         action: 'BUSINESS_CREATED',
         entityType: 'Business',
         entityId: business.id,
-        userId: session.users.id,
+        userId: session.user.id,
         details: {
           businessName: business.name,
           businessType: business.type

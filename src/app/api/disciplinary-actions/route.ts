@@ -8,7 +8,7 @@ import { randomBytes } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
         actionDate: new Date(actionDate),
         followUpDate: followUpDate ? new Date(followUpDate) : null,
         notes: notes || null,
-        createdBy: session.users.id
+        createdBy: session.user.id
       },
       include: {
         employee: {

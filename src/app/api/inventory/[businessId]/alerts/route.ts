@@ -207,7 +207,7 @@ export async function POST(
           alerts[alertIndex] = {
             ...alerts[alertIndex],
             isAcknowledged: true,
-            acknowledgedBy: session.users.name || 'Unknown',
+            acknowledgedBy: session.user.name || 'Unknown',
             acknowledgedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           }

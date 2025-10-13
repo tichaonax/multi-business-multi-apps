@@ -13,7 +13,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     let session: any = null
     if (!isSeedRequest) {
       session = await getServerSession(authOptions)
-      if (!session?.users?.id) {
+      if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // we avoid terminating existing contracts and mark the created contract as
     // active so the seeded contract behaves like a normal created-and-signed
     // contract for testing purposes.
-    const creatingUserId = isSeedRequest ? 'seed-script' : session.users.id
+    const creatingUserId = isSeedRequest ? 'seed-script' : session.user.id
 
     const contract = await prisma.$transaction(async (tx) => {
       if (!isSeedRequest) {

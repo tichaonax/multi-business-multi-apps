@@ -10,7 +10,7 @@ import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -28,7 +28,7 @@ export async function GET() {
       // Get user's business memberships to determine which loans they can see
       const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.users.id,
+          userId: session.user.id,
           isActive: true
         },
         select: { businessId: true }
@@ -97,7 +97,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       // Check if user is a member of the lender business
       const lenderMembership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.users.id,
+          userId: session.user.id,
           businessId: lenderBusinessId,
           isActive: true
         }
@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
         dueDate: dueDate ? new Date(dueDate) : null,
         terms: finalTerms || null,
         notes: notes || null,
-        createdBy: session.users.id
+        createdBy: session.user.id
       },
       include: {
         borrowerBusiness: {
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
       referenceId: loan.id,
       referenceType: 'loan',
       notes: `${transferType === 'profit_transfer' ? 'Profit transfer' : 'Business loan'} disbursement`,
-      createdBy: session.users.id
+      createdBy: session.user.id
     })
 
     if (!transactionResult.success) {

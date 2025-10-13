@@ -15,7 +15,7 @@ export async function PUT(
     const { employeeId, requestId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -62,7 +62,7 @@ export async function PUT(
       data: {
         status,
         rejectionReason: status === 'rejected' ? rejectionReason : null,
-        approvedBy: status === 'approved' ? session.users.id : null,
+        approvedBy: status === 'approved' ? session.user.id : null,
         approvedAt: status === 'approved' ? new Date() : null
       },
       include: {
@@ -170,7 +170,7 @@ export async function DELETE(
     const { employeeId, requestId } = await params
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

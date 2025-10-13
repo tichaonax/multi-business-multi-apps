@@ -11,7 +11,7 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -150,7 +150,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       if (isResolved && !existingAction.isResolved) {
         // Mark as resolved
         updateData.resolvedDate = resolvedDate ? new Date(resolvedDate) : new Date()
-        updateData.resolvedBy = session.users.id
+        updateData.resolvedBy = session.user.id
       } else if (!isResolved && existingAction.isResolved) {
         // Reopen the action
         updateData.resolvedDate = null
@@ -220,7 +220,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

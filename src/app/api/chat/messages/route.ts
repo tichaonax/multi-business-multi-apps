@@ -53,14 +53,14 @@ export async function POST(req: NextRequest) {
     const newMessage = await db
       .insert(chatMessages)
       .values({
-        userId: session.users.id,
+        userId: session.user.id,
         message: message.trim(),
         roomId: null,
       })
       .returning()
 
     await createAuditLog({
-      userId: session.users.id,
+      userId: session.user.id,
       action: 'CREATE',
       tableName: 'chat_messages',
       recordId: newMessage[0].id,

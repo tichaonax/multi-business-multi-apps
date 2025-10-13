@@ -148,7 +148,9 @@ export const authOptions: NextAuthOptions = {
         t.businessMemberships = (user as any).businessMemberships
 
         // Add unique session identifier and login timestamp
-        t.sessionId = `${(user as any).id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        // Ensure the token subject is the user id so downstream code can rely on token.sub
+        t.sub = (user as any).id
+        t.sessionId = `${t.sub}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         t.loginTime = Date.now()
 
         console.log('🔑 New session created:', t.sessionId, 'for user:', (user as any).email)
@@ -159,11 +161,12 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         const s: any = session
         const t: any = token
+        // Ensure session.user is populated (not `session.users`) and contains id/role/permissions
         s.user = s.user || {}
-        s.users.id = t.sub || s.users.id
-        s.users.role = t.role
-        s.users.permissions = t.permissions
-        s.users.businessMemberships = t.businessMemberships
+        s.user.id = t.sub || s.user.id
+        s.user.role = t.role
+        s.user.permissions = t.permissions
+        s.user.businessMemberships = t.businessMemberships
         s.sessionId = t.sessionId
         s.loginTime = t.loginTime
       }

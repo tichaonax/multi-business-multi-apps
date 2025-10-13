@@ -14,7 +14,7 @@ export async function DELETE(
     const { userId } = await params
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -55,7 +55,7 @@ export async function DELETE(
         data: {
           isActive: false,
           deactivatedAt: new Date(),
-          deactivatedBy: session.users.id,
+          deactivatedBy: session.user.id,
           deactivationReason: reason || 'Account revoked',
           deactivationNotes: notes,
         }
@@ -78,7 +78,7 @@ export async function DELETE(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.users.id,
+          userId: session.user.id,
           action: 'USER_ACCOUNT_REVOKED',
           resourceType: 'User',
           resourceId: userId,
@@ -136,7 +136,7 @@ export async function POST(
     const { userId } = await params
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -178,7 +178,7 @@ export async function POST(
         data: {
           isActive: true,
           reactivatedAt: new Date(),
-          reactivatedBy: session.users.id,
+          reactivatedBy: session.user.id,
           reactivationNotes: notes,
           deactivatedAt: null,
           deactivatedBy: null,
@@ -207,7 +207,7 @@ export async function POST(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.users.id,
+          userId: session.user.id,
           action: 'USER_ACCOUNT_REACTIVATED',
           resourceType: 'User',
           resourceId: userId,

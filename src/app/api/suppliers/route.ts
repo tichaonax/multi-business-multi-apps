@@ -7,7 +7,7 @@ import { UniversalSupplier, BusinessType } from '@/types/supplier'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
       notes: supplierData.notes || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: session.users.id,
-      lastUpdatedBy: session.users.id
+      createdBy: session.user.id,
+      lastUpdatedBy: session.user.id
     }
 
     // Get existing suppliers and add new one
