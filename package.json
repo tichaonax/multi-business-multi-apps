@@ -68,6 +68,8 @@
     "setup:fresh-db": "node scripts/setup-fresh-database.js",
     "check:db-state": "node scripts/check-database-state.js",
     "hooks:install": "node scripts/install-git-hooks.js",
+    "diagnose:database": "node scripts/diagnose-database.js",
+    "verify:service-wrapper": "node scripts/verify-service-wrapper.js",
     "deploy": "npm run setup:update && npm run service:restart",
     "deploy:upgrade": "node scripts/production-upgrade.js",
     "deploy:fresh": "node scripts/fresh-install.js",
