@@ -9,9 +9,9 @@ async function upsertUser(id) {
 }
 
 async function upsertVehicle(id, plate, vin) {
-  const existing = await prisma.vehicle.findUnique({ where: { id } })
+  const existing = await prisma.vehicles.findUnique({ where: { id } })
   if (existing) return existing
-  return prisma.vehicle.create({
+  return prisma.vehicles.create({
     data: {
       id,
       licensePlate: plate,
@@ -28,10 +28,10 @@ async function upsertVehicle(id, plate, vin) {
 }
 
 async function upsertDriver(id, fullName, licenseNumber) {
-  const existing = await prisma.vehicleDriver.findUnique({ where: { id } })
+  const existing = await prisma.vehicleDrivers.findUnique({ where: { id } })
   if (existing) return existing
   const now = new Date()
-  return prisma.vehicleDriver.create({
+  return prisma.vehicleDrivers.create({
     data: {
       id,
       fullName,
@@ -45,10 +45,10 @@ async function upsertDriver(id, fullName, licenseNumber) {
 }
 
 async function ensureAuthorization(driverId, vehicleId, authorizerId) {
-  const existing = await prisma.driverAuthorization.findUnique({ where: { driverId_vehicleId: { driverId, vehicleId } } }).catch(() => null)
+  const existing = await prisma.driverAuthorizations.findUnique({ where: { driverId_vehicleId: { driverId, vehicleId } } }).catch(() => null)
   if (existing) return existing
   const now = new Date()
-  return prisma.driverAuthorization.create({
+  return prisma.driverAuthorizations.create({
     data: {
       id: `auth-${driverId}-${vehicleId}-${Date.now()}`,
       driverId,
@@ -67,7 +67,7 @@ async function ensureAuthorization(driverId, vehicleId, authorizerId) {
 async function createMaintenance(data) {
   const now = new Date()
   const id = data.id || `dev-maint-${Date.now()}-${Math.random().toString(36).slice(2,6)}`
-  return prisma.vehicleMaintenanceRecord.create({
+  return prisma.vehicleMaintenanceRecords.create({
     data: {
       id,
       ...data,
@@ -81,7 +81,7 @@ async function createMaintenance(data) {
 async function createTrip(data) {
   const now = new Date()
   const id = data.id || `dev-trip-${Date.now()}-${Math.random().toString(36).slice(2,6)}`
-  return prisma.vehicleTrip.create({
+  return prisma.vehicleTrips.create({
     data: {
       id,
       ...data,
@@ -241,7 +241,7 @@ async function seed() {
   const licenseExpirySoon = new Date()
   licenseExpirySoon.setDate(now.getDate() + 1)
 
-    const vl1 = await prisma.vehicleLicense.create({
+    const vl1 = await prisma.vehicleLicenses.create({
       data: {
         id: `vl-${v1.id}-${Date.now()}`,
         vehicleId: v1.id,
@@ -260,11 +260,11 @@ async function seed() {
     // Make one driver's license expire soon
     const driverExpirySoon = new Date()
     driverExpirySoon.setDate(now.getDate() + 30)
-    await prisma.vehicleDriver.update({ where: { id: d2.id }, data: { licenseExpiry: driverExpirySoon } })
+    await prisma.vehicleDrivers.update({ where: { id: d2.id }, data: { licenseExpiry: driverExpirySoon } })
 
     // Create an expired/inactive authorization for a new driver
     const d3 = await upsertDriver('dev-driver-3', 'Eve Developer', 'DL-EVE-003')
-    const expiredAuth = await prisma.driverAuthorization.upsert({
+    const expiredAuth = await prisma.driverAuthorizations.upsert({
       where: { driverId_vehicleId: { driverId: d3.id, vehicleId: v1.id } },
       update: {
         authorizedBy: user.id,
