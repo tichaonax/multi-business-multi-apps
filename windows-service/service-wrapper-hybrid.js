@@ -399,9 +399,9 @@ class HybridServiceWrapper extends EventEmitter {
           if (migrationCode === 0) {
             console.log('✅ Database migrations completed successfully');
 
-            // Run seeding after successful migration
-            console.log('🌱 Seeding reference data...');
-            const seedProcess = spawn('npm', ['run', 'seed:migration'], {
+            // Run UI validation after ALL migrations complete, before seeding
+            console.log('🔍 Running UI relations validation...');
+            const uiValidationProcess = spawn('node', ['scripts/validate-ui-relations.js'], {
               cwd: path.join(__dirname, '..'),
               stdio: ['ignore', 'pipe', 'pipe'],
               shell: true,
@@ -411,38 +411,88 @@ class HybridServiceWrapper extends EventEmitter {
               },
             });
 
-            seedProcess.stdout.on('data', (data) => {
+            uiValidationProcess.stdout.on('data', (data) => {
               const output = data.toString();
               output.split('\n').forEach((line) => {
                 if (line.trim()) {
-                  console.log(`[SEEDING] ${line.trim()}`);
+                  console.log(`[UI VALIDATION] ${line.trim()}`);
                 }
               });
             });
 
-            seedProcess.stderr.on('data', (data) => {
+            uiValidationProcess.stderr.on('data', (data) => {
               const output = data.toString();
               output.split('\n').forEach((line) => {
                 if (line.trim()) {
-                  console.log(`[SEEDING ERROR] ${line.trim()}`);
+                  console.log(`[UI VALIDATION ERROR] ${line.trim()}`);
                 }
               });
             });
 
-            seedProcess.on('close', (seedCode) => {
-              if (seedCode === 0) {
-                console.log('✅ Database seeding completed successfully');
-                try { fs.unlinkSync(lockFile) } catch (e) {}
-                resolve();
+            uiValidationProcess.on('close', (validationCode) => {
+              if (validationCode === 0) {
+                console.log('✅ UI relations validation passed');
+
+                // Run seeding after successful migration AND UI validation
+                console.log('🌱 Seeding reference data...');
+                const seedProcess = spawn('npm', ['run', 'seed:migration'], {
+                  cwd: path.join(__dirname, '..'),
+                  stdio: ['ignore', 'pipe', 'pipe'],
+                  shell: true,
+                  env: {
+                    ...process.env,
+                    NODE_ENV: 'production',
+                  },
+                });
+
+                seedProcess.stdout.on('data', (data) => {
+                  const output = data.toString();
+                  output.split('\n').forEach((line) => {
+                    if (line.trim()) {
+                      console.log(`[SEEDING] ${line.trim()}`);
+                    }
+                  });
+                });
+
+                seedProcess.stderr.on('data', (data) => {
+                  const output = data.toString();
+                  output.split('\n').forEach((line) => {
+                    if (line.trim()) {
+                      console.log(`[SEEDING ERROR] ${line.trim()}`);
+                    }
+                  });
+                });
+
+                seedProcess.on('close', (seedCode) => {
+                  if (seedCode === 0) {
+                    console.log('✅ Database seeding completed successfully');
+                    try { fs.unlinkSync(lockFile) } catch (e) {}
+                    resolve();
+                  } else {
+                    console.error(`❌ Seeding failed with code ${seedCode}`);
+                    try { fs.unlinkSync(lockFile) } catch (e) {}
+                    reject(new Error(`Database seeding failed with exit code ${seedCode}`));
+                  }
+                });
+
+                seedProcess.on('error', (err) => {
+                  console.error('❌ Seeding process error:', err);
+                  try { fs.unlinkSync(lockFile) } catch (e) {}
+                  reject(err);
+                });
+
               } else {
-                console.error(`❌ Seeding failed with code ${seedCode}`);
+                console.error(`❌ UI relations validation failed with code ${validationCode}`);
+                console.error('CRITICAL: UI relations validation must pass for safe deployment');
+                console.error('This prevents runtime errors in UI components due to schema/UI mismatches');
                 try { fs.unlinkSync(lockFile) } catch (e) {}
-                reject(new Error(`Database seeding failed with exit code ${seedCode}`));
+                reject(new Error(`UI relations validation failed with exit code ${validationCode}`));
               }
             });
 
-            seedProcess.on('error', (err) => {
-              console.error('❌ Seeding process error:', err);
+            uiValidationProcess.on('error', (err) => {
+              console.error('❌ UI validation process error:', err);
+              try { fs.unlinkSync(lockFile) } catch (e) {}
               reject(err);
             });
 
