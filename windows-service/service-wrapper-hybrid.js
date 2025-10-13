@@ -788,6 +788,8 @@ class HybridServiceWrapper extends EventEmitter {
           env: {
             ...process.env,
             NODE_ENV: 'production',
+            // Ensure DATABASE_URL is explicitly passed (loaded from .env.local in wrapper)
+            DATABASE_URL: process.env.DATABASE_URL,
           },
         });
 
@@ -800,7 +802,14 @@ class HybridServiceWrapper extends EventEmitter {
           output += data.toString();
         });
 
+        // Timeout after 10 seconds - should be plenty for a simple status check
+        const timeout = setTimeout(() => {
+          testProcess.kill('SIGKILL');
+          reject(new Error('Database connectivity test timed out - check if DATABASE_URL is accessible'));
+        }, 10000);
+        
         testProcess.on('close', (code) => {
+          clearTimeout(timeout);
           // Migration status command succeeds if it can connect to database
           // Even if migrations are pending, it means the connection works
           if (code === 0 || output.includes('pending') || output.includes('applied') || output.includes('No migration found')) {
@@ -813,12 +822,6 @@ class HybridServiceWrapper extends EventEmitter {
             resolve();
           }
         });
-
-        // Timeout after 30 seconds
-        setTimeout(() => {
-          testProcess.kill();
-          reject(new Error('Database connectivity test timed out'));
-        }, 30000);
       });
 
       console.log('✅ Database connectivity validated');

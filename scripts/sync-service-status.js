@@ -1,72 +1,7 @@
 #!/usr/bin/env node
-// Lightweight status checker for the Windows service using `sc query`.
-// Prints a user-friendly summary and exits.
-
-const { spawnSync } = require('child_process');
-const serviceNameHelper = require('../windows-service/service-name-helper');
-const candidateNames = serviceNameHelper.getCandidateServiceNames();
-
-function runScQuery() {
-  try {
-    let lastOut = '';
-    for (const name of candidateNames) {
-      // Don't use quotes around the service name - causes issues
-      const res = spawnSync('sc', ['query', name], { encoding: 'utf8' });
-      if (res && (res.stdout || res.stderr)) {
-        lastOut = (res.stdout || res.stderr || '').toString();
-        // If output indicates the service exists or not, return it for parsing
-        if (lastOut && !/FAILED 1060/i.test(lastOut)) {
-          return lastOut;
-        }
-      }
-    }
-
-    // If none of the queries returned a valid service, return the last output
-    if (lastOut) return lastOut;
-
-    console.error('Failed to run `sc query`. Are you on Windows or is `sc` unavailable?');
-    process.exit(2);
-  } catch (err) {
-    console.error('Error running sc query:', err.message || err);
-    process.exit(2);
-  }
-}
-
-function parseScOutput(out) {
-  const lines = out.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (lines.length === 0) return { installed: false };
-  const result = { installed: false, state: 'UNKNOWN', raw: out };
-  for (const line of lines) {
-    if (/SERVICE_NAME:/i.test(line)) result.name = line.split(':').slice(1).join(':').trim();
-    const m = line.match(/STATE\s*:\s*\d+\s*(\w+)/i);
-    if (m) {
-      result.installed = true;
-      result.state = m[1];
-    }
-    const pidm = line.match(/PID\s*:\s*(\d+)/i);
-    if (pidm) result.pid = pidm[1];
-  }
-  return result;
-}
-
-const out = runScQuery();
-if (!out || /FAILED 1060/.test(out)) {
-  console.log('Service not installed (checked names: %s)', candidateNames.join(', '));
-  process.exit(0);
-}
-const parsed = parseScOutput(out);
-if (!parsed.installed) {
-  console.log('Service not installed or could not parse sc output. Raw output:\n');
-  console.log(out);
-  process.exit(0);
-}
-console.log('Service: %s', parsed.name || serviceName);
-console.log('State: %s', parsed.state);
-if (parsed.pid) console.log('PID: %s', parsed.pid);
-process.exit(0);
 /**
- * Check Multi-Business Sync Service Status
- * Based on electricity-tokens service status checking
+ * Multi-Business Sync Service Status Checker
+ * Comprehensive status check using .exe service name
  */
 
 const { exec } = require('child_process');
@@ -77,9 +12,10 @@ const path = require('path');
  */
 function checkWindowsService() {
   return new Promise((resolve) => {
-    const serviceName = 'Multi-Business Sync Service';
+    // Use .exe service name for consistency with Windows service management
+    const serviceName = 'multibusinesssyncservice.exe';
 
-    exec(`sc query "${serviceName}"`, (error, stdout, stderr) => {
+    exec(`sc.exe query ${serviceName}`, (error, stdout, stderr) => {
       if (error) {
         resolve({
           installed: false,

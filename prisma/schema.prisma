@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Accounts {
+model accounts {
   id                String  @id
   userId            String
   type              String
@@ -20,13 +20,12 @@ model Accounts {
   scope             String?
   idToken           String?
   sessionState      String?
-  users             Users   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  users             users   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@map("accounts")
 }
 
-model AuditLogs {
+model audit_logs {
   id         String   @id
   userId     String
   action     String
@@ -40,83 +39,75 @@ model AuditLogs {
   recordId   String?
   changes    Json?
   details    Json?
-  users      Users    @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@map("audit_logs")
+  users      users    @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
-model BenefitTypes {
-  id                     String                 @id
-  name                   String                 @unique
+model benefit_types {
+  id                     String                   @id
+  name                   String                   @unique
   description            String?
   type                   String
-  createdAt              DateTime               @default(now())
-  defaultAmount          Decimal?               @db.Decimal(12, 2)
-  isActive               Boolean                @default(true)
-  isPercentage           Boolean                @default(false)
-  updatedAt              DateTime               @default(now())
-  contract_benefits      ContractBenefits[]
-  employee_benefits      EmployeeBenefits[]
-  payroll_entry_benefits PayrollEntryBenefits[]
-
-  @@map("benefit_types")
+  createdAt              DateTime                 @default(now())
+  defaultAmount          Decimal?                 @db.Decimal(12, 2)
+  isActive               Boolean                  @default(true)
+  isPercentage           Boolean                  @default(false)
+  updatedAt              DateTime                 @default(now())
+  contract_benefits      contract_benefits[]
+  employee_benefits      employee_benefits[]
+  payroll_entry_benefits payroll_entry_benefits[]
 }
 
-model BusinessAccounts {
+model business_accounts {
   id         String     @id
   businessId String     @unique
   balance    Decimal    @default(0) @db.Decimal(12, 2)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime
   createdBy  String?
-  businesses Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users      Users?     @relation(fields: [createdBy], references: [id])
-
-  @@map("business_accounts")
+  businesses businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users      users?     @relation(fields: [createdBy], references: [id])
 }
 
-model BusinessBrands {
-  id                String             @id
+model business_brands {
+  id                String              @id
   businessId        String
   name              String
   description       String?
   logoUrl           String?
   website           String?
-  isActive          Boolean            @default(true)
+  isActive          Boolean             @default(true)
   businessType      String
   attributes        Json?
-  createdAt         DateTime           @default(now())
+  createdAt         DateTime            @default(now())
   updatedAt         DateTime
-  businesses        Businesses         @relation(fields: [businessId], references: [id])
-  business_products BusinessProducts[]
+  businesses        businesses          @relation(fields: [businessId], references: [id])
+  business_products business_products[]
 
   @@unique([businessId, name])
-  @@map("business_brands")
 }
 
-model BusinessCategories {
-  id                        String               @id
+model business_categories {
+  id                        String                @id
   businessId                String
   name                      String
   description               String?
   parentId                  String?
-  displayOrder              Int                  @default(0)
-  isActive                  Boolean              @default(true)
+  displayOrder              Int                   @default(0)
+  isActive                  Boolean               @default(true)
   businessType              String
   attributes                Json?
-  createdAt                 DateTime             @default(now())
+  createdAt                 DateTime              @default(now())
   updatedAt                 DateTime
-  businesses                Businesses           @relation(fields: [businessId], references: [id])
-  business_categories       BusinessCategories?  @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
-  other_business_categories BusinessCategories[] @relation("business_categoriesTobusiness_categories")
-  business_products         BusinessProducts[]
+  businesses                businesses            @relation(fields: [businessId], references: [id])
+  business_categories       business_categories?  @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
+  other_business_categories business_categories[] @relation("business_categoriesTobusiness_categories")
+  business_products         business_products[]
 
   @@unique([businessId, name])
-  @@map("business_categories")
 }
 
-model BusinessCustomers {
-  id              String           @id
+model business_customers {
+  id              String            @id
   businessId      String
   customerNumber  String
   name            String
@@ -126,88 +117,83 @@ model BusinessCustomers {
   address         String?
   city            String?
   country         String?
-  customerType    CustomerType     @default(INDIVIDUAL)
+  customerType    CustomerType      @default(INDIVIDUAL)
   segment         String?
-  loyaltyPoints   Int              @default(0)
-  totalSpent      Decimal          @default(0) @db.Decimal(12, 2)
-  isActive        Boolean          @default(true)
+  loyaltyPoints   Int               @default(0)
+  totalSpent      Decimal           @default(0) @db.Decimal(12, 2)
+  isActive        Boolean           @default(true)
   businessType    String
   attributes      Json?
-  createdAt       DateTime         @default(now())
+  createdAt       DateTime          @default(now())
   updatedAt       DateTime
-  businesses      Businesses       @relation(fields: [businessId], references: [id])
-  business_orders BusinessOrders[]
+  businesses      businesses        @relation(fields: [businessId], references: [id])
+  business_orders business_orders[]
 
   @@unique([businessId, customerNumber])
-  @@map("business_customers")
 }
 
-model BusinessMemberships {
-  id                  String               @id
-  userId              String
-  businessId          String
-  role                String               @default("employee")
-  permissions         Json                 @default("{}")
-  isActive            Boolean              @default(true)
-  invitedBy           String?
-  joinedAt            DateTime             @default(now())
-  lastAccessedAt      DateTime?
-  templateId          String?
-  businesses          Businesses           @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  permissionTemplates PermissionTemplates? @relation(fields: [templateId], references: [id])
-  users               Users                @relation(fields: [userId], references: [id], onDelete: Cascade)
+model business_memberships {
+  id                   String                @id
+  userId               String
+  businessId           String
+  role                 String                @default("employee")
+  permissions          Json                  @default("{}")
+  isActive             Boolean               @default(true)
+  invitedBy            String?
+  joinedAt             DateTime              @default(now())
+  lastAccessedAt       DateTime?
+  templateId           String?
+  businesses           businesses            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  permission_templates permission_templates? @relation(fields: [templateId], references: [id])
+  users                users                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, businessId])
-  @@map("business_memberships")
 }
 
-model BusinessOrderItems {
-  id               String          @id
+model business_order_items {
+  id               String           @id
   orderId          String
   productVariantId String
   quantity         Int
-  unitPrice        Decimal         @db.Decimal(10, 2)
-  discountAmount   Decimal         @default(0) @db.Decimal(10, 2)
-  totalPrice       Decimal         @db.Decimal(10, 2)
+  unitPrice        Decimal          @db.Decimal(10, 2)
+  discountAmount   Decimal          @default(0) @db.Decimal(10, 2)
+  totalPrice       Decimal          @db.Decimal(10, 2)
   attributes       Json?
-  createdAt        DateTime        @default(now())
-  business_orders  BusinessOrders  @relation(fields: [orderId], references: [id])
-  product_variants ProductVariants @relation(fields: [productVariantId], references: [id])
-
-  @@map("business_order_items")
+  createdAt        DateTime         @default(now())
+  business_orders  business_orders  @relation(fields: [orderId], references: [id])
+  product_variants product_variants @relation(fields: [productVariantId], references: [id])
 }
 
-model BusinessOrders {
-  id                   String               @id
+model business_orders {
+  id                   String                 @id
   businessId           String
   orderNumber          String
   customerId           String?
   employeeId           String?
-  orderType            OrderType            @default(SALE)
-  status               OrderStatus          @default(PENDING)
-  subtotal             Decimal              @db.Decimal(10, 2)
-  taxAmount            Decimal              @db.Decimal(10, 2)
-  discountAmount       Decimal              @default(0) @db.Decimal(10, 2)
-  totalAmount          Decimal              @db.Decimal(10, 2)
+  orderType            OrderType              @default(SALE)
+  status               OrderStatus            @default(PENDING)
+  subtotal             Decimal                @db.Decimal(10, 2)
+  taxAmount            Decimal                @db.Decimal(10, 2)
+  discountAmount       Decimal                @default(0) @db.Decimal(10, 2)
+  totalAmount          Decimal                @db.Decimal(10, 2)
   paymentMethod        PaymentMethod?
-  paymentStatus        PaymentStatus        @default(PENDING)
+  paymentStatus        PaymentStatus          @default(PENDING)
   businessType         String
   attributes           Json?
   notes                String?
   processedAt          DateTime?
-  createdAt            DateTime             @default(now())
+  createdAt            DateTime               @default(now())
   updatedAt            DateTime
-  business_order_items BusinessOrderItems[]
-  businesses           Businesses           @relation(fields: [businessId], references: [id])
-  business_customers   BusinessCustomers?   @relation(fields: [customerId], references: [id])
-  employees            Employees?           @relation(fields: [employeeId], references: [id])
+  business_order_items business_order_items[]
+  businesses           businesses             @relation(fields: [businessId], references: [id])
+  business_customers   business_customers?    @relation(fields: [customerId], references: [id])
+  employees            employees?             @relation(fields: [employeeId], references: [id])
 
   @@unique([businessId, orderNumber])
-  @@map("business_orders")
 }
 
-model BusinessProducts {
-  id                       String                   @id
+model business_products {
+  id                       String                     @id
   businessId               String
   name                     String
   description              String?
@@ -215,67 +201,64 @@ model BusinessProducts {
   barcode                  String?
   brandId                  String?
   categoryId               String
-  productType              ProductType              @default(PHYSICAL)
-  condition                ProductCondition         @default(NEW)
-  basePrice                Decimal                  @db.Decimal(10, 2)
-  costPrice                Decimal?                 @db.Decimal(10, 2)
-  isActive                 Boolean                  @default(true)
+  productType              ProductType                @default(PHYSICAL)
+  condition                ProductCondition           @default(NEW)
+  basePrice                Decimal                    @db.Decimal(10, 2)
+  costPrice                Decimal?                   @db.Decimal(10, 2)
+  isActive                 Boolean                    @default(true)
   businessType             String
   attributes               Json?
-  isAvailable              Boolean                  @default(true)
-  spiceLevel               Int?                     @default(0)
+  isAvailable              Boolean                    @default(true)
+  spiceLevel               Int?                       @default(0)
   dietaryRestrictions      String[]
   allergens                String[]
-  preparationTime          Int?                     @default(0)
+  preparationTime          Int?                       @default(0)
   calories                 Int?
-  isCombo                  Boolean                  @default(false)
+  isCombo                  Boolean                    @default(false)
   comboItemsData           Json?
-  originalPrice            Decimal?                 @db.Decimal(10, 2)
-  discountPercent          Decimal?                 @db.Decimal(5, 2)
-  discountAmount           Decimal?                 @db.Decimal(10, 2)
+  originalPrice            Decimal?                   @db.Decimal(10, 2)
+  discountPercent          Decimal?                   @db.Decimal(5, 2)
+  discountAmount           Decimal?                   @db.Decimal(10, 2)
   promotionStartDate       DateTime?
   promotionEndDate         DateTime?
   promotionName            String?
-  createdAt                DateTime                 @default(now())
+  createdAt                DateTime                   @default(now())
   updatedAt                DateTime
-  business_brands          BusinessBrands?          @relation(fields: [brandId], references: [id])
-  businesses               Businesses               @relation(fields: [businessId], references: [id])
-  business_categories      BusinessCategories       @relation(fields: [categoryId], references: [id])
-  business_stock_movements BusinessStockMovements[]
-  menu_combo_items         MenuComboItems[]
-  product_attributes       ProductAttributes[]
-  product_images           ProductImages[]
-  product_variants         ProductVariants[]
-  supplier_products        SupplierProducts[]
+  business_brands          business_brands?           @relation(fields: [brandId], references: [id])
+  businesses               businesses                 @relation(fields: [businessId], references: [id])
+  business_categories      business_categories        @relation(fields: [categoryId], references: [id])
+  business_stock_movements business_stock_movements[]
+  menu_combo_items         menu_combo_items[]
+  product_attributes       product_attributes[]
+  product_images           product_images[]
+  product_variants         product_variants[]
+  supplier_products        supplier_products[]
 
   @@unique([businessId, sku])
-  @@map("business_products")
 }
 
-model BusinessStockMovements {
-  id                String            @id
+model business_stock_movements {
+  id                String             @id
   businessId        String
   productVariantId  String
   movementType      StockMovementType
   quantity          Int
-  unitCost          Decimal?          @db.Decimal(10, 2)
+  unitCost          Decimal?           @db.Decimal(10, 2)
   reference         String?
   reason            String?
   employeeId        String?
   businessType      String
   attributes        Json?
-  createdAt         DateTime          @default(now())
+  createdAt         DateTime           @default(now())
   businessProductId String?
-  businesses        Businesses        @relation(fields: [businessId], references: [id])
-  business_products BusinessProducts? @relation(fields: [businessProductId], references: [id])
-  employees         Employees?        @relation(fields: [employeeId], references: [id])
-  product_variants  ProductVariants   @relation(fields: [productVariantId], references: [id])
-
-  @@map("business_stock_movements")
+  businesses        businesses         @relation(fields: [businessId], references: [id])
+  business_products business_products? @relation(fields: [businessProductId], references: [id])
+  employees         employees?         @relation(fields: [employeeId], references: [id])
+  product_variants  product_variants   @relation(fields: [productVariantId], references: [id])
 }
 
-model BusinessSuppliers {
-  id                String             @id
+model business_suppliers {
+  id                String              @id
   businessId        String
   supplierNumber    String
   name              String
@@ -284,20 +267,19 @@ model BusinessSuppliers {
   phone             String?
   address           String?
   paymentTerms      String?
-  creditLimit       Decimal?           @db.Decimal(12, 2)
-  isActive          Boolean            @default(true)
+  creditLimit       Decimal?            @db.Decimal(12, 2)
+  isActive          Boolean             @default(true)
   businessType      String
   attributes        Json?
-  createdAt         DateTime           @default(now())
+  createdAt         DateTime            @default(now())
   updatedAt         DateTime
-  businesses        Businesses         @relation(fields: [businessId], references: [id])
-  supplier_products SupplierProducts[]
+  businesses        businesses          @relation(fields: [businessId], references: [id])
+  supplier_products supplier_products[]
 
   @@unique([businessId, supplierNumber])
-  @@map("business_suppliers")
 }
 
-model BusinessTransactions {
+model business_transactions {
   id            String     @id
   businessId    String
   amount        Decimal    @db.Decimal(12, 2)
@@ -310,115 +292,103 @@ model BusinessTransactions {
   createdBy     String
   notes         String?
   metadata      Json?
-  businesses    Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users         Users      @relation(fields: [createdBy], references: [id])
-
-  @@map("business_transactions")
+  businesses    businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users         users      @relation(fields: [createdBy], references: [id])
 }
 
-model Businesses {
-  id                                                                       String                        @id
+model businesses {
+  id                                                                       String                          @id
   name                                                                     String
   type                                                                     String
   description                                                              String?
-  isActive                                                                 Boolean                       @default(true)
-  settings                                                                 Json                          @default("{}")
+  isActive                                                                 Boolean                         @default(true)
+  settings                                                                 Json                            @default("{}")
   createdBy                                                                String?
-  createdAt                                                                DateTime                      @default(now())
-  updatedAt                                                                DateTime                      @default(now())
+  createdAt                                                                DateTime                        @default(now())
+  updatedAt                                                                DateTime                        @default(now())
   umbrellaBusinessId                                                       String?
-  isUmbrellaBusiness                                                       Boolean                       @default(false)
-  umbrellaBusinessName                                                     String?                       @default("Demo Umbrella Company")
+  isUmbrellaBusiness                                                       Boolean                         @default(false)
+  umbrellaBusinessName                                                     String?                         @default("Demo Umbrella Company")
   umbrellaBusinessAddress                                                  String?
   umbrellaBusinessEmail                                                    String?
   umbrellaBusinessPhone                                                    String?
   umbrellaBusinessRegistration                                             String?
   shortName                                                                String?
-  business_accounts                                                        BusinessAccounts?
-  business_brands                                                          BusinessBrands[]
-  business_categories                                                      BusinessCategories[]
-  business_customers                                                       BusinessCustomers[]
-  business_memberships                                                     BusinessMemberships[]
-  business_orders                                                          BusinessOrders[]
-  business_products                                                        BusinessProducts[]
-  business_stock_movements                                                 BusinessStockMovements[]
-  business_suppliers                                                       BusinessSuppliers[]
-  business_transactions                                                    BusinessTransactions[]
-  businesses                                                               Businesses?                   @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
-  other_businesses                                                         Businesses[]                  @relation("businessesTobusinesses")
-  employee_business_assignments                                            EmployeeBusinessAssignments[]
-  employee_contracts_employee_contracts_primaryBusinessIdTobusinesses      EmployeeContracts[]           @relation("employee_contracts_primaryBusinessIdTobusinesses")
-  employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     EmployeeContracts[]           @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
-  employees                                                                Employees[]
-  inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
-  inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
-  menu_combos                                                              MenuCombos[]
-  menu_promotions                                                          MenuPromotions[]
-  payroll_exports                                                          PayrollExports[]
-  payroll_periods                                                          PayrollPeriods[]
-  projects                                                                 Projects[]
-  vehicle_expenses                                                         VehicleExpenses[]
-  vehicle_reimbursements                                                   VehicleReimbursements[]
-  vehicle_trips                                                            VehicleTrips[]
-  vehicles                                                                 Vehicles[]
-
-  @@map("businesses")
+  business_accounts                                                        business_accounts?
+  business_brands                                                          business_brands[]
+  business_categories                                                      business_categories[]
+  business_customers                                                       business_customers[]
+  business_memberships                                                     business_memberships[]
+  business_orders                                                          business_orders[]
+  business_products                                                        business_products[]
+  business_stock_movements                                                 business_stock_movements[]
+  business_suppliers                                                       business_suppliers[]
+  business_transactions                                                    business_transactions[]
+  businesses                                                               businesses?                     @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
+  other_businesses                                                         businesses[]                    @relation("businessesTobusinesses")
+  employee_business_assignments                                            employee_business_assignments[]
+  employee_contracts_employee_contracts_primaryBusinessIdTobusinesses      employee_contracts[]            @relation("employee_contracts_primaryBusinessIdTobusinesses")
+  employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     employee_contracts[]            @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
+  employees                                                                employees[]
+  inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses inter_business_loans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
+  inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   inter_business_loans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
+  menu_combos                                                              menu_combos[]
+  menu_promotions                                                          menu_promotions[]
+  payroll_exports                                                          payroll_exports[]
+  payroll_periods                                                          payroll_periods[]
+  projects                                                                 projects[]
+  vehicle_expenses                                                         vehicle_expenses[]
+  vehicle_reimbursements                                                   vehicle_reimbursements[]
+  vehicle_trips                                                            vehicle_trips[]
+  vehicles                                                                 vehicles[]
 }
 
-model ChatMessages {
-  id         String     @id
+model chat_messages {
+  id         String      @id
   message    String
-  createdAt  DateTime   @default(now())
+  createdAt  DateTime    @default(now())
   roomId     String?
   userId     String?
-  chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  users      Users?     @relation(fields: [userId], references: [id])
-
-  @@map("chat_messages")
+  chat_rooms chat_rooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  users      users?      @relation(fields: [userId], references: [id])
 }
 
-model ChatParticipants {
-  id         String     @id
-  joinedAt   DateTime   @default(now())
+model chat_participants {
+  id         String      @id
+  joinedAt   DateTime    @default(now())
   roomId     String?
   userId     String?
-  chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  users      Users?     @relation(fields: [userId], references: [id])
-
-  @@map("chat_participants")
+  chat_rooms chat_rooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  users      users?      @relation(fields: [userId], references: [id])
 }
 
-model ChatRooms {
-  id                String             @id
+model chat_rooms {
+  id                String              @id
   name              String
-  type              String             @default("group")
-  createdAt         DateTime           @default(now())
+  type              String              @default("group")
+  createdAt         DateTime            @default(now())
   createdBy         String?
-  chat_messages     ChatMessages[]
-  chat_participants ChatParticipants[]
-  users             Users?             @relation(fields: [createdBy], references: [id])
-
-  @@map("chat_rooms")
+  chat_messages     chat_messages[]
+  chat_participants chat_participants[]
+  users             users?              @relation(fields: [createdBy], references: [id])
 }
 
-model CompensationTypes {
-  id                   String              @id
-  name                 String              @unique
+model compensation_types {
+  id                   String               @id
+  name                 String               @unique
   type                 String
   description          String?
-  baseAmount           Decimal?            @db.Decimal(12, 2)
-  commissionPercentage Decimal?            @db.Decimal(5, 2)
-  createdAt            DateTime            @default(now())
-  isActive             Boolean             @default(true)
-  updatedAt            DateTime            @default(now())
-  frequency            String?             @default("monthly")
-  employee_contracts   EmployeeContracts[]
-  employees            Employees[]
-
-  @@map("compensation_types")
+  baseAmount           Decimal?             @db.Decimal(12, 2)
+  commissionPercentage Decimal?             @db.Decimal(5, 2)
+  createdAt            DateTime             @default(now())
+  isActive             Boolean              @default(true)
+  updatedAt            DateTime             @default(now())
+  frequency            String?              @default("monthly")
+  employee_contracts   employee_contracts[]
+  employees            employees[]
 }
 
-model ConflictResolution {
+model conflict_resolutions {
   id                 String             @id
   conflictType       ConflictType
   resolutionStrategy ResolutionStrategy
@@ -432,72 +402,64 @@ model ConflictResolution {
   strategy           String?
   metadata           Json?
   createdAt          DateTime           @default(now())
-
-  @@map("conflict_resolutions")
 }
 
-model ConstructionExpenses {
-  id                    String                @id
+model construction_expenses {
+  id                    String                 @id
   category              String
   description           String
-  amount                Decimal               @db.Decimal(12, 2)
+  amount                Decimal                @db.Decimal(12, 2)
   vendor                String?
-  createdAt             DateTime              @default(now())
+  createdAt             DateTime               @default(now())
   createdBy             String?
   projectId             String?
   receiptUrl            String?
-  users                 Users?                @relation(fields: [createdBy], references: [id])
-  construction_projects ConstructionProjects? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@map("construction_expenses")
+  users                 users?                 @relation(fields: [createdBy], references: [id])
+  construction_projects construction_projects? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
-model ConstructionProjects {
-  id                    String                 @id
+model construction_projects {
+  id                    String                  @id
   name                  String
   description           String?
-  status                String                 @default("active")
-  budget                Decimal?               @db.Decimal(12, 2)
-  createdAt             DateTime               @default(now())
+  status                String                  @default("active")
+  budget                Decimal?                @db.Decimal(12, 2)
+  createdAt             DateTime                @default(now())
   createdBy             String?
   endDate               DateTime?
   startDate             DateTime?
-  updatedAt             DateTime               @default(now())
-  businessType          String                 @default("construction")
+  updatedAt             DateTime                @default(now())
+  businessType          String                  @default("construction")
   projectTypeId         String?
-  construction_expenses ConstructionExpenses[]
-  users                 Users?                 @relation(fields: [createdBy], references: [id])
-  project_types         ProjectTypes?          @relation(fields: [projectTypeId], references: [id])
-  project_contractors   ProjectContractors[]
-  project_stages        ProjectStages[]
-  project_transactions  ProjectTransactions[]
-
-  @@map("construction_projects")
+  construction_expenses construction_expenses[]
+  users                 users?                  @relation(fields: [createdBy], references: [id])
+  project_types         project_types?          @relation(fields: [projectTypeId], references: [id])
+  project_contractors   project_contractors[]
+  project_stages        project_stages[]
+  project_transactions  project_transactions[]
 }
 
-model ContractBenefits {
-  id                 String            @id
-  amount             Decimal           @db.Decimal(12, 2)
+model contract_benefits {
+  id                 String             @id
+  amount             Decimal            @db.Decimal(12, 2)
   notes              String?
   benefitTypeId      String
   contractId         String
-  createdAt          DateTime          @default(now())
-  isPercentage       Boolean           @default(false)
-  benefit_types      BenefitTypes      @relation(fields: [benefitTypeId], references: [id])
-  employee_contracts EmployeeContracts @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  @@map("contract_benefits")
+  createdAt          DateTime           @default(now())
+  isPercentage       Boolean            @default(false)
+  benefit_types      benefit_types      @relation(fields: [benefitTypeId], references: [id])
+  employee_contracts employee_contracts @relation(fields: [contractId], references: [id], onDelete: Cascade)
 }
 
-model ContractRenewals {
-  id                                                                          String             @id
-  status                                                                      String             @default("pending")
+model contract_renewals {
+  id                                                                          String              @id
+  status                                                                      String              @default("pending")
   notes                                                                       String?
   autoRenewalMonths                                                           Int?
   benefitChanges                                                              Json?
-  createdAt                                                                   DateTime           @default(now())
+  createdAt                                                                   DateTime            @default(now())
   employeeId                                                                  String
-  isAutoRenewal                                                               Boolean            @default(false)
+  isAutoRenewal                                                               Boolean             @default(false)
   jobTitleChange                                                              String?
   managerNotifiedAt                                                           DateTime?
   newContractId                                                               String?
@@ -506,17 +468,15 @@ model ContractRenewals {
   processedBy                                                                 String?
   reminderSentAt                                                              DateTime?
   renewalDueDate                                                              DateTime
-  salaryChange                                                                Decimal?           @db.Decimal(12, 2)
+  salaryChange                                                                Decimal?            @db.Decimal(12, 2)
   salaryChangeType                                                            String?
-  updatedAt                                                                   DateTime           @default(now())
-  employees                                                                   Employees          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employee_contracts_contract_renewals_newContractIdToemployee_contracts      EmployeeContracts? @relation("contract_renewals_newContractIdToemployee_contracts", fields: [newContractId], references: [id])
-  employee_contracts_contract_renewals_originalContractIdToemployee_contracts EmployeeContracts  @relation("contract_renewals_originalContractIdToemployee_contracts", fields: [originalContractId], references: [id])
-
-  @@map("contract_renewals")
+  updatedAt                                                                   DateTime            @default(now())
+  employees                                                                   employees           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee_contracts_contract_renewals_newContractIdToemployee_contracts      employee_contracts? @relation("contract_renewals_newContractIdToemployee_contracts", fields: [newContractId], references: [id])
+  employee_contracts_contract_renewals_originalContractIdToemployee_contracts employee_contracts  @relation("contract_renewals_originalContractIdToemployee_contracts", fields: [originalContractId], references: [id])
 }
 
-model DataSnapshot {
+model data_snapshots {
   id                  String   @id
   nodeId              String
   tableName           String
@@ -534,11 +494,9 @@ model DataSnapshot {
   proRataReason       String?
   processedBy         String?
   totalDeductions     Decimal  @default(0) @db.Decimal(12, 2)
-
-  @@map("data_snapshots")
 }
 
-model DisciplinaryActions {
+model disciplinary_actions {
   id                                                   String    @id
   employeeId                                           String
   actionType                                           String
@@ -563,13 +521,11 @@ model DisciplinaryActions {
   attachments                                          String[]
   createdAt                                            DateTime  @default(now())
   updatedAt                                            DateTime  @default(now())
-  employees_disciplinary_actions_createdByToemployees  Employees @relation("disciplinary_actions_createdByToemployees", fields: [createdBy], references: [id], map: "disciplinary_actions_created_by_fkey")
-  employees_disciplinary_actions_employeeIdToemployees Employees @relation("disciplinary_actions_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade, map: "disciplinary_actions_employee_id_fkey")
-
-  @@map("disciplinary_actions")
+  employees_disciplinary_actions_createdByToemployees  employees @relation("disciplinary_actions_createdByToemployees", fields: [createdBy], references: [id], map: "disciplinary_actions_created_by_fkey")
+  employees_disciplinary_actions_employeeIdToemployees employees @relation("disciplinary_actions_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade, map: "disciplinary_actions_employee_id_fkey")
 }
 
-model DriverAuthorizations {
+model driver_authorizations {
   id                 String             @id
   driverId           String
   vehicleId          String
@@ -581,16 +537,15 @@ model DriverAuthorizations {
   notes              String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime
-  users              Users              @relation(fields: [authorizedBy], references: [id])
-  vehicle_drivers    VehicleDrivers     @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  vehicles           Vehicles           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  vehicle_trips      VehicleTrips[]
+  users              users              @relation(fields: [authorizedBy], references: [id])
+  vehicle_drivers    vehicle_drivers    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicles           vehicles           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicle_trips      vehicle_trips[]
 
   @@unique([driverId, vehicleId])
-  @@map("driver_authorizations")
 }
 
-model DriverLicenseTemplates {
+model driver_license_templates {
   id          String      @id
   name        String
   description String?
@@ -600,13 +555,11 @@ model DriverLicenseTemplates {
   createdAt   DateTime    @default(now())
   isActive    Boolean     @default(true)
   updatedAt   DateTime    @default(now())
-  employees   Employees[]
-  persons     Persons[]
-
-  @@map("driver_license_templates")
+  employees   employees[]
+  persons     persons[]
 }
 
-model EmployeeAllowances {
+model employee_allowances {
   id                                                  String     @id
   employeeId                                          String
   type                                                String
@@ -617,13 +570,11 @@ model EmployeeAllowances {
   approvedBy                                          String?
   approvedAt                                          DateTime?
   createdAt                                           DateTime   @default(now())
-  employees_employee_allowances_approvedByToemployees Employees? @relation("employee_allowances_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_allowances_employeeIdToemployees Employees  @relation("employee_allowances_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@map("employee_allowances")
+  employees_employee_allowances_approvedByToemployees employees? @relation("employee_allowances_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_allowances_employeeIdToemployees employees  @relation("employee_allowances_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
-model EmployeeAttendance {
+model employee_attendance {
   id          String    @id
   date        DateTime
   status      String    @default("present")
@@ -633,31 +584,28 @@ model EmployeeAttendance {
   createdAt   DateTime  @default(now())
   employeeId  String
   hoursWorked Decimal?  @db.Decimal(4, 2)
-  employees   Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employees   employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, date])
-  @@map("employee_attendance")
 }
 
-model EmployeeBenefits {
-  id            String       @id
-  amount        Decimal      @db.Decimal(12, 2)
+model employee_benefits {
+  id            String        @id
+  amount        Decimal       @db.Decimal(12, 2)
   notes         String?
   benefitTypeId String
-  createdAt     DateTime     @default(now())
+  createdAt     DateTime      @default(now())
   effectiveDate DateTime
   employeeId    String
   endDate       DateTime?
-  isActive      Boolean      @default(true)
-  isPercentage  Boolean      @default(false)
-  updatedAt     DateTime     @default(now())
-  benefit_types BenefitTypes @relation(fields: [benefitTypeId], references: [id])
-  employees     Employees    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@map("employee_benefits")
+  isActive      Boolean       @default(true)
+  isPercentage  Boolean       @default(false)
+  updatedAt     DateTime      @default(now())
+  benefit_types benefit_types @relation(fields: [benefitTypeId], references: [id])
+  employees     employees     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
-model EmployeeBonuses {
+model employee_bonuses {
   id                                               String     @id
   amount                                           Decimal    @db.Decimal(12, 2)
   approvedAt                                       DateTime?
@@ -666,13 +614,11 @@ model EmployeeBonuses {
   employeeId                                       String
   reason                                           String?
   type                                             String
-  employees_employee_bonuses_approvedByToemployees Employees? @relation("employee_bonuses_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_bonuses_employeeIdToemployees Employees  @relation("employee_bonuses_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@map("employee_bonuses")
+  employees_employee_bonuses_approvedByToemployees employees? @relation("employee_bonuses_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_bonuses_employeeIdToemployees employees  @relation("employee_bonuses_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
-model EmployeeBusinessAssignments {
+model employee_business_assignments {
   id         String     @id
   role       String?
   notes      String?
@@ -685,32 +631,31 @@ model EmployeeBusinessAssignments {
   isPrimary  Boolean    @default(false)
   startDate  DateTime   @default(now())
   updatedAt  DateTime   @default(now())
-  businesses Businesses @relation(fields: [businessId], references: [id])
-  employees  Employees  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  businesses businesses @relation(fields: [businessId], references: [id])
+  employees  employees  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, businessId])
-  @@map("employee_business_assignments")
 }
 
-model EmployeeContracts {
-  id                                                                         String              @id
-  version                                                                    Int                 @default(1)
-  status                                                                     String              @default("draft")
+model employee_contracts {
+  id                                                                         String               @id
+  version                                                                    Int                  @default(1)
+  status                                                                     String               @default("draft")
   notes                                                                      String?
   additionalBusinesses                                                       String[]
   approvedAt                                                                 DateTime?
   approvedBy                                                                 String?
-  baseSalary                                                                 Decimal             @db.Decimal(12, 2)
+  baseSalary                                                                 Decimal              @db.Decimal(12, 2)
   compensationTypeId                                                         String
-  contractNumber                                                             String              @unique
-  createdAt                                                                  DateTime            @default(now())
+  contractNumber                                                             String               @unique
+  createdAt                                                                  DateTime             @default(now())
   createdBy                                                                  String?
   customResponsibilities                                                     String?
   employeeId                                                                 String
   employeeSignedAt                                                           DateTime?
   endDate                                                                    DateTime?
-  isCommissionBased                                                          Boolean             @default(false)
-  isSalaryBased                                                              Boolean             @default(true)
+  isCommissionBased                                                          Boolean              @default(false)
+  isSalaryBased                                                              Boolean              @default(true)
   jobTitleId                                                                 String
   managerSignedAt                                                            DateTime?
   pdfUrl                                                                     String?
@@ -721,64 +666,58 @@ model EmployeeContracts {
   supervisorId                                                               String?
   supervisorName                                                             String?
   supervisorTitle                                                            String?
-  updatedAt                                                                  DateTime            @default(now())
-  commissionAmount                                                           Decimal?            @db.Decimal(12, 2)
+  updatedAt                                                                  DateTime             @default(now())
+  commissionAmount                                                           Decimal?             @db.Decimal(12, 2)
   contractDurationMonths                                                     Int?
-  livingAllowance                                                            Decimal?            @db.Decimal(12, 2)
+  livingAllowance                                                            Decimal?             @db.Decimal(12, 2)
   pdfGenerationData                                                          Json?
   umbrellaBusinessId                                                         String?
-  umbrellaBusinessName                                                       String?             @default("Demo Umbrella Company")
+  umbrellaBusinessName                                                       String?              @default("Demo Umbrella Company")
   businessAssignments                                                        Json?
   previousContractId                                                         String?
   copiedFromContractId                                                       String?
-  isRenewal                                                                  Boolean             @default(false)
+  isRenewal                                                                  Boolean              @default(false)
   originalContractId                                                         String?
-  renewalCount                                                               Int                 @default(0)
-  contract_benefits                                                          ContractBenefits[]
-  contract_renewals_contract_renewals_newContractIdToemployee_contracts      ContractRenewals[]  @relation("contract_renewals_newContractIdToemployee_contracts")
-  contract_renewals_contract_renewals_originalContractIdToemployee_contracts ContractRenewals[]  @relation("contract_renewals_originalContractIdToemployee_contracts")
-  compensation_types                                                         CompensationTypes   @relation(fields: [compensationTypeId], references: [id])
-  employees_employee_contracts_employeeIdToemployees                         Employees           @relation("employee_contracts_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-  job_titles                                                                 JobTitles           @relation(fields: [jobTitleId], references: [id])
-  employee_contracts                                                         EmployeeContracts?  @relation("employee_contractsToemployee_contracts", fields: [previousContractId], references: [id])
-  other_employee_contracts                                                   EmployeeContracts[] @relation("employee_contractsToemployee_contracts")
-  businesses_employee_contracts_primaryBusinessIdTobusinesses                Businesses          @relation("employee_contracts_primaryBusinessIdTobusinesses", fields: [primaryBusinessId], references: [id])
-  employees_employee_contracts_supervisorIdToemployees                       Employees?          @relation("employee_contracts_supervisorIdToemployees", fields: [supervisorId], references: [id])
-  businesses_employee_contracts_umbrellaBusinessIdTobusinesses               Businesses?         @relation("employee_contracts_umbrellaBusinessIdTobusinesses", fields: [umbrellaBusinessId], references: [id])
-
-  @@map("employee_contracts")
+  renewalCount                                                               Int                  @default(0)
+  contract_benefits                                                          contract_benefits[]
+  contract_renewals_contract_renewals_newContractIdToemployee_contracts      contract_renewals[]  @relation("contract_renewals_newContractIdToemployee_contracts")
+  contract_renewals_contract_renewals_originalContractIdToemployee_contracts contract_renewals[]  @relation("contract_renewals_originalContractIdToemployee_contracts")
+  compensation_types                                                         compensation_types   @relation(fields: [compensationTypeId], references: [id])
+  employees_employee_contracts_employeeIdToemployees                         employees            @relation("employee_contracts_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
+  job_titles                                                                 job_titles           @relation(fields: [jobTitleId], references: [id])
+  employee_contracts                                                         employee_contracts?  @relation("employee_contractsToemployee_contracts", fields: [previousContractId], references: [id])
+  other_employee_contracts                                                   employee_contracts[] @relation("employee_contractsToemployee_contracts")
+  businesses_employee_contracts_primaryBusinessIdTobusinesses                businesses           @relation("employee_contracts_primaryBusinessIdTobusinesses", fields: [primaryBusinessId], references: [id])
+  employees_employee_contracts_supervisorIdToemployees                       employees?           @relation("employee_contracts_supervisorIdToemployees", fields: [supervisorId], references: [id])
+  businesses_employee_contracts_umbrellaBusinessIdTobusinesses               businesses?          @relation("employee_contracts_umbrellaBusinessIdTobusinesses", fields: [umbrellaBusinessId], references: [id])
 }
 
-model EmployeeDeductionPayments {
-  id                  String             @id
-  amount              Decimal            @db.Decimal(12, 2)
-  createdAt           DateTime           @default(now())
+model employee_deduction_payments {
+  id                  String              @id
+  amount              Decimal             @db.Decimal(12, 2)
+  createdAt           DateTime            @default(now())
   deductionId         String
   paymentDate         DateTime
   processedBy         String?
-  employee_deductions EmployeeDeductions @relation(fields: [deductionId], references: [id], onDelete: Cascade)
-  employees           Employees?         @relation(fields: [processedBy], references: [id])
-
-  @@map("employee_deduction_payments")
+  employee_deductions employee_deductions @relation(fields: [deductionId], references: [id], onDelete: Cascade)
+  employees           employees?          @relation(fields: [processedBy], references: [id])
 }
 
-model EmployeeDeductions {
-  id                                                  String                      @id
-  amount                                              Decimal                     @db.Decimal(12, 2)
+model employee_deductions {
+  id                                                  String                        @id
+  amount                                              Decimal                       @db.Decimal(12, 2)
   approvedAt                                          DateTime?
   approvedBy                                          String?
-  createdAt                                           DateTime                    @default(now())
+  createdAt                                           DateTime                      @default(now())
   employeeId                                          String
   reason                                              String?
   type                                                String
-  employee_deduction_payments                         EmployeeDeductionPayments[]
-  employees_employee_deductions_approvedByToemployees Employees?                  @relation("employee_deductions_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_deductions_employeeIdToemployees Employees                   @relation("employee_deductions_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@map("employee_deductions")
+  employee_deduction_payments                         employee_deduction_payments[]
+  employees_employee_deductions_approvedByToemployees employees?                    @relation("employee_deductions_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_deductions_employeeIdToemployees employees                     @relation("employee_deductions_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
-model EmployeeLeaveBalance {
+model employee_leave_balance {
   id              String    @id
   year            Int
   annualLeaveDays Int       @default(0)
@@ -790,13 +729,12 @@ model EmployeeLeaveBalance {
   updatedAt       DateTime
   usedAnnualDays  Int       @default(0)
   usedSickDays    Int       @default(0)
-  employees       Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employees       employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, year])
-  @@map("employee_leave_balance")
 }
 
-model EmployeeLeaveRequests {
+model employee_leave_requests {
   id                                                      String     @id
   reason                                                  String?
   status                                                  String     @default("pending")
@@ -810,46 +748,40 @@ model EmployeeLeaveRequests {
   rejectionReason                                         String?
   startDate                                               DateTime
   updatedAt                                               DateTime
-  employees_employee_leave_requests_approvedByToemployees Employees? @relation("employee_leave_requests_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_leave_requests_employeeIdToemployees Employees  @relation("employee_leave_requests_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@map("employee_leave_requests")
+  employees_employee_leave_requests_approvedByToemployees employees? @relation("employee_leave_requests_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_leave_requests_employeeIdToemployees employees  @relation("employee_leave_requests_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
-model EmployeeLoanPayments {
-  id             String        @id
-  amount         Decimal       @db.Decimal(12, 2)
-  createdAt      DateTime      @default(now())
+model employee_loan_payments {
+  id             String         @id
+  amount         Decimal        @db.Decimal(12, 2)
+  createdAt      DateTime       @default(now())
   loanId         String
   paymentDate    DateTime
   processedBy    String?
-  employee_loans EmployeeLoans @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  employees      Employees?    @relation(fields: [processedBy], references: [id])
-
-  @@map("employee_loan_payments")
+  employee_loans employee_loans @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  employees      employees?     @relation(fields: [processedBy], references: [id])
 }
 
-model EmployeeLoans {
-  id                                             String                 @id
-  status                                         String                 @default("active")
+model employee_loans {
+  id                                             String                   @id
+  status                                         String                   @default("active")
   approvedAt                                     DateTime?
   approvedBy                                     String?
-  createdAt                                      DateTime               @default(now())
+  createdAt                                      DateTime                 @default(now())
   employeeId                                     String
-  loanAmount                                     Decimal                @db.Decimal(12, 2)
-  monthlyDeduction                               Decimal                @db.Decimal(12, 2)
-  remainingBalance                               Decimal                @db.Decimal(12, 2)
+  loanAmount                                     Decimal                  @db.Decimal(12, 2)
+  monthlyDeduction                               Decimal                  @db.Decimal(12, 2)
+  remainingBalance                               Decimal                  @db.Decimal(12, 2)
   remainingMonths                                Int
   totalMonths                                    Int
   updatedAt                                      DateTime
-  employee_loan_payments                         EmployeeLoanPayments[]
-  employees_employee_loans_approvedByToemployees Employees?             @relation("employee_loans_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_loans_employeeIdToemployees Employees              @relation("employee_loans_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@map("employee_loans")
+  employee_loan_payments                         employee_loan_payments[]
+  employees_employee_loans_approvedByToemployees employees?               @relation("employee_loans_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_loans_employeeIdToemployees employees                @relation("employee_loans_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
-model EmployeeSalaryIncreases {
+model employee_salary_increases {
   id                                                        String     @id
   reason                                                    String?
   approvedAt                                                DateTime?
@@ -861,13 +793,11 @@ model EmployeeSalaryIncreases {
   increasePercent                                           Decimal    @db.Decimal(5, 2)
   newSalary                                                 Decimal    @db.Decimal(12, 2)
   previousSalary                                            Decimal    @db.Decimal(12, 2)
-  employees_employee_salary_increases_approvedByToemployees Employees? @relation("employee_salary_increases_approvedByToemployees", fields: [approvedBy], references: [id])
-  employees_employee_salary_increases_employeeIdToemployees Employees  @relation("employee_salary_increases_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@map("employee_salary_increases")
+  employees_employee_salary_increases_approvedByToemployees employees? @relation("employee_salary_increases_approvedByToemployees", fields: [approvedBy], references: [id])
+  employees_employee_salary_increases_employeeIdToemployees employees  @relation("employee_salary_increases_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
-model EmployeeTimeTracking {
+model employee_time_tracking {
   id            String    @id
   employeeId    String
   year          Int
@@ -877,82 +807,79 @@ model EmployeeTimeTracking {
   overtimeHours Decimal?  @db.Decimal(5, 2)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime
-  employees     Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employees     employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, year, month])
-  @@map("employee_time_tracking")
 }
 
-model Employees {
-  id                                                                        String                        @id
-  email                                                                     String?                       @unique
+model employees {
+  id                                                                        String                          @id
+  email                                                                     String?                         @unique
   phone                                                                     String
   address                                                                   String?
-  employmentStatus                                                          String                        @default("active")
+  employmentStatus                                                          String                          @default("active")
   notes                                                                     String?
   compensationTypeId                                                        String
-  createdAt                                                                 DateTime                      @default(now())
+  createdAt                                                                 DateTime                        @default(now())
   createdBy                                                                 String?
   customResponsibilities                                                    String?
   dateOfBirth                                                               DateTime?
-  employeeNumber                                                            String                        @unique
+  employeeNumber                                                            String                          @unique
   firstName                                                                 String
   fullName                                                                  String
   hireDate                                                                  DateTime
   idFormatTemplateId                                                        String?
-  isActive                                                                  Boolean                       @default(true)
+  isActive                                                                  Boolean                         @default(true)
   jobTitleId                                                                String
   lastName                                                                  String
-  nationalId                                                                String                        @unique
+  nationalId                                                                String                          @unique
   primaryBusinessId                                                         String
   profilePhotoUrl                                                           String?
   startDate                                                                 DateTime?
   supervisorId                                                              String?
   terminationDate                                                           DateTime?
-  updatedAt                                                                 DateTime                      @default(now())
-  userId                                                                    String?                       @unique
+  updatedAt                                                                 DateTime                        @default(now())
+  userId                                                                    String?                         @unique
   driverLicenseNumber                                                       String?
   driverLicenseTemplateId                                                   String?
-  business_orders                                                           BusinessOrders[]
-  business_stock_movements                                                  BusinessStockMovements[]
-  contract_renewals                                                         ContractRenewals[]
-  disciplinary_actions_disciplinary_actions_createdByToemployees            DisciplinaryActions[]         @relation("disciplinary_actions_createdByToemployees")
-  disciplinary_actions_disciplinary_actions_employeeIdToemployees           DisciplinaryActions[]         @relation("disciplinary_actions_employeeIdToemployees")
-  employee_allowances_employee_allowances_approvedByToemployees             EmployeeAllowances[]          @relation("employee_allowances_approvedByToemployees")
-  employee_allowances_employee_allowances_employeeIdToemployees             EmployeeAllowances[]          @relation("employee_allowances_employeeIdToemployees")
-  employee_attendance                                                       EmployeeAttendance[]
-  employee_benefits                                                         EmployeeBenefits[]
-  employee_bonuses_employee_bonuses_approvedByToemployees                   EmployeeBonuses[]             @relation("employee_bonuses_approvedByToemployees")
-  employee_bonuses_employee_bonuses_employeeIdToemployees                   EmployeeBonuses[]             @relation("employee_bonuses_employeeIdToemployees")
-  employee_business_assignments                                             EmployeeBusinessAssignments[]
-  employee_contracts_employee_contracts_employeeIdToemployees               EmployeeContracts[]           @relation("employee_contracts_employeeIdToemployees")
-  employee_contracts_employee_contracts_supervisorIdToemployees             EmployeeContracts[]           @relation("employee_contracts_supervisorIdToemployees")
-  employee_deduction_payments                                               EmployeeDeductionPayments[]
-  employee_deductions_employee_deductions_approvedByToemployees             EmployeeDeductions[]          @relation("employee_deductions_approvedByToemployees")
-  employee_deductions_employee_deductions_employeeIdToemployees             EmployeeDeductions[]          @relation("employee_deductions_employeeIdToemployees")
-  employee_leave_balance                                                    EmployeeLeaveBalance[]
-  employee_leave_requests_employee_leave_requests_approvedByToemployees     EmployeeLeaveRequests[]       @relation("employee_leave_requests_approvedByToemployees")
-  employee_leave_requests_employee_leave_requests_employeeIdToemployees     EmployeeLeaveRequests[]       @relation("employee_leave_requests_employeeIdToemployees")
-  employee_loan_payments                                                    EmployeeLoanPayments[]
-  employee_loans_employee_loans_approvedByToemployees                       EmployeeLoans[]               @relation("employee_loans_approvedByToemployees")
-  employee_loans_employee_loans_employeeIdToemployees                       EmployeeLoans[]               @relation("employee_loans_employeeIdToemployees")
-  employee_salary_increases_employee_salary_increases_approvedByToemployees EmployeeSalaryIncreases[]     @relation("employee_salary_increases_approvedByToemployees")
-  employee_salary_increases_employee_salary_increases_employeeIdToemployees EmployeeSalaryIncreases[]     @relation("employee_salary_increases_employeeIdToemployees")
-  employee_time_tracking                                                    EmployeeTimeTracking[]
-  compensation_types                                                        CompensationTypes             @relation(fields: [compensationTypeId], references: [id])
-  driver_license_templates                                                  DriverLicenseTemplates?       @relation(fields: [driverLicenseTemplateId], references: [id])
-  id_format_templates                                                       IdFormatTemplates?            @relation(fields: [idFormatTemplateId], references: [id])
-  job_titles                                                                JobTitles                     @relation(fields: [jobTitleId], references: [id])
-  businesses                                                                Businesses                    @relation(fields: [primaryBusinessId], references: [id])
-  employees                                                                 Employees?                    @relation("employeesToemployees", fields: [supervisorId], references: [id])
-  other_employees                                                           Employees[]                   @relation("employeesToemployees")
-  users                                                                     Users?                        @relation(fields: [userId], references: [id])
-  payroll_entries                                                           PayrollEntries[]
-
-  @@map("employees")
+  business_orders                                                           business_orders[]
+  business_stock_movements                                                  business_stock_movements[]
+  contract_renewals                                                         contract_renewals[]
+  disciplinary_actions_disciplinary_actions_createdByToemployees            disciplinary_actions[]          @relation("disciplinary_actions_createdByToemployees")
+  disciplinary_actions_disciplinary_actions_employeeIdToemployees           disciplinary_actions[]          @relation("disciplinary_actions_employeeIdToemployees")
+  employee_allowances_employee_allowances_approvedByToemployees             employee_allowances[]           @relation("employee_allowances_approvedByToemployees")
+  employee_allowances_employee_allowances_employeeIdToemployees             employee_allowances[]           @relation("employee_allowances_employeeIdToemployees")
+  employee_attendance                                                       employee_attendance[]
+  employee_benefits                                                         employee_benefits[]
+  employee_bonuses_employee_bonuses_approvedByToemployees                   employee_bonuses[]              @relation("employee_bonuses_approvedByToemployees")
+  employee_bonuses_employee_bonuses_employeeIdToemployees                   employee_bonuses[]              @relation("employee_bonuses_employeeIdToemployees")
+  employee_business_assignments                                             employee_business_assignments[]
+  employee_contracts_employee_contracts_employeeIdToemployees               employee_contracts[]            @relation("employee_contracts_employeeIdToemployees")
+  employee_contracts_employee_contracts_supervisorIdToemployees             employee_contracts[]            @relation("employee_contracts_supervisorIdToemployees")
+  employee_deduction_payments                                               employee_deduction_payments[]
+  employee_deductions_employee_deductions_approvedByToemployees             employee_deductions[]           @relation("employee_deductions_approvedByToemployees")
+  employee_deductions_employee_deductions_employeeIdToemployees             employee_deductions[]           @relation("employee_deductions_employeeIdToemployees")
+  employee_leave_balance                                                    employee_leave_balance[]
+  employee_leave_requests_employee_leave_requests_approvedByToemployees     employee_leave_requests[]       @relation("employee_leave_requests_approvedByToemployees")
+  employee_leave_requests_employee_leave_requests_employeeIdToemployees     employee_leave_requests[]       @relation("employee_leave_requests_employeeIdToemployees")
+  employee_loan_payments                                                    employee_loan_payments[]
+  employee_loans_employee_loans_approvedByToemployees                       employee_loans[]                @relation("employee_loans_approvedByToemployees")
+  employee_loans_employee_loans_employeeIdToemployees                       employee_loans[]                @relation("employee_loans_employeeIdToemployees")
+  employee_salary_increases_employee_salary_increases_approvedByToemployees employee_salary_increases[]     @relation("employee_salary_increases_approvedByToemployees")
+  employee_salary_increases_employee_salary_increases_employeeIdToemployees employee_salary_increases[]     @relation("employee_salary_increases_employeeIdToemployees")
+  employee_time_tracking                                                    employee_time_tracking[]
+  compensation_types                                                        compensation_types              @relation(fields: [compensationTypeId], references: [id])
+  driver_license_templates                                                  driver_license_templates?       @relation(fields: [driverLicenseTemplateId], references: [id])
+  id_format_templates                                                       id_format_templates?            @relation(fields: [idFormatTemplateId], references: [id])
+  job_titles                                                                job_titles                      @relation(fields: [jobTitleId], references: [id])
+  businesses                                                                businesses                      @relation(fields: [primaryBusinessId], references: [id])
+  employees                                                                 employees?                      @relation("employeesToemployees", fields: [supervisorId], references: [id])
+  other_employees                                                           employees[]                     @relation("employeesToemployees")
+  users                                                                     users?                          @relation(fields: [userId], references: [id])
+  payroll_entries                                                           payroll_entries[]
 }
 
-model ExpenseCategories {
+model expense_categories {
   id        String   @id
   name      String
   emoji     String?  @default("💰")
@@ -960,12 +887,10 @@ model ExpenseCategories {
   createdAt DateTime @default(now())
   isDefault Boolean  @default(false)
   userId    String?
-  users     Users?   @relation(fields: [userId], references: [id])
-
-  @@map("expense_categories")
+  users     users?   @relation(fields: [userId], references: [id])
 }
 
-model FundSources {
+model fund_sources {
   id         String   @id
   name       String
   emoji      String?  @default("💰")
@@ -973,12 +898,10 @@ model FundSources {
   isDefault  Boolean  @default(false)
   usageCount Int      @default(0)
   userId     String?
-  users      Users?   @relation(fields: [userId], references: [id])
-
-  @@map("fund_sources")
+  users      users?   @relation(fields: [userId], references: [id])
 }
 
-model IdFormatTemplates {
+model id_format_templates {
   id          String      @id
   name        String
   description String?
@@ -988,13 +911,11 @@ model IdFormatTemplates {
   createdAt   DateTime    @default(now())
   isActive    Boolean     @default(true)
   updatedAt   DateTime    @default(now())
-  employees   Employees[]
-  persons     Persons[]
-
-  @@map("id_format_templates")
+  employees   employees[]
+  persons     persons[]
 }
 
-model InitialLoadSession {
+model initial_load_sessions {
   id               String    @id
   sessionId        String    @unique
   sourceNodeId     String
@@ -1010,133 +931,119 @@ model InitialLoadSession {
   currentBatch     Int       @default(0)
   metadata         Json?
   createdAt        DateTime  @default(now())
-
-  @@map("initial_load_sessions")
 }
 
-model InterBusinessLoans {
-  id                                                             String             @id
-  loanNumber                                                     String             @unique
-  principalAmount                                                Decimal            @db.Decimal(12, 2)
-  interestRate                                                   Decimal            @default(0) @db.Decimal(5, 2)
-  totalAmount                                                    Decimal            @db.Decimal(12, 2)
-  remainingBalance                                               Decimal            @db.Decimal(12, 2)
+model inter_business_loans {
+  id                                                             String              @id
+  loanNumber                                                     String              @unique
+  principalAmount                                                Decimal             @db.Decimal(12, 2)
+  interestRate                                                   Decimal             @default(0) @db.Decimal(5, 2)
+  totalAmount                                                    Decimal             @db.Decimal(12, 2)
+  remainingBalance                                               Decimal             @db.Decimal(12, 2)
   lenderType                                                     String
   lenderUserId                                                   String?
   lenderBusinessId                                               String?
   borrowerBusinessId                                             String?
   loanDate                                                       DateTime
   dueDate                                                        DateTime?
-  status                                                         String             @default("active")
+  status                                                         String              @default("active")
   terms                                                          String?
   notes                                                          String?
-  createdAt                                                      DateTime           @default(now())
+  createdAt                                                      DateTime            @default(now())
   updatedAt                                                      DateTime
   createdBy                                                      String
   borrowerPersonId                                               String?
   borrowerType                                                   String
-  businesses_inter_business_loans_borrowerBusinessIdTobusinesses Businesses?        @relation("inter_business_loans_borrowerBusinessIdTobusinesses", fields: [borrowerBusinessId], references: [id])
-  persons                                                        Persons?           @relation(fields: [borrowerPersonId], references: [id])
-  users_inter_business_loans_createdByTousers                    Users              @relation("inter_business_loans_createdByTousers", fields: [createdBy], references: [id])
-  businesses_inter_business_loans_lenderBusinessIdTobusinesses   Businesses?        @relation("inter_business_loans_lenderBusinessIdTobusinesses", fields: [lenderBusinessId], references: [id])
-  users_inter_business_loans_lenderUserIdTousers                 Users?             @relation("inter_business_loans_lenderUserIdTousers", fields: [lenderUserId], references: [id])
-  loan_transactions                                              LoanTransactions[]
-
-  @@map("inter_business_loans")
+  businesses_inter_business_loans_borrowerBusinessIdTobusinesses businesses?         @relation("inter_business_loans_borrowerBusinessIdTobusinesses", fields: [borrowerBusinessId], references: [id])
+  persons                                                        persons?            @relation(fields: [borrowerPersonId], references: [id])
+  users_inter_business_loans_createdByTousers                    users               @relation("inter_business_loans_createdByTousers", fields: [createdBy], references: [id])
+  businesses_inter_business_loans_lenderBusinessIdTobusinesses   businesses?         @relation("inter_business_loans_lenderBusinessIdTobusinesses", fields: [lenderBusinessId], references: [id])
+  users_inter_business_loans_lenderUserIdTousers                 users?              @relation("inter_business_loans_lenderUserIdTousers", fields: [lenderUserId], references: [id])
+  loan_transactions                                              loan_transactions[]
 }
 
-model JobTitles {
-  id                 String              @id
-  title              String              @unique
+model job_titles {
+  id                 String               @id
+  title              String               @unique
   description        String?
   responsibilities   String[]
   department         String?
   level              String?
-  isActive           Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @default(now())
-  employee_contracts EmployeeContracts[]
-  employees          Employees[]
-
-  @@map("job_titles")
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now())
+  employee_contracts employee_contracts[]
+  employees          employees[]
 }
 
-model LoanTransactions {
-  id                    String             @id
+model loan_transactions {
+  id                    String               @id
   loanId                String
   transactionType       String
-  amount                Decimal            @db.Decimal(12, 2)
+  amount                Decimal              @db.Decimal(12, 2)
   description           String?
   transactionDate       DateTime
   personalExpenseId     String?
   businessTransactionId String?
-  isAutoGenerated       Boolean            @default(false)
+  isAutoGenerated       Boolean              @default(false)
   autoGeneratedNote     String?
   initiatedFrom         String?
-  balanceAfter          Decimal            @db.Decimal(12, 2)
-  createdAt             DateTime           @default(now())
+  balanceAfter          Decimal              @db.Decimal(12, 2)
+  createdAt             DateTime             @default(now())
   createdBy             String
-  users                 Users              @relation(fields: [createdBy], references: [id])
-  inter_business_loans  InterBusinessLoans @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  personal_expenses     PersonalExpenses?  @relation(fields: [personalExpenseId], references: [id])
-
-  @@map("loan_transactions")
+  users                 users                @relation(fields: [createdBy], references: [id])
+  inter_business_loans  inter_business_loans @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  personal_expenses     personal_expenses?   @relation(fields: [personalExpenseId], references: [id])
 }
 
-model MenuComboItems {
-  id                String           @id
+model menu_combo_items {
+  id                String            @id
   comboId           String
   productId         String
   variantId         String?
-  quantity          Int              @default(1)
-  isRequired        Boolean          @default(true)
-  sortOrder         Int              @default(0)
-  createdAt         DateTime         @default(now())
-  menu_combos       MenuCombos       @relation(fields: [comboId], references: [id], onDelete: Cascade)
-  business_products BusinessProducts @relation(fields: [productId], references: [id], onDelete: Cascade)
-  product_variants  ProductVariants? @relation(fields: [variantId], references: [id])
-
-  @@map("menu_combo_items")
+  quantity          Int               @default(1)
+  isRequired        Boolean           @default(true)
+  sortOrder         Int               @default(0)
+  createdAt         DateTime          @default(now())
+  menu_combos       menu_combos       @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  business_products business_products @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product_variants  product_variants? @relation(fields: [variantId], references: [id])
 }
 
-model MenuCombos {
-  id                 String           @id
+model menu_combos {
+  id                 String             @id
   businessId         String
   name               String
   description        String?
-  totalPrice         Decimal          @db.Decimal(10, 2)
-  originalTotalPrice Decimal?         @db.Decimal(10, 2)
-  isActive           Boolean          @default(true)
-  isAvailable        Boolean          @default(true)
+  totalPrice         Decimal            @db.Decimal(10, 2)
+  originalTotalPrice Decimal?           @db.Decimal(10, 2)
+  isActive           Boolean            @default(true)
+  isAvailable        Boolean            @default(true)
   imageUrl           String?
-  preparationTime    Int              @default(0)
-  discountPercent    Decimal?         @db.Decimal(5, 2)
+  preparationTime    Int                @default(0)
+  discountPercent    Decimal?           @db.Decimal(5, 2)
   promotionStartDate DateTime?
   promotionEndDate   DateTime?
-  createdAt          DateTime         @default(now())
+  createdAt          DateTime           @default(now())
   updatedAt          DateTime
-  menu_combo_items   MenuComboItems[]
-  businesses         Businesses       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@map("menu_combos")
+  menu_combo_items   menu_combo_items[]
+  businesses         businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
 
-model MenuItems {
-  id          String       @id
+model menu_items {
+  id          String        @id
   name        String
   description String?
-  price       Decimal      @db.Decimal(10, 2)
+  price       Decimal       @db.Decimal(10, 2)
   category    String
   barcode     String?
-  createdAt   DateTime     @default(now())
-  isAvailable Boolean      @default(true)
-  updatedAt   DateTime     @default(now())
-  order_items OrderItems[]
-
-  @@map("menu_items")
+  createdAt   DateTime      @default(now())
+  isAvailable Boolean       @default(true)
+  updatedAt   DateTime      @default(now())
+  order_items order_items[]
 }
 
-model MenuPromotions {
+model menu_promotions {
   id                   String        @id
   businessId           String
   name                 String
@@ -1157,12 +1064,10 @@ model MenuPromotions {
   applicableProducts   String[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime
-  businesses           Businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@map("menu_promotions")
+  businesses           businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
 
-model NetworkPartition {
+model network_partitions {
   id                 String    @id
   nodeId             String
   partitionType      String
@@ -1173,11 +1078,9 @@ model NetworkPartition {
   partitionMetadata  Json?
   resolutionMetadata Json?
   createdAt          DateTime  @default(now())
-
-  @@map("network_partitions")
 }
 
-model NodeState {
+model node_states {
   id          String   @id
   nodeId      String   @unique
   nodeName    String
@@ -1187,11 +1090,9 @@ model NodeState {
   metadata    Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime
-
-  @@map("node_states")
 }
 
-model OfflineQueue {
+model offline_queue {
   id           String    @id
   nodeId       String
   eventId      String
@@ -1207,134 +1108,125 @@ model OfflineQueue {
   errorMessage String?
   dependencies Json?
   isProcessed  Boolean   @default(false)
-
-  @@map("offline_queue")
 }
 
-model OrderItems {
-  id         String     @id
+model order_items {
+  id         String      @id
   quantity   Int
-  price      Decimal    @db.Decimal(10, 2)
+  price      Decimal     @db.Decimal(10, 2)
   notes      String?
   menuItemId String?
   orderId    String?
-  menu_items MenuItems? @relation(fields: [menuItemId], references: [id])
-  orders     Orders?    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@map("order_items")
+  menu_items menu_items? @relation(fields: [menuItemId], references: [id])
+  orders     orders?     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
-model Orders {
-  id          String       @id
-  total       Decimal      @db.Decimal(10, 2)
-  status      String       @default("pending")
-  createdAt   DateTime     @default(now())
+model orders {
+  id          String        @id
+  total       Decimal       @db.Decimal(10, 2)
+  status      String        @default("pending")
+  createdAt   DateTime      @default(now())
   createdBy   String?
-  orderNumber String       @unique
+  orderNumber String        @unique
   tableNumber String?
-  order_items OrderItems[]
-  users       Users?       @relation(fields: [createdBy], references: [id])
-
-  @@map("orders")
+  order_items order_items[]
+  users       users?        @relation(fields: [createdBy], references: [id])
 }
 
-model PayrollAdjustments {
-  id                                          String          @id
+model payroll_adjustments {
+  id                                          String           @id
   payrollEntryId                              String?
-  amount                                      Decimal         @db.Decimal(12, 2)
+  amount                                      Decimal          @db.Decimal(12, 2)
   reason                                      String?
-  createdAt                                   DateTime        @default(now())
+  createdAt                                   DateTime         @default(now())
   createdBy                                   String?
   adjustmentType                              String?
   approvedAt                                  DateTime?
   approvedBy                                  String?
-  status                                      String          @default("pending")
-  updatedAt                                   DateTime        @default(now())
-  users_payroll_adjustments_approvedByTousers Users?          @relation("payroll_adjustments_approvedByTousers", fields: [approvedBy], references: [id])
-  users_payroll_adjustments_createdByTousers  Users?          @relation("payroll_adjustments_createdByTousers", fields: [createdBy], references: [id])
-  payroll_entries                             PayrollEntries? @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+  status                                      String           @default("pending")
+  updatedAt                                   DateTime         @default(now())
+  users_payroll_adjustments_approvedByTousers users?           @relation("payroll_adjustments_approvedByTousers", fields: [approvedBy], references: [id])
+  users_payroll_adjustments_createdByTousers  users?           @relation("payroll_adjustments_createdByTousers", fields: [createdBy], references: [id])
+  payroll_entries                             payroll_entries? @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
 
   @@index([payrollEntryId])
-  @@map("payroll_adjustments")
 }
 
-model PayrollEntries {
-  id                      String                 @id
+model payroll_entries {
+  id                      String                   @id
   payrollPeriodId         String?
   employeeId              String?
   employeeNumber          String?
   employeeName            String?
   nationalId              String?
-  overtimeHours           Decimal                @default(0) @db.Decimal(10, 2)
-  baseSalary              Decimal                @default(0) @db.Decimal(12, 2)
-  commission              Decimal                @default(0) @db.Decimal(12, 2)
-  livingAllowance         Decimal                @default(0) @db.Decimal(12, 2)
-  vehicleAllowance        Decimal                @default(0) @db.Decimal(12, 2)
-  travelAllowance         Decimal                @default(0) @db.Decimal(12, 2)
-  overtimePay             Decimal                @default(0) @db.Decimal(12, 2)
-  benefitsTotal           Decimal                @default(0) @db.Decimal(12, 2)
+  overtimeHours           Decimal                  @default(0) @db.Decimal(10, 2)
+  baseSalary              Decimal                  @default(0) @db.Decimal(12, 2)
+  commission              Decimal                  @default(0) @db.Decimal(12, 2)
+  livingAllowance         Decimal                  @default(0) @db.Decimal(12, 2)
+  vehicleAllowance        Decimal                  @default(0) @db.Decimal(12, 2)
+  travelAllowance         Decimal                  @default(0) @db.Decimal(12, 2)
+  overtimePay             Decimal                  @default(0) @db.Decimal(12, 2)
+  benefitsTotal           Decimal                  @default(0) @db.Decimal(12, 2)
   benefitsBreakdown       Json?
-  loanDeductions          Decimal                @default(0) @db.Decimal(12, 2)
-  advanceDeductions       Decimal                @default(0) @db.Decimal(12, 2)
+  loanDeductions          Decimal                  @default(0) @db.Decimal(12, 2)
+  advanceDeductions       Decimal                  @default(0) @db.Decimal(12, 2)
   advanceBreakdown        Json?
-  miscDeductions          Decimal                @default(0) @db.Decimal(12, 2)
-  grossPay                Decimal                @default(0) @db.Decimal(12, 2)
-  totalDeductions         Decimal                @default(0) @db.Decimal(12, 2)
-  netPay                  Decimal                @default(0) @db.Decimal(12, 2)
-  adjustmentsTotal        Decimal                @default(0) @db.Decimal(12, 2)
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @default(now())
+  miscDeductions          Decimal                  @default(0) @db.Decimal(12, 2)
+  grossPay                Decimal                  @default(0) @db.Decimal(12, 2)
+  totalDeductions         Decimal                  @default(0) @db.Decimal(12, 2)
+  netPay                  Decimal                  @default(0) @db.Decimal(12, 2)
+  adjustmentsTotal        Decimal                  @default(0) @db.Decimal(12, 2)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @default(now())
   notes                   String?
-  absenceDays             Int                    @default(0)
+  absenceDays             Int                      @default(0)
   dateOfBirth             DateTime?
   hireDate                DateTime?
-  leaveDays               Int                    @default(0)
+  leaveDays               Int                      @default(0)
   processedBy             String?
-  sickDays                Int                    @default(0)
+  sickDays                Int                      @default(0)
   terminationDate         DateTime?
-  workDays                Int                    @default(0)
-  absenceFraction         Decimal                @default(0) @db.Decimal(4, 2)
+  workDays                Int                      @default(0)
+  absenceFraction         Decimal                  @default(0) @db.Decimal(4, 2)
   contractEndDate         DateTime?
   contractId              String?
   contractNumber          String?
   contractStartDate       DateTime?
-  isProrated              Boolean                @default(false)
-  doubleTimeOvertimeHours Decimal                @default(0) @db.Decimal(10, 2)
-  standardOvertimeHours   Decimal                @default(0) @db.Decimal(10, 2)
+  isProrated              Boolean                  @default(false)
+  doubleTimeOvertimeHours Decimal                  @default(0) @db.Decimal(10, 2)
+  standardOvertimeHours   Decimal                  @default(0) @db.Decimal(10, 2)
   contractSnapshot        Json?
-  payroll_adjustments     PayrollAdjustments[]
-  employees               Employees?             @relation(fields: [employeeId], references: [id])
-  payroll_periods         PayrollPeriods?        @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
-  users                   Users?                 @relation(fields: [processedBy], references: [id])
-  payroll_entry_benefits  PayrollEntryBenefits[]
+  payroll_adjustments     payroll_adjustments[]
+  employees               employees?               @relation(fields: [employeeId], references: [id])
+  payroll_periods         payroll_periods?         @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+  users                   users?                   @relation(fields: [processedBy], references: [id])
+  payroll_entry_benefits  payroll_entry_benefits[]
 
   @@index([contractId])
   @@index([employeeId])
   @@index([payrollPeriodId])
-  @@map("payroll_entries")
 }
 
-model PayrollEntryBenefits {
-  id                String         @id
+model payroll_entry_benefits {
+  id                String          @id
   payrollEntryId    String
   benefitTypeId     String
   benefitName       String
-  amount            Decimal        @db.Decimal(12, 2)
-  isActive          Boolean        @default(true)
+  amount            Decimal         @db.Decimal(12, 2)
+  isActive          Boolean         @default(true)
   deactivatedReason String?
-  source            String         @default("contract")
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @default(now())
-  benefit_types     BenefitTypes   @relation(fields: [benefitTypeId], references: [id], onDelete: Cascade)
-  payroll_entries   PayrollEntries @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+  source            String          @default("contract")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now())
+  benefit_types     benefit_types   @relation(fields: [benefitTypeId], references: [id], onDelete: Cascade)
+  payroll_entries   payroll_entries @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
 
   @@index([benefitTypeId])
   @@index([payrollEntryId])
-  @@map("payroll_entry_benefits")
 }
 
-model PayrollExports {
-  id              String         @id
+model payroll_exports {
+  id              String          @id
   payrollPeriodId String
   businessId      String
   year            Int
@@ -1342,126 +1234,115 @@ model PayrollExports {
   fileName        String
   fileUrl         String
   fileSize        Int
-  format          String         @default("excel")
+  format          String          @default("excel")
   includesMonths  Int[]
   employeeCount   Int
-  totalGrossPay   Decimal        @db.Decimal(12, 2)
-  totalNetPay     Decimal        @db.Decimal(12, 2)
+  totalGrossPay   Decimal         @db.Decimal(12, 2)
+  totalNetPay     Decimal         @db.Decimal(12, 2)
   exportedAt      DateTime?
   exportedBy      String
   generationType  String
   notes           String?
-  businesses      Businesses     @relation(fields: [businessId], references: [id], map: "payroll_exports_businessid_fkey")
-  users           Users          @relation(fields: [exportedBy], references: [id], map: "payroll_exports_exportedby_fkey")
-  payroll_periods PayrollPeriods @relation(fields: [payrollPeriodId], references: [id], map: "payroll_exports_payrollperiodid_fkey")
-
-  @@map("payroll_exports")
+  businesses      businesses      @relation(fields: [businessId], references: [id], map: "payroll_exports_businessid_fkey")
+  users           users           @relation(fields: [exportedBy], references: [id], map: "payroll_exports_exportedby_fkey")
+  payroll_periods payroll_periods @relation(fields: [payrollPeriodId], references: [id], map: "payroll_exports_payrollperiodid_fkey")
 }
 
-model PayrollPeriods {
-  id              String           @id
-  businessId      String
-  year            Int
-  month           Int
-  periodStart     DateTime?
-  periodEnd       DateTime?
-  status          String           @default("draft")
-  totalEmployees  Int              @default(0)
-  totalGrossPay   Decimal          @default(0) @db.Decimal(12, 2)
-  totalDeductions Decimal          @default(0) @db.Decimal(12, 2)
-  totalNetPay     Decimal          @default(0) @db.Decimal(12, 2)
-  createdAt       DateTime         @default(now())
-  createdBy       String?
-  approvedAt      DateTime?
-  approvedBy      String?
-  exportedAt      DateTime?
-  closedAt        DateTime?
-  notes           String?
-  updatedAt       DateTime         @default(now())
-  payrollEntries  PayrollEntries[]
-  payrollExports  PayrollExports[]
-  approver        Users?           @relation("payroll_periods_approvedByTousers", fields: [approvedBy], references: [id])
-  business        Businesses       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  creator         Users?           @relation("payroll_periods_createdByTousers", fields: [createdBy], references: [id])
+model payroll_periods {
+  id                                      String            @id
+  businessId                              String
+  year                                    Int
+  month                                   Int
+  periodStart                             DateTime?
+  periodEnd                               DateTime?
+  status                                  String            @default("draft")
+  totalEmployees                          Int               @default(0)
+  totalGrossPay                           Decimal           @default(0) @db.Decimal(12, 2)
+  totalDeductions                         Decimal           @default(0) @db.Decimal(12, 2)
+  totalNetPay                             Decimal           @default(0) @db.Decimal(12, 2)
+  createdAt                               DateTime          @default(now())
+  createdBy                               String?
+  approvedAt                              DateTime?
+  approvedBy                              String?
+  exportedAt                              DateTime?
+  closedAt                                DateTime?
+  notes                                   String?
+  updatedAt                               DateTime          @default(now())
+  payroll_entries                         payroll_entries[]
+  payroll_exports                         payroll_exports[]
+  users_payroll_periods_approvedByTousers users?            @relation("payroll_periods_approvedByTousers", fields: [approvedBy], references: [id])
+  businesses                              businesses        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users_payroll_periods_createdByTousers  users?            @relation("payroll_periods_createdByTousers", fields: [createdBy], references: [id])
 
   @@unique([businessId, year, month])
   @@index([businessId])
   @@index([year, month])
-  @@map("payroll_periods")
 }
 
-model PermissionTemplates {
-  id                  String                @id
-  name                String
-  permissions         Json                  @default("{}")
-  businessType        String
-  createdAt           DateTime              @default(now())
-  createdBy           String
-  isActive            Boolean               @default(true)
-  updatedAt           DateTime              @default(now())
-  businessMemberships BusinessMemberships[]
-  users               Users                 @relation(fields: [createdBy], references: [id])
-
-  @@map("permission_templates")
+model permission_templates {
+  id                   String                 @id
+  name                 String
+  permissions          Json                   @default("{}")
+  businessType         String
+  createdAt            DateTime               @default(now())
+  createdBy            String
+  isActive             Boolean                @default(true)
+  updatedAt            DateTime               @default(now())
+  business_memberships business_memberships[]
+  users                users                  @relation(fields: [createdBy], references: [id])
 }
 
-model PersonalBudgets {
+model personal_budgets {
   id          String   @id
   amount      Decimal  @db.Decimal(12, 2)
   description String?
   type        String   @default("deposit")
   createdAt   DateTime @default(now())
   userId      String?
-  users       Users?   @relation(fields: [userId], references: [id])
-
-  @@map("personal_budgets")
+  users       users?   @relation(fields: [userId], references: [id])
 }
 
-model PersonalExpenses {
-  id                  String                @id
-  category            String
-  description         String
-  amount              Decimal               @db.Decimal(12, 2)
-  date                DateTime
-  tags                String?
-  createdAt           DateTime              @default(now())
-  receiptUrl          String?
-  userId              String?
-  notes               String?
-  updatedAt           DateTime              @default(now())
-  loanTransactions    LoanTransactions[]
-  users               Users?                @relation(fields: [userId], references: [id])
-  projectTransactions ProjectTransactions[]
-
-  @@map("personal_expenses")
+model personal_expenses {
+  id                   String                 @id
+  category             String
+  description          String
+  amount               Decimal                @db.Decimal(12, 2)
+  date                 DateTime
+  tags                 String?
+  createdAt            DateTime               @default(now())
+  receiptUrl           String?
+  userId               String?
+  notes                String?
+  updatedAt            DateTime               @default(now())
+  loan_transactions    loan_transactions[]
+  users                users?                 @relation(fields: [userId], references: [id])
+  project_transactions project_transactions[]
 }
 
-model Persons {
-  id                      String                  @id
-  email                   String?                 @unique
-  phone                   String
-  address                 String?
-  notes                   String?
-  createdAt               DateTime                @default(now())
-  createdBy               String?
-  fullName                String
-  idFormatTemplateId      String?
-  isActive                Boolean                 @default(true)
-  nationalId              String                  @unique
-  updatedAt               DateTime                @default(now())
-  driverLicenseNumber     String?
-  driverLicenseTemplateId String?
-  interBusinessLoans      InterBusinessLoans[]
-  users                   Users?                  @relation(fields: [createdBy], references: [id])
-  driverLicenseTemplates  DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
-  idFormatTemplates       IdFormatTemplates?      @relation(fields: [idFormatTemplateId], references: [id])
-  projectContractors      ProjectContractors[]
-  projectTransactions     ProjectTransactions[]
-
-  @@map("persons")
+model persons {
+  id                       String                    @id
+  email                    String?                   @unique
+  phone                    String
+  address                  String?
+  notes                    String?
+  createdAt                DateTime                  @default(now())
+  createdBy                String?
+  fullName                 String
+  idFormatTemplateId       String?
+  isActive                 Boolean                   @default(true)
+  nationalId               String                    @unique
+  updatedAt                DateTime                  @default(now())
+  driverLicenseNumber      String?
+  driverLicenseTemplateId  String?
+  inter_business_loans     inter_business_loans[]
+  users                    users?                    @relation(fields: [createdBy], references: [id])
+  driver_license_templates driver_license_templates? @relation(fields: [driverLicenseTemplateId], references: [id])
+  id_format_templates      id_format_templates?      @relation(fields: [idFormatTemplateId], references: [id])
+  project_contractors      project_contractors[]
+  project_transactions     project_transactions[]
 }
 
-model ProductAttributes {
+model product_attributes {
   id                String            @id
   productId         String
   key               String
@@ -1469,111 +1350,103 @@ model ProductAttributes {
   dataType          AttributeDataType @default(TEXT)
   displayOrder      Int               @default(0)
   createdAt         DateTime          @default(now())
-  business_products BusinessProducts  @relation(fields: [productId], references: [id])
+  business_products business_products @relation(fields: [productId], references: [id])
 
   @@unique([productId, key])
-  @@map("product_attributes")
 }
 
-model ProductImages {
-  id                String           @id
+model product_images {
+  id                String            @id
   productId         String
   imageUrl          String
   altText           String?
-  isPrimary         Boolean          @default(false)
-  sortOrder         Int              @default(0)
-  imageSize         ImageSize        @default(MEDIUM)
+  isPrimary         Boolean           @default(false)
+  sortOrder         Int               @default(0)
+  imageSize         ImageSize         @default(MEDIUM)
   businessType      String
   attributes        Json?
-  createdAt         DateTime         @default(now())
+  createdAt         DateTime          @default(now())
   updatedAt         DateTime
-  business_products BusinessProducts @relation(fields: [productId], references: [id])
-
-  @@map("product_images")
+  business_products business_products @relation(fields: [productId], references: [id])
 }
 
-model ProductVariants {
-  id                       String                   @id
+model product_variants {
+  id                       String                     @id
   productId                String
   name                     String?
-  sku                      String                   @unique
+  sku                      String                     @unique
   barcode                  String?
-  price                    Decimal?                 @db.Decimal(10, 2)
-  stockQuantity            Int                      @default(0)
-  reorderLevel             Int                      @default(0)
-  isActive                 Boolean                  @default(true)
+  price                    Decimal?                   @db.Decimal(10, 2)
+  stockQuantity            Int                        @default(0)
+  reorderLevel             Int                        @default(0)
+  isActive                 Boolean                    @default(true)
   attributes               Json?
-  isAvailable              Boolean                  @default(true)
-  originalPrice            Decimal?                 @db.Decimal(10, 2)
-  discountPercent          Decimal?                 @db.Decimal(5, 2)
-  discountAmount           Decimal?                 @db.Decimal(10, 2)
-  createdAt                DateTime                 @default(now())
+  isAvailable              Boolean                    @default(true)
+  originalPrice            Decimal?                   @db.Decimal(10, 2)
+  discountPercent          Decimal?                   @db.Decimal(5, 2)
+  discountAmount           Decimal?                   @db.Decimal(10, 2)
+  createdAt                DateTime                   @default(now())
   updatedAt                DateTime
-  business_order_items     BusinessOrderItems[]
-  business_stock_movements BusinessStockMovements[]
-  menu_combo_items         MenuComboItems[]
-  business_products        BusinessProducts         @relation(fields: [productId], references: [id])
-
-  @@map("product_variants")
+  business_order_items     business_order_items[]
+  business_stock_movements business_stock_movements[]
+  menu_combo_items         menu_combo_items[]
+  business_products        business_products          @relation(fields: [productId], references: [id])
 }
 
-model ProjectContractors {
-  id                           String                       @id
+model project_contractors {
+  id                           String                         @id
   role                         String?
-  status                       String                       @default("active")
+  status                       String                         @default("active")
   notes                        String?
-  createdAt                    DateTime                     @default(now())
+  createdAt                    DateTime                       @default(now())
   endDate                      DateTime?
-  hourlyRate                   Decimal?                     @db.Decimal(12, 2)
-  isPrimary                    Boolean                      @default(false)
+  hourlyRate                   Decimal?                       @db.Decimal(12, 2)
+  isPrimary                    Boolean                        @default(false)
   personId                     String
   projectId                    String
   startDate                    DateTime?
-  totalContractAmount          Decimal?                     @db.Decimal(12, 2)
-  updatedAt                    DateTime                     @default(now())
+  totalContractAmount          Decimal?                       @db.Decimal(12, 2)
+  updatedAt                    DateTime                       @default(now())
   constructionProjectId        String?
-  construction_projects        ConstructionProjects?        @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
-  persons                      Persons                      @relation(fields: [personId], references: [id], onDelete: Cascade)
-  projects                     Projects                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  project_transactions         ProjectTransactions[]
-  stage_contractor_assignments StageContractorAssignments[]
+  construction_projects        construction_projects?         @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  persons                      persons                        @relation(fields: [personId], references: [id], onDelete: Cascade)
+  projects                     projects                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project_transactions         project_transactions[]
+  stage_contractor_assignments stage_contractor_assignments[]
 
   @@unique([projectId, personId])
-  @@map("project_contractors")
 }
 
-model ProjectStages {
-  id                           String                       @id
+model project_stages {
+  id                           String                         @id
   name                         String
   description                  String?
-  status                       String                       @default("pending")
+  status                       String                         @default("pending")
   notes                        String?
   completionDate               DateTime?
-  createdAt                    DateTime                     @default(now())
+  createdAt                    DateTime                       @default(now())
   endDate                      DateTime?
-  estimatedAmount              Decimal?                     @db.Decimal(12, 2)
-  orderIndex                   Int                          @default(0)
+  estimatedAmount              Decimal?                       @db.Decimal(12, 2)
+  orderIndex                   Int                            @default(0)
   projectId                    String
   startDate                    DateTime?
-  updatedAt                    DateTime                     @default(now())
+  updatedAt                    DateTime                       @default(now())
   constructionProjectId        String?
-  construction_projects        ConstructionProjects?        @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
-  projects                     Projects                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  project_transactions         ProjectTransactions[]
-  stage_contractor_assignments StageContractorAssignments[]
-
-  @@map("project_stages")
+  construction_projects        construction_projects?         @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  projects                     projects                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project_transactions         project_transactions[]
+  stage_contractor_assignments stage_contractor_assignments[]
 }
 
-model ProjectTransactions {
-  id                                           String                      @id
-  amount                                       Decimal                     @db.Decimal(12, 2)
+model project_transactions {
+  id                                           String                        @id
+  amount                                       Decimal                       @db.Decimal(12, 2)
   description                                  String
-  status                                       String                      @default("pending")
+  status                                       String                        @default("pending")
   notes                                        String?
   approvedAt                                   DateTime?
   approvedBy                                   String?
-  createdAt                                    DateTime                    @default(now())
+  createdAt                                    DateTime                      @default(now())
   createdBy                                    String?
   paidAt                                       DateTime?
   paymentCategory                              String?
@@ -1587,124 +1460,112 @@ model ProjectTransactions {
   stageAssignmentId                            String?
   stageId                                      String?
   transactionType                              String
-  updatedAt                                    DateTime                    @default(now())
+  updatedAt                                    DateTime                      @default(now())
   constructionProjectId                        String?
   transactionSubType                           String?
-  users_project_transactions_approvedByTousers Users?                      @relation("project_transactions_approvedByTousers", fields: [approvedBy], references: [id])
-  construction_projects                        ConstructionProjects?       @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
-  users_project_transactions_createdByTousers  Users?                      @relation("project_transactions_createdByTousers", fields: [createdBy], references: [id])
-  personal_expenses                            PersonalExpenses            @relation(fields: [personalExpenseId], references: [id], onDelete: Cascade)
-  project_contractors                          ProjectContractors?         @relation(fields: [projectContractorId], references: [id])
-  projects                                     Projects                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  persons                                      Persons?                    @relation(fields: [recipientPersonId], references: [id])
-  stage_contractor_assignments                 StageContractorAssignments? @relation(fields: [stageAssignmentId], references: [id])
-  project_stages                               ProjectStages?              @relation(fields: [stageId], references: [id])
-
-  @@map("project_transactions")
+  users_project_transactions_approvedByTousers users?                        @relation("project_transactions_approvedByTousers", fields: [approvedBy], references: [id])
+  construction_projects                        construction_projects?        @relation(fields: [constructionProjectId], references: [id], onDelete: Cascade)
+  users_project_transactions_createdByTousers  users?                        @relation("project_transactions_createdByTousers", fields: [createdBy], references: [id])
+  personal_expenses                            personal_expenses             @relation(fields: [personalExpenseId], references: [id], onDelete: Cascade)
+  project_contractors                          project_contractors?          @relation(fields: [projectContractorId], references: [id])
+  projects                                     projects                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  persons                                      persons?                      @relation(fields: [recipientPersonId], references: [id])
+  stage_contractor_assignments                 stage_contractor_assignments? @relation(fields: [stageAssignmentId], references: [id])
+  project_stages                               project_stages?               @relation(fields: [stageId], references: [id])
 }
 
-model ProjectTypes {
-  id                    String                 @id
-  name                  String                 @unique
+model project_types {
+  id                    String                  @id
+  name                  String                  @unique
   description           String?
   businessType          String
-  isActive              Boolean                @default(true)
-  isSystem              Boolean                @default(false)
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @default(now())
-  construction_projects ConstructionProjects[]
-  projects              Projects[]
-
-  @@map("project_types")
+  isActive              Boolean                 @default(true)
+  isSystem              Boolean                 @default(false)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @default(now())
+  construction_projects construction_projects[]
+  projects              projects[]
 }
 
-model Projects {
-  id                   String                @id
+model projects {
+  id                   String                 @id
   name                 String
   description          String?
   projectTypeId        String
   businessType         String
   businessId           String?
-  status               String                @default("active")
-  budget               Decimal?              @db.Decimal(12, 2)
+  status               String                 @default("active")
+  budget               Decimal?               @db.Decimal(12, 2)
   startDate            DateTime?
   endDate              DateTime?
-  createdAt            DateTime              @default(now())
+  createdAt            DateTime               @default(now())
   createdBy            String?
-  updatedAt            DateTime              @default(now())
-  project_contractors  ProjectContractors[]
-  project_stages       ProjectStages[]
-  project_transactions ProjectTransactions[]
-  businesses           Businesses?           @relation(fields: [businessId], references: [id])
-  users                Users?                @relation(fields: [createdBy], references: [id])
-  project_types        ProjectTypes          @relation(fields: [projectTypeId], references: [id])
-
-  @@map("projects")
+  updatedAt            DateTime               @default(now())
+  project_contractors  project_contractors[]
+  project_stages       project_stages[]
+  project_transactions project_transactions[]
+  businesses           businesses?            @relation(fields: [businessId], references: [id])
+  users                users?                 @relation(fields: [createdBy], references: [id])
+  project_types        project_types          @relation(fields: [projectTypeId], references: [id])
 }
 
-model Sessions {
+model sessions {
   id           String   @id
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  users        Users    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
+  users        users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model StageContractorAssignments {
-  id                   String                @id
+model stage_contractor_assignments {
+  id                   String                 @id
   notes                String?
-  createdAt            DateTime              @default(now())
-  depositAmount        Decimal?              @db.Decimal(12, 2)
+  createdAt            DateTime               @default(now())
+  depositAmount        Decimal?               @db.Decimal(12, 2)
   depositPaidDate      DateTime?
-  depositPercentage    Decimal               @default(0.00) @db.Decimal(5, 2)
+  depositPercentage    Decimal                @default(0.00) @db.Decimal(5, 2)
   finalPaymentDate     DateTime?
-  isDepositPaid        Boolean               @default(false)
-  isFinalPaymentMade   Boolean               @default(false)
-  predeterminedAmount  Decimal               @db.Decimal(12, 2)
+  isDepositPaid        Boolean                @default(false)
+  isFinalPaymentMade   Boolean                @default(false)
+  predeterminedAmount  Decimal                @db.Decimal(12, 2)
   projectContractorId  String
   stageId              String
-  updatedAt            DateTime              @default(now())
-  project_transactions ProjectTransactions[]
-  project_contractors  ProjectContractors    @relation(fields: [projectContractorId], references: [id], onDelete: Cascade)
-  project_stages       ProjectStages         @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  updatedAt            DateTime               @default(now())
+  project_transactions project_transactions[]
+  project_contractors  project_contractors    @relation(fields: [projectContractorId], references: [id], onDelete: Cascade)
+  project_stages       project_stages         @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
   @@unique([stageId, projectContractorId])
-  @@map("stage_contractor_assignments")
 }
 
-model SupplierProducts {
-  id                 String            @id
+model supplier_products {
+  id                 String             @id
   supplierId         String
   productId          String
   supplierSku        String?
-  supplierPrice      Decimal           @db.Decimal(10, 2)
-  minimumOrder       Int               @default(1)
-  leadTimeDays       Int               @default(0)
-  isActive           Boolean           @default(true)
+  supplierPrice      Decimal            @db.Decimal(10, 2)
+  minimumOrder       Int                @default(1)
+  leadTimeDays       Int                @default(0)
+  isActive           Boolean            @default(true)
   attributes         Json?
-  createdAt          DateTime          @default(now())
+  createdAt          DateTime           @default(now())
   updatedAt          DateTime
-  business_products  BusinessProducts  @relation(fields: [productId], references: [id])
-  business_suppliers BusinessSuppliers @relation(fields: [supplierId], references: [id])
+  business_products  business_products  @relation(fields: [productId], references: [id])
+  business_suppliers business_suppliers @relation(fields: [supplierId], references: [id])
 
   @@unique([supplierId, productId])
-  @@map("supplier_products")
 }
 
-model SyncConfiguration {
+model sync_configurations {
   id                  String    @id
   nodeId              String    @unique
   registrationKeyHash String?
   lastConfigUpdate    DateTime?
   configMetadata      Json?
   createdAt           DateTime  @default(now())
-
-  @@map("sync_configurations")
 }
 
-model SyncEvent {
+model sync_events {
   eventId         String        @id
   sourceNodeId    String
   tableName       String
@@ -1722,11 +1583,9 @@ model SyncEvent {
   processingError String?
   retryCount      Int           @default(0)
   createdAt       DateTime      @default(now())
-
-  @@map("sync_events")
 }
 
-model SyncMetric {
+model sync_metrics {
   id                   String   @id
   nodeId               String
   metricDate           DateTime
@@ -1744,10 +1603,9 @@ model SyncMetric {
   createdAt            DateTime @default(now())
 
   @@unique([nodeId, metricDate], map: "nodeId_metricDate")
-  @@map("sync_metrics")
 }
 
-model SyncNode {
+model sync_nodes {
   id               String    @id
   nodeId           String    @unique
   nodeName         String
@@ -1768,11 +1626,9 @@ model SyncNode {
   capabilities     Json?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @default(now())
-
-  @@map("sync_nodes")
 }
 
-model SyncSession {
+model sync_sessions {
   id           String    @id
   sessionId    String    @unique
   sourceNodeId String
@@ -1784,19 +1640,17 @@ model SyncSession {
   errorMessage String?
   metadata     Json?
   createdAt    DateTime  @default(now())
-
-  @@map("sync_sessions")
 }
 
-model Users {
-  id                                                              String                      @id
-  email                                                           String                      @unique
+model users {
+  id                                                              String                        @id
+  email                                                           String                        @unique
   passwordHash                                                    String
   name                                                            String
-  role                                                            String                      @default("user")
-  permissions                                                     Json                        @default("{}")
-  isActive                                                        Boolean                     @default(true)
-  passwordResetRequired                                           Boolean                     @default(false)
+  role                                                            String                        @default("user")
+  permissions                                                     Json                          @default("{}")
+  isActive                                                        Boolean                       @default(true)
+  passwordResetRequired                                           Boolean                       @default(false)
   deactivatedAt                                                   DateTime?
   deactivatedBy                                                   String?
   deactivationReason                                              String?
@@ -1804,105 +1658,99 @@ model Users {
   reactivatedAt                                                   DateTime?
   reactivatedBy                                                   String?
   reactivationNotes                                               String?
-  createdAt                                                       DateTime                    @default(now())
-  updatedAt                                                       DateTime                    @default(now())
+  createdAt                                                       DateTime                      @default(now())
+  updatedAt                                                       DateTime                      @default(now())
   lastAccessedAt                                                  DateTime?
   lastAccessedBusinessId                                          String?
   lastAccessedBusinessType                                        String?
-  username                                                        String?                     @unique
-  accounts                                                        Accounts[]
-  audit_logs                                                      AuditLogs[]
-  business_accounts                                               BusinessAccounts[]
-  businessMemberships                                             BusinessMemberships[]
-  business_transactions                                           BusinessTransactions[]
-  chat_messages                                                   ChatMessages[]
-  chat_participants                                               ChatParticipants[]
-  chat_rooms                                                      ChatRooms[]
-  construction_expenses                                           ConstructionExpenses[]
-  construction_projects                                           ConstructionProjects[]
-  driver_authorizations                                           DriverAuthorizations[]
-  employees                                                       Employees?
-  expense_categories                                              ExpenseCategories[]
-  fund_sources                                                    FundSources[]
-  inter_business_loans_inter_business_loans_createdByTousers      InterBusinessLoans[]        @relation("inter_business_loans_createdByTousers")
-  inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]        @relation("inter_business_loans_lenderUserIdTousers")
-  loan_transactions                                               LoanTransactions[]
-  orders                                                          Orders[]
-  payroll_adjustments_payroll_adjustments_approvedByTousers       PayrollAdjustments[]        @relation("payroll_adjustments_approvedByTousers")
-  payroll_adjustments_payroll_adjustments_createdByTousers        PayrollAdjustments[]        @relation("payroll_adjustments_createdByTousers")
-  payroll_entries                                                 PayrollEntries[]
-  payroll_exports                                                 PayrollExports[]
-  payroll_periods_payroll_periods_approvedByTousers               PayrollPeriods[]            @relation("payroll_periods_approvedByTousers")
-  payroll_periods_payroll_periods_createdByTousers                PayrollPeriods[]            @relation("payroll_periods_createdByTousers")
-  permission_templates                                            PermissionTemplates[]
-  personal_budgets                                                PersonalBudgets[]
-  personal_expenses                                               PersonalExpenses[]
-  persons                                                         Persons[]
-  project_transactions_project_transactions_approvedByTousers     ProjectTransactions[]       @relation("project_transactions_approvedByTousers")
-  project_transactions_project_transactions_createdByTousers      ProjectTransactions[]       @relation("project_transactions_createdByTousers")
-  projects                                                        Projects[]
-  sessions                                                        Sessions[]
-  vehicle_drivers                                                 VehicleDrivers[]
-  vehicle_expenses                                                VehicleExpenses[]
-  vehicle_maintenance_records                                     VehicleMaintenanceRecords[]
-  vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursements[]     @relation("vehicle_reimbursements_approvedByTousers")
-  vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]     @relation("vehicle_reimbursements_userIdTousers")
-  vehicles                                                        Vehicles[]
-
-  @@map("users")
+  username                                                        String?                       @unique
+  accounts                                                        accounts[]
+  audit_logs                                                      audit_logs[]
+  business_accounts                                               business_accounts[]
+  business_memberships                                            business_memberships[]
+  business_transactions                                           business_transactions[]
+  chat_messages                                                   chat_messages[]
+  chat_participants                                               chat_participants[]
+  chat_rooms                                                      chat_rooms[]
+  construction_expenses                                           construction_expenses[]
+  construction_projects                                           construction_projects[]
+  driver_authorizations                                           driver_authorizations[]
+  employees                                                       employees?
+  expense_categories                                              expense_categories[]
+  fund_sources                                                    fund_sources[]
+  inter_business_loans_inter_business_loans_createdByTousers      inter_business_loans[]        @relation("inter_business_loans_createdByTousers")
+  inter_business_loans_inter_business_loans_lenderUserIdTousers   inter_business_loans[]        @relation("inter_business_loans_lenderUserIdTousers")
+  loan_transactions                                               loan_transactions[]
+  orders                                                          orders[]
+  payroll_adjustments_payroll_adjustments_approvedByTousers       payroll_adjustments[]         @relation("payroll_adjustments_approvedByTousers")
+  payroll_adjustments_payroll_adjustments_createdByTousers        payroll_adjustments[]         @relation("payroll_adjustments_createdByTousers")
+  payroll_entries                                                 payroll_entries[]
+  payroll_exports                                                 payroll_exports[]
+  payroll_periods_payroll_periods_approvedByTousers               payroll_periods[]             @relation("payroll_periods_approvedByTousers")
+  payroll_periods_payroll_periods_createdByTousers                payroll_periods[]             @relation("payroll_periods_createdByTousers")
+  permission_templates                                            permission_templates[]
+  personal_budgets                                                personal_budgets[]
+  personal_expenses                                               personal_expenses[]
+  persons                                                         persons[]
+  project_transactions_project_transactions_approvedByTousers     project_transactions[]        @relation("project_transactions_approvedByTousers")
+  project_transactions_project_transactions_createdByTousers      project_transactions[]        @relation("project_transactions_createdByTousers")
+  projects                                                        projects[]
+  sessions                                                        sessions[]
+  vehicle_drivers                                                 vehicle_drivers[]
+  vehicle_expenses                                                vehicle_expenses[]
+  vehicle_maintenance_records                                     vehicle_maintenance_records[]
+  vehicle_reimbursements_vehicle_reimbursements_approvedByTousers vehicle_reimbursements[]      @relation("vehicle_reimbursements_approvedByTousers")
+  vehicle_reimbursements_vehicle_reimbursements_userIdTousers     vehicle_reimbursements[]      @relation("vehicle_reimbursements_userIdTousers")
+  vehicles                                                        vehicles[]
 }
 
-model VehicleDrivers {
-  id                    String                 @id
+model vehicle_drivers {
+  id                    String                  @id
   fullName              String
-  licenseNumber         String                 @unique
+  licenseNumber         String                  @unique
   licenseExpiry         DateTime
   phoneNumber           String?
   emailAddress          String?
   emergencyContact      String?
   emergencyPhone        String?
   userId                String?
-  isActive              Boolean                @default(true)
+  isActive              Boolean                 @default(true)
   dateOfBirth           DateTime?
   address               String?
-  createdAt             DateTime               @default(now())
+  createdAt             DateTime                @default(now())
   updatedAt             DateTime
-  driver_authorizations DriverAuthorizations[]
-  users                 Users?                 @relation(fields: [userId], references: [id])
-  vehicle_trips         VehicleTrips[]
-
-  @@map("vehicle_drivers")
+  driver_authorizations driver_authorizations[]
+  users                 users?                  @relation(fields: [userId], references: [id])
+  vehicle_trips         vehicle_trips[]
 }
 
-model VehicleExpenses {
-  id                   String        @id
+model vehicle_expenses {
+  id                   String         @id
   vehicleId            String
   tripId               String?
   businessId           String?
   expenseType          ExpenseType
   expenseCategory      String?
-  amount               Decimal       @db.Decimal(10, 2)
-  currency             String        @default("USD")
+  amount               Decimal        @db.Decimal(10, 2)
+  currency             String         @default("USD")
   expenseDate          DateTime
-  isBusinessDeductible Boolean       @default(false)
+  isBusinessDeductible Boolean        @default(false)
   receiptUrl           String?
   vendorName           String?
   description          String?
   mileageAtExpense     Int?
-  fuelQuantity         Decimal?      @db.Decimal(8, 2)
+  fuelQuantity         Decimal?       @db.Decimal(8, 2)
   fuelType             FuelType?
   createdBy            String
-  createdAt            DateTime      @default(now())
+  createdAt            DateTime       @default(now())
   updatedAt            DateTime
-  businesses           Businesses?   @relation(fields: [businessId], references: [id])
-  users                Users         @relation(fields: [createdBy], references: [id])
-  vehicle_trips        VehicleTrips? @relation(fields: [tripId], references: [id])
-  vehicles             Vehicles      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-
-  @@map("vehicle_expenses")
+  businesses           businesses?    @relation(fields: [businessId], references: [id])
+  users                users          @relation(fields: [createdBy], references: [id])
+  vehicle_trips        vehicle_trips? @relation(fields: [tripId], references: [id])
+  vehicles             vehicles       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 }
 
-model VehicleLicenses {
+model vehicle_licenses {
   id               String      @id
   vehicleId        String
   licenseType      LicenseType
@@ -1916,13 +1764,11 @@ model VehicleLicenses {
   reminderDays     Int         @default(30)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime
-  vehicles         Vehicles    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-
-  @@map("vehicle_licenses")
+  vehicles         vehicles    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 }
 
-model VehicleMaintenanceRecords {
-  id                           String                       @id
+model vehicle_maintenance_records {
+  id                           String                         @id
   vehicleId                    String
   serviceType                  ServiceType
   serviceCategory              String?
@@ -1931,62 +1777,56 @@ model VehicleMaintenanceRecords {
   mileageAtService             Int
   nextServiceDue               DateTime?
   nextServiceMileage           Int?
-  serviceCost                  Decimal                      @db.Decimal(10, 2)
+  serviceCost                  Decimal                        @db.Decimal(10, 2)
   serviceProvider              String?
   serviceLocation              String?
   partsReplaced                Json?
   warrantyInfo                 String?
   receiptUrl                   String?
   notes                        String?
-  isScheduledService           Boolean                      @default(false)
+  isScheduledService           Boolean                        @default(false)
   createdBy                    String
-  createdAt                    DateTime                     @default(now())
+  createdAt                    DateTime                       @default(now())
   updatedAt                    DateTime
-  users                        Users                        @relation(fields: [createdBy], references: [id])
-  vehicles                     Vehicles                     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  vehicle_maintenance_services VehicleMaintenanceServices[]
-
-  @@map("vehicle_maintenance_records")
+  users                        users                          @relation(fields: [createdBy], references: [id])
+  vehicles                     vehicles                       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicle_maintenance_services vehicle_maintenance_services[]
 }
 
-model VehicleMaintenanceServiceExpenses {
-  id                           String                     @id
+model vehicle_maintenance_service_expenses {
+  id                           String                       @id
   serviceId                    String
   expenseType                  String
-  amount                       Decimal                    @db.Decimal(10, 2)
-  currency                     String                     @default("USD")
+  amount                       Decimal                      @db.Decimal(10, 2)
+  currency                     String                       @default("USD")
   description                  String?
   vendorName                   String?
-  isBusinessDeductible         Boolean                    @default(false)
+  isBusinessDeductible         Boolean                      @default(false)
   receiptUrl                   String?
-  createdAt                    DateTime                   @default(now())
+  createdAt                    DateTime                     @default(now())
   updatedAt                    DateTime
-  vehicle_maintenance_services VehicleMaintenanceServices @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  @@map("vehicle_maintenance_service_expenses")
+  vehicle_maintenance_services vehicle_maintenance_services @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 }
 
-model VehicleMaintenanceServices {
-  id                                   String                              @id
+model vehicle_maintenance_services {
+  id                                   String                                 @id
   maintenanceRecordId                  String
   serviceName                          String
   serviceType                          String
-  cost                                 Decimal                             @db.Decimal(10, 2)
-  currency                             String                              @default("USD")
+  cost                                 Decimal                                @db.Decimal(10, 2)
+  currency                             String                                 @default("USD")
   serviceProvider                      String?
   description                          String?
-  isScheduledService                   Boolean                             @default(false)
+  isScheduledService                   Boolean                                @default(false)
   warrantyUntil                        String?
   receiptUrl                           String?
-  createdAt                            DateTime                            @default(now())
+  createdAt                            DateTime                               @default(now())
   updatedAt                            DateTime
-  vehicle_maintenance_service_expenses VehicleMaintenanceServiceExpenses[]
-  vehicle_maintenance_records          VehicleMaintenanceRecords           @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
-
-  @@map("vehicle_maintenance_services")
+  vehicle_maintenance_service_expenses vehicle_maintenance_service_expenses[]
+  vehicle_maintenance_records          vehicle_maintenance_records            @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
 }
 
-model VehicleReimbursements {
+model vehicle_reimbursements {
   id                                             String              @id
   userId                                         String
   vehicleId                                      String
@@ -2005,74 +1845,68 @@ model VehicleReimbursements {
   notes                                          String?
   createdAt                                      DateTime            @default(now())
   updatedAt                                      DateTime
-  users_vehicle_reimbursements_approvedByTousers Users?              @relation("vehicle_reimbursements_approvedByTousers", fields: [approvedBy], references: [id])
-  businesses                                     Businesses          @relation(fields: [businessId], references: [id])
-  users_vehicle_reimbursements_userIdTousers     Users               @relation("vehicle_reimbursements_userIdTousers", fields: [userId], references: [id])
-  vehicles                                       Vehicles            @relation(fields: [vehicleId], references: [id])
-
-  @@map("vehicle_reimbursements")
+  users_vehicle_reimbursements_approvedByTousers users?              @relation("vehicle_reimbursements_approvedByTousers", fields: [approvedBy], references: [id])
+  businesses                                     businesses          @relation(fields: [businessId], references: [id])
+  users_vehicle_reimbursements_userIdTousers     users               @relation("vehicle_reimbursements_userIdTousers", fields: [userId], references: [id])
+  vehicles                                       vehicles            @relation(fields: [vehicleId], references: [id])
 }
 
-model VehicleTrips {
-  id                    String               @id
+model vehicle_trips {
+  id                    String                @id
   vehicleId             String
   driverId              String
   businessId            String?
   startMileage          Int
   endMileage            Int?
-  tripMileage           Int                  @default(0)
+  tripMileage           Int                   @default(0)
   tripPurpose           String
   tripType              TripType
   startLocation         String?
   endLocation           String?
   startTime             DateTime
   endTime               DateTime?
-  isCompleted           Boolean              @default(false)
+  isCompleted           Boolean               @default(false)
   notes                 String?
   gpsTrackingData       Json?
-  createdAt             DateTime             @default(now())
+  createdAt             DateTime              @default(now())
   updatedAt             DateTime
-  vehicle_expenses      VehicleExpenses[]
-  businesses            Businesses?          @relation(fields: [businessId], references: [id])
-  vehicle_drivers       VehicleDrivers       @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  driver_authorizations DriverAuthorizations @relation(fields: [driverId, vehicleId], references: [driverId, vehicleId])
-  vehicles              Vehicles             @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-
-  @@map("vehicle_trips")
+  vehicle_expenses      vehicle_expenses[]
+  businesses            businesses?           @relation(fields: [businessId], references: [id])
+  vehicle_drivers       vehicle_drivers       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driver_authorizations driver_authorizations @relation(fields: [driverId, vehicleId], references: [driverId, vehicleId])
+  vehicles              vehicles              @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 }
 
-model Vehicles {
-  id                          String                      @id
-  licensePlate                String                      @unique
-  vin                         String                      @unique
+model vehicles {
+  id                          String                        @id
+  licensePlate                String                        @unique
+  vin                         String                        @unique
   make                        String
   model                       String
   year                        Int
   color                       String?
-  weight                      Decimal?                    @db.Decimal(10, 2)
+  weight                      Decimal?                      @db.Decimal(10, 2)
   driveType                   DriveType
   ownershipType               OwnershipType
   currentMileage              Int
   businessId                  String?
   userId                      String?
-  isActive                    Boolean                     @default(true)
+  isActive                    Boolean                       @default(true)
   purchaseDate                DateTime?
-  purchasePrice               Decimal?                    @db.Decimal(12, 2)
+  purchasePrice               Decimal?                      @db.Decimal(12, 2)
   notes                       String?
-  createdAt                   DateTime                    @default(now())
+  createdAt                   DateTime                      @default(now())
   updatedAt                   DateTime
-  hasInitialMileage           Boolean                     @default(false)
-  mileageUnit                 String                      @default("km")
-  driver_authorizations       DriverAuthorizations[]
-  vehicle_expenses            VehicleExpenses[]
-  vehicle_licenses            VehicleLicenses[]
-  vehicle_maintenance_records VehicleMaintenanceRecords[]
-  vehicle_reimbursements      VehicleReimbursements[]
-  vehicle_trips               VehicleTrips[]
-  businesses                  Businesses?                 @relation(fields: [businessId], references: [id])
-  users                       Users?                      @relation(fields: [userId], references: [id])
-
-  @@map("vehicles")
+  hasInitialMileage           Boolean                       @default(false)
+  mileageUnit                 String                        @default("km")
+  driver_authorizations       driver_authorizations[]
+  vehicle_expenses            vehicle_expenses[]
+  vehicle_licenses            vehicle_licenses[]
+  vehicle_maintenance_records vehicle_maintenance_records[]
+  vehicle_reimbursements      vehicle_reimbursements[]
+  vehicle_trips               vehicle_trips[]
+  businesses                  businesses?                   @relation(fields: [businessId], references: [id])
+  users                       users?                        @relation(fields: [userId], references: [id])
 }
 
 enum AttributeDataType {
