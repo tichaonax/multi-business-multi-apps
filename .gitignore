@@ -46,6 +46,15 @@ next-env.d.ts
 /node_modules/.prisma/
 /node_modules/@prisma/client/
 
+# Prisma temporary and environment files
+prisma/.env
+prisma/*.db
+prisma/*.sqlite
+
+# Prisma migration artifacts (only in development)
+prisma/migrations/.DS_Store
+prisma/migrations/*/migration.sql.bak
+
 # logs
 logs
 *.log
