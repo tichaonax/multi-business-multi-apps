@@ -838,7 +838,7 @@ class HybridServiceWrapper extends EventEmitter {
           testProcess.kill('SIGKILL');
           reject(new Error('Database connectivity test timed out - check if DATABASE_URL is accessible'));
         }, 10000);
-        
+
         testProcess.on('close', (code) => {
           clearTimeout(timeout);
           // Migration status command succeeds if it can connect to database
@@ -857,8 +857,12 @@ class HybridServiceWrapper extends EventEmitter {
 
       console.log('✅ Database connectivity validated');
     } catch (error) {
-      console.error('❌ Database connectivity validation failed:', error.message);
-      throw error;
+      // CRITICAL FIX: Don't crash the entire service if database is temporarily unavailable
+      // The sync service and Next.js app should still start and retry connection later
+      console.error('⚠️  Database connectivity validation failed:', error.message);
+      console.log('⚠️  Service will start anyway - database connection will be retried by sync service');
+      console.log('⚠️  If this persists, run: npm run diagnose:database');
+      // Don't throw - just warn
     }
   }
 
