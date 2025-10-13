@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { hasPermission } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 interface RouteParams {
   params: Promise<{ employeeId: string }>
 }
@@ -406,7 +407,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     // Update the employee with user synchronization
     const result = await prisma.$transaction(async (tx) => {
       // Update employee
-      const updatedEmployee = await tx.employee.update({
+      const updatedEmployee = await tx.employees.update({
         where: { id: employeeId },
         data: {
           userId: userId || null,
@@ -460,7 +461,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
       // Synchronize linked user account if needed
       if (updatedEmployee.users && shouldDeactivateUser) {
-        await tx.user.update({
+        await tx.users.update({
           where: { id: updatedEmployee.users.id },
           data: {
             isActive: false,
@@ -472,7 +473,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         })
 
         // Deactivate business memberships
-        await tx.businessMembership.updateMany({
+        await tx.businessMemberships.updateMany({
           where: { userId: updatedEmployee.users.id },
           data: { isActive: false }
         })
@@ -482,7 +483,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
       // Create audit log for synchronization
       if (statusChanged && updatedEmployee.users) {
-        await tx.auditLog.create({
+        await tx.auditLogs.create({
           data: {
             userId: session.user.id,
             action: 'EMPLOYEE_STATUS_SYNC',
@@ -621,7 +622,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     // Safe to delete - mark as inactive instead of hard delete to preserve history
     // Also synchronize linked user account
     const result = await prisma.$transaction(async (tx) => {
-      const inactivatedEmployee = await tx.employee.update({
+      const inactivatedEmployee = await tx.employees.update({
         where: { id: employeeId },
         data: {
           isActive: false,
@@ -647,7 +648,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
       // Synchronize linked user account
       if (inactivatedEmployee.users && inactivatedEmployee.users.isActive) {
-        await tx.user.update({
+        await tx.users.update({
           where: { id: inactivatedEmployee.users.id },
           data: {
             isActive: false,
@@ -659,7 +660,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
         })
 
         // Deactivate business memberships
-        await tx.businessMembership.updateMany({
+        await tx.businessMemberships.updateMany({
           where: { userId: inactivatedEmployee.users.id },
           data: { isActive: false }
         })
@@ -668,7 +669,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       }
 
       // Create audit log for termination and synchronization
-      await tx.auditLog.create({
+      await tx.auditLogs.create({
         data: {
           userId: session.user.id,
           action: 'EMPLOYEE_TERMINATED',

@@ -7,6 +7,7 @@ import path from 'path'
 import { pathToFileURL } from 'url'
 import { prisma } from '@/lib/prisma'
 
+import { randomBytes } from 'crypto';
 async function runScript(scriptPath: string, args: string[] = []) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const proc = spawn('node', [scriptPath, ...args], { cwd: process.cwd(), env: process.env })

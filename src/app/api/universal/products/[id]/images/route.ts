@@ -3,7 +3,7 @@ import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { prisma } from '@/lib/prisma'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> })
  {

@@ -35,7 +35,7 @@ export async function GET() {
                 name: true
               }
             },
-            business: {
+            businesses: {
               select: {
                 id: true,
                 name: true,

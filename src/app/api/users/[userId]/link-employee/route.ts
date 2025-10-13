@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permission-utils';
 
+import { randomBytes } from 'crypto';
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -35,7 +36,7 @@ export async function PUT(
       where: { id: userId },
       include: {
         employees: true,
-        businessMemberships: { include: { business: true } }
+        businessMemberships: { include: { businesses: true } }
       }
     });
 
@@ -76,7 +77,7 @@ export async function PUT(
 
     const result = await prisma.$transaction(async (tx) => {
       // Link user to employee
-      await tx.employee.update({
+      await tx.employees.update({
         where: { id: employeeId },
         data: { userId: userId }
       });
@@ -86,8 +87,9 @@ export async function PUT(
 
       // Add primary business if not already a member
       if (!existingMemberships.includes(employee.primaryBusinessId)) {
-        await tx.businessMembership.create({
-          data: {
+        await tx.businessMemberships.create({
+        data: {
+          id: randomBytes(12).toString('hex'),
             userId: userId,
             businessId: employee.primaryBusinessId,
             role: 'employee',
@@ -108,8 +110,9 @@ export async function PUT(
       for (const assignment of (employee as any).employeeBusinessAssignments || []) {
         if (!existingMemberships.includes(assignment.businessId) && 
             assignment.businessId !== employee.primaryBusinessId) {
-          await tx.businessMembership.create({
-            data: {
+          await tx.businessMemberships.create({
+        data: {
+          id: randomBytes(12).toString('hex'),
               userId: userId,
               businessId: assignment.businessId,
               role: assignment.role || 'employee',
@@ -128,7 +131,7 @@ export async function PUT(
       }
 
       // Create audit log
-      await tx.auditLog.create({
+      await tx.auditLogs.create({
         data: {
           userId: session.user.id,
           action: 'USER_EMPLOYEE_LINKED',
@@ -226,13 +229,13 @@ export async function DELETE(
 
     const result = await prisma.$transaction(async (tx) => {
       // Unlink user from employee
-        await tx.employee.update({
+        await tx.employees.update({
           where: { id: user.employees!.id },
         data: { userId: null }
       });
 
       // Create audit log
-      await tx.auditLog.create({
+      await tx.auditLogs.create({
         data: {
           userId: session.user.id,
           action: 'USER_EMPLOYEE_UNLINKED',

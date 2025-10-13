@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 interface RouteParams {
   params: Promise<{ id: string }>
 }

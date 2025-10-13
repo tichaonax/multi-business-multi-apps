@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Get the payroll period to access dates
     const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId },
-      include: { business: true }
+      include: { businesses: true }
     })
 
     if (!period) {

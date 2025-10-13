@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
+import { randomBytes } from 'crypto';
 // Validation schemas
 const CreateOrderItemSchema = z.object({
   productVariantId: z.string().min(1),
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
       prisma.businessOrders.findMany({
         where,
         include: {
-          business: {
+          businesses: {
             select: { name: true, type: true }
           },
           businessCustomer: {
@@ -331,7 +332,7 @@ export async function POST(request: NextRequest) {
           updatedAt: new Date()
         },
           include: {
-            business: { select: { name: true, type: true } },
+            businesses: { select: { name: true, type: true } },
             businessCustomer: { select: { id: true, name: true, customerNumber: true } },
             divisionAccount: {
               select: {
@@ -499,7 +500,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
       data: updateData,
       include: {
-        business: { select: { name: true, type: true } },
+        businesses: { select: { name: true, type: true } },
         customer: { select: { id: true, name: true, customerNumber: true } },
         employee: { select: { id: true, fullName: true, employeeNumber: true } },
         items: {

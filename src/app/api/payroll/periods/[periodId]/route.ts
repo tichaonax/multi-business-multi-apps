@@ -6,6 +6,7 @@ import { getWorkingDaysInMonth, computeTotalsForEntry } from '@/lib/payroll/help
 import { hasPermission, canDeletePayroll } from '@/lib/permission-utils'
 import { isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 interface RouteParams {
   params: Promise<{ periodId: string }>
 }
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const period = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
         creator: {
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         payrollEntries: {
           include: {
-            employee: {
+            employees: {
               select: {
                 id: true,
                 employeeNumber: true,
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           orderBy: { employeeName: 'asc' }
         },
         _count: {
-          select: { payrollEntries: true }
+          select: { payroll_entries: true }
         }
       }
     })
@@ -74,9 +75,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     try {
   const periodStart = period.periodStart instanceof Date ? period.periodStart : (period.periodStart ? new Date(period.periodStart) : new Date())
   const periodEnd = period.periodEnd instanceof Date ? period.periodEnd : (period.periodEnd ? new Date(period.periodEnd) : new Date())
-      for (const entry of period.payrollEntries || []) {
+      for (const entry of period.payroll_entries || []) {
   const employeeId = entry.employeeId || undefined
-        const employeeNumber = entry.employee?.employeeNumber || entry.employeeNumber || null
+        const employeeNumber = entry.employees?.employeeNumber || entry.employeeNumber || null
         // Find any contract for the employee that overlaps the period
         const contract = await prisma.employeeContracts.findFirst({
           where: {
@@ -108,8 +109,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // If we have entries, load their benefits separately (avoid nested include mismatches)
-    if (period && period.payrollEntries && period.payrollEntries.length > 0) {
-      const entryIds = period.payrollEntries.map(e => e.id)
+    if (period && period.payroll_entries && period.payroll_entries.length > 0) {
+      const entryIds = period.payroll_entries.map(e => e.id)
       let benefits: any[] = []
       let benefitLoadError: string | undefined
 
@@ -153,14 +154,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         adjustmentsByEntry[a.payrollEntryId].push(a)
       }
 
-      let enrichedEntries: any[] = period.payrollEntries.map(entry => ({
+      let enrichedEntries: any[] = period.payroll_entries.map(entry => ({
         ...entry,
         payrollEntryBenefits: benefitsByEntry[entry.id] || [],
-        employeeFirstName: (entry as any).employee?.firstName || null,
-        employeeLastName: (entry as any).employee?.lastName || null,
-        employeeFullName: (entry as any).employee?.fullName || (entry as any).employeeName || null,
-        employeeDateOfBirth: (entry as any).employee?.dateOfBirth || (entry as any).dateOfBirth || null,
-        employeeHireDate: (entry as any).employee?.hireDate || (entry as any).hireDate || null
+        employeeFirstName: (entry as any).employees?.firstName || null,
+        employeeLastName: (entry as any).employees?.lastName || null,
+        employeeFullName: (entry as any).employees?.fullName || (entry as any).employeeName || null,
+        employeeDateOfBirth: (entry as any).employees?.dateOfBirth || (entry as any).dateOfBirth || null,
+        employeeHireDate: (entry as any).employees?.hireDate || (entry as any).hireDate || null
       }))
 
       // Merge contract-level benefits with payroll-entry-level benefits for every entry.
@@ -448,14 +449,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       }
 
       // Fetch businesses for employee.primaryBusinessId and attach to enriched entries
-      const employeePrimaryBusinessIds = Array.from(new Set(enrichedEntries.map((e: any) => (e.employee?.primaryBusinessId) || null).filter(Boolean))) as string[]
+      const employeePrimaryBusinessIds = Array.from(new Set(enrichedEntries.map((e: any) => (e.employees?.primaryBusinessId) || null).filter(Boolean))) as string[]
       const empBusinesses = employeePrimaryBusinessIds.length > 0 ? await prisma.businesses.findMany({ where: { id: { in: employeePrimaryBusinessIds } }, select: { id: true, name: true, type: true } }) : []
       const empBusinessById: Record<string, any> = {}
       for (const b of empBusinesses) empBusinessById[b.id] = b
 
       for (const ee of enrichedEntries) {
         try {
-          const pbId = ee.employee?.primaryBusinessId
+          const pbId = ee.employees?.primaryBusinessId
           ee.primaryBusiness = pbId ? empBusinessById[pbId] || null : (ee.primaryBusiness || null)
         } catch (err) {
           // ignore
@@ -483,11 +484,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
               }
             } catch (err) { /* ignore persistence errors */ }
           }
-          if ((e as any).employee?.primaryBusiness && !((e as any).employee.primaryBusiness as any).shortName) {
-            const empPb = (e as any).employee.primaryBusiness as any
+          if ((e as any).employees?.primaryBusiness && !((e as any).employees.primaryBusiness as any).shortName) {
+            const empPb = (e as any).employees.primaryBusiness as any
             const nameForShort = empPb && empPb.name ? String(empPb.name) : undefined
             const shortEmp: string | undefined = nameForShort ? computeShortName(nameForShort) : undefined
-            ;(((e as any).employee.primaryBusiness) as any).shortName = shortEmp
+            ;(((e as any).employees.primaryBusiness) as any).shortName = shortEmp
             try {
               if (empPb && empPb.id) {
                 prisma.businesses.update({ where: { id: empPb.id }, data: { shortName: shortEmp } }).catch(() => null)
@@ -514,16 +515,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         for (const k of sortedCompanyKeys) {
           const group = rowsByCompany.get(k) || []
           group.sort((a: any, b: any) => {
-            const aLast = a.employee?.lastName || a.employeeLastName || ''
-            const bLast = b.employee?.lastName || b.employeeLastName || ''
+            const aLast = a.employees?.lastName || a.employeeLastName || ''
+            const bLast = b.employees?.lastName || b.employeeLastName || ''
             const c = String(aLast).localeCompare(String(bLast))
             if (c !== 0) return c
-            const aFirst = a.employee?.firstName || a.employeeFirstName || ''
-            const bFirst = b.employee?.firstName || b.employeeFirstName || ''
+            const aFirst = a.employees?.firstName || a.employeeFirstName || ''
+            const bFirst = b.employees?.firstName || b.employeeFirstName || ''
             const c2 = String(aFirst).localeCompare(String(bFirst))
             if (c2 !== 0) return c2
-            const aNum = a.employee?.employeeNumber || a.employeeNumber || ''
-            const bNum = b.employee?.employeeNumber || b.employeeNumber || ''
+            const aNum = a.employees?.employeeNumber || a.employeeNumber || ''
+            const bNum = b.employees?.employeeNumber || b.employeeNumber || ''
             return String(aNum).localeCompare(String(bNum))
           })
           sorted.push(...group)
@@ -678,13 +679,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       where: { id: periodId },
       data: updateData,
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
-        creator: {
+        users_payroll_periods_createdByTousers: {
           select: { id: true, name: true, email: true }
         },
-        approver: {
+        users_payroll_periods_approvedByTousers: {
           select: { id: true, name: true, email: true }
         }
       }
@@ -714,8 +715,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const existingPeriod = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
       include: {
-        business: { select: { id: true } },
-        _count: { select: { payrollEntries: true } }
+        businesses: { select: { id: true } },
+        _count: { select: { payroll_entries: true } }
       }
     })
 
@@ -728,7 +729,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     // Use the new canDeletePayroll helper which checks both business-level and business-agnostic permissions
     const user = session.user as any
-    if (!canDeletePayroll(user, existingPeriod.business?.id)) {
+    if (!canDeletePayroll(user, existingPeriod.businesses?.id)) {
       return NextResponse.json({
         error: 'Insufficient permissions to delete this payroll period. Delete permission must be explicitly granted to managers.'
       }, { status: 403 })
@@ -757,7 +758,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     // Delete in transaction - create audit log, then delete exports, entries, and period
     await prisma.$transaction(async (tx) => {
       // Create audit log entry before deletion for auditing/recovery purposes
-      await tx.auditLog.create({
+      await tx.auditLogs.create({
         data: {
           id: `AL-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
           userId: session.user.id,
@@ -767,7 +768,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
           timestamp: new Date(),
           oldValues: {
             ...existingPeriod,
-            entryCount: existingPeriod._count?.payrollEntries || 0
+            entryCount: existingPeriod._count?.payroll_entries || 0
           },
           newValues: null,
           metadata: {
@@ -779,29 +780,29 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       })
 
       // Delete any export records for this period first (FK constraint: payroll_exports_payrollperiodid_fkey)
-      await tx.payrollExport.deleteMany({
+      await tx.payrollExports.deleteMany({
         where: { payrollPeriodId: periodId }
       })
 
       // Delete payroll adjustments (FK constraint)
-      const entryIds = await tx.payrollEntry.findMany({
+      const entryIds = await tx.payrollEntries.findMany({
         where: { payrollPeriodId: periodId },
         select: { id: true }
       })
       if (entryIds.length > 0) {
         const ids = entryIds.map(e => e.id)
-        await tx.payrollAdjustment.deleteMany({
+        await tx.payrollAdjustments.deleteMany({
           where: { payrollEntryId: { in: ids } }
         })
       }
 
       // Delete all payroll entries (benefits will cascade delete due to FK constraint)
-      await tx.payrollEntry.deleteMany({
+      await tx.payrollEntries.deleteMany({
         where: { payrollPeriodId: periodId }
       })
 
       // Finally delete the period
-      await tx.payrollPeriod.delete({
+      await tx.payrollPeriods.delete({
         where: { id: periodId }
       })
     })

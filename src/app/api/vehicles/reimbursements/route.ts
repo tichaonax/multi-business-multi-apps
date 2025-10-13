@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
+import { randomBytes } from 'crypto';
 const CreateReimbursementSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
   vehicleId: z.string().min(1, 'Vehicle ID is required'),

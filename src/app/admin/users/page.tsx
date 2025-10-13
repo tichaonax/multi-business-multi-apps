@@ -26,7 +26,7 @@ interface User {
     employeeNumber: string
     employmentStatus: string
   }
-  businessMemberships: Array<{
+  businessMemberships?: Array<{
     businessId: string
     role: string
     permissions: any
@@ -213,7 +213,7 @@ export default function AdminUsersPage() {
 
         {/* Business Permission Management Modal */}
         {managingPermissions && session?.user && (() => {
-          const businessMembership = managingPermissions.user.businessMemberships.find(m => m.businessId === managingPermissions.businessId)
+          const businessMembership = managingPermissions.user.businessMemberships?.find(m => m.businessId === managingPermissions.businessId)
           if (!businessMembership) return null
           
           return (

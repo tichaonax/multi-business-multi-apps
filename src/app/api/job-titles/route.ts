@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     console.log('🔍 Job titles API - Starting request')

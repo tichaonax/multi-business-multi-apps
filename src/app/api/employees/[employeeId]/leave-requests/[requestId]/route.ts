@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { Prisma } from '@prisma/client'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
 
 export async function PUT(
   request: NextRequest,

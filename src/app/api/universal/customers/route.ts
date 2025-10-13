@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
 import { z } from 'zod'
 
 // Validation schemas
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       prisma.businessCustomers.findMany({
         where,
         include: {
-          business: {
+          businesses: {
             select: { name: true, type: true }
           },
           ...(includeOrders && {
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
         totalSpent: 0
       },
       include: {
-        business: {
+        businesses: {
           select: { name: true, type: true }
         },
         _count: {
@@ -275,7 +275,7 @@ export async function PUT(request: NextRequest) {
         dateOfBirth: updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : undefined
       },
       include: {
-        business: {
+        businesses: {
           select: { name: true, type: true }
         },
         _count: {

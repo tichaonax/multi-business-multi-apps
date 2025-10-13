@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 interface RouteParams {
   params: Promise<{ employeeId: string; contractId: string }>
 }
@@ -226,7 +227,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         })
 
         // Activate the employee (can now create user accounts, access systems)
-        await tx.employee.update({
+        await tx.employees.update({
           where: { id: employeeId },
           data: {
             employmentStatus: 'active',
@@ -342,7 +343,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       // CRITICAL: If contract is being terminated, update employee and suspend user account
       if (status === 'terminated' && existingContract.status !== 'terminated') {
         // SYNC RULE: Contract terminated → Employee terminated
-        const updatedEmployee = await tx.employee.update({
+        const updatedEmployee = await tx.employees.update({
           where: { id: employeeId },
           data: {
             employmentStatus: 'terminated',
@@ -355,7 +356,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
         // Suspend linked user account automatically
         if (updatedEmployee.users) {
-          await tx.user.update({
+          await tx.users.update({
             where: { id: updatedEmployee.users.id },
             data: {
               isActive: false,
@@ -367,14 +368,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           })
 
           // Deactivate all business memberships
-          await tx.businessMembership.updateMany({
+          await tx.businessMemberships.updateMany({
             where: { userId: updatedEmployee.users.id },
             data: { isActive: false }
           })
         }
 
         // Create audit log for contract termination
-        await tx.auditLog.create({
+        await tx.auditLogs.create({
           data: {
             userId: session.user.id,
             action: 'CONTRACT_TERMINATED',

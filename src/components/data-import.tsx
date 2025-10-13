@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useConfirm } from '@/components/ui/confirm-modal'
+import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button';
 import {
   Upload,
@@ -52,8 +52,9 @@ export function DataImport() {
   const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm()
+  const alert = useAlert()
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
       if (selectedFile.type === 'application/json' || selectedFile.name.endsWith('.csv')) {
@@ -61,7 +62,7 @@ export function DataImport() {
         setImportResult(null);
         setShowPreview(false);
       } else {
-        alert('Please select a JSON or CSV file');
+        await alert({ title: 'Invalid File', description: 'Please select a JSON or CSV file.' });
       }
     }
   };
@@ -92,7 +93,7 @@ export function DataImport() {
       setShowPreview(true);
 
     } catch (error) {
-      alert('Preview failed. Please check the file format and try again.');
+      await alert({ title: 'Preview Failed', description: 'Preview failed. Please check the file format and try again.' });
     } finally {
       setLoading(false);
     }
@@ -127,7 +128,7 @@ export function DataImport() {
       setShowPreview(false);
 
     } catch (error) {
-      alert('Import failed. Please check the file format and try again.');
+      await alert({ title: 'Import Failed', description: 'Import failed. Please check the file format and try again.' });
     } finally {
       setLoading(false);
     }

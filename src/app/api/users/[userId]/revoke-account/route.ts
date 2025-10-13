@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permission-utils';
 
+import { randomBytes } from 'crypto';
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -38,7 +39,7 @@ export async function DELETE(
           }
         },
         businessMemberships: {
-          include: { business: true }
+          include: { businesses: true }
         }
       }
     });
@@ -49,7 +50,7 @@ export async function DELETE(
 
     const result = await prisma.$transaction(async (tx) => {
       // Deactivate user account
-      const updatedUser = await tx.user.update({
+      const updatedUser = await tx.users.update({
         where: { id: userId },
         data: {
           isActive: false,
@@ -61,21 +62,21 @@ export async function DELETE(
       });
 
       // Deactivate all business memberships
-      await tx.businessMembership.updateMany({
+      await tx.businessMemberships.updateMany({
         where: { userId: userId },
         data: { isActive: false }
       });
 
       // Unlink from employee (preserve employee record)
       if ((user as any).employees) {
-        await tx.employee.update({
+        await tx.employees.update({
           where: { id: (user as any).employees.id },
           data: { userId: null }
         });
       }
 
       // Create audit log
-      await tx.auditLog.create({
+      await tx.auditLogs.create({
         data: {
           userId: session.user.id,
           action: 'USER_ACCOUNT_REVOKED',
@@ -172,7 +173,7 @@ export async function POST(
 
     const result = await prisma.$transaction(async (tx) => {
       // Reactivate user account
-      const updatedUser = await tx.user.update({
+      const updatedUser = await tx.users.update({
         where: { id: userId },
         data: {
           isActive: true,
@@ -188,7 +189,7 @@ export async function POST(
 
       // Relink to employee if employee exists and has no other user account
       if ((user as any).employees) {
-        const employeeHasOtherUser = await tx.employee.findFirst({
+        const employeeHasOtherUser = await tx.employees.findFirst({
           where: {
             id: (user as any).employees.id,
             userId: { not: null }
@@ -196,7 +197,7 @@ export async function POST(
         });
 
         if (!employeeHasOtherUser) {
-          await tx.employee.update({
+          await tx.employees.update({
             where: { id: (user as any).employees.id },
             data: { userId: userId }
           });
@@ -204,7 +205,7 @@ export async function POST(
       }
 
       // Create audit log
-      await tx.auditLog.create({
+      await tx.auditLogs.create({
         data: {
           userId: session.user.id,
           action: 'USER_ACCOUNT_REACTIVATED',

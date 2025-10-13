@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
             totalAmount: true,
             createdAt: true,
             businessId: true,
-            business: {
+            businesses: {
               select: {
                 name: true,
                 type: true
@@ -219,17 +219,17 @@ export async function GET(req: NextRequest) {
             title: `Order #${order.orderNumber}`,
             description: `${order.status} order`,
             createdAt: order.createdAt,
-            module: order.business ? `restaurant(${order.business.name})` : 'restaurant',
+            module: order.business ? `restaurant(${order.businesses.name})` : 'restaurant',
             icon: '🍽️',
             status: order.status,
             entityId: order.id,
             link: hasBusinessAccess ? '/restaurant/orders' : null,
             businessInfo: order.business ? {
               businessId: order.businessId,
-              businessName: order.business.name.length > 20
-                ? order.business.name.substring(0, 20) + '...'
-                : order.business.name,
-              businessType: order.business.type,
+              businessName: order.businesses.name.length > 20
+                ? order.businesses.name.substring(0, 20) + '...'
+                : order.businesses.name,
+              businessType: order.businesses.type,
               userHasAccess: hasBusinessAccess
             } : null,
             financialImpact: {
@@ -525,7 +525,7 @@ export async function GET(req: NextRequest) {
         const recentBusinessOrders = await safePrisma.findMany('businessOrder', {
           where: businessWhereClause,
           include: {
-            business: {
+            businesses: {
               select: {
                 name: true,
                 type: true

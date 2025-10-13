@@ -27,7 +27,7 @@ export async function GET() {
       include: {
         projectTransactions: {
           include: {
-            projectContractors: {
+            project_contractors: {
               include: {
                 persons: {
                   select: {
@@ -39,7 +39,7 @@ export async function GET() {
                 }
               }
             },
-            constructionProjects: {
+            construction_projects: {
               select: {
                 id: true,
                 name: true
@@ -49,7 +49,7 @@ export async function GET() {
         },
         loanTransactions: {
           include: {
-            interBusinessLoans: {
+            inter_business_loans: {
               include: {
                 businesses_inter_business_loans_borrowerBusinessIdTobusinesses: { select: { name: true } },
                 persons: { select: { fullName: true } },
@@ -78,25 +78,30 @@ export async function GET() {
     // Create a map for quick category lookup
     const categoryMap = new Map(categories.map(cat => [cat.id, cat]))
 
-    // Convert Decimal amounts to numbers for JSON serialization
+    // Convert Decimal amounts to numbers for JSON serialization and add frontend-compatible aliases
     const expensesWithConvertedAmounts = (expenses as any[]).map(expense => ({
       ...expense,
       amount: expense.amount ? Number(expense.amount) : 0,
       // Add category object with name, emoji, and color
       categoryObject: expense.category ? categoryMap.get(expense.category) || null : null,
+      // Frontend-compatible property aliases
       projectTransactions: (expense.projectTransactions || []).map((pt: any) => ({
         ...pt,
-        amount: Number(pt.amount)
+        amount: Number(pt.amount),
+        projectContractors: pt.project_contractors,
+        constructionProjects: pt.construction_projects
       })),
       loanTransactions: (expense.loanTransactions || []).map((lt: any) => ({
         ...lt,
         amount: Number(lt.amount),
-        interBusinessLoans: lt.interBusinessLoans ? {
-          ...lt.interBusinessLoans,
-          principalAmount: Number(lt.interBusinessLoans.principalAmount),
-          remainingBalance: Number(lt.interBusinessLoans.remainingBalance),
-          totalAmount: Number(lt.interBusinessLoans.totalAmount),
-          interestRate: Number(lt.interBusinessLoans.interestRate)
+        interBusinessLoans: lt.inter_business_loans ? {
+          ...lt.inter_business_loans,
+          principalAmount: Number(lt.inter_business_loans.principalAmount),
+          remainingBalance: Number(lt.inter_business_loans.remainingBalance),
+          totalAmount: Number(lt.inter_business_loans.totalAmount),
+          interestRate: Number(lt.inter_business_loans.interestRate),
+          borrowerBusiness: lt.inter_business_loans.businesses_inter_business_loans_borrowerBusinessIdTobusinesses,
+          lenderBusiness: lt.inter_business_loans.businesses_inter_business_loans_lenderBusinessIdTobusinesses
         } : null
       }))
     }))

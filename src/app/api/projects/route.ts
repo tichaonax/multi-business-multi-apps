@@ -11,6 +11,7 @@ import {
 } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
             email: true
           }
         },
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,

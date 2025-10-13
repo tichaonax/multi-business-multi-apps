@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { validateBusinessBalance, processBusinessTransaction } from '@/lib/business-balance-utils'
 
+import { randomBytes } from 'crypto';
 interface RouteParams {
   params: Promise<{ loanId: string }>
 }

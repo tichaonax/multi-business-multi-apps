@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { randomUUID } from 'crypto';
+import { randomBytes } from 'crypto';
 
 // Helper: produce a random DOB ensuring age >= 18
 function randomDob(minAge = 18, maxAge = 65) {

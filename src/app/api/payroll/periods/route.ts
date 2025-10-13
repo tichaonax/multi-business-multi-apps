@@ -8,6 +8,7 @@ import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection
 import { captureContractSnapshot } from '@/lib/payroll/contract-snapshot'
 import { nanoid } from 'nanoid'
 
+import { randomBytes } from 'crypto';
 // GET /api/payroll/periods - List payroll periods for a business
 export async function GET(req: NextRequest) {
   try {
@@ -42,17 +43,17 @@ export async function GET(req: NextRequest) {
     const periods = await prisma.payrollPeriods.findMany({
       where,
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
-        creator: {
+        users_payroll_periods_createdByTousers: {
           select: { id: true, name: true, email: true }
         },
-        approver: {
+        users_payroll_periods_approvedByTousers: {
           select: { id: true, name: true, email: true }
         },
         _count: {
-          select: { payrollEntries: true }
+          select: { payroll_entries: true }
         }
       },
       orderBy: [
@@ -71,13 +72,18 @@ export async function GET(req: NextRequest) {
     }
 
     const periodsWithShort = periods.map(p => {
-      const b: any = p.business || null
+      const b: any = p.businesses || null
       if (b) {
         if (!b.shortName) {
           b.shortName = computeShortName(b.name)
         }
       }
-      return p
+      return {
+        ...p,
+        business: b, // Transform businesses -> business for frontend compatibility
+        creator: p.users_payroll_periods_createdByTousers,
+        approver: p.users_payroll_periods_approvedByTousers
+      }
     })
 
     // Recompute period-level aggregates using authoritative per-entry totals
@@ -125,10 +131,29 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(periodsWithShort)
-  } catch (error) {
-    console.error('Payroll periods fetch error:', error)
+  } catch (error: any) {
+    console.error('Payroll period creation error:', error)
+    
+    // Handle specific Prisma errors
+    if (error.code === 'P2003') {
+      const constraint = error.meta?.constraint || 'unknown'
+      console.error(`Foreign key constraint violation: ${constraint}`)
+      
+      if (constraint.includes('createdBy')) {
+        return NextResponse.json(
+          { error: `User not found or invalid user ID: ${session.user.id}` },
+          { status: 400 }
+        )
+      }
+      
+      return NextResponse.json(
+        { error: `Foreign key constraint violation: ${constraint}` },
+        { status: 400 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to fetch payroll periods' },
+      { error: 'Failed to create payroll period', details: error.message },
       { status: 500 }
     )
   }
@@ -252,7 +277,7 @@ export async function POST(req: NextRequest) {
         where: {
           year: yr,
           month: mo,
-          business: {
+          businesses: {
             is: { isUmbrellaBusiness: true }
           }
         }
@@ -265,6 +290,40 @@ export async function POST(req: NextRequest) {
         )
       }
     }
+
+    // Verify the user exists before creating the payroll period
+    const user = await prisma.users.findUnique({
+      where: { id: session.user.id }
+    })
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    // Verify the user exists in the database
+    const currentUser = await prisma.users.findUnique({
+      where: { id: session.user.id }
+    })
+
+    if (!currentUser) {
+      console.error(`User not found in database: ${session.user.id}`)
+      
+      // Debug: List all users in the database
+      const allUsers = await prisma.users.findMany({
+        select: { id: true, name: true, email: true }
+      })
+      console.error('All users in database:', allUsers)
+      
+      return NextResponse.json(
+        { error: `User not found: ${session.user.id}. Available users: ${allUsers.map(u => `${u.name} (${u.id})`).join(', ')}` },
+        { status: 404 }
+      )
+    }
+
+    console.log(`Creating payroll period for user: ${currentUser.name} (${currentUser.id})`)
 
     // Create payroll period
     // If targetAllEmployees is true, create entries for all active employees in the business
@@ -286,8 +345,10 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date()
     }
 
+    console.log('Creating payroll period with data:', JSON.stringify(createData, null, 2))
+
     const period = await prisma.$transaction(async (tx) => {
-      const p = await tx.payrollPeriod.create({ data: createData })
+      const p = await tx.payrollPeriods.create({ data: createData })
 
       if (targetAllEmployees) {
         // Create entries for all employees in the selected business
@@ -300,7 +361,7 @@ export async function POST(req: NextRequest) {
         }
         // Umbrella business: no filter, get everyone!
 
-        const employees = await tx.employee.findMany({
+        const employees = await tx.employees.findMany({
           where: employeeWhere,
           select: {
             id: true,
@@ -382,11 +443,11 @@ export async function POST(req: NextRequest) {
         }
 
         if (allEntries.length > 0) {
-          await tx.payrollEntry.createMany({ data: allEntries })
+          await tx.payrollEntries.createMany({ data: allEntries })
           console.log(`Created ${allEntries.length} payroll entries for ${employeesWithContracts} employees`)
 
           // Update totals on period
-          await tx.payrollPeriod.update({
+          await tx.payrollPeriods.update({
             where: { id: p.id },
             data: { totalEmployees: employeesWithContracts, updatedAt: new Date() }
           })
@@ -394,9 +455,15 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const result = await tx.payrollPeriod.findUnique({ where: { id: p.id }, include: { business: { select: { id: true, name: true, type: true } }, creator: { select: { id: true, name: true, email: true } } } })
-      // Attach fallback shortName if missing (we haven't applied Prisma migration in local client yet)
-      if (result?.business && !(result.business as any).shortName) {
+      const result = await tx.payrollPeriods.findUnique({ where: { id: p.id }, include: { businesses: { select: { id: true, name: true, type: true } }, users_payroll_periods_createdByTousers: { select: { id: true, name: true, email: true } } } })
+      // Attach fallback shortName if missing and transform response
+      const transformedResult = {
+        ...result,
+        business: result?.businesses,
+        creator: result?.users_payroll_periods_createdByTousers
+      }
+      
+      if (transformedResult?.business && !(transformedResult.business as any).shortName) {
         const computeShortName = (name?: string) => {
           if (!name) return undefined
           const words = name.split(/\s+/).filter(Boolean)
@@ -404,9 +471,9 @@ export async function POST(req: NextRequest) {
           const initials = words.map(w => w[0].toUpperCase()).join('').substring(0, 4)
           return initials
         }
-          ; (result.business as any).shortName = computeShortName(result.business.name)
+        ; (transformedResult.business as any).shortName = computeShortName(transformedResult.businesses.name)
       }
-      return result
+      return transformedResult
     })
 
     return NextResponse.json(period, { status: 201 })

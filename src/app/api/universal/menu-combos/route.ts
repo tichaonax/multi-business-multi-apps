@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
+import { randomBytes } from 'crypto';
 const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {

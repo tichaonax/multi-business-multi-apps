@@ -29,7 +29,7 @@ export async function GET() {
         isActive: true
       },
       include: {
-        business: true
+        businesses: true
       }
     })
 

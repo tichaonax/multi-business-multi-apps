@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+import { randomBytes } from 'crypto';
 interface RouteParams {
   params: Promise<{ projectId: string }>
 }
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             nationalId: true,
             address: true,
             isActive: true,
-            idFormatTemplate: {
+            idFormatTemplates: {
               select: {
                 name: true,
                 countryCode: true
@@ -51,9 +52,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        stageContractorAssignments: {
+        stage_contractor_assignments: {
           include: {
-            projectStage: {
+            project_stages: {
               select: {
                 id: true,
                 name: true,
@@ -62,15 +63,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        projectTransactions: {
+        project_transactions: {
           include: {
-            projectStage: {
+            project_stages: {
               select: {
                 id: true,
                 name: true
               }
             },
-            personalExpense: {
+            personal_expenses: {
               select: {
                 amount: true,
                 date: true
@@ -80,8 +81,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         _count: {
           select: {
-            stageContractorAssignments: true,
-            projectTransactions: true
+            stage_contractor_assignments: true,
+            project_transactions: true
           }
         }
       },
@@ -210,7 +211,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             nationalId: true,
             address: true,
             isActive: true,
-            idFormatTemplate: {
+            idFormatTemplates: {
               select: {
                 name: true,
                 countryCode: true

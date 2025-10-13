@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useConfirm } from '@/components/ui/confirm-modal'
+import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button';
 import {
   Download,
@@ -46,6 +46,7 @@ export function DataBackup() {
   const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm()
+  const alert = useAlert()
 
   const handleBackup = async () => {
     try {
@@ -82,19 +83,19 @@ export function DataBackup() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      alert('Backup failed. Please try again.');
+      await alert({ title: 'Backup Failed', description: 'The backup operation failed. Please try again.' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile && selectedFile.type === 'application/json') {
       setRestoreFile(selectedFile);
       setRestoreResult(null);
     } else {
-      alert('Please select a JSON backup file');
+      await alert({ title: 'Invalid File', description: 'Please select a JSON backup file.' });
     }
   };
 
@@ -125,7 +126,7 @@ export function DataBackup() {
       const result = await response.json();
       setRestoreResult(result);
     } catch (error) {
-      alert('Restore failed. Please check the backup file and try again.');
+      await alert({ title: 'Restore Failed', description: 'The restore operation failed. Please check the backup file and try again.' });
     } finally {
       setLoading(false);
     }

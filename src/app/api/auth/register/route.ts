@@ -3,6 +3,7 @@ import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 
+import { randomBytes } from 'crypto';
 export async function POST(req: NextRequest) {
   try {
     const { name, email, password, createBusiness, businessName, businessType, businessId } = await req.json();
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest) {
           name: user.name,
           email: user.email,
         },
-        business: {
+        businesses: {
           id: business.id,
           name: business.name,
         }

@@ -75,7 +75,7 @@ export const authOptions: NextAuthOptions = {
         // Fetch active business memberships separately (typed as any to avoid strict client shape differences)
         const businessMemberships = await prisma.businessMemberships.findMany({
           where: { userId: dbUser.id, isActive: true },
-          include: { business: true }
+          include: { businesses: true }
         }) as any[]
 
         const user = {
@@ -113,8 +113,8 @@ export const authOptions: NextAuthOptions = {
         // lightweight session-friendly shape. Use `any` for the incoming items to avoid mismatches
         // against the SessionUser type definitions.
         const transformedMemberships = (user.businessMemberships || [] as any[]).map((membership: any) => ({
-          businessId: membership.business?.id || membership.businessId,
-          businessName: membership.business?.name || membership.businessName,
+          businessId: membership.businesses?.id || membership.businessId,
+          businessName: membership.businesses?.name || membership.businessName,
           role: membership.role,
           permissions: (membership.permissions || {}) as Record<string, any>,
           isActive: membership.isActive,

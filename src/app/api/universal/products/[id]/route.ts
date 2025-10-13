@@ -65,7 +65,7 @@ export async function GET(
     const product = await prisma.businessProducts.findUnique({
       where: { id },
       include: {
-        business: {
+        businesses: {
           select: { name: true, type: true }
         },
         businessBrand: { select: { id: true, name: true } },
@@ -178,7 +178,7 @@ export async function PUT(
           attributes: Object.keys(finalAttributes).length > 0 ? finalAttributes : undefined
         },
         include: {
-          business: { select: { name: true, type: true } },
+          businesses: { select: { name: true, type: true } },
           businessBrand: { select: { id: true, name: true } },
           businessCategory: { select: { id: true, name: true } },
           productVariants: {

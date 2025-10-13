@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { z } from 'zod'
 
+import { randomBytes } from 'crypto';
 // Customer creation schema
 const CreateCustomerSchema = z.object({
   type: z.enum(['INDIVIDUAL', 'BUSINESS', 'EMPLOYEE', 'USER', 'GOVERNMENT', 'NGO']).default('INDIVIDUAL'),
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
           divisionAccounts: {
             where: businessId ? { businessId } : undefined,
             include: {
-              business: {
+              businesses: {
                 select: { id: true, name: true, type: true }
               }
             }
@@ -239,7 +240,7 @@ export async function POST(request: NextRequest) {
           where: { businessId: validatedData.businessId }
         })
 
-        const business = await tx.business.findUnique({
+        const business = await tx.businesses.findUnique({
           where: { id: validatedData.businessId },
           select: { type: true }
         })
@@ -271,7 +272,7 @@ export async function POST(request: NextRequest) {
       include: {
         divisionAccounts: {
           include: {
-            business: {
+            businesses: {
               select: { id: true, name: true, type: true }
             }
           }

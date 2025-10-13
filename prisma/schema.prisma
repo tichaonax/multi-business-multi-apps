@@ -151,7 +151,7 @@ model BusinessMemberships {
   lastAccessedAt       DateTime?
   templateId           String?
   businesses           Businesses            @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  permission_templates PermissionTemplates? @relation(fields: [templateId], references: [id])
+  permissionTemplates  PermissionTemplates? @relation(fields: [templateId], references: [id])
   users                Users                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, businessId])
@@ -1318,30 +1318,30 @@ model PayrollExports {
 }
 
 model PayrollPeriods {
-  id                                      String            @id
-  businessId                              String
-  year                                    Int
-  month                                   Int
-  periodStart                             DateTime?
-  periodEnd                               DateTime?
-  status                                  String            @default("draft")
-  totalEmployees                          Int               @default(0)
-  totalGrossPay                           Decimal           @default(0) @db.Decimal(12, 2)
-  totalDeductions                         Decimal           @default(0) @db.Decimal(12, 2)
-  totalNetPay                             Decimal           @default(0) @db.Decimal(12, 2)
-  createdAt                               DateTime          @default(now())
-  createdBy                               String?
-  approvedAt                              DateTime?
-  approvedBy                              String?
-  exportedAt                              DateTime?
-  closedAt                                DateTime?
-  notes                                   String?
-  updatedAt                               DateTime          @default(now())
-  payroll_entries                         PayrollEntries[]
-  payroll_exports                         PayrollExports[]
-  users_payroll_periods_approvedByTousers Users?            @relation("payroll_periods_approvedByTousers", fields: [approvedBy], references: [id])
-  businesses                              Businesses        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users_payroll_periods_createdByTousers  Users?            @relation("payroll_periods_createdByTousers", fields: [createdBy], references: [id])
+  id                String            @id
+  businessId        String
+  year              Int
+  month             Int
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  status            String            @default("draft")
+  totalEmployees    Int               @default(0)
+  totalGrossPay     Decimal           @default(0) @db.Decimal(12, 2)
+  totalDeductions   Decimal           @default(0) @db.Decimal(12, 2)
+  totalNetPay       Decimal           @default(0) @db.Decimal(12, 2)
+  createdAt         DateTime          @default(now())
+  createdBy         String?
+  approvedAt        DateTime?
+  approvedBy        String?
+  exportedAt        DateTime?
+  closedAt          DateTime?
+  notes             String?
+  updatedAt         DateTime          @default(now())
+  payrollEntries    PayrollEntries[]
+  payrollExports    PayrollExports[]
+  approver          Users?            @relation("payroll_periods_approvedByTousers", fields: [approvedBy], references: [id])
+  business          Businesses        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator           Users?            @relation("payroll_periods_createdByTousers", fields: [createdBy], references: [id])
 
   @@unique([businessId, year, month])
   @@index([businessId])
@@ -1358,7 +1358,7 @@ model PermissionTemplates {
   createdBy            String
   isActive             Boolean                @default(true)
   updatedAt            DateTime               @default(now())
-  business_memberships BusinessMemberships[]
+  businessMemberships  BusinessMemberships[]
   users                Users                  @relation(fields: [createdBy], references: [id])
 @@map("permission_templates")
 }
@@ -1375,20 +1375,20 @@ model PersonalBudgets {
 }
 
 model PersonalExpenses {
-  id                   String                 @id
-  category             String
-  description          String
-  amount               Decimal                @db.Decimal(12, 2)
-  date                 DateTime
-  tags                 String?
-  createdAt            DateTime               @default(now())
-  receiptUrl           String?
-  userId               String?
-  notes                String?
-  updatedAt            DateTime               @default(now())
-  loan_transactions    LoanTransactions[]
-  users                Users?                 @relation(fields: [userId], references: [id])
-  project_transactions ProjectTransactions[]
+  id                  String                 @id
+  category            String
+  description         String
+  amount              Decimal                @db.Decimal(12, 2)
+  date                DateTime
+  tags                String?
+  createdAt           DateTime               @default(now())
+  receiptUrl          String?
+  userId              String?
+  notes               String?
+  updatedAt           DateTime               @default(now())
+  loanTransactions    LoanTransactions[]
+  users               Users?                 @relation(fields: [userId], references: [id])
+  projectTransactions ProjectTransactions[]
 @@map("personal_expenses")
 }
 
@@ -1407,12 +1407,12 @@ model Persons {
   updatedAt                DateTime                  @default(now())
   driverLicenseNumber      String?
   driverLicenseTemplateId  String?
-  inter_business_loans     InterBusinessLoans[]
+  interBusinessLoans       InterBusinessLoans[]
   users                    Users?                    @relation(fields: [createdBy], references: [id])
-  driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
-  id_format_templates      IdFormatTemplates?      @relation(fields: [idFormatTemplateId], references: [id])
-  project_contractors      ProjectContractors[]
-  project_transactions     ProjectTransactions[]
+  driverLicenseTemplates   DriverLicenseTemplates?   @relation(fields: [driverLicenseTemplateId], references: [id])
+  idFormatTemplates        IdFormatTemplates?        @relation(fields: [idFormatTemplateId], references: [id])
+  projectContractors       ProjectContractors[]
+  projectTransactions      ProjectTransactions[]
 @@map("persons")
 }
 
@@ -1761,7 +1761,7 @@ model Users {
   accounts                                                        Accounts[]
   audit_logs                                                      AuditLogs[]
   business_accounts                                               BusinessAccounts[]
-  business_memberships                                            BusinessMemberships[]
+  businessMemberships                                             BusinessMemberships[]
   business_transactions                                           BusinessTransactions[]
   chat_messages                                                   ChatMessages[]
   chat_participants                                               ChatParticipants[]

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -63,10 +64,12 @@ export async function GET(req: NextRequest) {
         })
       } else {
         // Create a new umbrella business
+        const { nanoid } = await import('nanoid')
         const shortName = await (await import('@/lib/business-shortname')).generateUniqueShortName(prisma as any, 'Umbrella Business Settings')
         umbrellaBusinessData = await prisma.businesses.create({
           // Cast data to any to avoid Prisma client schema mismatch issues for shortName
           data: ({
+            id: nanoid(),
             name: 'Umbrella Business Settings',
             type: 'umbrella',
             isUmbrellaBusiness: true,
@@ -125,9 +128,11 @@ export async function PUT(req: NextRequest) {
 
     if (!umbrellaBusinessRecord) {
       // Create umbrella business if it doesn't exist
+      const { nanoid } = await import('nanoid')
       const shortName = await (await import('@/lib/business-shortname')).generateUniqueShortName(prisma as any, 'Umbrella Business Settings')
       umbrellaBusinessRecord = await prisma.businesses.create({
         data: ({
+          id: nanoid(),
           name: 'Umbrella Business Settings',
           type: 'umbrella',
           isUmbrellaBusiness: true,

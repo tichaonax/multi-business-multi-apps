@@ -10,6 +10,7 @@ import { generateMultiTabPayrollExcel, getYearToDatePeriods, regeneratePeriodEnt
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
+import { randomBytes } from 'crypto';
 // working days helper is imported from shared helpers
 
 // GET /api/payroll/exports
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     const exports = await prisma.payrollExports.findMany({
       where,
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
         exporter: {
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
     const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId },
       include: {
-        business: {
+        businesses: {
           select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true }
         },
         payrollEntries: {
@@ -204,9 +205,9 @@ export async function POST(req: NextRequest) {
       }
 
       // Generate multi-tab Excel
-      const exportBusinessName = period.business.isUmbrellaBusiness && period.business.umbrellaBusinessName
-        ? period.business.umbrellaBusinessName
-        : period.business.name
+      const exportBusinessName = period.businesses.isUmbrellaBusiness && period.businesses.umbrellaBusinessName
+        ? period.businesses.umbrellaBusinessName
+        : period.businesses.name
 
       const excelBuffer = await generateMultiTabPayrollExcel(tabs, exportBusinessName)
 
@@ -244,7 +245,7 @@ export async function POST(req: NextRequest) {
             exportedAt: new Date()
           },
           include: {
-            business: {
+            businesses: {
               select: { id: true, name: true, type: true }
             },
             exporter: {
@@ -532,9 +533,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Use umbrella business name for umbrella payrolls, otherwise use regular business name
-    const exportBusinessName = period.business.isUmbrellaBusiness && period.business.umbrellaBusinessName
-      ? period.business.umbrellaBusinessName
-      : period.business.name
+    const exportBusinessName = period.businesses.isUmbrellaBusiness && period.businesses.umbrellaBusinessName
+      ? period.businesses.umbrellaBusinessName
+      : period.businesses.name
 
     const excelBuffer = await generatePayrollExcel(
       {
@@ -586,7 +587,7 @@ export async function POST(req: NextRequest) {
           exportedAt: new Date()
         },
         include: {
-          business: {
+          businesses: {
             select: { id: true, name: true, type: true }
           },
           exporter: {
@@ -607,7 +608,7 @@ export async function POST(req: NextRequest) {
 
       // Attach computed shortName to business for API consumers
       if (newExport?.business && !(newExport.business as any).shortName) {
-        ; (newExport.business as any).shortName = computeShortName(newExport.business.name)
+        ; (newExport.business as any).shortName = computeShortName(newExport.businesses.name)
       }
 
       return newExport

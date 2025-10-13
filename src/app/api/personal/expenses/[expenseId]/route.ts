@@ -6,6 +6,7 @@ import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 import { deleteExpenseWithRollback } from '@/lib/transaction-utils'
 
+import { randomBytes } from 'crypto';
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ expenseId: string }> }

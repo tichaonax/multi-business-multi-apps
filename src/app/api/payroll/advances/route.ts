@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 
+import { randomBytes } from 'crypto';
 // GET /api/payroll/advances
 export async function GET(req: NextRequest) {
   try {

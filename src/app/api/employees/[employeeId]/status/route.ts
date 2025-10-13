@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { hasPermission } from '@/lib/permission-utils';
 
+import { randomBytes } from 'crypto';
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ employeeId: string }> }
@@ -89,7 +90,7 @@ export async function PUT(
       }
 
       // Update employee status
-      const updatedEmployee = await tx.employee.update({
+      const updatedEmployee = await tx.employees.update({
         where: { id: employeeId },
         data: {
           ...(finalEmploymentStatus && { employmentStatus: finalEmploymentStatus }),
@@ -132,7 +133,7 @@ export async function PUT(
 
         if (shouldDeactivateUser && linkedUser.isActive) {
           // Deactivate user account
-          updatedUser = await tx.user.update({
+          updatedUser = await tx.users.update({
             where: { id: linkedUser.id },
             data: {
               isActive: false,
@@ -144,7 +145,7 @@ export async function PUT(
           });
 
           // Deactivate business memberships
-          await tx.businessMembership.updateMany({
+          await tx.businessMemberships.updateMany({
             where: { userId: linkedUser.id },
             data: { isActive: false }
           });
@@ -158,7 +159,7 @@ export async function PUT(
         }
 
         // Create audit log for synchronization
-        await tx.auditLog.create({
+        await tx.auditLogs.create({
           data: {
             userId: session.user.id,
             action: 'EMPLOYEE_STATUS_SYNC',

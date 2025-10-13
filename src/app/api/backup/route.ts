@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+import { randomBytes } from 'crypto';
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -32,46 +33,46 @@ export async function GET(request: NextRequest) {
           include: {
             businessMemberships: {
               include: {
-                business: true,
-                permissionTemplate: true
+                businesses: true,
+                permissionTemplates: true
               }
             },
-            employee: true
+            employees: true
           }
         });
 
         backupData.businesses = await prisma.businesses.findMany({
           include: {
-            businessMemberships: true,
+            business_memberships: true,
             employees: true,
-            childBusinesses: true
+            other_businesses: true
           }
         });
 
         backupData.employees = await prisma.employees.findMany({
           include: {
-            jobTitles: true,
-            compensationTypes: true,
-            business: true,
-            employeeContracts: true,
-            employeeBusinessAssignments: true
+            job_titles: true,
+            compensation_types: true,
+            businesses: true,
+            employee_contracts_employee_contracts_employeeIdToemployees: true,
+            employee_business_assignments: true
           }
         });
 
         backupData.businessMemberships = await prisma.businessMemberships.findMany({
           include: {
-            user: true,
-            business: true,
-            permissionTemplate: true
+            users: true,
+            businesses: true,
+            permissionTemplates: true
           }
         });
 
         backupData.employeeContracts = await prisma.employeeContracts.findMany({
           include: {
-            employee: true,
-            business: true,
-            jobTitle: true,
-            compensationType: true
+            employees_employee_contracts_employeeIdToemployees: true,
+            businesses_employee_contracts_primaryBusinessIdTobusinesses: true,
+            job_titles: true,
+            compensation_types: true
           }
         });
 
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
             orderBy: { timestamp: 'desc' },
             take: 10000,
             include: {
-              user: {
+              users: {
                 select: { id: true, name: true, email: true }
               }
             }
@@ -102,8 +103,8 @@ export async function GET(request: NextRequest) {
           include: {
             businessMemberships: {
               include: {
-                business: true,
-                permissionTemplate: true
+                businesses: true,
+                permissionTemplates: true
               }
             }
           }
@@ -111,9 +112,9 @@ export async function GET(request: NextRequest) {
 
         backupData.businessMemberships = await prisma.businessMemberships.findMany({
           include: {
-            user: true,
-            business: true,
-            permissionTemplate: true
+            users: true,
+            businesses: true,
+            permissionTemplates: true
           }
         });
 
@@ -124,18 +125,18 @@ export async function GET(request: NextRequest) {
         // Business information and settings
         backupData.businesses = await prisma.businesses.findMany({
           include: {
-            businessMemberships: true,
-            childBusinesses: true
+            business_memberships: true,
+            other_businesses: true
           }
         });
 
         backupData.businessMemberships = await prisma.businessMemberships.findMany({
           include: {
-            user: {
+            users: {
               select: { id: true, name: true, email: true }
             },
-            business: true,
-            permissionTemplate: true
+            businesses: true,
+            permissionTemplates: true
           }
         });
 
@@ -151,23 +152,23 @@ export async function GET(request: NextRequest) {
         // Employee data
         backupData.employees = await prisma.employees.findMany({
           include: {
-            jobTitles: true,
-            compensationTypes: true,
-            business: true,
-            employeeContracts: true,
-            employeeBusinessAssignments: true,
-            employeeBenefits: true,
-            employeeAttendance: true
+            job_titles: true,
+            compensation_types: true,
+            businesses: true,
+            employee_contracts_employee_contracts_employeeIdToemployees: true,
+            employee_business_assignments: true,
+            employee_benefits: true,
+            employee_attendance: true
           }
         });
 
         backupData.employeeContracts = await prisma.employeeContracts.findMany({
           include: {
-            employee: true,
-            business: true,
-            jobTitle: true,
-            compensationType: true,
-            contractBenefits: true
+            employees_employee_contracts_employeeIdToemployees: true,
+            businesses_employee_contracts_primaryBusinessIdTobusinesses: true,
+            job_titles: true,
+            compensation_types: true,
+            contract_benefits: true
           }
         });
 
@@ -249,7 +250,7 @@ export async function POST(request: NextRequest) {
         if (backupData.jobTitles) {
           for (const jobTitle of backupData.jobTitles) {
             try {
-              await tx.jobTitle.upsert({
+              await tx.jobTitles.upsert({
                 where: { id: jobTitle.id },
                 update: {
                   title: jobTitle.title,
@@ -281,7 +282,7 @@ export async function POST(request: NextRequest) {
         if (backupData.compensationTypes) {
           for (const compensationType of backupData.compensationTypes) {
             try {
-              await tx.compensationType.upsert({
+              await tx.compensationTypes.upsert({
                 where: { id: compensationType.id },
                 update: {
                   name: compensationType.name,
@@ -315,7 +316,7 @@ export async function POST(request: NextRequest) {
         if (backupData.benefitTypes) {
           for (const benefitType of backupData.benefitTypes) {
             try {
-              await tx.benefitType.upsert({
+              await tx.benefitTypes.upsert({
                 where: { id: benefitType.id },
                 update: {
                   name: benefitType.name,
@@ -348,7 +349,7 @@ export async function POST(request: NextRequest) {
         if (backupData.businesses) {
           for (const business of backupData.businesses) {
             try {
-              await tx.business.upsert({
+              await tx.businesses.upsert({
                 where: { id: business.id },
                 update: {
                   name: business.name,
@@ -384,7 +385,7 @@ export async function POST(request: NextRequest) {
         if (backupData.users) {
           for (const user of backupData.users) {
             try {
-              await tx.user.upsert({
+              await tx.users.upsert({
                 where: { id: user.id },
                 update: {
                   email: user.email,
@@ -418,7 +419,7 @@ export async function POST(request: NextRequest) {
         if (backupData.businessMemberships) {
           for (const membership of backupData.businessMemberships) {
             try {
-              await tx.businessMembership.upsert({
+              await tx.businessMemberships.upsert({
                 where: {
                   userId_businessId: {
                     userId: membership.userId,
@@ -432,6 +433,7 @@ export async function POST(request: NextRequest) {
                   templateId: membership.templateId
                 },
                 create: {
+            id: randomBytes(12).toString('hex'),
                   id: membership.id,
                   userId: membership.userId,
                   businessId: membership.businessId,
@@ -454,7 +456,7 @@ export async function POST(request: NextRequest) {
         if (backupData.employees) {
           for (const employee of backupData.employees) {
             try {
-              await tx.employee.upsert({
+              await tx.employees.upsert({
                 where: { id: employee.id },
                 update: {
                   employeeNumber: employee.employeeNumber,
@@ -497,7 +499,7 @@ export async function POST(request: NextRequest) {
         if (backupData.auditLogs) {
           for (const auditLog of backupData.auditLogs) {
             try {
-              await tx.auditLog.create({
+              await tx.auditLogs.create({
                 data: {
                   id: auditLog.id,
                   userId: auditLog.userId,

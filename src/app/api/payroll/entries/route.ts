@@ -7,6 +7,7 @@ import { nanoid } from 'nanoid'
 import { Decimal } from '@prisma/client/runtime/library'
 import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
 
+import { randomBytes } from 'crypto';
 // GET /api/payroll/entries - List payroll entries
 export async function GET(req: NextRequest) {
   try {

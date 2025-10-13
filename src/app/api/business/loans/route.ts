@@ -6,6 +6,7 @@ import { isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 import { validateBusinessBalance, processBusinessTransaction } from '@/lib/business-balance-utils'
 
+import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
@@ -44,19 +45,19 @@ export async function GET() {
         ]
       },
       include: {
-        borrowerBusiness: {
+        businesses_inter_business_loans_borrowerBusinessIdTobusinesses: {
           select: { name: true }
         },
-        lenderBusiness: {
+        businesses_inter_business_loans_lenderBusinessIdTobusinesses: {
           select: { name: true }
         },
-        loanTransactions: {
+        loan_transactions: {
           orderBy: { transactionDate: 'desc' },
           include: {
-            personalExpense: {
+            personal_expenses: {
               select: { id: true, description: true }
             },
-            creator: {
+            users: {
               select: { name: true, email: true }
             }
           }
@@ -65,16 +66,21 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     })
 
-    // Convert Decimal amounts to numbers for proper JSON serialization
+    // Convert Decimal amounts to numbers for proper JSON serialization and add frontend-compatible aliases
     const loansWithConvertedAmounts = loans.map(loan => ({
       ...loan,
       principalAmount: Number(loan.principalAmount),
       remainingBalance: Number(loan.remainingBalance),
       totalAmount: Number(loan.totalAmount),
       interestRate: Number(loan.interestRate),
-      loanTransactions: loan.loanTransactions.map(transaction => ({
+      // Frontend-compatible property aliases
+      borrowerBusiness: loan.businesses_inter_business_loans_borrowerBusinessIdTobusinesses,
+      lenderBusiness: loan.businesses_inter_business_loans_lenderBusinessIdTobusinesses,
+      loanTransactions: loan.loan_transactions.map(transaction => ({
         ...transaction,
-        amount: Number(transaction.amount)
+        amount: Number(transaction.amount),
+        personalExpense: transaction.personal_expenses,
+        creator: transaction.users
       }))
     }))
 

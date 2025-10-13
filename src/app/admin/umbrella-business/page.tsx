@@ -6,6 +6,7 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { useToastContext } from '@/components/ui/toast'
 
 interface UmbrellaBusinessData {
   id: string
@@ -19,6 +20,7 @@ interface UmbrellaBusinessData {
 
 export default function UmbrellaBusinessManagement() {
   const { data: session } = useSession()
+  const toast = useToastContext()
   const [umbrellaData, setUmbrellaData] = useState<UmbrellaBusinessData | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -86,13 +88,13 @@ export default function UmbrellaBusinessManagement() {
       if (response.ok) {
         const updatedData = await response.json()
         setUmbrellaData(updatedData)
-        alert('Umbrella business information updated successfully!')
+        toast.push('Umbrella business information updated successfully!')
       } else {
-        alert('Failed to update umbrella business information')
+        toast.push('Failed to update umbrella business information')
       }
     } catch (error) {
       console.error('Error updating umbrella business:', error)
-      alert('Error updating umbrella business information')
+      toast.push('Error updating umbrella business information')
     } finally {
       setSaving(false)
     }

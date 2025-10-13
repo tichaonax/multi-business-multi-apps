@@ -47,11 +47,11 @@ export async function POST(req: NextRequest) {
           isActive: true,
         },
         include: {
-          business: true,
+          businesses: true,
         },
       });
 
-      if (!membership || !membership.business.isActive) {
+      if (!membership || !membership.businesses.isActive) {
         return NextResponse.json({ error: 'Business not found or access denied' }, { status: 403 });
       }
     }
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       businessId,
-      businessName: membership.business.name,
+      businessName: membership.businesses.name,
     });
   } catch (error) {
     console.error('Error setting current business:', error);

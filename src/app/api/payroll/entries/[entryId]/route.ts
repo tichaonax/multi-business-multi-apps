@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             year: true,
             month: true,
             status: true,
-            business: {
+            businesses: {
               select: {
                 id: true,
                 name: true

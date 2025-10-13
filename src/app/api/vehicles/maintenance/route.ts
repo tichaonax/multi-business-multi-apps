@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { ServiceType } from '@prisma/client'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
 import { z } from 'zod'
 
 const CreateMaintenanceSchema = z.object({

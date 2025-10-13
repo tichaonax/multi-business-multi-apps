@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { createAuditLog, auditCreate } from '@/lib/audit'
 import { hasPermission } from '@/lib/rbac'
 
+import { randomBytes } from 'crypto';
 // Simple in-memory idempotency store: maps idempotencyKey -> response payload
 // Note: this is ephemeral (process memory). It prevents duplicate orders for
 // repeated client retries while the server process is running. For durable
@@ -32,11 +33,11 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
       role: true,
       businessMemberships: {
         where: {
-          business: { type: 'restaurant' },
+          businesses: { type: 'restaurant' },
           isActive: true
         },
         include: {
-          business: { select: { id: true, name: true } }
+          businesses: { select: { id: true, name: true } }
         }
       }
     }
@@ -52,7 +53,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
   }
 
   // For non-admin users, only return businesses they have membership to
-  return user?.businessMemberships?.map(m => m.business.id) || []
+  return user?.businessMemberships?.map(m => m.businesses.id) || []
 }
 
 // GET - Fetch restaurant orders using universal orders API
@@ -134,7 +135,7 @@ export async function GET(request: NextRequest) {
     const orders = await prisma.businessOrders.findMany({
       where: whereClause,
       include: {
-        business: {
+        businesses: {
           select: {
             name: true,
             type: true

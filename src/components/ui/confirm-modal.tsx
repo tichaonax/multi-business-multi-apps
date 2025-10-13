@@ -7,10 +7,12 @@ type ConfirmOptions = {
   description?: string
   confirmText?: string
   cancelText?: string
+  alertMode?: boolean // When true, shows only OK button
 }
 
 type ConfirmContextValue = {
   confirm: (options: ConfirmOptions) => Promise<boolean>
+  alert: (options: Omit<ConfirmOptions, 'cancelText' | 'alertMode'>) => Promise<void>
 }
 
 const ConfirmContext = createContext<ConfirmContextValue | null>(null)
@@ -24,6 +26,15 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
       setState({ options, resolve })
+    })
+  }, [])
+
+  const alert = useCallback((options: Omit<ConfirmOptions, 'cancelText' | 'alertMode'>) => {
+    return new Promise<void>((resolve) => {
+      setState({ 
+        options: { ...options, alertMode: true }, 
+        resolve: () => resolve() 
+      })
     })
   }, [])
 
@@ -42,7 +53,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 
   // Close handler resolves promise and clears state
   const handleClose = (result: boolean) => {
-    if (state?.resolve) state.resolve(result)
+    if (state?.resolve) {
+      if (state.options?.alertMode) {
+        (state.resolve as () => void)()
+      } else {
+        (state.resolve as (value: boolean) => void)(result)
+      }
+    }
     setState(null)
   }
 
@@ -52,7 +69,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       if (!state) return
       if (e.key === 'Escape') {
         e.preventDefault()
-        handleClose(false)
+        handleClose(state.options?.alertMode ? true : false)
       }
       if (e.key === 'Enter') {
         // Avoid triggering when focusing form elements
@@ -67,7 +84,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   }, [state])
 
   return (
-    <ConfirmContext.Provider value={{ confirm }}>
+    <ConfirmContext.Provider value={{ confirm, alert }}>
       {children}
       {state?.options && (
         <div
@@ -83,19 +100,23 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               <p className="mt-3 text-sm text-secondary">{state.options.description}</p>
             )}
             <div className="mt-6 flex justify-end gap-3">
-              <button
-                ref={(el) => { if (!confirmRef.current) confirmRef.current = {}; confirmRef.current.cancelButton = el }}
-                className="rounded border px-4 py-2 text-sm bg-white dark:bg-gray-700"
-                onClick={() => handleClose(false)}
-              >
-                {state.options.cancelText || 'Cancel'}
-              </button>
+              {!state.options.alertMode && (
+                <button
+                  ref={(el) => { if (!confirmRef.current) confirmRef.current = {}; confirmRef.current.cancelButton = el }}
+                  className="rounded border px-4 py-2 text-sm bg-white dark:bg-gray-700"
+                  onClick={() => handleClose(false)}
+                >
+                  {state.options.cancelText || 'Cancel'}
+                </button>
+              )}
               <button
                 ref={(el) => { if (!confirmRef.current) confirmRef.current = {}; confirmRef.current.confirmButton = el }}
-                className="rounded bg-red-600 px-4 py-2 text-sm text-white"
+                className={`rounded px-4 py-2 text-sm text-white ${
+                  state.options.alertMode ? 'bg-blue-600' : 'bg-red-600'
+                }`}
                 onClick={() => handleClose(true)}
               >
-                {state.options.confirmText || 'Yes, proceed'}
+                {state.options.confirmText || (state.options.alertMode ? 'OK' : 'Yes, proceed')}
               </button>
             </div>
           </div>
@@ -109,6 +130,12 @@ export function useConfirm() {
   const ctx = useContext(ConfirmContext)
   if (!ctx) throw new Error('useConfirm must be used within a ConfirmProvider')
   return ctx.confirm
+}
+
+export function useAlert() {
+  const ctx = useContext(ConfirmContext)
+  if (!ctx) throw new Error('useAlert must be used within a ConfirmProvider')
+  return ctx.alert
 }
 
 export default ConfirmProvider

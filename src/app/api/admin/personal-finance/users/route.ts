@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         createdAt: true,
         _count: {
           select: {
-            personalExpenses: true
+            personal_expenses: true
           }
         }
       },
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       },
       orderBy: [
         {
-          personalExpenses: {
+          personal_expenses: {
             _count: 'desc'
           }
         },
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     // Get additional statistics for users with personal expenses
     const usersWithTransactionData = await Promise.all(
       usersWithExpenses.map(async (user) => {
-        if (user._count.personalExpenses > 0) {
+        if (user._count.personal_expenses > 0) {
           // Get total amount and recent activity
           const expenseSummary = await prisma.personalExpenses.aggregate({
             where: {

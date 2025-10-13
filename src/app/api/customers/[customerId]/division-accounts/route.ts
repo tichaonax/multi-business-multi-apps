@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { z } from 'zod'
 
+import { randomBytes } from 'crypto';
 // Division account creation schema
 const CreateDivisionAccountSchema = z.object({
   businessId: z.string().min(1, 'Business ID is required'),
@@ -47,7 +48,7 @@ export async function GET(
     const accounts = await prisma.customerDivisionAccount.findMany({
       where: { universalCustomerId: customerId },
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
         _count: {
@@ -148,7 +149,7 @@ export async function POST(
         createdBy: session.user.id
       },
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
         universalCustomer: {

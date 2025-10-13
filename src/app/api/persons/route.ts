@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
         driverLicenseTemplates: true,
         projectContractors: {
           include: {
-            constructionProjects: {
+            construction_projects: {
               select: {
                 id: true,
                 name: true,
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       ...person,
       projectContractors: person.projectContractors.map(contractor => ({
         ...contractor,
-        project: (contractor as any).constructionProjects
+        project: (contractor as any).construction_projects
       }))
     }))
 

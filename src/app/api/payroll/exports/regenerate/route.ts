@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId },
       include: {
-        business: { select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true } },
+        businesses: { select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true } },
         payrollEntries: {
           include: {
             payrollEntryBenefits: { include: { benefitType: { select: { id: true, name: true } } } },
@@ -227,9 +227,9 @@ export async function POST(req: NextRequest) {
     // (debug dump removed)
 
     // Use umbrella business name for umbrella payrolls, otherwise use regular business name
-    const exportBusinessName = period.business.isUmbrellaBusiness && period.business.umbrellaBusinessName
-      ? period.business.umbrellaBusinessName
-      : period.business.name
+    const exportBusinessName = period.businesses.isUmbrellaBusiness && period.businesses.umbrellaBusinessName
+      ? period.businesses.umbrellaBusinessName
+      : period.businesses.name
 
     const excelBuffer = await generatePayrollExcel(
       {

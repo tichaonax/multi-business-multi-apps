@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { isSystemAdmin, type SessionUser } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 // Validation schemas
 const CreateVehicleSchema = z.object({
   licensePlate: z.string().min(1, 'License plate is required'),

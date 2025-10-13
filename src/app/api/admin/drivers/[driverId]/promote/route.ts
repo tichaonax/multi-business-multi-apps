@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { hash } from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { hasPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import { DRIVER_PERMISSIONS } from '@/types/permissions'
@@ -106,8 +106,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Create user and link to driver in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create the user
-      const newUser = await tx.user.create({
+      const newUser = await tx.users.create({
         data: {
+          id: randomBytes(12).toString('hex'),
           id: userId,
           email: userEmail,
           username: validatedData.username,
@@ -128,13 +129,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       // Create business membership if businessId provided
       if (validatedData.businessId) {
         // Verify business exists
-        const business = await tx.business.findUnique({
+        const business = await tx.businesses.findUnique({
           where: { id: validatedData.businessId }
         })
 
         if (business) {
-          await tx.businessMembership.create({
-            data: {
+          await tx.businessMemberships.create({
+        data: {
+          id: randomBytes(12).toString('hex'),
               id: randomUUID(),
               userId: newUser.id,
               businessId: validatedData.businessId,

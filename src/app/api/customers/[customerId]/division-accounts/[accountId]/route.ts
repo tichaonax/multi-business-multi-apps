@@ -41,7 +41,7 @@ export async function GET(
         universalCustomerId: customerId
       },
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
         universalCustomer: {
@@ -116,7 +116,7 @@ export async function PUT(
         updatedAt: new Date()
       },
       include: {
-        business: {
+        businesses: {
           select: { id: true, name: true, type: true }
         },
         universalCustomer: {

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import crypto from 'crypto'
+import { randomBytes } from 'crypto'
 
 const CreateLicenseSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),

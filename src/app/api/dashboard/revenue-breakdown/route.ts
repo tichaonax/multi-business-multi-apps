@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     let breakdown = {
       restaurant: { amount: 0, count: 0 },
-      business: { amount: 0, count: 0 },
+      businesses: { amount: 0, count: 0 },
       projects: { amount: 0, count: 0 },
       personal: { amount: 0, count: 0 },
       total: 0
@@ -62,8 +62,8 @@ export async function GET(req: NextRequest) {
           },
           _count: true
         })
-        breakdown.business.amount = Number(businessData._sum.subtotal || 0)
-        breakdown.business.count = businessData._count
+        breakdown.businesses.amount = Number(businessData._sum.subtotal || 0)
+        breakdown.businesses.count = businessData._count
       } catch (error) {
         console.warn('Failed to calculate business revenue breakdown:', error)
       }
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
 
     // Calculate total
     breakdown.total = breakdown.restaurant.amount +
-                    breakdown.business.amount +
+                    breakdown.businesses.amount +
                     breakdown.projects.amount +
                     breakdown.personal.amount
 

@@ -164,7 +164,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         })
 
         // Update employee status to pending_contract until they sign the new contract
-        await tx.employee.update({
+        await tx.employees.update({
           where: { id: employeeId },
           data: {
             employmentStatus: 'pending_contract',

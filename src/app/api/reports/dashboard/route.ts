@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     const businessWhereClause = businessId ? {
       OR: [
         { primaryBusinessId: businessId },
-        { businessAssignments: { some: { businessId, isActive: true } } }
+        { employee_business_assignments: { some: { businessId, isActive: true } } }
       ]
     } : {}
 

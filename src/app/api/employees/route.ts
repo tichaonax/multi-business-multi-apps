@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
 import { buildEmployeeQueryFilter, canUserPerformEmployeeAction } from '@/lib/employee-access-control'
 import { SessionUser } from '@/lib/permission-utils'
 
@@ -349,7 +349,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Create employee
-      const newEmployee = await tx.employee.create({
+      const newEmployee = await tx.employees.create({
         data: employeeCreateData,
         include: {
           users: {
@@ -368,7 +368,7 @@ export async function POST(req: NextRequest) {
           compensationTypes: {
             select: { name: true }
           },
-          business: {
+          businesses: {
             select: { id: true, name: true }
           }
         }

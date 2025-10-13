@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
             id: true,
             fullName: true,
             employeeNumber: true,
-            jobTitle: {
+            job_titles: {
               select: {
                 title: true,
                 department: true
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
             }
           }
         },
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,
@@ -177,7 +178,7 @@ export async function POST(req: NextRequest) {
             id: true,
             fullName: true,
             employeeNumber: true,
-            jobTitle: {
+            job_titles: {
               select: {
                 title: true,
                 department: true
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
             }
           }
         },
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,
@@ -294,7 +295,7 @@ export async function PUT(req: NextRequest) {
             id: true,
             fullName: true,
             employeeNumber: true,
-            jobTitle: {
+            job_titles: {
               select: {
                 title: true,
                 department: true
@@ -302,7 +303,7 @@ export async function PUT(req: NextRequest) {
             }
           }
         },
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,

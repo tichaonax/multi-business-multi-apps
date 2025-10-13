@@ -51,7 +51,7 @@ export async function PATCH(
         }
       },
       include: {
-        business: {
+        businesses: {
           select: { name: true }
         },
         permissionTemplate: {
@@ -92,7 +92,7 @@ export async function PATCH(
         lastAccessedAt: new Date()
       },
       include: {
-        business: {
+        businesses: {
           select: { name: true }
         },
         permissionTemplate: {

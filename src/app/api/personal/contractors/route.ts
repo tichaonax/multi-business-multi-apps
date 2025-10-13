@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
@@ -21,7 +22,7 @@ export async function GET() {
 
     const contractors = await prisma.projectContractors.findMany({
       include: {
-        constructionProject: {
+        construction_projects: {
           select: {
             id: true,
             name: true,
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
         },
         include: {
           person: true,
-          constructionProject: true
+          construction_projects: true
         }
       })
 

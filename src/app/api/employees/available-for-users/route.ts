@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
       employmentStatus: employee.employmentStatus,
       isActive: employee.isActive,
       hireDate: employee.hireDate,
-      jobTitle: {
+      job_titles: {
         title: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.title || null) : (employee.jobTitles?.title || null),
         department: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.department || null) : (employee.jobTitles?.department || null),
         level: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.level || null) : (employee.jobTitles?.level || null)

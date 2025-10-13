@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
+import { randomBytes } from 'crypto';
 // Validation schemas
 const CreateCategorySchema = z.object({
   businessId: z.string().min(1),
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     const categories = await prisma.businessCategories.findMany({
       where,
       include: {
-        business: {
+        businesses: {
           select: { name: true, type: true }
         },
         parentCategory: {
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
         businessType: validatedData.businessType || business.type
       } as any,
       include: {
-        business: {
+        businesses: {
           select: { name: true, type: true }
         },
         parentCategory: {
@@ -239,7 +240,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
       data: updateData as any,
       include: {
-        business: {
+        businesses: {
           select: { name: true, type: true }
         },
         parentCategory: {

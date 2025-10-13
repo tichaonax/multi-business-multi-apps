@@ -20,7 +20,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const user = session.user as SessionUser
 
     // Load period and business
-    const period = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, include: { business: { select: { id: true, name: true } } } })
+    const period = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, include: { businesses: { select: { id: true, name: true } } } })
     if (!period) return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
 
     // Only exported periods can be reset
@@ -44,13 +44,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const admin = isSystemAdmin(user)
     if (!admin) {
       // Ensure user has business membership and role
-      const role = getUserRoleInBusiness(user, period.business.id)
+      const role = getUserRoleInBusiness(user, period.businesses.id)
       if (role !== 'business-manager' && role !== 'business-owner') {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
       // Check explicit permission on membership
-      const hasResetPermission = hasPermission(user, 'canResetExportedPayrollToPreview', period.business.id)
+      const hasResetPermission = hasPermission(user, 'canResetExportedPayrollToPreview', period.businesses.id)
       if (!hasResetPermission) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }

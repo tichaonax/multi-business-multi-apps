@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             id: true,
             fullName: true,
             employeeNumber: true,
-            jobTitle: {
+            job_titles: {
               select: {
                 title: true,
                 department: true
@@ -167,7 +167,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             id: true,
             fullName: true,
             employeeNumber: true,
-            jobTitle: {
+            job_titles: {
               select: {
                 title: true,
                 department: true

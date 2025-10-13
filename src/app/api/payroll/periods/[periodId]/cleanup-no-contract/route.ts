@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const { periodId } = await params
 
-    const existingPeriod = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, include: { business: { select: { id: true } } } })
+    const existingPeriod = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, include: { businesses: { select: { id: true } } } })
     if (!existingPeriod) {
       return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
     }

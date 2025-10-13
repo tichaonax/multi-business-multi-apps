@@ -54,7 +54,7 @@ export async function GET(
       include: {
         divisionAccounts: {
           include: {
-            business: {
+            businesses: {
               select: { id: true, name: true, type: true }
             }
           },
@@ -76,7 +76,7 @@ export async function GET(
         },
         laybys: {
           include: {
-            business: {
+            businesses: {
               select: { id: true, name: true }
             }
           },
@@ -85,7 +85,7 @@ export async function GET(
         },
         creditApplications: {
           include: {
-            business: {
+            businesses: {
               select: { id: true, name: true }
             }
           },
@@ -207,7 +207,7 @@ export async function PUT(
       include: {
         divisionAccounts: {
           include: {
-            business: {
+            businesses: {
               select: { id: true, name: true, type: true }
             }
           }

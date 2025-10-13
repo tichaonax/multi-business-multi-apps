@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)

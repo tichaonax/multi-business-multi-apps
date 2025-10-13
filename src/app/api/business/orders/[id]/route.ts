@@ -27,7 +27,7 @@ export async function GET(
         id: cleanOrderId
       },
       include: {
-        business: {
+        businesses: {
           select: {
             name: true,
             type: true
@@ -163,7 +163,7 @@ export async function PUT(
       },
       data: updateFields,
       include: {
-        business: {
+        businesses: {
           select: {
             name: true,
             type: true

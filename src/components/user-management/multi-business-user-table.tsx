@@ -17,7 +17,7 @@ interface User {
     employeeNumber: string
     employmentStatus: string
   }
-  businessMemberships: Array<{
+  businessMemberships?: Array<{
     businessId: string
     role: string
     permissions: any
@@ -67,7 +67,7 @@ export function MultiBusinessUserTable({
 
   // Filter users based on view mode
   const filteredUsers = viewMode === 'current' 
-    ? users.filter(user => user.businessMemberships.some(m => m.isActive))
+    ? users.filter(user => user.businessMemberships?.some(m => m.isActive) || false)
     : users
 
   const currentUserBusinessIds = currentUser.businessMemberships?.map(m => m.businessId) || []
@@ -176,7 +176,7 @@ function UserRow({
   onDeactivateUser,
   currentUserBusinessIds
 }: UserRowProps) {
-  const activeMemberships = user.businessMemberships.filter(m => m.isActive)
+  const activeMemberships = user.businessMemberships?.filter(m => m.isActive) || []
   const userBusinessIds = activeMemberships.map(m => m.businessId)
 
   // Determine primary business (first one created/joined or most recently accessed)

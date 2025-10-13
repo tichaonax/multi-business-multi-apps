@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { randomUUID } from 'crypto';
+import { randomBytes } from 'crypto';
 import { hasPermission } from '@/lib/permission-utils';
 
 export async function POST(
@@ -127,12 +127,12 @@ export async function POST(
         isActive: true,
         passwordResetRequired: sendInvite
       }
-      const user = await tx.user.create({
+      const user = await tx.users.create({
         data: userCreateData
       });
 
       // Link employee to user
-      await tx.employee.update({
+      await tx.employees.update({
         where: { id: employeeId },
         data: { userId: user.id }
       });
@@ -178,7 +178,7 @@ export async function POST(
       }
 
       // Create all business memberships
-      await tx.businessMembership.createMany({
+      await tx.businessMemberships.createMany({
         data: businessMemberships
       });
 

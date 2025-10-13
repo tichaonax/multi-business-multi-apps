@@ -36,24 +36,24 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       // Get counts before deletion for audit trail
       const beforeCounts = {
-        businesses: await tx.business.count(),
-        employees: await tx.employee.count(),
+        businesses: await tx.businesses.count(),
+        employees: await tx.employees.count(),
         employeeContracts: await tx.employeeContract.count(),
-        businessMemberships: await tx.businessMembership.count(),
-        auditLogs: await tx.auditLog.count(),
-        users: await tx.user.count(),
+        businessMemberships: await tx.businessMemberships.count(),
+        auditLogs: await tx.auditLogs.count(),
+        users: await tx.users.count(),
         // Reference data that will be reset and recreated
         idFormatTemplates: await tx.idFormatTemplate.count(),
-        compensationTypes: await tx.compensationType.count(),
-        jobTitles: await tx.jobTitle.count(),
-        benefitTypes: await tx.benefitType.count(),
+        compensationTypes: await tx.compensationTypes.count(),
+        jobTitles: await tx.jobTitles.count(),
+        benefitTypes: await tx.benefitTypes.count(),
         driverLicenseTemplates: await tx.driverLicenseTemplate.count(),
       };
 
       console.log(`📊 Before reset: ${beforeCounts.businesses} businesses, ${beforeCounts.employees} employees, ${beforeCounts.employeeContracts} contracts, ${beforeCounts.users} users`);
 
       // Get sample of data being deleted for audit trail
-      const sampleBusinesses = await tx.business.findMany({
+      const sampleBusinesses = await tx.businesses.findMany({
         take: 5,
         select: {
           id: true,
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         orderBy: { createdAt: 'desc' }
       });
 
-      const sampleEmployees = await tx.employee.findMany({
+      const sampleEmployees = await tx.employees.findMany({
         take: 5,
         select: {
           id: true,
@@ -81,15 +81,15 @@ export async function POST(request: NextRequest) {
       console.log(`✅ Deleted ${deletedContracts.count} employee contracts`);
 
       console.log('🗑️ Deleting all employees...');
-      const deletedEmployees = await tx.employee.deleteMany({});
+      const deletedEmployees = await tx.employees.deleteMany({});
       console.log(`✅ Deleted ${deletedEmployees.count} employees`);
 
       console.log('🗑️ Deleting all business memberships...');
-      const deletedMemberships = await tx.businessMembership.deleteMany({});
+      const deletedMemberships = await tx.businessMemberships.deleteMany({});
       console.log(`✅ Deleted ${deletedMemberships.count} business memberships`);
 
       console.log('🗑️ Deleting all businesses...');
-      const deletedBusinesses = await tx.business.deleteMany({});
+      const deletedBusinesses = await tx.businesses.deleteMany({});
       console.log(`✅ Deleted ${deletedBusinesses.count} businesses`);
 
       // Delete reference data that will be recreated by seeding
@@ -98,13 +98,13 @@ export async function POST(request: NextRequest) {
       const deletedIdTemplates = await tx.idFormatTemplate.deleteMany({});
       console.log(`✅ Deleted ${deletedIdTemplates.count} ID format templates`);
 
-      const deletedCompensationTypes = await tx.compensationType.deleteMany({});
+      const deletedCompensationTypes = await tx.compensationTypes.deleteMany({});
       console.log(`✅ Deleted ${deletedCompensationTypes.count} compensation types`);
 
-      const deletedJobTitles = await tx.jobTitle.deleteMany({});
+      const deletedJobTitles = await tx.jobTitles.deleteMany({});
       console.log(`✅ Deleted ${deletedJobTitles.count} job titles`);
 
-      const deletedBenefitTypes = await tx.benefitType.deleteMany({});
+      const deletedBenefitTypes = await tx.benefitTypes.deleteMany({});
       console.log(`✅ Deleted ${deletedBenefitTypes.count} benefit types`);
 
       const deletedDriverLicenseTemplates = await tx.driverLicenseTemplate.deleteMany({});
@@ -112,16 +112,16 @@ export async function POST(request: NextRequest) {
 
       // Verify deletion
       const afterCounts = {
-        businesses: await tx.business.count(),
-        employees: await tx.employee.count(),
+        businesses: await tx.businesses.count(),
+        employees: await tx.employees.count(),
         employeeContracts: await tx.employeeContract.count(),
-        businessMemberships: await tx.businessMembership.count(),
-        users: await tx.user.count(),
+        businessMemberships: await tx.businessMemberships.count(),
+        users: await tx.users.count(),
         // Reference data counts after deletion
         idFormatTemplates: await tx.idFormatTemplate.count(),
-        compensationTypes: await tx.compensationType.count(),
-        jobTitles: await tx.jobTitle.count(),
-        benefitTypes: await tx.benefitType.count(),
+        compensationTypes: await tx.compensationTypes.count(),
+        jobTitles: await tx.jobTitles.count(),
+        benefitTypes: await tx.benefitTypes.count(),
         driverLicenseTemplates: await tx.driverLicenseTemplate.count(),
       };
 

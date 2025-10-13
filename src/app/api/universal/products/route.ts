@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
+import { randomBytes } from 'crypto';
 // Validation schemas
 const CreateProductSchema = z.object({
   businessId: z.string().min(1),
@@ -111,7 +112,7 @@ export async function GET(request: NextRequest) {
       prisma.businessProducts.findMany({
         where,
         include: {
-          business: {
+          businesses: {
             select: { name: true, type: true }
           },
           businessBrand: {
@@ -244,7 +245,7 @@ export async function POST(request: NextRequest) {
             businessType: productData.businessType || business.type
           },
           include: {
-            business: { select: { name: true, type: true } },
+            businesses: { select: { name: true, type: true } },
             businessBrand: { select: { id: true, name: true } },
             businessCategory: { select: { id: true, name: true } }
           }
@@ -354,7 +355,7 @@ export async function PUT(request: NextRequest) {
       // cast to any to keep incremental changes small; we'll tighten types later
       data: updateData as any,
       include: {
-        business: { select: { name: true, type: true } },
+        businesses: { select: { name: true, type: true } },
         businessBrand: { select: { id: true, name: true } },
         businessCategory: { select: { id: true, name: true } },
         productVariants: {

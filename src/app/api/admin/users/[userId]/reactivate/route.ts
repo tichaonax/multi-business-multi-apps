@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 
+import { randomBytes } from 'crypto';
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -32,7 +33,7 @@ export async function POST(
       include: {
         businessMemberships: {
           include: {
-            business: true
+            businesses: true
           }
         }
       }
@@ -72,7 +73,7 @@ export async function POST(
       include: {
         businessMemberships: {
           include: {
-            business: true
+            businesses: true
           }
         }
       }

@@ -13,11 +13,11 @@ async function getRestaurantBusinessIds(session: any) {
       role: true,
       businessMemberships: {
         where: {
-          business: { type: 'restaurant' },
+          businesses: { type: 'restaurant' },
           isActive: true
         },
         include: {
-          business: { select: { id: true, name: true } }
+          businesses: { select: { id: true, name: true } }
         }
       }
     }
@@ -34,7 +34,7 @@ async function getRestaurantBusinessIds(session: any) {
   }
 
   // For non-admin users, only return businesses they have membership to
-  return user?.businessMemberships?.map(m => m.business.id) || []
+  return user?.businessMemberships?.map(m => m.businesses.id) || []
 }
 
 // PUT - Update order status using universal orders API
@@ -158,7 +158,7 @@ export async function PUT(
       where: whereClause,
       data: updateFields,
       include: {
-        business: {
+        businesses: {
           select: {
             name: true,
             type: true
@@ -217,7 +217,7 @@ export async function GET(
         businessType: 'restaurant'
       },
       include: {
-        business: {
+        businesses: {
           select: {
             name: true,
             type: true

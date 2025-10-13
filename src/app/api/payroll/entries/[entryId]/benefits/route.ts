@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 import { Decimal } from '@prisma/client/runtime/library'
 
+import { randomBytes } from 'crypto';
 interface RouteParams {
   params: Promise<{ entryId: string }>
 }
@@ -205,12 +206,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       if (!finalBenefitType) {
         // Try to find an existing BenefitType by name (case-insensitive)
-        const found = await tx.benefitType.findFirst({ where: { name: { equals: String(benefitName), mode: 'insensitive' } } })
+        const found = await tx.benefitTypes.findFirst({ where: { name: { equals: String(benefitName), mode: 'insensitive' } } })
         if (found) {
           finalBenefitType = found
         } else {
           // Create a lightweight BenefitType to reference
-          finalBenefitType = await tx.benefitType.create({
+          finalBenefitType = await tx.benefitTypes.create({
             data: {
               id: `BT-${nanoid(8)}`,
               name: String(benefitName),

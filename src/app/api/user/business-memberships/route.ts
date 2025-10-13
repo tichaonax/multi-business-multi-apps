@@ -16,7 +16,7 @@ export async function GET() {
         userId: session.user.id,
       },
       include: {
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,
@@ -34,11 +34,11 @@ export async function GET() {
     // Transform to match BusinessMembership interface
     const transformedMemberships = memberships.map(membership => ({
       businessId: membership.businessId,
-      businessName: membership.business.name,
-      businessType: membership.business.type, // Add business type
+      businessName: membership.businesses.name,
+      businessType: membership.businesses.type, // Add business type
       role: membership.role as any,
       permissions: mergeWithBusinessPermissions(membership.permissions as any),
-      isActive: membership.isActive && membership.business.isActive,
+      isActive: membership.isActive && membership.businesses.isActive,
       joinedAt: membership.joinedAt,
       lastAccessedAt: membership.lastAccessedAt,
     }));

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useAlert } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button';
 import {
   Download,
@@ -31,6 +32,7 @@ interface DataExportProps {
 
 export function DataExport({ userRole }: DataExportProps) {
   const [loading, setLoading] = useState(false);
+  const alert = useAlert();
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     dataType: 'users',
     format: 'csv',
@@ -88,7 +90,7 @@ export function DataExport({ userRole }: DataExportProps) {
       document.body.removeChild(a);
 
     } catch (error) {
-      alert('Export failed. Please try again.');
+      await alert({ title: 'Export Failed', description: 'The export operation failed. Please try again.' });
     } finally {
       setLoading(false);
     }

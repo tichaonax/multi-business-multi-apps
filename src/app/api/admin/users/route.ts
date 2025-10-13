@@ -5,6 +5,7 @@ import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { randomBytes } from 'crypto';
 
 export async function GET() {
   try {
@@ -28,16 +29,16 @@ export async function GET() {
               employmentStatus: true,
             },
           },
-          business_memberships: {
+          businessMemberships: {
             include: {
-              business: {
+              businesses: {
                 select: {
                   id: true,
                   name: true,
                   type: true,
                 },
               },
-              permissionTemplate: {
+              permissionTemplates: {
                 select: {
                   id: true,
                   name: true,
@@ -50,7 +51,20 @@ export async function GET() {
           createdAt: 'desc',
         },
       });
-      return NextResponse.json(users);
+      
+      // Transform the response to match frontend expectations
+      const transformedUsers = users.map(user => ({
+        ...user,
+        businessMemberships: user.businessMemberships?.map(membership => ({
+          ...membership,
+          business: membership.businesses,
+          template: membership.permissionTemplates,
+          businesses: undefined,
+          permissionTemplates: undefined
+        })) || []
+      }));
+      
+      return NextResponse.json(transformedUsers);
     }
 
     // Check if user has admin permissions in current business
@@ -60,7 +74,7 @@ export async function GET() {
         isActive: true,
       },
       include: {
-        business: true,
+        businesses: true,
       },
     });
 
@@ -89,14 +103,14 @@ export async function GET() {
             businessId: userMembership.businessId,
           },
           include: {
-            business: {
+            businesses: {
               select: {
                 id: true,
                 name: true,
               },
             },
-            // relation name is permissionTemplate
-            permissionTemplate: {
+            // relation name is permissionTemplates
+            permissionTemplates: {
               select: {
                 id: true,
                 name: true,
@@ -109,8 +123,20 @@ export async function GET() {
         createdAt: 'desc',
       },
     });
+    
+    // Transform the response to match frontend expectations
+    const transformedUsers = users.map(user => ({
+      ...user,
+      businessMemberships: user.businessMemberships?.map(membership => ({
+        ...membership,
+        business: membership.businesses,
+        template: membership.permissionTemplates,
+        businesses: undefined,
+        permissionTemplates: undefined
+      })) || []
+    }));
 
-    return NextResponse.json(users);
+    return NextResponse.json(transformedUsers);
   } catch (error) {
     console.error('Error fetching users:', error);
     return NextResponse.json(
@@ -179,9 +205,9 @@ export async function POST(req: NextRequest) {
           userId: null, // Employee must not already have a user account
         },
         include: {
-          businessAssignments: {
+          employee_business_assignments: {
             include: {
-              business: {
+              businesses: {
                 select: {
                   id: true,
                   name: true,
@@ -217,11 +243,16 @@ export async function POST(req: NextRequest) {
     const finalPassword = password || Math.random().toString(36).slice(-10);
     const hashedPassword = await hash(finalPassword, 12);
 
+    // Generate unique ID for the user
+    const userId = randomBytes(12).toString('hex');
+
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       // Create user
-      const newUser = await tx.user.create({
+      const newUser = await tx.users.create({
         data: {
+          id: randomBytes(12).toString('hex'),
+          id: userId,
           name,
           email,
           passwordHash: hashedPassword,
@@ -233,7 +264,7 @@ export async function POST(req: NextRequest) {
 
       // Link to employee if specified
       if (employeeToLink) {
-        await tx.employee.update({
+        await tx.employees.update({
           where: { id: employeeToLink.id },
           data: { userId: newUser.id }
         });
@@ -256,8 +287,10 @@ export async function POST(req: NextRequest) {
                                    BUSINESS_PERMISSION_PRESETS['employee'];
           }
 
-          const membership = await tx.businessMembership.create({
-            data: {
+          const membership = await tx.businessMemberships.create({
+        data: {
+          id: randomBytes(12).toString('hex'),
+              id: randomBytes(12).toString('hex'),
               userId: newUser.id,
               businessId: assignment.businessId,
               role: assignment.role,
@@ -271,11 +304,13 @@ export async function POST(req: NextRequest) {
           });
           memberships.push(membership);
         }
-      } else if (employeeToLink && employeeToLink.businessAssignments.length > 0) {
+      } else if (employeeToLink && employeeToLink.employee_business_assignments.length > 0) {
         // If linked to employee but no explicit business assignments, inherit from employee
-        for (const empAssignment of employeeToLink.businessAssignments) {
-          const membership = await tx.businessMembership.create({
-            data: {
+        for (const empAssignment of employeeToLink.employee_business_assignments) {
+          const membership = await tx.businessMemberships.create({
+        data: {
+          id: randomBytes(12).toString('hex'),
+              id: randomBytes(12).toString('hex'),
               userId: newUser.id,
               businessId: empAssignment.businessId,
               role: 'employee',
@@ -290,7 +325,7 @@ export async function POST(req: NextRequest) {
         }
       } else if (!isSystemAdmin(user) && systemRole !== 'admin') {
         // Fallback to old logic for backwards compatibility
-        const userMembership = await tx.businessMembership.findFirst({
+        const userMembership = await tx.businessMemberships.findFirst({
           where: {
             userId: session.user.id,
             isActive: true,
@@ -307,8 +342,10 @@ export async function POST(req: NextRequest) {
             delete (userPermissions as any).canResetExportedPayrollToPreview
           }
 
-          const membership = await tx.businessMembership.create({
-            data: {
+          const membership = await tx.businessMemberships.create({
+        data: {
+          id: randomBytes(12).toString('hex'),
+              id: randomBytes(12).toString('hex'),
               userId: newUser.id,
               businessId: userMembership.businessId,
               role: role,

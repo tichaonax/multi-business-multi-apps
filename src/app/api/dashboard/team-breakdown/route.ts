@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
               businessMemberships: {
                 where: { isActive: true },
                 include: {
-                  business: {
+                  businesses: {
                     select: {
                       name: true,
                       type: true
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 
             // Filter other businesses (exclude the primary one)
             const otherBusinesses = validBusinessMemberships.filter(bm =>
-              bm.business && bm.business.id !== primaryBusiness?.business?.id
+              bm.business && bm.businesses.id !== primaryBusiness?.business?.id
             )
 
             // Debug info temporarily added to response
@@ -88,9 +88,9 @@ export async function GET(req: NextRequest) {
               businessCount,
               debugInfo, // Temporary debug info
               primaryBusiness: primaryBusiness?.business ? {
-                id: primaryBusiness.business.id,
-                name: primaryBusiness.business.name,
-                type: primaryBusiness.business.type,
+                id: primaryBusiness.businesses.id,
+                name: primaryBusiness.businesses.name,
+                type: primaryBusiness.businesses.type,
                 role: primaryBusiness.role,
                 isPrimary: true
               } : null,
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
                   createdAt: true
                 }
               },
-              business: {
+              businesses: {
                 select: {
                   id: true,
                   name: true,
@@ -167,7 +167,7 @@ export async function GET(req: NextRequest) {
               businessMemberships: {
                 where: { isActive: true },
                 include: {
-                  business: {
+                  businesses: {
                     select: {
                       id: true,
                       name: true,
@@ -191,7 +191,7 @@ export async function GET(req: NextRequest) {
 
             // Filter other businesses (exclude the primary one)
             const otherBusinesses = validBusinessMemberships.filter(bm =>
-              bm.business && bm.business.id !== primaryBusiness?.business?.id
+              bm.business && bm.businesses.id !== primaryBusiness?.business?.id
             )
 
             // Debug info temporarily added to response
@@ -214,9 +214,9 @@ export async function GET(req: NextRequest) {
               businessCount,
               debugInfo, // Temporary debug info
               primaryBusiness: primaryBusiness?.business ? {
-                id: primaryBusiness.business.id,
-                name: primaryBusiness.business.name,
-                type: primaryBusiness.business.type,
+                id: primaryBusiness.businesses.id,
+                name: primaryBusiness.businesses.name,
+                type: primaryBusiness.businesses.type,
                 role: primaryBusiness.role,
                 isPrimary: true
               } : null,

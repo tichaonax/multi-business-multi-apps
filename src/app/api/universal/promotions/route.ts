@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { randomUUID } from 'crypto'
+import { randomBytes } from 'crypto'
 
 const prisma = new PrismaClient()
 

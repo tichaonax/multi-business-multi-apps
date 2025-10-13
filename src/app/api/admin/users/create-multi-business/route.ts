@@ -5,6 +5,7 @@ import { hash } from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions } from '@/types/permissions'
 
+import { randomBytes } from 'crypto';
 interface UserCreationRequest {
   basicInfo: {
     name: string
@@ -13,7 +14,7 @@ interface UserCreationRequest {
     password: string
     sendInvite: boolean
   }
-  businessAssignments: {
+  employee_business_assignments: {
     businessId: string
     businessName: string
     role: keyof typeof BUSINESS_PERMISSION_PRESETS
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
         isActive: true,
       },
       include: {
-        business: true,
+        businesses: true,
       }
     })
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       
       if (!permissions?.canManageBusinessUsers && session.user.role !== 'admin') {
         return NextResponse.json(
-          { error: `Insufficient permissions to manage users in business ${membership?.business.name}` },
+          { error: `Insufficient permissions to manage users in business ${membership?.businesses.name}` },
           { status: 403 }
         )
       }
@@ -104,8 +105,9 @@ export async function POST(req: NextRequest) {
     // Create user with transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
       // Create user
-      const user = await tx.user.create({
+      const user = await tx.users.create({
         data: {
+          id: randomBytes(12).toString('hex'),
           name: basicInfo.name,
           email: basicInfo.email,
           passwordHash: hashedPassword,
@@ -133,8 +135,9 @@ export async function POST(req: NextRequest) {
           finalPermissions = BUSINESS_PERMISSION_PRESETS[assignment.role] || BUSINESS_PERMISSION_PRESETS.employee
         }
 
-        const membership = await tx.businessMembership.create({
-          data: {
+        const membership = await tx.businessMemberships.create({
+        data: {
+          id: randomBytes(12).toString('hex'),
             userId: user.id,
             businessId: assignment.businessId,
             role: assignment.role,
@@ -145,7 +148,7 @@ export async function POST(req: NextRequest) {
             lastAccessedAt: new Date(),
           },
           include: {
-            business: {
+            businesses: {
               select: {
                 name: true
               }
@@ -171,7 +174,7 @@ export async function POST(req: NextRequest) {
         passwordResetRequired: result.user.passwordResetRequired,
         businessMemberships: result.memberships.map(m => ({
           businessId: m.businessId,
-          businessName: m.business.name,
+          businessName: m.businesses.name,
           role: m.role,
           isActive: m.isActive
         }))

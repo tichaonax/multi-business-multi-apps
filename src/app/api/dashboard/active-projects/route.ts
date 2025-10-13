@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
             isActive: true,
             joinedAt: true,
             lastAccessedAt: true,
-            business: {
+            businesses: {
               select: {
                 id: true,
                 name: true,
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       permissions: user.permissions as Record<string, any>,
       businessMemberships: user.businessMemberships.map(m => ({
         businessId: m.businessId,
-        businessName: m.business.name,
+        businessName: m.businesses.name,
         role: m.role,
         permissions: m.permissions as Record<string, any>,
         isActive: m.isActive,
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
     const activeProjects = await prisma.projects.findMany({
       where: whereClause,
       include: {
-        business: {
+        businesses: {
           select: {
             id: true,
             name: true,
@@ -184,9 +184,9 @@ export async function GET(req: NextRequest) {
         createdAt: project.createdAt,
         expectedCompletionDate: project.endDate,
         business: project.business ? {
-          id: project.business.id,
-          name: project.business.name,
-          type: project.business.type
+          id: project.businesses.id,
+          name: project.businesses.name,
+          type: project.businesses.type
         } : null,
         createdBy: project.user ? {
           id: project.user.id,
