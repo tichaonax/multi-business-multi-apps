@@ -54,10 +54,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         payrollAdjustments: {
           include: {
-            creator: {
+            users_payroll_periods_createdByTousers: {
               select: { id: true, name: true }
             },
-            approver: {
+            users_payroll_periods_approvedByTousers: {
               select: { id: true, name: true }
             }
           }

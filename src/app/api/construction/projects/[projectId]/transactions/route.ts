@@ -109,14 +109,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        approver: {
+        users_payroll_periods_approvedByTousers: {
           select: {
             id: true,
             name: true,
             email: true
           }
         },
-        creator: {
+        users_payroll_periods_createdByTousers: {
           select: {
             id: true,
             name: true,
@@ -503,14 +503,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        approver: {
+        users_payroll_periods_approvedByTousers: {
           select: {
             id: true,
             name: true,
             email: true
           }
         },
-        creator: {
+        users_payroll_periods_createdByTousers: {
           select: {
             id: true,
             name: true,

@@ -44,13 +44,13 @@ export async function GET(req: NextRequest) {
             email: true
           }
         },
-        approver: {
+        users_payroll_periods_approvedByTousers: {
           select: {
             id: true,
             fullName: true
           }
         },
-        creator: {
+        users_payroll_periods_createdByTousers: {
           select: {
             id: true,
             name: true,
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
             email: true
           }
         },
-        creator: {
+        users_payroll_periods_createdByTousers: {
           select: {
             id: true,
             name: true,

@@ -46,7 +46,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     const salaryIncreases = await prisma.employeeSalaryIncreases.findMany({
       where: { employeeId: employeeId },
       include: {
-        approver: {
+        users_payroll_periods_approvedByTousers: {
           select: {
             id: true,
             fullName: true,

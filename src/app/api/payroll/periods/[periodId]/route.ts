@@ -32,10 +32,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         businesses: {
           select: { id: true, name: true, type: true }
         },
-        creator: {
+        users_payroll_periods_createdByTousers: {
           select: { id: true, name: true, email: true }
         },
-        approver: {
+        users_payroll_periods_approvedByTousers: {
           select: { id: true, name: true, email: true }
         },
         payrollEntries: {

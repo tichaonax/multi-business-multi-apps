@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
             employeeNumber: true
           }
         },
-        creator: {
+        users_payroll_periods_createdByTousers: {
           select: { id: true, name: true, email: true }
         },
-        approver: {
+        users_payroll_periods_approvedByTousers: {
           select: { id: true, name: true, email: true }
         }
       },
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
         amount: signedAmount,
         // Prisma model does not have `description` — map client `description` into `reason` if provided
         reason: reason ?? description ?? null,
-        creator: { connect: { id: session.user.id } },
+        users_payroll_periods_createdByTousers: { connect: { id: session.user.id } },
         createdAt: new Date()
       }
 
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
         newAdjustment = await tx.payrollAdjustment.create({
           data: createPayload,
           include: {
-            creator: {
+            users_payroll_periods_createdByTousers: {
               select: { id: true, name: true, email: true }
             }
           }
@@ -222,7 +222,7 @@ export async function PUT(req: NextRequest) {
           reason: reason !== undefined ? reason : (description !== undefined ? description : existingAny.reason),
           adjustmentType: type !== undefined ? type : existingAny.adjustmentType,
           updatedAt: new Date()
-        }, include: { creator: { select: { id: true, name: true } } }
+        }, include: { users_payroll_periods_createdByTousers: { select: { id: true, name: true } } }
       })
 
       // Recalculate totals for entry and period

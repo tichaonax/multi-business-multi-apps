@@ -88,6 +88,9 @@ class ServiceRunner {
       // Perform lightweight pre-start checks (with retries/backoff)
       await this.performDbPrecheck()
 
+      // Run database migrations
+      await this.runMigrations()
+
       // Create sync service
       this.syncService = new SyncService(config.sync)
 
@@ -238,10 +241,23 @@ class ServiceRunner {
     const maxAttempts = parseInt(process.env.DB_PRECHECK_ATTEMPTS || '3', 10)
     const baseDelay = parseInt(process.env.DB_PRECHECK_BASE_DELAY_MS || '500', 10) // 500ms
 
+    // Validate DATABASE_URL is available with explicit source logging
     const dbUrl = process.env.DATABASE_URL || config.databaseUrl || null
     if (!dbUrl) {
       logger.error('DATABASE_URL not set; service cannot connect to database')
+      logger.error('Checked sources: process.env.DATABASE_URL, config.databaseUrl')
+      logger.error('Ensure config/service.env exists and contains DATABASE_URL')
       throw new Error('Missing DATABASE_URL')
+    }
+
+    // Log where DATABASE_URL was loaded from for debugging
+    const source = process.env.DATABASE_URL ? 'process.env (loaded from config/service.env)' : 'service-config.json'
+    logger.info(`DATABASE_URL loaded from: ${source}`)
+
+    // Validate URL format
+    if (!dbUrl.startsWith('postgresql://') && !dbUrl.startsWith('postgres://')) {
+      logger.error(`Invalid DATABASE_URL format: ${dbUrl.substring(0, 20)}...`)
+      throw new Error('DATABASE_URL must be a valid PostgreSQL connection string')
     }
 
     // Try to use Prisma for a cheap readiness probe
@@ -270,6 +286,51 @@ class ServiceRunner {
 
     logger.error('Database precheck failed after all attempts', { error: lastErr && lastErr.message })
     throw lastErr || new Error('Database precheck failed')
+  }
+
+  /**
+   * Run database migrations on service startup.
+   * Respects SKIP_MIGRATIONS=true to bypass in special environments.
+   */
+  async runMigrations() {
+    const skip = (process.env.SKIP_MIGRATIONS || 'false').toLowerCase() === 'true'
+    if (skip) {
+      logger.info('SKIP_MIGRATIONS=true, skipping database migrations')
+      return
+    }
+
+    logger.info('Running database migrations...')
+
+    return new Promise((resolve, reject) => {
+      const { exec } = require('child_process')
+      const migrationCommand = 'npx prisma migrate deploy'
+
+      exec(migrationCommand, { cwd: path.join(__dirname, '..') }, (error, stdout, stderr) => {
+        if (error) {
+          logger.error('Migration execution failed', {
+            error: error.message,
+            stdout: stdout,
+            stderr: stderr
+          })
+
+          // Log warning but don't fail service startup
+          // This allows service to start even if migrations fail (e.g., no pending migrations)
+          logger.warn('Service will continue despite migration failure. Manual migration may be required.')
+          return resolve()
+        }
+
+        if (stdout) {
+          logger.info('Migration output:', { output: stdout })
+        }
+
+        if (stderr) {
+          logger.warn('Migration warnings:', { warnings: stderr })
+        }
+
+        logger.info('Database migrations completed successfully')
+        resolve()
+      })
+    })
   }
 }
 
