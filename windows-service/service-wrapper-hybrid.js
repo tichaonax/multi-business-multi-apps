@@ -49,6 +49,8 @@ class HybridServiceWrapper extends EventEmitter {
   constructor(options = {}) {
     super();
     this.childProcess = null;
+    this.appProcess = null;
+    this.appRoot = path.join(__dirname, '..');
     this.isShuttingDown = false;
     this.restartAttempts = 0;
     this.maxRestartAttempts = 5;
@@ -159,28 +161,7 @@ class HybridServiceWrapper extends EventEmitter {
       // Optionally start the main application after service launch (tokens-app parity)
       const startApp = process.env.SYNC_START_APP_AFTER_SERVICE !== '0'; // default enabled
       if (startApp) {
-        try {
-          console.log('Starting main application: npm run start');
-          const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-          const appSpawn = spawn(npmCmd, ['run', 'start'], {
-            cwd: path.join(__dirname, '..'),
-            env: { ...process.env, NODE_ENV: 'production' },
-            stdio: ['ignore', 'pipe', 'pipe'],
-            detached: true
-          });
-          appSpawn.stdout && appSpawn.stdout.on('data', (d) => console.log(`[app] ${d.toString()}`));
-          appSpawn.stderr && appSpawn.stderr.on('data', (d) => console.error(`[app][err] ${d.toString()}`));
-
-          appSpawn.on('error', (err) => {
-            console.error('App spawn error:', err && err.message ? err.message : err);
-          });
-
-          // detach so app survives wrapper process lifecycle if desired
-          try { appSpawn.unref(); } catch (e) { /* ignore */ }
-          console.log('Main application start requested');
-        } catch (err) {
-          console.error('Failed to start main application:', err && err.message ? err.message : err);
-        }
+        await this.startApplication();
       } else {
         console.log('SYNC_START_APP_AFTER_SERVICE=0: skipping main app start');
       }
@@ -995,11 +976,184 @@ class HybridServiceWrapper extends EventEmitter {
   }
 
   /**
-   * Stop the sync service
+   * Check if port is listening
+   */
+  async checkPortListening(port) {
+    return new Promise((resolve) => {
+      const { exec } = require('child_process');
+      const cmd = process.platform === 'win32'
+        ? `powershell -Command "Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess"`
+        : `lsof -i :${port} -t`;
+
+      exec(cmd, (error, stdout) => {
+        if (!error && stdout.trim()) {
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  /**
+   * Verify Next.js has started and is listening
+   */
+  async verifyNextJsStarted() {
+    console.log('🔍 Verifying Next.js is listening on the configured port...');
+    const port = parseInt(process.env.PORT || '8080');
+    const maxRetries = 15;
+    const retryDelay = 2000;
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const isListening = await this.checkPortListening(port);
+        if (isListening) {
+          console.log(`✅ Next.js is now listening on port ${port}.`);
+          return true;
+        }
+      } catch (error) {
+        console.log(`Retry ${i + 1}/${maxRetries}: Port ${port} not yet listening...`);
+      }
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+    }
+
+    throw new Error(`Next.js did not start listening on port ${port} after ${maxRetries * retryDelay / 1000} seconds`);
+  }
+
+  /**
+   * Check if Next.js binary is available
+   */
+  async verifyNextJsAvailable() {
+    const nextPath = path.join(__dirname, '..', 'node_modules', 'next', 'dist', 'bin', 'next');
+    if (!fs.existsSync(nextPath)) {
+      throw new Error(`Next.js binary not found at ${nextPath}`);
+    }
+
+    console.log('✅ Next.js binary found.');
+    return true;
+  }
+
+  /**
+   * Start the Next.js application
+   */
+  async startApplication() {
+    try {
+      console.log('🚀 Starting Multi-Business Next.js application...');
+
+      // Store appRoot for use in this method
+      this.appRoot = path.join(__dirname, '..');
+
+      // Verify Next.js binary is available
+      await this.verifyNextJsAvailable();
+
+      console.log('Production build verified. Starting Next.js application directly...');
+
+      // Start Next.js directly using node, not npm
+      const nextPath = path.join(
+        this.appRoot,
+        'node_modules',
+        'next',
+        'dist',
+        'bin',
+        'next'
+      );
+
+      const appPort = process.env.PORT || '8080';
+
+      console.log(`📝 Spawning: node ${nextPath} start`);
+      console.log(`📂 Working directory: ${this.appRoot}`);
+      console.log(`🔌 PORT: ${appPort}`);
+
+      this.appProcess = spawn('node', [nextPath, 'start'], {
+        cwd: this.appRoot,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        env: {
+          ...process.env,
+          NODE_ENV: 'production',
+          PORT: appPort,
+        },
+      });
+
+      // Log app PID
+      console.log(`📌 Next.js process spawned with PID: ${this.appProcess.pid}`);
+
+      this.appProcess.stdout.on('data', (data) => {
+        const output = data.toString().trim();
+        if (output) {
+          console.log(`[Next.js] ${output}`);
+        }
+      });
+
+      this.appProcess.stderr.on('data', (data) => {
+        const output = data.toString().trim();
+        if (output) {
+          console.error(`[Next.js ERROR] ${output}`);
+        }
+      });
+
+      this.appProcess.on('error', (err) => {
+        console.error(`❌ Failed to start Next.js process: ${err.message}`);
+      });
+
+      this.appProcess.on('exit', (code, signal) => {
+        console.error(`⚠️  Next.js process exited with code ${code} and signal ${signal}`);
+      });
+
+      // Wait a moment for process to initialize
+      console.log('⏳ Waiting 5 seconds for Next.js to initialize...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Verify port is listening
+      await this.verifyNextJsStarted();
+
+      console.log(`🚀 SERVICE STARTUP COMPLETE: Next.js application started successfully!`);
+      console.log(`🌐 Application available at: http://localhost:${appPort}`);
+    } catch (error) {
+      console.error(`❌ Failed to start Next.js application: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Stop the sync service and app
    */
   async stop() {
     this.isShuttingDown = true;
 
+    // Stop the Next.js app first
+    if (this.appProcess) {
+      try {
+        console.log('⏹️  Stopping Next.js application...');
+
+        // Send SIGTERM for graceful shutdown
+        this.appProcess.kill('SIGTERM');
+
+        // Wait for graceful shutdown
+        await new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            // Force kill if graceful shutdown takes too long
+            if (this.appProcess) {
+              console.log('🔪 Force killing Next.js app...');
+              this.appProcess.kill('SIGKILL');
+            }
+            resolve();
+          }, 10000); // 10 second timeout
+
+          this.appProcess.on('exit', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+
+        console.log('✅ Next.js application stopped');
+
+      } catch (error) {
+        console.error('❌ Error stopping Next.js app:', error);
+      }
+    }
+
+    // Stop the sync service
     if (this.childProcess) {
       try {
         console.log('⏹️  Stopping sync service...');
