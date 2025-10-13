@@ -70,6 +70,7 @@
     "hooks:install": "node scripts/install-git-hooks.js",
     "diagnose:database": "node scripts/diagnose-database.js",
     "verify:service-wrapper": "node scripts/verify-service-wrapper.js",
+    "test:service-wrapper": "node scripts/test-service-wrapper.js",
     "deploy": "npm run setup:update && npm run service:restart",
     "deploy:upgrade": "node scripts/production-upgrade.js",
     "deploy:fresh": "node scripts/fresh-install.js",
