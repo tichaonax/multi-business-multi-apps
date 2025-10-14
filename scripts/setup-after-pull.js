@@ -453,16 +453,19 @@ async function main() {
   // Step 1: Install/update dependencies
   run('npm install', 'Installing/updating dependencies', false)
 
-  // Step 2: Regenerate Prisma client (now safe from EPERM after cleanup)
+  // Step 2: Ensure schema uses PascalCase models (in case of any db pull operations)
+  run('node scripts/convert-schema-to-pascal.js', 'Converting schema to PascalCase format', false)
+
+  // Step 3: Regenerate Prisma client with corrected schema
   run('npx prisma generate', 'Regenerating Prisma client', false)
 
-  // Step 3: Rebuild the application
+  // Step 4: Rebuild the application
   run('npm run build', 'Rebuilding the application', false)
 
-  // Step 4: Rebuild Windows service
+  // Step 5: Rebuild Windows service
   run('npm run build:service', 'Rebuilding Windows sync service', false)
 
-  // Step 5: Smart detection - fresh install vs upgrade
+  // Step 6: Smart detection - fresh install vs upgrade
   const isFresh = await isFreshInstall()
 
   if (isFresh) {

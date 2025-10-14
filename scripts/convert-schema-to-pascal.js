@@ -102,13 +102,33 @@ function parseModels(schemaContent) {
 }
 
 /**
- * Convert schema with proper @@map directives
+ * Convert schema with proper @@map directives and fix relation field types
  */
 function convertSchema(schemaContent) {
   const lines = schemaContent.split('\n')
   const models = parseModels(schemaContent)
 
   console.log(`\n📊 Found ${models.length} models to process\n`)
+
+  // Create mapping of snake_case to PascalCase for all models
+  const modelTypeMapping = new Map()
+  models.forEach(model => {
+    const snakeCaseName = model.originalName.replace(/([A-Z])/g, (match, letter, index) => 
+      index === 0 ? letter.toLowerCase() : '_' + letter.toLowerCase())
+    modelTypeMapping.set(snakeCaseName, model.pascalName)
+    // Also map the original name if it's different
+    if (model.originalName !== model.pascalName) {
+      modelTypeMapping.set(model.originalName, model.pascalName)
+    }
+  })
+
+  console.log('🔗 Relation type mappings:')
+  modelTypeMapping.forEach((pascalCase, snakeCase) => {
+    if (snakeCase !== pascalCase) {
+      console.log(`   ${snakeCase} -> ${pascalCase}`)
+    }
+  })
+  console.log('')
 
   // Process models in reverse order to maintain line numbers
   for (let i = models.length - 1; i >= 0; i--) {
@@ -156,6 +176,42 @@ function convertSchema(schemaContent) {
     lines.splice(closingBraceLine, 0, mapDirective)
   }
 
+  // Fix relation field types throughout the entire schema
+  console.log('🔗 Fixing relation field types...')
+  let relationFixCount = 0
+  
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]
+    let updatedLine = line
+    
+    // Match relation field patterns: fieldName relationTypeName[@relation, [], ?]
+    // This regex matches: spaces + field_name + spaces + type_name + optional modifiers
+    const relationPattern = /^(\s+)([a-zA-Z_][a-zA-Z0-9_]*)\s+([a-zA-Z_][a-zA-Z0-9_]*)(\[\]|\?)?\s*(@relation.*|$)/
+    const match = line.match(relationPattern)
+    
+    if (match) {
+      const [, indent, fieldName, typeName, modifier = '', rest] = match
+      
+      // Check if this type name should be converted
+      if (modelTypeMapping.has(typeName)) {
+        const correctTypeName = modelTypeMapping.get(typeName)
+        if (typeName !== correctTypeName) {
+          updatedLine = `${indent}${fieldName} ${correctTypeName}${modifier}${rest ? ' ' + rest : ''}`
+          lines[lineIndex] = updatedLine
+          relationFixCount++
+          console.log(`   Fixed: ${fieldName} ${typeName}${modifier} -> ${fieldName} ${correctTypeName}${modifier}`)
+        }
+      }
+    }
+  }
+  
+  if (relationFixCount > 0) {
+    console.log(`✓ Fixed ${relationFixCount} relation field types`)
+  } else {
+    console.log('✓ All relation field types already correct')
+  }
+  console.log('')
+
   return lines.join('\n')
 }
 
@@ -190,6 +246,21 @@ async function main() {
 
     // Write converted schema
     fs.writeFileSync(SCHEMA_PATH, convertedSchema, 'utf8')
+
+    // Format the schema using Prisma's built-in formatter
+    console.log('🎨 Formatting schema with Prisma formatter...')
+    try {
+      const { execSync } = require('child_process')
+      execSync('npx prisma format', {
+        cwd: process.cwd(),
+        stdio: 'pipe',
+        env: { ...process.env }
+      })
+      console.log('✅ Schema formatted successfully')
+    } catch (formatError) {
+      console.warn('⚠️  Warning: Schema formatting failed:', formatError.message)
+      console.warn('   Schema conversion completed but formatting skipped')
+    }
 
     console.log('\n✅ Schema conversion completed!')
     console.log('\n📝 Next steps:')
