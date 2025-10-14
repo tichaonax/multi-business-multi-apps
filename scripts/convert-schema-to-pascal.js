@@ -25,13 +25,25 @@ const path = require('path')
 const SCHEMA_PATH = path.join(__dirname, '..', 'prisma', 'schema.prisma')
 
 /**
- * Convert snake_case to PascalCase
+ * Convert snake_case to PascalCase, but preserve existing PascalCase names
  */
-function snakeToPascal(snakeStr) {
-  return snakeStr
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('')
+function snakeToPascal(str) {
+  // If it contains underscores, it's snake_case - convert it
+  if (str.includes('_')) {
+    return str
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join('')
+  }
+  
+  // If it doesn't contain underscores, check if it's already PascalCase
+  if (str.charAt(0) === str.charAt(0).toUpperCase()) {
+    // Already PascalCase, return as-is
+    return str
+  }
+  
+  // Otherwise, capitalize first letter (camelCase -> PascalCase)
+  return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
 /**
@@ -108,9 +120,15 @@ function convertSchema(schemaContent) {
       continue
     }
 
-    // Skip if already PascalCase (but might need @@map)
-    if (model.originalName === model.pascalName && !model.hasMapDirective) {
-      console.log(`⚠ ${model.originalName} - PascalCase but missing @@map (skipping for safety)`)
+    // Skip if already PascalCase and no underscores (no need for @@map)
+    if (model.originalName === model.pascalName && !model.originalName.includes('_')) {
+      console.log(`✓ ${model.originalName} - Already PascalCase`)
+      continue
+    }
+
+    // Skip if already PascalCase but has underscores (rare edge case)
+    if (model.originalName === model.pascalName && model.originalName.includes('_')) {
+      console.log(`⚠ ${model.originalName} - PascalCase with underscores (skipping for safety)`)
       continue
     }
 

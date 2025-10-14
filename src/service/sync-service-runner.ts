@@ -166,8 +166,16 @@ class SyncServiceRunner {
     try {
       console.log('🔍 Verifying database schema...')
 
-      // Try to access the sync_nodes table that the sync service requires
+      // Run prisma db pull to sync schema with database
+      console.log('📡 Syncing schema with database...')
       await execAsync('npx prisma db pull --force', {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      })
+
+      // Convert schema to PascalCase using existing script
+      console.log('🔄 Converting schema to PascalCase...')
+      await execAsync('node scripts/convert-schema-to-pascal.js', {
         cwd: process.cwd(),
         env: { ...process.env }
       })
@@ -178,16 +186,19 @@ class SyncServiceRunner {
 
       try {
         // Try to query a critical table that sync service needs
-          const res = await prisma.$queryRaw`SELECT 1 as ok FROM information_schema.tables WHERE table_name = 'sync_nodes' LIMIT 1`
+        const res = await prisma.$queryRaw`SELECT 1 as ok FROM information_schema.tables WHERE table_name = 'sync_nodes' LIMIT 1`
 
-          // Prisma raw results can vary; treat any non-empty array as success
-          const hasTable = Array.isArray(res) ? res.length > 0 : !!res
+        // Prisma raw results can vary; treat any non-empty array as success
+        const hasTable = Array.isArray(res) ? res.length > 0 : !!res
 
-          if (!hasTable) {
-            throw new Error('sync_nodes table not found')
-          }
+        if (!hasTable) {
+          throw new Error('sync_nodes table not found - run migrations first')
+        }
 
-          console.log('✅ Database schema verification completed')
+        // Verify we can access the sync_nodes table directly
+        await prisma.$queryRaw`SELECT COUNT(*) FROM sync_nodes LIMIT 1`
+
+        console.log('✅ Database schema verification completed')
       } finally {
         await prisma.$disconnect()
       }
