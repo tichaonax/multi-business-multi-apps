@@ -670,7 +670,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async loadActiveSessions(): Promise<void> {
     try {
-      const sessions = await (this.prisma as any).initialLoadSession.findMany({
+      const sessions = await (this.prisma as any).initialLoadSessions.findMany({
         where: {
           OR: [
             { sourceNodeId: this.nodeId },
@@ -713,7 +713,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async createInitialLoadSession(session: InitialLoadSession): Promise<void> {
     try {
-      await (this.prisma as any).initialLoadSession.create({
+      await (this.prisma as any).initialLoadSessions.create({
         data: {
           id: session.sessionId,
           sourceNodeId: session.sourceNodeId,
@@ -739,7 +739,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async updateInitialLoadSession(session: InitialLoadSession): Promise<void> {
     try {
-      await (this.prisma as any).initialLoadSession.update({
+      await (this.prisma as any).initialLoadSessions.update({
         where: { id: session.sessionId },
         data: {
           status: session.status,
