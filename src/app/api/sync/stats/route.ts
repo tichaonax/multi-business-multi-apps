@@ -43,28 +43,28 @@ export async function GET(request: NextRequest) {
       syncMetrics
     ] = await Promise.all([
       // Total sync events
-      prisma.syncEvent.count(),
+      prisma.syncEvents.count(),
 
       // Processed events
-      prisma.syncEvent.count({
+      prisma.syncEvents.count({
         where: { processed: true }
       }),
 
       // Pending events
-      prisma.syncEvent.count({
+      prisma.syncEvents.count({
         where: { processed: false, retryCount: { lt: 3 } }
       }),
 
       // Failed events (max retries exceeded)
-      prisma.syncEvent.count({
+      prisma.syncEvents.count({
         where: { retryCount: { gte: 3 } }
       }),
 
       // Conflict resolutions
-      prisma.conflictResolution.count(),
+      prisma.conflictResolutions.count(),
 
       // Active sync nodes
-      prisma.syncNode.count({
+      prisma.syncNodes.count({
         where: {
           isActive: true,
           lastSeen: {
@@ -74,19 +74,17 @@ export async function GET(request: NextRequest) {
       }),
 
       // Recent sync sessions
-      prisma.syncSession.findMany({
+      prisma.syncSessions.findMany({
         take: 10,
-        orderBy: { startTime: 'desc' },
+        orderBy: { startedAt: 'desc' },
         select: {
           sessionId: true,
-          initiatorNodeId: true,
-          participantNodes: true,
+          sourceNodeId: true,
+          targetNodeId: true,
           status: true,
-          startTime: true,
-          endTime: true,
-          eventsTransferred: true,
-          conflictsDetected: true,
-          conflictsResolved: true
+          startedAt: true,
+          endedAt: true,
+          metadata: true
         }
       }),
 
@@ -102,7 +100,7 @@ export async function GET(request: NextRequest) {
     ])
 
     // Get sync nodes with details
-    const syncNodes = await prisma.syncNode.findMany({
+    const syncNodes = await prisma.syncNodes.findMany({
       where: { isActive: true },
       select: {
         nodeId: true,
@@ -120,31 +118,31 @@ export async function GET(request: NextRequest) {
     // Calculate additional metrics
     const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const [eventsLast24h, conflictsLast24h, sessionsLast24h] = await Promise.all([
-      prisma.syncEvent.count({
+      prisma.syncEvents.count({
         where: { createdAt: { gte: last24Hours } }
       }),
-      prisma.conflictResolution.count({
+      prisma.conflictResolutions.count({
         where: { createdAt: { gte: last24Hours } }
       }),
-      prisma.syncSession.count({
-        where: { startTime: { gte: last24Hours } }
+      prisma.syncSessions.count({
+        where: { startedAt: { gte: last24Hours } }
       })
     ])
 
     // Get recent conflicts
-    const recentConflicts = await prisma.conflictResolution.findMany({
+    const recentConflicts = await prisma.conflictResolutions.findMany({
       take: 10,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         conflictType: true,
-        tableName: true,
         resolutionStrategy: true,
-        resolvedByNodeId: true,
-        autoResolved: true,
-        humanReviewed: true,
+        sourceEventId: true,
+        targetEventId: true,
+        resolvedBy: true,
+        resolvedAt: true,
         createdAt: true,
-        conflictMetadata: true
+        metadata: true
       }
     })
 
