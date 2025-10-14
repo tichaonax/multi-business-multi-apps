@@ -794,8 +794,15 @@ class HybridServiceWrapper extends EventEmitter {
 
     // Check registration key
     const regKey = process.env.SYNC_REGISTRATION_KEY;
+    console.log('🔑 Registration key debug:', {
+      hasKey: !!regKey,
+      keyLength: regKey ? regKey.length : 0,
+      keyFirst8: regKey ? regKey.substring(0, 8) : 'none',
+      keyLast8: regKey ? regKey.substring(regKey.length - 8) : 'none',
+      isDefault: regKey === 'default-registration-key-change-in-production'
+    });
     if (!regKey || regKey === 'default-registration-key-change-in-production') {
-      console.warn('⚠️  Using default registration key. Change SYNC_REGISTRATION_KEY in production!');
+      console.warn('⚠️  WARNING: Using default registration key! Change SYNC_REGISTRATION_KEY environment variable for production.');
     }
 
     console.log('✅ Environment configuration validated');

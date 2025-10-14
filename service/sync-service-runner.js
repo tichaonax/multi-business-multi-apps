@@ -91,6 +91,20 @@ class ServiceRunner {
       // Run database migrations
       await this.runMigrations()
 
+      // Debug registration key sources
+      logger.info('Registration Key Sources Debug:', {
+        fromServiceConfig: config.sync.registrationKey ? `[${config.sync.registrationKey.length} chars]` : 'undefined',
+        fromEnvVar: process.env.SYNC_REGISTRATION_KEY ? `[${process.env.SYNC_REGISTRATION_KEY.length} chars]` : 'undefined',
+        envVarFirst8: process.env.SYNC_REGISTRATION_KEY ? process.env.SYNC_REGISTRATION_KEY.substring(0, 8) : 'none',
+        configFirst8: config.sync.registrationKey ? config.sync.registrationKey.substring(0, 8) : 'none'
+      })
+
+      // Override registrationKey with environment variable if present
+      if (process.env.SYNC_REGISTRATION_KEY) {
+        logger.info('Overriding registrationKey with environment variable value')
+        config.sync.registrationKey = process.env.SYNC_REGISTRATION_KEY
+      }
+
       // Create sync service
       this.syncService = new SyncService(config.sync)
 
