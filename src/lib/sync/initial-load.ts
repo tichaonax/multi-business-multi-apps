@@ -645,7 +645,7 @@ export class InitialLoadManager extends EventEmitter {
     try {
       // Prisma schema for DataSnapshot may differ between deployments. Write into
       // snapshotData/metadata fields to ensure compatibility.
-      await (this.prisma as any).dataSnapshot.create({
+      await this.prisma.dataSnapshots.create({
         data: {
           id: snapshot.snapshotId,
           nodeId: snapshot.nodeId,
@@ -670,7 +670,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async loadActiveSessions(): Promise<void> {
     try {
-      const sessions = await (this.prisma as any).initialLoadSessions.findMany({
+      const sessions = await this.prisma.initialLoadSessions.findMany({
         where: {
           OR: [
             { sourceNodeId: this.nodeId },
@@ -713,7 +713,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async createInitialLoadSession(session: InitialLoadSession): Promise<void> {
     try {
-      await (this.prisma as any).initialLoadSessions.create({
+      await this.prisma.initialLoadSessions.create({
         data: {
           id: session.sessionId,
           sourceNodeId: session.sourceNodeId,
@@ -739,7 +739,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async updateInitialLoadSession(session: InitialLoadSession): Promise<void> {
     try {
-      await (this.prisma as any).initialLoadSessions.update({
+      await this.prisma.initialLoadSessions.update({
         where: { id: session.sessionId },
         data: {
           status: session.status,
