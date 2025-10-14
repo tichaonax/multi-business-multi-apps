@@ -752,7 +752,7 @@ if %ERRORLEVEL% == 0 (
   createWindowsStatusScript() {
     return `@echo off
 echo Checking Multi-Business Sync Service status...
-sc query "${this.serviceConfig.name}"
+sc.exe query "${this.serviceConfig.name}"
 curl -s http://localhost:${this.options.syncPort + 1}/health 2>nul
 if %ERRORLEVEL% == 0 (
     echo Health check: OK
@@ -912,7 +912,7 @@ curl -s http://localhost:${this.options.syncPort + 1}/health || echo "Health che
     if (os.platform() === 'win32') {
       log(`   Start:  net start "${this.serviceConfig.name}"`)
       log(`   Stop:   net stop "${this.serviceConfig.name}"`)
-      log(`   Status: sc query "${this.serviceConfig.name}"`)
+      log(`   Status: sc.exe query "${this.serviceConfig.name}"`)
     } else {
       log(`   Start:  sudo systemctl start ${this.serviceConfig.name}`)
       log(`   Stop:   sudo systemctl stop ${this.serviceConfig.name}`)
@@ -922,7 +922,7 @@ curl -s http://localhost:${this.options.syncPort + 1}/health || echo "Health che
     log(`\n📝 Next Steps:`, 'bright')
     log(`   1. Configure additional nodes with the same registration key`)
     log(`   2. Monitor logs in: ${this.logsDir}`)
-    log(`   3. Access admin dashboard: http://localhost:3000/admin/sync`)
+    log(`   3. Access admin dashboard: http://localhost:8080/admin/sync`)
     log(`   4. Configure firewall for port ${this.options.syncPort}`)
 
     log('\n' + '='.repeat(60), 'bright')

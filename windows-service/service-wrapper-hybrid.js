@@ -833,11 +833,11 @@ class HybridServiceWrapper extends EventEmitter {
           output += data.toString();
         });
 
-        // Timeout after 10 seconds - should be plenty for a simple status check
+        // Timeout after 20 seconds - should be plenty for a simple status check
         const timeout = setTimeout(() => {
           testProcess.kill('SIGKILL');
           reject(new Error('Database connectivity test timed out - check if DATABASE_URL is accessible'));
-        }, 10000);
+        }, 20000);
 
         testProcess.on('close', (code) => {
           clearTimeout(timeout);

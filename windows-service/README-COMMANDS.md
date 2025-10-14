@@ -68,6 +68,6 @@ The repository workflow `.github/workflows/smoke-check.yml` now runs `npm run se
 Troubleshooting
 
 - If `service:install` fails due to permissions, run your shell as Administrator.
-- If `sc start`/`sc stop` reports the service is not installed, run `npm run service:install` first and re-check with `npm run service:diagnose`.
+- If `sc.exe start`/`sc.exe stop` reports the service is not installed, run `npm run service:install` first and re-check with `npm run service:diagnose`.
 
 If you'd like, I can also add a short top-level README section showing these commands and example outputs.

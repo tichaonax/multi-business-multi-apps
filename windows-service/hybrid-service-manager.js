@@ -53,18 +53,18 @@ class HybridServiceManager {
         const { stdout, stderr } = await execAsync(cmd);
         const out = (stdout || stderr || '').toString();
         // small debug trace so diagnostics can tell which candidate and command worked
-        this.log(`sc command succeeded for candidate "${name}" using command: ${cmd}`);
+        this.log(`sc.exe command succeeded for candidate "${name}" using command: ${cmd}`);
         return { name, out, cmd };
       } catch (err) {
         lastErr = err;
       }
     }
-    throw lastErr || new Error('sc command failed for all candidate names');
+    throw lastErr || new Error('sc.exe command failed for all candidate names');
   }
 
   async runScQuery() {
     try {
-      const res = await this.tryScCommand((name) => `sc query "${name}"`);
+      const res = await this.tryScCommand((name) => `sc.exe query "${name}"`);
       return res.out;
     } catch (err) {
       throw err;
@@ -105,7 +105,7 @@ class HybridServiceManager {
       }
 
   // Use Windows service control to start (try candidates)
-  await this.tryScCommand((name) => `sc start "${name}"`);
+  await this.tryScCommand((name) => `sc.exe start "${name}"`);
       this.log('Service start command executed');
 
       // Wait for service to start and get PID
@@ -130,7 +130,7 @@ class HybridServiceManager {
 
       // Try graceful shutdown via Windows service control
       try {
-  await this.tryScCommand((name) => `sc stop "${name}"`);
+  await this.tryScCommand((name) => `sc.exe stop "${name}"`);
         this.log('Service stop command executed');
 
         // Wait for graceful shutdown
