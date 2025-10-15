@@ -75,6 +75,14 @@ logs
 .env.development.local
 /.claude/
 
+# Server-specific configuration files (contain server-specific values)
+config/service-config.json
+data/sync/config.json
+
+# Environment migration backup files
+.env.backup-*
+.env.local.backup-*
+
 # temporary and office files
 *.odt
 *.~lock.*
