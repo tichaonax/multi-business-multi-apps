@@ -124,11 +124,11 @@ async function run() {
           console.log('✅ Service build completed');
         }
 
-  // Run migrations/push and seeding upfront to ensure DB is ready when runner starts
-  console.log('🗄️  Running database schema push (direct start)...');
-  // Use db push --force-reset to ensure schema is applied similar to wrapper behavior
-  await execAsync('npx prisma db push --force-reset', { cwd: process.cwd(), env: { ...process.env } });
-  console.log('✅ Database schema applied (direct start)');
+  // Run migrations to ensure DB is ready when runner starts
+  console.log('🗄️  Running database migrations (direct start)...');
+  // Use migrate deploy to apply migrations without modifying schema file
+  await execAsync('npx prisma migrate deploy', { cwd: process.cwd(), env: { ...process.env } });
+  console.log('✅ Database migrations applied (direct start)');
 
   console.log('🌱 Running migration seed script (direct start)...');
   await execAsync('npm run seed:migration', { cwd: process.cwd(), env: { ...process.env } });

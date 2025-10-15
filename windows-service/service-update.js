@@ -325,9 +325,9 @@ class ServiceUpdateManager {
         this.log('🆕 Fresh database detected - using db push + baseline workflow');
 
         try {
-          // Use db push for initial schema (faster and simpler than migrations)
-          await execAsync('npx prisma db push --accept-data-loss');
-          this.log('✅ Schema pushed to database');
+          // Use migrate deploy for consistent schema deployment
+          await execAsync('npx prisma migrate deploy');
+          this.log('✅ Migrations applied to database');
 
           // Baseline all migrations (mark them as applied without running)
           const fs = require('fs');

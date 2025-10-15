@@ -248,9 +248,9 @@ class DatabaseInstaller {
 
       if (migrationStatus === 'fresh') {
         log('Fresh installation detected, pushing schema...')
-        execSync('npx prisma db push', {
-          stdio: 'inherit',
-          cwd: this.projectRoot
+        execSync('npx prisma migrate deploy', {
+          cwd: ROOT_DIR,
+          stdio: 'inherit'
         })
       } else {
         log('Existing installation detected, running migrations...')

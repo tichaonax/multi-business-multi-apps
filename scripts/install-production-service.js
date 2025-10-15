@@ -244,10 +244,9 @@ class ProductionServiceRunner {
       });
 
       try {
-        execSync('npx prisma db push', {
-          cwd: PROJECT_ROOT,
-          stdio: 'pipe',
-          timeout: 120000
+        execSync('npx prisma migrate deploy', {
+          cwd: ROOT_DIR,
+          stdio: 'inherit'
         });
         logger.info('✅ Database schema pushed successfully');
       } catch (pushError) {
