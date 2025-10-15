@@ -38,14 +38,14 @@ function normalizeProduct(product: any) {
   // map schema relation names back to legacy keys expected by the frontend
   product.brand = product.brand || (product.businessBrand ? { id: product.businessBrand.id, name: product.businessBrand.name } : null)
   product.category = product.category || (product.businessCategory ? { id: product.businessCategory.id, name: product.businessCategory.name } : null)
-  product.variants = product.variants || product.productVariants || []
+  product.variants = product.variants || product.product_variants || []
   product.images = product.images || product.productImages || []
   product.business = product.business || null
 
   // remove internal/plural fields so responses match previous shape
   delete product.businessBrand
   delete product.businessCategory
-  delete product.productVariants
+  delete product.product_variants
   delete product.productImages
 
   return product
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
             select: { id: true, name: true }
           },
           ...(includeVariants && {
-            productVariants: {
+            product_variants: {
               where: { isActive: true },
               orderBy: { name: 'asc' }
             }
@@ -321,7 +321,7 @@ export async function PUT(request: NextRequest) {
     // Verify product exists
     const existingProduct = await prisma.businessProducts.findUnique({
       where: { id },
-      include: { productVariants: true }
+      include: { product_variants: true }
     })
 
     if (!existingProduct) {
@@ -358,7 +358,7 @@ export async function PUT(request: NextRequest) {
         businesses: { select: { name: true, type: true } },
         businessBrand: { select: { id: true, name: true } },
         businessCategory: { select: { id: true, name: true } },
-        productVariants: {
+        product_variants: {
           where: { isActive: true },
           orderBy: { name: 'asc' }
         }
@@ -404,7 +404,7 @@ export async function DELETE(request: NextRequest) {
     const productWithOrders = await prisma.businessProducts.findUnique({
       where: { id },
       include: {
-        productVariants: {
+        product_variants: {
           include: {
             businessOrderItems: {
               include: {
@@ -426,7 +426,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check for active orders
-    const hasActiveOrders = productWithOrders.productVariants.some((variant: any) =>
+    const hasActiveOrders = productWithOrders.product_variants.some((variant: any) =>
       variant.businessOrderItems.some((orderItem: any) =>
         !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(orderItem.businessOrder.status)
       )

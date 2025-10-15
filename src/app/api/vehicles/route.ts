@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { isSystemAdmin, type SessionUser } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+import * as crypto from 'crypto';
 // Validation schemas
 const CreateVehicleSchema = z.object({
   licensePlate: z.string().min(1, 'License plate is required'),
@@ -202,6 +203,7 @@ export async function POST(request: NextRequest) {
 
     // Create vehicle (use a loose any-typed payload to avoid strict create input mismatches)
     const createData: any = {
+      id: crypto.randomUUID(),
       ...validatedData,
       // Set hasInitialMileage to true if currentMileage is greater than 0
       hasInitialMileage: validatedData.currentMileage > 0,
