@@ -251,7 +251,6 @@ export async function POST(req: NextRequest) {
       // Create user
       const newUser = await tx.users.create({
         data: {
-          id: randomBytes(12).toString('hex'),
           id: userId,
           name,
           email,
@@ -288,8 +287,7 @@ export async function POST(req: NextRequest) {
           }
 
           const membership = await tx.businessMemberships.create({
-        data: {
-          id: randomBytes(12).toString('hex'),
+            data: {
               id: randomBytes(12).toString('hex'),
               userId: newUser.id,
               businessId: assignment.businessId,
@@ -308,8 +306,7 @@ export async function POST(req: NextRequest) {
         // If linked to employee but no explicit business assignments, inherit from employee
         for (const empAssignment of employeeToLink.employee_business_assignments) {
           const membership = await tx.businessMemberships.create({
-        data: {
-          id: randomBytes(12).toString('hex'),
+            data: {
               id: randomBytes(12).toString('hex'),
               userId: newUser.id,
               businessId: empAssignment.businessId,
@@ -343,8 +340,7 @@ export async function POST(req: NextRequest) {
           }
 
           const membership = await tx.businessMemberships.create({
-        data: {
-          id: randomBytes(12).toString('hex'),
+            data: {
               id: randomBytes(12).toString('hex'),
               userId: newUser.id,
               businessId: userMembership.businessId,

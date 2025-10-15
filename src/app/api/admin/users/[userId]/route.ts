@@ -64,7 +64,7 @@ export async function GET(
     const user = await prisma.users.findUnique({
       where: { id: userId },
       include: {
-        businessMemberships: {
+        business_memberships: {
           include: {
             businesses: {
               select: {
@@ -93,7 +93,7 @@ export async function GET(
       permissions: user.permissions,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      businessMemberships: user.businessMemberships.map(membership => ({
+      businessMemberships: user.business_memberships.map((membership: any) => ({
         businessId: membership.businessId,
         businessName: membership.businesses.name,
         businessType: membership.businesses.type,
@@ -194,7 +194,7 @@ export async function PATCH(
     const existingUser = await prisma.users.findUnique({
       where: { id: userId },
       include: {
-        businessMemberships: {
+        business_memberships: {
           include: {
             businesses: {
               select: { name: true }
@@ -315,11 +315,11 @@ export async function PATCH(
       success: true,
       message: `User updated successfully`,
       user: {
-        id: result.users.id,
-        name: result.users.name,
-        email: result.users.email,
-        systemRole: result.users.role,
-        isActive: result.users.isActive,
+        id: result.user.id,
+        name: result.user.name,
+        email: result.user.email,
+        systemRole: result.user.role,
+        isActive: result.user.isActive,
         businessMemberships: result.memberships.map(m => ({
           businessId: m.businessId,
           businessName: m.businesses.name,
