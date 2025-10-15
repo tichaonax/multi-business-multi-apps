@@ -47,42 +47,53 @@ export function SyncActivityLog() {
       if (statsResponse.ok) {
         const stats = await statsResponse.json()
         const mockActivities: SyncActivity[] = []
+        
+        // Ensure required properties exist
+        if (!stats) {
+          console.warn('No stats data received')
+          return
+        }
 
         // Add recent sessions as activities
         stats.recentSessions.slice(0, 5).forEach((session: any) => {
+          const eventsTransferred = session.eventsTransferred || session.metadata?.eventsTransferred || 0
+          const participantCount = session.participantNodes?.length || 
+                                 session.metadata?.participantNodes?.length || 
+                                 (session.sourceNodeId && session.targetNodeId ? 2 : 1)
+          
           mockActivities.push({
             id: session.sessionId,
             type: 'sync_session',
             message: `Sync session ${session.status.toLowerCase()}`,
-            details: `${session.eventsTransferred} events transferred with ${session.participantNodes.length} nodes`,
-            timestamp: session.endTime || session.startTime,
+            details: `${eventsTransferred} events transferred with ${participantCount} nodes`,
+            timestamp: session.endedAt || session.startedAt,
             severity: session.status === 'COMPLETED' ? 'success' : 'error',
-            nodeId: session.initiatorNodeId
+            nodeId: session.sourceNodeId
           })
         })
 
         // Add recent conflicts as activities
-        stats.recentConflicts.slice(0, 5).forEach((conflict: any) => {
+        stats.recentConflicts?.slice(0, 5).forEach((conflict: any) => {
           mockActivities.push({
             id: conflict.id,
             type: 'conflict_resolution',
-            message: `${conflict.conflictType} conflict resolved`,
-            details: `Table: ${conflict.tableName}, Strategy: ${conflict.resolutionStrategy}`,
+            message: `${conflict.conflictType || 'Unknown'} conflict resolved`,
+            details: `Table: ${conflict.tableName || 'Unknown'}, Strategy: ${conflict.resolutionStrategy || 'Auto'}`,
             timestamp: conflict.createdAt,
             severity: conflict.autoResolved ? 'warning' : 'info',
-            nodeId: conflict.resolvedByNodeId,
+            nodeId: conflict.resolvedBy || conflict.resolvedByNodeId,
             tableName: conflict.tableName
           })
         })
 
         // Add peer discovery activities
-        stats.syncNodes.slice(0, 3).forEach((node: any) => {
+        stats.syncNodes?.slice(0, 3).forEach((node: any) => {
           if (node.isOnline) {
             mockActivities.push({
               id: `peer-${node.nodeId}`,
               type: 'peer_discovery',
-              message: `Peer ${node.nodeName} discovered`,
-              details: `IP: ${node.ipAddress}:${node.port}`,
+              message: `Peer ${node.nodeName || 'Unknown'} discovered`,
+              details: `IP: ${node.ipAddress || 'Unknown'}:${node.port || 'Unknown'}`,
               timestamp: node.lastSeen,
               severity: 'info',
               nodeId: node.nodeId

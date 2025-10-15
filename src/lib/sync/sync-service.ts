@@ -20,6 +20,7 @@ import { InitialLoadReceiver, createInitialLoadReceiver } from './initial-load-r
 import { SecurityManager, createSecurityManager } from './security-manager'
 import { SchemaVersionManager, createSchemaVersionManager } from './schema-version-manager'
 import { SyncCompatibilityGuard, createSyncCompatibilityGuard } from './sync-compatibility-guard'
+import { DailyRotatingLogger, createSyncServiceLogger } from './rotating-logger'
 import { networkInterfaces } from 'os'
 import path from 'path'
 import fs from 'fs'
@@ -86,7 +87,7 @@ export class SyncService extends EventEmitter {
   private isOnline = true
   private startTime: Date | null = null
   private nodeId: string
-  private logStream: fs.WriteStream | null = null
+  private logger: DailyRotatingLogger | null = null
   private healthCheckTimer: NodeJS.Timeout | null = null
   private status: ServiceStatus
 
@@ -279,10 +280,10 @@ export class SyncService extends EventEmitter {
       this.startTime = null
       this.status.isRunning = false
 
-      // Close log stream
-      if (this.logStream) {
-        this.logStream.end()
-        this.logStream = null
+      // Close rotating logger
+      if (this.logger) {
+        this.logger.close()
+        this.logger = null
       }
 
       this.log('info', '✅ Sync service stopped successfully')
@@ -316,6 +317,16 @@ export class SyncService extends EventEmitter {
       peersConnected: this.peerDiscovery?.getDiscoveredPeers().length || 0,
       peersDiscovered: this.peerDiscovery?.getDiscoveredPeers().length || 0
     }
+  }
+
+  /**
+   * Get logging statistics
+   */
+  getLogStats() {
+    if (this.logger) {
+      return this.logger.getLogStats()
+    }
+    return null
   }
 
   /**
@@ -978,74 +989,45 @@ export class SyncService extends EventEmitter {
    */
   private initializeLogging(): void {
     try {
-      // Ensure data directory exists
-      if (!fs.existsSync(this.config.dataDirectory)) {
-        fs.mkdirSync(this.config.dataDirectory, { recursive: true })
-      }
-
-      // Setup log rotation
-      const logFile = path.join(this.config.dataDirectory, 'sync-service.log')
-
-      // Check log file size and rotate if needed
-      if (fs.existsSync(logFile)) {
-        const stats = fs.statSync(logFile)
-        if (stats.size > this.config.maxLogSize) {
-          this.rotateLogFiles(logFile)
-        }
-      }
-
-      // Create write stream
-      this.logStream = fs.createWriteStream(logFile, { flags: 'a' })
-
+      // Initialize the daily rotating logger
+      this.logger = createSyncServiceLogger()
+      this.logger.info('Sync service logging initialized', {
+        nodeId: this.nodeId,
+        nodeName: this.config.nodeName,
+        logLevel: this.config.logLevel
+      })
     } catch (error) {
       console.error('Failed to initialize logging:', error)
     }
   }
 
-  /**
-   * Rotate log files
-   */
-  private rotateLogFiles(logFile: string): void {
-    try {
-      for (let i = this.config.maxLogFiles - 1; i >= 1; i--) {
-        const oldFile = `${logFile}.${i}`
-        const newFile = `${logFile}.${i + 1}`
 
-        if (fs.existsSync(oldFile)) {
-          if (i === this.config.maxLogFiles - 1) {
-            fs.unlinkSync(oldFile) // Delete oldest
-          } else {
-            fs.renameSync(oldFile, newFile)
-          }
-        }
-      }
-
-      // Rotate current log
-      fs.renameSync(logFile, `${logFile}.1`)
-    } catch (error) {
-      console.error('Failed to rotate log files:', error)
-    }
-  }
 
   /**
    * Log message with timestamp
    */
   private log(level: string, message: string, ...args: any[]): void {
-    const timestamp = new Date().toISOString()
-    const logMessage = `[${timestamp}] [${level.toUpperCase()}] [${this.nodeId}] ${message}`
+    // Console output (keep for development/debugging)
+    if (this.config.logLevel === 'debug' || level === 'error') {
+      const timestamp = new Date().toISOString()
+      const logMessage = `[${timestamp}] [${level.toUpperCase()}] [${this.nodeId}] ${message}`
+      console.log(logMessage, ...args)
+    }
 
-    // Console output
-    console.log(logMessage, ...args)
+    // File output via rotating logger
+    if (this.logger) {
+      const logData = args.length > 0 ? {
+        nodeId: this.nodeId,
+        nodeName: this.config.nodeName,
+        args: args.map(arg => 
+          typeof arg === 'object' ? arg : String(arg)
+        )
+      } : {
+        nodeId: this.nodeId,
+        nodeName: this.config.nodeName
+      }
 
-    // File output
-    if (this.logStream) {
-      const fullMessage = args.length > 0
-        ? `${logMessage} ${args.map(arg =>
-            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-          ).join(' ')}\n`
-        : `${logMessage}\n`
-
-      this.logStream.write(fullMessage)
+      this.logger.writeLog(level, message, logData)
     }
   }
 
