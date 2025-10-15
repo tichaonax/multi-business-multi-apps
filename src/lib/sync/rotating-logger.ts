@@ -3,8 +3,8 @@
  * Handles log rotation, cleanup, and file management for sync service
  */
 
-import fs from 'fs'
-import path from 'path'
+import * as fs from 'fs'
+import * as path from 'path'
 import { createWriteStream, WriteStream } from 'fs'
 
 export interface LogRotationConfig {
