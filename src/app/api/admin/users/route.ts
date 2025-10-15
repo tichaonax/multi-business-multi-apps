@@ -59,8 +59,8 @@ export async function GET() {
           ...membership,
           business: membership.businesses,
           template: membership.permission_templates,
-          businesses: undefined,
-          permission_templates: undefined
+          businesses: membership.businesses, // Keep for frontend compatibility
+          permissionTemplates: membership.permission_templates // Keep for frontend compatibility
         })) || []
       }));
       
@@ -131,8 +131,8 @@ export async function GET() {
         ...membership,
         business: membership.businesses,
         template: membership.permission_templates,
-        businesses: undefined,
-        permission_templates: undefined
+        businesses: membership.businesses, // Keep for frontend compatibility
+        permissionTemplates: membership.permission_templates // Keep for frontend compatibility
       })) || []
     }));
 
