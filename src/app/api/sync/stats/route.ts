@@ -99,10 +99,21 @@ export async function GET(request: NextRequest) {
       })
     ])
 
-    // Get sync nodes with details
-    const syncNodes = await prisma.syncNodes.findMany({
+    // Cleanup old inactive nodes (older than 24 hours)
+    const cleanupThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    await prisma.syncNodes.updateMany({
+      where: {
+        lastSeen: { lt: cleanupThreshold },
+        isActive: true
+      },
+      data: { isActive: false }
+    })
+
+    // Get sync nodes with deduplication by nodeId (keep most recent)
+    const allSyncNodes = await prisma.syncNodes.findMany({
       where: { isActive: true },
       select: {
+        id: true,
         nodeId: true,
         nodeName: true,
         ipAddress: true,
@@ -114,6 +125,29 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { lastSeen: 'desc' }
     })
+
+    // Deduplicate nodes by nodeId, keeping the most recent entry
+    const nodeMap = new Map()
+    const duplicateIds: string[] = []
+    
+    for (const node of allSyncNodes) {
+      if (nodeMap.has(node.nodeId)) {
+        // Mark older duplicate for cleanup
+        duplicateIds.push(node.id)
+      } else {
+        nodeMap.set(node.nodeId, node)
+      }
+    }
+
+    // Remove duplicate entries
+    if (duplicateIds.length > 0) {
+      await prisma.syncNodes.updateMany({
+        where: { id: { in: duplicateIds } },
+        data: { isActive: false }
+      })
+    }
+
+    const syncNodes = Array.from(nodeMap.values())
 
     // Calculate additional metrics
     const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -174,13 +208,21 @@ export async function GET(request: NextRequest) {
         conflicts: conflictsLast24h,
         sessions: sessionsLast24h
       },
-      syncNodes: syncNodes.map(node => ({
-        ...node,
-        isOnline: node.lastSeen ?
-          (new Date().getTime() - new Date(node.lastSeen).getTime()) < 5 * 60 * 1000 : false,
-        lastSeenAgo: node.lastSeen ?
-          Math.round((new Date().getTime() - new Date(node.lastSeen).getTime()) / 1000) : null
-      })),
+      syncNodes: syncNodes.map(node => {
+        const lastSeenMs = node.lastSeen ? new Date(node.lastSeen).getTime() : 0
+        const nowMs = new Date().getTime()
+        const timeSinceLastSeen = nowMs - lastSeenMs
+        const lastSeenAgo = Math.round(timeSinceLastSeen / 1000)
+        
+        // More generous online detection: 2 minutes for active service
+        const isOnline = node.lastSeen && timeSinceLastSeen < 2 * 60 * 1000
+        
+        return {
+          ...node,
+          isOnline,
+          lastSeenAgo: node.lastSeen ? lastSeenAgo : null
+        }
+      }),
       recentSessions,
       recentConflicts,
       metrics: syncMetrics.map(metric => ({

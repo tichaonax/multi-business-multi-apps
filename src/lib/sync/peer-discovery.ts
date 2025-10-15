@@ -197,6 +197,9 @@ export class PeerDiscoveryService extends EventEmitter {
       console.log(`📡 Broadcasting presence: ${this.options.nodeName} (${this.options.nodeId}) to ${this.multicastAddress}:${this.options.discoveryPort}`)
       console.log(`   Registration key hash: ${message.registrationKeyHash.substring(0, 16)}...`)
 
+      // Register ourselves in the database for UI visibility
+      await this.registerSelfInDatabase()
+
       this.emit('broadcast', message)
     } catch (error) {
       console.error('Error broadcasting presence:', error)
@@ -545,6 +548,39 @@ export class PeerDiscoveryService extends EventEmitter {
   private hashRegistrationKey(): string {
     const input = this.options.registrationKey
     return crypto.createHash('sha256').update(input).digest('hex')
+  }
+
+  /**
+   * Register ourselves in the database for UI visibility
+   */
+  private async registerSelfInDatabase(): Promise<void> {
+    if (!this.prisma) return
+    
+    try {
+      const ipAddress = this.getLocalIPAddress()
+      await this.prisma.syncNodes.upsert({
+        where: { nodeId: this.options.nodeId },
+        update: {
+          isActive: true,
+          lastSeen: new Date(),
+          ipAddress: ipAddress,
+          port: this.options.port,
+          capabilities: this.options.capabilities || {}
+        },
+        create: {
+          id: this.options.nodeId, // Use nodeId as the primary key id
+          nodeId: this.options.nodeId,
+          nodeName: this.options.nodeName,
+          ipAddress: ipAddress,
+          port: this.options.port,
+          isActive: true,
+          lastSeen: new Date(),
+          capabilities: this.options.capabilities || {}
+        }
+      })
+    } catch (error) {
+      console.error('Failed to register self in database:', error)
+    }
   }
 
   /**

@@ -170,8 +170,8 @@ export default function AdminSyncPage() {
 
     loadData()
 
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(refreshData, 30000)
+    // Auto-refresh every 15 seconds for more responsive UI
+    const interval = setInterval(refreshData, 15000)
     return () => clearInterval(interval)
   }, [])
 
@@ -221,10 +221,17 @@ export default function AdminSyncPage() {
         { label: 'Sync Management', isActive: true }
       ]}
       headerActions={
-        <Button onClick={refreshData} disabled={refreshing} variant="outline">
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {stats?.timestamp && (
+            <span className="text-xs text-muted-foreground">
+              Updated: {new Date(stats.timestamp).toLocaleTimeString()}
+            </span>
+          )}
+          <Button onClick={refreshData} disabled={refreshing} variant="outline">
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6">
@@ -379,10 +386,22 @@ export default function AdminSyncPage() {
             <TabsContent value="nodes" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Sync Nodes</CardTitle>
-                  <CardDescription>
-                    Connected nodes in the sync network
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Sync Nodes</CardTitle>
+                      <CardDescription>
+                        Connected nodes in the sync network
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={refreshData}
+                      disabled={refreshing}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -394,13 +413,18 @@ export default function AdminSyncPage() {
                         <div className="flex items-center gap-4">
                           <div
                             className={`w-3 h-3 rounded-full ${
-                              node.isOnline ? 'bg-green-500' : 'bg-gray-400'
+                              node.isOnline 
+                                ? 'bg-green-500 animate-pulse' 
+                                : 'bg-gray-400'
                             }`}
                           />
                           <div>
                             <div className="font-medium">{node.nodeName}</div>
                             <div className="text-sm text-muted-foreground">
                               {node.ipAddress}:{node.port}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              ID: {node.nodeId.substring(0, 8)}...
                             </div>
                           </div>
                         </div>
