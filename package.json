@@ -51,7 +51,7 @@
     "sync-service:start:dev": "node dist/service/sync-service-runner.js start",
     "sync-service:build": "node dist/service/sync-service-runner.js build",
     "sync-service:stop": "node scripts/sync-service-stop.js",
-    "sync-service:restart": "npm run sync-service:stop && timeout /t 3 && npm run sync-service:start",
+    "sync-service:restart": "node scripts/sync-service-restart.js",
     "sync-service:status": "node scripts/sync-service-status.js",
     "service:status": "npm run sync-service:status",
     "ci:smoke-check": "npm run service:smoke-check",

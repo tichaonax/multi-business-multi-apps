@@ -166,7 +166,7 @@ const svc = new Service({
     },
     {
       name: "SYNC_PORT",
-  value: process.env.SYNC_PORT || "8765"
+      value: process.env.SYNC_PORT || "8765"
     },
     {
       name: "SYNC_INTERVAL",
@@ -252,14 +252,14 @@ async function runInstallation() {
     console.log(`  Service Name: ${serviceDisplayName}`);
     console.log(`  Service ID: ${serviceInternalName}`);
     console.log(`  Script Path: ${serviceScript}`);
-    console.log(`  Registration Key: ${process.env.SYNC_REGISTRATION_KEY ? '***' : 'DEFAULT (⚠️  CHANGE IN PRODUCTION)'}`);
+    console.log(`  Registration Key: ${process.env.SYNC_REGISTRATION_KEY ? '***' : 'DEFAULT (CHANGE IN PRODUCTION)'}`);
     console.log(`  Port: ${process.env.SYNC_PORT || '8765'}`);
     console.log(`  Sync Interval: ${process.env.SYNC_INTERVAL || '30000'}ms`);
     console.log(`  Log Level: ${process.env.LOG_LEVEL || 'info'}`);
     console.log('');
     
     // Security warning
-    if (!process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7') {
+    if (!process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2e3f4a5b6c7') {
       console.log('⚠️  WARNING: Using default registration key!');
       console.log('   Set SYNC_REGISTRATION_KEY environment variable for production use.');
       console.log('   Example: set SYNC_REGISTRATION_KEY=your-secure-key-here');

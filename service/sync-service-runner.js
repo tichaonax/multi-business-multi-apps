@@ -22,7 +22,7 @@ try {
 const configPath = path.join(__dirname, '../config/service-config.json')
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
 
-// Load environment variables
+// Load environment variables (legacy support for existing setups)
 const envPath = path.join(__dirname, '../config/service.env')
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8')

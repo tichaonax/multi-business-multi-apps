@@ -4,7 +4,7 @@ const execAsync = util.promisify(exec);
 
 const SERVICE_NAME = 'multibusinesssyncservice.exe';
 const SC = process.env.SC_COMMAND || 'sc.exe';
-const MAX_WAIT_TIME = 30000; // 30 seconds
+const MAX_WAIT_TIME = 60000; // 60 seconds for graceful shutdown
 const CHECK_INTERVAL = 1000; // 1 second
 
 /**
@@ -41,7 +41,16 @@ async function waitForServiceStopped() {
     await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
   }
 
-  throw new Error(`Service did not stop within ${MAX_WAIT_TIME/1000} seconds`);
+  console.log(`⚠️  Service did not stop gracefully within ${MAX_WAIT_TIME/1000} seconds`);
+  console.log('🔄 Attempting force stop...');
+  
+  try {
+    await execAsync(`taskkill /f /im node.exe /fi "WINDOWTITLE eq ${SERVICE_NAME}*"`);
+    console.log('✅ Force stop completed');
+    return true;
+  } catch (forceError) {
+    throw new Error(`Service did not stop within ${MAX_WAIT_TIME/1000} seconds and force stop failed`);
+  }
 }
 
 async function run() {
