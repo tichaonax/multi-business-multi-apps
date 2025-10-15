@@ -5,7 +5,7 @@
 
 import { PrismaClient } from '@prisma/client'
 import { getChangeTracker } from './change-tracker'
-import crypto from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 
 export interface SyncMiddlewareOptions {
   nodeId: string
@@ -38,9 +38,9 @@ export function installSyncMiddleware(
 
     // Skip system and sync tables
     const excludedModels = [
-      'Account', 'Session', 'VerificationToken', 'AuditLog',
-      'SyncNode', 'SyncEvent', 'ConflictResolution', 'SyncSession',
-      'NetworkPartition', 'SyncMetrics', 'SyncConfiguration'
+      'Accounts', 'Sessions', 'VerificationTokens', 'AuditLogs',
+      'SyncNodes', 'SyncEvents', 'ConflictResolutions', 'SyncSessions',
+      'NetworkPartitions', 'SyncMetrics', 'SyncConfigurations'
     ]
 
     if (!model || excludedModels.includes(model)) {
@@ -258,7 +258,7 @@ async function handleCreateMany(
 
       for (const data of params.data) {
         // Generate a temporary ID for tracking
-        const tempId = crypto.randomUUID()
+        const tempId = randomUUID()
         await changeTracker.trackCreate(
           model.toLowerCase(),
           tempId,
@@ -459,7 +459,7 @@ export function generateNodeId(): string {
   }
 
   // Create deterministic node ID
-  return crypto.createHash('sha256')
+  return createHash('sha256')
     .update(macAddress)
     .digest('hex')
     .substring(0, 16)

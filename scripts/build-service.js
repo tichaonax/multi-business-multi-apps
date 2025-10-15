@@ -40,16 +40,20 @@ async function isServiceRunning() {
 }
 
 /**
- * Clean the dist folder to ensure fresh build
+ * Clean the dist folder with version preservation
  */
 function cleanDistFolder() {
   if (fs.existsSync(DIST_PATH)) {
     console.log('🧹 Cleaning dist folder for fresh build...');
     
     try {
+      // Preserve build version info before cleaning
+      const { saveBuildInfo } = require('./build-version-manager')
+      saveBuildInfo()
+      
       // Remove recursively (cross-platform)
       fs.rmSync(DIST_PATH, { recursive: true, force: true });
-      console.log('✅ dist folder cleaned');
+      console.log('✅ dist folder cleaned (build info preserved)');
     } catch (error) {
       console.warn('⚠️  Could not clean dist folder:', error.message);
       console.log('   Proceeding with build anyway...');
@@ -77,6 +81,10 @@ async function buildService() {
       throw new Error(`Build failed - service script not found: ${serviceScript}`);
     }
     
+    // Save build information after successful build
+    const { saveBuildInfo } = require('./build-version-manager')
+    const buildInfo = saveBuildInfo()
+    
     console.log('✅ Service build completed successfully');
     
     // Show some build info
@@ -84,6 +92,10 @@ async function buildService() {
     console.log(`📄 Main service file: ${serviceScript}`);
     console.log(`📅 Built: ${stats.mtime.toLocaleString()}`);
     console.log(`📏 Size: ${Math.round(stats.size / 1024)}KB`);
+    
+    if (buildInfo) {
+      console.log(`🏷️  Build Version: ${buildInfo.buildVersion} (${buildInfo.buildNumber})`);
+    }
     
   } catch (error) {
     console.error('❌ Service build failed:', error.message);

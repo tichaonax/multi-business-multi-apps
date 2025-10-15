@@ -1,0 +1,16 @@
+{
+  "port": 8765,
+  "httpPort": 8080,
+  "syncInterval": 30000,
+  "enableAutoStart": true,
+  "logLevel": "info",
+  "dataDirectory": "C:\\Users\\ticha\\apps\\multi-business-multi-apps\\data\\sync",
+  "maxLogSize": 10485760,
+  "maxLogFiles": 5,
+  "nodeId": "2595930f841f02e1",
+  "nodeName": "sync-node-dell-hwandaza",
+  "registrationKey": "b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7",
+  "autoRestart": true,
+  "restartDelay": 5000,
+  "maxRestartAttempts": 5
+}

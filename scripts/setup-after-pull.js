@@ -67,10 +67,26 @@ function run(command, description, optional = false) {
   }
 }
 
-function checkServiceInstalled() {
+async function checkServiceInstalled() {
   try {
-    const distPath = path.join(ROOT_DIR, 'dist', 'service')
-    return fs.existsSync(distPath)
+    const { spawnSync } = require('child_process')
+    const SERVICE_NAME = 'multibusinesssyncservice.exe'
+    const SC = 'sc.exe'
+
+    const queryResult = spawnSync(SC, ['query', SERVICE_NAME], {
+      encoding: 'utf-8',
+      windowsHide: true
+    })
+
+    const output = queryResult.stdout || ''
+    
+    // Service exists if we don't get "does not exist" error
+    if (output.includes('does not exist') || output.includes('1060')) {
+      return false
+    }
+    
+    // If we get any other response, service is installed
+    return true
   } catch {
     return false
   }
@@ -286,80 +302,56 @@ async function handleFreshInstall() {
 }
 
 /**
- * Stop Windows service and clean up to release file locks before Prisma operations
+ * Stop Windows service using the proper stop script and wait for completion
  */
-function stopWindowsServiceAndCleanup() {
-  const { spawnSync } = require('child_process')
-
+async function stopWindowsServiceAndCleanup() {
+  const { spawn } = require('child_process')
+  
   try {
-    // CRITICAL: node-windows automatically appends .exe to service names
-    const SERVICE_NAME = 'multibusinesssyncservice.exe'
-    const SC = 'sc.exe'  // Use .exe to avoid PowerShell aliases
-
-    log('Checking and stopping Windows service...', 'INFO')
-
-    // Check if service exists and is running
-    const queryResult = spawnSync(SC, ['query', SERVICE_NAME], {
-      encoding: 'utf-8',
-      windowsHide: true
+    log('Stopping Windows service using proper stop script...', 'INFO')
+    
+    // Use the proper sync-service-stop.js script which has correct wait logic
+    const stopProcess = spawn('node', ['scripts/sync-service-stop.js'], {
+      cwd: ROOT_DIR,
+      stdio: 'inherit'
     })
-
-    const output = queryResult.stdout || ''
-
-    if (output.includes('does not exist') || output.includes('1060')) {
-      log('Service not installed - skipping', 'INFO')
-      return true
-    }
-
-    if (output.includes('STOPPED')) {
-      log('Service already stopped', 'INFO')
+    
+    // Wait for the stop script to complete
+    const stopResult = await new Promise((resolve, reject) => {
+      stopProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve(true)
+        } else {
+          reject(new Error(`Service stop script exited with code ${code}`))
+        }
+      })
+      
+      stopProcess.on('error', (error) => {
+        reject(error)
+      })
+      
+      // Timeout after 45 seconds
+      setTimeout(() => {
+        stopProcess.kill('SIGTERM')
+        reject(new Error('Service stop script timed out'))
+      }, 45000)
+    })
+    
+    if (stopResult) {
+      log('✅ Service stopped successfully', 'SUCCESS')
+      // Additional cleanup after service stops
       killStaleNodeProcesses()
       cleanupPrismaTemp()
       return true
     }
-
-    if (output.includes('RUNNING') || output.includes('START_PENDING')) {
-      log('Stopping Windows service...', 'INFO')
-
-      const stopResult = spawnSync(SC, ['stop', SERVICE_NAME], {
-        encoding: 'utf-8',
-        windowsHide: true
-      })
-
-      if (stopResult.stderr && stopResult.stderr.includes('Access is denied')) {
-        log('⚠️  Cannot stop service - requires Administrator privileges', 'WARN')
-        return false
-      }
-
-      // Wait for service to stop
-      const maxWait = 30000
-      const start = Date.now()
-      while (Date.now() - start < maxWait) {
-        const statusResult = spawnSync(SC, ['query', SERVICE_NAME], {
-          encoding: 'utf-8',
-          windowsHide: true
-        })
-        if ((statusResult.stdout || '').includes('STOPPED')) {
-          log('✅ Service stopped successfully', 'SUCCESS')
-          // Wait for file handles to release
-          const waitStart = Date.now()
-          while (Date.now() - waitStart < 3000) { }
-          killStaleNodeProcesses()
-          cleanupPrismaTemp()
-          return true
-        }
-        // Short wait before retry
-        const waitStart = Date.now()
-        while (Date.now() - waitStart < 1000) { }
-      }
-
-      log('⚠️  Service did not stop within 30 seconds', 'WARN')
-      return false
-    }
-
-    return true
+    
+    return false
+    
   } catch (error) {
-    log(`Warning: ${error.message}`, 'WARN')
+    log(`Warning: Service stop failed - ${error.message}`, 'WARN')
+    log('Attempting basic cleanup anyway...', 'INFO')
+    killStaleNodeProcesses()
+    cleanupPrismaTemp()
     return false
   }
 }
@@ -442,13 +434,72 @@ function cleanupPrismaTemp() {
   }
 }
 
+/**
+ * Check if service files have changed and rebuild is needed
+ */
+async function checkServiceNeedsRebuild() {
+  try {
+    // Service-related paths that require rebuild
+    const serviceFiles = [
+      'src/lib/sync/',
+      'service/',
+      'windows-service/',
+      'tsconfig.service.json',
+      'scripts/build-service.js'
+    ]
+    
+    // Check if dist folder exists - if not, definitely need rebuild
+    const distPath = path.join(ROOT_DIR, 'dist', 'service')
+    if (!fs.existsSync(distPath)) {
+      log('Service dist folder missing - rebuild required', 'INFO')
+      return true
+    }
+    
+    // If this is a git pull scenario, check what files changed
+    try {
+      const { execSync } = require('child_process')
+      
+      // Get list of files changed in last commit
+      const changedFiles = execSync('git diff --name-only HEAD~1 HEAD', { 
+        encoding: 'utf8',
+        cwd: ROOT_DIR
+      }).trim().split('\n').filter(f => f)
+      
+      const serviceFilesChanged = changedFiles.some(file => 
+        serviceFiles.some(serviceDir => file.startsWith(serviceDir))
+      )
+      
+      if (serviceFilesChanged) {
+        log('Service-related files changed - rebuild required', 'INFO')
+        log(`Changed files affecting service: ${changedFiles.filter(f => 
+          serviceFiles.some(sd => f.startsWith(sd))
+        ).join(', ')}`, 'INFO')
+        return true
+      }
+      
+      log('No service files changed in recent commits', 'INFO')
+      return false
+      
+    } catch (gitError) {
+      // If git commands fail, play it safe and rebuild
+      log('Cannot determine file changes - rebuilding service to be safe', 'WARN')
+      return true
+    }
+    
+  } catch (error) {
+    log(`Error checking service rebuild need: ${error.message}`, 'WARN')
+    // If we can't determine, rebuild to be safe
+    return true
+  }
+}
+
 async function main() {
   console.log('\n' + '='.repeat(60))
   console.log('🚀 MULTI-BUSINESS MULTI-APPS - SMART SETUP')
   console.log('='.repeat(60) + '\n')
 
   // CRITICAL: Stop Windows service and cleanup BEFORE Prisma operations to prevent EPERM
-  stopWindowsServiceAndCleanup()
+  await stopWindowsServiceAndCleanup()
 
   // Step 1: Install/update dependencies
   run('npm install', 'Installing/updating dependencies', false)
@@ -462,8 +513,30 @@ async function main() {
   // Step 4: Rebuild the application
   run('npm run build', 'Rebuilding the application', false)
 
-  // Step 5: Rebuild Windows service
-  run('npm run build:service', 'Rebuilding Windows sync service', false)
+  // Step 5: Check if service rebuild is needed and handle reinstall if needed
+  const serviceNeedsRebuild = await checkServiceNeedsRebuild()
+  if (serviceNeedsRebuild) {
+    console.log('🔧 Service files changed - handling service reinstall...')
+    
+    // Check if service is currently installed
+    const serviceInstalled = await checkServiceInstalled()
+    if (serviceInstalled) {
+      console.log('🗑️  Uninstalling existing service before rebuild...')
+      run('npm run service:uninstall', 'Uninstalling existing service', true) // Optional - continue if fails
+    }
+    
+    // Rebuild the service
+    run('npm run build:service', 'Rebuilding Windows sync service', false)
+    
+    console.log('')
+    console.log('⚠️  SERVICE REINSTALL REQUIRED:')
+    console.log('   Service files were updated and service was uninstalled.')
+    console.log('   You must reinstall the service after this setup completes.')
+    console.log('   Run: npm run service:install')
+    console.log('')
+  } else {
+    console.log('ℹ️  Service rebuild not needed - no service files changed')
+  }
 
   // Step 6: Smart detection - fresh install vs upgrade
   const isFresh = await isFreshInstall()

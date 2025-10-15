@@ -4,7 +4,7 @@
  */
 
 import { PrismaClient, SyncOperation } from '@prisma/client'
-import crypto from 'crypto'
+import { createHash } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 
 export interface VectorClock {
@@ -241,7 +241,7 @@ export class DatabaseChangeTracker {
    */
   private calculateChecksum(data: any): string {
     const dataString = JSON.stringify(data, Object.keys(data).sort())
-    return crypto.createHash('sha256').update(dataString).digest('hex')
+    return createHash('sha256').update(dataString).digest('hex')
   }
 
   /**
@@ -250,7 +250,7 @@ export class DatabaseChangeTracker {
   private hashRegistrationKey(): string {
     // Guard against undefined registrationKey; use empty string when not provided.
     const key = this.registrationKey || ''
-    return crypto.createHash('sha256').update(key + this.nodeId).digest('hex')
+    return createHash('sha256').update(key + this.nodeId).digest('hex')
   }
 
   /**

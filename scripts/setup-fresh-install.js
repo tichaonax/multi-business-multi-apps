@@ -69,6 +69,65 @@ async function checkDatabaseEmpty() {
   }
 }
 
+async function createDatabaseIfNeeded() {
+  try {
+    // Extract database info from DATABASE_URL
+    require('dotenv').config()
+    const databaseUrl = process.env.DATABASE_URL
+    
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL not found in environment variables')
+    }
+
+    // Parse the database URL
+    const url = new URL(databaseUrl)
+    const dbName = url.pathname.slice(1) // Remove leading '/'
+    const host = url.hostname
+    const port = url.port || 5432
+    const username = url.username
+    const password = url.password
+
+    // Create connection to postgres (default) database to create target database
+    const { Client } = require('pg')
+    const adminClient = new Client({
+      host,
+      port,
+      user: username,
+      password,
+      database: 'postgres' // Connect to default postgres database
+    })
+
+    try {
+      await adminClient.connect()
+      
+      // Check if database exists
+      const result = await adminClient.query(
+        'SELECT 1 FROM pg_database WHERE datname = $1',
+        [dbName]
+      )
+
+      if (result.rows.length === 0) {
+        console.log(`📦 Creating database '${dbName}'...`)
+        await adminClient.query(`CREATE DATABASE "${dbName}"`)
+        console.log(`✅ Database '${dbName}' created successfully\n`)
+      } else {
+        console.log(`✅ Database '${dbName}' already exists\n`)
+      }
+    } finally {
+      await adminClient.end()
+    }
+
+    return true
+  } catch (error) {
+    console.error('❌ Failed to create database:', error.message)
+    console.error('\nPlease ensure:')
+    console.error('1. PostgreSQL is running')
+    console.error('2. Database credentials in .env are correct')
+    console.error('3. PostgreSQL user has CREATE DATABASE privileges\n')
+    return false
+  }
+}
+
 async function main() {
   console.log('\n' + '='.repeat(60))
   console.log('🚀 MULTI-BUSINESS MULTI-APPS - FRESH INSTALLATION SETUP')
@@ -102,6 +161,14 @@ async function main() {
 
   console.log('✅ Database is empty - proceeding with fresh installation\n')
 
+  // Create database if it doesn't exist
+  console.log('🗄️  Ensuring database exists...\n')
+  const dbCreated = await createDatabaseIfNeeded()
+  if (!dbCreated) {
+    console.error('❌ Database creation failed. Cannot proceed with installation.\n')
+    process.exit(1)
+  }
+
   // Clean up Prisma cache first to avoid Windows file lock issues
   console.log('🧹 Cleaning Prisma cache to avoid file lock issues...\n')
   const prismaClientPath = path.join(ROOT_DIR, 'node_modules', '.prisma')
@@ -130,8 +197,8 @@ async function main() {
       required: true
     },
     {
-      command: 'npx prisma db push --accept-data-loss',
-      description: 'Creating database schema (fresh install - no migrations)',
+      command: 'npx prisma migrate deploy',
+      description: 'Creating database and applying migrations',
       required: true
     },
     {
