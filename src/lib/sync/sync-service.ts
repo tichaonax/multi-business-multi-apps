@@ -693,7 +693,8 @@ export class SyncService extends EventEmitter {
         registrationKey: this.config.registrationKey,
         broadcastInterval: 30000, // 30 seconds
         discoveryPort: 5353, // mDNS port
-        serviceName: 'multi-business-sync'
+        serviceName: 'multi-business-sync',
+        prisma: this.prisma
       }, {} as any))
 
       // Listen for peer events

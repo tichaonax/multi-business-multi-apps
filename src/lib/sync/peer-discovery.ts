@@ -26,6 +26,7 @@ export interface DiscoveryOptions {
   broadcastInterval: number // milliseconds
   discoveryPort: number
   serviceName: string
+  prisma?: any // Optional Prisma client for database operations
 }
 
 /**
@@ -39,6 +40,7 @@ export class PeerDiscoveryService extends EventEmitter {
   private discoveredPeers = new Map<string, PeerInfo>()
   private multicastAddress = '224.0.0.251' // mDNS multicast address
   private isRunning = false
+  private prisma: any // Prisma client for database operations
 
   constructor(options: DiscoveryOptions) {
     super()
@@ -48,6 +50,7 @@ export class PeerDiscoveryService extends EventEmitter {
     console.log(`   Received registrationKey: "${options.registrationKey}" (${options.registrationKey.length} chars)`)
     
     this.options = options
+    this.prisma = options.prisma
   }
 
   /**
@@ -365,6 +368,11 @@ export class PeerDiscoveryService extends EventEmitter {
     const wasNew = !this.discoveredPeers.has(peer.nodeId)
     this.discoveredPeers.set(peer.nodeId, peer)
 
+    // Store/update peer in database
+    this.storePeerInDatabase(peer).catch(err => {
+      console.error('Failed to store peer in database:', err)
+    })
+
     if (wasNew) {
       this.emit('peer_discovered', peer)
       console.log(`🔍 Discovered new peer: ${peer.nodeName} (${peer.nodeId})`)
@@ -380,6 +388,12 @@ export class PeerDiscoveryService extends EventEmitter {
     const peer = this.discoveredPeers.get(message.nodeId)
     if (peer) {
       this.discoveredPeers.delete(message.nodeId)
+      
+      // Mark peer as inactive in database
+      this.markPeerInactive(message.nodeId).catch((err: any) => {
+        console.error('Failed to mark peer as inactive:', err)
+      })
+      
       this.emit('peer_left', peer)
       console.log(`👋 Peer left: ${peer.nodeName} (${peer.nodeId})`)
     }
@@ -531,6 +545,58 @@ export class PeerDiscoveryService extends EventEmitter {
   private hashRegistrationKey(): string {
     const input = this.options.registrationKey
     return crypto.createHash('sha256').update(input).digest('hex')
+  }
+
+  /**
+   * Store discovered peer in database for admin dashboard
+   */
+  private async storePeerInDatabase(peer: PeerInfo): Promise<void> {
+    if (!this.prisma) {
+      return // No database connection available
+    }
+
+    try {
+      await this.prisma.syncNodes.upsert({
+        where: { nodeId: peer.nodeId },
+        update: {
+          nodeName: peer.nodeName,
+          ipAddress: peer.ipAddress,
+          port: peer.port,
+          isActive: true,
+          lastSeen: peer.lastSeen,
+          capabilities: peer.capabilities || []
+        },
+        create: {
+          nodeId: peer.nodeId,
+          nodeName: peer.nodeName,
+          ipAddress: peer.ipAddress,
+          port: peer.port,
+          isActive: true,
+          lastSeen: peer.lastSeen,
+          capabilities: peer.capabilities || []
+        }
+      })
+    } catch (error) {
+      console.error('Database error storing peer:', error)
+    }
+  }
+
+  /**
+   * Mark peer as inactive in database
+   */
+  private async markPeerInactive(nodeId: string): Promise<void> {
+    if (!this.prisma) {
+      return // No database connection available
+    }
+
+    try {
+      await this.prisma.syncNodes.updateMany({
+        where: { nodeId },
+        data: { isActive: false }
+      })
+    } catch (error) {
+      console.error('Database error marking peer inactive:', error)
+    }
   }
 }
 
