@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         users_payroll_periods_approvedByTousers: {
           select: { id: true, name: true, email: true }
         },
-        payrollEntries: {
+        payroll_entries: {
           include: {
             employees: {
               select: {
