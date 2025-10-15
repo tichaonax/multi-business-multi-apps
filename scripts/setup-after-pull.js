@@ -501,13 +501,13 @@ async function main() {
   // CRITICAL: Stop Windows service and cleanup BEFORE Prisma operations to prevent EPERM
   await stopWindowsServiceAndCleanup()
 
-  // Step 1: Install/update dependencies
+  // Step 1: Backup schema to prevent accidental modifications
+  run('node scripts/schema-protector.js backup', 'Creating schema backup', false)
+
+  // Step 2: Install/update dependencies
   run('npm install', 'Installing/updating dependencies', false)
 
-  // Step 2: Ensure schema uses PascalCase models (in case of any db pull operations)
-  run('node scripts/convert-schema-to-pascal.js', 'Converting schema to PascalCase format', false)
-
-  // Step 3: Regenerate Prisma client with corrected schema
+  // Step 3: Regenerate Prisma client (schema should not be modified during deployment)
   run('npx prisma generate', 'Regenerating Prisma client', false)
 
   // Step 4: Rebuild the application
@@ -574,6 +574,18 @@ async function main() {
     console.log('   - npm run seed:migration')
     console.log('   - UI compatibility validation (AFTER migrations)')
     console.log('')
+  }
+
+  // Final step: Validate schema wasn't modified during deployment
+  console.log('\n🛡️  Validating schema integrity...')
+  try {
+    run('node scripts/schema-protector.js validate', 'Validating schema unchanged', false)
+    console.log('✅ Schema integrity verified - no unwanted modifications')
+  } catch (error) {
+    console.log('⚠️  Schema was modified during deployment!')
+    console.log('   This might indicate a deployment script issue.')
+    console.log('   Use: node scripts/schema-protector.js diff')
+    console.log('   To restore: node scripts/schema-protector.js restore')
   }
 }
 
