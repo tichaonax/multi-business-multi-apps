@@ -29,7 +29,7 @@ export async function GET() {
               employmentStatus: true,
             },
           },
-          businessMemberships: {
+          business_memberships: {
             include: {
               businesses: {
                 select: {
@@ -38,7 +38,7 @@ export async function GET() {
                   type: true,
                 },
               },
-              permissionTemplates: {
+              permission_templates: {
                 select: {
                   id: true,
                   name: true,
@@ -55,12 +55,12 @@ export async function GET() {
       // Transform the response to match frontend expectations
       const transformedUsers = users.map(user => ({
         ...user,
-        businessMemberships: user.businessMemberships?.map(membership => ({
+        businessMemberships: user.business_memberships?.map(membership => ({
           ...membership,
           business: membership.businesses,
-          template: membership.permissionTemplates,
+          template: membership.permission_templates,
           businesses: undefined,
-          permissionTemplates: undefined
+          permission_templates: undefined
         })) || []
       }));
       
@@ -98,7 +98,7 @@ export async function GET() {
             employmentStatus: true,
           },
         },
-        businessMemberships: {
+        business_memberships: {
           where: {
             businessId: userMembership.businessId,
           },
@@ -109,8 +109,8 @@ export async function GET() {
                 name: true,
               },
             },
-            // relation name is permissionTemplates
-            permissionTemplates: {
+            // relation name is permission_templates
+            permission_templates: {
               select: {
                 id: true,
                 name: true,
@@ -127,12 +127,12 @@ export async function GET() {
     // Transform the response to match frontend expectations
     const transformedUsers = users.map(user => ({
       ...user,
-      businessMemberships: user.businessMemberships?.map(membership => ({
+      businessMemberships: user.business_memberships?.map(membership => ({
         ...membership,
         business: membership.businesses,
-        template: membership.permissionTemplates,
+        template: membership.permission_templates,
         businesses: undefined,
-        permissionTemplates: undefined
+        permission_templates: undefined
       })) || []
     }));
 
