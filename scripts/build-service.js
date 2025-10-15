@@ -81,9 +81,12 @@ async function buildService() {
       throw new Error(`Build failed - service script not found: ${serviceScript}`);
     }
     
-    // Save build information after successful build
-    const { saveBuildInfo } = require('./build-version-manager')
+    // Save and restore build information after successful build
+    const { saveBuildInfo, restoreBuildInfo } = require('./build-version-manager')
     const buildInfo = saveBuildInfo()
+    
+    // Restore build info to dist folder
+    restoreBuildInfo()
     
     console.log('✅ Service build completed successfully');
     
