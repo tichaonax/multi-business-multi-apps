@@ -548,40 +548,36 @@ export class PeerDiscoveryService extends EventEmitter {
   }
 
   /**
-   * Store discovered peer in database for admin dashboard
+   * Store discovered peer in database for admin dashboard visibility
    */
   private async storePeerInDatabase(peer: PeerInfo): Promise<void> {
-    if (!this.prisma) {
-      return // No database connection available
-    }
-
+    if (!this.prisma) return
+    
     try {
       await this.prisma.syncNodes.upsert({
         where: { nodeId: peer.nodeId },
         update: {
-          nodeName: peer.nodeName,
+          isActive: true,
+          lastSeen: new Date(),
           ipAddress: peer.ipAddress,
           port: peer.port,
-          isActive: true,
-          lastSeen: peer.lastSeen,
-          capabilities: peer.capabilities || []
+          capabilities: peer.capabilities || {}
         },
         create: {
+          id: peer.nodeId, // Use nodeId as the primary key id
           nodeId: peer.nodeId,
           nodeName: peer.nodeName,
           ipAddress: peer.ipAddress,
           port: peer.port,
           isActive: true,
-          lastSeen: peer.lastSeen,
-          capabilities: peer.capabilities || []
+          lastSeen: new Date(),
+          capabilities: peer.capabilities || {}
         }
       })
     } catch (error) {
-      console.error('Database error storing peer:', error)
+      console.error('Failed to store peer in database:', error)
     }
-  }
-
-  /**
+  }  /**
    * Mark peer as inactive in database
    */
   private async markPeerInactive(nodeId: string): Promise<void> {
