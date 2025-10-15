@@ -13,6 +13,7 @@ import crypto from 'crypto'
 export interface SyncEngineOptions {
   nodeId: string
   registrationKey: string
+  httpPort?: number // Port for HTTP sync API calls
   syncInterval: number // milliseconds
   batchSize: number
   retryAttempts: number
@@ -426,7 +427,9 @@ export class SyncEngine extends EventEmitter {
    */
   private async sendHttpRequest(peer: PeerInfo, endpoint: string, payload: any): Promise<any> {
     try {
-      const url = `http://${peer.ipAddress}:${peer.port}${endpoint}`
+      // Use httpPort for API calls if configured, otherwise fall back to peer.port
+      const port = this.options.httpPort || peer.port
+      const url = `http://${peer.ipAddress}:${port}${endpoint}`
 
       // Create fetch with timeout using AbortController
       const controller = new AbortController()

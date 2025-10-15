@@ -29,6 +29,7 @@ export interface SyncServiceConfig {
   nodeName: string
   registrationKey: string
   port: number
+  httpPort?: number // Port for HTTP sync API calls (defaults to main app port)
   syncInterval: number // milliseconds
   enableAutoStart: boolean
   logLevel: 'error' | 'warn' | 'info' | 'debug'
@@ -731,6 +732,7 @@ export class SyncService extends EventEmitter {
       this.syncEngine = new SyncEngine(this.prisma, this.peerDiscovery, {
         nodeId: this.nodeId,
         registrationKey: this.config.registrationKey,
+        httpPort: this.config.httpPort,
         syncInterval: this.config.syncInterval,
         batchSize: 50,
         retryAttempts: 3,
@@ -851,7 +853,8 @@ export class SyncService extends EventEmitter {
       this.initialLoadManager = createInitialLoadManager(
         this.prisma,
         this.nodeId,
-        this.config.registrationKey
+        this.config.registrationKey,
+        this.config.httpPort
       )
 
       // Initialize initial load receiver
@@ -1152,8 +1155,11 @@ export function createSyncService(config: SyncServiceConfig): SyncService {
  * Default service configuration
  */
 export function getDefaultSyncConfig(): Partial<SyncServiceConfig> {
+  const httpPort = process.env.PORT ? parseInt(process.env.PORT) : 8080
+  
   return {
     port: 8765,
+    httpPort: httpPort,
     syncInterval: 30000, // 30 seconds
     enableAutoStart: true,
     logLevel: 'info',

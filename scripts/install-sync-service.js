@@ -162,7 +162,7 @@ const svc = new Service({
     },
     {
       name: "SYNC_REGISTRATION_KEY",
-      value: process.env.SYNC_REGISTRATION_KEY || "365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766"
+      value: process.env.SYNC_REGISTRATION_KEY || "b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7"
     },
     {
       name: "SYNC_PORT",
@@ -259,7 +259,7 @@ async function runInstallation() {
     console.log('');
     
     // Security warning
-    if (!process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766') {
+    if (!process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7') {
       console.log('⚠️  WARNING: Using default registration key!');
       console.log('   Set SYNC_REGISTRATION_KEY environment variable for production use.');
       console.log('   Example: set SYNC_REGISTRATION_KEY=your-secure-key-here');

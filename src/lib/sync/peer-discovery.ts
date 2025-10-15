@@ -42,11 +42,12 @@ export class PeerDiscoveryService extends EventEmitter {
 
   constructor(options: DiscoveryOptions) {
     super()
-    this.options = Object.assign({
-      broadcastInterval: 30000, // 30 seconds
-      discoveryPort: 5353, // mDNS port
-      serviceName: 'multi-business-sync'
-    }, options as any)
+    
+    // Debug: Check what key peer discovery actually receives
+    console.log('🔍 Peer Discovery Constructor:')
+    console.log(`   Received registrationKey: "${options.registrationKey}" (${options.registrationKey.length} chars)`)
+    
+    this.options = options
   }
 
   /**
@@ -525,21 +526,11 @@ export class PeerDiscoveryService extends EventEmitter {
   }
 
   /**
-   * Hash registration key for secure comparison
+   * Hash registration key for secure peer authentication
    */
   private hashRegistrationKey(): string {
-    const hash = crypto
-      .createHash('sha256')
-      .update(this.options.registrationKey)
-      .digest('hex')
-    
-    console.log(`🔐 Hash computation details:`)
-    console.log(`   Registration key: "${this.options.registrationKey}" (${this.options.registrationKey.length} chars)`)
-    console.log(`   Input: "${this.options.registrationKey}" (${this.options.registrationKey.length} chars)`)
-    console.log(`   Input bytes: [${Buffer.from(this.options.registrationKey, 'utf8').join(', ')}]`)
-    console.log(`   Final hash: ${hash}`)
-    
-    return hash
+    const input = this.options.registrationKey
+    return crypto.createHash('sha256').update(input).digest('hex')
   }
 }
 

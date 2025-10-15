@@ -176,7 +176,7 @@ class HybridServiceWrapper extends EventEmitter {
         env: {
           ...process.env,
           NODE_ENV: 'production',
-          SYNC_REGISTRATION_KEY: process.env.SYNC_REGISTRATION_KEY || '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766',
+          SYNC_REGISTRATION_KEY: process.env.SYNC_REGISTRATION_KEY || 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7',
           SYNC_PORT: process.env.SYNC_PORT || '8765',
           SYNC_INTERVAL: process.env.SYNC_INTERVAL || '30000',
           LOG_LEVEL: process.env.LOG_LEVEL || 'info',
@@ -842,9 +842,9 @@ class HybridServiceWrapper extends EventEmitter {
       keyLength: regKey ? regKey.length : 0,
       keyFirst8: regKey ? regKey.substring(0, 8) : 'none',
       keyLast8: regKey ? regKey.substring(regKey.length - 8) : 'none',
-      isDefault: regKey === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766'
+      isDefault: regKey === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7'
     });
-    if (!regKey || regKey === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766') {
+    if (!regKey || regKey === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7') {
       console.warn('⚠️  WARNING: Using default registration key! Change SYNC_REGISTRATION_KEY environment variable for production.');
     }
 

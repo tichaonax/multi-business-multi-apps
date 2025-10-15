@@ -103,7 +103,7 @@ export class InitialLoadManager extends EventEmitter {
     'date_format_templates'
   ]
 
-  constructor(prisma: PrismaClient, nodeId: string, registrationKey: string) {
+  constructor(prisma: PrismaClient, nodeId: string, registrationKey: string, private httpPort?: number) {
     super()
     this.prisma = prisma
     this.nodeId = nodeId
@@ -251,7 +251,8 @@ export class InitialLoadManager extends EventEmitter {
   ): Promise<string> {
     try {
       // Send initial load request to source peer
-      const response = await fetch(`http://${sourcePeer.ipAddress}:${sourcePeer.port}/api/sync/request-initial-load`, {
+      const port = this.httpPort || sourcePeer.port
+      const response = await fetch(`http://${sourcePeer.ipAddress}:${port}/api/sync/request-initial-load`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -441,7 +442,8 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async sendChunkToTarget(chunk: TransferChunk, targetPeer: PeerInfo): Promise<void> {
     try {
-      const response = await fetch(`http://${targetPeer.ipAddress}:${targetPeer.port}/api/sync/receive-chunk`, {
+      const port = this.httpPort || targetPeer.port
+      const response = await fetch(`http://${targetPeer.ipAddress}:${port}/api/sync/receive-chunk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -471,7 +473,8 @@ export class InitialLoadManager extends EventEmitter {
   private async validateTransfer(session: InitialLoadSession, targetPeer: PeerInfo, snapshot: DataSnapshot): Promise<void> {
     try {
       // Request validation from target
-      const response = await fetch(`http://${targetPeer.ipAddress}:${targetPeer.port}/api/sync/validate-transfer`, {
+      const port = this.httpPort || targetPeer.port
+      const response = await fetch(`http://${targetPeer.ipAddress}:${port}/api/sync/validate-transfer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -766,7 +769,8 @@ export class InitialLoadManager extends EventEmitter {
 export function createInitialLoadManager(
   prisma: PrismaClient,
   nodeId: string,
-  registrationKey: string
+  registrationKey: string,
+  httpPort?: number
 ): InitialLoadManager {
-  return new InitialLoadManager(prisma, nodeId, registrationKey)
+  return new InitialLoadManager(prisma, nodeId, registrationKey, httpPort)
 }
