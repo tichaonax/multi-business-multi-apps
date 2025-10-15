@@ -54,7 +54,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                 jobTitles: { select: { title: true } },
                 primaryBusinessId: true
               }
-            }
+            },
+            payroll_entry_benefits: true
           },
           orderBy: { employeeName: 'asc' }
         },
@@ -121,7 +122,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // Returning all persisted benefits keeps the API consistent for the client.
         benefits = await prisma.payrollEntryBenefits.findMany({
           where: { payrollEntryId: { in: entryIds } },
-          include: { benefitType: { select: { id: true, name: true, type: true, defaultAmount: true } } }
+          include: { benefit_types: { select: { id: true, name: true, type: true, defaultAmount: true } } }
         })
       } catch (err) {
         console.warn('Failed to load payroll entry benefits:', err)
@@ -172,7 +173,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           where: { employeeId: { in: employeeIds } },
           orderBy: { startDate: 'desc' },
           include: {
-            contract_benefits: { include: { benefitType: { select: { id: true, name: true, type: true, defaultAmount: true } } } }
+            contract_benefits: { include: { benefit_types: { select: { id: true, name: true, type: true, defaultAmount: true } } } }
           }
         })
 
@@ -230,7 +231,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         }
 
         enrichedEntries = await Promise.all(enrichedEntries.map(async entry => {
-          const entryBenefits = entry.payrollEntryBenefits || []
+          const entryBenefits = entry.payroll_entry_benefits || []
           const empId = entry.employeeId
           const contract = empId ? latestContractByEmployee[empId] : null
 
@@ -246,7 +247,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
               if (!amount || amount === 0) continue
               contractBenefits.push({
                 benefitTypeId: cb.benefitTypeId || null,
-                benefitName: cb.name || cb.benefitType?.name || '',
+                benefitName: cb.name || cb.benefit_types?.name || '',
                 amount,
                 source: 'contract'
               })
@@ -273,7 +274,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             mergedByKey.set(k, {
               id: pb.id,
               benefitTypeId: pb.benefitTypeId || null,
-              benefitName: pb.benefitName || pb.benefitType?.name || '',
+              benefitName: pb.benefitName || pb.benefit_types?.name || '',
               amount: Number(pb.amount || 0),
               isActive: pb.isActive !== false,
               source: 'manual'
@@ -551,7 +552,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           if (!mb) continue
           // Skip inactive merged items
           if (mb.isActive === false) continue
-          const name = mb.benefitName || mb.benefitType?.name || ''
+          const name = mb.benefitName || mb.benefit_types?.name || ''
           // Prefer benefitTypeId as the stable key when available; fallback to normalized name
           const key = mb.benefitTypeId ? String(mb.benefitTypeId) : normalizeName(name)
           if (!key) continue

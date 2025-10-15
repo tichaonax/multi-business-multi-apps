@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { normalizePhoneInput } from '@/lib/country-codes'
 
 import { randomBytes } from 'crypto';
+import * as crypto from 'crypto';
 // Validation schemas
 const CreateDriverSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
     // Create driver
       // Create driver: build explicit payload so optional userId is handled correctly
       const createPayload: any = {
+        id: crypto.randomUUID(),
         fullName: validatedData.fullName,
         licenseNumber: validatedData.licenseNumber,
         licenseExpiry: new Date(validatedData.licenseExpiry),
@@ -349,8 +351,8 @@ export async function DELETE(request: NextRequest) {
     const existingDriver = await prisma.vehicleDrivers.findUnique({
       where: { id: driverId },
       include: {
-        vehicleTrips: { take: 1 },
-        driverAuthorizations: { take: 1 }
+        vehicle_trips: { take: 1 },
+        driver_authorizations: { take: 1 }
       }
     })
 
@@ -362,8 +364,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if driver has related records
-  const hasRelatedRecords = (existingDriver.vehicleTrips && existingDriver.vehicleTrips.length > 0) ||
-               (existingDriver.driverAuthorizations && existingDriver.driverAuthorizations.length > 0)
+  const hasRelatedRecords = (existingDriver.vehicle_trips && existingDriver.vehicle_trips.length > 0) ||
+               (existingDriver.driver_authorizations && existingDriver.driver_authorizations.length > 0)
 
     if (hasRelatedRecords) {
       // Soft delete - just mark as inactive

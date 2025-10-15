@@ -38,7 +38,7 @@ export async function GET(
     const expense = await prisma.personalExpenses.findFirst({
       where: whereClause,
       include: {
-        projectTransactions: {
+        project_transactions: {
           include: {
             project: true,
             projectContractor: {
@@ -257,7 +257,7 @@ export async function PUT(
     const completeExpense = await prisma.personalExpenses.findUnique({
       where: { id: expenseId },
       include: {
-        projectTransactions: {
+        project_transactions: {
           include: {
             project: {
               select: {

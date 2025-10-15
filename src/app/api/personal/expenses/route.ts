@@ -25,7 +25,7 @@ export async function GET() {
     const expenses = await prisma.personalExpenses.findMany({
       where: { userId: session.user.id },
       include: {
-        projectTransactions: {
+        project_transactions: {
           include: {
             project_contractors: {
               include: {
@@ -47,7 +47,7 @@ export async function GET() {
             }
           }
         },
-        loanTransactions: {
+        loan_transactions: {
           include: {
             inter_business_loans: {
               include: {
@@ -85,13 +85,13 @@ export async function GET() {
       // Add category object with name, emoji, and color
       categoryObject: expense.category ? categoryMap.get(expense.category) || null : null,
       // Frontend-compatible property aliases
-      projectTransactions: (expense.projectTransactions || []).map((pt: any) => ({
+      projectTransactions: (expense.project_transactions || []).map((pt: any) => ({
         ...pt,
         amount: Number(pt.amount),
         projectContractors: pt.project_contractors,
         constructionProjects: pt.construction_projects
       })),
-      loanTransactions: (expense.loanTransactions || []).map((lt: any) => ({
+      loanTransactions: (expense.loan_transactions || []).map((lt: any) => ({
         ...lt,
         amount: Number(lt.amount),
         interBusinessLoans: lt.inter_business_loans ? {

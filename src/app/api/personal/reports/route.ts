@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         ...dateFilter
       },
       include: {
-        projectTransactions: {
+        project_transactions: {
           include: {
             projectContractor: {
               include: {
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        loanTransactions: {
+        loan_transactions: {
           include: {
             loan: {
               include: {
@@ -136,8 +136,8 @@ export async function GET(request: NextRequest) {
       let contractorName = 'Direct Expense'
 
       // Check if this expense is linked to a project contractor
-      if (expense.projectTransactions && expense.project_transactions.length > 0) {
-        const projectTransaction = expense.projectTransactions[0]
+      if (expense.project_transactions && expense.project_transactions.length > 0) {
+        const projectTransaction = expense.project_transactions[0]
         if (projectTransaction.projectContractor?.persons?.fullName) {
           contractorName = projectTransaction.projectContractor.persons.fullName
         } else if (projectTransaction.constructionProject?.name) {
@@ -146,8 +146,8 @@ export async function GET(request: NextRequest) {
       }
 
       // Check if this expense is linked to a loan
-      if (expense.loanTransactions && expense.loanTransactions.length > 0) {
-        const loanTransaction = expense.loanTransactions[0]
+      if (expense.loan_transactions && expense.loan_transactions.length > 0) {
+        const loanTransaction = expense.loan_transactions[0]
         const loan = loanTransaction.loan
         if (loan.borrowerBusiness?.name) {
           contractorName = `Loan to: ${loan.borrowerBusiness.name}`

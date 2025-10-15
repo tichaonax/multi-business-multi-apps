@@ -44,7 +44,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const contracts = await prisma.employeeContracts.findMany({
       where: { employeeId: { in: employeeIds } },
       orderBy: { startDate: 'desc' },
-      include: { contract_benefits: { include: { benefitType: true } } }
+      include: { contract_benefits: { include: { benefit_types: true } } }
     })
 
     const latestContractByEmployee: Record<string, any> = {}
@@ -58,16 +58,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       if (!contract) continue
 
       for (const b of contract.contract_benefits || []) {
-        const amount = Number(b.amount ?? b.benefitType?.defaultAmount ?? 0)
+        const amount = Number(b.amount ?? b.benefit_types?.defaultAmount ?? 0)
         if (!amount || amount === 0) continue
         // skip deductions when inferring benefits
-        if (b.benefitType?.type === 'deduction') continue
+        if (b.benefit_types?.type === 'deduction') continue
 
         benefitRecords.push({
           id: `PEB-${nanoid(12)}`,
           payrollEntryId: entry.id,
           benefitTypeId: b.benefitTypeId,
-          benefitName: b.benefitType?.name || 'Contract Benefit',
+          benefitName: b.benefit_types?.name || 'Contract Benefit',
           amount,
           isActive: true,
           source: 'contract',
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       for (const entryId of affectedEntryIds) {
         const entry = await tx.payrollEntry.findUnique({
           where: { id: entryId },
-          include: { payrollEntryBenefits: true }
+          include: { payroll_entry_benefits: true }
         })
         if (!entry) continue
 
