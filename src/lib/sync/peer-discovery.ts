@@ -565,7 +565,13 @@ export class PeerDiscoveryService extends EventEmitter {
           lastSeen: new Date(),
           ipAddress: ipAddress,
           port: this.options.port,
-          capabilities: this.options.capabilities || {}
+          capabilities: [
+            'sync-v1',
+            'compression',
+            'encryption',
+            'vector-clocks',
+            'conflict-resolution'
+          ]
         },
         create: {
           id: this.options.nodeId, // Use nodeId as the primary key id
@@ -575,7 +581,13 @@ export class PeerDiscoveryService extends EventEmitter {
           port: this.options.port,
           isActive: true,
           lastSeen: new Date(),
-          capabilities: this.options.capabilities || {}
+          capabilities: [
+            'sync-v1',
+            'compression',
+            'encryption',
+            'vector-clocks',
+            'conflict-resolution'
+          ]
         }
       })
     } catch (error) {
