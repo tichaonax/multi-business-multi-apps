@@ -56,11 +56,11 @@ function checkServiceScript() {
  */
 function getServiceConfig() {
   return {
-    registrationKey: process.env.SYNC_REGISTRATION_KEY || 'default-registration-key-change-in-production',
+    registrationKey: process.env.SYNC_REGISTRATION_KEY || '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766',
   port: process.env.SYNC_PORT || '8765',
     syncInterval: process.env.SYNC_INTERVAL || '30000',
     logLevel: process.env.LOG_LEVEL || 'info',
-    isDefaultKey: !process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === 'default-registration-key-change-in-production'
+    isDefaultKey: !process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766'
   };
 }
 

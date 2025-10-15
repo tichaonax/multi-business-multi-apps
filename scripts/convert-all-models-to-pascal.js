@@ -14,7 +14,6 @@ const fs = require('fs');
 const path = require('path');
 
 const SCHEMA_PATH = path.join(__dirname, '..', 'prisma', 'schema.prisma');
-const BACKUP_PATH = path.join(__dirname, '..', 'prisma', 'schema.prisma.backup-' + Date.now());
 
 function toPascalCase(snakeCaseStr) {
   return snakeCaseStr
@@ -29,9 +28,6 @@ function convertSchema() {
   // Read schema file
   let schemaContent = fs.readFileSync(SCHEMA_PATH, 'utf-8');
 
-  // Backup original schema
-  fs.writeFileSync(BACKUP_PATH, schemaContent);
-  console.log(`✅ Backup created: ${BACKUP_PATH}\n`);
 
   // Track all conversions for relation updates
   const conversions = new Map();
@@ -132,7 +128,6 @@ function convertSchema() {
   console.log('3. Create migration: npx prisma migrate dev --name convert_to_pascal_case');
   console.log('   (Note: This is a schema-only change, no DB structure changes)');
   console.log('4. Test with: node scripts/production-setup.js --dry-run');
-  console.log('\n💾 Original schema backed up to:', BACKUP_PATH);
 
   return conversions;
 }

@@ -32,7 +32,7 @@ module.exports = {
     },
     {
       name: "SYNC_REGISTRATION_KEY",
-      value: process.env.SYNC_REGISTRATION_KEY || "default-registration-key-change-in-production"
+      value: process.env.SYNC_REGISTRATION_KEY || "365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766"
     },
     {
       name: "SYNC_PORT",

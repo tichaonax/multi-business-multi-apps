@@ -235,7 +235,7 @@ class ServiceDiagnostics {
   async checkConfiguration() {
     console.log('⚙️  Configuration:');
     const config = {
-      registrationKey: process.env.SYNC_REGISTRATION_KEY || 'default-registration-key-change-in-production',
+      registrationKey: process.env.SYNC_REGISTRATION_KEY || '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766',
       port: process.env.SYNC_PORT || '8765',
       syncInterval: process.env.SYNC_INTERVAL || '30000',
       logLevel: process.env.LOG_LEVEL || 'info',
@@ -295,7 +295,7 @@ class ServiceDiagnostics {
       // ignore
     }
 
-    const isDefaultKey = !registrationKeyFound || registrationKeyFound.value === 'default-registration-key-change-in-production';
+    const isDefaultKey = !registrationKeyFound || registrationKeyFound.value === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766';
     console.log(`   Registration Key: ${isDefaultKey ? '⚠️  DEFAULT (CHANGE FOR PRODUCTION)' : `✅ Custom (from ${registrationKeyFound.source})`}`);
     // Debug: show where registration key was found (masked)
     if (registrationKeyFound) {
@@ -474,7 +474,7 @@ class ServiceDiagnostics {
 
     const status = await this.manager.getServiceStatus();
     const isDefaultKey = !process.env.SYNC_REGISTRATION_KEY ||
-                        process.env.SYNC_REGISTRATION_KEY === 'default-registration-key-change-in-production';
+                        process.env.SYNC_REGISTRATION_KEY === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766';
 
     const recommendations = [];
 

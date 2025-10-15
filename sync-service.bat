@@ -5,7 +5,7 @@ REM Usage: sync-service.bat [start|stop|restart|status|sync|help]
 setlocal enabledelayedexpansion
 
 REM Set default environment variables if not already set
-if "%SYNC_REGISTRATION_KEY%"=="" set SYNC_REGISTRATION_KEY=default-registration-key-change-in-production
+if "%SYNC_REGISTRATION_KEY%"=="" set SYNC_REGISTRATION_KEY=365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766
 if "%SYNC_PORT%"=="" set SYNC_PORT=8765
 if "%SYNC_INTERVAL%"=="" set SYNC_INTERVAL=30000
 if "%LOG_LEVEL%"=="" set LOG_LEVEL=info

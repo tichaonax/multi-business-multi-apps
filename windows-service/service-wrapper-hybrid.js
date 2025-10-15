@@ -12,30 +12,73 @@ const fs = require('fs');
 function loadEnvironmentVariables() {
   const envLocalPath = path.join(__dirname, '..', '.env.local');
 
+  console.log(`🔍 Looking for .env.local at: ${envLocalPath}`);
+  
   if (fs.existsSync(envLocalPath)) {
-    console.log('Loading environment variables from .env.local');
+    console.log('✅ .env.local file found, loading environment variables...');
 
     try {
       const envContent = fs.readFileSync(envLocalPath, 'utf8');
       const envLines = envContent.split('\n');
+      let loadedCount = 0;
 
       for (const line of envLines) {
         const trimmedLine = line.trim();
+        // Skip empty lines and comments
         if (trimmedLine && !trimmedLine.startsWith('#')) {
-          const [key, ...valueParts] = trimmedLine.split('=');
-          if (key && valueParts.length > 0) {
-            const value = valueParts.join('=').replace(/^["']|["']$/g, ''); // Remove quotes
-            process.env[key.trim()] = value.trim();
+          // Handle key=value pairs more robustly
+          const equalsIndex = trimmedLine.indexOf('=');
+          if (equalsIndex > 0) {
+            const key = trimmedLine.substring(0, equalsIndex).trim();
+            let value = trimmedLine.substring(equalsIndex + 1).trim();
+            
+            // Remove surrounding quotes if present
+            if ((value.startsWith('"') && value.endsWith('"')) || 
+                (value.startsWith("'") && value.endsWith("'"))) {
+              value = value.slice(1, -1);
+            }
+            
+            // Only set if not already set in environment
+            if (!process.env[key]) {
+              process.env[key] = value;
+              loadedCount++;
+              
+              // Log critical variables (but redact sensitive data)
+              if (key === 'SYNC_REGISTRATION_KEY') {
+                console.log(`   ${key}: ${value.substring(0, 8)}... (${value.length} chars)`);
+              } else if (key.includes('SECRET') || key.includes('PASSWORD')) {
+                console.log(`   ${key}: *** (${value.length} chars)`);
+              } else {
+                console.log(`   ${key}: ${value}`);
+              }
+            }
           }
         }
       }
 
-      console.log('✅ Environment variables loaded from .env.local');
+      console.log(`✅ Environment variables loaded from .env.local (${loadedCount} variables)`);
+      
+      // Verify critical variables were loaded
+      const criticalVars = ['DATABASE_URL', 'SYNC_REGISTRATION_KEY', 'SYNC_PORT'];
+      criticalVars.forEach(varName => {
+        if (process.env[varName]) {
+          if (varName === 'SYNC_REGISTRATION_KEY') {
+            console.log(`✅ ${varName} loaded: ${process.env[varName].substring(0, 8)}...`);
+          } else {
+            console.log(`✅ ${varName} loaded: ${process.env[varName]}`);
+          }
+        } else {
+          console.warn(`⚠️  ${varName} not found in .env.local`);
+        }
+      });
+      
     } catch (error) {
       console.error('❌ Failed to load .env.local:', error.message);
+      console.error('❌ Stack trace:', error.stack);
     }
   } else {
-    console.warn('⚠️  .env.local file not found at:', envLocalPath);
+    console.error('❌ .env.local file not found at:', envLocalPath);
+    console.error('❌ Service will use default/fallback values which may cause sync issues!');
   }
 }
 
@@ -133,7 +176,7 @@ class HybridServiceWrapper extends EventEmitter {
         env: {
           ...process.env,
           NODE_ENV: 'production',
-          SYNC_REGISTRATION_KEY: process.env.SYNC_REGISTRATION_KEY || 'default-registration-key-change-in-production',
+          SYNC_REGISTRATION_KEY: process.env.SYNC_REGISTRATION_KEY || '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766',
           SYNC_PORT: process.env.SYNC_PORT || '8765',
           SYNC_INTERVAL: process.env.SYNC_INTERVAL || '30000',
           LOG_LEVEL: process.env.LOG_LEVEL || 'info',
@@ -799,9 +842,9 @@ class HybridServiceWrapper extends EventEmitter {
       keyLength: regKey ? regKey.length : 0,
       keyFirst8: regKey ? regKey.substring(0, 8) : 'none',
       keyLast8: regKey ? regKey.substring(regKey.length - 8) : 'none',
-      isDefault: regKey === 'default-registration-key-change-in-production'
+      isDefault: regKey === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766'
     });
-    if (!regKey || regKey === 'default-registration-key-change-in-production') {
+    if (!regKey || regKey === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766') {
       console.warn('⚠️  WARNING: Using default registration key! Change SYNC_REGISTRATION_KEY environment variable for production.');
     }
 

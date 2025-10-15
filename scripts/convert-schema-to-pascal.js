@@ -215,15 +215,6 @@ function convertSchema(schemaContent) {
   return lines.join('\n')
 }
 
-/**
- * Create backup of original schema
- */
-function createBackup() {
-  const backupPath = SCHEMA_PATH + '.backup-' + Date.now()
-  fs.copyFileSync(SCHEMA_PATH, backupPath)
-  console.log(`\n✅ Backup created: ${backupPath}\n`)
-  return backupPath
-}
 
 /**
  * Main execution
@@ -238,8 +229,6 @@ async function main() {
     console.log(`📖 Reading schema: ${SCHEMA_PATH}`)
     const originalSchema = fs.readFileSync(SCHEMA_PATH, 'utf8')
 
-    // Create backup
-    const backupPath = createBackup()
 
     // Convert schema
     const convertedSchema = convertSchema(originalSchema)
@@ -268,8 +257,6 @@ async function main() {
     console.log('   2. Update seed scripts to use camelCase: node scripts/update-seed-scripts.js')
     console.log('   3. Regenerate Prisma client: npx prisma generate')
     console.log('   4. Update API routes to use new model names')
-    console.log(`\n💾 Backup location: ${backupPath}`)
-    console.log('   (Restore with: cp backup-file prisma/schema.prisma)\n')
 
   } catch (error) {
     console.error('❌ Conversion failed:', error.message)

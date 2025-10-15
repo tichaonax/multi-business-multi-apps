@@ -528,10 +528,18 @@ export class PeerDiscoveryService extends EventEmitter {
    * Hash registration key for secure comparison
    */
   private hashRegistrationKey(): string {
-    return crypto
+    const hash = crypto
       .createHash('sha256')
-      .update(this.options.registrationKey + this.options.serviceName)
+      .update(this.options.registrationKey)
       .digest('hex')
+    
+    console.log(`🔐 Hash computation details:`)
+    console.log(`   Registration key: "${this.options.registrationKey}" (${this.options.registrationKey.length} chars)`)
+    console.log(`   Input: "${this.options.registrationKey}" (${this.options.registrationKey.length} chars)`)
+    console.log(`   Input bytes: [${Buffer.from(this.options.registrationKey, 'utf8').join(', ')}]`)
+    console.log(`   Final hash: ${hash}`)
+    
+    return hash
   }
 }
 

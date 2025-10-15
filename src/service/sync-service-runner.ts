@@ -83,7 +83,7 @@ class SyncServiceRunner {
       ...getDefaultSyncConfig(),
       nodeId: generateNodeId(),
       nodeName: `sync-node-${hostname()}`,
-      registrationKey: process.env.SYNC_REGISTRATION_KEY || 'default-registration-key-change-in-production',
+      registrationKey: process.env.SYNC_REGISTRATION_KEY || '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766',
   port: parseInt(process.env.SYNC_PORT || '8765'),
       syncInterval: parseInt(process.env.SYNC_INTERVAL || '30000'),
       enableAutoStart: true,
@@ -220,7 +220,7 @@ class SyncServiceRunner {
       console.log(`Registration Key: ${this.config.registrationKey ? '***' : 'NOT SET'}`)
       console.log(`Data Directory: ${this.config.dataDirectory}`)
 
-      if (!this.config.registrationKey || this.config.registrationKey === 'default-registration-key-change-in-production') {
+      if (!this.config.registrationKey || this.config.registrationKey === '365975ccd858fd3522b1526d44a0fefcb2e85401909c10b332e36e3e512ec766') {
         console.warn('⚠️  WARNING: Using default registration key! Change SYNC_REGISTRATION_KEY environment variable for production.')
       }
 
