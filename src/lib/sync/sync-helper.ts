@@ -14,12 +14,15 @@ export interface SyncHelperOptions {
 
 export class SyncHelper {
   private prisma: PrismaClient
+  private rawPrisma: PrismaClient  // Plain client without extensions for sync operations
   private nodeId: string
   private registrationKey: string
   private enabled: boolean
 
   constructor(prisma: PrismaClient, options: SyncHelperOptions) {
     this.prisma = prisma
+    // Create a separate raw Prisma client for sync operations to avoid infinite loops
+    this.rawPrisma = new PrismaClient()
     this.nodeId = options.nodeId
     this.registrationKey = options.registrationKey
     this.enabled = options.enabled !== false
@@ -84,6 +87,7 @@ export class SyncHelper {
 
   /**
    * Create a sync event
+   * IMPORTANT: Uses rawPrisma (without extensions) to avoid infinite tracking loops
    */
   private async createSyncEvent(event: {
     tableName: string
@@ -95,7 +99,8 @@ export class SyncHelper {
     const eventId = randomUUID()
     const checksum = this.generateChecksum(event.changeData || event.beforeData)
 
-    await this.prisma.syncEvents.create({
+    // Use rawPrisma to avoid triggering the tracking extension
+    await this.rawPrisma.syncEvents.create({
       data: {
         eventId,
         sourceNodeId: this.nodeId,
