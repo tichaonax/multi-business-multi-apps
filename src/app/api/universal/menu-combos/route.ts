@@ -21,16 +21,16 @@ export async function GET(request: NextRequest) {
         businessId
       },
       include: {
-        menuComboItems: {
+        menu_combo_items: {
           include: {
-            businessProducts: {
+            business_products: {
               include: {
                 business_categories: true,
-                product_images: true,
+                ProductImages: true,
                 product_variants: true
               }
             },
-            productVariants: true
+            product_variants: true
           },
           orderBy: {
             sortOrder: 'asc'
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       discountPercent: combo.discountPercent,
       promotionStartDate: combo.promotionStartDate?.toISOString(),
       promotionEndDate: combo.promotionEndDate?.toISOString(),
-      comboItems: (combo.menuComboItems ?? []).map((item: any) => ({
+      comboItems: (combo.menu_combo_items ?? []).map((item: any) => ({
         id: item.id,
         productId: item.productId,
         variantId: item.variantId,
@@ -168,12 +168,12 @@ export async function POST(request: NextRequest) {
       return await tx.menuCombo.findUnique({
         where: { id: newCombo.id },
         include: {
-          menuComboItems: {
+          menu_combo_items: {
             include: {
-              businessProducts: {
+              business_products: {
                 include: {
                   business_categories: true,
-                  product_images: true,
+                  ProductImages: true,
                   product_variants: true
                 }
               },

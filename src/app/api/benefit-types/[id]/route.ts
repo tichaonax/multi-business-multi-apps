@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
 
-    const benefitType = await prisma.benefit_types.findUnique({
+    const benefitType = await prisma.benefitTypes.findUnique({
       where: { id },
       include: {
         _count: {
@@ -87,7 +87,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if benefit type exists
-    const existingBenefitType = await prisma.benefit_types.findUnique({
+    const existingBenefitType = await prisma.benefitTypes.findUnique({
       where: { id }
     })
 
@@ -100,7 +100,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Check for duplicate name (if name is being changed)
     if (name !== existingBenefitType.name) {
-      const duplicateName = await prisma.benefit_types.findUnique({
+      const duplicateName = await prisma.benefitTypes.findUnique({
         where: { name }
       })
 
@@ -112,7 +112,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const updatedBenefitType = await prisma.benefit_types.update({
+    const updatedBenefitType = await prisma.benefitTypes.update({
       where: { id },
       data: {
         name,
@@ -166,7 +166,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { id } = await params
 
     // Check if benefit type exists
-    const existingBenefitType = await prisma.benefit_types.findUnique({
+    const existingBenefitType = await prisma.benefitTypes.findUnique({
       where: { id },
       include: {
         _count: {
@@ -195,7 +195,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    await prisma.benefit_types.delete({
+    await prisma.benefitTypes.delete({
       where: { id }
     })
 

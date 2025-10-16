@@ -308,7 +308,7 @@ export async function DELETE(
       include: {
         _count: {
           select: {
-            projectContractors: true,
+            project_contractors: true,
             project_transactions: true,
             projectStages: true
           }

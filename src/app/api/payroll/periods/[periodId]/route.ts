@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const period = await prisma.payroll_periods.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
       include: {
         businesses: {
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // We used to restrict to active benefits here which caused `payrollEntryBenefits`
         // to be empty while `mergedBenefits` (computed later) included inactive/manual overrides.
         // Returning all persisted benefits keeps the API consistent for the client.
-        benefits = await prisma.payroll_entry_benefits.findMany({
+        benefits = await prisma.payrollEntryBenefits.findMany({
           where: { payrollEntryId: { in: entryIds } },
           include: { benefit_types: { select: { id: true, name: true, type: true, defaultAmount: true } } }
         })
@@ -202,7 +202,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // Compute cumulative totals (sick/leave/absence) from prior payroll entries for each employee
         let priorPeriodIds: string[] = []
         if (period.periodStart) {
-          const priorPeriods = await prisma.payroll_periods.findMany({
+          const priorPeriods = await prisma.payrollPeriods.findMany({
             where: {
               businessId: period.businessId,
               periodStart: { lt: period.periodStart }
@@ -629,7 +629,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { status, notes } = data
 
     // Verify period exists
-    const existingPeriod = await prisma.payroll_periods.findUnique({
+    const existingPeriod = await prisma.payrollPeriods.findUnique({
       where: { id: periodId }
     })
 
@@ -676,7 +676,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       updateData.notes = notes
     }
 
-    const period = await prisma.payroll_periods.update({
+    const period = await prisma.payrollPeriods.update({
       where: { id: periodId },
       data: updateData,
       include: {
@@ -713,7 +713,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { periodId } = await params
 
     // Verify period exists (need businessId and approvedAt)
-    const existingPeriod = await prisma.payroll_periods.findUnique({
+    const existingPeriod = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
       include: {
         businesses: { select: { id: true } },

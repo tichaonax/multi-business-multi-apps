@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { businessId } = await params
 
     // Verify user has access to this business
-    const userBusinesses = await prisma.business_memberships.findMany({
+    const userBusinesses = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         businessId: businessId,

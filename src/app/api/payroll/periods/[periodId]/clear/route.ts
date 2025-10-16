@@ -18,7 +18,7 @@ export async function POST(
     const { periodId } = params
 
     // Get the period to check status
-    const period = await prisma.payroll_periods.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: periodId }
     })
 
@@ -40,7 +40,7 @@ export async function POST(
     })
 
     // Reset period totals and status to draft
-    await prisma.payroll_periods.update({
+    await prisma.payrollPeriods.update({
       where: { id: periodId },
       data: {
         status: 'draft',

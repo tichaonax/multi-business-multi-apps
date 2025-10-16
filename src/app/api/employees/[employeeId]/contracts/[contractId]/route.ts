@@ -368,7 +368,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           })
 
           // Deactivate all business memberships
-          await tx.business_memberships.updateMany({
+          await tx.businessMemberships.updateMany({
             where: { userId: updatedEmployee.users.id },
             data: { isActive: false }
           })

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         businesses: await tx.businesses.count(),
         employees: await tx.employees.count(),
         employeeContracts: await tx.employeeContracts.count(),
-        businessMemberships: await tx.business_memberships.count(),
+        businessMemberships: await tx.businessMemberships.count(),
         auditLogs: await tx.auditLogs.count(),
         users: await tx.users.count(),
         // Reference data that will be reset and recreated
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       console.log(`✅ Deleted ${deletedEmployees.count} employees`);
 
       console.log('🗑️ Deleting all business memberships...');
-      const deletedMemberships = await tx.business_memberships.deleteMany({});
+      const deletedMemberships = await tx.businessMemberships.deleteMany({});
       console.log(`✅ Deleted ${deletedMemberships.count} business memberships`);
 
       console.log('🗑️ Deleting all businesses...');
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
         businesses: await tx.businesses.count(),
         employees: await tx.employees.count(),
         employeeContracts: await tx.employeeContracts.count(),
-        businessMemberships: await tx.business_memberships.count(),
+        businessMemberships: await tx.businessMemberships.count(),
         users: await tx.users.count(),
         // Reference data counts after deletion
         idFormatTemplates: await tx.idFormatTemplates.count(),

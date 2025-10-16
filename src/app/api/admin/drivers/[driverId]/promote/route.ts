@@ -40,7 +40,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const validatedData = PromoteDriverSchema.parse(body)
 
     // Check if driver exists
-    const driver = await prisma.vehicleDrivers.findUnique({
+    const driver = await prisma.vehicle_drivers.findUnique({
       where: { id: driverId },
       include: {
         users: {
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
 
         if (business) {
-          await tx.business_memberships.create({
+          await tx.businessMemberships.create({
         data: {
           id: randomBytes(12).toString('hex'),
               id: randomUUID(),
@@ -209,7 +209,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { driverId } = await params
 
-    const driver = await prisma.vehicleDrivers.findUnique({
+    const driver = await prisma.vehicle_drivers.findUnique({
       where: { id: driverId },
       include: {
         users: {

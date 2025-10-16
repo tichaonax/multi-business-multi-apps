@@ -31,7 +31,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
     where: { id: session.user.id },
     select: {
       role: true,
-      businessMemberships: {
+      business_memberships: {
         where: {
           businesses: { type: 'restaurant' },
           isActive: true
@@ -141,21 +141,21 @@ export async function GET(request: NextRequest) {
             type: true
           }
         },
-        employee: {
+        employees: {
           select: {
             fullName: true
           }
         },
-        items: {
+        business_order_items: {
           select: {
             id: true,
             quantity: true,
             unitPrice: true,
             totalPrice: true,
-            productVariant: {
+            product_variants: {
               select: {
                 name: true,
-                product: {
+                business_products: {
                   select: {
                     name: true
                   }
@@ -194,12 +194,12 @@ export async function GET(request: NextRequest) {
       estimatedReadyTime: order.attributes?.estimatedReadyTime || '',
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
-      items: order.items.map((item: any) => ({
+      items: order.business_order_items.map((item: any) => ({
         id: item.id,
         quantity: item.quantity,
         unitPrice: Number(item.unitPrice),
         totalPrice: Number(item.totalPrice),
-        productName: item.product_variants?.product?.name || item.product_variants?.name || 'Unknown Item'
+        productName: item.product_variants?.business_products?.name || item.product_variants?.name || 'Unknown Item'
       }))
     }))
 

@@ -175,6 +175,9 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
   const handleSave = async () => {
     setLoading(true)
     try {
+      console.log('🔄 Updating user:', user.id)
+      console.log('📤 Request data:', { basicInfo, userLevelPermissions, businessMemberships: businessMemberships.length })
+      
       const response = await fetch(`/api/admin/users/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -184,8 +187,21 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
           businessMemberships
         })
       })
+      
+      console.log('📥 Response status:', response.status, response.statusText)
+      console.log('📥 Response content-type:', response.headers.get('content-type'))
 
-      const data = await response.json()
+      let data
+      try {
+        data = await response.json()
+        console.log('📄 Response data:', data)
+      } catch (parseError) {
+        console.error('❌ Failed to parse response JSON:', parseError)
+        const errorMsg = response.ok ? 'Server returned invalid response format' : 'Server error'
+        onError(errorMsg)
+        return
+      }
+      
       if (response.ok) {
         // If the current user updated their own permissions, refresh their session
         if (currentUser.id === user.id) {
@@ -196,16 +212,37 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
           } catch (sessionError) {
             console.error('❌ Failed to refresh session:', sessionError)
             // Don't fail the whole operation if session refresh fails
+            // Continue with the success flow
           }
         }
 
-        onSuccess(data.message || 'User updated successfully')
-        onClose()
+        // Always call onSuccess if the API call was successful
+        try {
+          onSuccess(data.message || 'User updated successfully')
+          onClose()
+        } catch (successError) {
+          console.error('❌ Error in success callback:', successError)
+          // Even if success callback fails, don't show error to user
+          // since the API operation actually succeeded
+          onClose()
+        }
       } else {
-        onError(data.error || 'Failed to update user')
+        // Provide more specific error messages based on status code
+        let errorMsg = data.error || 'Failed to update user'
+        if (response.status === 401) {
+          errorMsg = 'You are not authorized to perform this action. Please log in again.'
+        } else if (response.status === 403) {
+          errorMsg = 'You do not have permission to update this user.'
+        } else if (response.status === 404) {
+          errorMsg = 'User not found.'
+        } else if (response.status === 400) {
+          errorMsg = data.error || 'Invalid request data.'
+        }
+        onError(errorMsg)
       }
     } catch (error) {
-      onError('Error updating user')
+      console.error('❌ Unexpected error in handleSave:', error)
+      onError(error instanceof Error ? error.message : 'Error updating user')
     } finally {
       setLoading(false)
     }

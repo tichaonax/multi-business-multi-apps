@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify period exists and is editable
-    const period = await prisma.payroll_periods.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId }
     })
 
@@ -341,7 +341,7 @@ async function updatePeriodTotals(periodId: string) {
     _count: true
   })
 
-  await prisma.payroll_periods.update({
+  await prisma.payrollPeriods.update({
     where: { id: periodId },
     data: {
       totalEmployees: aggregates._count,

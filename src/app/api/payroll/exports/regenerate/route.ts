@@ -24,13 +24,13 @@ export async function POST(req: NextRequest) {
     if (!existing) return NextResponse.json({ error: 'No existing export found for this period' }, { status: 404 })
 
     // Load the period and entries similarly to the original export flow
-    const period = await prisma.payroll_periods.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId },
       include: {
         businesses: { select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true } },
         payrollEntries: {
           include: {
-            payroll_entry_benefits: { include: { benefit_types: { select: { id: true, name: true } } } },
+            PayrollEntryBenefits: { include: { benefit_types: { select: { id: true, name: true } } } },
             employee: { select: { id: true, employeeNumber: true, firstName: true, lastName: true, fullName: true, jobTitles: { select: { title: true } }, primaryBusinessId: true } }
           }
         }

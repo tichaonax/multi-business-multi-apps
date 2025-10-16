@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     let benefitsLoadError: string | undefined
 
     try {
-      benefits = await prisma.payroll_entry_benefits.findMany({
+      benefits = await prisma.payrollEntryBenefits.findMany({
         where: { payrollEntryId: entryId },
         include: {
           benefit_types: true
@@ -191,7 +191,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Get benefit type info if an id was provided
     let benefitType = null
     if (bTypeId) {
-      benefitType = await prisma.benefit_types.findUnique({ where: { id: bTypeId } })
+      benefitType = await prisma.benefitTypes.findUnique({ where: { id: bTypeId } })
       if (!benefitType) {
         return NextResponse.json({ error: 'Benefit type not found' }, { status: 404 })
       }
@@ -307,7 +307,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { id, amount, isActive, deactivatedReason } = data
     if (!id) return NextResponse.json({ error: 'Benefit id required' }, { status: 400 })
 
-    const existing = await prisma.payroll_entry_benefits.findUnique({ where: { id }, include: { payroll_entries: { include: { payroll_periods: true } } } })
+    const existing = await prisma.payrollEntryBenefits.findUnique({ where: { id }, include: { payroll_entries: { include: { payroll_periods: true } } } })
     if (!existing) return NextResponse.json({ error: 'Benefit not found' }, { status: 404 })
 
     // Ensure payrollEntry and payrollPeriod exist before checking status
@@ -352,7 +352,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const benefitId = searchParams.get('benefitId')
     if (!benefitId) return NextResponse.json({ error: 'benefitId required' }, { status: 400 })
 
-    const existing = await prisma.payroll_entry_benefits.findUnique({ where: { id: benefitId }, include: { payroll_entries: { include: { payroll_periods: true } } } })
+    const existing = await prisma.payrollEntryBenefits.findUnique({ where: { id: benefitId }, include: { payroll_entries: { include: { payroll_periods: true } } } })
     if (!existing) return NextResponse.json({ error: 'Benefit not found' }, { status: 404 })
 
     // Ensure payrollEntry and payrollPeriod exist before checking status
@@ -382,7 +382,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   const entry = await tx.payroll_entries.findUnique({
     where: { id: entryId },
     include: {
-      payroll_entry_benefits: true
+      PayrollEntryBenefits: true
     }
   })
 

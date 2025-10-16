@@ -43,7 +43,7 @@ export async function GET(
 
     // Check permissions - system admins can view any user
     if (session.user.role !== 'admin') {
-      const userMemberships = await prisma.business_memberships.findMany({
+      const userMemberships = await prisma.businessMemberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true,
@@ -138,7 +138,7 @@ export async function PATCH(
     // Check if current user has permission to edit users
     // System admins can edit any user
     if (session.user.role !== 'admin') {
-      const userMemberships = await prisma.business_memberships.findMany({
+      const userMemberships = await prisma.businessMemberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true,
@@ -170,7 +170,7 @@ export async function PATCH(
 
     // Validate that the user has permission to assign users to the requested businesses
     if (session.user.role !== 'admin') {
-      const userMemberships = await prisma.business_memberships.findMany({
+      const userMemberships = await prisma.businessMemberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true,
@@ -226,13 +226,13 @@ export async function PATCH(
       })
 
       // Get current business memberships
-      const currentMemberships = await tx.business_memberships.findMany({
+      const currentMemberships = await tx.businessMemberships.findMany({
         where: { userId }
       })
 
       // Delete existing memberships that are not in the new list
       const newBusinessIds = businessMemberships.map(m => m.businessId)
-      await tx.business_memberships.deleteMany({
+      await tx.businessMemberships.deleteMany({
         where: {
           userId,
           businessId: {
@@ -273,7 +273,7 @@ export async function PATCH(
           }
         }
 
-        const membership = await tx.business_memberships.upsert({
+        const membership = await tx.businessMemberships.upsert({
           where: {
             userId_businessId: {
               userId,
@@ -356,7 +356,7 @@ export async function DELETE(
 
     // Check permissions - system admins can delete any user
     if (session.user.role !== 'admin') {
-      const userMemberships = await prisma.business_memberships.findMany({
+      const userMemberships = await prisma.businessMemberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true,
@@ -380,7 +380,7 @@ export async function DELETE(
     })
 
     // Also deactivate all business memberships
-    await prisma.business_memberships.updateMany({
+    await prisma.businessMemberships.updateMany({
       where: { userId },
       data: { isActive: false }
     })

@@ -43,7 +43,7 @@ export async function PATCH(
     }
 
     // Check if business membership exists
-    const existingMembership = await prisma.business_memberships.findUnique({
+    const existingMembership = await prisma.businessMemberships.findUnique({
       where: {
         userId_businessId: {
           userId,
@@ -80,7 +80,7 @@ export async function PATCH(
       }
     }
 
-    const updatedMembership = await prisma.business_memberships.update({
+    const updatedMembership = await prisma.businessMemberships.update({
       where: {
         userId_businessId: {
           userId,

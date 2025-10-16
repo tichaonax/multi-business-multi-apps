@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // Verify user has access to this business (system admins can access any business)
     if (!isSystemAdmin(user)) {
-      const membership = await prisma.business_memberships.findFirst({
+      const membership = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: businessId,

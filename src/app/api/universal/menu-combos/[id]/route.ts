@@ -67,7 +67,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return await tx.menuCombo.findUnique({
         where: { id: comboId },
         include: {
-          menuComboItems: {
+          menu_combo_items: {
             include: {
               product: {
                 include: {

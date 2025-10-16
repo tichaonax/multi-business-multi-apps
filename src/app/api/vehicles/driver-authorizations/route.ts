@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateAuthorizationSchema.parse(body)
 
     // Verify driver exists
-    const driver = await prisma.vehicleDrivers.findUnique({
+    const driver = await prisma.vehicle_drivers.findUnique({
       where: { id: validatedData.driverId }
     })
 

@@ -153,8 +153,8 @@ async function generateFleetOverviewReport(vehicleId?: string, businessId?: stri
         users: { select: { name: true, email: true } }
       }
     }),
-    prisma.vehicle_trips.count({ where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {} }),
-    prisma.vehicle_expenses.aggregate({
+    prisma.vehicleTrips.count({ where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {} }),
+    prisma.vehicleExpenses.aggregate({
       where: vehicleFilter.id ? { vehicleId: vehicleFilter.id } : {},
       _sum: { amount: true },
       _count: true
@@ -164,8 +164,8 @@ async function generateFleetOverviewReport(vehicleId?: string, businessId?: stri
     })
     , // end maintenanceRecords entry
     // Driver counts
-    prisma.vehicleDrivers.count({ where: driverFilter }),
-    prisma.vehicleDrivers.count({ where: { ...driverFilter, isActive: true } })
+    prisma.vehicle_drivers.count({ where: driverFilter }),
+    prisma.vehicle_drivers.count({ where: { ...driverFilter, isActive: true } })
   ])
 
   return {
@@ -196,7 +196,7 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
   if (driverId) tripFilter.driverId = driverId
   if (businessId) tripFilter.businessId = businessId
 
-  const trips = await prisma.vehicle_trips.findMany({
+  const trips = await prisma.vehicleTrips.findMany({
     where: tripFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true, mileageUnit: true } },
@@ -214,7 +214,7 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
   const normalizedTrips = trips.map(t => ({
     ...t,
     vehicle: (t as any).vehicles,
-    driver: (t as any).vehicleDrivers,
+    driver: (t as any).vehicle_drivers,
     business: (t as any).businesses,
     fuelExpenses: (t as any).vehicle_expenses
   }))
@@ -300,7 +300,7 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
   if (vehicleId) expenseFilter.vehicleId = vehicleId
   if (businessId) expenseFilter.businessId = businessId
 
-  const expenses = await prisma.vehicle_expenses.findMany({
+  const expenses = await prisma.vehicleExpenses.findMany({
     where: expenseFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true } },
@@ -527,7 +527,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
       }
     }),
     // Driver licenses expiring in 60 days
-    prisma.vehicleDrivers.findMany({
+    prisma.vehicle_drivers.findMany({
       where: {
         ...driverFilter,
         isActive: true,
@@ -561,7 +561,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
 
   // remap legacy keys
   const remapExpiringLicenses = expiringLicenses.map(e => ({ ...e, vehicle: (e as any).vehicles }))
-  const remapInactiveAuths = inactiveAuthorizations.map(a => ({ ...a, driver: (a as any).vehicleDrivers, vehicle: (a as any).vehicles }))
+  const remapInactiveAuths = inactiveAuthorizations.map(a => ({ ...a, driver: (a as any).vehicle_drivers, vehicle: (a as any).vehicles }))
 
   // Vehicle license breakdown by type
   const licenseByType = expiringLicenses.reduce((acc, license) => {
@@ -627,7 +627,7 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
   if (driverId) tripFilter.driverId = driverId
   if (vehicleId) tripFilter.vehicleId = vehicleId
 
-  const driverActivity = await prisma.vehicleDrivers.findMany({
+  const driverActivity = await prisma.vehicle_drivers.findMany({
     where: driverId ? { id: driverId } : { isActive: true },
     include: {
       vehicle_trips: {
@@ -723,7 +723,7 @@ async function generateBusinessAttributionReport(dateFilter?: any, businessId?: 
   if (businessId) tripFilter.businessId = businessId
   if (vehicleId) tripFilter.vehicleId = vehicleId
 
-  const businessTrips = await prisma.vehicle_trips.findMany({
+  const businessTrips = await prisma.vehicleTrips.findMany({
     where: tripFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },

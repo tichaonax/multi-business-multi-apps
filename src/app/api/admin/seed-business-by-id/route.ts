@@ -76,10 +76,10 @@ export async function POST(request: NextRequest) {
 
       // Also create a membership for the requesting admin so they can switch to the new business
       try {
-        const existingMembership = await prisma.business_memberships.findFirst({ where: { userId: currentUser.id, businessId } })
+        const existingMembership = await prisma.businessMemberships.findFirst({ where: { userId: currentUser.id, businessId } })
         if (!existingMembership) {
           const membershipId = `${currentUser.id}-${businessId}`
-          await prisma.business_memberships.create({ data: { id: membershipId, userId: currentUser.id, businessId, role: 'business-owner', isActive: true, permissions: {}, joinedAt: now } as any })
+          await prisma.businessMemberships.create({ data: { id: membershipId, userId: currentUser.id, businessId, role: 'business-owner', isActive: true, permissions: {}, joinedAt: now } as any })
           createdMembership = true
         }
       } catch (err2) {

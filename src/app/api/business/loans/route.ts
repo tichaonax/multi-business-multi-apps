@@ -26,7 +26,7 @@ export async function GET() {
       businessIds = allBusinesses.map(b => b.id)
     } else {
       // Get user's business memberships to determine which loans they can see
-      const userBusinesses = await prisma.business_memberships.findMany({
+      const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       hasLenderAccess = true
     } else {
       // Check if user is a member of the lender business
-      const lenderMembership = await prisma.business_memberships.findFirst({
+      const lenderMembership = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: lenderBusinessId,

@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.business_memberships = await prisma.business_memberships.findMany({
+        backupData.business_memberships = await prisma.businessMemberships.findMany({
           include: {
             users: true,
             businesses: true,
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         // Reference data
         backupData.jobTitles = await prisma.jobTitles.findMany();
         backupData.compensationTypes = await prisma.compensationTypes.findMany();
-        backupData.benefit_types = await prisma.benefit_types.findMany();
+        backupData.benefit_types = await prisma.benefitTypes.findMany();
         backupData.idFormatTemplates = await prisma.idFormatTemplates.findMany();
         backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany();
         backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.business_memberships = await prisma.business_memberships.findMany({
+        backupData.business_memberships = await prisma.businessMemberships.findMany({
           include: {
             users: true,
             businesses: true,
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.business_memberships = await prisma.business_memberships.findMany({
+        backupData.business_memberships = await prisma.businessMemberships.findMany({
           include: {
             users: {
               select: { id: true, name: true, email: true }
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
         // Reference data only
         backupData.jobTitles = await prisma.jobTitles.findMany();
         backupData.compensationTypes = await prisma.compensationTypes.findMany();
-        backupData.benefit_types = await prisma.benefit_types.findMany();
+        backupData.benefit_types = await prisma.benefitTypes.findMany();
         backupData.idFormatTemplates = await prisma.idFormatTemplates.findMany();
         backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany();
         backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
@@ -419,7 +419,7 @@ export async function POST(request: NextRequest) {
         if (backupData.business_memberships) {
           for (const membership of backupData.business_memberships) {
             try {
-              await tx.business_memberships.upsert({
+              await tx.businessMemberships.upsert({
                 where: {
                   userId_businessId: {
                     userId: membership.userId,

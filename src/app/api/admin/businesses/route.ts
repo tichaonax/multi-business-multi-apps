@@ -23,7 +23,7 @@ export async function GET() {
     }
 
     // Regular users see only their businesses
-    const userMemberships = await prisma.business_memberships.findMany({
+    const userMemberships = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         isActive: true

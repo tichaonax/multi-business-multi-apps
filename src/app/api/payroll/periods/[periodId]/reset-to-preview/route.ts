@@ -20,7 +20,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const user = session.user as SessionUser
 
     // Load period and business
-    const period = await prisma.payroll_periods.findUnique({ where: { id: periodId }, include: { businesses: { select: { id: true, name: true } } } })
+    const period = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, include: { businesses: { select: { id: true, name: true } } } })
     if (!period) return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
 
     // Only exported periods can be reset

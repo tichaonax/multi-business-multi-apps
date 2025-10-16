@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
         name: true,
         role: true,
         permissions: true,
-        businessMemberships: {
+        business_memberships: {
           where: { isActive: true },
           select: {
             businessId: true,
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
         },
         _count: {
           select: {
-            projectTransactions: true
+            project_transactions: true
           }
         }
       },

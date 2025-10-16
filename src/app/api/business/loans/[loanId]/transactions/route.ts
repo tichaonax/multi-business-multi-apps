@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify the loan exists and user has access to it
-    const userBusinesses = await prisma.business_memberships.findMany({
+    const userBusinesses = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         isActive: true
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Create the loan transaction record (business-initiated)
-    const businessTransaction = await prisma.loan_transactions.create({
+    const businessTransaction = await prisma.loanTransactions.create({
       data: {
         loanId,
         transactionType,
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       if (!transactionResult.success) {
         // Rollback the loan transaction if balance deduction fails
-        await prisma.loan_transactions.delete({
+        await prisma.loanTransactions.delete({
           where: { id: businessTransaction.id }
         })
 
@@ -216,7 +216,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       ? `Auto: Loan payment received from Business account - ${description}`
       : `Auto: Loan advance from Business account - ${description}`
 
-    const reciprocalTransaction = await prisma.loan_transactions.create({
+    const reciprocalTransaction = await prisma.loanTransactions.create({
       data: {
         loanId,
         transactionType,

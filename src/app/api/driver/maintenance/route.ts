@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const vehicleId = searchParams.get('vehicleId')
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDrivers.findFirst({
+    const driver = await prisma.vehicle_drivers.findFirst({
       where: {
         OR: [
           { emailAddress: session.user.email || '' },
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Get driver record for current user
-    const driver = await prisma.vehicleDrivers.findFirst({
+    const driver = await prisma.vehicle_drivers.findFirst({
       where: {
         OR: [
           { emailAddress: session.user.email || '' },

@@ -11,7 +11,7 @@ async function getRestaurantBusinessIds(session: any) {
     where: { id: session.user.id },
     select: {
       role: true,
-      businessMemberships: {
+      business_memberships: {
         where: {
           businesses: { type: 'restaurant' },
           isActive: true
@@ -234,10 +234,10 @@ export async function GET(
             quantity: true,
             unitPrice: true,
             totalPrice: true,
-            productVariant: {
+            product_variants: {
               select: {
                 name: true,
-                businessProducts: {
+                business_products: {
                   select: {
                     name: true
                   }

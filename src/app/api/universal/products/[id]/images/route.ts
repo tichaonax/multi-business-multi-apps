@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const createdImages = []
 
     // determine current count for sortOrder baseline
-    const existingCount = await prisma.product_images.count({ where: { productId } }).catch(() => 0)
+    const existingCount = await prisma.productImages.count({ where: { productId } }).catch(() => 0)
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       const url = `/uploads/images/${filename}`
 
-      const img = await prisma.product_images.create({
+      const img = await prisma.productImages.create({
         data: {
           id: randomUUID(),
           productId,
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const productWithImages = await prisma.businessProducts.findUnique({
       where: { id: productId },
       include: {
-        product_images: {
+        ProductImages: {
           orderBy: [
             { isPrimary: 'desc' },
             { sortOrder: 'asc' }
@@ -119,10 +119,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     let imgRecord = null
     if (imageId) {
-      imgRecord = await prisma.product_images.findUnique({ where: { id: imageId } })
+      imgRecord = await prisma.productImages.findUnique({ where: { id: imageId } })
     } else if (filename) {
       // try to find by imageUrl containing filename
-      imgRecord = await prisma.product_images.findFirst({ where: { imageUrl: { contains: filename } } })
+      imgRecord = await prisma.productImages.findFirst({ where: { imageUrl: { contains: filename } } })
     }
 
     if (!imgRecord) return NextResponse.json({ error: 'Image not found' }, { status: 404 })
@@ -139,7 +139,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       console.warn('Failed to delete image file:', err)
     }
 
-    await prisma.product_images.delete({ where: { id: imgRecord.id } })
+    await prisma.productImages.delete({ where: { id: imgRecord.id } })
 
     return NextResponse.json({ success: true })
   } catch (error) {

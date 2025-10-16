@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         idFormatTemplate: true,
         _count: {
           select: {
-            projectContractors: true,
+            project_contractors: true,
             project_transactions: true
           }
         }
@@ -235,7 +235,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const existingPerson = await prisma.persons.findUnique({
       where: { id: personId },
       include: {
-        projectContractors: true,
+        project_contractors: true,
         project_transactions: true
       }
     })

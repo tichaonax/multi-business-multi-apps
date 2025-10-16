@@ -145,7 +145,7 @@ export async function PUT(
           });
 
           // Deactivate business memberships
-          await tx.business_memberships.updateMany({
+          await tx.businessMemberships.updateMany({
             where: { userId: linkedUser.id },
             data: { isActive: false }
           });

@@ -87,7 +87,7 @@ export async function PUT(
 
       // Add primary business if not already a member
       if (!existingMemberships.includes(employee.primaryBusinessId)) {
-        await tx.business_memberships.create({
+        await tx.businessMemberships.create({
         data: {
           id: randomBytes(12).toString('hex'),
             userId: userId,
@@ -110,7 +110,7 @@ export async function PUT(
       for (const assignment of (employee as any).employeeBusinessAssignments || []) {
         if (!existingMemberships.includes(assignment.businessId) && 
             assignment.businessId !== employee.primaryBusinessId) {
-          await tx.business_memberships.create({
+          await tx.businessMemberships.create({
         data: {
           id: randomBytes(12).toString('hex'),
               userId: userId,

@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       where.status = status
     }
 
-    const periods = await prisma.payroll_periods.findMany({
+    const periods = await prisma.payrollPeriods.findMany({
       where,
       include: {
         businesses: {
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if period already exists
-    const existingPeriod = await prisma.payroll_periods.findUnique({
+    const existingPeriod = await prisma.payrollPeriods.findUnique({
       where: {
         businessId_year_month: {
           businessId,
@@ -254,7 +254,7 @@ export async function POST(req: NextRequest) {
     if (creatingForUmbrella) {
       // Disallow creating an umbrella payroll for a month/year when any
       // business-specific payroll period already exists for that month/year.
-      const conflicting = await prisma.payroll_periods.findFirst({
+      const conflicting = await prisma.payrollPeriods.findFirst({
         where: {
           year: yr,
           month: mo,
@@ -273,7 +273,7 @@ export async function POST(req: NextRequest) {
       // Disallow creating a business-specific payroll when an umbrella
       // payroll already exists for the same month/year. We check the related
       // business record on the payrollPeriod via a relation filter.
-      const umbrellaExists = await prisma.payroll_periods.findFirst({
+      const umbrellaExists = await prisma.payrollPeriods.findFirst({
         where: {
           year: yr,
           month: mo,

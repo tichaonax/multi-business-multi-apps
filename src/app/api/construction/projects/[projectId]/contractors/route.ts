@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             nationalId: true,
             address: true,
             isActive: true,
-            idFormatTemplates: {
+            id_format_templates: {
               select: {
                 name: true,
                 countryCode: true
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             nationalId: true,
             address: true,
             isActive: true,
-            idFormatTemplates: {
+            id_format_templates: {
               select: {
                 name: true,
                 countryCode: true

@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         }),
         _count: {
           select: {
-            businessProducts: {
+            business_products: {
               where: { isActive: true }
             }
           }
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
         },
         _count: {
           select: {
-            businessProducts: {
+            business_products: {
               where: { isActive: true }
             }
           }
@@ -216,7 +216,7 @@ export async function PUT(request: NextRequest) {
         },
         _count: {
           select: {
-            businessProducts: {
+            business_products: {
               where: { isActive: true }
             }
           }
@@ -263,7 +263,7 @@ export async function DELETE(request: NextRequest) {
     const brandWithProducts = await prisma.businessBrands.findUnique({
       where: { id },
       include: {
-        businessProducts: {
+        business_products: {
           where: { isActive: true },
           select: { id: true }
         }

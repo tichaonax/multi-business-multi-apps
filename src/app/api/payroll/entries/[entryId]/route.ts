@@ -104,7 +104,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Keep the raw persisted benefits for display in the modal (so deactivated overrides are visible)
     let persistedBenefits: any[] = []
     try {
-      persistedBenefits = await prisma.payroll_entry_benefits.findMany({ where: { payrollEntryId: entryId }, include: { benefit_types: true }, orderBy: { benefitName: 'asc' } })
+      persistedBenefits = await prisma.payrollEntryBenefits.findMany({ where: { payrollEntryId: entryId }, include: { benefit_types: true }, orderBy: { benefitName: 'asc' } })
     } catch (err) {
       // ignore
     }
@@ -527,7 +527,7 @@ async function updatePeriodTotals(periodId: string) {
   }
 
   // Fallback: if no entries found, set zeros
-  await prisma.payroll_periods.update({
+  await prisma.payrollPeriods.update({
     where: { id: periodId },
     data: {
       totalEmployees: entries.length,

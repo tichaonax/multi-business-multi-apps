@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: Context) {
     }
 
     // Non-admins must be a member of the business
-    const membership = await prisma.business_memberships.findFirst({ where: { userId: session.user.id, businessId, isActive: true }, include: { businesses: { select: { id: true, name: true, isActive: true, type: true } } } })
+    const membership = await prisma.businessMemberships.findFirst({ where: { userId: session.user.id, businessId, isActive: true }, include: { businesses: { select: { id: true, name: true, isActive: true, type: true } } } })
     if (!membership || !membership.businesses || !membership.businesses.isActive) return NextResponse.json({ error: 'Not found or access denied' }, { status: 404 })
 
     return NextResponse.json({ success: true, business: membership.businesses })

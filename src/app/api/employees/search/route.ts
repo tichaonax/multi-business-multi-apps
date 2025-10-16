@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
                   amount: true,
                   isPercentage: true,
                   notes: true,
-                  benefitType: {
+                  benefit_types: {
                     select: {
                       id: true,
                       name: true

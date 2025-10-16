@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
     // Get all persons (global contractor pool) with usage statistics
     const contractors = await prisma.persons.findMany({
       include: {
-        // schema relation name is `idFormatTemplates` (plural)
-        idFormatTemplates: {
+        // schema relation name is `id_format_templates` (plural)
+        id_format_templates: {
           select: {
             name: true,
             countryCode: true
@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
         },
         _count: {
           select: {
-            projectContractors: true,
-            projectTransactions: true
+            project_contractors: true,
+            project_transactions: true
           }
         }
       },

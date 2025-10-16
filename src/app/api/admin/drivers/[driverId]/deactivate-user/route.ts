@@ -26,7 +26,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { driverId } = await params
 
     // Find driver with linked user
-    const driver = await prisma.vehicleDrivers.findUnique({
+    const driver = await prisma.vehicle_drivers.findUnique({
       where: { id: driverId },
       include: {
         users: {
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { driverId } = await params
 
     // Find driver with linked user
-    const driver = await prisma.vehicleDrivers.findUnique({
+    const driver = await prisma.vehicle_drivers.findUnique({
       where: { id: driverId },
       include: {
         users: {

@@ -46,7 +46,7 @@ function normalizeProduct(product: any) {
   delete product.business_brands
   delete product.business_categories
   delete product.product_variants
-  delete product.product_images
+  delete product.ProductImages
 
   return product
 }
@@ -125,7 +125,7 @@ export async function PUT(
       where: { id },
       include: {
           product_variants: true,
-          product_images: true
+          ProductImages: true
         }
     })
 

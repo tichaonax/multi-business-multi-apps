@@ -293,7 +293,7 @@ export async function DELETE(request: NextRequest) {
     const categoryWithProducts = await prisma.businessCategories.findUnique({
       where: { id },
       include: {
-        businessProducts: {
+        business_products: {
           where: { isActive: true },
           select: { id: true }
         },

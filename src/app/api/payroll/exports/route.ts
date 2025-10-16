@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify period exists
-    const period = await prisma.payroll_periods.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId },
       include: {
         businesses: {
@@ -344,7 +344,7 @@ export async function POST(req: NextRequest) {
     // Compute cumulative totals (sick/leave/absence) from prior payroll entries for each employee
     let priorPeriodIds: string[] = []
     if (period.periodStart) {
-      const priorPeriods = await prisma.payroll_periods.findMany({
+      const priorPeriods = await prisma.payrollPeriods.findMany({
         where: {
           businessId: period.businessId,
           periodStart: { lt: period.periodStart }

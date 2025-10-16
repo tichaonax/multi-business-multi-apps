@@ -48,7 +48,7 @@ export async function GET(
       include: {
         _count: {
           select: {
-            businessProducts: true
+            business_products: true
           }
         }
       },

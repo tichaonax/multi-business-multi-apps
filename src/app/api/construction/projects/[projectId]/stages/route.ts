@@ -64,7 +64,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         _count: {
           select: {
             stageContractorAssignments: true,
-            projectTransactions: true
+            project_transactions: true
           }
         }
       },

@@ -33,9 +33,9 @@ export async function GET(req: NextRequest) {
     const persons = await prisma.persons.findMany({
       where,
       include: {
-        idFormatTemplates: true,
-        driverLicenseTemplates: true,
-        projectContractors: {
+        id_format_templates: true,
+        driver_license_templates: true,
+        project_contractors: {
           include: {
             construction_projects: {
               select: {
@@ -48,8 +48,8 @@ export async function GET(req: NextRequest) {
         },
         _count: {
           select: {
-            projectContractors: true,
-            projectTransactions: true
+            project_contractors: true,
+            project_transactions: true
           }
         }
       },
@@ -188,8 +188,8 @@ export async function POST(req: NextRequest) {
     const newPerson = await prisma.persons.create({
       data: createData as any,
       include: {
-        idFormatTemplates: true,
-        driverLicenseTemplates: true
+        id_format_templates: true,
+        driver_license_templates: true
       }
     })
 

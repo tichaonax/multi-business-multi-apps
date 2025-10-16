@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: Context) {
     // System admins have access to all business members
     if (!isSystemAdmin(user)) {
       // Check if user has permission to view members through business membership
-      const userMembership = await prisma.business_memberships.findFirst({
+      const userMembership = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: businessId,
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: Context) {
     }
 
     // Get all members of the business
-    const members = await prisma.business_memberships.findMany({
+    const members = await prisma.businessMemberships.findMany({
       where: {
         businessId: businessId,
         isActive: true,
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, { params }: Context) {
     // System admins can invite members to any business
     if (!isSystemAdmin(user)) {
       // Check if user has permission to invite members through business membership
-      const userMembership = await prisma.business_memberships.findFirst({
+      const userMembership = await prisma.businessMemberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: businessId,
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest, { params }: Context) {
     }
 
     // Check if user is already a member
-    const existingMembership = await prisma.business_memberships.findFirst({
+    const existingMembership = await prisma.businessMemberships.findFirst({
       where: {
         userId: invitedUser.id,
         businessId: businessId,
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest, { params }: Context) {
         );
       } else {
         // Reactivate existing membership
-        const updatedMembership = await prisma.business_memberships.update({
+        const updatedMembership = await prisma.businessMemberships.update({
           where: { id: existingMembership.id },
           data: {
             isActive: true,
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest, { params }: Context) {
     // Ensure manager-only permissions are not granted by default unless role preset includes them
     const presetPermissions = BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS]
 
-        const newMembership = await prisma.business_memberships.create({
+        const newMembership = await prisma.businessMemberships.create({
       data: {
         userId: invitedUser.id,
         businessId: businessId,

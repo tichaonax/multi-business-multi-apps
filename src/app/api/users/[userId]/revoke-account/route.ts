@@ -62,7 +62,7 @@ export async function DELETE(
       });
 
       // Deactivate all business memberships
-      await tx.business_memberships.updateMany({
+      await tx.businessMemberships.updateMany({
         where: { userId: userId },
         data: { isActive: false }
       });

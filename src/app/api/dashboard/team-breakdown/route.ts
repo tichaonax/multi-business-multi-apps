@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
 
         } else if (userBusinessIds.length > 0) {
           // Count users in the same businesses
-          const businessUsers = await prisma.business_memberships.findMany({
+          const businessUsers = await prisma.businessMemberships.findMany({
             where: {
               businessId: { in: userBusinessIds },
               isActive: true

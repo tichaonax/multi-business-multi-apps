@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Find any existing benefits for these entries
     const entryIds = entries.map(e => e.id)
-    const existingBenefits = await prisma.payroll_entry_benefits.findMany({ where: { payrollEntryId: { in: entryIds } }, select: { payrollEntryId: true } })
+    const existingBenefits = await prisma.payrollEntryBenefits.findMany({ where: { payrollEntryId: { in: entryIds } }, select: { payrollEntryId: true } })
     const entriesWithBenefits = new Set(existingBenefits.map((b: any) => b.payrollEntryId))
     const entriesNoBenefits = entries.filter(e => !entriesWithBenefits.has(e.id))
     if (entriesNoBenefits.length === 0) {
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       for (const entryId of affectedEntryIds) {
         const entry = await tx.payroll_entries.findUnique({
           where: { id: entryId },
-          include: { payroll_entry_benefits: true }
+          include: { PayrollEntryBenefits: true }
         })
         if (!entry) continue
 

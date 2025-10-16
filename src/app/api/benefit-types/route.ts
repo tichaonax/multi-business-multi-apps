@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       whereClause.type = type
     }
 
-    const benefitTypes = await prisma.benefit_types.findMany({
+    const benefitTypes = await prisma.benefitTypes.findMany({
       where: whereClause,
       include: {
         _count: {
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate name
-    const existingBenefitType = await prisma.benefit_types.findUnique({
+    const existingBenefitType = await prisma.benefitTypes.findUnique({
       where: { name }
     })
 
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const newBenefitType = await prisma.benefit_types.create({
+    const newBenefitType = await prisma.benefitTypes.create({
       data: {
         name,
         description: description || null,

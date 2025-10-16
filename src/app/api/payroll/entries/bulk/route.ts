@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the payroll period to access dates
-    const period = await prisma.payroll_periods.findUnique({
+    const period = await prisma.payrollPeriods.findUnique({
       where: { id: payrollPeriodId },
       include: { businesses: true }
     })
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
       { totalEmployees: 0, totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 }
     )
 
-    await prisma.payroll_periods.update({
+    await prisma.payrollPeriods.update({
       where: { id: payrollPeriodId },
       data: totals
     })

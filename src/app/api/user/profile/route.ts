@@ -23,7 +23,7 @@ export async function GET() {
         role: true,
         isActive: true,
         createdAt: true,
-        businessMemberships: {
+        business_memberships: {
           select: {
             businessId: true,
             role: true,

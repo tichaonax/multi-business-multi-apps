@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     // Align include keys with Prisma schema relation names and remap later
     const [drivers, totalCount] = await Promise.all([
-      prisma.vehicleDrivers.findMany({
+      prisma.vehicle_drivers.findMany({
         where,
         include: Object.assign(
           {
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleDrivers.count({ where })
+      prisma.vehicle_drivers.count({ where })
     ])
 
     // Remap drivers relations to original API shape (authorizations -> authorizations, trips -> trips)
@@ -157,8 +157,20 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateDriverSchema.parse(body)
 
     // Check if license number already exists
-    const existingDriver = await prisma.vehicleDrivers.findUnique({
-      where: { licenseNumber: validatedData.licenseNumber }
+    const existingDriver = await prisma.vehicle_drivers.findUnique({
+      where: { id: driverId },
+      include: { 
+        user: { select: { id: true, name: true, email: true } },
+        vehicle_trips: {
+          select: { id: true, startTime: true, endTime: true },
+          take: 5,
+          orderBy: { startTime: 'desc' }
+        },
+        authorizations: {
+          select: { id: true, vehicleType: true, expiryDate: true },
+          where: { isActive: true }
+        }
+      }
     })
 
     if (existingDriver) {
@@ -199,7 +211,7 @@ export async function POST(request: NextRequest) {
 
       if (validatedData.userId) createPayload.userId = validatedData.userId
 
-      const driver = await prisma.vehicleDrivers.create({
+      const driver = await prisma.vehicle_drivers.create({
         data: createPayload,
         include: {
           users: {
@@ -243,7 +255,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify driver exists
-    const existingDriver = await prisma.vehicleDrivers.findUnique({
+    const existingDriver = await prisma.vehicle_drivers.findUnique({
       where: { id }
     })
 
@@ -256,7 +268,7 @@ export async function PUT(request: NextRequest) {
 
     // Check for duplicate license number if it's being updated
     if (updateData.licenseNumber) {
-      const duplicateCheck = await prisma.vehicleDrivers.findFirst({
+      const duplicateCheck = await prisma.vehicle_drivers.findFirst({
         where: {
           AND: [
             { id: { not: id } },
@@ -297,7 +309,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update driver
-    const driver = await prisma.vehicleDrivers.update({
+    const driver = await prisma.vehicle_drivers.update({
       where: { id },
       data: normalizedUpdate,
       include: {
@@ -348,7 +360,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify driver exists
-    const existingDriver = await prisma.vehicleDrivers.findUnique({
+    const existingDriver = await prisma.vehicle_drivers.findUnique({
       where: { id: driverId },
       include: {
         vehicle_trips: { take: 1 },
@@ -369,7 +381,7 @@ export async function DELETE(request: NextRequest) {
 
     if (hasRelatedRecords) {
       // Soft delete - just mark as inactive
-      await prisma.vehicleDrivers.update({
+      await prisma.vehicle_drivers.update({
         where: { id: driverId },
         data: { isActive: false }
       })
@@ -380,7 +392,7 @@ export async function DELETE(request: NextRequest) {
       })
     } else {
       // Hard delete - no related records
-      await prisma.vehicleDrivers.delete({
+      await prisma.vehicle_drivers.delete({
         where: { id: driverId }
       })
 

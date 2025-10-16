@@ -108,15 +108,15 @@ export async function GET(request: NextRequest) {
               }
             }
           },
-          employee: {
+          employees: {
             select: { id: true, fullName: true, employeeNumber: true }
           },
           ...(includeItems && {
-            items: {
+            business_order_items: {
               include: {
                 product_variants: {
                   include: {
-                    product: {
+                    business_products: {
                       select: { name: true, productType: true }
                     }
                   }
@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
         }
       },
       include: {
-        businessProducts: {
+        business_products: {
           select: { name: true, productType: true, businessType: true }
         }
       }

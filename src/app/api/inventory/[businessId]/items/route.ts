@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { randomBytes } from 'crypto'
+import { randomUUID } from 'crypto'
 
 interface UniversalInventoryItem {
   id: string
@@ -209,7 +210,7 @@ export async function POST(
     const business = await prisma.businesses.findFirst({
       where: {
         id: businessId,
-        businessMemberships: {
+        business_memberships: {
           some: {
             userId: session.user.id,
             isActive: true
@@ -316,7 +317,7 @@ export async function POST(
         value: String(value)
       }))
 
-      await prisma.product_attributes.createMany({
+      await prisma.productAttributes.createMany({
         data: attributeData
       })
     }

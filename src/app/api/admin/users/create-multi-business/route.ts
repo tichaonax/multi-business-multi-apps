@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user has permission to create users
-    const userMemberships = await prisma.business_memberships.findMany({
+    const userMemberships = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         isActive: true,
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
           finalPermissions = BUSINESS_PERMISSION_PRESETS[assignment.role] || BUSINESS_PERMISSION_PRESETS.employee
         }
 
-        const membership = await tx.business_memberships.create({
+        const membership = await tx.businessMemberships.create({
         data: {
           id: randomBytes(12).toString('hex'),
             userId: user.id,

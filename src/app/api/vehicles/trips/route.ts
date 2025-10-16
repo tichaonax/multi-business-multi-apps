@@ -99,8 +99,8 @@ export async function GET(request: NextRequest) {
           ownershipType: true
         }
       },
-      // relation field for driver is `vehicleDrivers`
-      vehicleDrivers: {
+      // relation field for driver is `vehicle_drivers`
+      vehicle_drivers: {
         select: {
           id: true,
           fullName: true,
@@ -124,15 +124,15 @@ export async function GET(request: NextRequest) {
     }
 
     const [trips, totalCount] = await Promise.all([
-      prisma.vehicle_trips.findMany({ where, include, orderBy: { startTime: 'desc' }, skip, take: limit }),
-      prisma.vehicle_trips.count({ where })
+      prisma.vehicleTrips.findMany({ where, include, orderBy: { startTime: 'desc' }, skip, take: limit }),
+      prisma.vehicleTrips.count({ where })
     ])
 
     // Calculate trip mileage for completed trips
     // Remap relation fields to the expected API shape (vehicle, driver, business, expenses)
     const tripsWithCalculatedData = trips.map((trip: any) => {
       const vehicle = trip.vehicles ?? null
-      const driver = trip.vehicleDrivers ?? null
+      const driver = trip.vehicle_drivers ?? null
       const business = trip.businesses ?? null
       const expenses = trip.vehicle_expenses ?? []
       const base = { ...trip, vehicle, driver, business, expenses }
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify driver exists
-    const driver = await prisma.vehicleDrivers.findUnique({
+    const driver = await prisma.vehicle_drivers.findUnique({
       where: { id: validatedData.driverId }
     })
 
@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
       delete createData.businessId
     }
 
-    const trip = await prisma.vehicle_trips.create({
+    const trip = await prisma.vehicleTrips.create({
       data: createData as any,
       include: {
         vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
@@ -284,7 +284,7 @@ export async function POST(request: NextRequest) {
     }
 
     // normalize created trip to legacy API shape
-    const normalized = { ...trip, vehicle: (trip as any).vehicles || null, driver: (trip as any).vehicleDrivers || null, business: (trip as any).businesses || null }
+    const normalized = { ...trip, vehicle: (trip as any).vehicles || null, driver: (trip as any).vehicle_drivers || null, business: (trip as any).businesses || null }
 
     return NextResponse.json({ success: true, data: normalized, message: 'Vehicle trip created successfully' }, { status: 201 })
 
@@ -317,7 +317,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify trip exists
-    const existingTrip = await prisma.vehicle_trips.findUnique({
+    const existingTrip = await prisma.vehicleTrips.findUnique({
       where: { id }
     })
 
@@ -345,7 +345,7 @@ export async function PUT(request: NextRequest) {
       : !!(endMileage && endTime)
 
     // Update trip
-    const trip = await prisma.vehicle_trips.update({
+    const trip = await prisma.vehicleTrips.update({
       where: { id },
       data: { ...updateData, endTime: updateData.endTime ? new Date(updateData.endTime) : undefined, tripMileage, isCompleted } as any,
       include: {
@@ -363,7 +363,7 @@ export async function PUT(request: NextRequest) {
       })
     }
 
-    const normalizedTrip = { ...trip, vehicle: (trip as any).vehicles || null, driver: (trip as any).vehicleDrivers || null, business: (trip as any).businesses || null }
+    const normalizedTrip = { ...trip, vehicle: (trip as any).vehicles || null, driver: (trip as any).vehicle_drivers || null, business: (trip as any).businesses || null }
 
     return NextResponse.json({ success: true, data: normalizedTrip, message: 'Vehicle trip updated successfully' })
 
@@ -402,7 +402,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify trip exists
-    const existingTrip = await prisma.vehicle_trips.findUnique({ where: { id: tripId }, include: { vehicle_expenses: { take: 1 } } })
+    const existingTrip = await prisma.vehicleTrips.findUnique({ where: { id: tripId }, include: { vehicle_expenses: { take: 1 } } })
 
     if (!existingTrip) {
       return NextResponse.json(
@@ -422,7 +422,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete trip
-    await prisma.vehicle_trips.delete({
+    await prisma.vehicleTrips.delete({
       where: { id: tripId }
     })
 

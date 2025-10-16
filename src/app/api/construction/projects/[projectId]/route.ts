@@ -61,7 +61,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           include: {
             stageContractorAssignments: {
               include: {
-                    projectContractors: {
+                    project_contractors: {
                       include: {
                         persons: {
                           select: {
