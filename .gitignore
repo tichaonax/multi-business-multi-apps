@@ -82,6 +82,9 @@ data/sync/config.json
 # Auto-generated build info (regenerated on each build)
 config/build-info.json
 
+# Schema backup files
+.schema.backup
+
 # Environment migration backup files
 .env.backup-*
 .env.local.backup-*
