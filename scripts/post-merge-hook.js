@@ -356,12 +356,59 @@ function generateUpdateInstructions() {
 }
 
 /**
+ * Stop Windows service to prevent file locks during updates
+ */
+async function stopWindowsService() {
+  try {
+    log('🛑 Stopping Windows service to prevent file conflicts...', 'WARN')
+    
+    const { spawn } = require('child_process')
+    
+    return new Promise((resolve, reject) => {
+      const stopProcess = spawn('node', ['scripts/sync-service-stop.js'], {
+        cwd: ROOT_DIR,
+        stdio: 'inherit'
+      })
+      
+      const timeout = setTimeout(() => {
+        stopProcess.kill('SIGTERM')
+        reject(new Error('Service stop timed out'))
+      }, 30000) // 30 second timeout
+      
+      stopProcess.on('exit', (code) => {
+        clearTimeout(timeout)
+        if (code === 0) {
+          log('✅ Service stopped successfully', 'SUCCESS')
+          resolve()
+        } else {
+          // Don't fail the hook if service stop fails - just warn
+          log(`⚠️  Service stop exited with code ${code} - continuing anyway`, 'WARN')
+          resolve()
+        }
+      })
+      
+      stopProcess.on('error', (error) => {
+        clearTimeout(timeout)
+        log(`⚠️  Service stop failed: ${error.message} - continuing anyway`, 'WARN')
+        resolve() // Don't fail the hook
+      })
+    })
+    
+  } catch (error) {
+    log(`⚠️  Could not stop service: ${error.message} - continuing anyway`, 'WARN')
+  }
+}
+
+/**
  * Main hook execution
  */
 async function main() {
   try {
     log('')
     log('🔗 Post-merge hook executing...', 'INFO')
+    
+    // Always stop service first to prevent file locks
+    await stopWindowsService()
     
     // First check for environment migration needs
     const migrationCheck = checkEnvironmentMigration()
