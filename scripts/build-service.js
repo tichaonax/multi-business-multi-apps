@@ -107,34 +107,64 @@ async function buildService() {
 }
 
 /**
+ * Stop the service and wait for it to fully stop
+ */
+async function stopServiceAndWait() {
+  console.log('🛑 Stopping Windows service for safe rebuild...');
+
+  try {
+    // Try to stop the service
+    await execAsync('node scripts/sync-service-stop.js');
+    console.log('✅ Service stop command sent');
+
+    // Wait for service to fully stop (check status with retries)
+    const maxRetries = 10;
+    const retryDelay = 2000; // 2 seconds
+
+    for (let i = 0; i < maxRetries; i++) {
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+
+      const isRunning = await isServiceRunning();
+      if (!isRunning) {
+        console.log('✅ Service has stopped completely');
+        return true;
+      }
+
+      console.log(`   Waiting for service to stop... (${i + 1}/${maxRetries})`);
+    }
+
+    console.log('⚠️  Service did not stop within expected time, proceeding anyway...');
+    return false;
+
+  } catch (error) {
+    console.warn(`⚠️  Could not stop service: ${error.message}`);
+    console.log('   Proceeding with build anyway...');
+    return false;
+  }
+}
+
+/**
  * Main build process
  */
 async function main() {
   try {
     console.log('🔍 Smart Service Build Process');
     console.log('================================\n');
-    
+
     // Step 1: Check if service is running
     console.log('1️⃣  Checking service status...');
     const serviceRunning = await isServiceRunning();
-    
+
     if (serviceRunning) {
-      console.log('❌ Sync service is currently RUNNING');
+      console.log('⚠️  Sync service is currently RUNNING');
       console.log('');
-      console.log('⚠️  Cannot safely rebuild while service is running!');
-      console.log('   The running service may be using the compiled files.');
+      console.log('🔄 Automatically stopping service for safe rebuild...');
+      await stopServiceAndWait();
       console.log('');
-      console.log('🛑 Please stop the service first:');
-      console.log('   npm run sync-service:stop');
+    } else {
+      console.log('✅ Service is stopped - safe to rebuild');
       console.log('');
-      console.log('   Then run the build:');
-      console.log('   npm run build:service');
-      console.log('');
-      process.exit(1);
     }
-    
-    console.log('✅ Service is stopped - safe to rebuild');
-    console.log('');
     
     // Step 2: Clean dist folder
     console.log('2️⃣  Cleaning old build files...');
