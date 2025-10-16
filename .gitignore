@@ -79,6 +79,9 @@ logs
 config/service-config.json
 data/sync/config.json
 
+# Auto-generated build info (regenerated on each build)
+config/build-info.json
+
 # Environment migration backup files
 .env.backup-*
 .env.local.backup-*
