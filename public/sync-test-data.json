@@ -1,0 +1,9 @@
+[
+  {
+    "testId": "sync-test-1760565603948",
+    "message": "This is a sync test from the local server",
+    "timestamp": "2025-10-15T22:00:03.947Z",
+    "server": "local",
+    "randomValue": 3154
+  }
+]

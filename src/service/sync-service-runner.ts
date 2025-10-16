@@ -167,19 +167,21 @@ class SyncServiceRunner {
     try {
       console.log('🔍 Verifying database schema...')
 
+      // DISABLED: Schema regeneration was overwriting API fixes
+      // The schema should be managed manually to ensure API compatibility
       // Run prisma db pull to sync schema with database
-      console.log('📡 Syncing schema with database...')
-      await execAsync('npx prisma db pull --force', {
-        cwd: process.cwd(),
-        env: { ...process.env }
-      })
+      // console.log('📡 Syncing schema with database...')
+      // await execAsync('npx prisma db pull --force', {
+      //   cwd: process.cwd(),
+      //   env: { ...process.env }
+      // })
 
       // Convert schema to PascalCase using existing script
-      console.log('🔄 Converting schema to PascalCase...')
-      await execAsync('node scripts/convert-schema-to-pascal.js', {
-        cwd: process.cwd(),
-        env: { ...process.env }
-      })
+      // console.log('🔄 Converting schema to PascalCase...')
+      // await execAsync('node scripts/convert-schema-to-pascal.js', {
+      //   cwd: process.cwd(),
+      //   env: { ...process.env }
+      // })
 
       // Test that we can connect to the database and access key tables
       const { PrismaClient } = await import('@prisma/client')
