@@ -53,7 +53,7 @@ export async function GET(
     // System admins can access any business order
     if (!isSystemAdmin(user)) {
       // Verify user has access to the business that owns this order
-      const userHasAccess = await prisma.businessMemberships.findFirst({
+      const userHasAccess = await prisma.business_memberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: order.businessId,

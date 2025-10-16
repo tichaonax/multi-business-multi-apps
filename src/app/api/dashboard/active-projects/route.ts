@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       name: user.name,
       role: user.role,
       permissions: user.permissions as Record<string, any>,
-      businessMemberships: user.businessMemberships.map(m => ({
+      businessMemberships: user.business_memberships.map(m => ({
         businessId: m.businessId,
         businessName: m.businesses.name,
         role: m.role,
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
       }))
     }
 
-    const userBusinessIds = sessionUser.businessMemberships?.map(m => m.businessId) || []
+    const userBusinessIds = sessionUser.business_memberships?.map(m => m.businessId) || []
 
     // Check if user can view projects
     if (!hasUserPermission(sessionUser, 'canViewProjects') &&
@@ -178,7 +178,7 @@ export async function GET(req: NextRequest) {
         totalReceived,
         remainingBudget: totalBudget - totalSpent,
         progressPercentage: Math.min(progressPercentage, 100),
-        transactionCount: project._count.projectTransactions,
+        transactionCount: project._count.project_transactions,
         activeTransactionCount: activeTransactions.length,
         completedTransactionCount: completedTransactions.length,
         createdAt: project.createdAt,

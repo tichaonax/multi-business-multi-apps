@@ -24,14 +24,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Find entries in the period (minimal fields)
-    const entries = await prisma.payrollEntries.findMany({
+    const entries = await prisma.payroll_entries.findMany({
       where: { payrollPeriodId: periodId },
       select: { id: true, employeeId: true }
     })
 
     // Find any existing benefits for these entries
     const entryIds = entries.map(e => e.id)
-    const existingBenefits = await prisma.payrollEntryBenefits.findMany({ where: { payrollEntryId: { in: entryIds } }, select: { payrollEntryId: true } })
+    const existingBenefits = await prisma.payroll_entry_benefits.findMany({ where: { payrollEntryId: { in: entryIds } }, select: { payrollEntryId: true } })
     const entriesWithBenefits = new Set(existingBenefits.map((b: any) => b.payrollEntryId))
     const entriesNoBenefits = entries.filter(e => !entriesWithBenefits.has(e.id))
     if (entriesNoBenefits.length === 0) {
@@ -89,13 +89,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       // Recalculate each affected entry and update payroll period totals
       const affectedEntryIds = Array.from(new Set(benefitRecords.map(b => b.payrollEntryId)))
       for (const entryId of affectedEntryIds) {
-        const entry = await tx.payrollEntry.findUnique({
+        const entry = await tx.payroll_entries.findUnique({
           where: { id: entryId },
           include: { payroll_entry_benefits: true }
         })
         if (!entry) continue
 
-        const benefitsTotal = entry.payrollEntryBenefits.filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)
+        const benefitsTotal = entry.payroll_entry_benefits.filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)
         const baseSalary = Number(entry.baseSalary || 0)
         const commission = Number(entry.commission || 0)
         const overtimePay = Number(entry.overtimePay || 0)
@@ -105,14 +105,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         const totalDeductions = Number(entry.totalDeductions || 0)
         const netPay = grossPay - totalDeductions
 
-        await tx.payrollEntry.update({
+        await tx.payroll_entries.update({
           where: { id: entryId },
           data: { benefitsTotal, grossPay, netPay, updatedAt: new Date() }
         })
       }
 
       // Update period totals
-      const allEntries = await tx.payrollEntry.findMany({ where: { payrollPeriodId: periodId } })
+      const allEntries = await tx.payroll_entries.findMany({ where: { payrollPeriodId: periodId } })
       const totals = allEntries.reduce((acc: any, e: any) => ({
         totalEmployees: acc.totalEmployees + 1,
         totalGrossPay: acc.totalGrossPay + Number(e.grossPay),
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         totalNetPay: acc.totalNetPay + Number(e.netPay)
       }), { totalEmployees: 0, totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 })
 
-      await tx.payrollPeriod.update({ where: { id: periodId }, data: totals })
+      await tx.payroll_periods.update({ where: { id: periodId }, data: totals })
     })
 
     return NextResponse.json({ success: true, message: 'Contract benefits persisted', count: benefitRecords.length })

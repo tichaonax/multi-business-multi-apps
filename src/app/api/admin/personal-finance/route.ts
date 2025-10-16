@@ -126,10 +126,10 @@ export async function GET(req: NextRequest) {
           }
           paymentType = 'contractor'
         }
-      } else if (expense.projectTransactions && expense.project_transactions.length > 0) {
+      } else if (expense.project_transactions && expense.project_transactions.length > 0) {
         // Has project transactions, so it's a project payment
         paymentType = 'project'
-      } else if (expense.loanTransactions && expense.loanTransactions.length > 0) {
+      } else if (expense.loan_transactions && expense.loan_transactions.length > 0) {
         // Has loan transactions, so it's a loan payment
         paymentType = 'loan'
       }

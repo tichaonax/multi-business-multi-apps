@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const period = await prisma.payrollPeriods.findUnique({
+    const period = await prisma.payroll_periods.findUnique({
       where: { id: periodId },
       include: {
         businesses: {
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // We used to restrict to active benefits here which caused `payrollEntryBenefits`
         // to be empty while `mergedBenefits` (computed later) included inactive/manual overrides.
         // Returning all persisted benefits keeps the API consistent for the client.
-        benefits = await prisma.payrollEntryBenefits.findMany({
+        benefits = await prisma.payroll_entry_benefits.findMany({
           where: { payrollEntryId: { in: entryIds } },
           include: { benefit_types: { select: { id: true, name: true, type: true, defaultAmount: true } } }
         })
@@ -202,7 +202,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // Compute cumulative totals (sick/leave/absence) from prior payroll entries for each employee
         let priorPeriodIds: string[] = []
         if (period.periodStart) {
-          const priorPeriods = await prisma.payrollPeriods.findMany({
+          const priorPeriods = await prisma.payroll_periods.findMany({
             where: {
               businessId: period.businessId,
               periodStart: { lt: period.periodStart }
@@ -214,7 +214,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
         let cumulativeByEmployee: Record<string, any> = {}
         if (priorPeriodIds.length > 0) {
-          const grouped = await prisma.payrollEntries.groupBy({
+          const grouped = await prisma.payroll_entries.groupBy({
             by: ['employeeId'],
             where: { payrollPeriodId: { in: priorPeriodIds } },
             _sum: { sickDays: true, leaveDays: true, absenceDays: true }
@@ -629,7 +629,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { status, notes } = data
 
     // Verify period exists
-    const existingPeriod = await prisma.payrollPeriods.findUnique({
+    const existingPeriod = await prisma.payroll_periods.findUnique({
       where: { id: periodId }
     })
 
@@ -676,7 +676,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       updateData.notes = notes
     }
 
-    const period = await prisma.payrollPeriods.update({
+    const period = await prisma.payroll_periods.update({
       where: { id: periodId },
       data: updateData,
       include: {
@@ -713,7 +713,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { periodId } = await params
 
     // Verify period exists (need businessId and approvedAt)
-    const existingPeriod = await prisma.payrollPeriods.findUnique({
+    const existingPeriod = await prisma.payroll_periods.findUnique({
       where: { id: periodId },
       include: {
         businesses: { select: { id: true } },
@@ -786,7 +786,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       })
 
       // Delete payroll adjustments (FK constraint)
-      const entryIds = await tx.payrollEntries.findMany({
+      const entryIds = await tx.payroll_entries.findMany({
         where: { payrollPeriodId: periodId },
         select: { id: true }
       })
@@ -798,12 +798,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       }
 
       // Delete all payroll entries (benefits will cascade delete due to FK constraint)
-      await tx.payrollEntries.deleteMany({
+      await tx.payroll_entries.deleteMany({
         where: { payrollPeriodId: periodId }
       })
 
       // Finally delete the period
-      await tx.payrollPeriods.delete({
+      await tx.payroll_periods.delete({
         where: { id: periodId }
       })
     })

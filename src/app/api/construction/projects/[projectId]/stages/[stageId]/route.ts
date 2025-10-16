@@ -252,7 +252,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       },
       include: {
         contractorAssignments: true,
-        projectTransactions: true
+        project_transactions: true
       }
     })
 

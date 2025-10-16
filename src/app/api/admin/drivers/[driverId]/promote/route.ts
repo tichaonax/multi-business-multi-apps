@@ -134,7 +134,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
 
         if (business) {
-          await tx.businessMemberships.create({
+          await tx.business_memberships.create({
         data: {
           id: randomBytes(12).toString('hex'),
               id: randomUUID(),

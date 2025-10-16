@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       where.status = status
     }
 
-    const periods = await prisma.payrollPeriods.findMany({
+    const periods = await prisma.payroll_periods.findMany({
       where,
       include: {
         businesses: {
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       // For each period, fetch its entry ids and compute totals via computeTotalsForEntry
       await Promise.all(periodsWithShort.map(async (p: any) => {
         try {
-          const entries = await prisma.payrollEntries.findMany({ where: { payrollPeriodId: p.id }, select: { id: true } })
+          const entries = await prisma.payroll_entries.findMany({ where: { payrollPeriodId: p.id }, select: { id: true } })
           if (!entries || entries.length === 0) {
             p.totalGrossPay = String(0)
             p.totalDeductions = String(0)
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if period already exists
-    const existingPeriod = await prisma.payrollPeriods.findUnique({
+    const existingPeriod = await prisma.payroll_periods.findUnique({
       where: {
         businessId_year_month: {
           businessId,
@@ -254,7 +254,7 @@ export async function POST(req: NextRequest) {
     if (creatingForUmbrella) {
       // Disallow creating an umbrella payroll for a month/year when any
       // business-specific payroll period already exists for that month/year.
-      const conflicting = await prisma.payrollPeriods.findFirst({
+      const conflicting = await prisma.payroll_periods.findFirst({
         where: {
           year: yr,
           month: mo,
@@ -273,7 +273,7 @@ export async function POST(req: NextRequest) {
       // Disallow creating a business-specific payroll when an umbrella
       // payroll already exists for the same month/year. We check the related
       // business record on the payrollPeriod via a relation filter.
-      const umbrellaExists = await prisma.payrollPeriods.findFirst({
+      const umbrellaExists = await prisma.payroll_periods.findFirst({
         where: {
           year: yr,
           month: mo,
@@ -348,7 +348,7 @@ export async function POST(req: NextRequest) {
     console.log('Creating payroll period with data:', JSON.stringify(createData, null, 2))
 
     const period = await prisma.$transaction(async (tx) => {
-      const p = await tx.payrollPeriods.create({ data: createData })
+      const p = await tx.payroll_periods.create({ data: createData })
 
       if (targetAllEmployees) {
         // Create entries for all employees in the selected business
@@ -443,11 +443,11 @@ export async function POST(req: NextRequest) {
         }
 
         if (allEntries.length > 0) {
-          await tx.payrollEntries.createMany({ data: allEntries })
+          await tx.payroll_entries.createMany({ data: allEntries })
           console.log(`Created ${allEntries.length} payroll entries for ${employeesWithContracts} employees`)
 
           // Update totals on period
-          await tx.payrollPeriods.update({
+          await tx.payroll_periods.update({
             where: { id: p.id },
             data: { totalEmployees: employeesWithContracts, updatedAt: new Date() }
           })
@@ -455,7 +455,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const result = await tx.payrollPeriods.findUnique({ where: { id: p.id }, include: { businesses: { select: { id: true, name: true, type: true } }, users_payroll_periods_createdByTousers: { select: { id: true, name: true, email: true } } } })
+      const result = await tx.payroll_periods.findUnique({ where: { id: p.id }, include: { businesses: { select: { id: true, name: true, type: true } }, users_payroll_periods_createdByTousers: { select: { id: true, name: true, email: true } } } })
       // Attach fallback shortName if missing and transform response
       const transformedResult = {
         ...result,

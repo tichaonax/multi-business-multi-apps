@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the payroll period to access dates
-    const period = await prisma.payrollPeriods.findUnique({
+    const period = await prisma.payroll_periods.findUnique({
       where: { id: payrollPeriodId },
       include: { businesses: true }
     })
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // Get existing entries to check which employees already have entries
     // Note: With multi-contract support, an employee can have multiple entries per contract
     // For bulk add, we'll skip employees who already have any entries to avoid complexity
-    const existingEntries = await prisma.payrollEntries.findMany({
+    const existingEntries = await prisma.payroll_entries.findMany({
       where: { payrollPeriodId },
       select: { employeeId: true }
     })
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
 
     // Bulk insert entries and benefits in transaction
     await prisma.$transaction(async (tx) => {
-      await tx.payrollEntry.createMany({
+      await tx.payroll_entries.createMany({
         data: entries
       })
 
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Update period totals
-    const allEntries = await prisma.payrollEntries.findMany({
+    const allEntries = await prisma.payroll_entries.findMany({
       where: { payrollPeriodId }
     })
 
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
       { totalEmployees: 0, totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 }
     )
 
-    await prisma.payrollPeriods.update({
+    await prisma.payroll_periods.update({
       where: { id: payrollPeriodId },
       data: totals
     })

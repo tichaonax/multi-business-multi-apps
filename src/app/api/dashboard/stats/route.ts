@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as SessionUser
-    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
 
     let stats = {
       activeProjects: 0,
@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
             }
           }
 
-          const projectRevenue = await prisma.projectTransactions.aggregate({
+          const projectRevenue = await prisma.project_transactions.aggregate({
             where: projectWhereClause,
             _sum: {
               amount: true
@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
           stats.teamMembers = allUsersCount
         } else if (userBusinessIds.length > 0) {
           // Count users in the same businesses
-          const businessUsers = await prisma.businessMemberships.findMany({
+          const businessUsers = await prisma.business_memberships.findMany({
             where: {
               businessId: { in: userBusinessIds },
               isActive: true

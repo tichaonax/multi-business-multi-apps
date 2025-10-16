@@ -71,7 +71,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             include: {
               product: {
                 include: {
-                  businessCategory: true,
+                  business_categories: true,
                   images: true,
                   variants: true
                 }

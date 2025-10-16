@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     if (type === 'recipients') {
       // Return available businesses to create loans to (exclude user's own businesses)
-      const userBusinesses = await prisma.businessMemberships.findMany({
+      const userBusinesses = await prisma.business_memberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
       })
 
       // Get business loans where user has access through business membership
-      const userBusinesses = await prisma.businessMemberships.findMany({
+      const userBusinesses = await prisma.business_memberships.findMany({
         where: {
           userId: session.user.id,
           isActive: true

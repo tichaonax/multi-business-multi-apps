@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     // Calculate analytics for each contractor
     const contractorAnalytics = contractors.map((contractor: any) => {
       // Calculate total payments received
-      const totalPayments = (contractor.projectTransactions || []).reduce((sum: number, transaction: any) => {
+      const totalPayments = (contractor.project_transactions || []).reduce((sum: number, transaction: any) => {
         const amt = transaction.personalExpenses?.amount || transaction.personalExpenses?.amount?.toNumber?.() || 0
         return sum + Number(amt)
       }, 0)
@@ -85,14 +85,14 @@ export async function GET(req: NextRequest) {
 
       // Get unique users who have paid this contractor
       const uniquePayingUsers = [...new Set(
-        (contractor.projectTransactions || []).map((t: any) => t.personalExpenses?.userId).filter(Boolean)
+        (contractor.project_transactions || []).map((t: any) => t.personalExpenses?.userId).filter(Boolean)
       )]
 
       // Calculate business type diversity (based on projects)
       const businessTypes = [...new Set((contractor.projectContractors || []).map(() => 'construction'))]
 
       // Recent activity
-      const recentTransaction = (contractor.projectTransactions || [])
+      const recentTransaction = (contractor.project_transactions || [])
         .slice()
         .sort((a: any, b: any) => new Date(b.personalExpenses?.date || 0).getTime() - new Date(a.personalExpenses?.date || 0).getTime())[0]
 
@@ -110,8 +110,8 @@ export async function GET(req: NextRequest) {
   // Analytics
   totalProjects: (contractor._count?.projectContractors) || 0,
   totalPayments: totalPayments,
-  totalTransactions: (contractor._count?.projectTransactions) || 0,
-  averagePayment: ((contractor._count?.projectTransactions) || 0) > 0 ? totalPayments / ((contractor._count?.projectTransactions) || 1) : 0,
+  totalTransactions: (contractor._count?.project_transactions) || 0,
+  averagePayment: ((contractor._count?.project_transactions) || 0) > 0 ? totalPayments / ((contractor._count?.project_transactions) || 1) : 0,
   uniquePayingUsers: uniquePayingUsers.length,
   businessTypesWorked: businessTypes.length,
 
@@ -130,9 +130,9 @@ export async function GET(req: NextRequest) {
       totalContractors: contractors.length,
       activeContractors: contractors.filter(c => c.isActive).length,
       contractorsWithProjects: contractors.filter(c => c._count.projectContractors > 0).length,
-      contractorsWithPayments: contractors.filter(c => c._count.projectTransactions > 0).length,
+      contractorsWithPayments: contractors.filter(c => c._count.project_transactions > 0).length,
       totalProjectAssignments: contractors.reduce((sum, c) => sum + c._count.projectContractors, 0),
-      totalPaymentTransactions: contractors.reduce((sum, c) => sum + c._count.projectTransactions, 0),
+      totalPaymentTransactions: contractors.reduce((sum, c) => sum + c._count.project_transactions, 0),
       totalPaymentsValue: contractorAnalytics.reduce((sum, c) => sum + c.totalPayments, 0)
     }
 

@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const entry = await prisma.payrollEntries.findUnique({
+    const entry = await prisma.payroll_entries.findUnique({
       where: { id: entryId },
       include: {
         employee: {
@@ -76,8 +76,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const helper = await import('@/lib/payroll/helpers')
 
     // Determine payroll year/month safely (payrollPeriod may be null in some queries)
-    const payrollYear = entry.payrollPeriod?.year ?? (entry as any).year
-    const payrollMonth = entry.payrollPeriod?.month ?? (entry as any).month
+    const payrollYear = entry.payroll_periods?.year ?? (entry as any).year
+    const payrollMonth = entry.payroll_periods?.month ?? (entry as any).month
     const monthRequiredWorkDaysSafe = payrollYear && payrollMonth ? helper.getWorkingDaysInMonth(payrollYear, payrollMonth) : 0
 
     // Check for time tracking data (only query when we have payrollYear/month)
@@ -104,7 +104,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Keep the raw persisted benefits for display in the modal (so deactivated overrides are visible)
     let persistedBenefits: any[] = []
     try {
-      persistedBenefits = await prisma.payrollEntryBenefits.findMany({ where: { payrollEntryId: entryId }, include: { benefitType: true }, orderBy: { benefitName: 'asc' } })
+      persistedBenefits = await prisma.payroll_entry_benefits.findMany({ where: { payrollEntryId: entryId }, include: { benefit_types: true }, orderBy: { benefitName: 'asc' } })
     } catch (err) {
       // ignore
     }
@@ -299,10 +299,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     } = data
 
     // Verify entry exists
-    const existingEntry = await prisma.payrollEntries.findUnique({
+    const existingEntry = await prisma.payroll_entries.findUnique({
       where: { id: entryId },
       include: {
-        payrollPeriod: true
+        payroll_periods: true
       }
     })
 
@@ -314,7 +314,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if period is editable
-    if (existingEntry.payrollPeriod && (existingEntry.payrollPeriod.status === 'closed' || existingEntry.payrollPeriod.status === 'exported')) {
+    if (existingEntry.payroll_periods && (existingEntry.payroll_periods.status === 'closed' || existingEntry.payroll_periods.status === 'exported')) {
       return NextResponse.json(
         { error: 'Cannot edit entries in closed or exported payroll period' },
         { status: 400 }
@@ -337,7 +337,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       updatedAt: new Date()
     }
 
-    const updatedEntry = await prisma.payrollEntries.update({ where: { id: entryId }, data: updateData })
+    const updatedEntry = await prisma.payroll_entries.update({ where: { id: entryId }, data: updateData })
 
     // Persist absenceFraction via a parameterized raw query when provided. This avoids relying
     // on a generated Prisma client that may not yet include the new field.
@@ -371,7 +371,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const recomputed = await import('@/lib/payroll/helpers').then(m => m.computeTotalsForEntry(entryId))
 
     // Persist computed aggregates back to the payroll entry
-    const entry = await prisma.payrollEntries.update({
+    const entry = await prisma.payroll_entries.update({
       where: { id: entryId },
       data: {
         grossPay: recomputed.grossPay,
@@ -407,13 +407,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     let cumulativeLeaveDays = Number(entry.leaveDays || 0)
     let cumulativeAbsenceDays = Number(entry.absenceDays || 0)
 
-    if (entry.employee?.id && entry.payrollPeriod) {
+    if (entry.employee?.id && entry.payroll_periods) {
       try {
         const timeTracking = await prisma.employeeTimeTracking.findFirst({
           where: {
             employeeId: entry.employee.id,
-            year: entry.payrollPeriod.year,
-            month: entry.payrollPeriod.month
+            year: entry.payroll_periods.year,
+            month: entry.payroll_periods.month
           }
         })
 
@@ -464,10 +464,10 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify entry exists
-    const existingEntry = await prisma.payrollEntries.findUnique({
+    const existingEntry = await prisma.payroll_entries.findUnique({
       where: { id: entryId },
       include: {
-        payrollPeriod: true
+        payroll_periods: true
       }
     })
 
@@ -479,7 +479,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Only allow deletion if period is draft or in_progress
-    if (!existingEntry.payrollPeriod || !['draft', 'in_progress'].includes(existingEntry.payrollPeriod.status)) {
+    if (!existingEntry.payroll_periods || !['draft', 'in_progress'].includes(existingEntry.payroll_periods.status)) {
       return NextResponse.json(
         { error: 'Cannot delete entries from approved or closed periods' },
         { status: 400 }
@@ -488,7 +488,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const periodId = existingEntry.payrollPeriodId
 
-    await prisma.payrollEntries.delete({
+    await prisma.payroll_entries.delete({
       where: { id: entryId }
     })
 
@@ -508,7 +508,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 // Helper function
 async function updatePeriodTotals(periodId: string) {
   // Recompute totals per-entry to ensure benefits (persisted + inferred) are included
-  const entries = await prisma.payrollEntries.findMany({ where: { payrollPeriodId: periodId }, select: { id: true } })
+  const entries = await prisma.payroll_entries.findMany({ where: { payrollPeriodId: periodId }, select: { id: true } })
 
   let totalGross = 0
   let totalDeductions = 0
@@ -518,7 +518,7 @@ async function updatePeriodTotals(periodId: string) {
     try {
       const totals = await import('@/lib/payroll/helpers').then(m => m.computeTotalsForEntry(e.id))
       totalGross += Number(totals.grossPay || 0)
-      totalDeductions += Number((await prisma.payrollEntries.findUnique({ where: { id: e.id } }))?.totalDeductions || 0)
+      totalDeductions += Number((await prisma.payroll_entries.findUnique({ where: { id: e.id } }))?.totalDeductions || 0)
       totalNet += Number(totals.netPay || 0)
     } catch (err) {
       // on any failure, fallback to stored aggregates
@@ -527,7 +527,7 @@ async function updatePeriodTotals(periodId: string) {
   }
 
   // Fallback: if no entries found, set zeros
-  await prisma.payrollPeriods.update({
+  await prisma.payroll_periods.update({
     where: { id: periodId },
     data: {
       totalEmployees: entries.length,

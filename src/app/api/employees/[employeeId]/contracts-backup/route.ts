@@ -57,7 +57,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         contract_benefits: {
           include: {
-            benefitType: true
+            benefit_types: true
           }
         },
         contract_renewals_contract_renewals_originalContractIdToemployee_contracts: {
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         },
         contract_benefits: {
           include: {
-            benefitType: true
+            benefit_types: true
           }
         },
         employees_employee_contracts_employeeIdToemployees: {

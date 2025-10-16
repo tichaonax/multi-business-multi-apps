@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Get all transactions for this project
-    const transactions = await prisma.projectTransactions.findMany({
+    const transactions = await prisma.project_transactions.findMany({
       where: { projectId },
       include: {
         personalExpense: {

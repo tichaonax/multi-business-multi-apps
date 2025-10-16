@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const { periodId } = await params
 
-    const existingPeriod = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, include: { businesses: { select: { id: true } } } })
+    const existingPeriod = await prisma.payroll_periods.findUnique({ where: { id: periodId }, include: { businesses: { select: { id: true } } } })
     if (!existingPeriod) {
       return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
     }
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const apply = Boolean(body && body.apply)
 
     // Load entries for the period
-    const entries = await prisma.payrollEntries.findMany({ where: { payrollPeriodId: periodId }, include: { employee: true } })
+    const entries = await prisma.payroll_entries.findMany({ where: { payrollPeriodId: periodId }, include: { employee: true } })
 
     const offenders: { entryId: string; employeeId: string | null; employeeNumber?: string | null; employeeName?: string | null }[] = []
 
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const entryIds = offenders.map(o => o.entryId)
     await prisma.$transaction(async (tx) => {
       await tx.payrollEntryBenefit.deleteMany({ where: { payrollEntryId: { in: entryIds } } })
-      await tx.payrollEntry.deleteMany({ where: { id: { in: entryIds } } })
+      await tx.payroll_entries.deleteMany({ where: { id: { in: entryIds } } })
     })
 
     return NextResponse.json({ ok: true, message: `Deleted ${entryIds.length} payroll entries`, deleted: entryIds.length, offenders })

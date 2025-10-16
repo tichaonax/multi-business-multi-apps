@@ -26,11 +26,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { isActive, deactivatedReason, amount } = data
 
     // Verify benefit exists
-    const benefit = await prisma.payrollEntryBenefits.findUnique({
+    const benefit = await prisma.payroll_entry_benefits.findUnique({
       where: { id: benefitId },
       include: {
-        payrollEntry: {
-          include: { payrollPeriod: true }
+        payroll_entries: {
+          include: { payroll_periods: true }
         }
       }
     })
@@ -50,7 +50,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if period is editable
-    if (benefit.payrollEntry.payrollPeriod.status === 'exported' || benefit.payrollEntry.payrollPeriod.status === 'closed') {
+    if (benefit.payroll_entries.payroll_periods.status === 'exported' || benefit.payroll_entries.payroll_periods.status === 'closed') {
       return NextResponse.json(
         { error: 'Cannot modify benefits in exported or closed payroll period' },
         { status: 400 }
@@ -68,7 +68,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           updatedAt: new Date()
         },
         include: {
-          benefitType: true
+          benefit_types: true
         }
       })
 
@@ -103,11 +103,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify benefit exists
-    const benefit = await prisma.payrollEntryBenefits.findUnique({
+    const benefit = await prisma.payroll_entry_benefits.findUnique({
       where: { id: benefitId },
       include: {
-        payrollEntry: {
-          include: { payrollPeriod: true }
+        payroll_entries: {
+          include: { payroll_periods: true }
         }
       }
     })
@@ -128,7 +128,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if period is editable
-    if (benefit.payrollEntry.payrollPeriod.status === 'exported' || benefit.payrollEntry.payrollPeriod.status === 'closed') {
+    if (benefit.payroll_entries.payroll_periods.status === 'exported' || benefit.payroll_entries.payroll_periods.status === 'closed') {
       return NextResponse.json(
         { error: 'Cannot delete benefits from exported or closed payroll period' },
         { status: 400 }
@@ -157,17 +157,17 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
 // Helper function to recalculate entry totals
 async function recalculateEntryTotals(tx: any, entryId: string) {
-  const entry = await tx.payrollEntry.findUnique({
+  const entry = await tx.payroll_entries.findUnique({
     where: { id: entryId },
     include: {
-      payrollEntryBenefits: true
+      payroll_entry_benefits: true
     }
   })
 
   if (!entry) return
 
   // Calculate benefits total (only active benefits)
-  const benefitsTotal = entry.payrollEntryBenefits
+  const benefitsTotal = entry.payroll_entry_benefits
     .filter((b: any) => b.isActive)
     .reduce((sum: number, b: any) => sum + Number(b.amount), 0)
 
@@ -184,7 +184,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   const netPay = grossPay - totalDeductions
 
   // Update entry
-  await tx.payrollEntry.update({
+  await tx.payroll_entries.update({
     where: { id: entryId },
     data: {
       benefitsTotal,
@@ -195,7 +195,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   })
 
   // Update period totals
-  const allEntries = await tx.payrollEntry.findMany({
+  const allEntries = await tx.payroll_entries.findMany({
     where: { payrollPeriodId: entry.payrollPeriodId }
   })
 
@@ -208,7 +208,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
     { totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 }
   )
 
-  await tx.payrollPeriod.update({
+  await tx.payroll_periods.update({
     where: { id: entry.payrollPeriodId },
     data: {
       totalGrossPay: periodTotals.totalGrossPay,

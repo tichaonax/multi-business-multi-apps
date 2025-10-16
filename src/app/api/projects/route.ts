@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     // only show projects they have direct access to
     if (!businessType && !canAccessCrossBusinessProjects && !isSystemAdmin(user)) {
       // Get user's business memberships
-      const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
+      const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
 
       // Filter to projects from user's businesses or personal projects (businessId is null)
       whereClause.OR = [

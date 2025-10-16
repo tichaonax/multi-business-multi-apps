@@ -24,13 +24,13 @@ export async function POST(req: NextRequest) {
     if (!existing) return NextResponse.json({ error: 'No existing export found for this period' }, { status: 404 })
 
     // Load the period and entries similarly to the original export flow
-    const period = await prisma.payrollPeriods.findUnique({
+    const period = await prisma.payroll_periods.findUnique({
       where: { id: payrollPeriodId },
       include: {
         businesses: { select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true } },
         payrollEntries: {
           include: {
-            payrollEntryBenefits: { include: { benefitType: { select: { id: true, name: true } } } },
+            payroll_entry_benefits: { include: { benefit_types: { select: { id: true, name: true } } } },
             employee: { select: { id: true, employeeNumber: true, firstName: true, lastName: true, fullName: true, jobTitles: { select: { title: true } }, primaryBusinessId: true } }
           }
         }
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const enrichedEntries: any[] = []
 
     // Load latest contracts for employees in this period so we can use contract.jobTitle/pdfGenerationData.jobTitle
-    const employeeIds = Array.from(new Set((period.payrollEntries || []).map((e: any) => e.employeeId).filter(Boolean)))
+    const employeeIds = Array.from(new Set((period.payroll_entries || []).map((e: any) => e.employeeId).filter(Boolean)))
     let latestContractByEmployee: Record<string, any> = {}
     if (employeeIds.length > 0) {
       // pdfGenerationData is a JSON scalar field; select scalar fields and related jobTitles
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    for (const entry of period.payrollEntries) {
+    for (const entry of period.payroll_entries) {
       // attach the employee's latest contract if available
       const contract = entry.employeeId ? latestContractByEmployee[entry.employeeId] : null
       let totals: any = { combined: [], benefitsTotal: 0, grossPay: entry.grossPay || 0, netPay: entry.netPay || 0 }
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
       enrichedEntries.push({
         ...entry,
-        payrollEntryBenefits: entry.payrollEntryBenefits || [],
+        payrollEntryBenefits: entry.payroll_entry_benefits || [],
         mergedBenefits: totals.combined || [],
     totalBenefitsAmount: Number(totals.benefitsTotal || 0),
   grossPay: grossRaw,
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       netPay: Number(entry.netPay || 0),
       mergedBenefits: entry.mergedBenefits || [],
       totalBenefitsAmount: Number(entry.totalBenefitsAmount || 0),
-      payrollEntryBenefits: (entry.payrollEntryBenefits || []).map((b: any) => ({ id: b.id, benefitTypeId: b.benefitTypeId, benefitName: b.benefitName, amount: Number(b.amount || 0), isActive: b.isActive }))
+      payrollEntryBenefits: (entry.payroll_entry_benefits || []).map((b: any) => ({ id: b.id, benefitTypeId: b.benefitTypeId, benefitName: b.benefitName, amount: Number(b.amount || 0), isActive: b.isActive }))
     }))
 
     // Group rows by primary company (prefer shortName, then name) and sort each group by employee last name

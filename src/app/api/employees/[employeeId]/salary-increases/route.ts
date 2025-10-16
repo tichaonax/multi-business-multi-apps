@@ -228,7 +228,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
       const currentContractBenefits = await tx.employeeContractBenefit.findMany({
         where: { contractId: currentContract.id },
         include: {
-          benefitType: true
+          benefit_types: true
         }
       })
 

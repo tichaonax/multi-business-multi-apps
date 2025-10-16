@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       where.stageId = stageId
     }
 
-    const transactions = await prisma.projectTransactions.findMany({
+    const transactions = await prisma.project_transactions.findMany({
       where,
       include: {
         personalExpense: {
@@ -288,7 +288,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const newTransaction = await prisma.projectTransactions.create({
+    const newTransaction = await prisma.project_transactions.create({
       data: {
         projectId,
         stageId: stageId || null,
@@ -429,7 +429,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify transaction exists and belongs to this project
-    const transaction = await prisma.projectTransactions.findFirst({
+    const transaction = await prisma.project_transactions.findFirst({
       where: {
         id: transactionId,
         projectId: projectId,
@@ -463,7 +463,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const updatedTransaction = await prisma.projectTransactions.update({
+    const updatedTransaction = await prisma.project_transactions.update({
       where: { id: transactionId },
       data: updatedData,
       include: {

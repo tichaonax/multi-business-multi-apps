@@ -18,7 +18,7 @@ export async function POST(
     const { periodId } = params
 
     // Get the period to check status
-    const period = await prisma.payrollPeriods.findUnique({
+    const period = await prisma.payroll_periods.findUnique({
       where: { id: periodId }
     })
 
@@ -35,12 +35,12 @@ export async function POST(
     }
 
     // Delete all entries for this period
-    await prisma.payrollEntries.deleteMany({
+    await prisma.payroll_entries.deleteMany({
       where: { payrollPeriodId: periodId }
     })
 
     // Reset period totals and status to draft
-    await prisma.payrollPeriods.update({
+    await prisma.payroll_periods.update({
       where: { id: periodId },
       data: {
         status: 'draft',

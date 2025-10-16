@@ -53,7 +53,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
   }
 
   // For non-admin users, only return businesses they have membership to
-  return user?.businessMemberships?.map(m => m.businesses.id) || []
+  return user?.business_memberships?.map(m => m.businesses.id) || []
 }
 
 // GET - Fetch restaurant orders using universal orders API
@@ -199,7 +199,7 @@ export async function GET(request: NextRequest) {
         quantity: item.quantity,
         unitPrice: Number(item.unitPrice),
         totalPrice: Number(item.totalPrice),
-        productName: item.productVariant?.product?.name || item.productVariant?.name || 'Unknown Item'
+        productName: item.product_variants?.product?.name || item.product_variants?.name || 'Unknown Item'
       }))
     }))
 
@@ -320,7 +320,7 @@ export async function POST(req: NextRequest) {
         const bp = await prisma.businessProducts.findUnique({ where: { id: item.id } }).catch(() => null)
         let variant = null
         if (!bp) {
-          variant = await prisma.productVariants.findUnique({ where: { id: item.id } }).catch(() => null)
+          variant = await prisma.product_variants.findUnique({ where: { id: item.id } }).catch(() => null)
         }
 
         if (bp || variant) {

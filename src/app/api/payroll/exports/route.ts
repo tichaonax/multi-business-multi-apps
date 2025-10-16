@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify period exists
-    const period = await prisma.payrollPeriods.findUnique({
+    const period = await prisma.payroll_periods.findUnique({
       where: { id: payrollPeriodId },
       include: {
         businesses: {
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
               // computed from persisted + inferred benefits). Returning all persisted
               // benefits keeps the export payload consistent.
               include: {
-                benefitType: {
+                benefit_types: {
                   select: { id: true, name: true }
                 }
               }
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     // Calculate totals
     const totalGrossPay = parseFloat(period.totalGrossPay.toString())
     const totalNetPay = parseFloat(period.totalNetPay.toString())
-    const employeeCount = period.payrollEntries.length
+    const employeeCount = period.payroll_entries.length
 
     // Generate filename
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
 
         // Regenerate entries for past periods, use current data for current period
         const entries = isCurrentPeriod
-          ? period.payrollEntries // Current period uses already-loaded data
+          ? period.payroll_entries // Current period uses already-loaded data
           : await regeneratePeriodEntries(p.id) // Past periods use regeneration
 
         tabs.push({
@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
         })
 
         // Update period status to exported
-        await tx.payrollPeriod.update({
+        await tx.payroll_periods.update({
           where: { id: payrollPeriodId },
           data: {
             status: 'exported',
@@ -278,7 +278,7 @@ export async function POST(req: NextRequest) {
     const enrichedEntries = []
 
     // Fetch contracts for employees in this period to merge contract benefits
-    const employeeIds = Array.from(new Set(period.payrollEntries.map(e => (e as any).employeeId).filter(Boolean)))
+    const employeeIds = Array.from(new Set(period.payroll_entries.map(e => (e as any).employeeId).filter(Boolean)))
     // Fetch employee primaryBusinessId mapping so we can attach business info to exported rows
     const employeesForBusiness = await prisma.employees.findMany({
       where: { id: { in: employeeIds } },
@@ -316,7 +316,7 @@ export async function POST(req: NextRequest) {
         startDate: true,
         endDate: true,
         jobTitles: { select: { title: true } },
-        contract_benefits: { include: { benefitType: { select: { id: true, name: true, type: true, defaultAmount: true } } } }
+        contract_benefits: { include: { benefit_types: { select: { id: true, name: true, type: true, defaultAmount: true } } } }
       }
     })
 
@@ -344,7 +344,7 @@ export async function POST(req: NextRequest) {
     // Compute cumulative totals (sick/leave/absence) from prior payroll entries for each employee
     let priorPeriodIds: string[] = []
     if (period.periodStart) {
-      const priorPeriods = await prisma.payrollPeriods.findMany({
+      const priorPeriods = await prisma.payroll_periods.findMany({
         where: {
           businessId: period.businessId,
           periodStart: { lt: period.periodStart }
@@ -356,7 +356,7 @@ export async function POST(req: NextRequest) {
 
     let cumulativeByEmployee: Record<string, any> = {}
     if (priorPeriodIds.length > 0) {
-      const grouped = await prisma.payrollEntries.groupBy({
+      const grouped = await prisma.payroll_entries.groupBy({
         by: ['employeeId'],
         where: { payrollPeriodId: { in: priorPeriodIds } },
         _sum: { sickDays: true, leaveDays: true, absenceDays: true }
@@ -372,7 +372,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    for (const entry of period.payrollEntries) {
+    for (const entry of period.payroll_entries) {
       const empId = (entry as any).employeeId
       const contract = empId ? latestContractByEmployee[empId] : null
 
@@ -420,7 +420,7 @@ export async function POST(req: NextRequest) {
 
       enrichedEntries.push({
         ...entry,
-        payrollEntryBenefits: entry.payrollEntryBenefits || [],
+        payrollEntryBenefits: entry.payroll_entry_benefits || [],
         contract: contract || null,
         employee: (entry as any).employee || null,
         mergedBenefits: totals.combined || [],
@@ -489,7 +489,7 @@ export async function POST(req: NextRequest) {
       // include merged benefits and totals for excel generator
       mergedBenefits: entry.mergedBenefits || [],
       totalBenefitsAmount: entry.totalBenefitsAmount || 0,
-      payrollEntryBenefits: (entry.payrollEntryBenefits || []).map(benefit => ({
+      payrollEntryBenefits: (entry.payroll_entry_benefits || []).map(benefit => ({
         id: benefit.id,
         benefitTypeId: benefit.benefitTypeId,
         benefitName: benefit.benefitName,
@@ -597,7 +597,7 @@ export async function POST(req: NextRequest) {
       })
 
       // Update period status to exported
-      await tx.payrollPeriod.update({
+      await tx.payroll_periods.update({
         where: { id: payrollPeriodId },
         data: {
           status: 'exported',

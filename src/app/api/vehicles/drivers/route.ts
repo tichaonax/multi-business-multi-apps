@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
     const mappedDrivers = drivers.map((d: any) => ({
       ...d,
       authorizations: d.driverAuthorizations ?? [],
-      trips: d.vehicleTrips ?? [],
+      trips: d.vehicle_trips ?? [],
       user: d.users ?? null
     }))
 

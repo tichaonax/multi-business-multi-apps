@@ -36,7 +36,7 @@ export async function PUT(
       where: { id: userId },
       include: {
         employees: true,
-        businessMemberships: { include: { businesses: true } }
+        business_memberships: { include: { businesses: true } }
       }
     });
 
@@ -83,11 +83,11 @@ export async function PUT(
       });
 
       // Sync business memberships from employee business assignments
-  const existingMemberships = (user as any).businessMemberships.map((m: any) => m.businessId);
+  const existingMemberships = (user as any).business_memberships.map((m: any) => m.businessId);
 
       // Add primary business if not already a member
       if (!existingMemberships.includes(employee.primaryBusinessId)) {
-        await tx.businessMemberships.create({
+        await tx.business_memberships.create({
         data: {
           id: randomBytes(12).toString('hex'),
             userId: userId,
@@ -110,7 +110,7 @@ export async function PUT(
       for (const assignment of (employee as any).employeeBusinessAssignments || []) {
         if (!existingMemberships.includes(assignment.businessId) && 
             assignment.businessId !== employee.primaryBusinessId) {
-          await tx.businessMemberships.create({
+          await tx.business_memberships.create({
         data: {
           id: randomBytes(12).toString('hex'),
               userId: userId,

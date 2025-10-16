@@ -68,7 +68,7 @@ export async function GET() {
     }
 
     // Check if user has admin permissions in current business
-    const userMembership = await prisma.businessMemberships.findFirst({
+    const userMembership = await prisma.business_memberships.findFirst({
       where: {
         userId: session.user.id,
         isActive: true,
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
     // System admins can create users without business context
     if (!isSystemAdmin(user)) {
       // Check if user has admin permissions
-      const userMembership = await prisma.businessMemberships.findFirst({
+      const userMembership = await prisma.business_memberships.findFirst({
         where: {
           userId: session.user.id,
           isActive: true,
@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
                                    BUSINESS_PERMISSION_PRESETS['employee'];
           }
 
-          const membership = await tx.businessMemberships.create({
+          const membership = await tx.business_memberships.create({
             data: {
               id: randomBytes(12).toString('hex'),
               userId: newUser.id,
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
       } else if (employeeToLink && employeeToLink.employee_business_assignments.length > 0) {
         // If linked to employee but no explicit business assignments, inherit from employee
         for (const empAssignment of employeeToLink.employee_business_assignments) {
-          const membership = await tx.businessMemberships.create({
+          const membership = await tx.business_memberships.create({
             data: {
               id: randomBytes(12).toString('hex'),
               userId: newUser.id,
@@ -322,7 +322,7 @@ export async function POST(req: NextRequest) {
         }
       } else if (!isSystemAdmin(user) && systemRole !== 'admin') {
         // Fallback to old logic for backwards compatibility
-        const userMembership = await tx.businessMemberships.findFirst({
+        const userMembership = await tx.business_memberships.findFirst({
           where: {
             userId: session.user.id,
             isActive: true,
@@ -339,7 +339,7 @@ export async function POST(req: NextRequest) {
             delete (userPermissions as any).canResetExportedPayrollToPreview
           }
 
-          const membership = await tx.businessMemberships.create({
+          const membership = await tx.business_memberships.create({
             data: {
               id: randomBytes(12).toString('hex'),
               userId: newUser.id,

@@ -30,12 +30,12 @@ export async function POST(request: NextRequest) {
 
   const demoProducts = await prisma.businessProducts.findMany({ where: { businessId: demoBusinessId } })
   const demoProductIds = demoProducts.map(p => p.id)
-  const demoVariantIds = await prisma.productVariants.findMany({ where: { productId: { in: demoProductIds } }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => [])
+  const demoVariantIds = await prisma.product_variants.findMany({ where: { productId: { in: demoProductIds } }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => [])
 
   // Delete product images first to avoid FK restriction
-  await prisma.productImages.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
-  await prisma.productVariants.deleteMany({ where: { id: { in: demoVariantIds } } }).catch(() => {})
-  await prisma.productAttributes.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
+  await prisma.product_images.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
+  await prisma.product_variants.deleteMany({ where: { id: { in: demoVariantIds } } }).catch(() => {})
+  await prisma.product_attributes.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => {})
   await prisma.businessProducts.deleteMany({ where: { id: { in: demoProductIds } } }).catch(() => {})
     await prisma.businessCategories.deleteMany({ where: { businessId: demoBusinessId } }).catch(() => {})
     await prisma.businesses.deleteMany({ where: { id: demoBusinessId } }).catch(() => {})

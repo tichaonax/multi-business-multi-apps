@@ -106,7 +106,7 @@ export async function GET(
     }
 
     // Calculate financial summaries
-    const transactions = project.projectTransactions
+    const transactions = project.project_transactions
     const totalBudget = project.budget ? Number(project.budget) : 0
     const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0)
     const contractorPayments = transactions.filter(t => t.transactionType === 'contractor_payment').reduce((sum, t) => sum + Number(t.amount), 0)
@@ -309,7 +309,7 @@ export async function DELETE(
         _count: {
           select: {
             projectContractors: true,
-            projectTransactions: true,
+            project_transactions: true,
             projectStages: true
           }
         }
@@ -343,7 +343,7 @@ export async function DELETE(
 
     // Check if project has related data
     const hasRelatedData = existingProject._count.projectContractors > 0 ||
-                          existingProject._count.projectTransactions > 0 ||
+                          existingProject._count.project_transactions > 0 ||
                           existingProject._count.projectStages > 0
 
     if (hasRelatedData) {
@@ -351,7 +351,7 @@ export async function DELETE(
         error: 'Cannot delete project with associated contractors, transactions, or stages',
         details: {
           contractorsCount: existingProject._count.projectContractors,
-          transactionsCount: existingProject._count.projectTransactions,
+          transactionsCount: existingProject._count.project_transactions,
           stagesCount: existingProject._count.projectStages
         }
       }, { status: 400 })

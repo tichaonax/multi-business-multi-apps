@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [trips, totalCount] = await Promise.all([
-      prisma.vehicleTrips.findMany({
+      prisma.vehicle_trips.findMany({
         where,
         include: {
           vehicles: {
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleTrips.count({ where })
+      prisma.vehicle_trips.count({ where })
     ])
 
     // Format response for driver UI
@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
     const tripId = randomUUID()
     const result = await prisma.$transaction(async (tx) => {
       // Create trip data
-      const trip = await tx.vehicleTrip.create({
+      const trip = await tx.vehicle_trips.create({
         data: {
           id: tripId,
           vehicleId: validatedData.vehicleId,
@@ -432,7 +432,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify trip exists and belongs to this driver
-    const existingTrip = await prisma.vehicleTrips.findFirst({
+    const existingTrip = await prisma.vehicle_trips.findFirst({
       where: {
         id,
         driverId: driver.id // Only allow updating own trips
@@ -459,7 +459,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update trip
-    const trip = await prisma.vehicleTrips.update({
+    const trip = await prisma.vehicle_trips.update({
       where: { id },
       data: {
         ...updateData,
@@ -539,7 +539,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify trip exists and belongs to this driver
-    const existingTrip = await prisma.vehicleTrips.findFirst({
+    const existingTrip = await prisma.vehicle_trips.findFirst({
       where: {
         id: tripId,
         driverId: driver.id
@@ -574,7 +574,7 @@ export async function DELETE(request: NextRequest) {
       })
 
       // Delete the trip
-      await tx.vehicleTrip.delete({
+      await tx.vehicle_trips.delete({
         where: { id: tripId }
       })
     })

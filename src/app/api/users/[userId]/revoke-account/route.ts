@@ -62,7 +62,7 @@ export async function DELETE(
       });
 
       // Deactivate all business memberships
-      await tx.businessMemberships.updateMany({
+      await tx.business_memberships.updateMany({
         where: { userId: userId },
         data: { isActive: false }
       });
@@ -90,12 +90,12 @@ export async function DELETE(
             linkedEmployeeName: (user as any).employees?.fullName,
             reason,
             notes,
-            businessMemberships: user.businessMemberships.map(m => ({
+            businessMemberships: user.business_memberships.map(m => ({
               businessId: m.businessId,
               businessName: (m as any).businesses?.name || null
             }))
           },
-          businessId: (user as any).businessMemberships.find((m: any) => m.isActive)?.businessId,
+          businessId: (user as any).business_memberships.find((m: any) => m.isActive)?.businessId,
           timestamp: new Date(),
         }
       });

@@ -178,7 +178,7 @@ export async function POST(
       }
 
       // Create all business memberships
-      await tx.businessMemberships.createMany({
+      await tx.business_memberships.createMany({
         data: businessMemberships
       });
 

@@ -37,16 +37,16 @@ const UpdateProductSchema = z.object({
 // Normalize a product record returned by Prisma to the legacy API shape
 function normalizeProduct(product: any) {
   if (!product) return product
-  product.brand = product.brand || (product.businessBrand ? { id: product.businessBrand.id, name: product.businessBrand.name } : null)
-  product.category = product.category || (product.businessCategory ? { id: product.businessCategory.id, name: product.businessCategory.name } : null)
-  product.variants = product.variants || product.productVariants || []
-  product.images = product.images || product.productImages || []
+  product.brand = product.brand || (product.business_brands ? { id: product.business_brands.id, name: product.business_brands.name } : null)
+  product.category = product.category || (product.business_categories ? { id: product.business_categories.id, name: product.business_categories.name } : null)
+  product.variants = product.variants || product.product_variants || []
+  product.images = product.images || product.product_images || []
   product.business = product.business || null
 
-  delete product.businessBrand
-  delete product.businessCategory
-  delete product.productVariants
-  delete product.productImages
+  delete product.business_brands
+  delete product.business_categories
+  delete product.product_variants
+  delete product.product_images
 
   return product
 }
@@ -124,8 +124,8 @@ export async function PUT(
     const existingProduct = await prisma.businessProducts.findUnique({
       where: { id },
       include: {
-          productVariants: true,
-          productImages: true
+          product_variants: true,
+          product_images: true
         }
     })
 
@@ -241,7 +241,7 @@ export async function DELETE(
     const productWithOrders = await prisma.businessProducts.findUnique({
       where: { id },
       include: {
-        productVariants: {
+        product_variants: {
           include: {
             businessOrderItems: {
               include: {
@@ -263,7 +263,7 @@ export async function DELETE(
     }
 
     // Check for active orders
-    const hasActiveOrders = productWithOrders.productVariants.some((variant: any) =>
+    const hasActiveOrders = productWithOrders.product_variants.some((variant: any) =>
       variant.businessOrderItems.some((orderItem: any) =>
         !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(orderItem.businessOrder.status)
       )
@@ -278,7 +278,7 @@ export async function DELETE(
 
     // Soft delete product and its variants
     await prisma.$transaction([
-      prisma.productVariants.updateMany({
+      prisma.product_variants.updateMany({
         where: { productId: id },
         data: { isActive: false }
       }),

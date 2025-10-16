@@ -116,7 +116,7 @@ export async function POST(_request: NextRequest) {
       const user = users[i];
       const business = businesses[i % businesses.length]; // Distribute users across businesses
 
-      const existingMembership = await prisma.businessMemberships.findFirst({
+      const existingMembership = await prisma.business_memberships.findFirst({
         where: {
           userId: user.id,
           businessId: business.id
@@ -124,7 +124,7 @@ export async function POST(_request: NextRequest) {
       });
 
       if (!existingMembership) {
-        await prisma.businessMemberships.create({
+        await prisma.business_memberships.create({
           data: {
             id: randomUUID(),
             userId: user.id,
@@ -273,7 +273,7 @@ export async function POST(_request: NextRequest) {
     const totalUsers = await prisma.users.count();
     const totalEmployees = await prisma.employees.count();
     const totalContracts = await prisma.employeeContracts.count();
-    const totalMemberships = await prisma.businessMemberships.count();
+    const totalMemberships = await prisma.business_memberships.count();
 
     return NextResponse.json({
       message: 'Test data created successfully',

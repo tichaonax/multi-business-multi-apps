@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
           include: {
             businessProducts: {
               include: {
-                businessCategory: true,
-                productImages: true,
-                productVariants: true
+                business_categories: true,
+                product_images: true,
+                product_variants: true
               }
             },
             productVariants: true
@@ -65,10 +65,10 @@ export async function GET(request: NextRequest) {
         sortOrder: item.sortOrder,
         product: item.businessProducts ? {
           ...item.businessProducts,
-          images: item.businessProducts.productImages ?? [],
-          variants: item.businessProducts.productVariants ?? []
+          images: item.businessProducts.product_images ?? [],
+          variants: item.businessProducts.product_variants ?? []
         } : null,
-        variant: item.productVariants ?? null
+        variant: item.product_variants ?? null
       }))
     }))
 
@@ -172,9 +172,9 @@ export async function POST(request: NextRequest) {
             include: {
               businessProducts: {
                 include: {
-                  businessCategory: true,
-                  productImages: true,
-                  productVariants: true
+                  business_categories: true,
+                  product_images: true,
+                  product_variants: true
                 }
               },
               productVariants: true
@@ -194,10 +194,10 @@ export async function POST(request: NextRequest) {
         ...item,
         product: item.businessProducts ? {
           ...item.businessProducts,
-          images: item.businessProducts.productImages ?? [],
-          variants: item.businessProducts.productVariants ?? []
+          images: item.businessProducts.product_images ?? [],
+          variants: item.businessProducts.product_variants ?? []
         } : null,
-        variant: item.productVariants ?? null
+        variant: item.product_variants ?? null
       }))
     } : null
 

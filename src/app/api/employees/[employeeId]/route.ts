@@ -62,7 +62,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           previousContract: { select: { id: true, contractNumber: true } },
           jobTitles: { select: { id: true, title: true, department: true } },
           employees_employee_contracts_supervisorIdToemployees: { select: { id: true, fullName: true } },
-          contract_benefits: { include: { benefitType: { select: { name: true, type: true } } } }
+          contract_benefits: { include: { benefit_types: { select: { name: true, type: true } } } }
         } as Prisma.EmployeeContractSelect ),
         orderBy: { createdAt: 'desc' }
       },
@@ -473,7 +473,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         })
 
         // Deactivate business memberships
-        await tx.businessMemberships.updateMany({
+        await tx.business_memberships.updateMany({
           where: { userId: updatedEmployee.users.id },
           data: { isActive: false }
         })
@@ -660,7 +660,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
         })
 
         // Deactivate business memberships
-        await tx.businessMemberships.updateMany({
+        await tx.business_memberships.updateMany({
           where: { userId: inactivatedEmployee.users.id },
           data: { isActive: false }
         })

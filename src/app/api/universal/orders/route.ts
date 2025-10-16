@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
           ...(includeItems && {
             items: {
               include: {
-                productVariant: {
+                product_variants: {
                   include: {
                     product: {
                       select: { name: true, productType: true }
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
 
     // Verify all product variants exist and get their details
     const variantIds = items.map(item => item.productVariantId)
-    const variants = await prisma.productVariants.findMany({
+    const variants = await prisma.product_variants.findMany({
       where: {
         id: { in: variantIds },
         isActive: true,
@@ -368,7 +368,7 @@ export async function POST(request: NextRequest) {
       for (const item of items) {
         const variant = variants.find(v => v.id === item.productVariantId)!
         if ((variant as any).businessProducts?.productType === 'PHYSICAL') {
-          await tx.productVariant.update({
+          await tx.product_variants.update({
             where: { id: item.productVariantId },
             data: {
               stockQuantity: {
@@ -466,7 +466,7 @@ export async function PUT(request: NextRequest) {
       // Restore inventory for cancelled orders
       await prisma.$transaction(async (tx) => {
         for (const item of existingOrder.items) {
-          await tx.productVariant.update({
+          await tx.product_variants.update({
             where: { id: item.productVariantId },
             data: {
               stockQuantity: {
@@ -505,7 +505,7 @@ export async function PUT(request: NextRequest) {
         employee: { select: { id: true, fullName: true, employeeNumber: true } },
         items: {
           include: {
-            productVariant: {
+            product_variants: {
               include: {
                 product: {
                   select: { name: true, productType: true }

@@ -34,7 +34,7 @@ async function getRestaurantBusinessIds(session: any) {
   }
 
   // For non-admin users, only return businesses they have membership to
-  return user?.businessMemberships?.map(m => m.businesses.id) || []
+  return user?.business_memberships?.map(m => m.businesses.id) || []
 }
 
 // PUT - Update order status using universal orders API
@@ -298,7 +298,7 @@ export async function GET(
         quantity: item.quantity,
         unitPrice: Number(item.unitPrice),
         totalPrice: Number(item.totalPrice),
-        productName: item.productVariant?.businessProducts?.name || item.productVariant?.name || 'Unknown Item'
+        productName: item.product_variants?.businessProducts?.name || item.product_variants?.name || 'Unknown Item'
       }))
     }
 

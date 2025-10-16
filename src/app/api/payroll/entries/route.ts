@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       where.employeeId = employeeId
     }
 
-    const entries = await prisma.payrollEntries.findMany({
+    const entries = await prisma.payroll_entries.findMany({
       where,
       include: {
         employee: {
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     // because employees can have multiple entries for different contracts.
     // If contractId is specified, check if that specific contract already has an entry.
     if (contractId) {
-      const existingEntry = await prisma.payrollEntries.findFirst({
+      const existingEntry = await prisma.payroll_entries.findFirst({
         where: {
           payrollPeriodId,
           employeeId,
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify period exists and is editable
-    const period = await prisma.payrollPeriods.findUnique({
+    const period = await prisma.payroll_periods.findUnique({
       where: { id: payrollPeriodId }
     })
 
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
     const netPay = grossPay.sub(totalDeductions)
 
     // Create entry with contract tracking fields
-    const entry = await prisma.payrollEntries.create({
+    const entry = await prisma.payroll_entries.create({
       data: {
         id: `PE-${nanoid(12)}`,
         payrollPeriodId,
@@ -331,7 +331,7 @@ export async function POST(req: NextRequest) {
 
 // Helper function to update period totals
 async function updatePeriodTotals(periodId: string) {
-  const aggregates = await prisma.payrollEntries.aggregate({
+  const aggregates = await prisma.payroll_entries.aggregate({
     where: { payrollPeriodId: periodId },
     _sum: {
       grossPay: true,
@@ -341,7 +341,7 @@ async function updatePeriodTotals(periodId: string) {
     _count: true
   })
 
-  await prisma.payrollPeriods.update({
+  await prisma.payroll_periods.update({
     where: { id: periodId },
     data: {
       totalEmployees: aggregates._count,

@@ -225,7 +225,7 @@ export async function POST(
       include: {
         contract_benefits: {
           include: {
-            benefitType: true
+            benefit_types: true
           }
         },
         jobTitles: true,

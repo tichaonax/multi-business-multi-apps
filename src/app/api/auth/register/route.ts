@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       });
 
       // Create business membership with owner permissions
-      await prisma.businessMemberships.create({
+      await prisma.business_memberships.create({
         data: {
           userId: user.id,
           businessId: business.id,

@@ -171,7 +171,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           email: contractor.persons?.email || null
         }
       })),
-      projectTransactions: (p.projectTransactions || []).map((transaction: any) => ({
+      projectTransactions: (p.project_transactions || []).map((transaction: any) => ({
         id: transaction.id,
         transactionType: transaction.transactionType,
         amount: parseFloat(transaction.amount.toString()),

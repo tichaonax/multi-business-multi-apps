@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         // Full backup with all data
         backupData.users = await prisma.users.findMany({
           include: {
-            businessMemberships: {
+            business_memberships: {
               include: {
                 businesses: true,
                 permissionTemplates: true
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.businessMemberships = await prisma.businessMemberships.findMany({
+        backupData.business_memberships = await prisma.business_memberships.findMany({
           include: {
             users: true,
             businesses: true,
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         // Reference data
         backupData.jobTitles = await prisma.jobTitles.findMany();
         backupData.compensationTypes = await prisma.compensationTypes.findMany();
-        backupData.benefitTypes = await prisma.benefitTypes.findMany();
+        backupData.benefit_types = await prisma.benefit_types.findMany();
         backupData.idFormatTemplates = await prisma.idFormatTemplates.findMany();
         backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany();
         backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         // Users and permissions only
         backupData.users = await prisma.users.findMany({
           include: {
-            businessMemberships: {
+            business_memberships: {
               include: {
                 businesses: true,
                 permissionTemplates: true
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.businessMemberships = await prisma.businessMemberships.findMany({
+        backupData.business_memberships = await prisma.business_memberships.findMany({
           include: {
             users: true,
             businesses: true,
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.businessMemberships = await prisma.businessMemberships.findMany({
+        backupData.business_memberships = await prisma.business_memberships.findMany({
           include: {
             users: {
               select: { id: true, name: true, email: true }
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
         // Reference data only
         backupData.jobTitles = await prisma.jobTitles.findMany();
         backupData.compensationTypes = await prisma.compensationTypes.findMany();
-        backupData.benefitTypes = await prisma.benefitTypes.findMany();
+        backupData.benefit_types = await prisma.benefit_types.findMany();
         backupData.idFormatTemplates = await prisma.idFormatTemplates.findMany();
         backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany();
         backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
@@ -313,10 +313,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        if (backupData.benefitTypes) {
-          for (const benefitType of backupData.benefitTypes) {
+        if (backupData.benefit_types) {
+          for (const benefitType of backupData.benefit_types) {
             try {
-              await tx.benefitTypes.upsert({
+              await tx.benefit_types.upsert({
                 where: { id: benefitType.id },
                 update: {
                   name: benefitType.name,
@@ -416,10 +416,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Restore business memberships
-        if (backupData.businessMemberships) {
-          for (const membership of backupData.businessMemberships) {
+        if (backupData.business_memberships) {
+          for (const membership of backupData.business_memberships) {
             try {
-              await tx.businessMemberships.upsert({
+              await tx.business_memberships.upsert({
                 where: {
                   userId_businessId: {
                     userId: membership.userId,
@@ -445,7 +445,7 @@ export async function POST(request: NextRequest) {
                   joinedAt: new Date(membership.joinedAt)
                 }
               });
-              results.restored.businessMemberships++;
+              results.restored.business_memberships++;
             } catch (error) {
               results.errors.push(`Business Membership ${membership.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }

@@ -36,17 +36,17 @@ const UpdateProductSchema = CreateProductSchema.partial().extend({
 // Normalize a product record returned by Prisma to the legacy API shape
 function normalizeProduct(product: any) {
   // map schema relation names back to legacy keys expected by the frontend
-  product.brand = product.brand || (product.businessBrand ? { id: product.businessBrand.id, name: product.businessBrand.name } : null)
-  product.category = product.category || (product.businessCategory ? { id: product.businessCategory.id, name: product.businessCategory.name } : null)
+  product.brand = product.brand || (product.business_brands ? { id: product.business_brands.id, name: product.business_brands.name } : null)
+  product.category = product.category || (product.business_categories ? { id: product.business_categories.id, name: product.business_categories.name } : null)
   product.variants = product.variants || product.product_variants || []
-  product.images = product.images || product.productImages || []
+  product.images = product.images || product.product_images || []
   product.business = product.business || null
 
   // remove internal/plural fields so responses match previous shape
-  delete product.businessBrand
-  delete product.businessCategory
+  delete product.business_brands
+  delete product.business_categories
   delete product.product_variants
-  delete product.productImages
+  delete product.product_images
 
   return product
 }
@@ -115,10 +115,10 @@ export async function GET(request: NextRequest) {
           businesses: {
             select: { name: true, type: true }
           },
-          businessBrand: {
+          business_brands: {
             select: { id: true, name: true }
           },
-          businessCategory: {
+          business_categories: {
             select: { id: true, name: true }
           },
           ...(includeVariants && {
@@ -246,8 +246,8 @@ export async function POST(request: NextRequest) {
           },
           include: {
             businesses: { select: { name: true, type: true } },
-            businessBrand: { select: { id: true, name: true } },
-            businessCategory: { select: { id: true, name: true } }
+            business_brands: { select: { id: true, name: true } },
+            business_categories: { select: { id: true, name: true } }
           }
       })
 
@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
       if (variants && variants.length > 0) {
         // Check for duplicate variant SKUs
         const variantSkus = variants.map((v: any) => v.sku)
-        const existingVariants = await tx.productVariant.findMany({
+        const existingVariants = await tx.product_variants.findMany({
           where: {
             sku: { in: variantSkus }
           }
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
 
         const createdVariants = await Promise.all(
           variants.map((variant: any) =>
-            tx.productVariant.create({
+            tx.product_variants.create({
               data: {
                 ...variant,
                 productId: product.id
@@ -356,8 +356,8 @@ export async function PUT(request: NextRequest) {
       data: updateData as any,
       include: {
         businesses: { select: { name: true, type: true } },
-        businessBrand: { select: { id: true, name: true } },
-        businessCategory: { select: { id: true, name: true } },
+        business_brands: { select: { id: true, name: true } },
+        business_categories: { select: { id: true, name: true } },
         product_variants: {
           where: { isActive: true },
           orderBy: { name: 'asc' }
@@ -441,7 +441,7 @@ export async function DELETE(request: NextRequest) {
 
     // Soft delete product and its variants
     await prisma.$transaction([
-      prisma.productVariants.updateMany({
+      prisma.product_variants.updateMany({
         where: { productId: id },
         data: { isActive: false }
       }),

@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       whereClause.primaryBusinessId = businessId
     } else if (!isSystemAdmin(user)) {
       // Non-admin users can only see employees from businesses they have access to
-      const userBusinesses = user.businessMemberships?.map(m => m.businessId) || []
+      const userBusinesses = user.business_memberships?.map(m => m.businessId) || []
       if (userBusinesses.length > 0) {
         whereClause.primaryBusinessId = { in: userBusinesses }
       }

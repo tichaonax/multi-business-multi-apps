@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         }
 
   // Fetch benefits to include in payload (include benefitType relation)
-  const benefits = await prisma.contractBenefits.findMany({ where: { contractId: latest.id }, include: { benefitType: true } }).catch(() => [])
+  const benefits = await prisma.contractBenefits.findMany({ where: { contractId: latest.id }, include: { benefit_types: true } }).catch(() => [])
 
         // Helper: build pdfContractData server-side when missing
         const buildPdfContractData = async (contract: any) => {

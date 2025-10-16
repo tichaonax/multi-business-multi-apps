@@ -46,7 +46,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         contract_benefits: {
           include: {
-            benefitType: {
+            benefit_types: {
               select: {
                 id: true,
                 name: true,
@@ -368,7 +368,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           })
 
           // Deactivate all business memberships
-          await tx.businessMemberships.updateMany({
+          await tx.business_memberships.updateMany({
             where: { userId: updatedEmployee.users.id },
             data: { isActive: false }
           })

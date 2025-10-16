@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const includeDetails = searchParams.get('details') === 'true'
 
     // Get user's business memberships for filtering
-    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
 
     let pendingTasks: any[] = []
 
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const pendingTransactions = await prisma.projectTransactions.findMany({
+        const pendingTransactions = await prisma.project_transactions.findMany({
           where: whereClause,
           include: {
             projects: {

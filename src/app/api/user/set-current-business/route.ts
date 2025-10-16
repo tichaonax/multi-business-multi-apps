@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       };
     } else {
       // Verify user has access to this business
-      membership = await prisma.businessMemberships.findFirst({
+      membership = await prisma.business_memberships.findFirst({
         where: {
           userId: session.user.id,
           businessId: businessId,
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     // Update last accessed timestamp only for real memberships (admins won't have a DB membership id)
     if (membership && membership.id) {
-      await prisma.businessMemberships.update({
+      await prisma.business_memberships.update({
         where: {
           id: membership.id,
         },

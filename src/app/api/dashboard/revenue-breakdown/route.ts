@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as SessionUser
-    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
 
     let breakdown = {
       restaurant: { amount: 0, count: 0 },
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const projectData = await prisma.projectTransactions.aggregate({
+        const projectData = await prisma.project_transactions.aggregate({
           where: projectWhereClause,
           _sum: {
             amount: true

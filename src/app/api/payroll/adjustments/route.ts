@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     const adjustments = await prisma.payrollAdjustments.findMany({
       where,
       include: {
-        payrollEntry: {
+        payroll_entries: {
           select: {
             id: true,
             employeeName: true,
@@ -88,10 +88,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify entry exists
-    const entry = await prisma.payrollEntries.findUnique({
+    const entry = await prisma.payroll_entries.findUnique({
       where: { id: payrollEntryId },
       include: {
-        payrollPeriod: true
+        payroll_periods: true
       }
     })
 
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if period is editable
-    if (entry.payrollPeriod?.status === 'closed' || entry.payrollPeriod?.status === 'exported') {
+    if (entry.payroll_periods?.status === 'closed' || entry.payroll_periods?.status === 'exported') {
       return NextResponse.json(
         { error: 'Cannot add adjustments to closed or exported payroll period' },
         { status: 400 }
@@ -191,9 +191,9 @@ export async function PUT(req: NextRequest) {
     const { id, amount, description, isAddition, type, reason } = data
     if (!id) return NextResponse.json({ error: 'Adjustment id required' }, { status: 400 })
 
-    const existing = await prisma.payrollAdjustments.findUnique({ where: { id }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
+    const existing = await prisma.payrollAdjustments.findUnique({ where: { id }, include: { payroll_entries: { include: { payroll_periods: true } } } })
     if (!existing) return NextResponse.json({ error: 'Adjustment not found' }, { status: 404 })
-    if (existing.payrollEntry?.payrollPeriod?.status === 'exported' || existing.payrollEntry?.payrollPeriod?.status === 'closed') {
+    if (existing.payroll_entries?.payroll_periods?.status === 'exported' || existing.payroll_entries?.payroll_periods?.status === 'closed') {
       return NextResponse.json({ error: 'Cannot modify adjustments on exported or closed payroll period' }, { status: 400 })
     }
 
@@ -250,9 +250,9 @@ export async function DELETE(req: NextRequest) {
     const adjustmentId = searchParams.get('adjustmentId')
     if (!adjustmentId) return NextResponse.json({ error: 'adjustmentId required' }, { status: 400 })
 
-    const existing = await prisma.payrollAdjustments.findUnique({ where: { id: adjustmentId }, include: { payrollEntry: { include: { payrollPeriod: true } } } })
+    const existing = await prisma.payrollAdjustments.findUnique({ where: { id: adjustmentId }, include: { payroll_entries: { include: { payroll_periods: true } } } })
     if (!existing) return NextResponse.json({ error: 'Adjustment not found' }, { status: 404 })
-    if (existing.payrollEntry?.payrollPeriod?.status === 'exported' || existing.payrollEntry?.payrollPeriod?.status === 'closed') {
+    if (existing.payroll_entries?.payroll_periods?.status === 'exported' || existing.payroll_entries?.payroll_periods?.status === 'closed') {
       return NextResponse.json({ error: 'Cannot delete adjustments on exported or closed payroll period' }, { status: 400 })
     }
 
@@ -272,10 +272,10 @@ export async function DELETE(req: NextRequest) {
 
 // helper to recalc entry and period totals
 async function recalcEntryAndPeriod(tx: any, entryId: string) {
-  const entry = await tx.payrollEntry.findUnique({ where: { id: entryId }, include: { payroll_entry_benefits: true, payroll_adjustments: true, payrollPeriod: true } })
+  const entry = await tx.payroll_entries.findUnique({ where: { id: entryId }, include: { payroll_entry_benefits: true, payroll_adjustments: true, payroll_periods: true } })
   if (!entry) return
 
-  const benefitsTotal = (entry.payrollEntryBenefits || []).filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)
+  const benefitsTotal = (entry.payroll_entry_benefits || []).filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)
   // payrollAdjustments.amount is stored as signed (positive for additions, negative for deductions)
   let additionsTotal = 0
   let adjustmentsAsDeductions = 0
@@ -295,10 +295,10 @@ async function recalcEntryAndPeriod(tx: any, entryId: string) {
   const newTotalDeductions = currentStoredDeductions + adjustmentsAsDeductions
   const netPay = grossPay - newTotalDeductions
 
-  await tx.payrollEntry.update({ where: { id: entryId }, data: { benefitsTotal, adjustmentsTotal: additionsTotal, grossPay, netPay, totalDeductions: newTotalDeductions, updatedAt: new Date() } })
+  await tx.payroll_entries.update({ where: { id: entryId }, data: { benefitsTotal, adjustmentsTotal: additionsTotal, grossPay, netPay, totalDeductions: newTotalDeductions, updatedAt: new Date() } })
 
-  const allEntries = await tx.payrollEntry.findMany({ where: { payrollPeriodId: entry.payrollPeriodId } })
+  const allEntries = await tx.payroll_entries.findMany({ where: { payrollPeriodId: entry.payrollPeriodId } })
   const periodTotals = allEntries.reduce((acc: any, e: any) => ({ totalGrossPay: acc.totalGrossPay + Number(e.grossPay), totalDeductions: acc.totalDeductions + Number(e.totalDeductions), totalNetPay: acc.totalNetPay + Number(e.netPay) }), { totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 })
 
-  await tx.payrollPeriod.update({ where: { id: entry.payrollPeriodId }, data: { totalGrossPay: periodTotals.totalGrossPay, totalDeductions: periodTotals.totalDeductions, totalNetPay: periodTotals.totalNetPay, updatedAt: new Date() } })
+  await tx.payroll_periods.update({ where: { id: entry.payrollPeriodId }, data: { totalGrossPay: periodTotals.totalGrossPay, totalDeductions: periodTotals.totalDeductions, totalNetPay: periodTotals.totalNetPay, updatedAt: new Date() } })
 }

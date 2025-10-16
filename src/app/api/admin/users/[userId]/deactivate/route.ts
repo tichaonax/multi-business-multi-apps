@@ -35,7 +35,7 @@ export async function POST(
     const userToDeactivate = await prisma.users.findUnique({
       where: { id: userId },
       include: {
-        businessMemberships: {
+        business_memberships: {
           include: {
             businesses: true
           }
@@ -71,7 +71,7 @@ export async function POST(
         }
       },
       include: {
-        businessMemberships: {
+        business_memberships: {
           include: {
             businesses: true
           }

@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as SessionUser
-    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
 
     // Parse query parameters for filtering
     const { searchParams } = new URL(req.url)
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get businesses the user owns/manages (for financial calculations)
-    const ownedBusinessIds = user.businessMemberships
+    const ownedBusinessIds = user.business_memberships
       ?.filter(m => m.role === 'owner' || m.role === 'manager')
       ?.map(m => m.businessId) || []
 
@@ -384,7 +384,7 @@ export async function GET(req: NextRequest) {
         } else if (targetBusinessIds && targetBusinessIds.length > 0) {
           // For business filtering, only include expenses that are actually linked to business projects
           // Personal expenses are only business-related if they have ProjectTransactions linking to business projects
-          const businessProjectTransactions = await prisma.projectTransactions.findMany({
+          const businessProjectTransactions = await prisma.project_transactions.findMany({
             where: ({
               project: {
                 businessId: { in: targetBusinessIds }

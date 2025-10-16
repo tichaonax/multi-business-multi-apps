@@ -39,14 +39,14 @@ export async function POST(request: NextRequest) {
         businesses: await tx.businesses.count(),
         employees: await tx.employees.count(),
         employeeContracts: await tx.employeeContracts.count(),
-        businessMemberships: await tx.businessMemberships.count(),
+        businessMemberships: await tx.business_memberships.count(),
         auditLogs: await tx.auditLogs.count(),
         users: await tx.users.count(),
         // Reference data that will be reset and recreated
         idFormatTemplates: await tx.idFormatTemplates.count(),
         compensationTypes: await tx.compensationTypes.count(),
         jobTitles: await tx.jobTitles.count(),
-        benefitTypes: await tx.benefitTypes.count(),
+        benefitTypes: await tx.benefit_types.count(),
         driverLicenseTemplates: await tx.driverLicenseTemplates.count(),
       };
 
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       console.log(`✅ Deleted ${deletedEmployees.count} employees`);
 
       console.log('🗑️ Deleting all business memberships...');
-      const deletedMemberships = await tx.businessMemberships.deleteMany({});
+      const deletedMemberships = await tx.business_memberships.deleteMany({});
       console.log(`✅ Deleted ${deletedMemberships.count} business memberships`);
 
       console.log('🗑️ Deleting all businesses...');
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       const deletedJobTitles = await tx.jobTitles.deleteMany({});
       console.log(`✅ Deleted ${deletedJobTitles.count} job titles`);
 
-      const deletedBenefitTypes = await tx.benefitTypes.deleteMany({});
+      const deletedBenefitTypes = await tx.benefit_types.deleteMany({});
       console.log(`✅ Deleted ${deletedBenefitTypes.count} benefit types`);
 
       const deletedDriverLicenseTemplates = await tx.driverLicenseTemplates.deleteMany({});
@@ -115,13 +115,13 @@ export async function POST(request: NextRequest) {
         businesses: await tx.businesses.count(),
         employees: await tx.employees.count(),
         employeeContracts: await tx.employeeContracts.count(),
-        businessMemberships: await tx.businessMemberships.count(),
+        businessMemberships: await tx.business_memberships.count(),
         users: await tx.users.count(),
         // Reference data counts after deletion
         idFormatTemplates: await tx.idFormatTemplates.count(),
         compensationTypes: await tx.compensationTypes.count(),
         jobTitles: await tx.jobTitles.count(),
-        benefitTypes: await tx.benefitTypes.count(),
+        benefitTypes: await tx.benefit_types.count(),
         driverLicenseTemplates: await tx.driverLicenseTemplates.count(),
       };
 

@@ -102,7 +102,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const existingBusiness = await prisma.businesses.findUnique({
       where: { id },
       include: {
-        businessMemberships: true,
+        business_memberships: true,
         employees: true
       }
     })
@@ -112,7 +112,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if business has active memberships or employees
-    const activeMemberships = existingBusiness.businessMemberships.filter(m => m.isActive)
+    const activeMemberships = existingBusiness.business_memberships.filter(m => m.isActive)
     const activeEmployees = existingBusiness.employees.filter(e => e.isActive)
 
     if (activeMemberships.length > 0 || activeEmployees.length > 0) {

@@ -61,7 +61,7 @@ export async function GET(
         },
         contract_benefits: {
           include: {
-            benefitType: {
+            benefit_types: {
               select: {
                 id: true,
                 name: true,

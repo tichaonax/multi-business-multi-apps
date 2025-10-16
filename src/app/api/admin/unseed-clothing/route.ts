@@ -36,16 +36,16 @@ export async function POST(request: NextRequest) {
         // Defensive deletes in order to avoid FK constraint issues
         // 1) product images
         if (demoProductIds.length) {
-            await prisma.productImages.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => { })
-            await prisma.productAttributes.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => { })
+            await prisma.product_images.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => { })
+            await prisma.product_attributes.deleteMany({ where: { productId: { in: demoProductIds } } }).catch(() => { })
         }
 
         // 2) variants (lookup variant ids) and variant-specific stock movements
-        const demoVariantIds = demoProductIds.length ? await prisma.productVariants.findMany({ where: { productId: { in: demoProductIds } }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => []) : []
+        const demoVariantIds = demoProductIds.length ? await prisma.product_variants.findMany({ where: { productId: { in: demoProductIds } }, select: { id: true } }).then(r => r.map(x => x.id)).catch(() => []) : []
         if (demoVariantIds.length) {
             // delete stock movements tied to variants (if any)
             await prisma.businessStockMovements.deleteMany({ where: { productVariantId: { in: demoVariantIds } } }).catch(() => { })
-            await prisma.productVariants.deleteMany({ where: { id: { in: demoVariantIds } } }).catch(() => { })
+            await prisma.product_variants.deleteMany({ where: { id: { in: demoVariantIds } } }).catch(() => { })
         }
 
         // 3) products

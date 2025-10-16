@@ -57,7 +57,7 @@ export async function GET() {
           },
         },
         include: {
-          businessMemberships: {
+          business_memberships: {
             where: {
               userId: session.user.id,
             },
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         },
       } as any),
       include: {
-        businessMemberships: {
+        business_memberships: {
           where: {
             userId: session.user.id,
           },

@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         _count: {
           select: {
             projectContractors: true,
-            projectTransactions: true
+            project_transactions: true
           }
         }
       }
@@ -236,7 +236,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       where: { id: personId },
       include: {
         projectContractors: true,
-        projectTransactions: true
+        project_transactions: true
       }
     })
 

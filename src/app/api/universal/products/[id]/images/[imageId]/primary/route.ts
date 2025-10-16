@@ -6,13 +6,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
 
     // Ensure image belongs to product
-    const img = await prisma.productImages.findUnique({ where: { id: imageId } })
+    const img = await prisma.product_images.findUnique({ where: { id: imageId } })
     if (!img || img.productId !== productId) return NextResponse.json({ error: 'Image not found for product' }, { status: 404 })
 
     // unset other images
-    await prisma.productImages.updateMany({ where: { productId }, data: { isPrimary: false } })
+    await prisma.product_images.updateMany({ where: { productId }, data: { isPrimary: false } })
 
-  const updated = await prisma.productImages.update({ where: { id: imageId }, data: { isPrimary: true, updatedAt: new Date() } })
+  const updated = await prisma.product_images.update({ where: { id: imageId }, data: { isPrimary: true, updatedAt: new Date() } })
 
     return NextResponse.json({ success: true, data: updated })
   } catch (err) {

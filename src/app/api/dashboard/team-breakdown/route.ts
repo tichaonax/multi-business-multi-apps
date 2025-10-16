@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as SessionUser
-    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
 
     let breakdown = {
       users: { count: 0, list: [] as any[] },
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
               isActive: true
             },
             include: {
-              businessMemberships: {
+              business_memberships: {
                 where: { isActive: true },
                 include: {
                   businesses: {
@@ -55,10 +55,10 @@ export async function GET(req: NextRequest) {
 
           breakdown.users.count = allUsers.length
           breakdown.users.list = allUsers.map(u => {
-            const businessCount = u.businessMemberships.length
+            const businessCount = u.business_memberships.length
 
             // Filter out memberships without business data first
-            const validBusinessMemberships = u.businessMemberships.filter(bm => bm.business)
+            const validBusinessMemberships = u.business_memberships.filter(bm => bm.business)
 
             // Find primary business
             const primaryBusiness = validBusinessMemberships.find(bm => bm.businesses?.id === u.lastAccessedBusinessId) || validBusinessMemberships[0]
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
 
             // Debug info temporarily added to response
             const debugInfo = {
-              totalMemberships: u.businessMemberships.length,
+              totalMemberships: u.business_memberships.length,
               validMemberships: validBusinessMemberships.length,
               primaryBusiness: primaryBusiness?.businesses?.name,
               otherBusinessCount: otherBusinesses.length,
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
                 isPrimary: false
               })),
               // Keep old format for backward compatibility
-              businesses: u.businessMemberships.map(bm => ({
+              businesses: u.business_memberships.map(bm => ({
                 businessName: bm.businesses?.name,
                 businessType: bm.businesses?.type,
                 role: bm.role
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
 
         } else if (userBusinessIds.length > 0) {
           // Count users in the same businesses
-          const businessUsers = await prisma.businessMemberships.findMany({
+          const businessUsers = await prisma.business_memberships.findMany({
             where: {
               businessId: { in: userBusinessIds },
               isActive: true
@@ -164,7 +164,7 @@ export async function GET(req: NextRequest) {
               isActive: true
             },
             include: {
-              businessMemberships: {
+              business_memberships: {
                 where: { isActive: true },
                 include: {
                   businesses: {
@@ -181,10 +181,10 @@ export async function GET(req: NextRequest) {
 
           breakdown.users.count = completeUsers.length
           breakdown.users.list = completeUsers.map(u => {
-            const businessCount = u.businessMemberships.length
+            const businessCount = u.business_memberships.length
 
             // Filter out memberships without business data first
-            const validBusinessMemberships = u.businessMemberships.filter(bm => bm.business)
+            const validBusinessMemberships = u.business_memberships.filter(bm => bm.business)
 
             // Find primary business
             const primaryBusiness = validBusinessMemberships.find(bm => bm.businesses?.id === u.lastAccessedBusinessId) || validBusinessMemberships[0]
@@ -196,7 +196,7 @@ export async function GET(req: NextRequest) {
 
             // Debug info temporarily added to response
             const debugInfo = {
-              totalMemberships: u.businessMemberships.length,
+              totalMemberships: u.business_memberships.length,
               validMemberships: validBusinessMemberships.length,
               primaryBusiness: primaryBusiness?.businesses?.name,
               otherBusinessCount: otherBusinesses.length,
@@ -228,7 +228,7 @@ export async function GET(req: NextRequest) {
                 isPrimary: false
               })),
               // Keep old format for backward compatibility
-              businesses: u.businessMemberships.map(bm => ({
+              businesses: u.business_memberships.map(bm => ({
                 businessName: bm.businesses?.name,
                 businessType: bm.businesses?.type,
                 role: bm.role
@@ -259,7 +259,7 @@ export async function GET(req: NextRequest) {
           include: {
             _count: {
               select: {
-                businessMemberships: {
+                business_memberships: {
                   where: { isActive: true }
                 },
                 employees: {
@@ -274,7 +274,7 @@ export async function GET(req: NextRequest) {
           breakdown.businessBreakdown[business.id] = {
             businessName: business.name,
             businessType: business.type,
-            users: business._count.businessMemberships,
+            users: business._count.business_memberships,
             employees: business._count.employees
           }
         })
@@ -291,7 +291,7 @@ export async function GET(req: NextRequest) {
           include: {
             _count: {
               select: {
-                businessMemberships: {
+                business_memberships: {
                   where: { isActive: true }
                 },
                 employees: {
@@ -306,7 +306,7 @@ export async function GET(req: NextRequest) {
           breakdown.businessBreakdown[business.id] = {
             businessName: business.name,
             businessType: business.type,
-            users: business._count.businessMemberships,
+            users: business._count.business_memberships,
             employees: business._count.employees
           }
         })

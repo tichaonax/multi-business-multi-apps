@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [expenses, totalCount] = await Promise.all([
-      prisma.vehicleExpenses.findMany({
+      prisma.vehicle_expenses.findMany({
         where,
         include: {
           vehicles: {
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.vehicleExpenses.count({ where })
+      prisma.vehicle_expenses.count({ where })
     ])
 
     return NextResponse.json({
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     // Verify trip exists if provided
     if (validatedData.tripId) {
-      const trip = await prisma.vehicleTrips.findUnique({
+      const trip = await prisma.vehicle_trips.findUnique({
         where: { id: validatedData.tripId }
       })
 
@@ -229,7 +229,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create expense
-    const expense = await prisma.vehicleExpenses.create({
+    const expense = await prisma.vehicle_expenses.create({
       data: {
         id: randomUUID(),
         ...validatedData,
@@ -310,7 +310,7 @@ export async function PUT(request: NextRequest) {
     const { id, ...updateData } = validatedData
 
     // Verify expense exists
-    const existingExpense = await prisma.vehicleExpenses.findUnique({
+    const existingExpense = await prisma.vehicle_expenses.findUnique({
       where: { id }
     })
 
@@ -335,7 +335,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update expense
-    const expense = await prisma.vehicleExpenses.update({
+    const expense = await prisma.vehicle_expenses.update({
       where: { id },
       data: {
         ...updateData,
@@ -420,7 +420,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify expense exists
-    const existingExpense = await prisma.vehicleExpenses.findUnique({
+    const existingExpense = await prisma.vehicle_expenses.findUnique({
       where: { id: expenseId }
     })
 
@@ -432,7 +432,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete expense
-    await prisma.vehicleExpenses.delete({
+    await prisma.vehicle_expenses.delete({
       where: { id: expenseId }
     })
 
