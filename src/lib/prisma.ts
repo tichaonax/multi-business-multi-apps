@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
-import { createSyncPrismaClient, generateNodeId } from './sync/sync-helper'
+import { createSyncPrismaClient, generateNodeId, SyncHelper } from './sync/sync-helper'
+import { createSyncExtension } from './sync/prisma-extension'
 import { networkInterfaces } from 'os'
 
 console.log('🗄️ Prisma client initializing at:', new Date().toISOString())
@@ -25,23 +26,35 @@ function getLocalIPAddress(): string {
 }
 
 export const prisma = globalForPrisma.prisma ?? (() => {
-  // Create sync-enabled Prisma client
+  // Create sync-enabled Prisma client with automatic change tracking
   try {
-    const nodeId = generateNodeId()
+    const nodeId = process.env.SYNC_NODE_ID || generateNodeId()
     const ipAddress = getLocalIPAddress()
-    
-    const client = createSyncPrismaClient({
+    const registrationKey = process.env.SYNC_REGISTRATION_KEY || 'default-key'
+
+    // Create base client with sync helper
+    const baseClient = createSyncPrismaClient({
       nodeId,
-      registrationKey: process.env.SYNC_REGISTRATION_KEY || 'default-key',
+      registrationKey,
       enabled: true
     })
-    
-    console.log('✅ Sync helper installed for main app')
+
+    // Get the sync helper from the client
+    const syncHelper = (baseClient as any).syncHelper as SyncHelper
+
+    // Apply automatic change tracking extension
+    const extendedClient = baseClient.$extends(createSyncExtension(syncHelper))
+
+    // Preserve syncHelper on extended client for manual tracking if needed
+    ;(extendedClient as any).syncHelper = syncHelper
+
+    console.log('✅ Sync helper installed with automatic change tracking')
     console.log(`🔧 Node ID: ${nodeId}`)
     console.log(`🌐 IP Address: ${ipAddress}`)
-    
-    return client
-    
+    console.log('🔄 All database changes will be automatically tracked for sync')
+
+    return extendedClient as any
+
   } catch (error) {
     console.error('❌ Failed to create sync client:', error)
     // Fallback to regular client

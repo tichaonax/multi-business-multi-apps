@@ -10,6 +10,67 @@ import crypto from 'crypto'
 const prisma = new PrismaClient()
 
 /**
+ * Apply a sync event change to the actual database tables
+ */
+async function applyChangeToDatabase(prisma: PrismaClient, event: any): Promise<void> {
+  const { table: tableName, recordId, operation, data } = event
+
+  // Get the Prisma model name (capitalize first letter)
+  const modelName = tableName.charAt(0).toUpperCase() + tableName.slice(1)
+
+  // Check if model exists
+  if (!(prisma as any)[modelName]) {
+    throw new Error(`Model ${modelName} not found in Prisma client`)
+  }
+
+  const model = (prisma as any)[modelName]
+
+  try {
+    switch (operation) {
+      case 'CREATE':
+        // Check if record already exists
+        const existing = await model.findUnique({ where: { id: recordId } })
+        if (!existing) {
+          await model.create({ data: { ...data, id: recordId } })
+          console.log(`✅ Applied CREATE for ${tableName}:${recordId}`)
+        } else {
+          console.log(`⚠️  Skipped CREATE for ${tableName}:${recordId} - already exists`)
+        }
+        break
+
+      case 'UPDATE':
+        await model.upsert({
+          where: { id: recordId },
+          update: data,
+          create: { ...data, id: recordId }
+        })
+        console.log(`✅ Applied UPDATE for ${tableName}:${recordId}`)
+        break
+
+      case 'DELETE':
+        try {
+          await model.delete({ where: { id: recordId } })
+          console.log(`✅ Applied DELETE for ${tableName}:${recordId}`)
+        } catch (error: any) {
+          // Ignore if record doesn't exist
+          if (error.code === 'P2025') {
+            console.log(`⚠️  Skipped DELETE for ${tableName}:${recordId} - not found`)
+          } else {
+            throw error
+          }
+        }
+        break
+
+      default:
+        throw new Error(`Unknown operation: ${operation}`)
+    }
+  } catch (error) {
+    console.error(`Failed to apply ${operation} for ${tableName}:${recordId}:`, error)
+    throw error
+  }
+}
+
+/**
  * POST /api/sync/receive
  * Handle receiving sync data from peer nodes
  */
@@ -79,15 +140,29 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        // TODO: Apply the actual data changes to the target tables
-        // This would involve updating the actual business data tables
-        // based on the sync event information
+        // Apply the actual data changes to the target tables
+        try {
+          await applyChangeToDatabase(prisma, event)
 
-        processedCount++
-        processedEvents.push({
-          eventId: event.id,
-          status: 'processed'
-        })
+          // Mark as processed
+          await prisma.syncEvents.update({
+            where: { eventId: event.id },
+            data: { processed: true, processedAt: new Date() }
+          })
+
+          processedCount++
+          processedEvents.push({
+            eventId: event.id,
+            status: 'processed'
+          })
+        } catch (applyError) {
+          console.error(`Failed to apply changes for event ${event.id}:`, applyError)
+          processedEvents.push({
+            eventId: event.id,
+            status: 'failed',
+            error: applyError instanceof Error ? applyError.message : 'Failed to apply changes'
+          })
+        }
 
       } catch (error) {
         console.error(`Failed to process sync event ${event.id}:`, error)
