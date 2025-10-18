@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
             }
           }),
           ...(includeImages && {
-            productImages: {
+            product_images: {
               orderBy: [
                 { isPrimary: 'desc' },
                 { sortOrder: 'asc' }

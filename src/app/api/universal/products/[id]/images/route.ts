@@ -74,13 +74,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const productWithImages = await prisma.businessProducts.findUnique({
       where: { id: productId },
       include: {
-        ProductImages: {
+        product_images: {
           orderBy: [
             { isPrimary: 'desc' },
             { sortOrder: 'asc' }
           ]
         },
-        productVariants: {
+        product_variants: {
           where: { isActive: true },
           orderBy: { name: 'asc' }
         }

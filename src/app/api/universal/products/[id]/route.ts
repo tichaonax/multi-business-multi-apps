@@ -68,13 +68,13 @@ export async function GET(
         businesses: {
           select: { name: true, type: true }
         },
-        businessBrand: { select: { id: true, name: true } },
-        businessCategory: { select: { id: true, name: true } },
-        productVariants: {
+        business_brands: { select: { id: true, name: true } },
+        business_categories: { select: { id: true, name: true } },
+        product_variants: {
           where: { isActive: true },
           orderBy: { name: 'asc' }
         },
-        productImages: {
+        product_images: {
           orderBy: [
             { isPrimary: 'desc' },
             { sortOrder: 'asc' }
@@ -125,7 +125,7 @@ export async function PUT(
       where: { id },
       include: {
           product_variants: true,
-          ProductImages: true
+          product_images: true
         }
     })
 
@@ -179,13 +179,13 @@ export async function PUT(
         },
         include: {
           businesses: { select: { name: true, type: true } },
-          businessBrand: { select: { id: true, name: true } },
-          businessCategory: { select: { id: true, name: true } },
-          productVariants: {
+          business_brands: { select: { id: true, name: true } },
+          business_categories: { select: { id: true, name: true } },
+          product_variants: {
             where: { isActive: true },
             orderBy: { name: 'asc' }
           },
-          productImages: {
+          product_images: {
             orderBy: [
               { isPrimary: 'desc' },
               { sortOrder: 'asc' }
@@ -243,9 +243,9 @@ export async function DELETE(
       include: {
         product_variants: {
           include: {
-            businessOrderItems: {
+            business_order_items: {
               include: {
-                businessOrder: {
+                business_orders: {
                   select: { id: true, status: true }
                 }
               }
@@ -264,8 +264,8 @@ export async function DELETE(
 
     // Check for active orders
     const hasActiveOrders = productWithOrders.product_variants.some((variant: any) =>
-      variant.businessOrderItems.some((orderItem: any) =>
-        !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(orderItem.businessOrder.status)
+      variant.business_order_items.some((orderItem: any) =>
+        !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(orderItem.business_orders.status)
       )
     )
 
