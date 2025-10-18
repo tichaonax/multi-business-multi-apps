@@ -22,14 +22,14 @@ export async function DELETE(
     const projectContractor = await prisma.projectContractors.findUnique({
       where: { id: contractorId },
       include: {
-        constructionProject: {
+        construction_projects: {
           select: {
             id: true,
             name: true,
             createdBy: true
           }
         },
-        person: {
+        persons: {
           select: {
             id: true,
             fullName: true
@@ -43,7 +43,7 @@ export async function DELETE(
     }
 
     // Check if user owns the project (basic access control)
-    if (projectContractor.constructionProject.createdBy !== session.user.id) {
+    if (projectContractor.construction_projects?.createdBy !== session.user.id) {
       return NextResponse.json({ error: 'You do not have permission to modify this project' }, { status: 403 })
     }
 
@@ -55,7 +55,7 @@ export async function DELETE(
     return NextResponse.json({ 
       message: 'Contractor successfully removed from project',
       contractor: projectContractor.persons.fullName,
-      project: projectContractor.constructionProject.name
+      project: projectContractor.construction_projects?.name
     })
 
   } catch (error) {

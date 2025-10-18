@@ -57,9 +57,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findUnique({
       where: { id: projectId },
       include: {
-        projectStages: {
+        project_stages: {
           include: {
-            stageContractorAssignments: {
+            stage_contractor_assignments: {
               include: {
                     project_contractors: {
                       include: {
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           },
           orderBy: { orderIndex: 'asc' }
         },
-        projectContractors: {
+        project_contractors: {
           include: {
             persons: {
               select: {
@@ -90,15 +90,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        projectTransactions: {
+        project_transactions: {
           include: {
-            personalExpenses: {
+            personal_expenses: {
               select: {
                 amount: true,
                 date: true
               }
             },
-            projectStages: {
+            project_stages: {
               select: {
                 id: true,
                 name: true
@@ -126,8 +126,32 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     
     console.log('✅ Project found:', project.name)
 
+    // Transform for UI compatibility - map snake_case to camelCase
+    const transformed: any = {
+      ...project,
+      projectStages: project.project_stages,
+      projectContractors: project.project_contractors,
+      projectTransactions: project.project_transactions
+    }
+
+    // Also transform nested relations
+    if (transformed.projectStages) {
+      transformed.projectStages = transformed.projectStages.map((stage: any) => ({
+        ...stage,
+        stageContractorAssignments: stage.stage_contractor_assignments
+      }))
+    }
+
+    if (transformed.projectTransactions) {
+      transformed.projectTransactions = transformed.projectTransactions.map((trans: any) => ({
+        ...trans,
+        personalExpenses: trans.personal_expenses,
+        projectStages: trans.project_stages
+      }))
+    }
+
     // Format the response (cast to any so TypeScript doesn't complain about generated types)
-    const p: any = project
+    const p: any = transformed
     const formattedProject = {
       id: p.id,
       name: p.name,
