@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
+import HealthIndicator from '@/components/ui/health-indicator'
 
 export default function HomePage() {
   const { data: session, status } = useSession()
@@ -31,6 +32,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen page-background">
+      {/* Health Status Indicator */}
+      <HealthIndicator position="bottom-right" />
+
       <div className="flex flex-col items-center justify-center min-h-screen px-4">
         <div className="max-w-md w-full space-y-8 text-center">
           <div>

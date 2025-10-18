@@ -13,6 +13,7 @@ import { TransactionDetailModal } from '@/components/construction/transaction-de
 import { BusinessOrderDetailModal } from '@/components/business/business-order-detail-modal'
 import { UserEditModal } from '@/components/user-management/user-edit-modal'
 import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import HealthIndicator from '@/components/ui/health-indicator'
 
 export default function Dashboard() {
   const { data: session } = useSession()
@@ -375,6 +376,9 @@ export default function Dashboard() {
 
   return (
     <ProtectedRoute>
+      {/* Health Status Indicator */}
+      <HealthIndicator position="bottom-right" />
+
       <MainLayout>
         <ContentLayout
           title={`🏠 Welcome back, ${session?.users?.name}!`}

@@ -3,6 +3,7 @@
 import { signIn, getSession } from 'next-auth/react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import HealthIndicator from '@/components/ui/health-indicator'
 
 export default function SignIn() {
   const [identifier, setIdentifier] = useState('')
@@ -37,6 +38,9 @@ export default function SignIn() {
 
   return (
     <div className="min-h-screen flex items-center justify-center page-background px-4">
+      {/* Health Status Indicator */}
+      <HealthIndicator position="bottom-right" />
+
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-4">
