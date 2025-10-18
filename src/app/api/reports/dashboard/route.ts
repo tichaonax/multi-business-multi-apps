@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
       prisma.businesses.findMany({
         where: businessId ? { id: businessId } : {},
         include: {
-          primaryEmployees: {
+          employees: {
             where: businessWhereClause,
             select: { id: true }
           }
@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
         businesses.map(business => ({
           businessName: business.name,
           businessType: business.type,
-          count: business.primaryEmployees.length
+          count: business.employees.length
         }))
       ),
 
