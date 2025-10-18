@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     const disciplinaryActions = await prisma.disciplinaryActions.findMany({
       where: whereClause,
       include: {
-        employee: {
+        employees_disciplinary_actions_employeeIdToemployees: {
           select: {
             id: true,
             fullName: true,
@@ -59,14 +59,10 @@ export async function GET(req: NextRequest) {
             }
           }
         },
-        createdByUser: {
+        employees_disciplinary_actions_createdByToemployees: {
           select: {
-            name: true
-          }
-        },
-        resolvedByUser: {
-          select: {
-            name: true
+            id: true,
+            fullName: true
           }
         }
       },
@@ -76,9 +72,18 @@ export async function GET(req: NextRequest) {
       ]
     })
 
+    // Transform for UI compatibility
+    const transformed = disciplinaryActions.map(action => ({
+      ...action,
+      employee: action.employees_disciplinary_actions_employeeIdToemployees,
+      createdByUser: action.employees_disciplinary_actions_createdByToemployees
+        ? { name: action.employees_disciplinary_actions_createdByToemployees.fullName }
+        : null
+    }))
+
     // Attach primaryBusiness (first business) to employee for backwards compatibility
     try {
-      const normalized = (disciplinaryActions as any[]).map(act => {
+      const normalized = (transformed as any[]).map(act => {
         if (act.employee) {
           const firstBusiness = Array.isArray(act.employee.businesses) && act.employee.businesses.length > 0
             ? act.employee.businesses[0]
@@ -89,7 +94,7 @@ export async function GET(req: NextRequest) {
       })
       return NextResponse.json(normalized)
     } catch (e) {
-      return NextResponse.json(disciplinaryActions)
+      return NextResponse.json(transformed)
     }
   } catch (error) {
     console.error('Disciplinary actions fetch error:', error)
@@ -166,7 +171,7 @@ export async function POST(req: NextRequest) {
         createdBy: session.user.id
       },
       include: {
-        employee: {
+        employees_disciplinary_actions_employeeIdToemployees: {
           select: {
             id: true,
             fullName: true,
@@ -177,23 +182,42 @@ export async function POST(req: NextRequest) {
                 department: true
               }
             },
-            primaryBusiness: {
+            businesses: {
               select: {
+                id: true,
                 name: true,
                 type: true
               }
             }
           }
         },
-        createdByUser: {
+        employees_disciplinary_actions_createdByToemployees: {
           select: {
-            name: true
+            id: true,
+            fullName: true
           }
         }
       }
     })
 
-    return NextResponse.json(disciplinaryAction)
+    // Transform for UI compatibility
+    const transformed = {
+      ...disciplinaryAction,
+      employee: disciplinaryAction.employees_disciplinary_actions_employeeIdToemployees,
+      createdByUser: disciplinaryAction.employees_disciplinary_actions_createdByToemployees
+        ? { name: disciplinaryAction.employees_disciplinary_actions_createdByToemployees.fullName }
+        : null
+    }
+
+    // Add primaryBusiness for UI
+    if (transformed.employee) {
+      const firstBusiness = Array.isArray(transformed.employee.businesses) && transformed.employee.businesses.length > 0
+        ? transformed.employee.businesses[0]
+        : null
+      transformed.employee.primaryBusiness = firstBusiness
+    }
+
+    return NextResponse.json(transformed)
   } catch (error) {
     console.error('Disciplinary action creation error:', error)
     return NextResponse.json(
