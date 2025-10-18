@@ -52,51 +52,24 @@ export async function GET(
     const customer = await prisma.businessCustomers.findUnique({
       where: { id: customerId },
       include: {
-        divisionAccounts: {
-          include: {
-            businesses: {
-              select: { id: true, name: true, type: true }
-            }
-          },
-          orderBy: { createdAt: 'desc' }
+        businesses: {
+          select: { id: true, name: true, type: true }
         },
-        linkedUser: {
-          select: { id: true, name: true, email: true, role: true }
-        },
-        linkedEmployee: {
+        business_orders: {
           select: {
             id: true,
-            employeeNumber: true,
-            fullName: true,
-            // relation on Employee for primary business is 'businesses' in schema
-            businesses: {
-              select: { id: true, name: true }
-            }
-          }
-        },
-        laybys: {
-          include: {
-            businesses: {
-              select: { id: true, name: true }
-            }
+            orderNumber: true,
+            status: true,
+            total: true,
+            createdAt: true,
+            updatedAt: true
           },
           orderBy: { createdAt: 'desc' },
-          take: 10
-        },
-        creditApplications: {
-          include: {
-            businesses: {
-              select: { id: true, name: true }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10
+          take: 20
         },
         _count: {
           select: {
-            divisionAccounts: true,
-            laybys: true,
-            creditApplications: true
+            business_orders: true
           }
         }
       }
@@ -205,18 +178,19 @@ export async function PUT(
         updatedAt: new Date()
       },
       include: {
-        divisionAccounts: {
-          include: {
-            businesses: {
-              select: { id: true, name: true, type: true }
-            }
-          }
+        businesses: {
+          select: { id: true, name: true, type: true }
         },
-        linkedUser: {
-          select: { id: true, name: true, email: true }
-        },
-        linkedEmployee: {
-          select: { id: true, employeeNumber: true, fullName: true }
+        business_orders: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            total: true,
+            createdAt: true
+          },
+          take: 5,
+          orderBy: { createdAt: 'desc' }
         }
       }
     })

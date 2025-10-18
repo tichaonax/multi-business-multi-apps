@@ -96,25 +96,23 @@ export async function GET(request: NextRequest) {
       prisma.businessCustomers.findMany({
         where,
         include: {
-          divisionAccounts: {
-            where: businessId ? { businessId } : undefined,
-            include: {
-              businesses: {
-                select: { id: true, name: true, type: true }
-              }
-            }
+          businesses: {
+            select: { id: true, name: true, type: true }
           },
-          linkedUser: {
-            select: { id: true, name: true, email: true }
-          },
-          linkedEmployee: {
-            select: { id: true, employeeNumber: true, fullName: true }
+          business_orders: {
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              total: true,
+              createdAt: true
+            },
+            take: 5, // Limit to recent orders
+            orderBy: { createdAt: 'desc' }
           },
           _count: {
             select: {
-              divisionAccounts: true,
-              laybys: true,
-              creditApplications: true
+              business_orders: true
             }
           }
         },
@@ -270,18 +268,19 @@ export async function POST(request: NextRequest) {
     const completeCustomer = await prisma.businessCustomers.findUnique({
       where: { id: customer.id },
       include: {
-        divisionAccounts: {
-          include: {
-            businesses: {
-              select: { id: true, name: true, type: true }
-            }
-          }
+        businesses: {
+          select: { id: true, name: true, type: true }
         },
-        linkedUser: {
-          select: { id: true, name: true, email: true }
-        },
-        linkedEmployee: {
-          select: { id: true, employeeNumber: true, fullName: true }
+        business_orders: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            total: true,
+            createdAt: true
+          },
+          take: 5,
+          orderBy: { createdAt: 'desc' }
         }
       }
     })
