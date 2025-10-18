@@ -29,8 +29,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         employeeId: employeeId
       },
       include: {
-        jobTitles: true,
-        compensationTypes: true,
+        job_titles: true,
+        compensation_types: true,
         businesses_employee_contracts_primaryBusinessIdTobusinesses: {
           select: {
             id: true,
@@ -323,8 +323,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           updatedAt: new Date()
         },
         include: {
-          jobTitles: true,
-          compensationTypes: true,
+          job_titles: true,
+          compensation_types: true,
           businesses_employee_contracts_primaryBusinessIdTobusinesses: {
             select: { id: true, name: true, type: true }
           },
@@ -404,7 +404,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     // Map updatedContract to legacy-friendly shape before returning
     const mappedUpdated = {
       ...updatedContract,
-      jobTitle: (updatedContract as any).jobTitles || null,
+      jobTitle: (updatedContract as any).job_titles || null,
       compensationType: (updatedContract as any).compensationTypes || null,
       business: (updatedContract as any).businesses_employee_contracts_primaryBusinessIdTobusinesses || null,
       supervisor: (updatedContract as any).employees_employee_contracts_supervisorIdToemployees || null,

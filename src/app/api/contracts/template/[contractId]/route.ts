@@ -28,7 +28,7 @@ export async function GET(
       where: { id: contractId },
       include: {
         // Include all copyable data
-        jobTitles: {
+        job_titles: {
           select: {
             id: true,
             title: true,
@@ -37,7 +37,7 @@ export async function GET(
             responsibilities: true
           }
         },
-        compensationTypes: {
+        compensation_types: {
           select: {
             id: true,
             name: true,
@@ -114,7 +114,7 @@ export async function GET(
       })),
 
       // Related data for form population
-      jobTitle: contract.jobTitles,
+      jobTitle: contract.job_titles,
       compensationType: contract.compensationTypes,
       primaryBusiness: contract.businesses_employee_contracts_primaryBusinessIdTobusinesses,
       supervisor: contract.employees_employee_contracts_supervisorIdToemployees,

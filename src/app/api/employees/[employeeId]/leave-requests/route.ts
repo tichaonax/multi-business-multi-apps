@@ -29,11 +29,9 @@ export async function GET(
     const leaveRequests = await prisma.employeeLeaveRequests.findMany({
       where: { employeeId },
       include: {
-        employees_employee_leave_requests_approvedByToemployees: {
-          select: {
-            id: true,
-            fullName: true,
-            jobTitles: {
+        employees_employee_leave_requests_employeeIdToemployees: {
+          include: {
+            job_titles: {
               select: { title: true }
             }
           }
@@ -50,7 +48,7 @@ export async function GET(
         req.approver = {
           id: approver.id,
           fullName: approver.fullName,
-          jobTitle: approver.jobTitles?.title || null
+          jobTitle: approver.job_titles?.title || null
         }
       } else {
         req.approver = null

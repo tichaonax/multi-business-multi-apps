@@ -516,7 +516,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const formattedEmployee = {
       ...ue,
       user: ue.users,
-      jobTitle: ue.jobTitles || null,
+      jobTitle: ue.job_titles || null,
       compensationType: ue.compensationTypes || null,
       primaryBusiness: ue.businesses || ue.primaryBusiness || null,
       supervisor: null,

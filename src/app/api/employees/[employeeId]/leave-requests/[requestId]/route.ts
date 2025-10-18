@@ -46,7 +46,9 @@ export async function PUT(
           select: {
             id: true,
             fullName: true,
-            jobTitles: { select: { title: true } }
+              include: {
+            job_titles: { select: { title: true } }
+          }
           }
         }
       }
@@ -70,7 +72,7 @@ export async function PUT(
           select: { fullName: true, employeeNumber: true }
         },
         employees_employee_leave_requests_approvedByToemployees: {
-          select: { id: true, fullName: true, jobTitles: { select: { title: true } } }
+          select: { id: true, fullName: true, job_titles: { select: { title: true } } }
         }
       }
     })
@@ -149,7 +151,7 @@ export async function PUT(
       ...updatedRequest,
       approver: (updatedRequest as any).employees_employee_leave_requests_approvedByToemployees ? {
         ...(updatedRequest as any).employees_employee_leave_requests_approvedByToemployees,
-        jobTitle: (updatedRequest as any).employees_employee_leave_requests_approvedByToemployees.jobTitles?.title || null
+        jobTitle: (updatedRequest as any).employees_employee_leave_requests_approvedByToemployees.job_titles?.title || null
       } : null,
       employee: (updatedRequest as any).employees_employee_leave_requests_employeeIdToemployees || null
     }
