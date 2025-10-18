@@ -272,7 +272,7 @@ export async function DELETE(req: NextRequest) {
 
 // helper to recalc entry and period totals
 async function recalcEntryAndPeriod(tx: any, entryId: string) {
-  const entry = await tx.payrollEntries.findUnique({ where: { id: entryId }, include: { PayrollEntryBenefits: true, payroll_adjustments: true, payroll_periods: true } })
+  const entry = await tx.payrollEntries.findUnique({ where: { id: entryId }, include: { payroll_entry_benefits: true, payroll_adjustments: true, payroll_periods: true } })
   if (!entry) return
 
   const benefitsTotal = (entry.payroll_entry_benefits || []).filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)

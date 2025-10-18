@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       for (const entryId of affectedEntryIds) {
         const entry = await tx.payrollEntries.findUnique({
           where: { id: entryId },
-          include: { PayrollEntryBenefits: true }
+          include: { payroll_entry_benefits: true }
         })
         if (!entry) continue
 
