@@ -10,6 +10,7 @@ import { NavigationProvider } from '@/contexts/navigation-context'
 import { GlobalHeader } from '@/components/layout/global-header'
 import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
 import ConfirmProvider from '@/components/ui/confirm-modal'
+import HealthIndicator from '@/components/ui/health-indicator'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -53,6 +54,13 @@ export default function RootLayout({
             </ThemeProvider>
           </SettingsProvider>
         </CustomSessionProvider>
+
+        {/* Global Health Status Indicator - Appears on ALL pages */}
+        <HealthIndicator 
+          position="bottom-right" 
+          showFullOnDesktop={true}
+          enableClickToExpand={true}
+        />
       </body>
     </html>
   )
