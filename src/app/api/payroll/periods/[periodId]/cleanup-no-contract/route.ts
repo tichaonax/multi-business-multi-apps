@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const apply = Boolean(body && body.apply)
 
     // Load entries for the period
-    const entries = await prisma.payrollEntries.findMany({ where: { payrollPeriodId: periodId }, include: { employee: true } })
+    const entries = await prisma.payrollEntries.findMany({ where: { payrollPeriodId: periodId }, include: { employees: true } })
 
     const offenders: { entryId: string; employeeId: string | null; employeeNumber?: string | null; employeeName?: string | null }[] = []
 
