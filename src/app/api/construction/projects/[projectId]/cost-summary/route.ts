@@ -35,19 +35,19 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const transactions = await prisma.projectTransactions.findMany({
       where: { projectId },
       include: {
-        personalExpense: {
+        personal_expenses: {
           select: {
             amount: true,
             date: true
           }
         },
-        projectStage: {
+        project_stages: {
           select: {
             id: true,
             name: true
           }
         },
-        recipientPerson: {
+        persons: {
           select: {
             id: true,
             fullName: true
@@ -60,11 +60,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const stages = await prisma.projectStages.findMany({
       where: { projectId },
       include: {
-        stageContractorAssignments: {
+        stage_contractor_assignments: {
           include: {
-            projectContractor: {
+            project_contractors: {
               include: {
-                person: {
+                persons: {
                   select: {
                     id: true,
                     fullName: true

@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const transactions = await prisma.projectTransactions.findMany({
       where,
       include: {
-        personalExpense: {
+        personal_expenses: {
           select: {
             id: true,
             amount: true,
@@ -62,14 +62,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             category: true
           }
         },
-        projectStage: {
+        project_stages: {
           select: {
             id: true,
             name: true,
             status: true
           }
         },
-        recipientPerson: {
+        persons: {
           select: {
             id: true,
             fullName: true,
@@ -77,9 +77,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             email: true
           }
         },
-        projectContractor: {
+        project_contractors: {
           include: {
-            person: {
+            persons: {
               select: {
                 id: true,
                 fullName: true,
@@ -89,17 +89,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        stageContractorAssignment: {
+        stage_contractor_assignments: {
           include: {
-            projectStage: {
+            project_stages: {
               select: {
                 id: true,
                 name: true
               }
             },
-            projectContractor: {
+            project_contractors: {
               include: {
-                person: {
+                persons: {
                   select: {
                     id: true,
                     fullName: true
@@ -109,14 +109,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        users_payroll_periods_approvedByTousers: {
+        users_project_transactions_approvedByTousers: {
           select: {
             id: true,
             name: true,
             email: true
           }
         },
-        users_payroll_periods_createdByTousers: {
+        users_project_transactions_createdByTousers: {
           select: {
             id: true,
             name: true,
@@ -278,9 +278,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (stageAssignmentId) {
       const assignment = await prisma.stageContractorAssignments.findUnique({
         where: { id: stageAssignmentId },
-        include: { projectStage: true }
+        include: { project_stages: true }
       })
-      if (!assignment || assignment.projectStage.projectId !== projectId) {
+      if (!assignment || assignment.project_stages?.projectId !== projectId) {
         return NextResponse.json(
           { error: 'Stage assignment not found in this project' },
           { status: 404 }
@@ -306,7 +306,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         createdBy: session.user.id
       },
       include: {
-        personalExpense: {
+        personal_expenses: {
           select: {
             id: true,
             amount: true,
@@ -315,14 +315,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             category: true
           }
         },
-        projectStage: {
+        project_stages: {
           select: {
             id: true,
             name: true,
             status: true
           }
         },
-        recipientPerson: {
+        persons: {
           select: {
             id: true,
             fullName: true,
@@ -330,9 +330,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             email: true
           }
         },
-        projectContractor: {
+        project_contractors: {
           include: {
-            person: {
+            persons: {
               select: {
                 id: true,
                 fullName: true,
@@ -342,17 +342,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        stageContractorAssignment: {
+        stage_contractor_assignments: {
           include: {
-            projectStage: {
+            project_stages: {
               select: {
                 id: true,
                 name: true
               }
             },
-            projectContractor: {
+            project_contractors: {
               include: {
-                person: {
+                persons: {
                   select: {
                     id: true,
                     fullName: true
@@ -467,7 +467,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       where: { id: transactionId },
       data: updatedData,
       include: {
-        personalExpense: {
+        personal_expenses: {
           select: {
             id: true,
             amount: true,
@@ -476,14 +476,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
             category: true
           }
         },
-        projectStage: {
+        project_stages: {
           select: {
             id: true,
             name: true,
             status: true
           }
         },
-        recipientPerson: {
+        persons: {
           select: {
             id: true,
             fullName: true,
@@ -491,9 +491,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
             email: true
           }
         },
-        projectContractor: {
+        project_contractors: {
           include: {
-            person: {
+            persons: {
               select: {
                 id: true,
                 fullName: true,
@@ -503,14 +503,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        users_payroll_periods_approvedByTousers: {
+        users_project_transactions_approvedByTousers: {
           select: {
             id: true,
             name: true,
             email: true
           }
         },
-        users_payroll_periods_createdByTousers: {
+        users_project_transactions_createdByTousers: {
           select: {
             id: true,
             name: true,
