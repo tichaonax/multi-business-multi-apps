@@ -172,13 +172,13 @@ export async function POST(
       }
 
       // Create the renewed contract
-      const newContract = await tx.employeeContract.create({
+      const newContract = await tx.employeeContracts.create({
         data: renewedContractData
       })
 
       // Copy contract benefits INSIDE transaction to ensure atomicity
       for (const benefit of originalContract.contract_benefits) {
-        await tx.contractBenefit.create({
+        await tx.contractBenefits.create({
           data: {
             id: randomUUID(),
             contractId: newContract.id,
@@ -192,7 +192,7 @@ export async function POST(
 
       // Mark original contract as expired (it has been renewed)
       // This MUST be last to ensure the new contract is fully created first
-      await tx.employeeContract.update({
+      await tx.employeeContracts.update({
         where: { id: originalContract.id },
         data: {
           status: 'expired',

@@ -556,11 +556,23 @@ class HybridServiceWrapper extends EventEmitter {
         return;
       }
 
-      // Check if .next directory exists and has content
+      // Check if .next directory exists and has a valid production build
       const nextDir = path.join(__dirname, '..', '.next');
-      const shouldBuild = !fs.existsSync(nextDir) ||
-                         fs.readdirSync(nextDir).length === 0 ||
-                         process.env.FORCE_BUILD === 'true';
+      const buildIdFile = path.join(nextDir, 'BUILD_ID');
+
+      // A valid build requires the BUILD_ID file to exist and be non-empty
+      let hasValidBuild = false;
+      if (fs.existsSync(nextDir) && fs.existsSync(buildIdFile)) {
+        try {
+          const buildId = fs.readFileSync(buildIdFile, 'utf8').trim();
+          hasValidBuild = buildId.length > 0;
+        } catch (err) {
+          // BUILD_ID file is unreadable or corrupted
+          hasValidBuild = false;
+        }
+      }
+
+      const shouldBuild = !hasValidBuild || process.env.FORCE_BUILD === 'true';
 
       if (!shouldBuild) {
         console.log('✅ Application build already exists, skipping build');

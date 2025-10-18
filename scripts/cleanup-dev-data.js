@@ -33,7 +33,7 @@ async function cleanup() {
 
     const fs = require('fs')
     const path = require('path')
-    const backupFile = path.join(process.cwd(), 'scripts', `cleanup-backup-${Date.now()}.json`)
+    const backupFile = path.join(process.cwd(), 'scripts', `MultiBusinessSyncService-backup_cleanup_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json`)
     fs.writeFileSync(backupFile, JSON.stringify(backup, null, 2))
     console.log('Backup written to', backupFile)
 

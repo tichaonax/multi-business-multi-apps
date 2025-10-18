@@ -69,16 +69,20 @@ class ServiceUpdateManager {
       // Step 6: Build updated service
       await this.buildUpdatedService();
 
-      // Step 7: Start service
-      await this.startServiceSafely();
+      // Step 7: Start service - DISABLED - User will manually restart after verifying update
+      // await this.startServiceSafely();
+      this.log('⚠️  Service remains stopped. Please manually restart after verifying update:', 'WARN');
+      this.log('   npm run service:start', 'INFO');
 
-      // Step 8: Validate UI compatibility
-      await this.validateUICompatibility();
+      // Step 8: Validate UI compatibility - DISABLED - Requires running service
+      // await this.validateUICompatibility();
 
-      // Step 8: Verify update
-      await this.verifyUpdate();
+      // Step 8: Verify update - DISABLED - Requires running service
+      // await this.verifyUpdate();
 
       this.log('✅ Service update completed successfully!');
+      this.log('🛑 Service is STOPPED. Start it manually when ready:', 'WARN');
+      this.log('   npm run service:start', 'SUCCESS');
       return true;
 
     } catch (error) {
@@ -134,8 +138,8 @@ class ServiceUpdateManager {
   async createBackup() {
     this.log('💾 Creating backup...');
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupName = `multi-business-multi-apps-backup-${timestamp}`;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const backupName = `MultiBusinessSyncService-backup_full_${timestamp}`;
     const currentBackupDir = path.join(this.backupDir, backupName);
 
     // Ensure backup directory exists
@@ -284,9 +288,32 @@ class ServiceUpdateManager {
       await execAsync('git pull origin main');
       this.log('✅ Git pull completed');
 
-      // Install/update dependencies
-      await execAsync('npm install');
-      this.log('✅ Dependencies updated');
+      // Install/update dependencies (including devDependencies for build tools like tailwindcss)
+      // IMPORTANT: Use 'npm ci' for clean install from lockfile with devDependencies
+      // 'npm ci' is preferred in CI/production environments and respects package-lock.json
+      // We explicitly unset NODE_ENV to prevent npm from assuming production mode
+      this.log('📦 Installing dependencies (including devDependencies)...');
+
+      // First, remove node_modules to ensure clean state
+      const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
+      if (fs.existsSync(nodeModulesPath)) {
+        this.log('🗑️  Removing existing node_modules for clean install...');
+        await execAsync(`rmdir /S /Q "${nodeModulesPath}"`, {
+          cwd: path.join(__dirname, '..'),
+          timeout: 120000 // 2 minutes for large node_modules
+        });
+      }
+
+      // Clean install with devDependencies (NODE_ENV unset to avoid production mode)
+      const installEnv = { ...process.env };
+      delete installEnv.NODE_ENV; // Remove NODE_ENV entirely to avoid production mode
+
+      await execAsync('npm ci', {
+        cwd: path.join(__dirname, '..'),
+        env: installEnv,
+        timeout: 300000 // 5 minutes for npm ci
+      });
+      this.log('✅ Dependencies installed (devDependencies included)');
 
     } catch (error) {
       this.log(`❌ Application update failed: ${error.message}`, 'ERROR');
@@ -813,7 +840,20 @@ const { PrismaClient } = require('@prisma/client');
     this.log('🔨 Building updated service...');
 
     try {
-      // Build the service
+      // Check if Next.js production build is required
+      const nextBuildPath = path.join(__dirname, '..', '.next');
+      const needsNextBuild = !fs.existsSync(nextBuildPath) || !fs.existsSync(path.join(nextBuildPath, 'BUILD_ID'));
+
+      if (needsNextBuild) {
+        this.log('📦 Next.js production build not found - building Next.js app...');
+        await execAsync('npm run build', { cwd: path.join(__dirname, '..') });
+        this.log('✅ Next.js build completed');
+      } else {
+        this.log('✅ Next.js production build exists - skipping rebuild');
+      }
+
+      // Build the TypeScript service
+      this.log('🔨 Building TypeScript service files...');
       await execAsync('npm run build:service');
       this.log('✅ Service build completed');
 
@@ -915,10 +955,10 @@ const { PrismaClient } = require('@prisma/client');
         await this.restoreDatabase(backupDbFile);
       }
 
-      // Start service
-      await this.manager.startService();
-
+      // DO NOT start service - leave stopped for manual verification
       this.log('✅ Rollback completed successfully');
+      this.log('🛑 Service is STOPPED. Start it manually after verifying rollback:', 'WARN');
+      this.log('   npm run service:start', 'INFO');
 
     } catch (error) {
       this.log(`❌ Rollback failed: ${error.message}`, 'ERROR');

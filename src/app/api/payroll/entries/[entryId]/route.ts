@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const entry = await prisma.payroll_entries.findUnique({
+    const entry = await prisma.payrollEntries.findUnique({
       where: { id: entryId },
       include: {
         employee: {
@@ -299,7 +299,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     } = data
 
     // Verify entry exists
-    const existingEntry = await prisma.payroll_entries.findUnique({
+    const existingEntry = await prisma.payrollEntries.findUnique({
       where: { id: entryId },
       include: {
         payroll_periods: true
@@ -337,7 +337,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       updatedAt: new Date()
     }
 
-    const updatedEntry = await prisma.payroll_entries.update({ where: { id: entryId }, data: updateData })
+    const updatedEntry = await prisma.payrollEntries.update({ where: { id: entryId }, data: updateData })
 
     // Persist absenceFraction via a parameterized raw query when provided. This avoids relying
     // on a generated Prisma client that may not yet include the new field.
@@ -371,7 +371,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const recomputed = await import('@/lib/payroll/helpers').then(m => m.computeTotalsForEntry(entryId))
 
     // Persist computed aggregates back to the payroll entry
-    const entry = await prisma.payroll_entries.update({
+    const entry = await prisma.payrollEntries.update({
       where: { id: entryId },
       data: {
         grossPay: recomputed.grossPay,
@@ -464,7 +464,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify entry exists
-    const existingEntry = await prisma.payroll_entries.findUnique({
+    const existingEntry = await prisma.payrollEntries.findUnique({
       where: { id: entryId },
       include: {
         payroll_periods: true
@@ -488,7 +488,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const periodId = existingEntry.payrollPeriodId
 
-    await prisma.payroll_entries.delete({
+    await prisma.payrollEntries.delete({
       where: { id: entryId }
     })
 
@@ -508,7 +508,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 // Helper function
 async function updatePeriodTotals(periodId: string) {
   // Recompute totals per-entry to ensure benefits (persisted + inferred) are included
-  const entries = await prisma.payroll_entries.findMany({ where: { payrollPeriodId: periodId }, select: { id: true } })
+  const entries = await prisma.payrollEntries.findMany({ where: { payrollPeriodId: periodId }, select: { id: true } })
 
   let totalGross = 0
   let totalDeductions = 0
@@ -518,7 +518,7 @@ async function updatePeriodTotals(periodId: string) {
     try {
       const totals = await import('@/lib/payroll/helpers').then(m => m.computeTotalsForEntry(e.id))
       totalGross += Number(totals.grossPay || 0)
-      totalDeductions += Number((await prisma.payroll_entries.findUnique({ where: { id: e.id } }))?.totalDeductions || 0)
+      totalDeductions += Number((await prisma.payrollEntries.findUnique({ where: { id: e.id } }))?.totalDeductions || 0)
       totalNet += Number(totals.netPay || 0)
     } catch (err) {
       // on any failure, fallback to stored aggregates

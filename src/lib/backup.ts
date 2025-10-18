@@ -15,9 +15,9 @@ export async function createBackup(
   options: BackupOptions = {}
 ): Promise<string> {
   try {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
     const backupDir = path.join(process.cwd(), 'backups')
-    const backupFile = path.join(backupDir, `backup-${timestamp}.json`)
+    const backupFile = path.join(backupDir, `MultiBusinessSyncService-backup_full_${timestamp}.json`)
 
     await fs.mkdir(backupDir, { recursive: true })
 

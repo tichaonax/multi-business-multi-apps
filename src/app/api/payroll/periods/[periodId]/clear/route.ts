@@ -35,7 +35,7 @@ export async function POST(
     }
 
     // Delete all entries for this period
-    await prisma.payroll_entries.deleteMany({
+    await prisma.payrollEntries.deleteMany({
       where: { payrollPeriodId: periodId }
     })
 

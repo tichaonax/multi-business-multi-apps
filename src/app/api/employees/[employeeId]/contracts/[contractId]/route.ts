@@ -218,7 +218,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       // Sign the contract and activate employee
       const signedContract = await prisma.$transaction(async (tx) => {
         // Update contract with signature timestamp and activate
-        const contract = await tx.employeeContract.update({
+        const contract = await tx.employeeContracts.update({
           where: { id: contractId },
           data: {
             employeeSignedAt: new Date(),
@@ -313,7 +313,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     // Update the contract
     const updatedContract = await prisma.$transaction(async (tx) => {
       // Update the contract
-      const contract = await tx.employeeContract.update({
+      const contract = await tx.employeeContracts.update({
         where: { id: contractId },
         data: {
           status: status || existingContract.status,

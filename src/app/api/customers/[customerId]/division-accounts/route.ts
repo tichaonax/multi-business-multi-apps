@@ -36,7 +36,7 @@ export async function GET(
     const { customerId } = params
 
     // Verify customer exists
-    const customer = await prisma.universalCustomer.findUnique({
+    const customer = await prisma.businessCustomers.findUnique({
       where: { id: customerId }
     })
 
@@ -92,7 +92,7 @@ export async function POST(
     const validatedData = CreateDivisionAccountSchema.parse(body)
 
     // Verify customer exists
-    const customer = await prisma.universalCustomer.findUnique({
+    const customer = await prisma.businessCustomers.findUnique({
       where: { id: customerId }
     })
 

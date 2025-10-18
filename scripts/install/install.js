@@ -506,8 +506,8 @@ function createBackup() {
       fs.mkdirSync(backupDir, { recursive: true })
     }
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const backupFile = path.join(backupDir, \`backup-\${timestamp}.sql\`)
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
+    const backupFile = path.join(backupDir, \`MultiBusinessSyncService-backup_database_\${timestamp}.sql\`)
 
     console.log(\`Creating backup: \${backupFile}\`)
 
@@ -519,7 +519,7 @@ function createBackup() {
 
     // Clean up old backups (keep last 7 days)
     const files = fs.readdirSync(backupDir)
-      .filter(f => f.startsWith('backup-') && f.endsWith('.sql'))
+      .filter(f => f.startsWith('MultiBusinessSyncService-backup_database_') && f.endsWith('.sql'))
       .map(f => ({
         name: f,
         path: path.join(backupDir, f),

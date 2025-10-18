@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // Get driver record for current user
-    const driver = await prisma.vehicle_drivers.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { userId: session.user.id },
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     const validatedData = DriverTripSchema.parse(body)
 
     // Get driver record for current user
-    const driver = await prisma.vehicle_drivers.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { userId: session.user.id },
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
       const createdExpenses = []
       if (validatedData.expenses && validatedData.expenses.length > 0) {
         for (const expense of validatedData.expenses) {
-          const createdExpense = await tx.vehicleExpense.create({
+          const createdExpense = await tx.vehicleExpenses.create({
             data: {
               id: randomUUID(),
               vehicleId: validatedData.vehicleId,
@@ -325,7 +325,7 @@ export async function POST(request: NextRequest) {
 
       // Update vehicle mileage if trip is completed
       if (isCompleted && validatedData.endMileage) {
-        await tx.vehicle.update({
+        await tx.vehicles.update({
           where: { id: validatedData.vehicleId },
           data: { currentMileage: validatedData.endMileage }
         })
@@ -417,7 +417,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get driver record
-    const driver = await prisma.vehicle_drivers.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { userId: session.user.id },
@@ -524,7 +524,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Get driver record
-    const driver = await prisma.vehicle_drivers.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { userId: session.user.id },
@@ -569,7 +569,7 @@ export async function DELETE(request: NextRequest) {
     // Delete trip and associated expenses in a transaction
     await prisma.$transaction(async (tx) => {
       // Delete associated expenses first
-      await tx.vehicleExpense.deleteMany({
+      await tx.vehicleExpenses.deleteMany({
         where: { tripId: tripId }
       })
 

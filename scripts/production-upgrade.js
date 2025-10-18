@@ -89,7 +89,7 @@ async function createBackup() {
     fs.mkdirSync(backupDir, { recursive: true })
   }
   
-  const backupFile = path.join(backupDir, `pre-upgrade-backup-${timestamp}.sql`)
+  const backupFile = path.join(backupDir, `MultiBusinessSyncService-backup_pre-upgrade_${timestamp}.sql`)
   
   // Get database connection details from environment
   const databaseUrl = process.env.DATABASE_URL

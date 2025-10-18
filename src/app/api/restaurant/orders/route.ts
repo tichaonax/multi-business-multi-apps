@@ -320,7 +320,7 @@ export async function POST(req: NextRequest) {
         const bp = await prisma.businessProducts.findUnique({ where: { id: item.id } }).catch(() => null)
         let variant = null
         if (!bp) {
-          variant = await prisma.product_variants.findUnique({ where: { id: item.id } }).catch(() => null)
+          variant = await prisma.productVariants.findUnique({ where: { id: item.id } }).catch(() => null)
         }
 
         if (bp || variant) {

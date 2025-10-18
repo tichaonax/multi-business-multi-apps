@@ -194,7 +194,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
     // Create salary increase record and new contract in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create salary increase record
-      const salaryIncrease = await (tx.employeeSalaryIncrease.create as any)({
+      const salaryIncrease = await (tx.employeeSalaryIncreases.create as any)({
         data: {
           employeeId: employeeId,
           previousSalary: new Prisma.Decimal(String(currentSalary)),
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
       })
 
       // Mark current contract as superseded
-      await tx.employeeContract.update({
+      await tx.employeeContracts.update({
         where: { id: currentContract.id },
         data: {
           status: 'superseded',
@@ -225,7 +225,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
       })
 
       // Get current contract's benefits to copy to new contract
-      const currentContractBenefits = await tx.employeeContractBenefit.findMany({
+      const currentContractBenefits = await tx.contractBenefits.findMany({
         where: { contractId: currentContract.id },
         include: {
           benefit_types: true
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
       })
 
       // Generate new contract number
-      const contractCount = await tx.employeeContract.count()
+      const contractCount = await tx.employeeContracts.count()
       const newContractNumber = `CTR${String(contractCount + 1).padStart(6, '0')}`
 
       // Create new contract with updated salary
@@ -275,7 +275,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
           return `${frequencyTag}\n\n${contractNotes}`
         })()
       }
-      const newContract = await tx.employeeContract.create({
+      const newContract = await tx.employeeContracts.create({
         data: newContractData
       })
 
@@ -289,7 +289,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
           notes: benefit.notes
         }))
 
-        await tx.employeeContractBenefit.createMany({
+        await tx.contractBenefits.createMany({
           data: benefitsData
         })
       }

@@ -4,11 +4,13 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const HybridServiceManager = require('../windows-service/hybrid-service-manager');
 
 const execAsync = util.promisify(exec);
 const SERVICE_NAME = 'multibusinesssyncservice.exe';
 const SC = process.env.SC_COMMAND || 'sc.exe';
 const DIST_PATH = path.join(__dirname, '..', 'dist');
+const serviceManager = new HybridServiceManager();
 
 /**
  * Check if the sync service is currently running
@@ -113,28 +115,10 @@ async function stopServiceAndWait() {
   console.log('🛑 Stopping Windows service for safe rebuild...');
 
   try {
-    // Try to stop the service
-    await execAsync('node scripts/sync-service-stop.js');
-    console.log('✅ Service stop command sent');
-
-    // Wait for service to fully stop (check status with retries)
-    const maxRetries = 10;
-    const retryDelay = 2000; // 2 seconds
-
-    for (let i = 0; i < maxRetries; i++) {
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
-
-      const isRunning = await isServiceRunning();
-      if (!isRunning) {
-        console.log('✅ Service has stopped completely');
-        return true;
-      }
-
-      console.log(`   Waiting for service to stop... (${i + 1}/${maxRetries})`);
-    }
-
-    console.log('⚠️  Service did not stop within expected time, proceeding anyway...');
-    return false;
+    // Use HybridServiceManager for comprehensive service stop
+    await serviceManager.stopService();
+    console.log('✅ Service has stopped completely');
+    return true;
 
   } catch (error) {
     console.warn(`⚠️  Could not stop service: ${error.message}`);

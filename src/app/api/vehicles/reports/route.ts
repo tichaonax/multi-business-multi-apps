@@ -164,8 +164,8 @@ async function generateFleetOverviewReport(vehicleId?: string, businessId?: stri
     })
     , // end maintenanceRecords entry
     // Driver counts
-    prisma.vehicle_drivers.count({ where: driverFilter }),
-    prisma.vehicle_drivers.count({ where: { ...driverFilter, isActive: true } })
+    prisma.vehicleDrivers.count({ where: driverFilter }),
+    prisma.vehicleDrivers.count({ where: { ...driverFilter, isActive: true } })
   ])
 
   return {
@@ -527,7 +527,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
       }
     }),
     // Driver licenses expiring in 60 days
-    prisma.vehicle_drivers.findMany({
+    prisma.vehicleDrivers.findMany({
       where: {
         ...driverFilter,
         isActive: true,
@@ -627,7 +627,7 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
   if (driverId) tripFilter.driverId = driverId
   if (vehicleId) tripFilter.vehicleId = vehicleId
 
-  const driverActivity = await prisma.vehicle_drivers.findMany({
+  const driverActivity = await prisma.vehicleDrivers.findMany({
     where: driverId ? { id: driverId } : { isActive: true },
     include: {
       vehicle_trips: {

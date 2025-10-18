@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify driver exists
-    const driver = await prisma.vehicle_drivers.findUnique({
+    const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: validatedData.driverId }
     })
 
@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
       data: createData as any,
       include: {
         vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
-        vehicleDrivers: { select: { id: true, fullName: true, licenseNumber: true, phoneNumber: true } },
+        vehicle_drivers: { select: { id: true, fullName: true, licenseNumber: true, phoneNumber: true } },
         businesses: { select: { id: true, name: true, type: true } }
       }
     })
@@ -350,7 +350,7 @@ export async function PUT(request: NextRequest) {
       data: { ...updateData, endTime: updateData.endTime ? new Date(updateData.endTime) : undefined, tripMileage, isCompleted } as any,
       include: {
         vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
-        vehicleDrivers: { select: { id: true, fullName: true, licenseNumber: true, phoneNumber: true } },
+        vehicle_drivers: { select: { id: true, fullName: true, licenseNumber: true, phoneNumber: true } },
         businesses: { select: { id: true, name: true, type: true } }
       }
     })

@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     // All checks passed - perform the reset inside a transaction
     const updated = await prisma.$transaction(async (tx) => {
       // Update period back to review (or preview). Use 'review' to match existing workflow.
-      const p = await tx.payroll_periods.update({ where: { id: periodId }, data: { status: 'review', updatedAt: new Date() } })
+      const p = await tx.payrollPeriods.update({ where: { id: periodId }, data: { status: 'review', updatedAt: new Date() } })
       return p
     })
 

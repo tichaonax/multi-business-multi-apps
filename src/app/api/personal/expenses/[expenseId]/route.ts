@@ -214,13 +214,13 @@ export async function PUT(
         }
         
         // Check if ProjectTransaction already exists
-        const existingTransaction = await prisma.project_transactions.findFirst({
+        const existingTransaction = await prisma.projectTransactions.findFirst({
           where: { personalExpenseId: expenseId }
         })
 
         if (existingTransaction) {
           // Update existing transaction
-          await prisma.project_transactions.update({
+          await prisma.projectTransactions.update({
             where: { id: existingTransaction.id },
             data: {
               projectId,
@@ -232,7 +232,7 @@ export async function PUT(
           })
         } else {
           // Create new transaction
-          await prisma.project_transactions.create({
+          await prisma.projectTransactions.create({
             data: {
               projectId,
               personalExpenseId: expenseId,
@@ -248,7 +248,7 @@ export async function PUT(
       }
     } else {
       // If changing away from contractor/project payment, delete any existing ProjectTransaction
-      await prisma.project_transactions.deleteMany({
+      await prisma.projectTransactions.deleteMany({
         where: { personalExpenseId: expenseId }
       })
     }

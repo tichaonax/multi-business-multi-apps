@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     let inferredBenefits: any[] = []
     try {
       // Fetch latest contract for the employee via payroll entry
-      const entry = await prisma.payroll_entries.findUnique({ where: { id: entryId }, select: { employeeId: true } })
+      const entry = await prisma.payrollEntries.findUnique({ where: { id: entryId }, select: { employeeId: true } })
       if (entry) {
         const empId = entry.employeeId
         let contract = null
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify entry exists
-    const entry = await prisma.payroll_entries.findUnique({
+    const entry = await prisma.payrollEntries.findUnique({
       where: { id: entryId },
       include: { payroll_periods: true }
     })
@@ -232,7 +232,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       }
 
       const normalizedNewName = normalizeName(finalBenefitType!.name)
-      const existingConflict = await tx.payrollEntryBenefit.findFirst({
+      const existingConflict = await tx.payrollEntryBenefits.findFirst({
         where: {
           payrollEntryId: entryId,
           OR: [
@@ -247,7 +247,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         throw new Error('Benefit already exists for this payroll entry')
       }
 
-      const newBenefit = await tx.payrollEntryBenefit.create({
+      const newBenefit = await tx.payrollEntryBenefits.create({
         data: {
           id: `PEB-${nanoid(12)}`,
           payrollEntryId: entryId,
@@ -320,7 +320,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const updated = await tx.payrollEntryBenefit.update({
+      const updated = await tx.payrollEntryBenefits.update({
         where: { id }, data: {
           amount: amount !== undefined ? parseFloat(amount) : existing.amount,
           isActive: isActive !== undefined ? Boolean(isActive) : existing.isActive,
@@ -365,7 +365,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      await tx.payrollEntryBenefit.delete({ where: { id: benefitId } })
+      await tx.payrollEntryBenefits.delete({ where: { id: benefitId } })
       await recalculateEntryTotals(tx, entryId)
       return { success: true }
     })
@@ -379,7 +379,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
 // Helper function to recalculate entry totals
 async function recalculateEntryTotals(tx: any, entryId: string) {
-  const entry = await tx.payroll_entries.findUnique({
+  const entry = await tx.payrollEntries.findUnique({
     where: { id: entryId },
     include: {
       PayrollEntryBenefits: true
@@ -406,7 +406,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   const netPay = grossPay - totalDeductions
 
   // Update entry
-  await tx.payroll_entries.update({
+  await tx.payrollEntries.update({
     where: { id: entryId },
     data: {
       benefitsTotal,
@@ -417,7 +417,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   })
 
   // Update period totals
-  const allEntries = await tx.payroll_entries.findMany({
+  const allEntries = await tx.payrollEntries.findMany({
     where: { payrollPeriodId: entry.payrollPeriodId }
   })
 
@@ -430,7 +430,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
     { totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 }
   )
 
-  await tx.payroll_periods.update({
+  await tx.payrollPeriods.update({
     where: { id: entry.payrollPeriodId },
     data: {
       totalGrossPay: periodTotals.totalGrossPay,

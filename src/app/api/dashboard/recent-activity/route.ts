@@ -384,7 +384,7 @@ export async function GET(req: NextRequest) {
         } else if (targetBusinessIds && targetBusinessIds.length > 0) {
           // For business filtering, only include expenses that are actually linked to business projects
           // Personal expenses are only business-related if they have project_transactions linking to business projects
-          const businessProjectTransactions = await prisma.project_transactions.findMany({
+          const businessProjectTransactions = await prisma.projectTransactions.findMany({
             where: ({
               project: {
                 businessId: { in: targetBusinessIds }

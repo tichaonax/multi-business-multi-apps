@@ -24,7 +24,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Update combo with items in a transaction
     const updatedCombo = await prisma.$transaction(async (tx) => {
       // Update the combo
-      const combo = await tx.menuCombo.update({
+      const combo = await tx.menuCombos.update({
         where: { id: comboId },
         data: {
           name,
@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       // If comboItems are provided, update them
       if (comboItems) {
         // Delete existing combo items
-        await tx.menuComboItem.deleteMany({
+        await tx.menuComboItems.deleteMany({
           where: { comboId }
         })
 
@@ -57,14 +57,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             sortOrder: item.sortOrder ?? index
           }))
 
-          await tx.menuComboItem.createMany({
+          await tx.menuComboItems.createMany({
             data: comboItemsData
           })
         }
       }
 
       // Return updated combo with items
-      return await tx.menuCombo.findUnique({
+      return await tx.menuCombos.findUnique({
         where: { id: comboId },
         include: {
           menu_combo_items: {

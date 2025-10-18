@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const apply = Boolean(body && body.apply)
 
     // Load entries for the period
-    const entries = await prisma.payroll_entries.findMany({ where: { payrollPeriodId: periodId }, include: { employee: true } })
+    const entries = await prisma.payrollEntries.findMany({ where: { payrollPeriodId: periodId }, include: { employee: true } })
 
     const offenders: { entryId: string; employeeId: string | null; employeeNumber?: string | null; employeeName?: string | null }[] = []
 
@@ -78,8 +78,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Perform deletion (benefits then entries) in a transaction
     const entryIds = offenders.map(o => o.entryId)
     await prisma.$transaction(async (tx) => {
-      await tx.payrollEntryBenefit.deleteMany({ where: { payrollEntryId: { in: entryIds } } })
-      await tx.payroll_entries.deleteMany({ where: { id: { in: entryIds } } })
+      await tx.payrollEntryBenefits.deleteMany({ where: { payrollEntryId: { in: entryIds } } })
+      await tx.payrollEntries.deleteMany({ where: { id: { in: entryIds } } })
     })
 
     return NextResponse.json({ ok: true, message: `Deleted ${entryIds.length} payroll entries`, deleted: entryIds.length, offenders })

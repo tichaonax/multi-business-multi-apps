@@ -32,7 +32,7 @@ async function backupData() {
       fs.mkdirSync(backupDir, { recursive: true })
     }
 
-    const filename = `multi-business-multi-apps-backup_pre_migration_${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+    const filename = `MultiBusinessSyncService-backup_pre-migration_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json`
     const filepath = path.join(backupDir, filename)
     
     fs.writeFileSync(filepath, JSON.stringify(backup, null, 2))

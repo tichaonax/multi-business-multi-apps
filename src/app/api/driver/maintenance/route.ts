@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const vehicleId = searchParams.get('vehicleId')
 
     // Get driver record for current user
-    const driver = await prisma.vehicle_drivers.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { emailAddress: session.user.email || '' },
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Get driver record for current user
-    const driver = await prisma.vehicle_drivers.findFirst({
+    const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
           { emailAddress: session.user.email || '' },
@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
         return sum + serviceCost + expensesCost
       }, 0)
 
-      const maintenanceRecord = await tx.vehicleMaintenanceRecord.create({
+      const maintenanceRecord = await tx.vehicleMaintenanceRecords.create({
         data: {
           id: maintenanceRecordId,
           vehicleId: validatedData.vehicleId,
@@ -349,7 +349,7 @@ export async function POST(request: NextRequest) {
       const createdServices = []
       for (const service of validatedData.services) {
         const serviceId = randomUUID()
-        const createdService = await tx.vehicleMaintenanceService.create({
+        const createdService = await tx.vehicleMaintenanceServices.create({
           data: {
             id: serviceId,
             maintenanceRecordId: maintenanceRecordId,
@@ -371,7 +371,7 @@ export async function POST(request: NextRequest) {
           for (const expense of service.expenses) {
             const expenseId = randomUUID()
             console.log(`Creating expense: ${expense.expenseType}, Amount: ${expense.amount}, ServiceId: ${serviceId}`)
-            const createdExpense = await tx.vehicleMaintenanceServiceExpense.create({
+            const createdExpense = await tx.vehicleMaintenanceServiceExpenses.create({
               data: {
                 id: expenseId,
                 serviceId: serviceId,

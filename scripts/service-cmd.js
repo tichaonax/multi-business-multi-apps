@@ -14,7 +14,7 @@ if (!cmd || ['help','-h','--help'].includes(cmd)) {
 }
 
 const projectRoot = path.resolve(__dirname, '..')
-const serviceNameHelper = require('../windows-service/service-name-helper')
+const SERVICE_NAME = 'multibusinesssyncservice.exe'
 
 function runNodeScript(relPath, args=[]) {
   const scriptPath = path.join(projectRoot, relPath)
@@ -26,21 +26,13 @@ function runNodeScript(relPath, args=[]) {
   }
 }
 
-// Get ordered candidate service names (internal id variants then display name)
-const candidateNames = serviceNameHelper.getCandidateServiceNames()
-
-function tryScCommand(cmdTemplate) {
-  // cmdTemplate should be a function that accepts a name and returns the command string
-  let lastErr
-  for (const name of candidateNames) {
-    try {
-      execSync(cmdTemplate(name), { stdio: 'inherit' })
-      return true
-    } catch (err) {
-      lastErr = err
-    }
+function runScCommand(cmdTemplate) {
+  try {
+    execSync(cmdTemplate(SERVICE_NAME), { stdio: 'inherit' })
+    return true
+  } catch (err) {
+    throw err
   }
-  throw lastErr
 }
 
 switch (cmd) {
@@ -54,29 +46,29 @@ switch (cmd) {
     break
 
   case 'start':
-    // Start Windows service via sc (requires Windows). For cross-platform recommend npm run service:start
+    // Start Windows service via sc.exe (requires Windows). For cross-platform recommend npm run service:start
     try {
-      tryScCommand((name) => `sc start "${name}"`)
+      runScCommand((name) => `sc.exe start "${name}"`)
     } catch (err) {
-      console.error('Failed to start service via sc. Try: npm run service:start or run the service wrapper directly')
+      console.error('Failed to start service via sc.exe. Try: npm run service:start or run the service wrapper directly')
       process.exit(1)
     }
     break
 
   case 'stop':
     try {
-      tryScCommand((name) => `sc stop "${name}"`)
+      runScCommand((name) => `sc.exe stop "${name}"`)
     } catch (err) {
-      console.error('Failed to stop service via sc. Try: npm run service:stop')
+      console.error('Failed to stop service via sc.exe. Try: npm run service:stop')
       process.exit(1)
     }
     break
 
   case 'status':
     try {
-      tryScCommand((name) => `sc query "${name}"`)
+      runScCommand((name) => `sc.exe query "${name}"`)
     } catch (err) {
-      console.error('Failed to query service status via sc. Try: npm run sync-service:status')
+      console.error('Failed to query service status via sc.exe. Try: npm run sync-service:status')
       process.exit(1)
     }
     break

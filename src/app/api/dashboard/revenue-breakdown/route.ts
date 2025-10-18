@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const projectData = await prisma.project_transactions.aggregate({
+        const projectData = await prisma.projectTransactions.aggregate({
           where: projectWhereClause,
           _sum: {
             amount: true

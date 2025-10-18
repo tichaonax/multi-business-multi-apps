@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch customers
     const [customers, total] = await Promise.all([
-      prisma.universalCustomer.findMany({
+      prisma.businessCustomers.findMany({
         where,
         include: {
           divisionAccounts: {
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit
       }),
-      prisma.universalCustomer.count({ where })
+      prisma.businessCustomers.count({ where })
     ])
 
     return NextResponse.json({
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
 
     // Check for existing customer by email or phone
     if (validatedData.primaryEmail) {
-      const existing = await prisma.universalCustomer.findFirst({
+      const existing = await prisma.businessCustomers.findFirst({
         where: { primaryEmail: validatedData.primaryEmail }
       })
       if (existing) {
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     // Check for existing customer by phone
     if (validatedData.primaryPhone) {
-      const existingByPhone = await prisma.universalCustomer.findFirst({ where: { primaryPhone: validatedData.primaryPhone } })
+      const existingByPhone = await prisma.businessCustomers.findFirst({ where: { primaryPhone: validatedData.primaryPhone } })
       if (existingByPhone) {
         return NextResponse.json(
           { error: 'Customer with this phone number already exists', existingCustomerId: existingByPhone.id },
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
 
     // Check for existing customer by national ID
     if (validatedData.nationalId) {
-      const existing = await prisma.universalCustomer.findFirst({
+      const existing = await prisma.businessCustomers.findFirst({
         where: { nationalId: validatedData.nationalId }
       })
       if (existing) {
@@ -198,13 +198,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate customer number
-    const count = await prisma.universalCustomer.count()
+    const count = await prisma.businessCustomers.count()
     const customerNumber = `UCST-${String(count + 1).padStart(6, '0')}`
 
     // Create customer and division account in transaction
     const customer = await prisma.$transaction(async (tx) => {
       // Create universal customer
-      const newCustomer = await tx.universalCustomer.create({
+      const newCustomer = await tx.businessCustomers.create({
         data: {
           customerNumber,
           type: validatedData.type,
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Fetch complete customer with relations
-    const completeCustomer = await prisma.universalCustomer.findUnique({
+    const completeCustomer = await prisma.businessCustomers.findUnique({
       where: { id: customer.id },
       include: {
         divisionAccounts: {

@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     // Create the combo with items in a transaction
     const combo = await prisma.$transaction(async (tx) => {
-      const newCombo = await tx.menuCombo.create({
+      const newCombo = await tx.menuCombos.create({
         data: {
           businessId,
           name,
@@ -160,12 +160,12 @@ export async function POST(request: NextRequest) {
         sortOrder: item.sortOrder ?? index
       }))
 
-      await tx.menuComboItem.createMany({
+      await tx.menuComboItems.createMany({
         data: comboItemsData
       })
 
       // Return combo with items
-      return await tx.menuCombo.findUnique({
+      return await tx.menuCombos.findUnique({
         where: { id: newCombo.id },
         include: {
           menu_combo_items: {

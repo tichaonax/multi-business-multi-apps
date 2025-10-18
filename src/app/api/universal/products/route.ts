@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
     // Create product with variants in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create the product
-      const product = await tx.businessProduct.create({
+      const product = await tx.businessProducts.create({
           data: {
             ...productData,
             businessType: productData.businessType || business.type
@@ -441,7 +441,7 @@ export async function DELETE(request: NextRequest) {
 
     // Soft delete product and its variants
     await prisma.$transaction([
-      prisma.product_variants.updateMany({
+      prisma.productVariants.updateMany({
         where: { productId: id },
         data: { isActive: false }
       }),

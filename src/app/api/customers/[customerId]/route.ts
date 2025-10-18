@@ -49,7 +49,7 @@ export async function GET(
   const { customerId } = params
 
     // Fetch customer with all relations
-    const customer = await prisma.universalCustomer.findUnique({
+    const customer = await prisma.businessCustomers.findUnique({
       where: { id: customerId },
       include: {
         divisionAccounts: {
@@ -138,7 +138,7 @@ export async function PUT(
     const validatedData = UpdateCustomerSchema.parse(body)
 
     // Check if customer exists
-    const existing = await prisma.universalCustomer.findUnique({
+    const existing = await prisma.businessCustomers.findUnique({
       where: { id: customerId }
     })
 
@@ -148,7 +148,7 @@ export async function PUT(
 
     // Check for email conflicts (if email is being changed)
     if (validatedData.primaryEmail && validatedData.primaryEmail !== existing.primaryEmail) {
-      const emailConflict = await prisma.universalCustomer.findFirst({
+      const emailConflict = await prisma.businessCustomers.findFirst({
         where: {
           primaryEmail: validatedData.primaryEmail,
           id: { not: customerId }
@@ -164,7 +164,7 @@ export async function PUT(
 
     // Check for national ID conflicts (if national ID is being changed)
     if (validatedData.nationalId && validatedData.nationalId !== existing.nationalId) {
-      const idConflict = await prisma.universalCustomer.findFirst({
+      const idConflict = await prisma.businessCustomers.findFirst({
         where: {
           nationalId: validatedData.nationalId,
           id: { not: customerId }
@@ -179,7 +179,7 @@ export async function PUT(
     }
 
     // Update customer
-    const customer = await prisma.universalCustomer.update({
+    const customer = await prisma.businessCustomers.update({
       where: { id: customerId },
       data: {
         type: validatedData.type,
@@ -263,7 +263,7 @@ export async function DELETE(
     const { customerId } = params
 
     // Check if customer exists
-    const existing = await prisma.universalCustomer.findUnique({
+    const existing = await prisma.businessCustomers.findUnique({
       where: { id: customerId }
     })
 
@@ -272,7 +272,7 @@ export async function DELETE(
     }
 
     // Soft delete by setting isActive to false
-    await prisma.universalCustomer.update({
+    await prisma.businessCustomers.update({
       where: { id: customerId },
       data: { isActive: false, updatedAt: new Date() }
     })

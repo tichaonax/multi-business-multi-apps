@@ -214,7 +214,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
         let cumulativeByEmployee: Record<string, any> = {}
         if (priorPeriodIds.length > 0) {
-          const grouped = await prisma.payroll_entries.groupBy({
+          const grouped = await prisma.payrollEntries.groupBy({
             by: ['employeeId'],
             where: { payrollPeriodId: { in: priorPeriodIds } },
             _sum: { sickDays: true, leaveDays: true, absenceDays: true }
@@ -786,7 +786,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       })
 
       // Delete payroll adjustments (FK constraint)
-      const entryIds = await tx.payroll_entries.findMany({
+      const entryIds = await tx.payrollEntries.findMany({
         where: { payrollPeriodId: periodId },
         select: { id: true }
       })
@@ -798,12 +798,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       }
 
       // Delete all payroll entries (benefits will cascade delete due to FK constraint)
-      await tx.payroll_entries.deleteMany({
+      await tx.payrollEntries.deleteMany({
         where: { payrollPeriodId: periodId }
       })
 
       // Finally delete the period
-      await tx.payroll_periods.delete({
+      await tx.payrollPeriods.delete({
         where: { id: periodId }
       })
     })

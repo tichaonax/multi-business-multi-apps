@@ -40,11 +40,11 @@ async function validatePrismaRelations() {
   try {
     await prisma.$connect();
 
-    // Test 1: User -> businessMemberships relation (used in user-edit-modal, user-detail-modal)
+    // Test 1: User -> business_memberships relation (used in user-edit-modal, user-detail-modal)
     try {
       const userWithBusinesses = await prisma.users.findFirst({
-        include: { 
-          businessMemberships: {
+        include: {
+          business_memberships: {
             include: {
               businesses: {
                 select: { id: true, name: true, type: true }
@@ -53,25 +53,25 @@ async function validatePrismaRelations() {
           }
         }
       });
-      
-      if (userWithBusinesses && userWithBusinesses.businessMemberships) {
+
+      if (userWithBusinesses && userWithBusinesses.business_memberships) {
         // Test common UI operations
-        const businesses = userWithBusinesses.businessMemberships.map(m => m.businesses);
+        const businesses = userWithBusinesses.business_memberships.map(m => m.businesses);
         const businessNames = businesses.map(b => b.name);
         const businessCount = businesses.length;
-        
+
         results.passed++;
-        results.details.push('✅ User.businessMemberships -> businesses relation: PASS (UI can access business names)');
-        log(`  ✅ User.businessMemberships: ${businessCount} businesses found`, 'SUCCESS');
+        results.details.push('✅ User.business_memberships -> businesses relation: PASS (UI can access business names)');
+        log(`  ✅ User.business_memberships: ${businessCount} businesses found`, 'SUCCESS');
       } else {
         results.warnings++;
-        results.details.push('⚠️  User.businessMemberships relation: NO_DATA (relation structure OK, no test data)');
-        log('  ⚠️  User.businessMemberships: No data to validate, but structure is correct', 'WARN');
+        results.details.push('⚠️  User.business_memberships relation: NO_DATA (relation structure OK, no test data)');
+        log('  ⚠️  User.business_memberships: No data to validate, but structure is correct', 'WARN');
       }
     } catch (error) {
       results.failed++;
-      results.details.push(`❌ User.businessMemberships relation: FAIL (${error.message})`);
-      log(`  ❌ User.businessMemberships: ${error.message}`, 'ERROR');
+      results.details.push(`❌ User.business_memberships relation: FAIL (${error.message})`);
+      log(`  ❌ User.business_memberships: ${error.message}`, 'ERROR');
     }
 
     // Test 2: Project -> project_types relation

@@ -171,7 +171,7 @@ export async function PUT(
     // Update product in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Update the main product
-      const updatedProduct = await tx.businessProduct.update({
+      const updatedProduct = await tx.businessProducts.update({
         where: { id },
         data: {
           ...updateData,
@@ -278,7 +278,7 @@ export async function DELETE(
 
     // Soft delete product and its variants
     await prisma.$transaction([
-      prisma.product_variants.updateMany({
+      prisma.productVariants.updateMany({
         where: { productId: id },
         data: { isActive: false }
       }),

@@ -271,7 +271,7 @@ export async function POST(
     })
 
     // Create default variant
-    const variant = await prisma.product_variants.create({
+    const variant = await prisma.productVariants.create({
       data: {
         id: randomUUID(),
         productId: product.id,
@@ -302,7 +302,7 @@ export async function POST(
       })
 
       // Update variant stock
-      await prisma.product_variants.update({
+      await prisma.productVariants.update({
         where: { id: variant.id },
         data: { stockQuantity: parseInt(body.currentStock), updatedAt: new Date() }
       })

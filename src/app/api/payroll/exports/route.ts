@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
 
       // Create export record
       const exportRecord = await prisma.$transaction(async (tx) => {
-        const newExport = await tx.payrollExport.create({
+        const newExport = await tx.payrollExports.create({
           data: {
             id: `EX-${nanoid(12)}`,
             payrollPeriodId,
@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
         })
 
         // Update period status to exported
-        await tx.payroll_periods.update({
+        await tx.payrollPeriods.update({
           where: { id: payrollPeriodId },
           data: {
             status: 'exported',
@@ -356,7 +356,7 @@ export async function POST(req: NextRequest) {
 
     let cumulativeByEmployee: Record<string, any> = {}
     if (priorPeriodIds.length > 0) {
-      const grouped = await prisma.payroll_entries.groupBy({
+      const grouped = await prisma.payrollEntries.groupBy({
         by: ['employeeId'],
         where: { payrollPeriodId: { in: priorPeriodIds } },
         _sum: { sickDays: true, leaveDays: true, absenceDays: true }
@@ -566,7 +566,7 @@ export async function POST(req: NextRequest) {
     console.log('runtime check prisma.payrollExport exists:', typeof prisma.payrollExport)
     const exportRecord = await prisma.$transaction(async (tx) => {
       console.log('runtime tx keys sample:', Object.keys(tx).slice(0, 30))
-      const newExport = await tx.payrollExport.create({
+      const newExport = await tx.payrollExports.create({
         data: {
           id: `EX-${nanoid(12)}`,
           payrollPeriodId,
@@ -597,7 +597,7 @@ export async function POST(req: NextRequest) {
       })
 
       // Update period status to exported
-      await tx.payroll_periods.update({
+      await tx.payrollPeriods.update({
         where: { id: payrollPeriodId },
         data: {
           status: 'exported',

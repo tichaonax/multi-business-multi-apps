@@ -376,7 +376,7 @@ export async function POST(req: NextRequest) {
 
       // Create leave balance for current year
       const currentYear = new Date().getFullYear()
-      await tx.employeeLeaveBalance.create({
+      await tx.employeeLeaveBalances.create({
         data: {
           employeeId: newEmployee.id,
           year: currentYear,
@@ -390,7 +390,7 @@ export async function POST(req: NextRequest) {
       })
 
       // Create primary business assignment
-      await tx.employeeBusinessAssignment.create({
+      await tx.employeeBusinessAssignments.create({
         data: {
           employeeId: newEmployee.id,
           businessId: primaryBusinessId,
@@ -412,7 +412,7 @@ export async function POST(req: NextRequest) {
           isActive: true
         }))
 
-        await tx.employeeBusinessAssignment.createMany({
+        await tx.employeeBusinessAssignments.createMany({
           data: additionalAssignments
         })
       }

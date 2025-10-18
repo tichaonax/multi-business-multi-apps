@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const pendingTransactions = await prisma.project_transactions.findMany({
+        const pendingTransactions = await prisma.projectTransactions.findMany({
           where: whereClause,
           include: {
             projects: {

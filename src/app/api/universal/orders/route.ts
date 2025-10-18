@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
 
     // Verify all product variants exist and get their details
     const variantIds = items.map(item => item.productVariantId)
-    const variants = await prisma.product_variants.findMany({
+    const variants = await prisma.productVariants.findMany({
       where: {
         id: { in: variantIds },
         isActive: true,
@@ -311,7 +311,7 @@ export async function POST(request: NextRequest) {
     // Create order with items in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create the order
-  const order = await tx.businessOrder.create({
+  const order = await tx.businessOrders.create({
         data: {
           businessId: orderData.businessId,
           customerId: orderData.customerId,
@@ -350,7 +350,7 @@ export async function POST(request: NextRequest) {
       // Create order items
       const createdItems = await Promise.all(
         orderItems.map(item =>
-          tx.businessOrderItem.create({
+          tx.businessOrderItems.create({
             data: {
               orderId: order.id,
               productVariantId: item.productVariantId,
@@ -378,7 +378,7 @@ export async function POST(request: NextRequest) {
           })
 
           // Create stock movement record
-          await tx.businessStockMovement.create({
+          await tx.businessStockMovements.create({
             data: {
               businessId: orderData.businessId,
               productVariantId: item.productVariantId,
@@ -476,7 +476,7 @@ export async function PUT(request: NextRequest) {
           })
 
           // Create stock movement record
-          await tx.businessStockMovement.create({
+          await tx.businessStockMovements.create({
             data: {
               businessId: existingOrder.businessId,
               productVariantId: item.productVariantId,

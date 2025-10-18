@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Find entries in the period (minimal fields)
-    const entries = await prisma.payroll_entries.findMany({
+    const entries = await prisma.payrollEntries.findMany({
       where: { payrollPeriodId: periodId },
       select: { id: true, employeeId: true }
     })
@@ -84,12 +84,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Persist benefits and recalc totals in a transaction
     await prisma.$transaction(async (tx) => {
       // createMany for benefits
-      await tx.payrollEntryBenefit.createMany({ data: benefitRecords })
+      await tx.payrollEntryBenefits.createMany({ data: benefitRecords })
 
       // Recalculate each affected entry and update payroll period totals
       const affectedEntryIds = Array.from(new Set(benefitRecords.map(b => b.payrollEntryId)))
       for (const entryId of affectedEntryIds) {
-        const entry = await tx.payroll_entries.findUnique({
+        const entry = await tx.payrollEntries.findUnique({
           where: { id: entryId },
           include: { PayrollEntryBenefits: true }
         })
@@ -105,14 +105,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         const totalDeductions = Number(entry.totalDeductions || 0)
         const netPay = grossPay - totalDeductions
 
-        await tx.payroll_entries.update({
+        await tx.payrollEntries.update({
           where: { id: entryId },
           data: { benefitsTotal, grossPay, netPay, updatedAt: new Date() }
         })
       }
 
       // Update period totals
-      const allEntries = await tx.payroll_entries.findMany({ where: { payrollPeriodId: periodId } })
+      const allEntries = await tx.payrollEntries.findMany({ where: { payrollPeriodId: periodId } })
       const totals = allEntries.reduce((acc: any, e: any) => ({
         totalEmployees: acc.totalEmployees + 1,
         totalGrossPay: acc.totalGrossPay + Number(e.grossPay),
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         totalNetPay: acc.totalNetPay + Number(e.netPay)
       }), { totalEmployees: 0, totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 })
 
-      await tx.payroll_periods.update({ where: { id: periodId }, data: totals })
+      await tx.payrollPeriods.update({ where: { id: periodId }, data: totals })
     })
 
     return NextResponse.json({ success: true, message: 'Contract benefits persisted', count: benefitRecords.length })

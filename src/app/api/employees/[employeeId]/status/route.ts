@@ -102,7 +102,7 @@ export async function PUT(
       // SYNC RULE: Employee terminated → Contract terminated (only sync rule for employee->contract)
       if (employmentStatus === 'terminated') {
         // Terminate all non-terminated contracts when employee is terminated
-        await tx.employeeContract.updateMany({
+        await tx.employeeContracts.updateMany({
           where: {
             employeeId: employeeId,
             status: { not: 'terminated' }

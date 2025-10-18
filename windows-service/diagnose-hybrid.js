@@ -12,8 +12,8 @@ const svcConfig = require('./config');
 class ServiceDiagnostics {
   constructor() {
     this.manager = new HybridServiceManager();
-    // Use canonical internal service id from config (matches daemon id)
-    this.serviceName = svcConfig.name || 'MultiBusinessSyncService';
+    // Service name always comes from config
+    this.serviceName = svcConfig.name;
   }
 
   /**
@@ -75,11 +75,8 @@ class ServiceDiagnostics {
     console.log('🔧 Service Status:');
 
     try {
-      // Show candidate names used to query sc
-      try {
-        const candidates = this.manager && this.manager.candidateNames;
-        console.log(`   Service name candidates: ${Array.isArray(candidates) ? candidates.join(', ') : candidates}`);
-      } catch (e) { /* ignore */ }
+      // Show service name
+      console.log(`   Service name: ${this.manager.serviceName}`);
 
       const status = await this.manager.getServiceStatus();
 

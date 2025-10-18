@@ -13,12 +13,9 @@ const execAsync = promisify(exec);
 
 class HybridServiceManager {
   constructor() {
-    // Use config-driven candidate names (internal id variants then display name)
+    // Load service name from config - always use config.name
     const config = require('./config');
-    const nameHelper = require('./service-name-helper');
-    this.candidateNames = nameHelper.getCandidateServiceNames();
-    // default to first candidate for backward compatibility
-    this.serviceName = this.candidateNames[0] || (config && config.name) || 'Multi-Business Sync Service';
+    this.serviceName = config.name;
     this.daemonPath = path.join(__dirname, 'daemon');
     this.pidFile = path.join(this.daemonPath, 'service.pid');
     this.logFile = path.join(this.daemonPath, 'service.log');
@@ -26,46 +23,36 @@ class HybridServiceManager {
     this.retryDelay = 2000; // 2 seconds
   }
 
-  async tryScCommand(cmdBuilder) {
-    // cmdBuilder is a function that takes a candidate name and returns the full command
-    let lastErr = null;
-    const config = require('./config');
-    const scCmd = (config.commands && config.commands.SC_COMMAND) || 'sc.exe';
-
-    function buildServiceExpectedName(name) {
-      if (!name) return name;
-      // If already ends with .exe, return as-is
-      if (/\.exe$/i.test(name)) return name;
-      // Remove spaces and ensure lowercase token, then append .exe
-      const token = String(name).replace(/\s+/g, '').toLowerCase();
-      return `${token}.exe`;
+  /**
+   * Get Windows service name for sc.exe commands
+   * Windows registers services as lowercase with .exe extension
+   */
+  getScServiceName() {
+    let name = this.serviceName.toLowerCase().replace(/\s+/g, '');
+    if (!name.endsWith('.exe')) {
+      name += '.exe';
     }
-
-    for (const name of this.candidateNames) {
-      try {
-        const expectedName = buildServiceExpectedName(name);
-        let cmd = cmdBuilder(expectedName);
-        // Normalize commands that start with 'sc ' or 'sc.exe ' to use configured scCmd
-        if (/^\s*sc(\.exe)?\s+/i.test(cmd)) {
-          cmd = cmd.replace(/^\s*sc(\.exe)?\s+/i, scCmd + ' ');
-        }
-
-        const { stdout, stderr } = await execAsync(cmd);
-        const out = (stdout || stderr || '').toString();
-        // small debug trace so diagnostics can tell which candidate and command worked
-        this.log(`sc.exe command succeeded for candidate "${name}" using command: ${cmd}`);
-        return { name, out, cmd };
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-    throw lastErr || new Error('sc.exe command failed for all candidate names');
+    return name;
   }
 
+  /**
+   * Execute a Windows service control command
+   */
+  async execScCommand(command) {
+    try {
+      const { stdout, stderr } = await execAsync(command);
+      return (stdout || stderr || '').toString();
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  /**
+   * Query service status
+   */
   async runScQuery() {
     try {
-      const res = await this.tryScCommand((name) => `sc.exe query "${name}"`);
-      return res.out;
+      return await this.execScCommand(`sc.exe query "${this.getScServiceName()}"`);
     } catch (err) {
       throw err;
     }
@@ -104,8 +91,8 @@ class HybridServiceManager {
         return true;
       }
 
-  // Use Windows service control to start (try candidates)
-  await this.tryScCommand((name) => `sc.exe start "${name}"`);
+      // Use Windows service control to start
+      await this.execScCommand(`sc.exe start "${this.getScServiceName()}"`);
       this.log('Service start command executed');
 
       // Wait for service to start and get PID
@@ -130,7 +117,7 @@ class HybridServiceManager {
 
       // Try graceful shutdown via Windows service control
       try {
-  await this.tryScCommand((name) => `sc.exe stop "${name}"`);
+        await this.execScCommand(`sc.exe stop "${this.getScServiceName()}"`);
         this.log('Service stop command executed');
 
         // Wait for graceful shutdown
@@ -398,30 +385,23 @@ class HybridServiceManager {
    * Get service status
    */
   async getServiceStatus() {
-    // Ported from electricity-tokens: use sc.exe and buildServiceExpectedName
-    const config = require('./config');
-    const scCmd = config.commands.SC_COMMAND || 'sc.exe';
-    // Use canonical internal service name
-    const serviceName = this.serviceName;
-    function buildServiceExpectedName(name) {
-      // If name ends with .exe, remove it
-      return name.replace(/\.exe$/i, '');
-    }
     try {
-      // Use runScQuery which will try candidate names and normalize to the expected .exe form
       const stdout = await this.runScQuery();
       let serviceStatus = 'UNKNOWN';
+
       if (stdout && stdout.includes('RUNNING')) {
         serviceStatus = 'RUNNING';
       } else if (stdout && stdout.includes('STOPPED')) {
         serviceStatus = 'STOPPED';
       }
-      // PID logic unchanged
+
+      // Get PID and check if process is running
       const pid = this.getServicePid();
       let isRunning = false;
       if (pid) {
         isRunning = await this.isProcessRunning(pid);
       }
+
       return {
         serviceStatus,
         processRunning: isRunning,
@@ -433,6 +413,7 @@ class HybridServiceManager {
       // If sc reports the service does not exist, treat as NOT_INSTALLED
       const msg = error && error.message ? String(error.message) : String(error);
       this.log(`Error getting service status: ${msg}`, 'ERROR');
+
       if (msg.toLowerCase().includes('does not exist') || msg.toLowerCase().includes('1060')) {
         return {
           serviceStatus: 'NOT_INSTALLED',

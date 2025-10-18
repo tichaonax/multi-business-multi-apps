@@ -186,11 +186,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         notes: notes || null,
         createdBy: session.user.id
       }
-      const newContract = await tx.employeeContract.create({ data: contractCreateData })
+      const newContract = await tx.employeeContracts.create({ data: contractCreateData })
 
       // Create contract benefits if provided
       if (Array.isArray(benefits) && benefits.length > 0) {
-        await tx.contractBenefit.createMany({
+        await tx.contractBenefits.createMany({
           data: benefits.map((benefit: any) => ({
             id: randomUUID(),
             contractId: newContract.id,

@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify entry exists
-    const entry = await prisma.payroll_entries.findUnique({
+    const entry = await prisma.payrollEntries.findUnique({
       where: { id: payrollEntryId },
       include: {
         payroll_periods: true
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
 
       let newAdjustment: any
       try {
-        newAdjustment = await tx.payrollAdjustment.create({
+        newAdjustment = await tx.payrollAdjustments.create({
           data: createPayload,
           include: {
             users_payroll_periods_createdByTousers: {
@@ -215,7 +215,7 @@ export async function PUT(req: NextRequest) {
         }
       }
 
-      const updated = await tx.payrollAdjustment.update({
+      const updated = await tx.payrollAdjustments.update({
         where: { id }, data: {
           amount: newAmount,
           // map client description -> reason (DB field is `reason`); keep existing if not provided
@@ -258,7 +258,7 @@ export async function DELETE(req: NextRequest) {
 
     const existingAny: any = existing
     const result = await prisma.$transaction(async (tx) => {
-      await tx.payrollAdjustment.delete({ where: { id: adjustmentId } })
+      await tx.payrollAdjustments.delete({ where: { id: adjustmentId } })
       if (existingAny.payrollEntryId) await recalcEntryAndPeriod(tx, existingAny.payrollEntryId as string)
       return { success: true }
     })
@@ -272,7 +272,7 @@ export async function DELETE(req: NextRequest) {
 
 // helper to recalc entry and period totals
 async function recalcEntryAndPeriod(tx: any, entryId: string) {
-  const entry = await tx.payroll_entries.findUnique({ where: { id: entryId }, include: { PayrollEntryBenefits: true, payroll_adjustments: true, payroll_periods: true } })
+  const entry = await tx.payrollEntries.findUnique({ where: { id: entryId }, include: { PayrollEntryBenefits: true, payroll_adjustments: true, payroll_periods: true } })
   if (!entry) return
 
   const benefitsTotal = (entry.payroll_entry_benefits || []).filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)
@@ -295,10 +295,10 @@ async function recalcEntryAndPeriod(tx: any, entryId: string) {
   const newTotalDeductions = currentStoredDeductions + adjustmentsAsDeductions
   const netPay = grossPay - newTotalDeductions
 
-  await tx.payroll_entries.update({ where: { id: entryId }, data: { benefitsTotal, adjustmentsTotal: additionsTotal, grossPay, netPay, totalDeductions: newTotalDeductions, updatedAt: new Date() } })
+  await tx.payrollEntries.update({ where: { id: entryId }, data: { benefitsTotal, adjustmentsTotal: additionsTotal, grossPay, netPay, totalDeductions: newTotalDeductions, updatedAt: new Date() } })
 
-  const allEntries = await tx.payroll_entries.findMany({ where: { payrollPeriodId: entry.payrollPeriodId } })
+  const allEntries = await tx.payrollEntries.findMany({ where: { payrollPeriodId: entry.payrollPeriodId } })
   const periodTotals = allEntries.reduce((acc: any, e: any) => ({ totalGrossPay: acc.totalGrossPay + Number(e.grossPay), totalDeductions: acc.totalDeductions + Number(e.totalDeductions), totalNetPay: acc.totalNetPay + Number(e.netPay) }), { totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 })
 
-  await tx.payroll_periods.update({ where: { id: entry.payrollPeriodId }, data: { totalGrossPay: periodTotals.totalGrossPay, totalDeductions: periodTotals.totalDeductions, totalNetPay: periodTotals.totalNetPay, updatedAt: new Date() } })
+  await tx.payrollPeriods.update({ where: { id: entry.payrollPeriodId }, data: { totalGrossPay: periodTotals.totalGrossPay, totalDeductions: periodTotals.totalDeductions, totalNetPay: periodTotals.totalNetPay, updatedAt: new Date() } })
 }

@@ -152,7 +152,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const contract = await prisma.$transaction(async (tx) => {
       if (!isSeedRequest) {
         // Terminate all existing contracts for this employee (any status except terminated)
-        await tx.employeeContract.updateMany({
+        await tx.employeeContracts.updateMany({
           where: {
             employeeId,
             status: { not: 'terminated' }
@@ -207,7 +207,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         // updatedAt has a default in the schema; not required here
       }
 
-      return await tx.employeeContract.create({ data: contractCreateData })
+      return await tx.employeeContracts.create({ data: contractCreateData })
     })
 
 

@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Update benefit in transaction
     const result = await prisma.$transaction(async (tx) => {
-      const updatedBenefit = await tx.payrollEntryBenefit.update({
+      const updatedBenefit = await tx.payrollEntryBenefits.update({
         where: { id: benefitId },
         data: {
           ...(isActive !== undefined && { isActive }),
@@ -137,7 +137,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     // Delete benefit in transaction
     await prisma.$transaction(async (tx) => {
-      await tx.payrollEntryBenefit.delete({
+      await tx.payrollEntryBenefits.delete({
         where: { id: benefitId }
       })
 
@@ -157,7 +157,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
 // Helper function to recalculate entry totals
 async function recalculateEntryTotals(tx: any, entryId: string) {
-  const entry = await tx.payroll_entries.findUnique({
+  const entry = await tx.payrollEntries.findUnique({
     where: { id: entryId },
     include: {
       PayrollEntryBenefits: true
@@ -184,7 +184,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   const netPay = grossPay - totalDeductions
 
   // Update entry
-  await tx.payroll_entries.update({
+  await tx.payrollEntries.update({
     where: { id: entryId },
     data: {
       benefitsTotal,
@@ -195,7 +195,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   })
 
   // Update period totals
-  const allEntries = await tx.payroll_entries.findMany({
+  const allEntries = await tx.payrollEntries.findMany({
     where: { payrollPeriodId: entry.payrollPeriodId }
   })
 
@@ -208,7 +208,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
     { totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 }
   )
 
-  await tx.payroll_periods.update({
+  await tx.payrollPeriods.update({
     where: { id: entry.payrollPeriodId },
     data: {
       totalGrossPay: periodTotals.totalGrossPay,

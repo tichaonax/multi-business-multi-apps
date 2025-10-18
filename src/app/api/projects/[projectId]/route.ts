@@ -21,7 +21,7 @@ export async function GET(
     const project = await prisma.projects.findUnique({
       where: { id: projectId },
       include: {
-        projectType: {
+        project_types: {
           select: {
             id: true,
             name: true,
@@ -30,16 +30,16 @@ export async function GET(
             isSystem: true
           }
         },
-        user: {
+        users: {
           select: {
             id: true,
             name: true,
             email: true
           }
         },
-        projectContractors: {
+        project_contractors: {
           include: {
-            person: {
+            persons: {
               select: {
                 id: true,
                 fullName: true,
@@ -53,16 +53,16 @@ export async function GET(
             isPrimary: 'desc'
           }
         },
-        projectStages: {
+        project_stages: {
           orderBy: {
             orderIndex: 'asc'
           }
         },
-        projectTransactions: {
+        project_transactions: {
           include: {
-            projectContractor: {
+            project_contractors: {
               include: {
-                person: {
+                persons: {
                   select: {
                     id: true,
                     fullName: true,
@@ -128,14 +128,30 @@ export async function GET(
       }
     })
 
+    // Normalize relation names to camelCase for frontend compatibility
     const projectWithSummaries = {
       ...project,
       budget: totalBudget,
-      projectTransactions: project.project_transactions.map(t => ({
-        ...t,
-        amount: Number(t.amount)
+      // Map snake_case relations to camelCase for frontend
+      projectType: project.project_types,
+      user: project.users,
+      projectContractors: project.project_contractors.map((c: any) => ({
+        ...c,
+        person: c.persons
       })),
-      contractorSummaries,
+      projectStages: project.project_stages || [],
+      projectTransactions: project.project_transactions.map((t: any) => ({
+        ...t,
+        amount: Number(t.amount),
+        projectContractor: t.project_contractors ? {
+          ...t.project_contractors,
+          person: t.project_contractors.persons
+        } : undefined
+      })),
+      contractorSummaries: contractorSummaries.map((c: any) => ({
+        ...c,
+        person: c.persons
+      })),
       financialSummary: {
         totalBudget,
         totalSpent,
@@ -184,7 +200,7 @@ export async function PUT(
     const existingProject = await prisma.projects.findUnique({
       where: { id: projectId },
       include: {
-        projectType: true
+        project_types: true
       }
     })
 
@@ -254,7 +270,7 @@ export async function PUT(
         status: status || existingProject.status
       },
       include: {
-        projectType: {
+        project_types: {
           select: {
             id: true,
             name: true,
@@ -262,7 +278,7 @@ export async function PUT(
             businessType: true
           }
         },
-        user: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -310,7 +326,7 @@ export async function DELETE(
           select: {
             project_contractors: true,
             project_transactions: true,
-            projectStages: true
+            project_stages: true
           }
         }
       }
@@ -342,17 +358,17 @@ export async function DELETE(
     }
 
     // Check if project has related data
-    const hasRelatedData = existingProject._count.projectContractors > 0 ||
+    const hasRelatedData = existingProject._count.project_contractors > 0 ||
                           existingProject._count.project_transactions > 0 ||
-                          existingProject._count.projectStages > 0
+                          existingProject._count.project_stages > 0
 
     if (hasRelatedData) {
       return NextResponse.json({
         error: 'Cannot delete project with associated contractors, transactions, or stages',
         details: {
-          contractorsCount: existingProject._count.projectContractors,
+          contractorsCount: existingProject._count.project_contractors,
           transactionsCount: existingProject._count.project_transactions,
-          stagesCount: existingProject._count.projectStages
+          stagesCount: existingProject._count.project_stages
         }
       }, { status: 400 })
     }

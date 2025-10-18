@@ -68,7 +68,7 @@ export function DataBackup() {
       a.href = url;
 
       const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `backup_${backupOptions.type}_${new Date().toISOString().split('T')[0]}.json`;
+      let filename = `MultiBusinessSyncService-backup_${backupOptions.type}_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json`;
 
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);

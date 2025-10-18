@@ -192,9 +192,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid backup type' }, { status: 400 });
     }
 
-    // Generate filename with app name prefix
-    const timestamp = new Date().toISOString().split('T')[0];
-    const filename = `multi-business-multi-apps-backup_${backupType}_${timestamp}.json`;
+    // Generate filename with service name prefix and full timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const filename = `MultiBusinessSyncService-backup_${backupType}_${timestamp}.json`;
 
     const response = new NextResponse(JSON.stringify(backupData, null, 2), {
       status: 200,

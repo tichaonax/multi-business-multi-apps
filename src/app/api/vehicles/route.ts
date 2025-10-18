@@ -207,7 +207,8 @@ export async function POST(request: NextRequest) {
       ...validatedData,
       // Set hasInitialMileage to true if currentMileage is greater than 0
       hasInitialMileage: validatedData.currentMileage > 0,
-      purchaseDate: validatedData.purchaseDate ? new Date(validatedData.purchaseDate) : undefined
+      purchaseDate: validatedData.purchaseDate ? new Date(validatedData.purchaseDate) : undefined,
+      updatedAt: new Date()
     }
     if (!createData.businessId) delete createData.businessId
     if (!createData.userId) delete createData.userId

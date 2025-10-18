@@ -10,10 +10,22 @@ const execAsync = promisify(exec);
 
 class ForceInstallManager {
   constructor() {
-    // config.name is the internal service id (multibusinesssyncservice.exe)
+    // Service name always comes from config
     this.serviceName = config.name;
     this.daemonPath = path.join(__dirname, 'daemon');
     this.hybridManager = new HybridServiceManager();
+  }
+
+  /**
+   * Get Windows service name for sc.exe commands
+   * Windows registers services as lowercase with .exe extension
+   */
+  getScServiceName() {
+    let name = this.serviceName.toLowerCase().replace(/\s+/g, '');
+    if (!name.endsWith('.exe')) {
+      name += '.exe';
+    }
+    return name;
   }
 
   async log(message, level = 'INFO') {
@@ -31,21 +43,15 @@ class ForceInstallManager {
   }
 
   async getServiceStatus() {
-    // Use configured sc command and buildServiceExpectedName to avoid PowerShell issues
-    const scCmd = (config.commands && config.commands.SC_COMMAND) || 'sc.exe';
-    function buildServiceExpectedName(name) {
-      return name.replace(/\.exe$/i, '');
-    }
-
+    // Use HybridServiceManager for status check
     try {
-      const { stdout } = await execAsync(`${scCmd} query "${buildServiceExpectedName(this.serviceName)}"`);
+      const status = await this.hybridManager.getServiceStatus();
 
-      if (stdout.includes('RUNNING')) return 'RUNNING';
-      if (stdout.includes('STOPPED')) return 'STOPPED';
-      if (stdout.includes('START_PENDING')) return 'START_PENDING';
-      if (stdout.includes('STOP_PENDING')) return 'STOP_PENDING';
+      if (status.serviceStatus === 'RUNNING') return 'RUNNING';
+      if (status.serviceStatus === 'STOPPED') return 'STOPPED';
+      if (status.serviceStatus === 'NOT_INSTALLED') return 'NOT_INSTALLED';
 
-      return 'UNKNOWN';
+      return status.serviceStatus || 'UNKNOWN';
     } catch (err) {
       if (err && String(err).includes('does not exist')) {
         return 'NOT_INSTALLED';
@@ -215,91 +221,47 @@ class ForceInstallManager {
 
   async uninstallExistingService() {
     this.log(`Uninstalling existing service using hybrid approach...`);
-    
-    // Use the same tryScCommand pattern as the hybrid service manager
-    // This ensures we test all candidate service names like other methods
-    const tryScCommand = async (cmdTemplate) => {
-      const nameHelper = require('./service-name-helper');
-      const candidateNames = nameHelper.getCandidateServiceNames();
-      
-      let lastErr = null;
-      const scCmd = (config.commands && config.commands.SC_COMMAND) || 'sc.exe';
-      
-      for (const name of candidateNames) {
-        try {
-          let cmd = cmdTemplate(name);
-          // Normalize commands that start with 'sc ' or 'sc.exe ' to use configured scCmd
-          if (/^\s*sc(\.exe)?\s+/i.test(cmd)) {
-            cmd = cmd.replace(/^\s*sc(\.exe)?\s+/i, scCmd + ' ');
-          }
-          
-          const { stdout, stderr } = await execAsync(cmd);
-          const out = (stdout || stderr || '').toString();
-          return { name, out, cmd, success: true };
-        } catch (err) {
-          lastErr = err;
-        }
-      }
-      
-      // If all candidates failed, return info about the failure
-      return { success: false, error: lastErr };
-    };
 
-    // Check if service exists using candidate names
-    const checkResult = await tryScCommand((name) => `sc.exe query "${name}"`);
-    
-    if (!checkResult.success || checkResult.out.includes('does not exist')) {
+    const scCmd = (config.commands && config.commands.SC_COMMAND) || 'sc.exe';
+
+    // Check if service exists
+    try {
+      await execAsync(`${scCmd} query "${this.getScServiceName()}"`);
+      this.log('Existing service detected - performing hybrid removal');
+      this.log(`Service name: "${this.serviceName}"`);
+    } catch (err) {
+      // In uninstall workflow, any query failure means service doesn't exist
+      // This is safe - we're trying to remove it anyway
       this.log('Service does not exist - nothing to uninstall');
       return true;
     }
-    
-    this.log('Existing service detected - performing hybrid removal');
-    const foundServiceName = checkResult.name;
-    this.log(`Found service with name: "${foundServiceName}"`);
-    
-    // Get service status using the found service name
-    const getServiceStatus = async () => {
-      const statusResult = await tryScCommand((name) => `sc.exe query "${name}"`);
-      if (!statusResult.success) return 'NOT_FOUND';
-      
-      const out = statusResult.out;
-      if (out.includes('RUNNING')) return 'RUNNING';
-      if (out.includes('STOPPED')) return 'STOPPED';
-      if (out.includes('START_PENDING')) return 'START_PENDING';
-      if (out.includes('STOP_PENDING')) return 'STOP_PENDING';
-      return 'UNKNOWN';
-    };
-    
+
     // Step 1: Stop the service if running
-    const status = await getServiceStatus();
-    
+    const status = await this.getServiceStatus();
+
     if (status === 'RUNNING' || status === 'START_PENDING') {
       this.log(`Service is ${status}, stopping...`);
-      
+
       try {
-        const stopResult = await tryScCommand((name) => `sc.exe stop "${name}"`);
-        if (stopResult.success) {
-          this.log('Service stop command executed, waiting for shutdown...');
-        } else {
-          this.log(`Stop command failed: ${stopResult.error?.message || 'Unknown error'}`, 'WARN');
-        }
-        
+        await execAsync(`${scCmd} stop "${this.getScServiceName()}"`);
+        this.log('Service stop command executed, waiting for shutdown...');
+
         // Wait for service to fully stop (max 45 seconds)
         for (let i = 0; i < 45; i++) {
           await new Promise(resolve => setTimeout(resolve, 1000));
-          const currentStatus = await getServiceStatus();
-          
-          if (currentStatus === 'STOPPED' || currentStatus === 'NOT_FOUND') {
+          const currentStatus = await this.getServiceStatus();
+
+          if (currentStatus === 'STOPPED' || currentStatus === 'NOT_INSTALLED') {
             this.log('Service stopped successfully');
             break;
           }
-          
+
           // Show progress every 10 seconds
           if ((i + 1) % 10 === 0) {
             this.log(`Still waiting for service shutdown... (${i + 1}s)`);
           }
         }
-        
+
       } catch (error) {
         if (error.message.includes('Access is denied')) {
           throw new Error('ADMIN_REQUIRED');
@@ -311,40 +273,37 @@ class ForceInstallManager {
     } else {
       this.log(`Service status: ${status}`);
     }
-    
+
     // Step 2: Remove the service
     this.log('Removing service from Windows registry...');
-    
+
     try {
-      const deleteResult = await tryScCommand((name) => `sc.exe delete "${name}"`);
-      if (deleteResult.success) {
-        this.log('Service removed from registry successfully');
-      } else {
-        this.log(`Service deletion completed with message: ${deleteResult.error?.message || 'Unknown error'}`, 'WARN');
-      }
-      
+      await execAsync(`${scCmd} delete "${this.getScServiceName()}"`);
+      this.log('Service removed from registry successfully');
+
       // Wait for Windows to process the deletion
       this.log('Waiting for Windows to complete service cleanup...');
       await new Promise(resolve => setTimeout(resolve, 3000));
-      
+
     } catch (error) {
       if (error.message.includes('Access is denied')) {
         throw new Error('ADMIN_REQUIRED');
       }
-      this.log(`Service deletion error: ${error.message}`, 'WARN');
+      this.log(`Service deletion completed with message: ${error.message}`, 'WARN');
     }
-    
+
     // Step 3: Verify removal
-    const finalCheckResult = await tryScCommand((name) => `sc.exe query "${name}"`);
-    if (finalCheckResult.success && !finalCheckResult.out.includes('does not exist')) {
+    try {
+      await execAsync(`${scCmd} query "${this.getScServiceName()}"`);
       this.log('Service still appears in registry, but continuing', 'WARN');
-    } else {
+    } catch (err) {
+      // Any query failure after deletion means service is removed (expected)
       this.log('Service completely removed from registry');
     }
-    
+
     this.log('Waiting for service registry to stabilize...');
     await new Promise(resolve => setTimeout(resolve, 5000));
-    
+
     return true;
   }
 
@@ -438,10 +397,31 @@ async function forceInstallHybrid() {
     await manager.log('=== Step 3: Uninstall Existing Service ===');
     await manager.uninstallExistingService();
 
-    // Step 4: Build fresh service files
-    await manager.log('=== Step 4: Build Fresh Service Files ===');
+    // Step 4: Ensure dependencies are installed
+    await manager.log('=== Step 4: Verify Dependencies ===');
+    await manager.log('Checking if node_modules exists...');
+
+    const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
+    if (!fs.existsSync(nodeModulesPath)) {
+      await manager.log('⚠️  node_modules not found, running npm install...');
+      try {
+        const { stdout, stderr } = await execAsync('npm install', {
+          cwd: path.join(__dirname, '..'),
+          timeout: 300000 // 5 minutes
+        });
+        await manager.log('✅ Dependencies installed successfully');
+      } catch (installError) {
+        await manager.log(`❌ Dependency installation failed: ${installError.message}`, 'ERROR');
+        throw new Error('Failed to install dependencies. Please run "npm install" manually.');
+      }
+    } else {
+      await manager.log('✅ node_modules exists, skipping installation');
+    }
+
+    // Step 5: Build fresh service files
+    await manager.log('=== Step 5: Build Fresh Service Files ===');
     await manager.log('Cleaning dist folder for fresh build...');
-    
+
     const distPath = path.join(__dirname, '..', 'dist');
     try {
       if (fs.existsSync(distPath)) {
@@ -455,7 +435,7 @@ async function forceInstallHybrid() {
       await manager.log(`⚠️  Could not clean dist folder: ${error.message}`, 'WARN');
       await manager.log('   Proceeding with build anyway...');
     }
-    
+
     await manager.log('Running build process to ensure latest code...');
     try {
       const { stdout, stderr } = await execAsync('npm run build:service', { cwd: path.join(__dirname, '..') });
@@ -522,7 +502,7 @@ async function forceInstallHybrid() {
       process.exit(1);
     }
 
-    // Step 5: Wait and verify service registry cleanup
+    // Step 6: Wait and verify service registry cleanup
     await manager.log('Waiting for service registry to stabilize...');
     await new Promise((resolve) => setTimeout(resolve, 8000));
 
@@ -545,12 +525,12 @@ async function forceInstallHybrid() {
       await manager.log('Service registry cleanup may be incomplete, proceeding anyway', 'WARN');
     }
 
-    // Step 6: Final wait before installation
+    // Step 7: Final wait before installation
     await manager.log('Final wait for complete system cleanup...');
     await new Promise((resolve) => setTimeout(resolve, 10000));
 
-    // Step 7: Install hybrid service
-    await manager.log('=== Step 6: Install Hybrid Service ===');
+    // Step 8: Install hybrid service
+    await manager.log('=== Step 7: Install Hybrid Service ===');
     await manager.installHybridService();
 
     console.log('');
@@ -574,9 +554,9 @@ async function forceInstallHybrid() {
     console.log('');
     console.log('🔧 Manual Recovery Steps:');
     console.log('   1. Open Services.msc as Administrator');
-    console.log(`   2. Find "${manager.serviceName}" service`);
+    console.log(`   2. Find "${config.displayName}" service`);
     console.log('   3. Stop the service manually');
-    console.log(`   4. Delete the service: sc delete "${manager.serviceName}"`);
+    console.log(`   4. Delete the service: sc delete "${manager.getScServiceName()}"`);
     console.log('   5. Restart your computer');
     console.log('   6. Try installation again');
 
