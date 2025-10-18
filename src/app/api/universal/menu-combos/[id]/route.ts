@@ -69,14 +69,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         include: {
           menu_combo_items: {
             include: {
-              product: {
+              business_products: {
                 include: {
                   business_categories: true,
-                  images: true,
-                  variants: true
+                  product_images: true,
+                  product_variants: true
                 }
               },
-              variant: true
+              product_variants: true
             },
             orderBy: {
               sortOrder: 'asc'

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
             business_products: {
               include: {
                 business_categories: true,
-                ProductImages: true,
+                product_images: true,
                 product_variants: true
               }
             },
