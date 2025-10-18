@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const entries = await prisma.payrollEntries.findMany({
       where,
       include: {
-        employee: {
+        employees: {
           select: {
             id: true,
             employeeNumber: true,
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
             dateOfBirth: true,
             hireDate: true,
             email: true,
-            jobTitles: {
+            job_titles: {
               select: { title: true }
             }
           }
@@ -66,7 +66,13 @@ export async function GET(req: NextRequest) {
       orderBy: { employeeName: 'asc' }
     })
 
-    return NextResponse.json(entries)
+    // Add employee alias for backwards compatibility (employees -> employee)
+    const mappedEntries = entries.map((entry: any) => ({
+      ...entry,
+      employee: entry.employees // Alias for UI compatibility
+    }))
+
+    return NextResponse.json(mappedEntries)
   } catch (error) {
     console.error('Payroll entries fetch error:', error)
     return NextResponse.json(
@@ -305,7 +311,7 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date()
       },
       include: {
-        employee: {
+        employees: {
           select: {
             id: true,
             employeeNumber: true,
@@ -316,10 +322,16 @@ export async function POST(req: NextRequest) {
       }
     })
 
+    // Add employee alias for backwards compatibility
+    const mappedEntry = {
+      ...entry,
+      employee: (entry as any).employees
+    }
+
     // Update period totals
     await updatePeriodTotals(payrollPeriodId)
 
-    return NextResponse.json(entry, { status: 201 })
+    return NextResponse.json(mappedEntry, { status: 201 })
   } catch (error) {
     console.error('Payroll entry creation error:', error)
     return NextResponse.json(

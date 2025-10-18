@@ -57,7 +57,7 @@ export async function PUT(
       include: {
         users: true,
         businesses: true,
-        employeeBusinessAssignments: {
+        employee_business_assignments: {
           where: { isActive: true },
           include: { businesses: true }
         }

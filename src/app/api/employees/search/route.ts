@@ -64,11 +64,8 @@ export async function GET(request: NextRequest) {
         fullName: true,
         email: true,
         isActive: true,
-        jobTitles: {
-          select: {
-            title: true,
-            department: true
-          }
+        job_titles: {
+          select: { title: true, department: true }
         },
         businesses: {
           select: {
@@ -120,8 +117,8 @@ export async function GET(request: NextRequest) {
       fullName: employee.fullName,
       email: employee.email,
       isActive: employee.isActive,
-  jobTitle: employee.jobTitles?.title,
-  department: employee.jobTitles?.department,
+  jobTitle: employee.job_titles?.title,
+  department: employee.job_titles?.department,
   businessName: employee.businesses?.name,
   businessType: employee.businesses?.type,
       // Contract info (if requested)

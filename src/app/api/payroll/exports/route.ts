@@ -45,10 +45,10 @@ export async function GET(req: NextRequest) {
         businesses: {
           select: { id: true, name: true, type: true }
         },
-        exporter: {
+        users: {
           select: { id: true, name: true, email: true }
         },
-        payrollPeriod: {
+        payroll_periods: {
           select: {
             id: true,
             year: true,
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
         },
         payrollEntries: {
           include: {
-            employee: {
+            employees: {
               select: {
                 id: true,
                 employeeNumber: true,
@@ -120,11 +120,11 @@ export async function POST(req: NextRequest) {
                 dateOfBirth: true,
                 hireDate: true,
                 terminationDate: true,
-                jobTitles: { select: { title: true } },
+                job_titles: { select: { title: true } },
                 primaryBusinessId: true
               }
             },
-            payrollEntryBenefits: {
+            payroll_entry_benefits: {
               // Include all persisted payroll entry benefits (including inactive overrides).
               // Previously we filtered to active benefits only which caused a mismatch
               // between `payrollEntryBenefits` and `mergedBenefits` (the latter is
@@ -148,6 +148,12 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       )
     }
+
+    // Add employee alias for backwards compatibility (employees -> employee)
+    period.payroll_entries = period.payroll_entries.map((entry: any) => ({
+      ...entry,
+      employee: entry.employees // Alias for UI compatibility
+    }))
 
     // Period must be approved before export
     if (period.status !== 'approved') {
@@ -248,7 +254,7 @@ export async function POST(req: NextRequest) {
             businesses: {
               select: { id: true, name: true, type: true }
             },
-            exporter: {
+            users: {
               select: { id: true, name: true, email: true }
             }
           }
@@ -315,7 +321,7 @@ export async function POST(req: NextRequest) {
         primaryBusinessId: true,
         startDate: true,
         endDate: true,
-        jobTitles: { select: { title: true } },
+        job_titles: { select: { title: true } },
         contract_benefits: { include: { benefit_types: { select: { id: true, name: true, type: true, defaultAmount: true } } } }
       }
     })
@@ -446,7 +452,7 @@ export async function POST(req: NextRequest) {
         employeeHireDate: (entry as any).hireDate,
         primaryBusiness: _pb ? { ..._pb, shortName: _pb.shortName } : null,
         // Attach job title from employee or contract fallback for generator
-        jobTitle: (entry as any).employee?.jobTitles?.title || contract?.pdfGenerationData?.jobTitle || (entry as any).jobTitle || (entry as any).employeeJobTitle || ''
+        jobTitle: (entry as any).employee?.job_titles?.title || contract?.pdfGenerationData?.jobTitle || (entry as any).jobTitle || (entry as any).employeeJobTitle || ''
       })
     }
 
@@ -590,7 +596,7 @@ export async function POST(req: NextRequest) {
           businesses: {
             select: { id: true, name: true, type: true }
           },
-          exporter: {
+          users: {
             select: { id: true, name: true, email: true }
           }
         }

@@ -36,13 +36,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           isActive: true
         }
       },
-      jobTitles: true,
-      compensationTypes: true,
+      job_titles: true,
+      compensation_types: true,
       businesses: {
         select: { id: true, name: true, type: true }
       },
-      idFormatTemplates: true,
-      driverLicenseTemplates: true,
+      id_format_templates: true,
+      driver_license_templates: true,
       // Prisma generated relation name for employee contracts
       employee_contracts_employee_contracts_employeeIdToemployees: {
         select: ( {
@@ -59,23 +59,23 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           businesses_employee_contracts_primaryBusinessIdTobusinesses: {
             select: { id: true, name: true, type: true }
           },
-          previousContract: { select: { id: true, contractNumber: true } },
-          jobTitles: { select: { id: true, title: true, department: true } },
+          employee_contracts: { select: { id: true, contractNumber: true } },
+          job_titles: { select: { id: true, title: true, department: true } },
           employees_employee_contracts_supervisorIdToemployees: { select: { id: true, fullName: true } },
           contract_benefits: { include: { benefit_types: { select: { name: true, type: true } } } }
         } as Prisma.EmployeeContractSelect ),
         orderBy: { createdAt: 'desc' }
       },
       // supervisor relation on Employee model is named `employees` (supervisor link)
-      employees: { select: { id: true, fullName: true, jobTitles: { select: { title: true } } } },
-      otherEmployees: { select: { id: true, fullName: true, jobTitles: { select: { title: true } } } },
+      employees: { select: { id: true, fullName: true, job_titles: { select: { title: true } } } },
+      other_employees: { select: { id: true, fullName: true, job_titles: { select: { title: true } } } },
   // generated relation name for business assignments (Prisma uses snake_case here)
   employee_business_assignments: { include: { businesses: { select: { id: true, name: true, type: true } } } },
       // generated relation name for disciplinary actions where employeeId is the target
       disciplinary_actions_disciplinary_actions_employeeIdToemployees: {
         select: { id: true, actionType: true, violationType: true, title: true, description: true, incidentDate: true, actionDate: true, severity: true, isActive: true }
       },
-      _count: { select: { otherEmployees: true, disciplinary_actions_disciplinary_actions_employeeIdToemployees: true } }
+      _count: { select: { other_employees: true, disciplinary_actions_disciplinary_actions_employeeIdToemployees: true } }
     }
 
     const employee = await prisma.employees.findUnique({ where: { id: employeeId }, include: includeAny })
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         supervisorObj = {
           id: s.id,
           fullName: s.fullName,
-          jobTitle: (s.jobTitles && Array.isArray(s.jobTitles)) ? s.jobTitles[0] : (s.jobTitles || null)
+          jobTitle: (s.job_titles && Array.isArray(s.job_titles)) ? s.job_titles[0] : (s.job_titles || null)
         }
       }
     } else if (e.employees) {
@@ -106,21 +106,21 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       supervisorObj = {
         id: s.id,
         fullName: s.fullName,
-        jobTitle: (s.jobTitles && Array.isArray(s.jobTitles)) ? s.jobTitles[0] : (s.jobTitles || null)
+        jobTitle: (s.job_titles && Array.isArray(s.job_titles)) ? s.job_titles[0] : (s.job_titles || null)
       }
     }
 
     // Normalize subordinates similarly (map to include singular jobTitle)
-    const subordinates = (Array.isArray(e.otherEmployees) ? e.otherEmployees : (Array.isArray(e.subordinates) ? e.subordinates : [])).map((sub: any) => ({
+    const subordinates = (Array.isArray(e.other_employees) ? e.other_employees : (Array.isArray(e.subordinates) ? e.subordinates : [])).map((sub: any) => ({
       id: sub.id,
       fullName: sub.fullName,
-      jobTitle: (sub.jobTitles && Array.isArray(sub.jobTitles)) ? sub.jobTitles[0] : (sub.jobTitles || null)
+      jobTitle: (sub.job_titles && Array.isArray(sub.job_titles)) ? sub.job_titles[0] : (sub.job_titles || null)
     }))
 
     const formattedEmployee = {
       ...e,
       user: e.users,
-      jobTitle: Array.isArray(e.jobTitles) ? e.jobTitles[0] : e.jobTitles,
+      jobTitle: Array.isArray(e.job_titles) ? e.job_titles[0] : e.job_titles,
       compensationType: Array.isArray(e.compensationTypes) ? e.compensationTypes[0] : e.compensationTypes,
       primaryBusiness: e.businesses || e.primaryBusiness || null,
       supervisor: supervisorObj,
@@ -189,8 +189,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           })),
           // Expose a normalized previousContract when available from the DB relation
-          previousContract: (contract.previousContract && contract.previousContract.id)
-            ? { id: contract.previousContract.id, contractNumber: contract.previousContract.contractNumber }
+          previousContract: (contract.employee_contracts && contract.employee_contracts.id)
+            ? { id: contract.employee_contracts.id, contractNumber: contract.employee_contracts.contractNumber }
             : null,
           // Computed values for client convenience
           _computed: {
@@ -217,7 +217,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       })) || [],
       _count: (() => {
         const c = e._count || {}
-        return { subordinates: c.otherEmployees || c.subordinates || 0, disciplinaryActions: c.disciplinary_actions_disciplinary_actions_employeeIdToemployees || c.disciplinaryActionsReceived || 0 }
+        return { subordinates: c.other_employees || c.subordinates || 0, disciplinaryActions: c.disciplinary_actions_disciplinary_actions_employeeIdToemployees || c.disciplinaryActionsReceived || 0 }
       })()
     }
 
@@ -444,8 +444,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
               isActive: true
             }
           },
-          jobTitles: true,
-          compensationTypes: true,
+          job_titles: true,
+          compensation_types: true,
           businesses: {
             select: {
               id: true,
@@ -453,7 +453,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
               type: true
             }
           },
-          idFormatTemplates: true
+          id_format_templates: true
         }
       })
 
@@ -588,7 +588,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
         employee_contracts_employee_contracts_employeeIdToemployees: true,
         disciplinary_actions_disciplinary_actions_employeeIdToemployees: true,
         employee_benefits: true,
-        otherEmployees: true
+        other_employees: true
       }
     })
 
@@ -612,7 +612,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if employee has subordinates
-    if ((existingEmployee as any).otherEmployees.length > 0) {
+    if ((existingEmployee as any).other_employees.length > 0) {
       return NextResponse.json(
         { error: 'Cannot delete employee who supervises other employees. Please reassign subordinates first.' },
         { status: 400 }

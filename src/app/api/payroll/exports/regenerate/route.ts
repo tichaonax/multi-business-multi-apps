@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
         businesses: { select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true } },
         payrollEntries: {
           include: {
-            PayrollEntryBenefits: { include: { benefit_types: { select: { id: true, name: true } } } },
-            employee: { select: { id: true, employeeNumber: true, firstName: true, lastName: true, fullName: true, jobTitles: { select: { title: true } }, primaryBusinessId: true } }
+            payroll_entry_benefits: { include: { benefit_types: { select: { id: true, name: true } } } },
+            employees: { select: { id: true, employeeNumber: true, firstName: true, lastName: true, fullName: true, job_titles: { select: { title: true } }, primaryBusinessId: true } }
           }
         }
       }
@@ -41,6 +41,14 @@ export async function POST(req: NextRequest) {
     if (period.status !== 'exported') {
       // allow regeneration only for exported periods
       return NextResponse.json({ error: 'Can only regenerate exports for periods with status exported' }, { status: 400 })
+    }
+
+    // Add employee alias for backwards compatibility (employees -> employee)
+    if (period.payroll_entries) {
+      period.payroll_entries = period.payroll_entries.map((entry: any) => ({
+        ...entry,
+        employee: entry.employees // Alias for UI compatibility
+      }))
     }
 
     // Build enriched entries (reuse computeTotalsForEntry via helper route to keep parity)
@@ -54,7 +62,7 @@ export async function POST(req: NextRequest) {
       const contracts = await prisma.employeeContracts.findMany({
         where: { employeeId: { in: employeeIds } },
         orderBy: { startDate: 'desc' },
-        select: { id: true, employeeId: true, pdfGenerationData: true, startDate: true, endDate: true, jobTitles: { select: { title: true } } }
+        select: { id: true, employeeId: true, pdfGenerationData: true, startDate: true, endDate: true, job_titles: { select: { title: true } } }
       })
       for (const c of contracts) {
         if (!latestContractByEmployee[c.employeeId]) latestContractByEmployee[c.employeeId] = c

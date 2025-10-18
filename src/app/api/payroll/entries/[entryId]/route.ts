@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const entry = await prisma.payrollEntries.findUnique({
       where: { id: entryId },
       include: {
-        employee: {
+        employees: {
           select: {
             id: true,
             employeeNumber: true,
@@ -35,10 +35,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             dateOfBirth: true,
             hireDate: true,
             email: true,
-            jobTitles: { select: { title: true } }
+            job_titles: { select: { title: true } }
           }
         },
-        payrollPeriod: {
+        payroll_periods: {
           select: {
             id: true,
             year: true,
@@ -52,12 +52,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
           }
         },
-        payrollAdjustments: {
+        payroll_adjustments: {
           include: {
-            users_payroll_periods_createdByTousers: {
+            users_payroll_adjustments_createdByTousers: {
               select: { id: true, name: true }
             },
-            users_payroll_periods_approvedByTousers: {
+            users_payroll_adjustments_approvedByTousers: {
               select: { id: true, name: true }
             }
           }
@@ -72,34 +72,40 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       )
     }
 
+    // Add employee alias for backwards compatibility (employees -> employee)
+    const mappedEntry: any = {
+      ...entry,
+      employee: (entry as any).employees
+    }
+
     // Calculate derived work days (same logic as period API)
     const helper = await import('@/lib/payroll/helpers')
 
     // Determine payroll year/month safely (payrollPeriod may be null in some queries)
-    const payrollYear = entry.payroll_periods?.year ?? (entry as any).year
-    const payrollMonth = entry.payroll_periods?.month ?? (entry as any).month
+    const payrollYear = mappedEntry.payroll_periods?.year ?? (mappedEntry as any).year
+    const payrollMonth = mappedEntry.payroll_periods?.month ?? (mappedEntry as any).month
     const monthRequiredWorkDaysSafe = payrollYear && payrollMonth ? helper.getWorkingDaysInMonth(payrollYear, payrollMonth) : 0
 
     // Check for time tracking data (only query when we have payrollYear/month)
     let timeTracking = null
-    if (entry.employee?.id && payrollYear && payrollMonth) {
+    if (mappedEntry.employee?.id && payrollYear && payrollMonth) {
       timeTracking = await prisma.employeeTimeTracking.findFirst({
         where: {
-          employeeId: entry.employee.id,
+          employeeId: mappedEntry.employee.id,
           year: payrollYear,
           month: payrollMonth
         }
       })
     }
 
-    const derivedWorkDays = (entry.workDays && entry.workDays > 0)
-      ? entry.workDays
+    const derivedWorkDays = (mappedEntry.workDays && mappedEntry.workDays > 0)
+      ? mappedEntry.workDays
       : (timeTracking
         ? ((timeTracking.workDays && timeTracking.workDays > 0) ? timeTracking.workDays : monthRequiredWorkDaysSafe)
         : monthRequiredWorkDaysSafe)
 
     // Get persisted/manual/override benefits via helper
-    const mergedPersisted = await helper.computeCombinedBenefitsForEntry(entry)
+    const mergedPersisted = await helper.computeCombinedBenefitsForEntry(mappedEntry)
 
     // Keep the raw persisted benefits for display in the modal (so deactivated overrides are visible)
     let persistedBenefits: any[] = []
@@ -112,7 +118,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Fetch contract benefits (most recent contract) and build an effective merged list
     let contract: any = null
     try {
-      const empId = entry.employee?.id || (entry as any).employeeId
+      const empId = mappedEntry.employee?.id || (mappedEntry as any).employeeId
       if (empId) {
         contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
       } else {
@@ -178,7 +184,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     // Ensure baseSalary exists on the response. If payroll entry has no baseSalary, prefer
     // the employee's most recent contract baseSalary.
-    let resolvedBaseSalary = Number((entry as any).baseSalary || 0)
+    let resolvedBaseSalary = Number((mappedEntry as any).baseSalary || 0)
     if ((!resolvedBaseSalary || resolvedBaseSalary === 0) && contract && contract.baseSalary != null) {
       try { resolvedBaseSalary = Number(contract.baseSalary) } catch (e) { resolvedBaseSalary = resolvedBaseSalary }
     }
@@ -188,7 +194,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // otherwise fall back to a direct DB select.
     let persistedAbsenceFraction: number | null = null
     try {
-      const v = (entry as any).absenceFraction
+      const v = (mappedEntry as any).absenceFraction
       if (v !== undefined && v !== null) persistedAbsenceFraction = Number(v)
     } catch (e) {
       // ignore
@@ -223,7 +229,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const responseEntry = {
-      ...entry,
+      ...mappedEntry,
       workDays: derivedWorkDays,
       payrollEntryBenefits: persistedBenefits,
       mergedBenefits: effectiveMerged,
@@ -240,7 +246,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       adjustmentsTotal: totals.additionsTotal ?? 0,
       adjustmentsAsDeductions: totals.adjustmentsAsDeductions ?? 0,
       // Normalize payroll adjustments for display (isAddition + absolute amount)
-      payrollAdjustments: (entry.payrollAdjustments || []).map((a: any) => ({
+      payrollAdjustments: (mappedEntry.payroll_adjustments || []).map((a: any) => ({
         ...a,
         // keep UI-friendly absolute amount but expose the original signed DB value as storedAmount
         isAddition: Number(a.amount || 0) >= 0,
@@ -249,9 +255,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         description: a.reason ?? a.description ?? ''
       })),
       // Prefer the employee's DOB from the employee record, fall back to stored payrollEntry value
-      dateOfBirth: entry.employee?.dateOfBirth ?? (entry as any).dateOfBirth ?? null,
-      hireDate: contract?.startDate ?? (entry as any).hireDate ?? null,
-      contract: contract || (entry as any).contract || null
+      dateOfBirth: mappedEntry.employee?.dateOfBirth ?? (mappedEntry as any).dateOfBirth ?? null,
+      hireDate: contract?.startDate ?? (mappedEntry as any).hireDate ?? null,
+      contract: contract || (mappedEntry as any).contract || null
     }
 
     // Debugging: log what absenceFraction we will return so it's easy to trace in server logs
@@ -384,7 +390,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         updatedAt: new Date()
       },
       include: {
-        employee: {
+        employees: {
           select: {
             id: true,
             employeeNumber: true,
@@ -392,8 +398,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             nationalId: true
           }
         },
-        payrollAdjustments: true,
-        payrollPeriod: {
+        payroll_adjustments: true,
+        payroll_periods: {
           select: {
             year: true,
             month: true
@@ -402,18 +408,24 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     })
 
-    // Compute cumulative sick/leave/absence days from time tracking
-    let cumulativeSickDays = Number(entry.sickDays || 0)
-    let cumulativeLeaveDays = Number(entry.leaveDays || 0)
-    let cumulativeAbsenceDays = Number(entry.absenceDays || 0)
+    // Add employee alias for backwards compatibility
+    const mappedUpdatedEntry: any = {
+      ...entry,
+      employee: (entry as any).employees
+    }
 
-    if (entry.employee?.id && entry.payroll_periods) {
+    // Compute cumulative sick/leave/absence days from time tracking
+    let cumulativeSickDays = Number(mappedUpdatedEntry.sickDays || 0)
+    let cumulativeLeaveDays = Number(mappedUpdatedEntry.leaveDays || 0)
+    let cumulativeAbsenceDays = Number(mappedUpdatedEntry.absenceDays || 0)
+
+    if (mappedUpdatedEntry.employee?.id && mappedUpdatedEntry.payroll_periods) {
       try {
         const timeTracking = await prisma.employeeTimeTracking.findFirst({
           where: {
-            employeeId: entry.employee.id,
-            year: entry.payroll_periods.year,
-            month: entry.payroll_periods.month
+            employeeId: mappedUpdatedEntry.employee.id,
+            year: mappedUpdatedEntry.payroll_periods.year,
+            month: mappedUpdatedEntry.payroll_periods.month
           }
         })
 
@@ -429,7 +441,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Attach recomputed absenceDeduction and cumulative days to the returned entry
     const returnedEntry = {
-      ...(entry as any),
+      ...(mappedUpdatedEntry as any),
       absenceDeduction: Number(recomputed.absenceDeduction ?? 0),
       cumulativeSickDays,
       cumulativeLeaveDays,

@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
         employmentStatus: true,
         isActive: true,
         hireDate: true,
-        jobTitles: {
+        job_titles: {
           select: {
             title: true,
             department: true,
@@ -116,9 +116,9 @@ export async function GET(req: NextRequest) {
       isActive: employee.isActive,
       hireDate: employee.hireDate,
       job_titles: {
-        title: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.title || null) : (employee.jobTitles?.title || null),
-        department: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.department || null) : (employee.jobTitles?.department || null),
-        level: Array.isArray(employee.jobTitles) ? (employee.jobTitles[0]?.level || null) : (employee.jobTitles?.level || null)
+        title: Array.isArray(employee.job_titles) ? (employee.job_titles[0]?.title || null) : (employee.job_titles?.title || null),
+        department: Array.isArray(employee.job_titles) ? (employee.job_titles[0]?.department || null) : (employee.job_titles?.department || null),
+        level: Array.isArray(employee.job_titles) ? (employee.job_titles[0]?.level || null) : (employee.job_titles?.level || null)
       },
       primaryBusiness: (Array.isArray(employee.businesses) && employee.businesses.length > 0)
         ? {
