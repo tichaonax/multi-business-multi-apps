@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     // If filtering by vehicle, only get authorized drivers
     if (vehicleId) {
-      where.driverAuthorizations = {
+      where.driver_authorizations = {
         some: {
           vehicleId: vehicleId,
           isActive: true
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
           },
           includeAuthorizations
             ? {
-                driverAuthorizations: {
+                driver_authorizations: {
                   where: { isActive: true },
                   include: {
                     vehicles: {
