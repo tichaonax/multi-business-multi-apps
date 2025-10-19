@@ -196,7 +196,8 @@ export async function POST(
     const body = await request.json()
 
     // Validate required fields
-    const requiredFields = ['name', 'basePrice']
+    // Accept either basePrice or sellPrice (UI compatibility)
+    const requiredFields = ['name']
     for (const field of requiredFields) {
       if (!body[field] && body[field] !== 0) {
         return NextResponse.json(
@@ -205,6 +206,17 @@ export async function POST(
         )
       }
     }
+
+    // Ensure we have a price (basePrice or sellPrice)
+    if (!body.basePrice && !body.sellPrice && body.basePrice !== 0 && body.sellPrice !== 0) {
+      return NextResponse.json(
+        { error: 'Missing required field: basePrice or sellPrice' },
+        { status: 400 }
+      )
+    }
+
+    // Use sellPrice if basePrice not provided (UI compatibility)
+    const basePrice = body.basePrice ?? body.sellPrice
 
     // Verify business exists and user has access
     const business = await prisma.businesses.findFirst({
@@ -258,7 +270,7 @@ export async function POST(
         sku: body.sku || null,
         barcode: body.barcode || null,
         categoryId: categoryId || undefined,
-        basePrice: parseFloat(body.basePrice),
+        basePrice: parseFloat(basePrice),
         costPrice: body.costPrice ? parseFloat(body.costPrice) : null,
         businessType: business.type,
         isActive: body.isActive !== false,
@@ -279,7 +291,7 @@ export async function POST(
         sku: body.sku || product.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-001`,
         stockQuantity: 0,
         reorderLevel: body.lowStockThreshold || 10,
-        price: parseFloat(body.basePrice),
+        price: parseFloat(basePrice),
         updatedAt: new Date()
       }
     })
