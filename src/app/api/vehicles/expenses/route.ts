@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
               ownershipType: true
             }
           },
-          vehicleTrips: {
+          vehicle_trips: {
             select: {
               id: true,
               tripPurpose: true,
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
             ownershipType: true
           }
         },
-        vehicleTrips: {
+        vehicle_trips: {
           select: {
             id: true,
             tripPurpose: true,
@@ -352,7 +352,7 @@ export async function PUT(request: NextRequest) {
             ownershipType: true
           }
         },
-        vehicleTrips: {
+        vehicle_trips: {
           select: {
             id: true,
             tripPurpose: true,

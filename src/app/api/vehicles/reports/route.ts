@@ -305,7 +305,7 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true } },
       businesses: { select: { name: true } },
-      vehicleTrips: { select: { tripPurpose: true, tripType: true, tripMileage: true } }
+      vehicle_trips: { select: { tripPurpose: true, tripType: true, tripMileage: true } }
     }
   })
   const normalizedExpenses = expenses.map(e => ({
@@ -638,7 +638,7 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
           vehicles: { select: { licensePlate: true, make: true, model: true } }
         }
       },
-      driverAuthorizations: {
+      driver_authorizations: {
         include: {
           vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true } },
           users: { select: { name: true, email: true } }
@@ -649,7 +649,7 @@ async function generateDriverActivityReport(dateFilter?: any, driverId?: string,
 
   return driverActivity.map(driver => {
     const trips = (driver as any).vehicle_trips || []
-    const authorizations = (driver as any).driverAuthorizations || []
+    const authorizations = (driver as any).driver_authorizations || []
 
     // Authorization level breakdown
     const authByLevel = authorizations.reduce((acc: any, auth: any) => {
