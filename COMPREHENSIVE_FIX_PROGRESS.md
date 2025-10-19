@@ -4,12 +4,13 @@
 Fixed Prisma relation name mismatches across the codebase and added UI-compatible transformations.
 
 ## Total Progress
-- **Files Fixed:** 36
-- **Errors Fixed:** 80+
-- **Lines Changed:** ~285+
-- **Commits:** 15 (13 code commits + 2 documentation)
+- **Files Fixed:** 37
+- **Errors Fixed:** 82+
+- **Lines Changed:** ~295+
+- **Commits:** 18 (15 code commits + 3 documentation)
 - **Validation Progress:** ~20% of 195 API files checked
-- **Categories Validated:** 50+ (12 categories had fixes, 16+ already correct)
+- **Categories Validated:** 50+ (13 categories had fixes, 16+ already correct)
+- **Runtime Issues Fixed:** 2 (vehicle drivers timestamps, inventory basePrice compatibility)
 
 ## Commits Made
 1. **fix: API relation names and UI transformations** (1b2928c) - 10 files
@@ -27,6 +28,9 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
 13. **fix: menu combos API relation names** (555f9cc) - 2 files
 14. **fix: universal orders API relation names and remove divisionAccount** (7ce9477) - 1 file
 15. **docs: update progress with universal APIs fixes** (3ea7578) - Documentation
+16. **docs: add comprehensive validation summary and findings** (1b6f953) - Documentation
+17. **fix: add missing updatedAt/createdAt fields to vehicle drivers create/update** (03df5ad) - 1 file
+18. **fix: accept sellPrice as alternative to basePrice in inventory items API** (b78cd96) - 1 file
 
 ## Files Fixed by Category
 
@@ -94,6 +98,16 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
    - Fixed: employee → employees
    - Fixed: items → business_order_items
    - Fixed: product → business_products
+
+### Vehicle Drivers API (1 file)
+36. ✅ `vehicles/drivers/route.ts` - Runtime fix:
+   - Added missing createdAt and updatedAt timestamps to create operation
+   - Added updatedAt to update operation
+
+### Inventory Items API (1 file)
+37. ✅ `inventory/[businessId]/items/route.ts` - Field compatibility fix:
+   - Accept sellPrice as alternative to basePrice for UI compatibility
+   - Enhanced validation to support both field names
 
 ### Other Categories Validated (No Changes Needed)
 36. ✅ Vehicles APIs - All correct (20+ files)
