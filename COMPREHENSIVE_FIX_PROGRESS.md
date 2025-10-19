@@ -4,11 +4,11 @@
 Fixed Prisma relation name mismatches across the codebase and added UI-compatible transformations.
 
 ## Total Progress
-- **Files Fixed:** 30
-- **Errors Fixed:** 65+
-- **Lines Changed:** ~260+
-- **Commits:** 10
-- **Validation Progress:** ~15% of 195 API files
+- **Files Fixed:** 36
+- **Errors Fixed:** 80+
+- **Lines Changed:** ~285+
+- **Commits:** 14
+- **Validation Progress:** ~20% of 195 API files
 
 ## Commits Made
 1. **fix: API relation names and UI transformations** (1b2928c) - 10 files
@@ -21,6 +21,10 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
 8. **fix: dashboard team-breakdown relation names** (074a44a) - 1 file
 9. **fix: payroll cleanup employee->employees relation** (3a8197d) - 1 file
 10. **fix: PayrollEntryBenefits->payroll_entry_benefits in include blocks** (1b908e4) - 2 files
+11. **docs: update comprehensive fix progress** (dbc6acd) - Documentation
+12. **fix: universal products API relation names** (2ee2f53) - 3 files
+13. **fix: menu combos API relation names** (555f9cc) - 2 files
+14. **fix: universal orders API relation names and remove divisionAccount** (7ce9477) - 1 file
 
 ## Files Fixed by Category
 
@@ -71,8 +75,26 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
 ### Dashboard APIs (1 file)
 29. ✅ `dashboard/team-breakdown/route.ts` - 4 fixes (bm.business → bm.businesses refs)
 
+### Universal Products APIs (3 files)
+30. ✅ `universal/products/[id]/route.ts` - 8 fixes (businessBrand → business_brands, businessCategory → business_categories, productVariants → product_variants, productImages/ProductImages → product_images, businessOrderItems → business_order_items, businessOrder → business_orders)
+31. ✅ `universal/products/route.ts` - 1 fix (productImages → product_images)
+32. ✅ `universal/products/[id]/images/route.ts` - 2 fixes (ProductImages → product_images, productVariants → product_variants)
+
+### Menu Combos APIs (2 files)
+33. ✅ `universal/menu-combos/route.ts` - 1 fix (ProductImages → product_images)
+34. ✅ `universal/menu-combos/[id]/route.ts` - 4 fixes (product → business_products, variant → product_variants, images → product_images, variants → product_variants)
+
+### Universal Orders API (1 file)
+35. ✅ `universal/orders/route.ts` - Multiple fixes in 3 handlers:
+   - Removed non-existent divisionAccount relation and divisionAccountId field
+   - Fixed: businessCustomer → business_customers
+   - Fixed: customer → business_customers
+   - Fixed: employee → employees
+   - Fixed: items → business_order_items
+   - Fixed: product → business_products
+
 ### Other Categories Validated (No Changes Needed)
-30. ✅ Vehicles APIs - All correct (20+ files)
+36. ✅ Vehicles APIs - All correct (20+ files)
 31. ✅ Businesses APIs - All correct (6 files)
 32. ✅ Projects APIs - All correct (10 files)
 33. ✅ Persons APIs - All correct (7 files)
