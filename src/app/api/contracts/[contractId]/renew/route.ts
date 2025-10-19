@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
-import { randomBytes } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 import { z } from 'zod'
 
 // Renewal request schema
@@ -228,8 +228,8 @@ export async function POST(
             benefit_types: true
           }
         },
-        jobTitles: true,
-        compensationTypes: true,
+        job_titles: true,
+        compensation_types: true,
         employees_employee_contracts_employeeIdToemployees: {
           select: {
             fullName: true,

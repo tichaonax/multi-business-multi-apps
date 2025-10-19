@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { hasPermission } from '@/lib/permission-utils';
 
 export async function POST(

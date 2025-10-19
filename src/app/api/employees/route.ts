@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
-import { randomBytes } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 import { buildEmployeeQueryFilter, canUserPerformEmployeeAction } from '@/lib/employee-access-control'
 import { SessionUser } from '@/lib/permission-utils'
 
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         ]
       }),
       ...(department && {
-        jobTitles: {
+        job_titles: {
           department: department
         }
       })
@@ -359,13 +359,13 @@ export async function POST(req: NextRequest) {
               email: true
             }
           },
-          jobTitles: {
+          job_titles: {
             select: {
               title: true,
               department: true
             }
           },
-          compensationTypes: {
+          compensation_types: {
             select: { name: true }
           },
           businesses: {
@@ -428,8 +428,8 @@ export async function POST(req: NextRequest) {
         fullName: result.fullName,
         email: result.email,
         phone: result.phone,
-        jobTitle: result.jobTitles?.title,
-        department: result.jobTitles?.department,
+        jobTitle: result.job_titles?.title,
+        department: result.job_titles?.department,
         compensationType: result.compensationTypes?.name,
         primaryBusiness: result.businesses?.name
       }
