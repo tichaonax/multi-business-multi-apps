@@ -4,13 +4,13 @@
 Fixed Prisma relation name mismatches across the codebase and added UI-compatible transformations.
 
 ## Total Progress
-- **Files Fixed:** 38
-- **Errors Fixed:** 84+
-- **Lines Changed:** ~300+
-- **Commits:** 20 (16 code commits + 4 documentation)
-- **Validation Progress:** ~20% of 195 API files checked  
-- **Categories Validated:** 50+ (14 categories had fixes, 16+ already correct)
-- **Runtime Issues Fixed:** 2 (vehicle drivers timestamps, inventory basePrice compatibility)
+- **Files Fixed:** 41
+- **Errors Fixed:** 92+
+- **Lines Changed:** ~350+
+- **Commits:** 23 (18 code commits + 5 documentation)
+- **Validation Progress:** ~21% of 195 API files checked  
+- **Categories Validated:** 50+ (17 categories had fixes, 33+ already correct)
+- **Runtime Issues Fixed:** 3 (vehicle drivers timestamps, inventory basePrice, vehicle queries)
 
 ## Commits Made
 1. **fix: API relation names and UI transformations** (1b2928c) - 10 files
@@ -33,6 +33,9 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
 18. **fix: accept sellPrice as alternative to basePrice in inventory items API** (b78cd96) - 1 file
 19. **docs: update progress with vehicle drivers and inventory fixes** (4d6ddb2) - Documentation
 20. **fix: employee create-user API relation names** (70a2025) - 1 file
+21. **docs: update progress with employee create-user fix** (dc84220) - Documentation
+22. **fix: vehicle drivers API driverAuthorizations relation name** (8f08b72) - 1 file (where clause and include)
+23. **fix: vehicle reports and expenses APIs relation names** (d0f21a3) - 2 files (vehicleTrips, driverAuthorizations)
 
 ## Files Fixed by Category
 
@@ -103,11 +106,34 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
    - Fixed: product → business_products
 
 ### Vehicle Drivers API (1 file)
-36. ✅ `vehicles/drivers/route.ts` - Runtime fix:
-   - Added missing createdAt and updatedAt timestamps to create operation
-   - Added updatedAt to update operation
+36. ✅ `vehicles/drivers/route.ts` - Multiple fixes:
+   - Runtime fix: Added missing createdAt and updatedAt timestamps to create operation
+   - Runtime fix: Added updatedAt to update operation
+   - Relation name fix: driverAuthorizations → driver_authorizations (where clause)
+   - Relation name fix: driverAuthorizations → driver_authorizations (include block)
+
+### Vehicle Reports API (1 file)
+37. ✅ `vehicles/reports/route.ts` - Multiple fixes:
+   - vehicleTrips → vehicle_trips (expense query)
+   - driverAuthorizations → driver_authorizations (driver activity query)
+   - Fixed reference: (driver as any).driverAuthorizations → (driver as any).driver_authorizations
+
+### Vehicle Expenses API (1 file)
+38. ✅ `vehicles/expenses/route.ts` - Multiple fixes:
+   - vehicleTrips → vehicle_trips (GET handler include)
+   - vehicleTrips → vehicle_trips (POST handler include)
+   - vehicleTrips → vehicle_trips (PATCH handler include)
 
 ### Inventory Items API (1 file)
+39. ✅ `inventory/[businessId]/items/route.ts` - Runtime compatibility fix:
+   - Changed validation to accept either basePrice or sellPrice
+   - Added fallback logic: `const basePrice = body.basePrice ?? body.sellPrice`
+
+### Contracts (Additional file)
+40. ✅ `contracts/[contractId]/route.ts` - 1 fix
+
+### Employee (Additional file)
+41. ✅ `employees/[employeeId]/create-user/route.ts` - 2 fixes
 37. ✅ `inventory/[businessId]/items/route.ts` - Field compatibility fix:
    - Accept sellPrice as alternative to basePrice for UI compatibility
    - Enhanced validation to support both field names
