@@ -42,11 +42,11 @@ export async function POST(
       include: {
         users: true,
         businesses: true,
-        employeeBusinessAssignments: {
+        employee_business_assignments: {
           where: { isActive: true },
           include: { businesses: true }
         },
-        employeeContracts: {
+        employee_contracts_employee_contracts_employeeIdToemployees: {
           where: { status: 'active' },
           orderBy: { createdAt: 'desc' },
           take: 1
@@ -79,7 +79,7 @@ export async function POST(
     }
 
     // Validate that employee has a signed active contract
-    const activeContract = (employee as any).employeeContracts?.[0];
+    const activeContract = (employee as any).employee_contracts_employee_contracts_employeeIdToemployees?.[0];
     if (!activeContract) {
       return NextResponse.json(
         { error: 'Cannot create user account. Employee must have an active contract.' },
