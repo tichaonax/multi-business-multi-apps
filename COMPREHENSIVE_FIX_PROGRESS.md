@@ -4,12 +4,12 @@
 Fixed Prisma relation name mismatches across the codebase and added UI-compatible transformations.
 
 ## Total Progress
-- **Files Fixed:** 37
-- **Errors Fixed:** 82+
-- **Lines Changed:** ~295+
-- **Commits:** 18 (15 code commits + 3 documentation)
-- **Validation Progress:** ~20% of 195 API files checked
-- **Categories Validated:** 50+ (13 categories had fixes, 16+ already correct)
+- **Files Fixed:** 38
+- **Errors Fixed:** 84+
+- **Lines Changed:** ~300+
+- **Commits:** 20 (16 code commits + 4 documentation)
+- **Validation Progress:** ~20% of 195 API files checked  
+- **Categories Validated:** 50+ (14 categories had fixes, 16+ already correct)
 - **Runtime Issues Fixed:** 2 (vehicle drivers timestamps, inventory basePrice compatibility)
 
 ## Commits Made
@@ -31,6 +31,8 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
 16. **docs: add comprehensive validation summary and findings** (1b6f953) - Documentation
 17. **fix: add missing updatedAt/createdAt fields to vehicle drivers create/update** (03df5ad) - 1 file
 18. **fix: accept sellPrice as alternative to basePrice in inventory items API** (b78cd96) - 1 file
+19. **docs: update progress with vehicle drivers and inventory fixes** (4d6ddb2) - Documentation
+20. **fix: employee create-user API relation names** (70a2025) - 1 file
 
 ## Files Fixed by Category
 
@@ -43,8 +45,9 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
 6. ✅ `employees/[employeeId]/leave-requests/[requestId]/route.ts` - 1 fix
 7. ✅ `employees/[employeeId]/salary-increases/route.ts` - 2 fixes
 8. ✅ `employees/[employeeId]/contracts/[contractId]/route.ts` - 1 fix
-9. ⚠️  `employees/[employeeId]/status/route.ts` - No includes (skipped)
-10. ⚠️  `employees/[employeeId]/contracts/route.ts` - No includes (skipped)
+9. ✅ `employees/[employeeId]/create-user/route.ts` - 2 fixes (employeeBusinessAssignments, employeeContracts)
+10. ⚠️  `employees/[employeeId]/status/route.ts` - No includes (skipped)
+11. ⚠️  `employees/[employeeId]/contracts/route.ts` - No includes (skipped)
 
 ### Payroll APIs (7 files)
 11. ✅ `payroll/exports/regenerate/route.ts` - 2 fixes + transformation
@@ -108,6 +111,11 @@ Fixed Prisma relation name mismatches across the codebase and added UI-compatibl
 37. ✅ `inventory/[businessId]/items/route.ts` - Field compatibility fix:
    - Accept sellPrice as alternative to basePrice for UI compatibility
    - Enhanced validation to support both field names
+
+### Employee Create User API (1 file)
+38. ✅ `employees/[employeeId]/create-user/route.ts` - 2 fixes:
+   - Fixed: employeeBusinessAssignments → employee_business_assignments
+   - Fixed: employeeContracts → employee_contracts_employee_contracts_employeeIdToemployees
 
 ### Other Categories Validated (No Changes Needed)
 36. ✅ Vehicles APIs - All correct (20+ files)
