@@ -184,6 +184,7 @@ export async function POST(request: NextRequest) {
 
     // Create driver
       // Create driver: build explicit payload so optional userId is handled correctly
+      const now = new Date()
       const createPayload: any = {
         id: crypto.randomUUID(),
         fullName: validatedData.fullName,
@@ -194,7 +195,9 @@ export async function POST(request: NextRequest) {
         emailAddress: validatedData.emailAddress || undefined,
         emergencyContact: validatedData.emergencyContact || undefined,
         dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : undefined,
-        address: validatedData.address || undefined
+        address: validatedData.address || undefined,
+        createdAt: now,
+        updatedAt: now
       }
 
       if (validatedData.userId) createPayload.userId = validatedData.userId
@@ -293,7 +296,8 @@ export async function PUT(request: NextRequest) {
       phoneNumber: updateData.phoneNumber ? normalizePhoneInput(updateData.phoneNumber) : undefined,
       emergencyPhone: updateData.emergencyPhone ? normalizePhoneInput(updateData.emergencyPhone) : undefined,
       licenseExpiry: updateData.licenseExpiry ? new Date(updateData.licenseExpiry) : undefined,
-      dateOfBirth: updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : undefined
+      dateOfBirth: updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : undefined,
+      updatedAt: new Date()
     }
 
     // Update driver
