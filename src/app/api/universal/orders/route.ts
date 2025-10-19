@@ -96,17 +96,8 @@ export async function GET(request: NextRequest) {
           businesses: {
             select: { name: true, type: true }
           },
-          businessCustomer: {
+          business_customers: {
             select: { id: true, name: true, customerNumber: true }
-          },
-          divisionAccount: {
-            select: {
-              id: true,
-              divisionCustomerNumber: true,
-              universalCustomer: {
-                select: { id: true, fullName: true, customerNumber: true, primaryEmail: true, primaryPhone: true }
-              }
-            }
           },
           employees: {
             select: { id: true, fullName: true, employeeNumber: true }
@@ -315,7 +306,6 @@ export async function POST(request: NextRequest) {
         data: {
           businessId: orderData.businessId,
           customerId: orderData.customerId,
-          divisionAccountId: orderData.divisionAccountId,
           employeeId: orderData.employeeId,
           orderType: orderData.orderType,
           paymentMethod: orderData.paymentMethod,
@@ -333,17 +323,8 @@ export async function POST(request: NextRequest) {
         },
           include: {
             businesses: { select: { name: true, type: true } },
-            businessCustomer: { select: { id: true, name: true, customerNumber: true } },
-            divisionAccount: {
-              select: {
-                id: true,
-                divisionCustomerNumber: true,
-                universalCustomer: {
-                  select: { id: true, fullName: true, customerNumber: true }
-                }
-              }
-            },
-            employee: { select: { id: true, fullName: true, employeeNumber: true } }
+            business_customers: { select: { id: true, name: true, customerNumber: true } },
+            employees: { select: { id: true, fullName: true, employeeNumber: true } }
           }
       })
 
@@ -501,13 +482,13 @@ export async function PUT(request: NextRequest) {
       data: updateData,
       include: {
         businesses: { select: { name: true, type: true } },
-        customer: { select: { id: true, name: true, customerNumber: true } },
-        employee: { select: { id: true, fullName: true, employeeNumber: true } },
-        items: {
+        business_customers: { select: { id: true, name: true, customerNumber: true } },
+        employees: { select: { id: true, fullName: true, employeeNumber: true } },
+        business_order_items: {
           include: {
             product_variants: {
               include: {
-                product: {
+                business_products: {
                   select: { name: true, productType: true }
                 }
               }
