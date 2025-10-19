@@ -8,7 +8,7 @@ import { randomBytes } from 'crypto';
 const CreateAuthorizationSchema = z.object({
   driverId: z.string().min(1, 'Driver ID is required'),
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
-  authorizedBy: z.string().min(1, 'Authorizer ID is required'),
+  authorizedBy: z.string().optional(), // Will default to current user if not provided
   authorizedDate: z.string().min(1, 'Authorization date is required'),
   expiryDate: z.string().optional().nullable(),
   authorizationLevel: z.enum(['BASIC', 'ADVANCED', 'EMERGENCY']).default('BASIC'),
@@ -136,6 +136,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = CreateAuthorizationSchema.parse(body)
 
+    // Default authorizedBy to current user if not provided or empty
+    const authorizedBy = validatedData.authorizedBy && validatedData.authorizedBy.trim() 
+      ? validatedData.authorizedBy 
+      : session.user.id
+
     // Verify driver exists
     const driver = await prisma.vehicleDrivers.findUnique({
       where: { id: validatedData.driverId }
@@ -162,7 +167,7 @@ export async function POST(request: NextRequest) {
 
     // Verify authorizer exists
     const authorizer = await prisma.users.findUnique({
-      where: { id: validatedData.authorizedBy }
+      where: { id: authorizedBy }
     })
 
     if (!authorizer) {
@@ -199,9 +204,13 @@ export async function POST(request: NextRequest) {
     const authorization = await prisma.driverAuthorizations.create({
       data: {
         id: authorizationId,
-        ...validatedData,
+        driverId: validatedData.driverId,
+        vehicleId: validatedData.vehicleId,
+        authorizedBy: authorizedBy,
         authorizedDate: new Date(validatedData.authorizedDate),
         expiryDate: validatedData.expiryDate ? new Date(validatedData.expiryDate) : null,
+        authorizationLevel: validatedData.authorizationLevel,
+        notes: validatedData.notes,
         updatedAt: new Date()
       },
       include: {
