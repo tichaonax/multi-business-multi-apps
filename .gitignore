@@ -124,3 +124,17 @@ scripts/tmp-*.cjs
 # Temporary development data files
 period.json
 verify-totals.xlsx
+
+# AI-generated documentation and analysis files
+FINAL_PRISMA_FIX_SUMMARY.md
+HOW_TO_CATCH_PRISMA_ERRORS.md
+MANUAL_VALIDATION_CHECKLIST.md
+PRISMA_RELATION_NAMING_GUIDE.md
+RELATION_NAME_FIX_SUMMARY.md
+TASK_1_3_UI_COMPONENT_API_DEPENDENCIES.md
+ai-contexts/session-templates/wip/
+api-schema-mismatch-report.json
+projectplan-fix-api-prisma-schema-mismatch-*.md
+scripts/scan-api-schema-mismatches.ts
+scripts/validate-all-relations.ts
+scripts/validate-prisma-usage.ts
