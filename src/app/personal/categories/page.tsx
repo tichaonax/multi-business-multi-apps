@@ -1,263 +1,354 @@
-'use client'
+'use client';
 
-import { ProtectedRoute } from '@/components/auth/protected-route'
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { ContentLayout } from '@/components/layout/content-layout'
-
-interface Category {
-  id: string
-  name: string
-  emoji: string
-  color: string
-  isDefault: boolean
-  createdAt: string
-}
-
-interface Project {
-  id: string
-  name: string
-  description?: string
-  status: string
-}
+import { ProtectedRoute } from '@/components/auth/protected-route';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
+import { hasUserPermission } from '@/lib/permission-utils';
+import { ExpenseCategoryHierarchy, ExpenseCategory } from '@/types/expense-category';
+import { SubcategoryCreator } from '@/components/personal/subcategory-creator';
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-    emoji: '💰',
-    color: '#3B82F6'
-  })
+  const { data: session } = useSession();
+  const [hierarchy, setHierarchy] = useState<ExpenseCategoryHierarchy | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
 
+  // Subcategory creator state
+  const [showSubcategoryCreator, setShowSubcategoryCreator] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<{
+    id: string;
+    name: string;
+    emoji: string;
+  } | null>(null);
+
+  const canCreateSubcategories = hasUserPermission(session?.user, 'canCreateExpenseSubcategories');
+
+  // Fetch category hierarchy
   useEffect(() => {
-    // Fetch categories
-    fetch('/api/personal/categories')
-      .then(res => res.json())
-      .then(data => setCategories(data))
-      .catch(console.error)
+    async function fetchCategories() {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/expense-categories');
+        if (!response.ok) throw new Error('Failed to fetch categories');
 
-    // Fetch projects for lookup
-    fetch('/api/construction/projects')
-      .then(res => res.json())
-      .then(data => setProjects(data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+        const data: ExpenseCategoryHierarchy = await response.json();
+        setHierarchy(data);
 
-  const handleAddCategory = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newCategory.name || !newCategory.emoji) return
-
-    try {
-      const response = await fetch('/api/personal/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCategory)
-      })
-
-      if (response.ok) {
-        const category = await response.json()
-        setCategories([...categories, category])
-        setNewCategory({ name: '', emoji: '💰', color: '#3B82F6' })
-        setShowAddForm(false)
+        // Expand first domain by default
+        if (data.domains.length > 0) {
+          setExpandedDomains(new Set([data.domains[0].id]));
+        }
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error adding category:', error)
     }
+
+    fetchCategories();
+  }, []);
+
+  const toggleDomain = (domainId: string) => {
+    const newExpanded = new Set(expandedDomains);
+    if (newExpanded.has(domainId)) {
+      newExpanded.delete(domainId);
+    } else {
+      newExpanded.add(domainId);
+    }
+    setExpandedDomains(newExpanded);
+  };
+
+  const toggleCategory = (categoryId: string) => {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(categoryId)) {
+      newExpanded.delete(categoryId);
+    } else {
+      newExpanded.add(categoryId);
+    }
+    setExpandedCategories(newExpanded);
+  };
+
+  const handleCreateSubcategory = (category: ExpenseCategory) => {
+    setSelectedCategory({
+      id: category.id,
+      name: category.name,
+      emoji: category.emoji,
+    });
+    setShowSubcategoryCreator(true);
+  };
+
+  const handleSubcategoryCreated = () => {
+    setShowSubcategoryCreator(false);
+    // Refresh categories
+    window.location.reload();
+  };
+
+  // Filter categories based on search
+  const filteredHierarchy = hierarchy ? {
+    ...hierarchy,
+    domains: hierarchy.domains.map(domain => ({
+      ...domain,
+      expense_categories: domain.expense_categories?.filter(category =>
+        category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        category.expense_subcategories?.some(sub =>
+          sub.name.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      ),
+    })).filter(domain => domain.expense_categories && domain.expense_categories.length > 0),
+  } : null;
+
+  if (!session?.user || !hasUserPermission(session.user, 'canAccessPersonalFinance')) {
+    return (
+      <ProtectedRoute>
+        <div className="card p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <h2 className="text-xl font-semibold text-red-700 dark:text-red-300 mb-4">Access Denied</h2>
+          <p className="text-red-600 dark:text-red-400 mb-4">
+            You don't have permission to access personal finance categories.
+          </p>
+          <Link href="/personal" className="btn-secondary">
+            ← Back to Personal Finance
+          </Link>
+        </div>
+      </ProtectedRoute>
+    );
   }
-
-  const createCategoryFromProject = async (project: Project) => {
-    const categoryData = {
-      name: project.name,
-      emoji: '🏗️',
-      color: '#F59E0B'
-    }
-
-    try {
-      const response = await fetch('/api/personal/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(categoryData)
-      })
-
-      if (response.ok) {
-        const category = await response.json()
-        setCategories([...categories, category])
-      }
-    } catch (error) {
-      console.error('Error creating category from project:', error)
-    }
-  }
-
-  const commonEmojis = ['💰', '🍽️', '🚗', '💡', '🎬', '🛒', '🏥', '📚', '🏗️', '👕', '🎯', '💼', '🎪', '🌟']
 
   return (
     <ProtectedRoute>
-      <ContentLayout
-        title="Expense Categories"
-        subtitle="Manage your expense categories and organize your spending"
-        breadcrumb={[
-          { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Personal', href: '/personal' },
-          { label: 'Categories', isActive: true }
-        ]}
-        headerActions={
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="btn-primary"
-          >
-            + Add Category
-          </button>
-        }
-      >
-        <div className="space-y-6">
+      <div className="max-w-6xl mx-auto p-4">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-primary">Expense Categories</h1>
+              <p className="text-sm text-secondary mt-1">
+                Browse and manage expense categories and subcategories
+              </p>
+            </div>
+            <Link
+              href="/personal"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              ← Back
+            </Link>
+          </div>
 
-        {showAddForm && (
-          <div className="card p-6">
-            <h2 className="text-xl font-semibold text-primary mb-4">Add New Category</h2>
-            <form onSubmit={handleAddCategory} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  Category Name
-                </label>
-                <input
-                  type="text"
-                  value={newCategory.name}
-                  onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Groceries, Gas, Rent"
-                  required
-                />
+          {/* Summary Stats */}
+          {hierarchy && (
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="card p-4 bg-blue-50 dark:bg-blue-900/20">
+                <div className="text-2xl font-bold text-blue-600">{hierarchy.count.domains}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Domains</div>
               </div>
+              <div className="card p-4 bg-green-50 dark:bg-green-900/20">
+                <div className="text-2xl font-bold text-green-600">{hierarchy.count.categories}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Categories</div>
+              </div>
+              <div className="card p-4 bg-purple-50 dark:bg-purple-900/20">
+                <div className="text-2xl font-bold text-purple-600">{hierarchy.count.subcategories}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Subcategories</div>
+              </div>
+            </div>
+          )}
 
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  Emoji
-                </label>
-                <div className="flex gap-2 mb-2">
-                  {commonEmojis.map(emoji => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => setNewCategory({...newCategory, emoji})}
-                      className={`p-2 text-2xl border rounded-md ${newCategory.emoji === emoji ? 'bg-blue-100 dark:bg-blue-800 border-blue-500' : 'border-gray-300 dark:border-gray-600'} dark:text-white`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="text"
-                  value={newCategory.emoji}
-                  onChange={(e) => setNewCategory({...newCategory, emoji: e.target.value})}
-                  className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="💰"
-                />
-              </div>
+          {/* Search */}
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search categories..."
+              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <svg
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+        </div>
 
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  Color
-                </label>
-                <input
-                  type="color"
-                  value={newCategory.color}
-                  onChange={(e) => setNewCategory({...newCategory, color: e.target.value})}
-                  className="w-16 h-10 border border-gray-300 dark:border-gray-600 rounded-md"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  className="btn-primary bg-green-600 hover:bg-green-700"
-                >
-                  Add Category
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-12">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+            <p className="mt-2 text-sm text-gray-600">Loading categories...</p>
           </div>
         )}
 
-        <div className="card">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold text-primary">Your Categories</h2>
+        {/* Error State */}
+        {error && (
+          <div className="card p-6 bg-red-50 dark:bg-red-900/20 border border-red-200">
+            <p className="text-red-600">Error: {error}</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
-            {categories.map((category) => (
-              <div
-                key={category.id}
-                className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-white dark:bg-gray-800"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-2xl">{category.emoji}</span>
-                    <span className="font-medium text-primary">{category.name}</span>
+        )}
+
+        {/* Categories List */}
+        {!loading && !error && filteredHierarchy && (
+          <div className="space-y-4">
+            {filteredHierarchy.domains.map((domain) => (
+              <div key={domain.id} className="card overflow-hidden">
+                {/* Domain Header */}
+                <button
+                  onClick={() => toggleDomain(domain.id)}
+                  className="w-full px-6 py-4 flex items-center justify-between bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{domain.emoji}</span>
+                    <div className="text-left">
+                      <h2 className="text-lg font-semibold text-primary">{domain.name}</h2>
+                      <p className="text-sm text-secondary">{domain.description}</p>
+                    </div>
                   </div>
-                  {category.isDefault && (
-                    <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded">
-                      Default
-                    </span>
-                  )}
-                </div>
-                <div
-                  className="w-full h-2 rounded"
-                  style={{ backgroundColor: category.color }}
-                />
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-secondary">
+                      {domain.expense_categories?.length || 0} categories
+                    </div>
+                    <svg
+                      className={`h-5 w-5 text-gray-400 transform transition-transform ${
+                        expandedDomains.has(domain.id) ? 'rotate-180' : ''
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </button>
+
+                {/* Domain Content */}
+                {expandedDomains.has(domain.id) && (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {domain.expense_categories?.map((category) => (
+                      <div key={category.id}>
+                        {/* Category Header */}
+                        <div className="px-6 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <button
+                            onClick={() => toggleCategory(category.id)}
+                            className="flex-1 flex items-center gap-3 text-left"
+                          >
+                            <span className="text-xl">{category.emoji}</span>
+                            <div className="flex-1">
+                              <div className="font-medium text-primary">{category.name}</div>
+                              {category.description && (
+                                <div className="text-xs text-secondary">{category.description}</div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-secondary">
+                              <span>{category.expense_subcategories?.length || 0} subcategories</span>
+                              <svg
+                                className={`h-4 w-4 transform transition-transform ${
+                                  expandedCategories.has(category.id) ? 'rotate-180' : ''
+                                }`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </button>
+                          {canCreateSubcategories && (
+                            <button
+                              onClick={() => handleCreateSubcategory(category)}
+                              className="ml-4 px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded hover:bg-blue-50"
+                            >
+                              + Add Subcategory
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Subcategories */}
+                        {expandedCategories.has(category.id) && category.expense_subcategories && (
+                          <div className="px-6 py-2 bg-gray-50 dark:bg-gray-900">
+                            {category.expense_subcategories.length === 0 ? (
+                              <div className="py-4 text-center text-sm text-secondary">
+                                No subcategories yet.
+                                {canCreateSubcategories && (
+                                  <button
+                                    onClick={() => handleCreateSubcategory(category)}
+                                    className="ml-2 text-blue-600 hover:underline"
+                                  >
+                                    Create one?
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 py-2">
+                                {category.expense_subcategories.map((subcategory) => (
+                                  <div
+                                    key={subcategory.id}
+                                    className="flex items-center gap-2 p-2 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                                  >
+                                    {subcategory.emoji && <span>{subcategory.emoji}</span>}
+                                    <div className="flex-1">
+                                      <div className="text-sm font-medium text-primary">
+                                        {subcategory.name}
+                                      </div>
+                                      {subcategory.isUserCreated && subcategory.users && (
+                                        <div className="text-xs text-secondary">
+                                          Created by {subcategory.users.name}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {subcategory.isUserCreated && (
+                                      <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                                        Custom
+                                      </span>
+                                    )}
+                                    {subcategory.isDefault && (
+                                      <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                                        Default
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
-        </div>
+        )}
 
-        {projects.length > 0 && (
-          <div className="card">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-primary">Create Categories from Projects</h2>
-              <p className="text-sm text-secondary mt-1">
-                Quickly create expense categories from your existing construction projects
-              </p>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {projects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800"
-                  >
-                    <div>
-                      <h3 className="font-medium text-primary">🏗️ {project.name}</h3>
-                      <p className="text-sm text-secondary">{project.description}</p>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        project.status === 'active' ? 'bg-green-100 dark:bg-green-800 text-green-600 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                      }`}>
-                        {project.status}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => createCategoryFromProject(project)}
-                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md disabled:opacity-50"
-                      disabled={categories.some(cat => cat.name === project.name)}
-                    >
-                      {categories.some(cat => cat.name === project.name) ? 'Added' : 'Add Category'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* No Results */}
+        {!loading && !error && filteredHierarchy && filteredHierarchy.domains.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-600">No categories found matching "{searchQuery}"</p>
           </div>
         )}
-        </div>
-      </ContentLayout>
+      </div>
+
+      {/* Subcategory Creator Modal */}
+      {showSubcategoryCreator && selectedCategory && (
+        <SubcategoryCreator
+          categoryId={selectedCategory.id}
+          categoryName={selectedCategory.name}
+          categoryEmoji={selectedCategory.emoji}
+          onSuccess={handleSubcategoryCreated}
+          onCancel={() => setShowSubcategoryCreator(false)}
+          isOpen={showSubcategoryCreator}
+        />
+      )}
     </ProtectedRoute>
-  )
+  );
 }

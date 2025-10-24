@@ -400,7 +400,7 @@ module.exports = {
     cwd: '/path/to/your/app',
     env: {
       NODE_ENV: 'production',
-      PORT: 3000
+      PORT: 8080
     },
     instances: 'max',
     exec_mode: 'cluster'
@@ -428,7 +428,7 @@ RUN npm ci --only=production
 COPY . .
 RUN npm run build
 
-EXPOSE 3000
+EXPOSE 8080
 
 CMD ["npm", "start"]
 ```
@@ -441,7 +441,7 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "8080:8080"
     environment:
 ## Safe Windows Service Install (step-by-step)
 
@@ -596,7 +596,7 @@ npm run service:uninstall
 
 If you'd like, I can add a PowerShell script `scripts/install-service-windows.ps1` that automates this flow (it would prompt for confirmation before each destructive step). I won't execute it without your go-ahead.
       - DATABASE_URL=postgresql://postgres:password@db:5432/business_platform
-      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://localhost:8080
       - NEXTAUTH_SECRET=your-secret-key
     depends_on:
       - db
@@ -822,6 +822,6 @@ node scripts/production-setup.js
 npm run build && npm start
 ```
 
-Login at `http://localhost:3000` with `admin@business.local` / `admin123`
+Login at `http://localhost:8080` with `admin@business.local` / `admin123`
 
 **🎉 You're ready to go!**

@@ -257,7 +257,7 @@ The installation configures the following ports:
 
 - **Sync Port**: 8765 (configurable)
 - **Health Check Port**: 8766 (sync port + 1)
-- **Web Application**: 3000 (development)
+- **Web Application**: 8080 (development)
 
 ### Firewall Configuration
 

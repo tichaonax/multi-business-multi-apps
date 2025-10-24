@@ -20,43 +20,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
-    const categories = await prisma.expenseCategories.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: 'asc' }
-    })
-
-    // If no categories exist, create default ones
-    if (categories.length === 0) {
-      const defaultCategories = [
-        { name: 'Food & Dining', emoji: '🍽️', color: '#EF4444' },
-        { name: 'Transportation', emoji: '🚗', color: '#3B82F6' },
-        { name: 'Utilities', emoji: '💡', color: '#F59E0B' },
-        { name: 'Entertainment', emoji: '🎬', color: '#8B5CF6' },
-        { name: 'Shopping', emoji: '🛒', color: '#10B981' },
-        { name: 'Healthcare', emoji: '🏥', color: '#EC4899' },
-        { name: 'Education', emoji: '📚', color: '#6366F1' },
-        { name: 'Loan', emoji: '💳', color: '#F97316' },
-        { name: 'Other', emoji: '💰', color: '#6B7280' },
-      ]
-
-      const createdCategories = await Promise.all(
-        defaultCategories.map(cat => 
-          prisma.expenseCategories.create({
-            data: {
-              userId: session.user.id,
-              name: cat.name,
-              emoji: cat.emoji,
-              color: cat.color,
-              isDefault: true
-            }
-          })
-        )
-      )
-
-      return NextResponse.json(createdCategories)
-    }
-
-    return NextResponse.json(categories)
+    // This endpoint is deprecated - categories are now managed via /api/expense-categories
+    // Return empty array to maintain backward compatibility with old code
+    // that might still call this endpoint
+    return NextResponse.json([])
   } catch (error) {
     console.error('Categories fetch error:', error)
     return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 })
@@ -77,23 +44,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions to manage categories' }, { status: 403 })
     }
 
-    const { name, emoji, color } = await request.json()
-
-    if (!name || !emoji) {
-      return NextResponse.json({ error: 'Name and emoji are required' }, { status: 400 })
-    }
-
-    const category = await prisma.expenseCategories.create({
-      data: {
-        userId: session.user.id,
-        name,
-        emoji,
-        color: color || '#3B82F6',
-        isDefault: false
-      }
-    })
-
-    return NextResponse.json(category)
+    // This endpoint is deprecated
+    // Categories are now managed via the 3-level hierarchy system
+    // Direct category creation is no longer supported
+    return NextResponse.json(
+      { error: 'This endpoint is deprecated. Please use the category hierarchy system.' },
+      { status: 410 } // 410 Gone
+    )
   } catch (error) {
     console.error('Category creation error:', error)
     return NextResponse.json({ error: 'Failed to create category' }, { status: 500 })

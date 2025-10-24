@@ -209,7 +209,7 @@ async function createSampleEmployees() {
       // Try to create contract via the application's contracts API so seeded
       // contracts run through the same server-side logic as user-created ones.
       const seedApiKey = process.env.SEED_API_KEY
-      const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:3000'
+      const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:8080'
       let apiSucceeded = false
 
       if (seedApiKey) {

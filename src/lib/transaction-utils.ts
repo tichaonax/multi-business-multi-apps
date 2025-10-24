@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 
 // Transaction data interfaces
 export interface ExpenseCreationData {
   amount: number
   description: string
   category?: string
+  categoryId?: string
+  subcategoryId?: string
   paymentType: 'category' | 'contractor' | 'project' | 'loan'
   businessType?: string
   projectType?: 'construction' | 'generic'
@@ -49,14 +52,17 @@ export async function createExpenseWithTransaction(data: ExpenseCreationData): P
   try {
     const result = await prisma.$transaction(async (tx) => {
       // Step 1: Create the main expense record
-      const expense = await tx.personalExpense.create({
+      const expense = await tx.personalExpenses.create({
         data: {
+          id: randomUUID(),
           userId: data.userId,
           amount: data.amount,
           description: data.description,
           category: data.paymentType === 'contractor' ? 'Contractor Payment'
             : data.paymentType === 'loan' ? 'Loan'
             : (data.category || 'Other'),
+          categoryId: data.categoryId || null,
+          subcategoryId: data.subcategoryId || null,
           date: data.date,
           tags: data.paymentType,
           notes: data.notes || null
@@ -64,8 +70,9 @@ export async function createExpenseWithTransaction(data: ExpenseCreationData): P
       })
 
       // Step 2: Create budget entry to deduct from available balance
-      await tx.personalBudget.create({
+      await tx.personalBudgets.create({
         data: {
+          id: randomUUID(),
           userId: data.userId,
           amount: -data.amount, // Negative because it's an expense
           description: `Expense: ${data.description}`,
@@ -132,7 +139,7 @@ async function handlePaymentTypeOperations(
       }
 
       // Update expense with contractor info in tags
-      await tx.personalExpense.update({
+      await tx.personalExpenses.update({
         where: { id: expense.id },
         data: {
           tags: `contractor:${person.id}:${person.fullName}`
@@ -248,7 +255,7 @@ async function createNewLoanTransaction(
   })
 
   // Create loan disbursement transaction
-  await tx.loanTransaction.create({
+  await tx.loanTransactions.create({
     data: {
       loanId: newLoan.id,
       transactionType: 'advance',
@@ -263,7 +270,7 @@ async function createNewLoanTransaction(
   })
 
   // Create reciprocal transaction
-  await tx.loanTransaction.create({
+  await tx.loanTransactions.create({
     data: {
       loanId: newLoan.id,
       transactionType: 'advance',
@@ -280,8 +287,9 @@ async function createNewLoanTransaction(
   })
 
   // Additional budget entry for loan disbursement
-  await tx.personalBudget.create({
+  await tx.personalBudgets.create({
     data: {
+      id: randomUUID(),
       userId: data.userId,
       amount: -principal,
       description: `Loan disbursement to ${recipientName} - ${data.description}`,
@@ -324,7 +332,7 @@ async function handleExistingLoanPayment(
   const newBalance = Math.max(0, currentBalance - data.amount)
 
   // Create loan payment transaction
-  await tx.loanTransaction.create({
+  await tx.loanTransactions.create({
     data: {
       loanId: data.loanId!,
       transactionType: 'payment',
@@ -349,7 +357,7 @@ async function handleExistingLoanPayment(
   })
 
   // Create reciprocal transaction
-  await tx.loanTransaction.create({
+  await tx.loanTransactions.create({
     data: {
       loanId: data.loanId!,
       transactionType: 'payment',
@@ -366,8 +374,9 @@ async function handleExistingLoanPayment(
   })
 
   // Add payment amount back to budget
-  await tx.personalBudget.create({
+  await tx.personalBudgets.create({
     data: {
+      id: randomUUID(),
       userId: data.userId,
       amount: data.amount,
       description: `Loan payment received - ${data.description}`,
@@ -381,7 +390,7 @@ export async function deleteExpenseWithRollback(data: ExpenseRollbackData): Prom
   try {
     const rollbackResult = await prisma.$transaction(async (tx) => {
       // Find the expense with all related data
-      const expense = await tx.personalExpense.findUnique({
+      const expense = await tx.personalExpenses.findUnique({
         where: { id: data.expenseId },
         include: {
           projectTransactions: true,
@@ -407,8 +416,9 @@ export async function deleteExpenseWithRollback(data: ExpenseRollbackData): Prom
       let loanTransactions = 0
 
       // Rollback budget entries
-      await tx.personalBudget.create({
+      await tx.personalBudgets.create({
         data: {
+          id: randomUUID(),
           userId: data.userId,
           amount: Number(expense.amount), // Positive to add money back
           description: `Rollback: ${expense.description}`,
@@ -439,14 +449,14 @@ export async function deleteExpenseWithRollback(data: ExpenseRollbackData): Prom
         }
 
         // Delete the loan transaction
-        await tx.loanTransaction.delete({
+        await tx.loanTransactions.delete({
           where: { id: loanTx.id }
         })
         loanTransactions += 1
       }
 
       // Delete the main expense
-      await tx.personalExpense.delete({
+      await tx.personalExpenses.delete({
         where: { id: data.expenseId }
       })
 
@@ -499,13 +509,14 @@ export async function deleteExpenseWithRollback(data: ExpenseRollbackData): Prom
 // Rollback loan creation
 async function rollbackLoanCreation(tx: Prisma.TransactionClient, loan: any, userId: string) {
   // Delete all loan transactions
-  await tx.loanTransaction.deleteMany({
+  await tx.loanTransactions.deleteMany({
     where: { loanId: loan.id }
   })
 
   // Create budget rollback for loan disbursement
-  await tx.personalBudget.create({
+  await tx.personalBudgets.create({
     data: {
+      id: randomUUID(),
       userId: userId,
       amount: Number(loan.principalAmount), // Add money back
       description: `Loan rollback: ${loan.loanNumber}`,
@@ -536,8 +547,9 @@ async function rollbackLoanPayment(tx: Prisma.TransactionClient, loanTransaction
   })
 
   // Remove the payment from budget (subtract it back out)
-  await tx.personalBudget.create({
+  await tx.personalBudgets.create({
     data: {
+      id: randomUUID(),
       userId: userId,
       amount: -Number(loanTransaction.amount), // Negative to remove money
       description: `Loan payment rollback: ${loan.loanNumber}`,
@@ -546,7 +558,7 @@ async function rollbackLoanPayment(tx: Prisma.TransactionClient, loanTransaction
   })
 
   // Delete reciprocal transaction if it exists
-  await tx.loanTransaction.deleteMany({
+  await tx.loanTransactions.deleteMany({
     where: {
       loanId: loan.id,
       amount: loanTransaction.amount,

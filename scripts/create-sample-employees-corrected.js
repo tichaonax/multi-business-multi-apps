@@ -151,7 +151,7 @@ async function createSampleEmployeesCorrected() {
         // otherwise create directly in DB. Using the API ensures consistent
         // server-side behavior (validation, nested writes, PDF data handling).
         const seedApiKey = process.env.SEED_API_KEY
-        const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:3000'
+        const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:8080'
         let apiSucceeded = false
 
         if (seedApiKey) {

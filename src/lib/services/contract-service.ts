@@ -14,7 +14,7 @@ async function resolveFetch(): Promise<any> {
  */
 export async function createContractViaApiOrDb(employeeId: string, payload: any = {}) {
   const seedApiKey = process.env.SEED_API_KEY
-  const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:3000'
+  const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:8080'
   // If SEED_API_KEY is provided, prefer calling the contracts API so the
   // server-side behavior (validation, PDF data handling, workflow) runs.
   if (seedApiKey) {

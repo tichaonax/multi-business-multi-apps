@@ -63,7 +63,7 @@ export default function Dashboard() {
 
   // Fetch available users for filtering (admin only)
   const fetchAvailableUsers = async () => {
-    if (session?.users?.role !== 'admin') return
+    if (session?.user?.role !== 'admin') return
 
     try {
       const response = await fetch('/api/admin/users')
@@ -381,11 +381,15 @@ export default function Dashboard() {
 
       <MainLayout>
         <ContentLayout
-          title={`🏠 Welcome back, ${session?.users?.name}!`}
+          title={`🏠 Welcome back, ${session?.user?.name}!`}
           subtitle={isDriver
             ? "Your driver dashboard - log trips and maintenance for your authorized vehicles."
             : "Here's what's happening across your business operations today."
           }
+          breadcrumb={[
+            { label: 'Business Hub', href: '/dashboard' },
+            { label: 'Home', isActive: true }
+          ]}
         >
 
         {isDriver ? (
@@ -418,7 +422,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-secondary mb-1">Driver Name</p>
-                  <p className="font-medium text-primary">{session?.users?.name}</p>
+                  <p className="font-medium text-primary">{session?.user?.name}</p>
                 </div>
                 <div>
                   <p className="text-sm text-secondary mb-1">Account Type</p>

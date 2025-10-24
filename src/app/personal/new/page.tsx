@@ -11,6 +11,8 @@ import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { hasUserPermission, getAvailableBusinessTypesForProjects, canCreateProjectsForBusinessType } from '@/lib/permission-utils'
 import { ProjectCreationModal } from '@/components/projects/project-creation-modal'
 import { PersonRegistrationForm } from '@/components/construction/person-registration-form'
+import { CategorySelector } from '@/components/personal/category-selector'
+import { SubcategoryCreator } from '@/components/personal/subcategory-creator'
 
 interface Category {
   id: string
@@ -110,6 +112,16 @@ export default function NewExpensePage() {
   const [showNewContractorForm, setShowNewContractorForm] = useState(false)
   const [showNewPersonForm, setShowNewPersonForm] = useState(false)
   const [showNewCategoryForm, setShowNewCategoryForm] = useState(false)
+
+  // New category system state
+  const [categoryId, setCategoryId] = useState<string | null>(null)
+  const [subcategoryId, setSubcategoryId] = useState<string | null>(null)
+  const [showSubcategoryCreator, setShowSubcategoryCreator] = useState(false)
+  const [selectedCategoryForCreator, setSelectedCategoryForCreator] = useState<{
+    id: string;
+    name: string;
+    emoji: string;
+  } | null>(null)
   const [newProject, setNewProject] = useState({ name: '', description: '' })
   const [newContractor, setNewContractor] = useState({
     name: '',
@@ -444,7 +456,9 @@ export default function NewExpensePage() {
         body: JSON.stringify({
           amount: Number(formData.amount),
           description: formData.description,
-          category: formData.category, // Send the category ID
+          categoryId: categoryId || undefined, // NEW: Send categoryId
+          subcategoryId: subcategoryId || undefined, // NEW: Send subcategoryId
+          category: formData.category || 'General', // Keep for backward compatibility
           date: formData.date,
           paymentType: formData.paymentType,
           businessType: formData.businessType || null,
@@ -803,41 +817,24 @@ export default function NewExpensePage() {
 
             {formData.paymentType === 'category' && (
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-secondary">
-                    Category *
-                  </label>
-                  {hasUserPermission(session?.user, 'canManagePersonalCategories') && (
-                    <button
-                      type="button"
-                      onClick={() => setShowNewCategoryForm(true)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      + Create New Category
-                    </button>
-                  )}
-                </div>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select a category</option>
-                  {Array.isArray(categories) && categories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.emoji} {category.name}
-                    </option>
-                  ))}
-                </select>
-                {selectedCategory && (
-                  <div 
-                    className="mt-2 p-3 rounded-md text-white"
-                    style={{ backgroundColor: selectedCategory.color }}
-                  >
-                    {selectedCategory.emoji} {selectedCategory.name}
-                  </div>
-                )}
+                <label className="block text-sm font-medium text-secondary mb-2">
+                  Category *
+                </label>
+                <CategorySelector
+                  onCategoryChange={(catId, subId) => {
+                    setCategoryId(catId)
+                    setSubcategoryId(subId)
+                  }}
+                  initialCategoryId={categoryId}
+                  initialSubcategoryId={subcategoryId}
+                  onCreateSubcategory={(categoryInfo) => {
+                    setSelectedCategoryForCreator(categoryInfo)
+                    setShowSubcategoryCreator(true)
+                  }}
+                  showCreateButton={hasUserPermission(session?.user, 'canCreateExpenseSubcategories')}
+                  required={true}
+                  disabled={loading}
+                />
               </div>
             )}
 
@@ -1549,6 +1546,22 @@ export default function NewExpensePage() {
               </form>
             </div>
           </div>
+        )}
+
+        {/* Subcategory Creator Modal */}
+        {showSubcategoryCreator && selectedCategoryForCreator && (
+          <SubcategoryCreator
+            categoryId={selectedCategoryForCreator.id}
+            categoryName={selectedCategoryForCreator.name}
+            categoryEmoji={selectedCategoryForCreator.emoji}
+            onSuccess={(newSubcategory) => {
+              setShowSubcategoryCreator(false)
+              setSubcategoryId(newSubcategory.id)
+              // The CategorySelector will refresh automatically
+            }}
+            onCancel={() => setShowSubcategoryCreator(false)}
+            isOpen={showSubcategoryCreator}
+          />
         )}
       </div>
     </ProtectedRoute>

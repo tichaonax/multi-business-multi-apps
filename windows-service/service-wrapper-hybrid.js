@@ -1171,13 +1171,19 @@ class HybridServiceWrapper extends EventEmitter {
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Verify port is listening
-      await this.verifyNextJsStarted();
-
-      console.log(`🚀 SERVICE STARTUP COMPLETE: Next.js application started successfully!`);
-      console.log(`🌐 Application available at: http://localhost:${appPort}`);
+      try {
+        await this.verifyNextJsStarted();
+        console.log(`🚀 SERVICE STARTUP COMPLETE: Next.js application started successfully!`);
+        console.log(`🌐 Application available at: http://localhost:${appPort}`);
+      } catch (verifyError) {
+        console.warn(`⚠️  Next.js verification failed: ${verifyError.message}`);
+        console.warn(`⚠️  Next.js process may still be starting or failed to bind to port ${appPort}`);
+        console.warn(`⚠️  Sync service will continue running, but web interface may not be available`);
+      }
     } catch (error) {
       console.error(`❌ Failed to start Next.js application: ${error.message}`);
-      throw error;
+      console.error(`❌ Sync service will continue running without web interface`);
+      // Don't throw - let sync service continue even if Next.js fails
     }
   }
 

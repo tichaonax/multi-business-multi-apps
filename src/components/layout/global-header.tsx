@@ -93,12 +93,21 @@ interface BreadcrumbProps {
 
 function Breadcrumb({ pathname, title }: BreadcrumbProps) {
   const segments = pathname.split('/').filter(Boolean)
-  
+
+  // If we're on the dashboard page, just show "Home" without any additional breadcrumb items
+  if (pathname === '/dashboard') {
+    return (
+      <nav className="flex items-center space-x-2 text-sm">
+        <span className="text-gray-900 dark:text-white font-medium">Home</span>
+      </nav>
+    )
+  }
+
   const breadcrumbItems = segments.map((segment, index) => {
     const href = '/' + segments.slice(0, index + 1).join('/')
     const isLast = index === segments.length - 1
     const displayName = title && isLast ? title : formatSegmentName(segment)
-    
+
     return {
       href,
       name: displayName,
@@ -111,7 +120,7 @@ function Breadcrumb({ pathname, title }: BreadcrumbProps) {
   return (
     <nav className="flex items-center space-x-2 text-sm">
       <Link href="/dashboard" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-        Dashboard
+        Home
       </Link>
       {breadcrumbItems.map((item, index) => (
         <div key={item.href} className="flex items-center space-x-2">
@@ -135,6 +144,11 @@ function Breadcrumb({ pathname, title }: BreadcrumbProps) {
 }
 
 function formatSegmentName(segment: string): string {
+  // Special case: "dashboard" should be "Home"
+  if (segment.toLowerCase() === 'dashboard') {
+    return 'Home'
+  }
+
   return segment
     .split('-')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))

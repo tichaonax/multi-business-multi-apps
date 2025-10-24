@@ -394,7 +394,7 @@ SYNC_REGISTRATION_KEY=${process.env.SYNC_REGISTRATION_KEY || require('crypto').r
 # Application Configuration
 NODE_ENV=${this.options.devMode ? 'development' : 'production'}
 NEXTAUTH_SECRET=${require('crypto').randomBytes(32).toString('hex')}
-NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:8080
 
 # Security Configuration
 ENABLE_SYNC_ENCRYPTION=true
@@ -735,9 +735,9 @@ monitor() // Initial check`
     log('  ✅ Log rotation setup')
     log('')
     log('🔗 Important URLs:', 'bright')
-    log('  • Main App: http://localhost:3000')
-    log('  • Admin Dashboard: http://localhost:3000/admin')
-    log('  • Sync Dashboard: http://localhost:3000/admin/sync')
+    log('  • Main App: http://localhost:8080')
+    log('  • Admin Dashboard: http://localhost:8080/admin')
+    log('  • Sync Dashboard: http://localhost:8080/admin/sync')
 
     if (!this.options.skipService) {
       const syncPort = parseInt(process.env.SYNC_PORT) || 8765
@@ -762,7 +762,7 @@ monitor() // Initial check`
     log('📚 Documentation:', 'bright')
     log('  • Setup Guide: ./docs/setup.md')
     log('  • Sync Guide: ./src/lib/sync/__tests__/README.md')
-    log('  • API Reference: http://localhost:3000/api-docs')
+    log('  • API Reference: http://localhost:8080/api-docs')
     log('')
     log('🎊 Happy syncing!', 'magenta')
     log('='.repeat(70), 'bright')

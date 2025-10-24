@@ -93,10 +93,10 @@ export async function GET(req: NextRequest) {
           status: 'active'
         },
         include: {
-          borrowerBusiness: {
+          businesses_inter_business_loans_borrowerBusinessIdTobusinesses: {
             select: { name: true }
           },
-          borrowerPerson: {
+          persons: {
             select: { fullName: true }
           }
         }
@@ -119,13 +119,13 @@ export async function GET(req: NextRequest) {
           status: 'active'
         },
         include: {
-          borrowerBusiness: {
+          businesses_inter_business_loans_borrowerBusinessIdTobusinesses: {
             select: { name: true }
           },
-          borrowerPerson: {
+          persons: {
             select: { fullName: true }
           },
-          lenderBusiness: {
+          businesses_inter_business_loans_lenderBusinessIdTobusinesses: {
             select: { name: true }
           }
         }
@@ -137,22 +137,26 @@ export async function GET(req: NextRequest) {
           status: 'active'
         },
         include: {
-          borrowerBusiness: {
+          businesses_inter_business_loans_borrowerBusinessIdTobusinesses: {
             select: { name: true }
           },
-          borrowerPerson: {
+          persons: {
             select: { fullName: true }
           },
-          lenderBusiness: {
+          businesses_inter_business_loans_lenderBusinessIdTobusinesses: {
             select: { name: true }
           }
         }
       })
 
       // Combine all loans and convert Decimal amounts to numbers
+      // Also map relation names to expected format
       const allLoans = [
         ...personalLoansGiven.map(loan => ({
           ...loan,
+          borrowerBusiness: loan.businesses_inter_business_loans_borrowerBusinessIdTobusinesses,
+          borrowerPerson: loan.persons,
+          lenderBusiness: null,
           principalAmount: Number(loan.principalAmount),
           remainingBalance: Number(loan.remainingBalance),
           totalAmount: Number(loan.totalAmount),
@@ -160,6 +164,9 @@ export async function GET(req: NextRequest) {
         })),
         ...businessLoansReceived.map(loan => ({
           ...loan,
+          borrowerBusiness: loan.businesses_inter_business_loans_borrowerBusinessIdTobusinesses,
+          borrowerPerson: loan.persons,
+          lenderBusiness: loan.businesses_inter_business_loans_lenderBusinessIdTobusinesses,
           principalAmount: Number(loan.principalAmount),
           remainingBalance: Number(loan.remainingBalance),
           totalAmount: Number(loan.totalAmount),
@@ -167,6 +174,9 @@ export async function GET(req: NextRequest) {
         })),
         ...businessLoansGiven.map(loan => ({
           ...loan,
+          borrowerBusiness: loan.businesses_inter_business_loans_borrowerBusinessIdTobusinesses,
+          borrowerPerson: loan.persons,
+          lenderBusiness: loan.businesses_inter_business_loans_lenderBusinessIdTobusinesses,
           principalAmount: Number(loan.principalAmount),
           remainingBalance: Number(loan.remainingBalance),
           totalAmount: Number(loan.totalAmount),
@@ -183,8 +193,15 @@ export async function GET(req: NextRequest) {
     }
   } catch (error) {
     console.error('Personal loans fetch error:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return NextResponse.json(
-      { error: 'Failed to fetch loans' },
+      {
+        error: 'Failed to fetch loans',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }

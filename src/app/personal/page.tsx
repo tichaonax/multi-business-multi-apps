@@ -213,7 +213,7 @@ export default function PersonalPage() {
     }
   }
 
-  useEffect(() => {
+  const fetchData = () => {
     // Fetch budget data
     fetch('/api/personal/budget')
       .then(res => res.json())
@@ -248,6 +248,18 @@ export default function PersonalPage() {
         calculateThisMonthTotal(fallbackExpenses)
       })
     setLoading(false)
+  }
+
+  useEffect(() => {
+    fetchData()
+
+    // Refresh data when window gains focus (user returns to tab)
+    const handleFocus = () => {
+      fetchData()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
   }, [])
 
   return (
@@ -277,6 +289,12 @@ export default function PersonalPage() {
                 Add Expense
               </button>
             )}
+            <button
+              onClick={() => navigateTo('/personal/categories')}
+              className="btn-secondary"
+            >
+              📁 Categories
+            </button>
             <button
               onClick={() => navigateTo('/dashboard')}
               className="btn-secondary"
@@ -334,7 +352,16 @@ export default function PersonalPage() {
         <div className="card">
           <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <h2 className="text-xl font-semibold text-primary">Recent Expenses</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-semibold text-primary">Recent Expenses</h2>
+                <button
+                  onClick={fetchData}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  title="Refresh expenses"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
               <div className="relative w-full sm:max-w-md">
                 <input
                   type="text"
@@ -429,6 +456,9 @@ export default function PersonalPage() {
                           ) : (
                             <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
                               {expense.categoryObject?.emoji || '💰'} {expense.categoryObject?.name || expense.category}
+                              {expense.subcategoryObject && (
+                                <span className="text-xs opacity-75"> → {expense.subcategoryObject.emoji} {expense.subcategoryObject.name}</span>
+                              )}
                             </span>
                           )}
                         </button>
@@ -458,6 +488,9 @@ export default function PersonalPage() {
                           ) : (
                             <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded mr-2">
                               {expense.categoryObject?.emoji || '💰'} {expense.categoryObject?.name || expense.category}
+                              {expense.subcategoryObject && (
+                                <span className="text-xs opacity-75"> → {expense.subcategoryObject.emoji} {expense.subcategoryObject.name}</span>
+                              )}
                             </span>
                           )}
                         </div>

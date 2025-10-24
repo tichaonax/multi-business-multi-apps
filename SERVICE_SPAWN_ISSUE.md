@@ -81,7 +81,7 @@ this.appProcess = spawn('node', [nextPath, 'start'], {
   env: {
     ...process.env,
     NODE_ENV: 'production',
-    PORT: process.env.PORT || 3000,
+    PORT: process.env.PORT || 8080,
   },
 });
 ```
@@ -90,7 +90,7 @@ this.appProcess = spawn('node', [nextPath, 'start'], {
 ```javascript
 async verifyNextJsStarted() {
   this.log('Verifying Next.js is listening on the configured port...');
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 8080;
   const maxRetries = 10;
   const retryDelay = 2000;
 

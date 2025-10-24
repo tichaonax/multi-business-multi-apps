@@ -29,13 +29,13 @@ export function ProtectedRoute({
       return
     }
 
-    if (module && session) {
+    if (module && session?.user) {
       // Check if user is admin - admins have access to all modules
-      if (session.users.role === 'admin') {
+      if (session.user.role === 'admin') {
         return // Allow access for admins
       }
 
-      const userPermissions = session.users.permissions || {}
+      const userPermissions = session.user.permissions || {}
 
       if (!canAccessModule(userPermissions, module)) {
         router.push('/unauthorized')

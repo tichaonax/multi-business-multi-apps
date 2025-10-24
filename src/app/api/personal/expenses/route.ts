@@ -25,6 +25,12 @@ export async function GET() {
     const expenses = await prisma.personalExpenses.findMany({
       where: { userId: session.user.id },
       include: {
+        expense_category: {
+          include: {
+            domain: true,
+          },
+        },
+        expense_subcategory: true,
         project_transactions: {
           include: {
             project_contractors: {
@@ -67,23 +73,13 @@ export async function GET() {
 
     console.log('Found expenses:', expenses.length)
 
-    // Fetch all unique category IDs
-    const categoryIds = [...new Set(expenses.map(expense => expense.category).filter(Boolean))]
-
-    // Fetch category information
-    const categories = await prisma.expenseCategories.findMany({
-      where: { id: { in: categoryIds } }
-    })
-
-    // Create a map for quick category lookup
-    const categoryMap = new Map(categories.map(cat => [cat.id, cat]))
-
     // Convert Decimal amounts to numbers for JSON serialization and add frontend-compatible aliases
     const expensesWithConvertedAmounts = (expenses as any[]).map(expense => ({
       ...expense,
       amount: expense.amount ? Number(expense.amount) : 0,
-      // Add category object with name, emoji, and color
-      categoryObject: expense.category ? categoryMap.get(expense.category) || null : null,
+      // Add category object with name, emoji, and color (from new structure)
+      categoryObject: expense.expense_category || null,
+      subcategoryObject: expense.expense_subcategory || null,
       // Frontend-compatible property aliases
       projectTransactions: (expense.project_transactions || []).map((pt: any) => ({
         ...pt,
@@ -132,6 +128,8 @@ export async function POST(request: NextRequest) {
       amount,
       description,
       category,
+      categoryId,
+      subcategoryId,
       date,
       paymentType,
       businessType,
@@ -177,6 +175,8 @@ export async function POST(request: NextRequest) {
       amount: Number(amount),
       description,
       category,
+      categoryId,
+      subcategoryId,
       paymentType,
       businessType,
       projectType,

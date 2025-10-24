@@ -10,7 +10,7 @@ const prisma = new PrismaClient()
  */
 async function createContractViaApiOrDb(employeeId, payload = {}) {
   const seedApiKey = process.env.SEED_API_KEY
-  const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:3000'
+  const seedApiBase = process.env.SEED_API_BASE_URL || 'http://localhost:8080'
 
   // If SEED_API_KEY is present, prefer posting to the running app's contracts API
   if (seedApiKey && fetch) {

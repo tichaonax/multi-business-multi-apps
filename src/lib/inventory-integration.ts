@@ -50,7 +50,7 @@ interface InventoryUpdateResult {
 export class InventoryIntegrationService {
   private baseUrl: string
 
-  constructor(baseUrl: string = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000') {
+  constructor(baseUrl: string = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8080') {
     this.baseUrl = baseUrl
   }
 

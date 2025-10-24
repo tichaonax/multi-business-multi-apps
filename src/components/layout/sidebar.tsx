@@ -314,17 +314,28 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* Personal Finance - User-level permissions (business-agnostic) */}
+        {/* Business and Personal Finances - User-level permissions (business-agnostic) */}
   {(hasUserPermission(currentUser, 'canAccessPersonalFinance') || isSystemAdmin(currentUser)) && (
-          <div className="pt-2">
-            <button
-              onClick={() => navigateTo('/personal')}
-              className={getLinkClasses('/personal')}
-            >
-              <span className="text-lg">💰</span>
-              <span>Personal Finance</span>
-            </button>
-          </div>
+          <>
+            <div className="pt-2">
+              <button
+                onClick={() => navigateTo('/personal')}
+                className={getLinkClasses('/personal')}
+              >
+                <span className="text-lg">💰</span>
+                <span>Business and Personal Finances</span>
+              </button>
+            </div>
+            <div className="pl-6 pt-1">
+              <button
+                onClick={() => navigateTo('/personal/categories')}
+                className={getLinkClasses('/personal/categories')}
+              >
+                <span className="text-lg">📁</span>
+                <span>Expense Categories</span>
+              </button>
+            </div>
+          </>
         )}
 
         {/* Fleet Management - User-level permissions (business-agnostic) */}

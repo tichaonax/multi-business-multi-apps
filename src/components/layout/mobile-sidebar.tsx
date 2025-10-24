@@ -77,14 +77,14 @@ export function MobileSidebar() {
                 )
               })}
 
-              {/* Personal Finance - User-level permissions (business-agnostic) */}
+              {/* Business and Personal Finances - User-level permissions (business-agnostic) */}
               {(hasUserPermission(user, 'canAccessPersonalFinance') || isSystemAdmin(user)) && (
                 <Link
                   href="/personal"
                   className="block px-4 py-3 rounded hover:bg-gray-700"
                   onClick={() => setIsOpen(false)}
                 >
-                  💰 Personal Finance
+                  💰 Business and Personal Finances
                 </Link>
               )}
 

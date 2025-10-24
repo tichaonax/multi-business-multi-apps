@@ -952,17 +952,54 @@ model Employees {
   @@map("employees")
 }
 
-model ExpenseCategories {
-  id        String   @id
-  name      String
-  emoji     String?  @default("💰")
-  color     String   @default("#3B82F6")
-  createdAt DateTime @default(now())
-  isDefault Boolean  @default(false)
-  userId    String?
-  users     Users?   @relation(fields: [userId], references: [id])
+model ExpenseDomains {
+  id                 String              @id
+  name               String              @unique
+  emoji              String
+  description        String?
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  expense_categories ExpenseCategories[]
 
+  @@map("expense_domains")
+}
+
+model ExpenseCategories {
+  id                    String                 @id
+  domainId              String?
+  name                  String
+  emoji                 String                 @default("💰")
+  color                 String                 @default("#3B82F6")
+  description           String?
+  isDefault             Boolean                @default(false)
+  isUserCreated         Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  createdBy             String?
+  domain                ExpenseDomains?        @relation(fields: [domainId], references: [id])
+  users                 Users?                 @relation(fields: [createdBy], references: [id])
+  expense_subcategories ExpenseSubcategories[]
+  personal_expenses     PersonalExpenses[]
+
+  @@unique([domainId, name])
   @@map("expense_categories")
+}
+
+model ExpenseSubcategories {
+  id                String             @id
+  categoryId        String
+  name              String
+  emoji             String?
+  description       String?
+  isDefault         Boolean            @default(false)
+  isUserCreated     Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  createdBy         String?
+  category          ExpenseCategories  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users             Users?             @relation(fields: [createdBy], references: [id])
+  personal_expenses PersonalExpenses[]
+
+  @@unique([categoryId, name])
+  @@map("expense_subcategories")
 }
 
 model FundSources {
@@ -1419,6 +1456,8 @@ model PersonalBudgets {
 
 model PersonalExpenses {
   id                   String                @id
+  categoryId           String?
+  subcategoryId        String?
   category             String
   description          String
   amount               Decimal               @db.Decimal(12, 2)
@@ -1429,6 +1468,8 @@ model PersonalExpenses {
   userId               String?
   notes                String?
   updatedAt            DateTime              @default(now())
+  expense_category     ExpenseCategories?    @relation(fields: [categoryId], references: [id])
+  expense_subcategory  ExpenseSubcategories? @relation(fields: [subcategoryId], references: [id])
   loan_transactions    LoanTransactions[]
   users                Users?                @relation(fields: [userId], references: [id])
   project_transactions ProjectTransactions[]
@@ -1823,6 +1864,7 @@ model Users {
   driver_authorizations                                           DriverAuthorizations[]
   employees                                                       Employees?
   expense_categories                                              ExpenseCategories[]
+  expense_subcategories                                           ExpenseSubcategories[]
   fund_sources                                                    FundSources[]
   inter_business_loans_inter_business_loans_createdByTousers      InterBusinessLoans[]        @relation("inter_business_loans_createdByTousers")
   inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]        @relation("inter_business_loans_lenderUserIdTousers")

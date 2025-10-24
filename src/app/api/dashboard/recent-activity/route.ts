@@ -369,7 +369,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Recent Personal Expenses
-    if (hasUserPermission(user, 'canViewPersonalFinances') ||
+    if (hasUserPermission(user, 'canAccessPersonalFinance') ||
         hasUserPermission(user, 'canCreatePersonalProjects') ||
         isSystemAdmin(user)) {
       try {
@@ -421,30 +421,41 @@ export async function GET(req: NextRequest) {
           console.error(`   Expected: ${filterUserId}, Got: ${targetUserId}`)
         }
 
-        const recentExpenses = await safePrisma.findMany('personalExpense', {
+        const recentExpenses = await safePrisma.findMany('personalExpenses', {
           where: expenseWhereClause,
+          include: {
+            expense_category: {
+              select: {
+                id: true,
+                name: true,
+                emoji: true
+              }
+            },
+            expense_subcategory: {
+              select: {
+                id: true,
+                name: true,
+                emoji: true
+              }
+            }
+          },
           orderBy: {
             createdAt: 'desc'
           },
           take: 10
         })
 
-        // Load all expense categories for display mapping
-        const allCategories = await safePrisma.findMany('expenseCategory', {
-          select: {
-            id: true,
-            name: true,
-            emoji: true
-          }
-        })
-
-        const categoryMap = new Map(
-          allCategories.map(cat => [cat.id, `${cat.emoji} ${cat.name}`])
-        )
-
         recentExpenses.forEach(expense => {
-          // Resolve category ID to display name
-          const categoryDisplay = categoryMap.get(expense.category) || expense.category
+          // Build category display string with emoji hierarchy
+          let categoryDisplay = expense.category || 'General'
+
+          // If we have the new 3-level hierarchy data, use that instead
+          if (expense.expense_category) {
+            categoryDisplay = `${expense.expense_category.emoji} ${expense.expense_category.name}`
+            if (expense.expense_subcategory) {
+              categoryDisplay += ` → ${expense.expense_subcategory.emoji} ${expense.expense_subcategory.name}`
+            }
+          }
           const isIncome = Number(expense.amount) > 0 && (
             expense.category?.toLowerCase().includes('income') ||
             expense.category?.toLowerCase().includes('salary') ||
