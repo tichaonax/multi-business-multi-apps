@@ -181,9 +181,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if period is editable
-    if (entry.payroll_periods && (entry.payroll_periods.status === 'exported' || entry.payroll_periods.status === 'closed')) {
+    if (entry.payroll_periods && (entry.payroll_periods.status === 'approved' || entry.payroll_periods.status === 'exported' || entry.payroll_periods.status === 'closed')) {
       return NextResponse.json(
-        { error: 'Cannot add benefits to exported or closed payroll period' },
+        { error: 'Cannot add benefits to approved, exported, or closed payroll period' },
         { status: 400 }
       )
     }
@@ -206,12 +206,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       if (!finalBenefitType) {
         // Try to find an existing BenefitType by name (case-insensitive)
-        const found = await tx.benefit_types.findFirst({ where: { name: { equals: String(benefitName), mode: 'insensitive' } } })
+        const found = await tx.benefitTypes.findFirst({ where: { name: { equals: String(benefitName), mode: 'insensitive' } } })
         if (found) {
           finalBenefitType = found
         } else {
           // Create a lightweight BenefitType to reference
-          finalBenefitType = await tx.benefit_types.create({
+          finalBenefitType = await tx.benefitTypes.create({
             data: {
               id: `BT-${nanoid(8)}`,
               name: String(benefitName),
@@ -315,8 +315,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Payroll entry or period information missing' }, { status: 500 })
     }
 
-    if (existing.payroll_entries.payroll_periods.status === 'exported' || existing.payroll_entries.payroll_periods.status === 'closed') {
-      return NextResponse.json({ error: 'Cannot modify benefits on exported or closed payroll period' }, { status: 400 })
+    if (existing.payroll_entries.payroll_periods.status === 'approved' || existing.payroll_entries.payroll_periods.status === 'exported' || existing.payroll_entries.payroll_periods.status === 'closed') {
+      return NextResponse.json({ error: 'Cannot modify benefits on approved, exported, or closed payroll period' }, { status: 400 })
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -360,8 +360,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Payroll entry or period information missing' }, { status: 500 })
     }
 
-    if (existing.payroll_entries.payroll_periods.status === 'exported' || existing.payroll_entries.payroll_periods.status === 'closed') {
-      return NextResponse.json({ error: 'Cannot delete benefits on exported or closed payroll period' }, { status: 400 })
+    if (existing.payroll_entries.payroll_periods.status === 'approved' || existing.payroll_entries.payroll_periods.status === 'exported' || existing.payroll_entries.payroll_periods.status === 'closed') {
+      return NextResponse.json({ error: 'Cannot delete benefits on approved, exported, or closed payroll period' }, { status: 400 })
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -382,7 +382,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   const entry = await tx.payrollEntries.findUnique({
     where: { id: entryId },
     include: {
-      PayrollEntryBenefits: true
+      payroll_entry_benefits: true
     }
   })
 

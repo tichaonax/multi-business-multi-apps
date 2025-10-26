@@ -130,7 +130,31 @@ export default function EmployeesPage() {
       const response = await fetch(`/api/employees?${params}`)
       if (response.ok) {
         const data: EmployeesResponse = await response.json()
-        setEmployees(data.employees)
+
+        // Sort employees to prioritize those with unsigned contracts
+        const sortedEmployees = data.employees.sort((a, b) => {
+          const aContracts = a.contracts || a.employeeContracts || []
+          const bContracts = b.contracts || b.employeeContracts || []
+          const aContract = aContracts.find(c => c.status === 'active') || aContracts[0]
+          const bContract = bContracts.find(c => c.status === 'active') || bContracts[0]
+
+          // Priority 1: Completely unsigned (neither employee nor manager signed)
+          const aFullyUnsigned = aContract && !aContract.employeeSignedAt && !aContract.managerSignedAt
+          const bFullyUnsigned = bContract && !bContract.employeeSignedAt && !bContract.managerSignedAt
+          if (aFullyUnsigned && !bFullyUnsigned) return -1
+          if (!aFullyUnsigned && bFullyUnsigned) return 1
+
+          // Priority 2: Awaiting manager approval (employee signed, manager hasn't)
+          const aNeedsApproval = aContract && aContract.employeeSignedAt && !aContract.managerSignedAt
+          const bNeedsApproval = bContract && bContract.employeeSignedAt && !bContract.managerSignedAt
+          if (aNeedsApproval && !bNeedsApproval) return -1
+          if (!aNeedsApproval && bNeedsApproval) return 1
+
+          // Priority 3: Fully signed comes last
+          return 0
+        })
+
+        setEmployees(sortedEmployees)
         setPagination(data.pagination)
       } else {
         console.error('Failed to fetch employees')
@@ -494,6 +518,35 @@ export default function EmployeesPage() {
                                 employee.employmentStatus.replace('_', ' ').toUpperCase()}
                         </span>
 
+                        {/* Contract Signature Status */}
+                        {currentContract && (
+                          <>
+                            {!currentContract.employeeSignedAt && !currentContract.managerSignedAt && (
+                              <button
+                                onClick={() => window.location.href = `/employees/${employee.id}?highlightContract=${currentContract.id}&tab=contracts`}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200 rounded border-2 border-red-400 animate-pulse hover:bg-red-200 dark:hover:bg-red-700 cursor-pointer"
+                                title="Click to view and sign this contract"
+                              >
+                                ⚠️ UNSIGNED
+                              </button>
+                            )}
+                            {currentContract.employeeSignedAt && !currentContract.managerSignedAt && (
+                              <button
+                                onClick={() => window.location.href = `/employees/${employee.id}?highlightContract=${currentContract.id}&tab=contracts`}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200 rounded border-2 border-orange-400 hover:bg-orange-200 dark:hover:bg-orange-700 cursor-pointer"
+                                title="Click to approve this contract"
+                              >
+                                ⏳ NEEDS APPROVAL
+                              </button>
+                            )}
+                            {currentContract.employeeSignedAt && currentContract.managerSignedAt && (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded">
+                                ✓✓ FULLY SIGNED
+                              </span>
+                            )}
+                          </>
+                        )}
+
                         {(employee.contractCount > 0 || contracts.length > 0) && (
                           <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded">
                             {employee.contractCount || contracts.length || 0} Contract{(employee.contractCount || contracts.length || 0) !== 1 ? 's' : ''}
@@ -649,6 +702,34 @@ export default function EmployeesPage() {
                                     employee.employmentStatus === 'pending_contract' ? 'PENDING CONTRACT' :
                                       employee.employmentStatus.replace('_', ' ').toUpperCase()}
                               </span>
+                              {/* Contract Signature Status */}
+                              {currentContract && (
+                                <>
+                                  {!currentContract.employeeSignedAt && !currentContract.managerSignedAt && (
+                                    <button
+                                      onClick={() => window.location.href = `/employees/${employee.id}?highlightContract=${currentContract.id}&tab=contracts`}
+                                      className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200 rounded border-2 border-red-400 animate-pulse hover:bg-red-200 dark:hover:bg-red-700 cursor-pointer"
+                                      title="Click to view and sign this contract"
+                                    >
+                                      ⚠️ UNSIGNED
+                                    </button>
+                                  )}
+                                  {currentContract.employeeSignedAt && !currentContract.managerSignedAt && (
+                                    <button
+                                      onClick={() => window.location.href = `/employees/${employee.id}?highlightContract=${currentContract.id}&tab=contracts`}
+                                      className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200 rounded border-2 border-orange-400 hover:bg-orange-200 dark:hover:bg-orange-700 cursor-pointer"
+                                      title="Click to approve this contract"
+                                    >
+                                      ⏳ NEEDS APPROVAL
+                                    </button>
+                                  )}
+                                  {currentContract.employeeSignedAt && currentContract.managerSignedAt && (
+                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded">
+                                      ✓✓ FULLY SIGNED
+                                    </span>
+                                  )}
+                                </>
+                              )}
                               {(employee.contractCount > 0 || contracts.length > 0) && (
                                 <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded">
                                   {employee.contractCount || contracts.length || 0} Contract{(employee.contractCount || contracts.length || 0) !== 1 ? 's' : ''}

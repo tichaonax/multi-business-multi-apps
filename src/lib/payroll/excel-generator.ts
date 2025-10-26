@@ -71,11 +71,11 @@ export async function generatePayrollExcel(
     merged.forEach((mb: any) => {
       if (!mb) return
       if (mb.isActive === false) return
-      const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
+      const name = mb.benefit_types?.name || mb.benefitName || mb.key || mb.name || ''
       const key = normalizeName(name)
       if (!key) return
       if (!uniqueBenefitsMap.has(key)) {
-        const id = String(mb.benefitType?.id || mb.benefitTypeId || mb.benefitName || name)
+        const id = String(mb.benefit_types?.id || mb.benefitTypeId || mb.benefitName || name)
         uniqueBenefitsMap.set(key, { id, name })
       }
     })
@@ -414,11 +414,11 @@ export async function generatePayrollExcel(
     // Job title preference order:
     // 1. Most recent/active contract's pdfGenerationData.jobTitle or contract.jobTitle
     // 2. entry.jobTitle / entry.jobTitleName
-    // 3. employee.jobTitles.title (employee table)
+    // 3. employee.job_titles.title (employee table)
     // 4. other common alternate keys
     const contractTitle = (entry as any).contract?.pdfGenerationData?.jobTitle || (entry as any).contract?.jobTitle
     if (contractTitle) return contractTitle
-    return (entry as any).jobTitle || (entry as any).jobTitleName || (entry as any).employeeJobTitle || (entry as any).employee?.jobTitles?.title || (entry as any)['job_title'] || (entry as any)['jobTitleName'] || ''
+    return (entry as any).jobTitle || (entry as any).jobTitleName || (entry as any).employeeJobTitle || (entry as any).employee?.job_titles?.title || (entry as any)['job_title'] || (entry as any)['jobTitleName'] || ''
   })(),
   // Work Days and cumulative counts prefer server-provided values (including zero). Accept alternate field names and compute a default when missing.
   (() => {
@@ -472,7 +472,7 @@ export async function generatePayrollExcel(
       // Prefer mergedBenefits value when available
       const mb = (entry as any).mergedBenefits || []
       const normalizedKey = normalizeName(uniqueBenefit.benefitName)
-      const mergedVal = mb.find((m: any) => normalizeName(m?.benefitType?.name || m?.benefitName || m?.key || m?.name || '') === normalizedKey && m?.isActive !== false)
+      const mergedVal = mb.find((m: any) => normalizeName(m?.benefit_types?.name || m?.benefitName || m?.key || m?.name || '') === normalizedKey && m?.isActive !== false)
 
       // Fallback to contract
       const contractBenefits = (entry as any).contract?.pdfGenerationData?.benefits || []

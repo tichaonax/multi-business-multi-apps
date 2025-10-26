@@ -284,12 +284,12 @@ export async function regeneratePeriodEntries(periodId: string): Promise<any[]> 
               dateOfBirth: true,
               hireDate: true,
               terminationDate: true,
-              jobTitles: { select: { title: true } }
+              job_titles: { select: { title: true } }
             }
           },
-          payrollEntryBenefits: {
+          payroll_entry_benefits: {
             include: {
-              benefitType: {
+              benefit_types: {
                 select: { id: true, name: true }
               }
             }
@@ -326,11 +326,11 @@ export async function regeneratePeriodEntries(periodId: string): Promise<any[]> 
         where: { employeeId: entry.employeeId },
         orderBy: { startDate: 'desc' },
         include: {
-          compensationTypes: { select: { id: true, name: true, type: true } },
-          jobTitles: { select: { id: true, title: true } },
+          compensation_types: { select: { id: true, name: true, type: true } },
+          job_titles: { select: { id: true, title: true } },
           contract_benefits: {
             include: {
-              benefitType: { select: { id: true, name: true } }
+              benefit_types: { select: { id: true, name: true } }
             }
           }
         }

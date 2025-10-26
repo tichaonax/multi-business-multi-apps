@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
         businesses: {
           select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true }
         },
-        payrollEntries: {
+        payroll_entries: {
           include: {
             employees: {
               select: {
@@ -569,9 +569,7 @@ export async function POST(req: NextRequest) {
     const fileSize = excelBuffer.length
 
     // Create export record
-    console.log('runtime check prisma.payrollExport exists:', typeof prisma.payrollExport)
     const exportRecord = await prisma.$transaction(async (tx) => {
-      console.log('runtime tx keys sample:', Object.keys(tx).slice(0, 30))
       const newExport = await tx.payrollExports.create({
         data: {
           id: `EX-${nanoid(12)}`,
@@ -613,8 +611,8 @@ export async function POST(req: NextRequest) {
       })
 
       // Attach computed shortName to business for API consumers
-      if (newExport?.business && !(newExport.business as any).shortName) {
-        ; (newExport.business as any).shortName = computeShortName(newExport.businesses.name)
+      if (newExport?.businesses && !(newExport.businesses as any).shortName) {
+        ; (newExport.businesses as any).shortName = computeShortName(newExport.businesses.name)
       }
 
       return newExport

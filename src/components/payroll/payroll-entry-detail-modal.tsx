@@ -1481,6 +1481,10 @@ export function PayrollEntryDetailModal({
 
   if (!isOpen) return null
 
+  // Check if period is locked (approved, closed, or exported)
+  const periodStatus = entry?.payroll_periods?.status
+  const isLocked = periodStatus === 'approved' || periodStatus === 'closed' || periodStatus === 'exported'
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto p-4">
       <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -1535,9 +1539,10 @@ export function PayrollEntryDetailModal({
                     value={formData.workDays}
                     onChange={(e) => handleNumberInput(e.target.value, 'workDays')}
                     onBlur={() => flushAutosave()}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
                     max="31"
+                    disabled={isLocked}
                   />
                 </div>
                 <div>
@@ -1547,9 +1552,10 @@ export function PayrollEntryDetailModal({
                     value={formData.sickDays}
                     onChange={(e) => handleNumberInput(e.target.value, 'sickDays')}
                     onBlur={() => flushAutosave()}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
                     max="31"
+                    disabled={isLocked}
                   />
                 </div>
                 <div>
@@ -1559,9 +1565,10 @@ export function PayrollEntryDetailModal({
                     value={formData.leaveDays}
                     onChange={(e) => handleNumberInput(e.target.value, 'leaveDays')}
                     onBlur={() => flushAutosave()}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
                     max="31"
+                    disabled={isLocked}
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1572,9 +1579,10 @@ export function PayrollEntryDetailModal({
                       value={formData.absenceDays}
                       onChange={(e) => handleNumberInput(e.target.value, 'absenceDays')}
                       onBlur={() => flushAutosave()}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                       min="0"
                       max="31"
+                      disabled={isLocked}
                     />
                   </div>
                   <div className="w-28">
@@ -1582,7 +1590,8 @@ export function PayrollEntryDetailModal({
                     <select
                       value={formData.absenceFraction}
                       onChange={(e) => setFormData({ ...formData, absenceFraction: e.target.value })}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isLocked}
                     >
                       <option value="0">0</option>
                       <option value="0.25">1/4</option>
@@ -1601,8 +1610,9 @@ export function PayrollEntryDetailModal({
                     value={formData.standardOvertimeHours}
                     onChange={(e) => setFormData({ ...formData, standardOvertimeHours: parseFloat(e.target.value) || 0 })}
                     onBlur={() => flushAutosave()}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
+                    disabled={isLocked}
                   />
                 </div>
                 <div>
@@ -1615,8 +1625,9 @@ export function PayrollEntryDetailModal({
                     value={formData.doubleTimeOvertimeHours}
                     onChange={(e) => setFormData({ ...formData, doubleTimeOvertimeHours: parseFloat(e.target.value) || 0 })}
                     onBlur={() => flushAutosave()}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
+                    disabled={isLocked}
                   />
                 </div>
                 <div>
@@ -1627,8 +1638,9 @@ export function PayrollEntryDetailModal({
                     value={formData.commission}
                     onChange={(e) => setFormData({ ...formData, commission: parseFloat(e.target.value) || 0 })}
                     onBlur={() => flushAutosave()}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
+                    disabled={isLocked}
                   />
                 </div>
               </div>
@@ -1862,8 +1874,12 @@ export function PayrollEntryDetailModal({
                         <div className="flex items-center gap-3">
                           {/* Always display a single properly-signed currency value. Use Math.abs to avoid double signs. */}
                           <span className="text-red-600">{formatCurrency(-Math.abs(Number(adj.amount || 0)))}</span>
-                          <button type="button" onClick={async (e) => { e.stopPropagation(); setEditingAdjustment(adj); setEditAdjustmentForm({ type: adj.type, amount: adj.amount, isAddition: adj.isAddition, description: adj.description }); }} className="text-sm text-blue-600">Edit</button>
-                          <button type="button" onClick={async (e) => { e.stopPropagation(); await handleDeleteAdjustment(adj.id); }} className="text-sm text-red-600">Delete</button>
+                          {!isLocked && (
+                            <>
+                              <button type="button" onClick={async (e) => { e.stopPropagation(); setEditingAdjustment(adj); setEditAdjustmentForm({ type: adj.type, amount: adj.amount, isAddition: adj.isAddition, description: adj.description }); }} className="text-sm text-blue-600">Edit</button>
+                              <button type="button" onClick={async (e) => { e.stopPropagation(); await handleDeleteAdjustment(adj.id); }} className="text-sm text-red-600">Delete</button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1885,13 +1901,15 @@ export function PayrollEntryDetailModal({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-primary">Adjustments</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddAdjustment(!showAddAdjustment)}
-                  className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                >
-                  {showAddAdjustment ? 'Cancel' : '+ Add Adjustment'}
-                </button>
+                {!isLocked && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddAdjustment(!showAddAdjustment)}
+                    className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                  >
+                    {showAddAdjustment ? 'Cancel' : '+ Add Adjustment'}
+                  </button>
+                )}
               </div>
 
               {showAddAdjustment && (
@@ -2008,16 +2026,20 @@ export function PayrollEntryDetailModal({
                           {/* show signed currency consistently */}
                           {adj.isAddition ? formatCurrency(Math.abs(Number(adj.amount || 0))) : formatCurrency(-Math.abs(Number(adj.amount || 0)))}
                         </div>
-                        <button type="button" onClick={() => {
-                          setEditingAdjustment(adj)
-                          setEditAdjustmentForm({
-                            type: adj.type,
-                            amount: adj.amount,
-                            isAddition: adj.isAddition,
-                            description: adj.description
-                          })
-                        }} className="text-sm text-blue-600">Edit</button>
-                        <button type="button" onClick={() => handleDeleteAdjustment(adj.id)} className="text-sm text-red-600">Delete</button>
+                        {!isLocked && (
+                          <>
+                            <button type="button" onClick={() => {
+                              setEditingAdjustment(adj)
+                              setEditAdjustmentForm({
+                                type: adj.type,
+                                amount: adj.amount,
+                                isAddition: adj.isAddition,
+                                description: adj.description
+                              })
+                            }} className="text-sm text-blue-600">Edit</button>
+                            <button type="button" onClick={() => handleDeleteAdjustment(adj.id)} className="text-sm text-red-600">Delete</button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -2031,13 +2053,15 @@ export function PayrollEntryDetailModal({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-primary">Benefits</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddBenefit(!showAddBenefit)}
-                  className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                >
-                  {showAddBenefit ? 'Cancel' : '+ Add Benefit'}
-                </button>
+                {!isLocked && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddBenefit(!showAddBenefit)}
+                    className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                  >
+                    {showAddBenefit ? 'Cancel' : '+ Add Benefit'}
+                  </button>
+                )}
               </div>
 
               {showAddBenefit && (
@@ -2261,6 +2285,8 @@ export function PayrollEntryDetailModal({
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-primary font-medium">{formatCurrency(Number(b.amount || 0))}</span>
+                            {!isLocked && (
+                            <>
                             <button type="button" onClick={async () => {
                               const newAmt = await showPrompt({ title: `Edit ${b.benefitName}`, description: 'Enter new amount', defaultValue: String(b.amount) })
                               if (newAmt === null) return
@@ -2327,6 +2353,8 @@ export function PayrollEntryDetailModal({
                               }
                             }} className="text-blue-600 hover:text-blue-700 text-sm">Edit</button>
                             <button type="button" onClick={() => handleDeleteBenefit(b.id)} className="text-red-600 hover:text-red-700 text-sm">Remove</button>
+                          </>
+                          )}
                           </div>
                         </div>
                       ))
@@ -2582,8 +2610,9 @@ export function PayrollEntryDetailModal({
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  disabled={saving || isLocked}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={isLocked ? 'Cannot edit approved, closed, or exported payroll period' : ''}
                 >
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>

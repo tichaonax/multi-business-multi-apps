@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
 import { nanoid } from 'nanoid'
-
-const prisma = new PrismaClient()
 
 export async function POST(request: NextRequest) {
   try {
@@ -120,12 +118,12 @@ export async function POST(request: NextRequest) {
 
         for (const benefit of contract.contract_benefits || []) {
           const amount = Number(
-            benefit.amount ?? benefit.benefitType?.defaultAmount ?? 0
+            benefit.amount ?? benefit.benefit_types?.defaultAmount ?? 0
           )
 
-          if (benefit.benefitType?.type === 'deduction') {
+          if (benefit.benefit_types?.type === 'deduction') {
             totalDeductions += amount
-          } else if (benefit.benefitType?.type === 'benefit' || benefit.benefitType?.type === 'allowance') {
+          } else if (benefit.benefit_types?.type === 'benefit' || benefit.benefit_types?.type === 'allowance') {
             // Add to benefits
             benefitsTotal += amount
 
@@ -134,7 +132,7 @@ export async function POST(request: NextRequest) {
               id: `PEB-${nanoid(12)}`,
               payrollEntryId: entryId,
               benefitTypeId: benefit.benefitTypeId,
-              benefitName: benefit.benefitType?.name || 'Unknown Benefit',
+              benefitName: benefit.benefit_types?.name || 'Unknown Benefit',
               amount,
               isActive: true,
               source: 'contract',

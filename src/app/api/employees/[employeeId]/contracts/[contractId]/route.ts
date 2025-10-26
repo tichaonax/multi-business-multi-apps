@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const contract = await prisma.employeeContracts.findUnique({
+    const contract = await prisma.employee_contracts.findUnique({
       where: {
         id: contractId,
         employeeId: employeeId
@@ -112,7 +112,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify contract exists and belongs to the employee
-    const existingContract = await prisma.employeeContracts.findUnique({
+    const existingContract = await prisma.employee_contracts.findUnique({
       where: {
         id: contractId,
         employeeId: employeeId
@@ -140,12 +140,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Delete related contract benefits first
-    await prisma.contractBenefits.deleteMany({
+    await prisma.contract_benefits.deleteMany({
       where: { contractId }
     })
 
     // Delete the contract
-    await prisma.employeeContracts.delete({
+    await prisma.employee_contracts.delete({
       where: { id: contractId }
     })
 
@@ -194,7 +194,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
 
       // Verify contract exists and belongs to the employee
-      const existingContract = await prisma.employeeContracts.findUnique({
+      const existingContract = await prisma.employee_contracts.findUnique({
         where: {
           id: contractId,
           employeeId: employeeId
@@ -215,23 +215,16 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         )
       }
 
-      // Sign the contract and activate employee
+      // Employee signs the contract - manager approval required before activation
       const signedContract = await prisma.$transaction(async (tx) => {
-        // Update contract with signature timestamp and activate
-        const contract = await tx.employeeContracts.update({
+        // Update contract with employee signature timestamp
+        const contract = await tx.employee_contracts.update({
           where: { id: contractId },
           data: {
             employeeSignedAt: new Date(),
-            status: 'active' // Contract becomes active when signed
-          }
-        })
-
-        // Activate the employee (can now create user accounts, access systems)
-        await tx.employees.update({
-          where: { id: employeeId },
-          data: {
-            employmentStatus: 'active',
-            isActive: true
+            status: 'pending_approval' // Awaiting manager approval
+            // Note: managerSignedAt is NOT set - manager must approve separately
+            // Note: Employee is NOT activated - will be activated when manager approves
           }
         })
 
@@ -239,7 +232,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       })
 
       return NextResponse.json({
-        message: 'Contract signed successfully',
+        message: 'Contract signed successfully. Awaiting manager approval.',
         contract: signedContract
       })
     }

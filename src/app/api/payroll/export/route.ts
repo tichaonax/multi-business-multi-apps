@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
           }
         },
         // Current active contract with extended fields
-        employeeContracts: {
+        employee_contracts_employee_contracts_employeeIdToemployees: {
           where: { status: 'active' },
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
           }
         },
         // Time tracking for the month
-        employeeTimeTracking: {
+        employee_time_tracking: {
           where: {
             year: Number(year),
             month: Number(month)
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
           }
         },
         // Allowances for the month
-        employeeAllowances: {
+        employee_allowances_employee_allowances_employeeIdToemployees: {
           where: {
             payrollYear: Number(year),
             payrollMonth: Number(month)
@@ -105,11 +105,11 @@ export async function GET(req: NextRequest) {
 
     // Transform data for payroll export matching Employee-Worksheet format
     const payrollData: PayrollEmployeeData[] = employees.map(employee => {
-      const contract = employee.employeeContracts[0]
-      const timeTracking = employee.employeeTimeTracking[0]
-      
+      const contract = employee.employee_contracts_employee_contracts_employeeIdToemployees[0]
+      const timeTracking = employee.employee_time_tracking[0]
+
       // Group allowances by type
-      const allowancesByType = employee.employeeAllowances.reduce((acc, allowance) => {
+      const allowancesByType = employee.employee_allowances_employee_allowances_employeeIdToemployees.reduce((acc, allowance) => {
         const type = allowance.type
         acc[type] = (acc[type] || 0) + parseFloat(allowance.amount.toString())
         return acc

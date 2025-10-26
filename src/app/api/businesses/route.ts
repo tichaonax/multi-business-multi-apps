@@ -46,7 +46,7 @@ export async function GET() {
       // Regular users: Get businesses where user is a member (excluding umbrella businesses)
       businesses = await prisma.businesses.findMany({
         where: {
-          businessMemberships: {
+          business_memberships: {
             some: {
               userId: session.user.id,
               isActive: true,
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         description: description || null,
         shortName,
         createdBy: session.user.id,
-        businessMemberships: {
+        business_memberships: {
           create: ({
             userId: session.user.id,
             role: 'business-owner',

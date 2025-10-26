@@ -103,9 +103,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if period is editable
-    if (entry.payroll_periods?.status === 'closed' || entry.payroll_periods?.status === 'exported') {
+    if (entry.payroll_periods?.status === 'approved' || entry.payroll_periods?.status === 'closed' || entry.payroll_periods?.status === 'exported') {
       return NextResponse.json(
-        { error: 'Cannot add adjustments to closed or exported payroll period' },
+        { error: 'Cannot add adjustments to approved, closed, or exported payroll period' },
         { status: 400 }
       )
     }
@@ -129,21 +129,14 @@ export async function POST(req: NextRequest) {
 
       const createPayload: any = {
         id: `PA-${nanoid(12)}`,
-        payrollEntry: { connect: { id: payrollEntryId } },
+        payrollEntryId: payrollEntryId,
         adjustmentType: type || null,
         amount: signedAmount,
         // Prisma model does not have `description` — map client `description` into `reason` if provided
         reason: reason ?? description ?? null,
-        users_payroll_periods_createdByTousers: { connect: { id: session.user.id } },
+        createdBy: session.user.id,
         createdAt: new Date()
       }
-
-      // Defensively remove any stray payrollEntryId that might be present
-      if ((createPayload as any).payrollEntryId) delete (createPayload as any).payrollEntryId
-      // Remove other client-side-only fields that shouldn't be sent to Prisma
-      if ((createPayload as any).type) delete (createPayload as any).type
-      if ((createPayload as any).category) delete (createPayload as any).category
-      if ((createPayload as any).isAddition) delete (createPayload as any).isAddition
 
       // Log payload just before creation for debugging (will show in server logs)
       console.debug('Creating payrollAdjustment with payload:', createPayload)
@@ -151,12 +144,7 @@ export async function POST(req: NextRequest) {
       let newAdjustment: any
       try {
         newAdjustment = await tx.payrollAdjustments.create({
-          data: createPayload,
-          include: {
-            users_payroll_periods_createdByTousers: {
-              select: { id: true, name: true, email: true }
-            }
-          }
+          data: createPayload
         })
       } catch (e) {
         console.error('Error creating payrollAdjustment. Payload:', createPayload)
@@ -193,8 +181,8 @@ export async function PUT(req: NextRequest) {
 
     const existing = await prisma.payrollAdjustments.findUnique({ where: { id }, include: { payroll_entries: { include: { payroll_periods: true } } } })
     if (!existing) return NextResponse.json({ error: 'Adjustment not found' }, { status: 404 })
-    if (existing.payroll_entries?.payroll_periods?.status === 'exported' || existing.payroll_entries?.payroll_periods?.status === 'closed') {
-      return NextResponse.json({ error: 'Cannot modify adjustments on exported or closed payroll period' }, { status: 400 })
+    if (existing.payroll_entries?.payroll_periods?.status === 'approved' || existing.payroll_entries?.payroll_periods?.status === 'exported' || existing.payroll_entries?.payroll_periods?.status === 'closed') {
+      return NextResponse.json({ error: 'Cannot modify adjustments on approved, exported, or closed payroll period' }, { status: 400 })
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -222,7 +210,7 @@ export async function PUT(req: NextRequest) {
           reason: reason !== undefined ? reason : (description !== undefined ? description : existingAny.reason),
           adjustmentType: type !== undefined ? type : existingAny.adjustmentType,
           updatedAt: new Date()
-        }, include: { users_payroll_periods_createdByTousers: { select: { id: true, name: true } } }
+        }
       })
 
       // Recalculate totals for entry and period
@@ -252,8 +240,8 @@ export async function DELETE(req: NextRequest) {
 
     const existing = await prisma.payrollAdjustments.findUnique({ where: { id: adjustmentId }, include: { payroll_entries: { include: { payroll_periods: true } } } })
     if (!existing) return NextResponse.json({ error: 'Adjustment not found' }, { status: 404 })
-    if (existing.payroll_entries?.payroll_periods?.status === 'exported' || existing.payroll_entries?.payroll_periods?.status === 'closed') {
-      return NextResponse.json({ error: 'Cannot delete adjustments on exported or closed payroll period' }, { status: 400 })
+    if (existing.payroll_entries?.payroll_periods?.status === 'approved' || existing.payroll_entries?.payroll_periods?.status === 'exported' || existing.payroll_entries?.payroll_periods?.status === 'closed') {
+      return NextResponse.json({ error: 'Cannot delete adjustments on approved, exported, or closed payroll period' }, { status: 400 })
     }
 
     const existingAny: any = existing

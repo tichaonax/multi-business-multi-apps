@@ -320,9 +320,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if period is editable
-    if (existingEntry.payroll_periods && (existingEntry.payroll_periods.status === 'closed' || existingEntry.payroll_periods.status === 'exported')) {
+    if (existingEntry.payroll_periods && (existingEntry.payroll_periods.status === 'approved' || existingEntry.payroll_periods.status === 'closed' || existingEntry.payroll_periods.status === 'exported')) {
       return NextResponse.json(
-        { error: 'Cannot edit entries in closed or exported payroll period' },
+        { error: 'Cannot edit entries in approved, closed, or exported payroll period' },
         { status: 400 }
       )
     }

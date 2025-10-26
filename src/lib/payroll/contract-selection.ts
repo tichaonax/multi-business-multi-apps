@@ -21,13 +21,13 @@ export interface ContractInfo {
   managerSignedAt: Date | null
   baseSalary: Decimal
   compensationTypeId: string
-  compensationTypes?: {
+  compensation_types?: {
     id: string
     name: string
     type: string
   }
   jobTitleId: string
-  jobTitles?: {
+  job_titles?: {
     id: string
     title: string
   }
@@ -78,15 +78,15 @@ export async function findOverlappingContracts(
   const contracts = await prisma.employeeContracts.findMany({
     where,
     include: {
-      compensationTypes: {
+      compensation_types: {
         select: { id: true, name: true, type: true }
       },
-      jobTitles: {
+      job_titles: {
         select: { id: true, title: true }
       },
       contract_benefits: {
         include: {
-          benefitType: true
+          benefit_types: true
         }
       }
     },
@@ -320,7 +320,7 @@ export async function generatePayrollContractEntries(
     )
 
     // Calculate prorated base salary
-    const compensationType = contract.compensationTypes?.type || ''
+    const compensationType = contract.compensation_types?.type || ''
     const proratedBaseSalary = calculateProratedBaseSalary(
       contract.baseSalary,
       compensationType,

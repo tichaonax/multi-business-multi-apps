@@ -160,7 +160,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   const entry = await tx.payrollEntries.findUnique({
     where: { id: entryId },
     include: {
-      PayrollEntryBenefits: true
+      payroll_entry_benefits: true
     }
   })
 

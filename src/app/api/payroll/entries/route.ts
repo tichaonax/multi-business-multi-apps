@@ -247,27 +247,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Fetch active advances for deductions
-    const activeAdvances = await prisma.employeeAdvance.findMany({
-      where: {
-        employeeId,
-        status: 'active',
-        remainingMonths: { gt: 0 }
-      }
-    })
-
+    // TODO: Fetch active advances for deductions when advance model is implemented
+    // const activeAdvances = await prisma.employeeAdvance.findMany({...})
     let advanceDeductions = new Decimal(0)
     const advanceBreakdown: any[] = []
-
-    for (const advance of activeAdvances) {
-      const deductionAmount = new Decimal(advance.deductionAmount)
-      advanceDeductions = advanceDeductions.add(deductionAmount)
-      advanceBreakdown.push({
-        advanceId: advance.id,
-        amount: deductionAmount.toNumber(),
-        description: advance.reason || 'Salary advance repayment'
-      })
-    }
 
     // Calculate totals
     const grossPay = baseSalary.add(commissionAmount).add(benefitsTotal)

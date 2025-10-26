@@ -93,9 +93,9 @@ export function buildEmployeeQueryFilter(user: SessionUser) {
     }
   }
 
-  // If user has limited department access, add department filter
+  // If user has limited department access, add department filter  
   if (accessFilter.allowedDepartments.length > 0) {
-    filters.jobTitle = {
+    filters.job_titles = {
       department: {
         in: accessFilter.allowedDepartments
       }
@@ -127,7 +127,7 @@ export async function canUserAccessEmployee(
   const employee = await prisma.employees.findUnique({
     where: { id: employeeId },
     include: {
-      jobTitle: {
+      job_titles: {
         select: {
           department: true
         }
@@ -146,7 +146,7 @@ export async function canUserAccessEmployee(
 
   // Check department access if applicable
   if (accessFilter.allowedDepartments.length > 0) {
-    const employeeDepartment = employee.jobTitle?.department || 'general'
+    const employeeDepartment = employee.job_titles?.department || 'general'
     if (!accessFilter.allowedDepartments.includes(employeeDepartment)) {
       return false
     }

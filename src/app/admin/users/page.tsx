@@ -213,7 +213,7 @@ export default function AdminUsersPage() {
 
         {/* Business Permission Management Modal */}
         {managingPermissions && session?.user && (() => {
-          const businessMembership = managingPermissions.users.businessMemberships?.find(m => m.businessId === managingPermissions.businessId)
+          const businessMembership = managingPermissions.user.businessMemberships?.find((m: any) => m.businessId === managingPermissions.businessId)
           if (!businessMembership) return null
           
           return (
@@ -221,8 +221,8 @@ export default function AdminUsersPage() {
               user={managingPermissions.user}
               membership={{
                 businessId: businessMembership.businessId,
-                businessName: businessMembership.businesses.name,
-                businessType: businessMembership.businesses.type,
+                businessName: businessMembership.business?.name || 'Unknown Business',
+                businessType: businessMembership.business?.type || 'unknown',
                 role: businessMembership.role,
                 permissions: businessMembership.permissions,
                 templateId: businessMembership.templateId,
@@ -234,7 +234,7 @@ export default function AdminUsersPage() {
               onSuccess={(message) => {
                 setSuccess(message)
                 setManagingPermissions(null)
-                loadUsers()
+                // Removed loadUsers() to prevent race condition - permissions are already updated
               }}
               onError={(error) => {
                 setError(error)

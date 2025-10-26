@@ -80,7 +80,7 @@ export async function captureContractSnapshot(
   const contract = await prisma.employeeContracts.findUnique({
     where: { id: contractId },
     include: {
-      compensationTypes: {
+      compensation_types: {
         select: {
           id: true,
           name: true,
@@ -88,7 +88,7 @@ export async function captureContractSnapshot(
           commissionPercentage: true
         }
       },
-      jobTitles: {
+      job_titles: {
         select: {
           id: true,
           title: true,
@@ -98,7 +98,7 @@ export async function captureContractSnapshot(
       },
       contract_benefits: {
         include: {
-          benefitType: {
+          benefit_types: {
             select: {
               id: true,
               name: true,
@@ -130,21 +130,21 @@ export async function captureContractSnapshot(
     baseSalary,
     compensationTypeId: contract.compensationTypeId,
     compensationType: {
-      id: contract.compensationTypes.id,
-      name: contract.compensationTypes.name,
-      type: contract.compensationTypes.type,
-      commissionPercentage: contract.compensationTypes.commissionPercentage
-        ? (contract.compensationTypes.commissionPercentage as Decimal).toNumber()
+      id: contract.compensation_types.id,
+      name: contract.compensation_types.name,
+      type: contract.compensation_types.type,
+      commissionPercentage: contract.compensation_types.commissionPercentage
+        ? (contract.compensation_types.commissionPercentage as Decimal).toNumber()
         : undefined
     },
 
     // Position
     jobTitleId: contract.jobTitleId,
     jobTitle: {
-      id: contract.jobTitles.id,
-      title: contract.jobTitles.title,
-      department: contract.jobTitles.department || undefined,
-      level: contract.jobTitles.level || undefined
+      id: contract.job_titles.id,
+      title: contract.job_titles.title,
+      department: contract.job_titles.department || undefined,
+      level: contract.job_titles.level || undefined
     },
 
     // Contract metadata
@@ -157,7 +157,7 @@ export async function captureContractSnapshot(
     // Benefits at capture time
     benefits: contract.contract_benefits.map(cb => ({
       benefitTypeId: cb.benefitTypeId,
-      benefitName: cb.benefitType.name,
+      benefitName: cb.benefit_types.name,
       amount: (cb.amount as Decimal).toNumber(),
       isPercentage: cb.isPercentage,
       notes: cb.notes || undefined
@@ -189,15 +189,15 @@ export function restoreContractFromSnapshot(snapshot: ContractSnapshot) {
     managerSignedAt: snapshot.managerSignedAt ? new Date(snapshot.managerSignedAt) : null,
     baseSalary: snapshot.baseSalary,
     compensationTypeId: snapshot.compensationTypeId,
-    compensationTypes: snapshot.compensationType,
+    compensation_types: snapshot.compensationType,
     jobTitleId: snapshot.jobTitleId,
-    jobTitles: snapshot.jobTitle,
+    job_titles: snapshot.jobTitle,
     contract_benefits: snapshot.benefits.map(b => ({
       benefitTypeId: b.benefitTypeId,
       amount: b.amount,
       isPercentage: b.isPercentage,
       notes: b.notes || null,
-      benefitType: {
+      benefit_types: {
         id: b.benefitTypeId,
         name: b.benefitName
       }

@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       where: { id: payrollPeriodId },
       include: {
         businesses: { select: { name: true, isUmbrellaBusiness: true, umbrellaBusinessName: true } },
-        payrollEntries: {
+        payroll_entries: {
           include: {
             payroll_entry_benefits: { include: { benefit_types: { select: { id: true, name: true } } } },
             employees: { select: { id: true, employeeNumber: true, firstName: true, lastName: true, fullName: true, job_titles: { select: { title: true } }, primaryBusinessId: true } }

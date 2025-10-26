@@ -21,11 +21,12 @@ interface PayrollPeriod {
   totalGrossPay: number
   totalDeductions: number
   totalNetPay: number
-  business: {
+  businesses: {
     id: string
     name: string
+    type: string
   }
-  payrollEntries: PayrollEntry[]
+  payroll_entries: PayrollEntry[]
   benefitLoadError?: string
   hint?: string
 }
@@ -58,7 +59,7 @@ interface PayrollEntry {
   grossPay: number
   totalDeductions: number
   netPay: number
-  payrollEntryBenefits?: PayrollEntryBenefit[]
+  payroll_entry_benefits?: PayrollEntryBenefit[]
   // Contract tracking fields
   contractId?: string | null
   contractNumber?: string | null
@@ -137,8 +138,8 @@ export default function PayrollPeriodDetailPage() {
         // Normalize payrollAdjustments on each entry so UI reflects signed amounts correctly
         try {
           const deductionTypes = new Set(['penalty', 'loan', 'loan_payment', 'loan payment', 'advance', 'advance_payment', 'advance payment', 'loanpayment'])
-          if (Array.isArray(data.payrollEntries)) {
-            data.payrollEntries = data.payrollEntries.map((e: any) => {
+          if (Array.isArray(data.payroll_entries)) {
+            data.payroll_entries = data.payroll_entries.map((e: any) => {
               try {
                 if (!Array.isArray(e.payrollAdjustments)) return e
                 e.payrollAdjustments = e.payrollAdjustments.map((a: any) => {
@@ -174,10 +175,26 @@ export default function PayrollPeriodDetailPage() {
   const loadAvailableEmployeesCount = async () => {
     if (!period?.businesses?.id) return
     try {
-      const response = await fetch(`/api/employees?businessId=${period.businesses.id}`)
+      // For umbrella business, count all employees; otherwise filter by business
+      const isUmbrellaOrSettings = period.businesses.type === 'umbrella' || period.businesses.type === 'settings'
+      const url = isUmbrellaOrSettings
+        ? '/api/employees?status=active'
+        : `/api/employees?businessId=${period.businesses.id}&status=active`
+
+      const response = await fetch(url)
       if (response.ok) {
-        const employees = await response.json()
-        setAvailableEmployeesCount(Array.isArray(employees) ? employees.length : 0)
+        const data = await response.json()
+        // Extract employees array from response (could be direct array or wrapped in { employees: [] })
+        const employeesList = Array.isArray(data) ? data : (data?.employees || [])
+
+        // Only count employees with active signed contracts (both employee and manager signatures)
+        const eligibleEmployees = employeesList.filter((emp: any) => {
+          const contracts = emp.employeeContracts || emp.contracts || []
+          const activeContract = contracts.find((c: any) => c.status === 'active')
+          return activeContract && activeContract.employeeSignedAt && activeContract.managerSignedAt
+        })
+
+        setAvailableEmployeesCount(eligibleEmployees.length)
       }
     } catch (error) {
       console.error('Failed to load available employees count:', error)
@@ -275,7 +292,7 @@ export default function PayrollPeriodDetailPage() {
   const handleSubmitForReview = async () => {
     if (!period) return
 
-    if (period.payrollEntries.length === 0) {
+    if (period.payroll_entries.length === 0) {
       showNotification('error', 'Cannot submit an empty payroll period for review')
       return
     }
@@ -420,11 +437,11 @@ export default function PayrollPeriodDetailPage() {
     const uniqueBenefitsMap = new Map<string, { id: string, name: string }>()
 
 
-    period.payrollEntries.forEach(entry => {
+    period.payroll_entries.forEach(entry => {
       // Prefer server-merged benefits when present
       const merged = entry.mergedBenefits || []
       const contractBenefits = entry.contract?.pdfGenerationData?.benefits || []
-      const entryBenefits = entry.payrollEntryBenefits || []
+      const entryBenefits = entry.payroll_entry_benefits || []
 
       // Use mergedBenefits to decide columns (they represent the effective, merged view)
       // Prefer server-provided merged benefits even when amount is zero so preview and
@@ -438,7 +455,7 @@ export default function PayrollPeriodDetailPage() {
         if (!uniqueBenefitsMap.has(benefitId)) uniqueBenefitsMap.set(benefitId, { id: benefitId, name })
       })
 
-      // Regardless of mergedBenefits presence, include contract-inferred benefits and persisted payrollEntryBenefits
+      // Regardless of mergedBenefits presence, include contract-inferred benefits and persisted payroll_entry_benefits
       // mergedBenefits represent an authoritative merged view but might not list all contract benefits (or may be empty for some entries).
       // We therefore union merged, contract and persisted manual benefits, preferring merged amounts and honoring persisted overrides.
       const unioned: Map<string, { id: string, name: string }> = new Map()
@@ -460,7 +477,7 @@ export default function PayrollPeriodDetailPage() {
       contractBenefits.forEach((cb: any) => {
         const contractAmount = Number(cb.amount || 0)
         // Check for any override (active or inactive)
-        const override = entry.payrollEntryBenefits?.find((pb: any) => (pb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) || pb.benefitName === cb.name)
+        const override = entry.payroll_entry_benefits?.find((pb: any) => (pb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) || pb.benefitName === cb.name)
         if (override && override.isActive === false) return
         let effectiveAmount = contractAmount
         if (override && override.isActive === true) effectiveAmount = Number(override.amount || 0)
@@ -470,8 +487,8 @@ export default function PayrollPeriodDetailPage() {
         }
       })
 
-      // Include any manual persisted payrollEntryBenefits not covered above
-      entry.payrollEntryBenefits?.forEach((benefit: any) => {
+      // Include any manual persisted payroll_entry_benefits not covered above
+      entry.payroll_entry_benefits?.forEach((benefit: any) => {
         if (!benefit.isActive) return
         const amount = Number(benefit.amount || 0)
         if (amount <= 0) return
@@ -554,7 +571,7 @@ export default function PayrollPeriodDetailPage() {
   const getEntriesByEmployee = () => {
     const employeeMap = new Map<string, PayrollEntry[]>()
 
-    period?.payrollEntries.forEach(entry => {
+    period?.payroll_entries.forEach(entry => {
       const empId = entry.employeeId || entry.id
       if (!employeeMap.has(empId)) {
         employeeMap.set(empId, [])
@@ -652,8 +669,8 @@ export default function PayrollPeriodDetailPage() {
       return merged.filter((mb: any) => mb.isActive !== false).reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
     }
 
-    if (Array.isArray(entry.payrollEntryBenefits) && entry.payrollEntryBenefits.length > 0) {
-      return entry.payrollEntryBenefits.filter(b => b.isActive).reduce((s, b) => s + Number(b.amount || 0), 0)
+    if (Array.isArray(entry.payroll_entry_benefits) && entry.payroll_entry_benefits.length > 0) {
+      return entry.payroll_entry_benefits.filter(b => b.isActive).reduce((s, b) => s + Number(b.amount || 0), 0)
     }
 
     const contractBenefits = entry.contract?.pdfGenerationData?.benefits || []
@@ -837,15 +854,15 @@ export default function PayrollPeriodDetailPage() {
             <>
               <button
                 onClick={() => setShowAddEntry(!showAddEntry)}
-                disabled={availableEmployeesCount !== null && period.payrollEntries.length >= availableEmployeesCount}
-                className={`px-4 py-2 text-sm font-medium text-white rounded-md ${availableEmployeesCount !== null && period.payrollEntries.length >= availableEmployeesCount ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-                title={availableEmployeesCount !== null && period.payrollEntries.length >= availableEmployeesCount ? 'All available employees have been added' : ''}
+                disabled={availableEmployeesCount !== null && period.payroll_entries.length >= availableEmployeesCount}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-md ${availableEmployeesCount !== null && period.payroll_entries.length >= availableEmployeesCount ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                title={availableEmployeesCount !== null && period.payroll_entries.length >= availableEmployeesCount ? 'All available employees have been added' : ''}
               >
                 {showAddEntry ? 'Cancel' : 'Add Employee'}
               </button>
               {/* Hide "Add All Employees" when period already has entries to prevent duplicate employee errors
                   (period creation with targetAllEmployees already adds all employees) */}
-              {period.payrollEntries.length === 0 && (
+              {period.payroll_entries.length === 0 && (
                 <button
                   onClick={handleAddAllEmployees}
                   disabled={addingAllEmployees || (availableEmployeesCount !== null && availableEmployeesCount === 0)}
@@ -855,7 +872,7 @@ export default function PayrollPeriodDetailPage() {
                   {addingAllEmployees ? 'Adding...' : 'Add All Employees'}
                 </button>
               )}
-              {period.payrollEntries.length > 0 && (
+              {period.payroll_entries.length > 0 && (
                 <>
                   <button
                     onClick={handleClearAllEntries}
@@ -918,7 +935,7 @@ export default function PayrollPeriodDetailPage() {
               )
             })()
           )}
-          {canEditEntry && period.status === 'review' && period.payrollEntries.length > 0 && (
+          {canEditEntry && period.status === 'review' && period.payroll_entries.length > 0 && (
             <button
               onClick={() => setShowPreview(true)}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
@@ -1093,6 +1110,10 @@ export default function PayrollPeriodDetailPage() {
           <h3 className="text-lg font-semibold text-primary mb-4">Add Employee to Payroll</h3>
           <PayrollEntryForm
             payrollPeriodId={period.id}
+            businessId={period.businesses.id}
+            businessName={period.businesses.name}
+            businessType={period.businesses.type}
+            existingEntries={period.payroll_entries.map(entry => ({ employeeId: entry.employeeId }))}
             onSuccess={(payload) => {
               const msg = typeof payload === 'string' ? payload : (payload && (payload as any).message) || ''
               showNotification('success', msg)
@@ -1113,24 +1134,24 @@ export default function PayrollPeriodDetailPage() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="card">
           <p className="text-sm text-secondary">Employees</p>
-          <p className="text-2xl font-bold text-primary">{period.payrollEntries.length}</p>
+          <p className="text-2xl font-bold text-primary">{period.payroll_entries.length}</p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Gross Pay</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.grossPay || 0), 0))}
+            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + Number(e.grossPay || 0), 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Deductions</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.totalDeductions || 0), 0))}
+            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + Number(e.totalDeductions || 0), 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Net Gross</p>
           <p className="text-2xl font-bold text-green-600">
-            {formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.netPay || 0), 0))}
+            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + Number(e.netPay || 0), 0))}
           </p>
         </div>
       </div>
@@ -1138,7 +1159,7 @@ export default function PayrollPeriodDetailPage() {
       {/* Entries Table */}
       <div className="card">
         <h3 className="text-lg font-semibold text-primary mb-4">Payroll Entries</h3>
-        {period.payrollEntries.length === 0 ? (
+        {period.payroll_entries.length === 0 ? (
           <p className="text-secondary text-center py-12">No employees added to this payroll period yet</p>
         ) : (
           <div className="overflow-x-auto">
@@ -1177,7 +1198,7 @@ export default function PayrollPeriodDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {period.payrollEntries.map((entry) => (
+                {period.payroll_entries.map((entry) => (
                   <tr
                     key={entry.id}
                     className="hover:bg-muted transition-colors"
@@ -1255,7 +1276,7 @@ export default function PayrollPeriodDetailPage() {
                         return String(cb.benefitTypeId || cb.name) === String(uniqueBenefit.benefitTypeId)
                       })
 
-                      const entryBenefit = entry.payrollEntryBenefits?.find(
+                      const entryBenefit = entry.payroll_entry_benefits?.find(
                         b => b.benefitTypeId === uniqueBenefit.benefitTypeId && b.isActive
                       )
 
@@ -1330,7 +1351,7 @@ export default function PayrollPeriodDetailPage() {
 
                 setPeriod((prev) => {
                   if (!prev) return prev
-                  const entries = Array.isArray(prev.payrollEntries) ? prev.payrollEntries.slice() : []
+                  const entries = Array.isArray(prev.payroll_entries) ? prev.payroll_entries.slice() : []
                   const idx = entries.findIndex((e: any) => String(e.id) === String(updated.id))
                   if (idx >= 0) {
                     // Found existing entry - merge the update by creating a completely new object
@@ -1343,7 +1364,7 @@ export default function PayrollPeriodDetailPage() {
                     setTimeout(() => loadPeriod(), 0)
                     return prev  // Return unchanged state, reload will happen async
                   }
-                  return { ...prev, payrollEntries: entries }
+                  return { ...prev, payroll_entries: entries }
                 })
               } catch (e) {
                 console.error('[payroll] Error merging updatedEntry:', e)

@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const search = searchParams.get('search') || ''
     const department = searchParams.get('department') || ''
+    const businessId = searchParams.get('businessId') || ''
     const status = searchParams.get('status') || 'all'
     const sortBy = searchParams.get('sortBy') || ''
     const sortOrder = searchParams.get('sortOrder') || ''
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
       ...accessFilter,
       ...(status === 'active' ? { isActive: true } : {}),
       ...(status === 'inactive' ? { isActive: false } : {}),
+      ...(businessId && { primaryBusinessId: businessId }),
       ...(search && {
         OR: [
           { fullName: { contains: search, mode: 'insensitive' } },
@@ -57,9 +59,34 @@ export async function GET(req: NextRequest) {
       const sortFields = sortBy.split(',')
       const sortOrders = sortOrder.split(',')
 
+      // Map frontend field names to actual database field names
+      const fieldMapping: Record<string, string> = {
+        'jobTitle': 'jobTitleId',
+        'compensationType': 'compensationTypeId',
+        'primaryBusiness': 'primaryBusinessId',
+        'fullName': 'fullName',
+        'firstName': 'firstName',
+        'lastName': 'lastName',
+        'email': 'email',
+        'phone': 'phone',
+        'employeeNumber': 'employeeNumber',
+        'hireDate': 'hireDate',
+        'isActive': 'isActive',
+        'createdAt': 'createdAt',
+        'employmentStatus': 'employmentStatus'
+      }
+
       orderBy = sortFields.map((field: string, index: number) => {
         const order = sortOrders[index] || 'asc'
-        return { [field]: order }
+        const dbField = fieldMapping[field] || field // fallback to original field if not mapped
+        
+        // Only allow whitelisted fields for security
+        if (!fieldMapping.hasOwnProperty(field)) {
+          console.warn(`Unknown sort field: ${field}, using default sort`)
+          return { createdAt: 'desc' } // fallback to safe default
+        }
+        
+        return { [dbField]: order }
       })
     }
 
@@ -135,7 +162,7 @@ export async function GET(req: NextRequest) {
         employeeId: { in: employeeIds },
         status: 'active'
       },
-      select: { id: true, employeeId: true, status: true, baseSalary: true, employeeSignedAt: true, notes: true }
+      select: { id: true, employeeId: true, status: true, baseSalary: true, employeeSignedAt: true, managerSignedAt: true, notes: true }
     }) : []
 
     const contractsByEmployee = new Map<string, any[]>()
@@ -321,7 +348,7 @@ export async function POST(req: NextRequest) {
       // Build an Unchecked create input to satisfy Prisma's generated types while
       // allowing direct FK fields (faster migration path). We'll use the
       // UncheckedCreateInput type to avoid nested create typing here.
-      const employeeCreateData: Prisma.EmployeeUncheckedCreateInput = {
+      const employeeCreateData: Prisma.EmployeesUncheckedCreateInput = {
         id: randomUUID(),
         employeeNumber: employeeNumber,
         userId: userId || null,

@@ -70,6 +70,7 @@ export function BusinessPermissionModal({
   const handleSave = async () => {
     setLoading(true)
     try {
+      console.log('Saving permissions for user:', user.id, 'business:', membership.businessId)
       const response = await fetch(`/api/admin/users/${user.id}/business-permissions`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -80,13 +81,18 @@ export function BusinessPermissionModal({
       })
 
       const data = await response.json()
+      console.log('API response:', response.status, data)
+      
       if (response.ok) {
+        console.log('Calling onSuccess with message:', data.message)
         onSuccess(data.message || 'Business permissions updated successfully')
         onClose()
       } else {
+        console.log('Calling onError with error:', data.error)
         onError(data.error || 'Failed to update business permissions')
       }
     } catch (error) {
+      console.error('Fetch error:', error)
       onError('Error updating business permissions')
     } finally {
       setLoading(false)

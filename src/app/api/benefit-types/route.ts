@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
       include: {
         _count: {
           select: {
-            employeeBenefits: true,
-            contractBenefits: true
+            employee_benefits: true,
+            contract_benefits: true
           }
         }
       },

@@ -76,3 +76,38 @@ export interface EmojiSearchResult {
   count: number;
   categories: string[];
 }
+
+/**
+ * Request types for category editing
+ */
+export interface CategoryEditRequest {
+  id?: string;  // Optional for create, required for update
+  domainId?: string | null;
+  name: string;
+  emoji: string;
+  color: string;
+  description?: string | null;
+}
+
+/**
+ * Request types for subcategory editing
+ */
+export interface SubcategoryEditRequest {
+  id?: string;  // Optional for create, required for update
+  categoryId: string;
+  name: string;
+  emoji?: string | null;
+  description?: string | null;
+}
+
+/**
+ * Emoji lookup result from enhanced emoji picker
+ */
+export interface EmojiLookupResult {
+  emoji: string;
+  name: string;
+  description?: string | null;
+  usageCount?: number;
+  source: 'local' | 'github';
+  url?: string;  // For GitHub emoji URLs
+}

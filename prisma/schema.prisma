@@ -1002,6 +1002,21 @@ model ExpenseSubcategories {
   @@map("expense_subcategories")
 }
 
+model EmojiLookup {
+  id          String   @id @default(uuid())
+  emoji       String
+  description String
+  name        String?
+  url         String?
+  source      String
+  fetchedAt   DateTime @default(now())
+  usageCount  Int      @default(0)
+
+  @@unique([emoji, description])
+  @@index([description])
+  @@map("emoji_lookup")
+}
+
 model FundSources {
   id         String   @id
   name       String

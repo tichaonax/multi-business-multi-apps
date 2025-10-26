@@ -1,0 +1,36 @@
+# ==========================================
+# Work-in-progress (NOT tracked in git)
+# ==========================================
+
+# User context files during active development
+wip/*
+!wip/.gitkeep
+!wip/README.md
+
+# AI project plans during active work
+project-plans/active/*
+!project-plans/active/.gitkeep
+!project-plans/active/README.md
+
+# ==========================================
+# Completed work (TRACKED for documentation)
+# ==========================================
+# project-plans/completed/YYYY-MM/ is tracked
+
+# ==========================================
+# Personal files (never track)
+# ==========================================
+*.draft.md
+*.personal.md
+*.temp.md
+*.notes.md
+.notes/
+
+# ==========================================
+# Editor/system files
+# ==========================================
+.DS_Store
+*.swp
+*.swo
+*~
+Thumbs.db

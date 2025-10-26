@@ -12,6 +12,10 @@ interface Employee {
 
 interface PayrollEntryFormProps {
   payrollPeriodId: string
+  businessId: string
+  businessName?: string
+  businessType?: string
+  existingEntries?: Array<{ employeeId: string }>
   onSuccess: (payload: OnSuccessArg) => void
   onError: (error: string) => void
   onCancel: () => void
@@ -19,6 +23,10 @@ interface PayrollEntryFormProps {
 
 export function PayrollEntryForm({
   payrollPeriodId,
+  businessId,
+  businessName,
+  businessType,
+  existingEntries = [],
   onSuccess,
   onError,
   onCancel
@@ -37,17 +45,42 @@ export function PayrollEntryForm({
   })
 
   useEffect(() => {
-    loadEmployees()
-  }, [])
+    if (businessId) {
+      loadEmployees()
+    }
+  }, [businessId, businessType, existingEntries])
 
   const loadEmployees = async () => {
     try {
-      const response = await fetch('/api/employees')
+      // For umbrella business, fetch all employees; otherwise filter by business
+      const isUmbrellaOrSettings = businessType === 'umbrella' || businessType === 'settings'
+      const url = isUmbrellaOrSettings
+        ? '/api/employees?status=active'
+        : `/api/employees?businessId=${businessId}&status=active`
+
+      const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
         // API returns either an array or a wrapper { employees, pagination }
-        const list = Array.isArray(data) ? data : (data?.employees ?? [])
-        setEmployees(list)
+        const employeesList = Array.isArray(data) ? data : (data?.employees ?? [])
+
+        // Create a set of employee IDs already in payroll for fast lookup
+        const existingEmployeeIds = new Set(existingEntries.map(entry => entry.employeeId))
+
+        // Filter to only employees with fully signed contracts (both employee and manager signatures)
+        // AND not already in the payroll period
+        const eligibleEmployees = employeesList.filter((emp: any) => {
+          // Skip if already in payroll
+          if (existingEmployeeIds.has(emp.id)) {
+            return false
+          }
+
+          const contracts = emp.employeeContracts || emp.contracts || []
+          const activeContract = contracts.find((c: any) => c.status === 'active')
+          return activeContract && activeContract.employeeSignedAt && activeContract.managerSignedAt
+        })
+
+        setEmployees(eligibleEmployees)
       }
     } catch (error) {
       console.error('Failed to load employees:', error)
@@ -94,6 +127,32 @@ export function PayrollEntryForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Info message about filtering */}
+      {businessName && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+          <p className="text-sm text-blue-700 dark:text-blue-400">
+            {businessType === 'umbrella' || businessType === 'settings' ? (
+              <>
+                📋 <strong>{businessName}</strong> can pay employees from all businesses. Showing all employees with fully signed contracts.
+              </>
+            ) : (
+              <>
+                📋 Showing only employees from <strong>{businessName}</strong> with fully signed contracts
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Warning if no eligible employees */}
+      {employees.length === 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+          <p className="text-sm text-yellow-700 dark:text-yellow-400">
+            ⚠️ No eligible employees found. Employees must have a fully signed contract (both employee and manager signatures) to be added to payroll.
+          </p>
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-secondary mb-1">
           Employee <span className="text-red-500">*</span>
@@ -101,10 +160,11 @@ export function PayrollEntryForm({
         <select
           value={formData.employeeId}
           onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-          className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           required
+          disabled={employees.length === 0}
         >
-          <option value="">Select employee</option>
+          <option value="">{employees.length === 0 ? 'No eligible employees' : 'Select employee'}</option>
           {employees.map((employee) => (
             <option key={employee.id} value={employee.id}>
               {employee.employeeNumber} - {employee.fullName}
@@ -223,8 +283,9 @@ export function PayrollEntryForm({
         </button>
         <button
           type="submit"
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-          disabled={loading}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading || employees.length === 0}
+          title={employees.length === 0 ? 'No eligible employees available' : ''}
         >
           {loading ? 'Creating...' : 'Create Entry'}
         </button>

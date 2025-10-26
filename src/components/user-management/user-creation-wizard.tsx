@@ -790,6 +790,7 @@ function CustomPermissionsEditor({ permissions, businessType, onChange }: Custom
   const corePermissionGroups = [
     { title: 'Business Management', permissions: CORE_PERMISSIONS.coreBusinessManagement },
     { title: 'Personal Finance', permissions: USER_LEVEL_PERMISSIONS.personalFinance.permissions },
+    { title: 'Business Expense Categories', permissions: USER_LEVEL_PERMISSIONS.businessExpenseCategories.permissions },
     { title: 'User Management', permissions: CORE_PERMISSIONS.userManagement },
     { title: 'Employee Management', permissions: CORE_PERMISSIONS.employeeManagement },
     { title: 'Vehicle Management', permissions: USER_LEVEL_PERMISSIONS.vehicleManagement.permissions },

@@ -54,7 +54,7 @@ export async function PATCH(
         businesses: {
           select: { name: true }
         },
-        permissionTemplate: {
+        permission_templates: {
           select: { id: true, name: true }
         }
       }
@@ -80,6 +80,9 @@ export async function PATCH(
       }
     }
 
+    console.log('Updating permissions for user:', userId, 'business:', businessId)
+    console.log('Sanitized permissions:', sanitizedPermissions)
+
     const updatedMembership = await prisma.businessMemberships.update({
       where: {
         userId_businessId: {
@@ -90,21 +93,15 @@ export async function PATCH(
       data: {
         permissions: sanitizedPermissions as any,
         lastAccessedAt: new Date()
-      },
-      include: {
-        businesses: {
-          select: { name: true }
-        },
-        permissionTemplate: {
-          select: { id: true, name: true }
-        }
       }
     })
 
+    const businessName = existingMembership.businesses?.name || existingMembership.businessId
+    console.log('Permissions updated successfully for:', businessName)
+
     return NextResponse.json({
       success: true,
-      message: `Permissions updated for ${updatedMembership.businesses?.name || existingMembership.businessId}` + (warning ? ` — ${warning}` : ''),
-      membership: updatedMembership,
+      message: `Permissions updated for ${businessName}` + (warning ? ` — ${warning}` : ''),
       warning
     })
 

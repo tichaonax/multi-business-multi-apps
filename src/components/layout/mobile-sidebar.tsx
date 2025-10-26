@@ -166,6 +166,7 @@ export function MobileSidebar() {
               <div className="pt-2 pb-1">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">Tools</div>
               </div>
+{/* Business Categories - Cross-business functionality */}              {(isSystemAdmin(user) ||                hasUserPermission(user, 'canCreateBusinessCategories') ||                hasUserPermission(user, 'canEditBusinessCategories') ||                hasUserPermission(user, 'canDeleteBusinessCategories')) && (                <Link                  href="/business/categories"                  className="block px-4 py-3 rounded hover:bg-gray-700"                  onClick={() => setIsOpen(false)}                >                  📁 Business Categories                </Link>              )}              {/* Customer Management - Cross-business functionality */}              {(isSystemAdmin(user) || hasPermission(user, 'canAccessCustomers') || hasPermission(user, 'canManageCustomers')) && (                <Link                  href="/customers"                  className="block px-4 py-3 rounded hover:bg-gray-700"                  onClick={() => setIsOpen(false)}                >                  👥 Customer Management                </Link>              )}
 
               {/* Project Management - Cross-business functionality */}
               {(isSystemAdmin(user) || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (

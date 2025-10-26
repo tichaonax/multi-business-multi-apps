@@ -1,0 +1,14 @@
+# AI Dev Workflow Version
+# This file tracks which version of the workflow this project uses
+
+workflow_version=1.0.0
+installed_date=2025-10-24
+source_repo=https://github.com/tichaonax/ai-dev-workflow.git
+
+# To update this workflow to a newer version:
+# 1. Clone latest: git clone https://github.com/tichaonax/ai-dev-workflow.git /tmp/workflow-latest
+# 2. Run: /tmp/workflow-latest/install-ai-workflow.sh /path/to/this/project
+# 3. Review changes and commit
+
+# For documentation and examples:
+# Visit: https://github.com/tichaonax/ai-dev-workflow

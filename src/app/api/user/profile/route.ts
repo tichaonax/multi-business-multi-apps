@@ -29,7 +29,7 @@ export async function GET() {
             role: true,
             isActive: true,
             templateId: true,
-            permissionTemplate: {
+            permission_templates: {
               select: {
                 id: true,
                 name: true

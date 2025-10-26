@@ -1,6 +1,6 @@
  'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -11,6 +11,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { CreateUserModal } from '@/components/employees/create-user-modal'
 import { ManageUserAccountModal } from '@/components/employees/manage-user-account-modal'
 import { ContractRenewalModal } from '@/components/contracts/contract-renewal-modal'
+import { ContractApprovalModal } from '@/components/contracts/contract-approval-modal'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import type { Employee } from '@/types/employee'
@@ -25,10 +26,11 @@ const EMPLOYMENT_STATUS_COLORS = {
 
 const CONTRACT_STATUS_COLORS = {
   active: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
-  pendingApproval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
+  pending_approval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
   expired: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
-  terminated: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200'
+  terminated: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
+  suspended: 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200'
 }
 
 export default function EmployeeDetailPage() {
@@ -49,9 +51,14 @@ export default function EmployeeDetailPage() {
   const [showManageUserModal, setShowManageUserModal] = useState(false)
   const [showRenewalModal, setShowRenewalModal] = useState(false)
   const [selectedContractForRenewal, setSelectedContractForRenewal] = useState<any>(null)
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
+  const [selectedContractForApproval, setSelectedContractForApproval] = useState<any>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [highlightContractId, setHighlightContractId] = useState<string | null>(null)
   const [showStatusChangeModal, setShowStatusChangeModal] = useState(false)
+
+  // Track if we've already auto-opened the approval modal for a specific contract to prevent re-opening after approval
+  const autoOpenedContractIdRef = useRef<string | null>(null)
   const [selectedContractForStatusChange, setSelectedContractForStatusChange] = useState<any>(null)
   const [statusChangeData, setStatusChangeData] = useState({
     status: '',
@@ -64,6 +71,7 @@ export default function EmployeeDetailPage() {
   const canEditEmployees = currentUser && hasPermission(currentUser, 'canEditEmployees')
   const canViewEmployeeContracts = currentUser && hasPermission(currentUser, 'canViewEmployeeContracts')
   const canCreateEmployeeContracts = currentUser && hasPermission(currentUser, 'canCreateEmployeeContracts')
+  const canApproveEmployeeContracts = currentUser && hasPermission(currentUser, 'canApproveEmployeeContracts')
   const canDeleteContracts = currentUser && isSystemAdmin(currentUser)
   const canManageUserAccounts = currentUser && hasPermission(currentUser, 'canManageBusinessUsers')
   const canEditEmployeeContracts = currentUser && hasPermission(currentUser, 'canEditEmployeeContracts')
@@ -97,6 +105,29 @@ export default function EmployeeDetailPage() {
         // ignore
       }
     }, 300)
+  }, [highlightContractId, employee])
+
+  // Auto-open approval modal if navigated from employee list with unsigned contract
+  useEffect(() => {
+    if (!highlightContractId || !employee) return
+
+    // Prevent auto-opening the same contract modal multiple times
+    if (autoOpenedContractIdRef.current === highlightContractId) {
+      return
+    }
+
+    // Find the contract in employee data
+    const contracts = employee.employeeContracts || employee.contracts || []
+    const targetContract = contracts.find((c: any) => c.id === highlightContractId)
+
+    if (targetContract && !targetContract.managerSignedAt) {
+      // Contract needs approval - auto-open modal after a brief delay
+      autoOpenedContractIdRef.current = highlightContractId
+      setTimeout(() => {
+        setSelectedContractForApproval(targetContract)
+        setShowApprovalModal(true)
+      }, 600) // Small delay to allow page to settle
+    }
   }, [highlightContractId, employee])
 
   const fetchEmployee = async () => {
@@ -269,6 +300,22 @@ export default function EmployeeDetailPage() {
       })
       setTimeout(() => setMessage(null), 5000)
     }
+  }
+
+  const handleApproveContract = (contract: any) => {
+    setSelectedContractForApproval(contract)
+    setShowApprovalModal(true)
+  }
+
+  const handleApprovalSuccess = async () => {
+    setMessage({
+      type: 'success',
+      text: 'Contract approved successfully! Employee has been activated.'
+    })
+    setShowApprovalModal(false)
+    setSelectedContractForApproval(null)
+    await fetchEmployee() // Refresh to show updated contract status
+    setTimeout(() => setMessage(null), 5000)
   }
 
   const handleChangeStatus = (contract: any) => {
@@ -884,11 +931,21 @@ export default function EmployeeDetailPage() {
                         </div>
                         <div className="flex items-center space-x-3">
                           <span className={`inline-flex items-center px-3 py-1 text-sm font-medium rounded-full ${
-                            CONTRACT_STATUS_COLORS[contract.status as keyof typeof CONTRACT_STATUS_COLORS] || 
+                            CONTRACT_STATUS_COLORS[contract.status as keyof typeof CONTRACT_STATUS_COLORS] ||
                             'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
                           }`}>
                             {contract.status.replace('_', ' ').toUpperCase()}
                           </span>
+                          {contract.employeeSignedAt && contract.managerSignedAt && (
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200" title="Signed by both employee and manager">
+                              ✓✓ Fully Signed
+                            </span>
+                          )}
+                          {contract.employeeSignedAt && !contract.managerSignedAt && (
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200" title="Signed by employee, awaiting manager approval">
+                              ⏳ Awaiting Approval
+                            </span>
+                          )}
                           <button
                             onClick={() => generateContractPDF(contract)}
                             className="btn-secondary text-sm px-3 py-1"
@@ -896,6 +953,26 @@ export default function EmployeeDetailPage() {
                           >
                             {(contract as any).isRenewal ? '🔄' : '📄'} PDF
                           </button>
+                          {canApproveEmployeeContracts && contract.status !== 'terminated' && (
+                            <button
+                              onClick={() => handleApproveContract(contract)}
+                              disabled={!!contract.managerSignedAt}
+                              className={`text-sm px-3 py-1 ${
+                                contract.managerSignedAt
+                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-600 dark:text-gray-400'
+                                  : 'btn-primary bg-green-600 hover:bg-green-700'
+                              }`}
+                              title={
+                                contract.managerSignedAt
+                                  ? "Contract already approved"
+                                  : contract.employeeSignedAt
+                                  ? "Approve Contract and Activate Employee"
+                                  : "Sign and Approve Contract"
+                              }
+                            >
+                              ✓ {contract.managerSignedAt ? 'Approved' : contract.employeeSignedAt ? 'Approve' : 'Sign & Approve'}
+                            </button>
+                          )}
                           {canEditEmployeeContracts && (contract as any).status === 'active' && (contract as any).status !== 'terminated' && (
                             <button
                               onClick={() => handleChangeStatus(contract)}
@@ -1348,6 +1425,19 @@ export default function EmployeeDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Contract Approval Modal */}
+      {showApprovalModal && selectedContractForApproval && (
+        <ContractApprovalModal
+          contract={selectedContractForApproval}
+          employeeId={employeeId}
+          onClose={() => {
+            setShowApprovalModal(false)
+            setSelectedContractForApproval(null)
+          }}
+          onApproved={handleApprovalSuccess}
+        />
       )}
     </ContentLayout>
   )

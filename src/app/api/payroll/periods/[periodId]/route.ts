@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                 dateOfBirth: true,
                 hireDate: true,
                 email: true,
-                jobTitles: { select: { title: true } },
+                job_titles: { select: { title: true } },
                 primaryBusinessId: true
               }
             },

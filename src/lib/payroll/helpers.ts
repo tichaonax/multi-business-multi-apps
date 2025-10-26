@@ -24,7 +24,7 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
     try {
         persistedBenefits = await prisma.payrollEntryBenefits.findMany({
             where: { payrollEntryId: entryId },
-            include: { benefitType: true }
+            include: { benefit_types: true }
         })
     } catch (err) {
         // swallow - we'll continue with what we have
@@ -49,7 +49,7 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
     const keyFor = (obj: any) => {
         if (!obj) return ''
         if (obj.benefitTypeId) return String(obj.benefitTypeId)
-        const n = normalizeName(obj.benefitName || obj.name || obj.benefitType?.name || '')
+        const n = normalizeName(obj.benefitName || obj.name || obj.benefit_types?.name || '')
         return n || ''
     }
 
@@ -62,7 +62,7 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
     for (const pb of persistedBenefits) {
         const k = keyFor(pb)
         const amount = Number(pb.amount || 0)
-        const name = pb.benefitName || pb.benefitType?.name || ''
+        const name = pb.benefitName || pb.benefit_types?.name || ''
 
         if (k && mergedByKey.has(k)) {
             // Override existing contract benefit
@@ -98,7 +98,7 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
 export async function computeTotalsForEntry(entryId: string) {
     const entry = await prisma.payrollEntries.findUnique({
         where: { id: entryId },
-        include: { employee: true }
+        include: { employees: true }
     })
 
     if (!entry) return { grossPay: 0, netPay: 0, benefitsTotal: 0 }
@@ -111,7 +111,7 @@ export async function computeTotalsForEntry(entryId: string) {
     // with the period-level merging logic (persisted overrides win over contract values).
     let contract: any = null
     try {
-        const empId = entry.employee?.id || (entry as any).employeeId
+        const empId = (entry as any).employees?.id || (entry as any).employeeId
         if (empId) {
             contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
         }
@@ -127,7 +127,7 @@ export async function computeTotalsForEntry(entryId: string) {
             if (!amount || amount === 0) continue
             contractBenefits.push({
                 benefitTypeId: cb.benefitTypeId || null,
-                benefitName: cb.name || cb.benefitType?.name || '',
+                benefitName: cb.name || cb.benefit_types?.name || '',
                 amount,
                 source: 'contract'
             })
@@ -185,8 +185,8 @@ export async function computeTotalsForEntry(entryId: string) {
 
     // Determine hourly rate preference: entry.hourlyRate > employee.hourlyRate > contract.pdfGenerationData.basicSalary (if compensationType indicates hourly) > derived from baseSalary
     let hourlyRate = Number((entry as any).hourlyRate ?? 0)
-    if ((!hourlyRate || hourlyRate === 0) && (entry as any).employee && (entry as any).employee.hourlyRate) {
-        hourlyRate = Number((entry as any).employee.hourlyRate || 0)
+    if ((!hourlyRate || hourlyRate === 0) && (entry as any).employees && (entry as any).employees.hourlyRate) {
+        hourlyRate = Number((entry as any).employees.hourlyRate || 0)
     }
     if ((!hourlyRate || hourlyRate === 0) && contract) {
         try {

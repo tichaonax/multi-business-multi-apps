@@ -316,26 +316,15 @@ export function Sidebar() {
 
         {/* Business and Personal Finances - User-level permissions (business-agnostic) */}
   {(hasUserPermission(currentUser, 'canAccessPersonalFinance') || isSystemAdmin(currentUser)) && (
-          <>
-            <div className="pt-2">
-              <button
-                onClick={() => navigateTo('/personal')}
-                className={getLinkClasses('/personal')}
-              >
-                <span className="text-lg">💰</span>
-                <span>Business and Personal Finances</span>
-              </button>
-            </div>
-            <div className="pl-6 pt-1">
-              <button
-                onClick={() => navigateTo('/personal/categories')}
-                className={getLinkClasses('/personal/categories')}
-              >
-                <span className="text-lg">📁</span>
-                <span>Expense Categories</span>
-              </button>
-            </div>
-          </>
+          <div className="pt-2">
+            <button
+              onClick={() => navigateTo('/personal')}
+              className={getLinkClasses('/personal')}
+            >
+              <span className="text-lg">💰</span>
+              <span>Business and Personal Finances</span>
+            </button>
+          </div>
         )}
 
         {/* Fleet Management - User-level permissions (business-agnostic) */}
@@ -423,6 +412,20 @@ export function Sidebar() {
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tools</h3>
         </div>
 
+        {/* Business Categories - Cross-business functionality */}
+        {(isSystemAdmin(currentUser) ||
+          hasUserPermission(currentUser, 'canCreateBusinessCategories') ||
+          hasUserPermission(currentUser, 'canEditBusinessCategories') ||
+          hasUserPermission(currentUser, 'canDeleteBusinessCategories')) && (
+          <Link
+            href="/business/categories"
+            className={getLinkClasses('/business/categories')}
+          >
+            <span className="text-lg">📁</span>
+            <span>Business Categories</span>
+          </Link>
+        )}
+
         {/* Customer Management - Cross-business functionality */}
         {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canAccessCustomers') || hasPermission(currentUser, 'canManageCustomers')) && (
           <Link
@@ -433,7 +436,6 @@ export function Sidebar() {
             <span>Customer Management</span>
           </Link>
         )}
-
         {/* Project Management - Cross-business functionality */}
   {(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canViewProjects') || hasUserPermission(currentUser, 'canAccessPersonalFinance')) && (
           <Link

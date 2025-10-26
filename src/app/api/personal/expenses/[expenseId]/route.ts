@@ -40,10 +40,10 @@ export async function GET(
       include: {
         project_transactions: {
           include: {
-            project: true,
-            projectContractor: {
+            projects: true,
+            project_contractors: {
               include: {
-                person: true
+                persons: true
               }
             }
           }
@@ -95,7 +95,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Insufficient permissions to edit expenses' }, { status: 403 })
     }
 
-    const { description, category, amount, date, tags, paymentType, projectId, contractorId } = await request.json()
+    const { description, categoryId, subcategoryId, category, amount, date, tags, paymentType, projectId, contractorId } = await request.json()
 
     if (!description || !amount || amount <= 0) {
       return NextResponse.json({ error: 'Description and valid amount are required' }, { status: 400 })
@@ -163,9 +163,11 @@ export async function PUT(
       where: { id: expenseId },
       data: {
         description,
+        categoryId: categoryId || null,
+        subcategoryId: subcategoryId || null,
         category: paymentType === 'contractor' ? 'Contractor Payment'
           : paymentType === 'loan' ? 'Loan'
-          : (category || 'Other'),
+          : (category || subcategoryId || categoryId || 'Other'),
         amount: Number(amount),
         date: new Date(date),
         tags: paymentType || tags || ''
@@ -192,7 +194,7 @@ export async function PUT(
           const projectContractor = await prisma.projectContractors.findUnique({
             where: { id: contractorId },
             select: {
-              person: {
+              persons: {
                 select: {
                   isActive: true,
                   fullName: true
@@ -259,15 +261,15 @@ export async function PUT(
       include: {
         project_transactions: {
           include: {
-            project: {
+            projects: {
               select: {
                 id: true,
                 name: true
               }
             },
-            projectContractor: {
+            project_contractors: {
               include: {
-                person: {
+                persons: {
                   select: {
                     id: true,
                     fullName: true,

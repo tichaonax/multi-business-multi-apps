@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { DateInput } from '@/components/ui/date-input'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
+import { CategorySelector } from '@/components/personal/category-selector'
 import type { Expense } from '@/types/expense'
 
 interface ExpenseDetailModalProps {
@@ -24,10 +25,10 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
   const [loading, setLoading] = useState(false)
   const [projects, setProjects] = useState<any[]>([])
   const [contractors, setContractors] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
   const [editForm, setEditForm] = useState({
     description: '',
-    category: '',
+    categoryId: '',
+    subcategoryId: '',
     amount: '',
     date: '',
     tags: '',
@@ -47,7 +48,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
     if (!currentUser || !expense) return false
 
     // Check basic permission
-    if (!hasPermission(currentUser, 'canEditPersonalExpenses')) return false
+    if (!hasUserPermission(currentUser, 'canEditPersonalExpenses')) return false
 
     // Admins can always edit
     if (isSystemAdmin(currentUser)) return true
@@ -174,7 +175,8 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
 
       setEditForm({
         description: expense.description || '',
-        category: expense.category || '',
+        categoryId: (expense as any).categoryId || '',
+        subcategoryId: (expense as any).subcategoryId || '',
         amount: expense.amount?.toString() || '',
         date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : '',
         tags: shouldDisplayTags(expense.tags || null) ? expense.tags || '' : '',
@@ -197,17 +199,6 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
     }
   }
 
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch('/api/personal/categories')
-      if (response.ok) {
-        const data = await response.json()
-        setCategories(data)
-      }
-    } catch (error) {
-      console.error('Error fetching categories:', error)
-    }
-  }
 
   const fetchContractors = async (projectId: string) => {
     if (!projectId) {
@@ -238,7 +229,8 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: editForm.description,
-          category: editForm.category,
+          categoryId: editForm.categoryId || null,
+          subcategoryId: editForm.subcategoryId || null,
           amount: parseFloat(editForm.amount),
           date: editForm.date,
           tags: editForm.tags,
@@ -330,7 +322,6 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                   onClick={() => {
                     setIsEditing(true)
                     fetchProjects()
-                    fetchCategories()
                     if (editForm.projectId) {
                       fetchContractors(editForm.projectId)
                     }
@@ -365,25 +356,19 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  Category
-                </label>
-                <select
-                  value={editForm.category}
-                  onChange={(e) => setEditForm({...editForm, category: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select a category</option>
-                  {categories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.emoji ? `${category.emoji} ` : ''}
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Category & Subcategory Selector */}
+              <CategorySelector
+                onCategoryChange={(categoryId, subcategoryId) => {
+                  setEditForm({
+                    ...editForm,
+                    categoryId: categoryId || '',
+                    subcategoryId: subcategoryId || ''
+                  })
+                }}
+                initialCategoryId={editForm.categoryId}
+                initialSubcategoryId={editForm.subcategoryId}
+                required={true}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-secondary mb-2">
@@ -734,7 +719,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
               {!isEditAllowed && (
                 <div className="space-y-3">
                   {/* Time Restriction Message for non-admin users */}
-                  {session?.user && hasPermission(session.user, 'canEditPersonalExpenses') && !isSystemAdmin(session.user) && (
+                  {session?.user && hasUserPermission(session.user, 'canEditPersonalExpenses') && !isSystemAdmin(session.user) && (
                     <div className="p-3 bg-amber-50 dark:bg-amber-900 dark:bg-opacity-20 border border-amber-200 dark:border-amber-700 rounded-md">
                       <div className="flex items-start">
                         <div className="flex-shrink-0">
@@ -753,7 +738,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                   )}
 
                   {/* General Permission Message */}
-                  {session?.user && !hasPermission(session.user, 'canEditPersonalExpenses') && (
+                  {session?.user && !hasUserPermission(session.user, 'canEditPersonalExpenses') && (
                     <div className="p-3 bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-20 border border-yellow-200 dark:border-yellow-700 rounded-md">
                       <div className="flex items-start">
                         <div className="flex-shrink-0">

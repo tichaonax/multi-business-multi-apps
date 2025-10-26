@@ -103,6 +103,7 @@ export interface CoreBusinessPermissions {
   canViewEmployeeContracts: boolean;
   canCreateEmployeeContracts: boolean;
   canEditEmployeeContracts: boolean;
+  canApproveEmployeeContracts: boolean;
   canDeleteEmployeeContracts: boolean;
   canManageJobTitles: boolean;
   canManageBenefitTypes: boolean;
@@ -547,6 +548,18 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canExportPersonalData', label: 'Export Data' },
     ]
   },
+  businessExpenseCategories: {
+    title: 'Business Expense Categories',
+    description: 'Manage business-wide expense categories and subcategories',
+    permissions: [
+      { key: 'canCreateBusinessCategories', label: 'Create Categories' },
+      { key: 'canEditBusinessCategories', label: 'Edit Categories' },
+      { key: 'canDeleteBusinessCategories', label: 'Delete Categories' },
+      { key: 'canCreateBusinessSubcategories', label: 'Create Subcategories' },
+      { key: 'canEditBusinessSubcategories', label: 'Edit Subcategories' },
+      { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
+    ]
+  },
   projectManagement: {
     title: 'Project Management',
     description: 'Manage projects across all business types and personal projects',
@@ -631,6 +644,7 @@ export const CORE_PERMISSIONS = {
     { key: 'canViewEmployeeContracts', label: 'View Contracts' },
     { key: 'canCreateEmployeeContracts', label: 'Create Contracts' },
     { key: 'canEditEmployeeContracts', label: 'Edit Contracts' },
+    { key: 'canApproveEmployeeContracts', label: 'Approve Contracts' },
     { key: 'canDeleteEmployeeContracts', label: 'Delete Contracts' },
     { key: 'canManageJobTitles', label: 'Manage Job Titles' },
     { key: 'canManageBenefitTypes', label: 'Manage Benefit Types' },
@@ -640,6 +654,28 @@ export const CORE_PERMISSIONS = {
     { key: 'canExportEmployeeData', label: 'Export Employee Data' },
     { key: 'canApproveSalaryIncreases', label: 'Approve Salary Increases' },
     { key: 'canProcessSalaryIncreases', label: 'Process Salary Increases' },
+  ],
+  customerManagement: [
+    { key: 'canAccessCustomers', label: 'Access Customers' },
+    { key: 'canViewCustomers', label: 'View Customers' },
+    { key: 'canManageCustomers', label: 'Manage Customers' },
+    { key: 'canCreateCustomers', label: 'Create Customers' },
+    { key: 'canEditCustomers', label: 'Edit Customers' },
+    { key: 'canDeleteCustomers', label: 'Delete Customers' },
+    { key: 'canManageDivisionAccounts', label: 'Manage Division Accounts' },
+    { key: 'canManageLaybys', label: 'Manage Laybys' },
+    { key: 'canManageCredit', label: 'Manage Credit' },
+    { key: 'canViewCustomerReports', label: 'View Customer Reports' },
+    { key: 'canExportCustomerData', label: 'Export Customer Data' },
+    { key: 'canLinkCustomerAccounts', label: 'Link Customer Accounts' },
+  ],
+  businessExpenseCategories: [
+    { key: 'canCreateBusinessCategories', label: 'Create Categories' },
+    { key: 'canEditBusinessCategories', label: 'Edit Categories' },
+    { key: 'canDeleteBusinessCategories', label: 'Delete Categories' },
+    { key: 'canCreateBusinessSubcategories', label: 'Create Subcategories' },
+    { key: 'canEditBusinessSubcategories', label: 'Edit Subcategories' },
+    { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
   ]
   ,
   payrollManagement: [
@@ -695,6 +731,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canViewEmployeeContracts: true,
   canCreateEmployeeContracts: true,
   canEditEmployeeContracts: true,
+  canApproveEmployeeContracts: true,
   canDeleteEmployeeContracts: true,
   canManageJobTitles: true,
   canManageBenefitTypes: true,
@@ -773,6 +810,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canViewEmployeeContracts: true,
   canCreateEmployeeContracts: true,
   canEditEmployeeContracts: true,
+  canApproveEmployeeContracts: true,
   canDeleteEmployeeContracts: false,
   canManageJobTitles: true,
   canManageBenefitTypes: true,
@@ -853,6 +891,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canViewEmployeeContracts: true,
   canCreateEmployeeContracts: false,
   canEditEmployeeContracts: false,
+  canApproveEmployeeContracts: false,
   canDeleteEmployeeContracts: false,
   canManageJobTitles: false,
   canManageBenefitTypes: false,
@@ -933,6 +972,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewEmployeeContracts: true,
   canCreateEmployeeContracts: false,
   canEditEmployeeContracts: false,
+  canApproveEmployeeContracts: false,
   canDeleteEmployeeContracts: false,
   canManageJobTitles: false,
   canManageBenefitTypes: false,
@@ -1012,6 +1052,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canViewEmployeeContracts: true,
   canCreateEmployeeContracts: true,
   canEditEmployeeContracts: true,
+  canApproveEmployeeContracts: true,
   canDeleteEmployeeContracts: true,
   canManageJobTitles: true,
   canManageBenefitTypes: true,

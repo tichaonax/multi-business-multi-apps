@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
               id: true,
               orderNumber: true,
               status: true,
-              total: true,
+              totalAmount: true,
               createdAt: true
             },
             take: 5, // Limit to recent orders
@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
             id: true,
             orderNumber: true,
             status: true,
-            total: true,
+            totalAmount: true,
             createdAt: true
           },
           take: 5,
