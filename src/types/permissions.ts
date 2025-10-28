@@ -1212,6 +1212,14 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canExportPayrollAcrossBusinesses: true,
   canResetPayrollAcrossBusinesses: true,
   canDeletePayrollAcrossBusinesses: true,
+
+  // Inventory Categories - Full access
+  canCreateInventoryCategories: true,
+  canEditInventoryCategories: true,
+  canDeleteInventoryCategories: true,
+  canCreateInventorySubcategories: true,
+  canEditInventorySubcategories: true,
+  canDeleteInventorySubcategories: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
