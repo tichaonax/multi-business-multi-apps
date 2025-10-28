@@ -104,6 +104,7 @@ add_missing_sync_tables.sql
 
 # Local backups and export artifacts
 backups/
+ai-contexts.backup.*/
 
 # Local utility scripts and backfills (not part of app runtime)
 # scripts/ was removed from ignore so runtime/seed scripts remain tracked
