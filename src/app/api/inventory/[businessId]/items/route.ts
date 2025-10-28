@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import { randomBytes } from 'crypto'
 import { randomUUID } from 'crypto'
 
@@ -218,18 +219,29 @@ export async function POST(
     // Use sellPrice if basePrice not provided (UI compatibility)
     const basePrice = body.basePrice ?? body.sellPrice
 
+    const user = session.user as SessionUser
+
     // Verify business exists and user has access
-    const business = await prisma.businesses.findFirst({
-      where: {
-        id: businessId,
-        business_memberships: {
-          some: {
-            userId: session.user.id,
-            isActive: true
+    let business: any = null
+    if (isSystemAdmin(user)) {
+      // For admin, just verify the business exists
+      business = await prisma.businesses.findUnique({
+        where: { id: businessId }
+      })
+    } else {
+      // For regular users, check business membership
+      business = await prisma.businesses.findFirst({
+        where: {
+          id: businessId,
+          business_memberships: {
+            some: {
+              userId: session.user.id,
+              isActive: true
+            }
           }
         }
-      }
-    })
+      })
+    }
 
     if (!business) {
       return NextResponse.json(
