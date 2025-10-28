@@ -426,6 +426,20 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* Inventory Categories - Business-specific inventory category management */}
+        {(isSystemAdmin(currentUser) ||
+          hasUserPermission(currentUser, 'canCreateInventoryCategories') ||
+          hasUserPermission(currentUser, 'canEditInventoryCategories') ||
+          hasUserPermission(currentUser, 'canDeleteInventoryCategories')) && (
+          <Link
+            href="/business/inventory-categories"
+            className={getLinkClasses('/business/inventory-categories')}
+          >
+            <span className="text-lg">📦</span>
+            <span>Inventory Categories</span>
+          </Link>
+        )}
+
         {/* Customer Management - Cross-business functionality */}
         {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canAccessCustomers') || hasPermission(currentUser, 'canManageCustomers')) && (
           <Link
@@ -436,6 +450,18 @@ export function Sidebar() {
             <span>Customer Management</span>
           </Link>
         )}
+
+        {/* Layby Management - Cross-business functionality */}
+        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')) && (
+          <Link
+            href="/business/laybys"
+            className={getLinkClasses('/business/laybys')}
+          >
+            <span className="text-lg">🛍️</span>
+            <span>Layby Management</span>
+          </Link>
+        )}
+
         {/* Project Management - Cross-business functionality */}
   {(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canViewProjects') || hasUserPermission(currentUser, 'canAccessPersonalFinance')) && (
           <Link
