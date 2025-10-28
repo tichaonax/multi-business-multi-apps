@@ -560,6 +560,18 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
     ]
   },
+  inventoryCategories: {
+    title: 'Inventory Categories',
+    description: 'Manage business inventory categories and subcategories with emoji support',
+    permissions: [
+      { key: 'canCreateInventoryCategories', label: 'Create Inventory Categories' },
+      { key: 'canEditInventoryCategories', label: 'Edit Inventory Categories' },
+      { key: 'canDeleteInventoryCategories', label: 'Delete Inventory Categories' },
+      { key: 'canCreateInventorySubcategories', label: 'Create Inventory Subcategories' },
+      { key: 'canEditInventorySubcategories', label: 'Edit Inventory Subcategories' },
+      { key: 'canDeleteInventorySubcategories', label: 'Delete Inventory Subcategories' },
+    ]
+  },
   projectManagement: {
     title: 'Project Management',
     description: 'Manage projects across all business types and personal projects',
@@ -676,8 +688,15 @@ export const CORE_PERMISSIONS = {
     { key: 'canCreateBusinessSubcategories', label: 'Create Subcategories' },
     { key: 'canEditBusinessSubcategories', label: 'Edit Subcategories' },
     { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
-  ]
-  ,
+  ],
+  inventoryCategories: [
+    { key: 'canCreateInventoryCategories', label: 'Create Inventory Categories' },
+    { key: 'canEditInventoryCategories', label: 'Edit Inventory Categories' },
+    { key: 'canDeleteInventoryCategories', label: 'Delete Inventory Categories' },
+    { key: 'canCreateInventorySubcategories', label: 'Create Inventory Subcategories' },
+    { key: 'canEditInventorySubcategories', label: 'Edit Inventory Subcategories' },
+    { key: 'canDeleteInventorySubcategories', label: 'Delete Inventory Subcategories' },
+  ],
   payrollManagement: [
     { key: 'canAccessPayroll', label: 'Access Payroll' },
     { key: 'canManagePayroll', label: 'Manage Payroll' },
