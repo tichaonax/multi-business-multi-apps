@@ -106,11 +106,13 @@ export default function ClothingInventoryPage() {
         setSelectedItem(null)
         window.location.reload()
       } else {
-        const error = await response.json()
-        await alert(error.message || 'Failed to save item')
+        const errorData = await response.json()
+        const errorMessage = errorData.message || errorData.error || 'Failed to save item'
+        await alert(errorMessage)
       }
-    } catch (error) {
-      await alert('Error saving item')
+    } catch (error: any) {
+      const errorMessage = error.message || 'Error saving item'
+      await alert(errorMessage)
       console.error('Save error:', error)
     }
   }

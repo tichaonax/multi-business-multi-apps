@@ -396,10 +396,29 @@ export async function POST(
       }
     }, { status: 201 })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating inventory item:', error)
+
+    // Handle Prisma unique constraint violation
+    if (error.code === 'P2002') {
+      const fields = error.meta?.target || []
+      if (fields.includes('sku')) {
+        return NextResponse.json(
+          {
+            error: 'SKU already exists',
+            message: `A product with SKU "${body.sku}" already exists in this business. Please use a different SKU.`
+          },
+          { status: 409 }
+        )
+      }
+      return NextResponse.json(
+        { error: 'Duplicate entry', message: 'This item already exists' },
+        { status: 409 }
+      )
+    }
+
     return NextResponse.json(
-      { error: 'Failed to create inventory item' },
+      { error: 'Failed to create inventory item', message: error.message || 'An unexpected error occurred' },
       { status: 500 }
     )
   }
