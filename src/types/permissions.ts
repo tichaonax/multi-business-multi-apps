@@ -46,6 +46,14 @@ export interface UserLevelPermissions {
   canExportPayrollAcrossBusinesses: boolean;  // Business-agnostic export permission
   canResetPayrollAcrossBusinesses: boolean;  // Business-agnostic reset permission
   canDeletePayrollAcrossBusinesses: boolean;  // Business-agnostic delete permission
+
+  // Inventory Categories (User-level - cross-business capability)
+  canCreateInventoryCategories: boolean;
+  canEditInventoryCategories: boolean;
+  canDeleteInventoryCategories: boolean;
+  canCreateInventorySubcategories: boolean;
+  canEditInventorySubcategories: boolean;
+  canDeleteInventorySubcategories: boolean;
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -1165,6 +1173,14 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canExportPayrollAcrossBusinesses: false,
   canResetPayrollAcrossBusinesses: false,
   canDeletePayrollAcrossBusinesses: false,
+
+  // Inventory Categories - No access by default
+  canCreateInventoryCategories: false,
+  canEditInventoryCategories: false,
+  canDeleteInventoryCategories: false,
+  canCreateInventorySubcategories: false,
+  canEditInventorySubcategories: false,
+  canDeleteInventorySubcategories: false,
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
