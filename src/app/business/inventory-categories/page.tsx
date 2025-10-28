@@ -218,17 +218,6 @@ export default function InventoryCategoriesPage() {
           </div>
         </div>
 
-        {/* Debug: Show Permissions */}
-        <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-          <p className="text-sm font-semibold mb-2">Debug - Current Permissions:</p>
-          <div className="text-xs space-y-1">
-            <p>Create Categories: {canCreateCategories ? '✅ Yes' : '❌ No'}</p>
-            <p>Edit Categories: {canEditCategories ? '✅ Yes' : '❌ No'}</p>
-            <p>Delete Categories: {canDeleteCategories ? '✅ Yes' : '❌ No'}</p>
-            <p>User Role: {session?.user?.role || 'unknown'}</p>
-          </div>
-        </div>
-
         {/* Actions Bar */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           {/* Search */}
