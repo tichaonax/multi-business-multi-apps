@@ -106,6 +106,7 @@ export async function GET(
       where,
       include: {
         business_categories: true,
+        inventory_subcategory: true,
         business_brands: true,
         product_variants: {
           include: {
@@ -140,6 +141,9 @@ export async function GET(
         sku: product.sku || '',
         description: product.description || '',
         category: product.business_categories?.name || 'Uncategorized',
+        categoryEmoji: product.business_categories?.emoji || '📦',
+        subcategory: product.inventory_subcategory?.name || null,
+        subcategoryEmoji: product.inventory_subcategory?.emoji || null,
         currentStock,
         unit: 'units',
   costPrice: parseFloat(product.costPrice?.toString() || '0'),

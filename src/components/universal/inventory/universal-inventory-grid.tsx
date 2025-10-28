@@ -10,6 +10,9 @@ interface UniversalInventoryItem {
   sku: string
   description?: string
   category: string
+  categoryEmoji?: string
+  subcategory?: string | null
+  subcategoryEmoji?: string | null
   currentStock: number
   unit: string
   costPrice: number
@@ -365,7 +368,18 @@ export function UniversalInventoryGrid({
                     <td className="p-3">
                       <div>
                         <div className="font-medium text-primary">{item.name}</div>
-                        <div className="text-xs text-secondary">{item.category} • {item.sku}</div>
+                        <div className="text-xs text-secondary">
+                          {item.categoryEmoji && <span className="mr-1">{item.categoryEmoji}</span>}
+                          {item.category}
+                          {item.subcategory && (
+                            <>
+                              {' → '}
+                              {item.subcategoryEmoji && <span className="mr-1">{item.subcategoryEmoji}</span>}
+                              {item.subcategory}
+                            </>
+                          )}
+                          {' • '}{item.sku}
+                        </div>
                         {item.description && (
                           <div className="text-xs text-gray-500 mt-1">{item.description}</div>
                         )}
@@ -450,7 +464,16 @@ export function UniversalInventoryGrid({
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-primary truncate">{item.name}</h3>
                       <div className="text-xs text-secondary mt-1">
-                        {item.category} • SKU: {item.sku}
+                        {item.categoryEmoji && <span className="mr-1">{item.categoryEmoji}</span>}
+                        {item.category}
+                        {item.subcategory && (
+                          <>
+                            {' → '}
+                            {item.subcategoryEmoji && <span className="mr-1">{item.subcategoryEmoji}</span>}
+                            {item.subcategory}
+                          </>
+                        )}
+                        {' • SKU: '}{item.sku}
                       </div>
                       {item.description && (
                         <div className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</div>

@@ -19,6 +19,7 @@ export default function ClothingInventoryPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [showViewModal, setShowViewModal] = useState(false)
   const alert = useAlert()
   const confirm = useConfirm()
 
@@ -37,7 +38,7 @@ export default function ClothingInventoryPage() {
 
   const handleItemView = (item: any) => {
     setSelectedItem(item)
-    console.log('Viewing clothing item:', item)
+    setShowViewModal(true)
   }
 
   const handleItemDelete = async (item: any) => {
@@ -346,6 +347,164 @@ export default function ClothingInventoryPage() {
             isOpen={showAddForm}
             mode={selectedItem ? 'edit' : 'create'}
           />
+
+          {/* View Item Details Modal */}
+          {showViewModal && selectedItem && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  {/* Header */}
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{selectedItem.name}</h2>
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        {selectedItem.categoryEmoji && <span className="mr-1">{selectedItem.categoryEmoji}</span>}
+                        {selectedItem.category}
+                        {selectedItem.subcategory && (
+                          <>
+                            {' → '}
+                            {selectedItem.subcategoryEmoji && <span className="mr-1">{selectedItem.subcategoryEmoji}</span>}
+                            {selectedItem.subcategory}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false)
+                        setSelectedItem(null)
+                      }}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Content */}
+                  <div className="space-y-6">
+                    {/* Basic Info */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Basic Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">SKU</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.sku}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Status</div>
+                          <div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              selectedItem.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {selectedItem.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Current Stock</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.currentStock} {selectedItem.unit}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Location</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.location || 'Not specified'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pricing */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Pricing</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Cost Price</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">${selectedItem.costPrice.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Sell Price</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">${selectedItem.sellPrice.toFixed(2)}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Clothing-Specific Attributes */}
+                    {selectedItem.attributes && Object.keys(selectedItem.attributes).length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Clothing Details</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          {selectedItem.attributes.sizes && selectedItem.attributes.sizes.length > 0 && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Sizes</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.sizes.join(', ')}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.colors && selectedItem.attributes.colors.length > 0 && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Colors</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.colors.join(', ')}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.material && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Material</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.material}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.brand && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Brand</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.brand}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.season && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Season</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.season}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.gender && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Gender</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.gender}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    {selectedItem.description && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Description</h3>
+                        <div className="text-gray-900 dark:text-gray-100">{selectedItem.description}</div>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false)
+                          handleItemEdit(selectedItem)
+                        }}
+                        className="flex-1 btn-primary"
+                      >
+                        ✏️ Edit Item
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false)
+                          setSelectedItem(null)
+                        }}
+                        className="flex-1 btn-secondary"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>
