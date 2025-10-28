@@ -102,16 +102,26 @@ export default function ClothingInventoryPage() {
       })
 
       if (response.ok) {
+        // Close form immediately
         setShowAddForm(false)
         setSelectedItem(null)
+        // Reload page to show updated inventory
         window.location.reload()
       } else {
+        // Extract error message from API response
         const errorData = await response.json()
-        const errorMessage = errorData.message || errorData.error || 'Failed to save item'
+        const errorMessage = errorData.message || errorData.error || 'Unable to save item. Please try again.'
         await alert(errorMessage)
       }
     } catch (error: any) {
-      const errorMessage = error.message || 'Error saving item'
+      // Handle network errors or other exceptions
+      let errorMessage = 'Unable to save item. Please check your connection and try again.'
+
+      // Try to get a more specific error message if available
+      if (error.message && !error.message.includes('fetch')) {
+        errorMessage = error.message
+      }
+
       await alert(errorMessage)
       console.error('Save error:', error)
     }

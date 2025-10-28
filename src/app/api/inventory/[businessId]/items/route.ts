@@ -191,6 +191,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ businessId: string }> }
 ) {
+  let requestBody: any = null
+
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
@@ -198,7 +200,8 @@ export async function POST(
     }
 
     const { businessId } = await params
-    const body = await request.json()
+    requestBody = await request.json()
+    const body = requestBody
 
     // Validate required fields
     // Accept either basePrice or sellPrice (UI compatibility)
@@ -402,23 +405,32 @@ export async function POST(
     // Handle Prisma unique constraint violation
     if (error.code === 'P2002') {
       const fields = error.meta?.target || []
+      const skuValue = requestBody?.sku || 'unknown'
+
       if (fields.includes('sku')) {
         return NextResponse.json(
           {
-            error: 'SKU already exists',
-            message: `A product with SKU "${body.sku}" already exists in this business. Please use a different SKU.`
+            error: 'Duplicate SKU',
+            message: `A product with SKU "${skuValue}" already exists in this business. Please use a different SKU.`
           },
           { status: 409 }
         )
       }
       return NextResponse.json(
-        { error: 'Duplicate entry', message: 'This item already exists' },
+        {
+          error: 'Duplicate entry',
+          message: 'This item already exists in the system. Please check your input and try again.'
+        },
         { status: 409 }
       )
     }
 
+    // Return user-friendly error message
     return NextResponse.json(
-      { error: 'Failed to create inventory item', message: error.message || 'An unexpected error occurred' },
+      {
+        error: 'Failed to create item',
+        message: 'Unable to create the inventory item. Please check your input and try again.'
+      },
       { status: 500 }
     )
   }
