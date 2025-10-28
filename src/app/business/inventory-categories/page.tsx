@@ -3,10 +3,20 @@
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import { hasUserPermission } from '@/lib/permission-utils';
 import { InventoryCategory, InventorySubcategory } from '@/types/inventory-category';
 import { InventoryCategoryEditor } from '@/components/inventory/inventory-category-editor';
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor';
+
+// For testing, use demo business IDs
+// In production, this would come from user's current business selection
+const DEMO_BUSINESS_MAP: Record<string, string> = {
+  clothing: 'clothing-demo-business',
+  hardware: 'hardware-demo-business',
+  grocery: 'grocery-demo-business',
+  restaurant: 'restaurant-demo-business',
+};
 
 export default function InventoryCategoriesPage() {
   const { data: session } = useSession();
@@ -15,6 +25,7 @@ export default function InventoryCategoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string>('clothing');
 
   // Editor state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
@@ -23,9 +34,9 @@ export default function InventoryCategoriesPage() {
   const [editingSubcategory, setEditingSubcategory] = useState<InventorySubcategory | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<InventoryCategory | null>(null);
 
-  // Get current business from session
-  const currentBusinessId = (session?.user as any)?.currentBusinessId;
-  const currentBusinessType = (session?.user as any)?.currentBusinessType || 'restaurant';
+  // Get current business ID from selected type
+  const currentBusinessId = DEMO_BUSINESS_MAP[selectedBusinessType];
+  const currentBusinessType = selectedBusinessType;
 
   // Permissions
   const canCreateCategories = hasUserPermission(session?.user, 'canCreateInventoryCategories');
@@ -38,10 +49,15 @@ export default function InventoryCategoriesPage() {
   // Fetch categories
   useEffect(() => {
     async function fetchCategories() {
-      if (!currentBusinessId) return;
+      if (!currentBusinessId) {
+        setError('No business selected');
+        setLoading(false);
+        return;
+      }
 
       try {
         setLoading(true);
+        setError(null);
         const response = await fetch(`/api/inventory/categories?businessId=${currentBusinessId}&includeSubcategories=true`);
         if (!response.ok) throw new Error('Failed to fetch categories');
 
@@ -55,7 +71,7 @@ export default function InventoryCategoriesPage() {
     }
 
     fetchCategories();
-  }, [currentBusinessId]);
+  }, [currentBusinessId, selectedBusinessType]);
 
   const toggleCategory = (categoryId: string) => {
     const newExpanded = new Set(expandedCategories);
@@ -173,6 +189,33 @@ export default function InventoryCategoriesPage() {
           <p className="text-gray-600 dark:text-gray-400">
             Manage your inventory categories and subcategories with emoji support
           </p>
+        </div>
+
+        {/* Business Type Selector */}
+        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Select Business Type:
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { type: 'clothing', emoji: '👕', label: 'Clothing' },
+              { type: 'hardware', emoji: '🔧', label: 'Hardware' },
+              { type: 'grocery', emoji: '🛒', label: 'Grocery' },
+              { type: 'restaurant', emoji: '🍽️', label: 'Restaurant' },
+            ].map(({ type, emoji, label }) => (
+              <button
+                key={type}
+                onClick={() => setSelectedBusinessType(type)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedBusinessType === type
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {emoji} {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Actions Bar */}
