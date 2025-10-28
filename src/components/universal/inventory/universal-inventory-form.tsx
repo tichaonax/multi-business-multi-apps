@@ -321,8 +321,12 @@ export function UniversalInventoryForm({
               </label>
               <input
                 type="text"
-                value={formData.attributes?.allergens?.join(', ') || ''}
-                onChange={(e) => handleAttributeChange('allergens', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                defaultValue={formData.attributes?.allergens?.join(', ') || ''}
+                onBlur={(e) => {
+                  // Convert to array on blur
+                  const value = e.target.value
+                  handleAttributeChange('allergens', value.split(',').map(s => s.trim()).filter(Boolean))
+                }}
                 className="input-field"
                 placeholder="Comma-separated list (e.g., Dairy, Gluten, Nuts)"
               />
@@ -333,8 +337,12 @@ export function UniversalInventoryForm({
                 Ingredients
               </label>
               <textarea
-                value={formData.attributes?.ingredients?.join(', ') || ''}
-                onChange={(e) => handleAttributeChange('ingredients', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                defaultValue={formData.attributes?.ingredients?.join(', ') || ''}
+                onBlur={(e) => {
+                  // Convert to array on blur
+                  const value = e.target.value
+                  handleAttributeChange('ingredients', value.split(',').map(s => s.trim()).filter(Boolean))
+                }}
                 className="input-field resize-none"
                 rows={3}
                 placeholder="Comma-separated list of ingredients"
@@ -476,8 +484,12 @@ export function UniversalInventoryForm({
               </label>
               <input
                 type="text"
-                value={formData.attributes?.sizes?.join(', ') || ''}
-                onChange={(e) => handleAttributeChange('sizes', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                defaultValue={formData.attributes?.sizes?.join(', ') || ''}
+                onBlur={(e) => {
+                  // Convert to array on blur
+                  const value = e.target.value
+                  handleAttributeChange('sizes', value.split(',').map(s => s.trim()).filter(Boolean))
+                }}
                 className="input-field"
                 placeholder="Comma-separated (e.g., XS, S, M, L, XL)"
               />
@@ -489,8 +501,12 @@ export function UniversalInventoryForm({
               </label>
               <input
                 type="text"
-                value={formData.attributes?.colors?.join(', ') || ''}
-                onChange={(e) => handleAttributeChange('colors', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                defaultValue={formData.attributes?.colors?.join(', ') || ''}
+                onBlur={(e) => {
+                  // Convert to array on blur
+                  const value = e.target.value
+                  handleAttributeChange('colors', value.split(',').map(s => s.trim()).filter(Boolean))
+                }}
                 className="input-field"
                 placeholder="Comma-separated (e.g., Red, Blue, Black)"
               />
