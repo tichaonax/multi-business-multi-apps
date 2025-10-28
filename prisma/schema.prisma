@@ -95,21 +95,29 @@ model BusinessBrands {
 }
 
 model BusinessCategories {
-  id                        String               @id
+  id                        String                     @id
   businessId                String
   name                      String
   description               String?
   parentId                  String?
-  displayOrder              Int                  @default(0)
-  isActive                  Boolean              @default(true)
+  displayOrder              Int                        @default(0)
+  isActive                  Boolean                    @default(true)
   businessType              String
   attributes                Json?
-  createdAt                 DateTime             @default(now())
+  emoji                     String                     @default("📦")
+  color                     String                     @default("#3B82F6")
+  domainId                  String?
+  isUserCreated             Boolean                    @default(false)
+  createdBy                 String?
+  createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime
-  businesses                Businesses           @relation(fields: [businessId], references: [id])
-  business_categories       BusinessCategories?  @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
-  other_business_categories BusinessCategories[] @relation("business_categoriesTobusiness_categories")
+  businesses                Businesses                 @relation(fields: [businessId], references: [id])
+  business_categories       BusinessCategories?        @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
+  other_business_categories BusinessCategories[]       @relation("business_categoriesTobusiness_categories")
   business_products         BusinessProducts[]
+  domain                    InventoryDomains?          @relation(fields: [domainId], references: [id])
+  users                     Users?                     @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
+  inventory_subcategories   InventorySubcategories[]
 
   @@unique([businessId, name])
   @@map("business_categories")
@@ -137,6 +145,7 @@ model BusinessCustomers {
   updatedAt       DateTime
   businesses      Businesses       @relation(fields: [businessId], references: [id])
   business_orders BusinessOrders[]
+  customer_laybys CustomerLayby[]
 
   @@unique([businessId, customerNumber])
   @@map("business_customers")
@@ -339,6 +348,7 @@ model Businesses {
   business_categories                                                      BusinessCategories[]
   business_customers                                                       BusinessCustomers[]
   business_memberships                                                     BusinessMemberships[]
+  customer_laybys                                                          CustomerLayby[]
   business_orders                                                          BusinessOrders[]
   business_products                                                        BusinessProducts[]
   business_stock_movements                                                 BusinessStockMovements[]
@@ -514,6 +524,87 @@ model ContractRenewals {
   employee_contracts_contract_renewals_originalContractIdToemployee_contracts EmployeeContracts  @relation("contract_renewals_originalContractIdToemployee_contracts", fields: [originalContractId], references: [id])
 
   @@map("contract_renewals")
+}
+
+model CustomerLayby {
+  id                    String                  @id @default(cuid())
+  laybyNumber           String                  @unique
+  businessId            String
+  customerId            String?
+
+  // Status & Financial
+  status                LaybyStatus             @default(ACTIVE)
+  totalAmount           Decimal                 @db.Decimal(12, 2)
+  depositAmount         Decimal                 @db.Decimal(12, 2)
+  depositPercent        Decimal                 @db.Decimal(5, 2)
+  balanceRemaining      Decimal                 @db.Decimal(12, 2)
+  totalPaid             Decimal                 @default(0) @db.Decimal(12, 2)
+
+  // Terms & Schedule
+  installmentAmount     Decimal?                @db.Decimal(12, 2)
+  installmentFrequency  InstallmentFrequency?
+  paymentDueDate        DateTime?
+  completionDueDate     DateTime?
+
+  // Fees & Charges
+  serviceFee            Decimal                 @default(0) @db.Decimal(12, 2)
+  lateFee               Decimal                 @default(0) @db.Decimal(12, 2)
+  administrationFee     Decimal                 @default(0) @db.Decimal(12, 2)
+  totalFees             Decimal                 @default(0) @db.Decimal(12, 2)
+
+  // Items & Release
+  items                 Json
+  itemsReleased         Boolean                 @default(false)
+  itemsReleasedAt       DateTime?
+  itemsReleasedBy       String?
+
+  // Metadata
+  notes                 String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  createdBy             String
+  completedAt           DateTime?
+  cancelledAt           DateTime?
+  cancellationReason    String?
+  cancellationRefund    Decimal?                @db.Decimal(12, 2)
+
+  // Relations
+  business              Businesses              @relation(fields: [businessId], references: [id])
+  customer              BusinessCustomers?      @relation(fields: [customerId], references: [id])
+  creator               Users                   @relation("CustomerLaybyCreator", fields: [createdBy], references: [id])
+  payments              CustomerLaybyPayment[]
+
+  @@map("customer_laybys")
+  @@index([businessId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model CustomerLaybyPayment {
+  id                String                  @id @default(cuid())
+  laybyId           String
+  receiptNumber     String                  @unique
+
+  // Payment Details
+  amount            Decimal                 @db.Decimal(12, 2)
+  paymentMethod     PaymentMethod
+  paymentReference  String?
+
+  // Metadata
+  paymentDate       DateTime                @default(now())
+  processedBy       String
+  notes             String?
+  isRefund          Boolean                 @default(false)
+  refundedPaymentId String?
+
+  // Relations
+  layby             CustomerLayby           @relation(fields: [laybyId], references: [id], onDelete: Cascade)
+  processor         Users                   @relation("CustomerLaybyPaymentProcessor", fields: [processedBy], references: [id])
+  refundedPayment   CustomerLaybyPayment?   @relation("RefundRelation", fields: [refundedPaymentId], references: [id])
+  refunds           CustomerLaybyPayment[]  @relation("RefundRelation")
+
+  @@map("customer_layby_payments")
+  @@index([laybyId])
 }
 
 model DataSnapshots {
@@ -1015,6 +1106,38 @@ model EmojiLookup {
   @@unique([emoji, description])
   @@index([description])
   @@map("emoji_lookup")
+}
+
+model InventoryDomains {
+  id                   String               @id
+  name                 String               @unique
+  emoji                String
+  description          String?
+  businessType         String
+  isActive             Boolean              @default(true)
+  isSystemTemplate     Boolean              @default(false)
+  createdAt            DateTime             @default(now())
+  business_categories  BusinessCategories[]
+
+  @@map("inventory_domains")
+}
+
+model InventorySubcategories {
+  id            String             @id
+  categoryId    String
+  name          String
+  emoji         String?
+  description   String?
+  isDefault     Boolean            @default(false)
+  isUserCreated Boolean            @default(false)
+  displayOrder  Int                @default(0)
+  createdAt     DateTime           @default(now())
+  createdBy     String?
+  category      BusinessCategories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users         Users?             @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
+
+  @@unique([categoryId, name])
+  @@map("inventory_subcategories")
 }
 
 model FundSources {
@@ -1874,12 +1997,16 @@ model Users {
   chat_messages                                                   ChatMessages[]
   chat_participants                                               ChatParticipants[]
   chat_rooms                                                      ChatRooms[]
+  customer_layby_creators                                         CustomerLayby[]                  @relation("CustomerLaybyCreator")
+  customer_layby_payment_processors                               CustomerLaybyPayment[]           @relation("CustomerLaybyPaymentProcessor")
   construction_expenses                                           ConstructionExpenses[]
   construction_projects                                           ConstructionProjects[]
   driver_authorizations                                           DriverAuthorizations[]
   employees                                                       Employees?
   expense_categories                                              ExpenseCategories[]
   expense_subcategories                                           ExpenseSubcategories[]
+  inventory_categories                                            BusinessCategories[]        @relation("CategoryCreatedBy")
+  inventory_subcategories                                         InventorySubcategories[]    @relation("SubcategoryCreatedBy")
   fund_sources                                                    FundSources[]
   inter_business_loans_inter_business_loans_createdByTousers      InterBusinessLoans[]        @relation("inter_business_loans_createdByTousers")
   inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]        @relation("inter_business_loans_lenderUserIdTousers")
@@ -2325,4 +2452,19 @@ enum TripType {
   BUSINESS
   PERSONAL
   MIXED
+}
+
+enum LaybyStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  DEFAULTED
+  ON_HOLD
+}
+
+enum InstallmentFrequency {
+  WEEKLY
+  FORTNIGHTLY
+  MONTHLY
+  CUSTOM
 }
