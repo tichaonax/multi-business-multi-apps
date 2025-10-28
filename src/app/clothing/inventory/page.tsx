@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import {
   UniversalInventoryGrid,
   UniversalInventoryForm,
@@ -18,6 +19,8 @@ export default function ClothingInventoryPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const alert = useAlert()
+  const confirm = useConfirm()
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
@@ -38,7 +41,8 @@ export default function ClothingInventoryPage() {
   }
 
   const handleItemDelete = async (item: any) => {
-    if (confirm(`Are you sure you want to delete ${item.name}?`)) {
+    const confirmed = await confirm(`Are you sure you want to delete ${item.name}?`)
+    if (confirmed) {
       try {
         const response = await fetch(`/api/inventory/${BUSINESS_ID}/items/${item.id}`, {
           method: 'DELETE'
@@ -47,10 +51,10 @@ export default function ClothingInventoryPage() {
         if (response.ok) {
           window.location.reload()
         } else {
-          alert('Failed to delete item')
+          await alert('Failed to delete item')
         }
       } catch (error) {
-        alert('Error deleting item')
+        await alert('Error deleting item')
       }
     }
   }
@@ -102,10 +106,10 @@ export default function ClothingInventoryPage() {
         window.location.reload()
       } else {
         const error = await response.json()
-        alert(error.message || 'Failed to save item')
+        await alert(error.message || 'Failed to save item')
       }
     } catch (error) {
-      alert('Error saving item')
+      await alert('Error saving item')
       console.error('Save error:', error)
     }
   }
