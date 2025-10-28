@@ -4,6 +4,13 @@ This is your core operational playbook for end-to-end code tasks.
 
 ## Standard Workflow
 
+### Phase 0: Requirements Context (If Using TASK START)
+
+**If user provides requirements context file (from `wip/` folder):**
+1. Read the requirements context file (e.g., `wip/TICKET-123-user-auth.md`)
+2. Understand all requirements, success criteria, and constraints
+3. Proceed to Phase 1 planning with this context
+
 ### Phase 1: Planning (MANDATORY - Before Any Code Changes)
 
 1. When assigned a task, restate your understanding concisely.
@@ -20,10 +27,93 @@ This is your core operational playbook for end-to-end code tasks.
    - Risk assessment and mitigation strategies
    - Rollback plan if changes fail
 5. Create a **detailed To-Do checklist** inside the plan document with checkboxes for each atomic task
-6. **🚨 MANDATORY CHECKPOINT: Seek explicit confirmation from user before beginning ANY code execution**
+6. **Present plan to user for review and iteration**
+   - User may ask questions, request changes, or add requirements
+   - Update plan based on feedback
+   - Plan may go through multiple iterations
+
+### Phase 1.5: Requirements-Plan Synchronization (MANDATORY Before Implementation)
+
+**🚨 CRITICAL: After plan is finalized but BEFORE starting implementation, synchronize requirements with plan.**
+
+**Why This Matters:**
+- Project plan contains detailed analysis that may not be in initial requirements
+- QA needs complete requirements that match the final design
+- Prevents scope drift and ensures single source of truth
+
+**Synchronization Workflow:**
+
+**Option A: User manually runs SYNC REQUIREMENTS**
+```
+User: SYNC REQUIREMENTS
+
+AI Actions:
+1. Read finalized project plan
+2. Extract ALL requirements, constraints, and implementation details from analysis
+3. Update requirements context file in wip/
+4. Show diff of what was added/updated
+5. Confirm requirements now match project plan
+```
+
+**Option B: AI prompts before starting implementation**
+```
+User: START or PHASE 1 or APPROVE PLAN
+
+AI Response:
+🔄 Requirements-Plan Synchronization Check
+
+📋 Project Plan: projectplan-TICKET-123-user-auth-2025-10-24.md (finalized)
+📝 Requirements: wip/TICKET-123-user-auth.md
+
+⚠️ Plan contains additional details from analysis that may not be in requirements.
+
+Would you like to:
+1. SYNC REQUIREMENTS (recommended for QA completeness)
+2. PROCEED WITHOUT SYNC (skip this step)
+
+Type: SYNC REQUIREMENTS or PROCEED
+```
+
+**What Gets Synced:**
+- Technical constraints discovered during analysis (e.g., "JWT expires in 24 hours")
+- Database schema details (e.g., "users table needs locked_until column")
+- Security requirements (e.g., "bcrypt rounds=10")
+- Rate limiting specifics (e.g., "5 failed attempts = 15min lockout")
+- API contract details (e.g., "POST /auth/login returns 401 on invalid credentials")
+- Testing requirements from testing plan
+- Dependencies and third-party integrations
+
+**Commands Available:**
+- **SYNC REQUIREMENTS** - Update requirements to match current plan
+- **REPLAN** - User updated requirements, regenerate plan
+- **APPROVE PLAN** - Finalize and lock both requirements and plan for implementation
+- **PLAN STATUS** - Check if requirements and plan are in sync
+
+**Iterative Refinement Loop:**
+```
+1. User creates initial requirements → wip/TICKET-123.md
+2. AI generates initial project plan → projectplan-TICKET-123.md
+3. User reviews plan, asks questions, suggests changes
+4. AI updates plan based on feedback
+5. User: SYNC REQUIREMENTS (plan details → requirements)
+6. User manually adds new requirement to wip/TICKET-123.md
+7. User: REPLAN (requirements → updated plan)
+8. AI updates project plan with new analysis
+9. User: SYNC REQUIREMENTS (bring requirements up to date)
+10. User: APPROVE PLAN (lock both, start implementation)
+```
+
+**Plan Locking:**
+- After APPROVE PLAN, both requirements and plan are locked
+- During implementation, plan cannot be REPLAN'd
+- To change scope mid-implementation: UNLOCK PLAN (resets progress)
+
+7. **🚨 MANDATORY CHECKPOINT: Seek explicit confirmation from user before beginning ANY code execution**
    - Present the complete plan document
+   - Check if requirements-plan sync is needed
+   - If not synced, prompt user to SYNC REQUIREMENTS
    - Ask: "Do you approve this plan? Should I proceed with execution?"
-   - Wait for explicit "yes" or "approved" before proceeding
+   - Wait for explicit "yes", "approved", or "APPROVE PLAN" before proceeding
    - If user requests changes, update plan and seek approval again
    - NO CODE CHANGES until explicit approval is received
 

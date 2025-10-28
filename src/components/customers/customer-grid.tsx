@@ -133,10 +133,18 @@ export function CustomerGrid({ customers, loading, onRefresh }: CustomerGridProp
                 </div>
                 <p className="text-xs text-secondary">Accounts</p>
               </div>
-              <div className="text-center">
+              <div
+                className={`text-center ${customer._count.laybys > 0 ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 rounded transition-colors' : ''}`}
+                onClick={(e) => {
+                  if (customer._count.laybys > 0) {
+                    e.stopPropagation()
+                    router.push(`/business/laybys?customerId=${customer.id}`)
+                  }
+                }}
+              >
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <ShoppingBag className="h-3 w-3 text-secondary" />
-                  <p className="text-lg font-semibold text-primary">
+                  <p className={`text-lg font-semibold ${customer._count.laybys > 0 ? 'text-blue-600' : 'text-primary'}`}>
                     {customer._count.laybys}
                   </p>
                 </div>

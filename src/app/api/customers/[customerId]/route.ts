@@ -32,7 +32,7 @@ const UpdateCustomerSchema = z.object({
 // GET - Get customer details
 export async function GET(
   request: NextRequest,
-  paramsPromise: Promise<{ params: { customerId: string } }>
+  context: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -45,8 +45,7 @@ export async function GET(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-  const { params } = await paramsPromise
-  const { customerId } = params
+    const { customerId } = await context.params
 
     // Fetch customer with all relations
     const customer = await prisma.businessCustomers.findUnique({
@@ -60,7 +59,7 @@ export async function GET(
             id: true,
             orderNumber: true,
             status: true,
-            total: true,
+            totalAmount: true,
             createdAt: true,
             updatedAt: true
           },
@@ -93,7 +92,7 @@ export async function GET(
 // PUT - Update customer
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { customerId: string } }
+  context: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -106,7 +105,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const { customerId } = params
+    const { customerId } = await context.params
     const body = await request.json()
     const validatedData = UpdateCustomerSchema.parse(body)
 
@@ -120,10 +119,10 @@ export async function PUT(
     }
 
     // Check for email conflicts (if email is being changed)
-    if (validatedData.primaryEmail && validatedData.primaryEmail !== existing.primaryEmail) {
+    if (validatedData.primaryEmail && validatedData.primaryEmail !== existing.email) {
       const emailConflict = await prisma.businessCustomers.findFirst({
         where: {
-          primaryEmail: validatedData.primaryEmail,
+          email: validatedData.primaryEmail,
           id: { not: customerId }
         }
       })
@@ -135,46 +134,34 @@ export async function PUT(
       }
     }
 
-    // Check for national ID conflicts (if national ID is being changed)
-    if (validatedData.nationalId && validatedData.nationalId !== existing.nationalId) {
-      const idConflict = await prisma.businessCustomers.findFirst({
-        where: {
-          nationalId: validatedData.nationalId,
-          id: { not: customerId }
-        }
-      })
-      if (idConflict) {
-        return NextResponse.json(
-          { error: 'Customer with this national ID already exists' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Update customer
+    // Update customer - match actual schema
+    const existingAttributes = (existing.attributes as any) || {}
     const customer = await prisma.businessCustomers.update({
       where: { id: customerId },
       data: {
-        type: validatedData.type,
-        firstName: validatedData.firstName,
-        lastName: validatedData.lastName,
-        fullName: validatedData.fullName,
-        companyName: validatedData.companyName,
-        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : undefined,
-        gender: validatedData.gender,
-        primaryEmail: validatedData.primaryEmail,
-        primaryPhone: validatedData.primaryPhone,
-        alternatePhone: validatedData.alternatePhone,
-        address: validatedData.address,
-        city: validatedData.city,
-        state: validatedData.state,
-        country: validatedData.country,
-        postalCode: validatedData.postalCode,
-        nationalId: validatedData.nationalId,
-        passportNumber: validatedData.passportNumber,
-        taxNumber: validatedData.taxNumber,
-        tags: validatedData.tags,
-        isActive: validatedData.isActive,
+        name: validatedData.fullName || existing.name,
+        email: validatedData.primaryEmail || existing.email,
+        phone: validatedData.primaryPhone || existing.phone,
+        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : existing.dateOfBirth,
+        address: validatedData.address || existing.address,
+        city: validatedData.city || existing.city,
+        country: validatedData.country || existing.country,
+        customerType: validatedData.type as any || existing.customerType,
+        isActive: validatedData.isActive ?? existing.isActive,
+        attributes: {
+          ...existingAttributes,
+          firstName: validatedData.firstName,
+          lastName: validatedData.lastName,
+          companyName: validatedData.companyName,
+          gender: validatedData.gender,
+          alternatePhone: validatedData.alternatePhone,
+          state: validatedData.state,
+          postalCode: validatedData.postalCode,
+          nationalId: validatedData.nationalId,
+          passportNumber: validatedData.passportNumber,
+          taxNumber: validatedData.taxNumber,
+          tags: validatedData.tags
+        },
         updatedAt: new Date()
       },
       include: {
@@ -186,7 +173,7 @@ export async function PUT(
             id: true,
             orderNumber: true,
             status: true,
-            total: true,
+            totalAmount: true,
             createdAt: true
           },
           take: 5,
@@ -221,7 +208,7 @@ export async function PUT(
 // DELETE - Soft delete customer
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { customerId: string } }
+  context: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -234,7 +221,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const { customerId } = params
+    const { customerId } = await context.params
 
     // Check if customer exists
     const existing = await prisma.businessCustomers.findUnique({

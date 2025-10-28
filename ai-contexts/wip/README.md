@@ -19,24 +19,29 @@ Copy and paste this to your AI assistant:
 
 📖 ai-contexts/contexts/master-context.md
 📖 ai-contexts/contexts/code-workflow.md
+📖 ai-contexts/custom/*.md (if any team-specific contexts exist)
 
 These files teach you:
-1. TASK START command (template selection & requirements gathering)
-2. START command (project plan creation & execution)
-3. Approval checkpoints (wait for my approval before coding)
-4. Project plan tracking (update checkboxes as you complete tasks)
+- RESUME: Continue existing work after interruptions/handoffs
+- TASK START: Begin new feature or task
+- START: Create project plan and begin implementation
+- Approval checkpoints and project plan tracking
+- Team-specific standards and conventions (from custom/)
 
-Once you've read them, help me with: TASK START <ticket> <description>
+What would you like to do?
+• RESUME - Continue existing work
+• TASK START <ticket> <description> - Start new work
 \`\`\`
 
 ### What This Does
 
 Your AI will learn:
-- ✅ The two-phase workflow (TASK START → fill template → START)
+- ✅ **RESUME** - Restore work after computer shutdown or team handoff
+- ✅ **TASK START → START** - Two-phase workflow for new work
 - ✅ To create project plans BEFORE writing any code
 - ✅ To wait for your approval at each checkpoint
 - ✅ To update project plan checkboxes as work progresses
-- ✅ All workflow commands (TASK STATUS, TASK COMPLETE, etc.)
+- ✅ All workflow commands (SYNC REQUIREMENTS, TASK STATUS, etc.)
 
 ### Alternative: Use VS Code Snippets
 

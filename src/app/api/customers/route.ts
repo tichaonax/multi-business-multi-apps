@@ -69,10 +69,9 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { customerNumber: { contains: search, mode: 'insensitive' } },
-        { fullName: { contains: search, mode: 'insensitive' } },
-        { primaryEmail: { contains: search, mode: 'insensitive' } },
-        { primaryPhone: { contains: search } },
-        { nationalId: { contains: search } }
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search } }
       ]
     }
 
@@ -92,7 +91,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch customers
-    const [customers, total] = await Promise.all([
+    const [customersRaw, total] = await Promise.all([
       prisma.businessCustomers.findMany({
         where,
         include: {
@@ -110,9 +109,13 @@ export async function GET(request: NextRequest) {
             take: 5, // Limit to recent orders
             orderBy: { createdAt: 'desc' }
           },
+          customer_laybys: {
+            select: { id: true, status: true }
+          },
           _count: {
             select: {
-              business_orders: true
+              business_orders: true,
+              customer_laybys: true
             }
           }
         },
@@ -122,6 +125,28 @@ export async function GET(request: NextRequest) {
       }),
       prisma.businessCustomers.count({ where })
     ])
+
+    // Map to expected format for frontend
+    const customers = customersRaw.map((customer) => ({
+      id: customer.id,
+      customerNumber: customer.customerNumber,
+      type: customer.customerType || 'INDIVIDUAL',
+      fullName: customer.name,
+      companyName: (customer.attributes as any)?.companyName || null,
+      primaryEmail: customer.email,
+      primaryPhone: customer.phone,
+      address: customer.address,
+      city: customer.city,
+      isActive: customer.isActive,
+      divisionAccounts: [], // Not using division accounts in this context
+      linkedUser: null,
+      linkedEmployee: null,
+      _count: {
+        divisionAccounts: 1, // Each customer has one business account
+        laybys: customer._count.customer_laybys,
+        creditApplications: 0 // Credit applications feature not yet implemented
+      }
+    }))
 
     return NextResponse.json({
       customers,
@@ -161,7 +186,7 @@ export async function POST(request: NextRequest) {
     // Check for existing customer by email or phone
     if (validatedData.primaryEmail) {
       const existing = await prisma.businessCustomers.findFirst({
-        where: { primaryEmail: validatedData.primaryEmail }
+        where: { email: validatedData.primaryEmail }
       })
       if (existing) {
         return NextResponse.json(
@@ -173,7 +198,7 @@ export async function POST(request: NextRequest) {
 
     // Check for existing customer by phone
     if (validatedData.primaryPhone) {
-      const existingByPhone = await prisma.businessCustomers.findFirst({ where: { primaryPhone: validatedData.primaryPhone } })
+      const existingByPhone = await prisma.businessCustomers.findFirst({ where: { phone: validatedData.primaryPhone } })
       if (existingByPhone) {
         return NextResponse.json(
           { error: 'Customer with this phone number already exists', existingCustomerId: existingByPhone.id },
@@ -182,86 +207,65 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check for existing customer by national ID
-    if (validatedData.nationalId) {
-      const existing = await prisma.businessCustomers.findFirst({
-        where: { nationalId: validatedData.nationalId }
-      })
-      if (existing) {
-        return NextResponse.json(
-          { error: 'Customer with this national ID already exists', existingCustomerId: existing.id },
-          { status: 400 }
-        )
-      }
+    // Require businessId for customer creation
+    if (!validatedData.businessId) {
+      return NextResponse.json(
+        { error: 'Business ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get business details
+    const business = await prisma.businesses.findUnique({
+      where: { id: validatedData.businessId },
+      select: { type: true, name: true }
+    })
+
+    if (!business) {
+      return NextResponse.json(
+        { error: 'Business not found' },
+        { status: 404 }
+      )
     }
 
     // Generate customer number
-    const count = await prisma.businessCustomers.count()
-    const customerNumber = `UCST-${String(count + 1).padStart(6, '0')}`
+    const count = await prisma.businessCustomers.count({
+      where: { businessId: validatedData.businessId }
+    })
+    const customerNumber = `${business.type.substring(0, 3).toUpperCase()}-CUST-${String(count + 1).padStart(6, '0')}`
 
-    // Create customer and division account in transaction
-    const customer = await prisma.$transaction(async (tx) => {
-      // Create universal customer
-      const newCustomer = await tx.businessCustomers.create({
-        data: {
-          customerNumber,
-          type: validatedData.type,
+    // Create customer matching actual BusinessCustomers schema
+    const customer = await prisma.businessCustomers.create({
+      data: {
+        id: randomBytes(16).toString('hex'),
+        businessId: validatedData.businessId,
+        customerNumber,
+        name: validatedData.fullName,
+        email: validatedData.primaryEmail || null,
+        phone: validatedData.primaryPhone || null,
+        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : null,
+        address: validatedData.address || null,
+        city: validatedData.city || null,
+        country: validatedData.country || 'Zimbabwe',
+        customerType: validatedData.type as any,
+        segment: validatedData.segment || null,
+        businessType: business.type,
+        attributes: {
+          allowLayby: validatedData.allowLayby,
+          allowCredit: validatedData.allowCredit,
           firstName: validatedData.firstName,
           lastName: validatedData.lastName,
-          fullName: validatedData.fullName,
           companyName: validatedData.companyName,
-          dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : null,
           gender: validatedData.gender,
-          primaryEmail: validatedData.primaryEmail,
-          // primaryPhone is non-nullable in the DB schema; ensure we always send a string
-          primaryPhone: validatedData.primaryPhone ?? '',
-          // alternatePhone may be nullable - store null when not provided
-          alternatePhone: validatedData.alternatePhone || null,
-          address: validatedData.address,
-          city: validatedData.city,
+          alternatePhone: validatedData.alternatePhone,
           state: validatedData.state,
-          country: validatedData.country,
           postalCode: validatedData.postalCode,
           nationalId: validatedData.nationalId,
           passportNumber: validatedData.passportNumber,
-          taxNumber: validatedData.taxNumber,
-          linkedUserId: validatedData.linkedUserId,
-          linkedEmployeeId: validatedData.linkedEmployeeId,
-          tags: validatedData.tags || [],
-          createdBy: session.user.id
-        }
-      })
-
-      // Create division account if businessId provided
-      if (validatedData.businessId) {
-        const businessCount = await tx.customerDivisionAccount.count({
-          where: { businessId: validatedData.businessId }
-        })
-
-        const business = await tx.businesses.findUnique({
-          where: { id: validatedData.businessId },
-          select: { type: true }
-        })
-
-        const divisionPrefix = business?.type.substring(0, 3).toUpperCase() || 'DIV'
-        const divisionCustomerNumber = validatedData.divisionCustomerNumber ||
-          `${divisionPrefix}-CUST-${String(businessCount + 1).padStart(6, '0')}`
-
-        await tx.customerDivisionAccount.create({
-          data: {
-            universalCustomerId: newCustomer.id,
-            businessId: validatedData.businessId,
-            divisionCustomerNumber,
-            accountType: validatedData.accountType,
-            segment: validatedData.segment,
-            allowLayby: validatedData.allowLayby,
-            allowCredit: validatedData.allowCredit,
-            createdBy: session.user.id
-          }
-        })
+          taxNumber: validatedData.taxNumber
+        },
+        updatedAt: new Date()
       }
-
-      return newCustomer
     })
 
     // Fetch complete customer with relations

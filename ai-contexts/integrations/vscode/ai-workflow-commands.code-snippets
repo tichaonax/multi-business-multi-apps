@@ -1,0 +1,441 @@
+{
+  "ai-train": {
+    "prefix": "ai-train",
+    "description": "First-time AI training message (teaches workflow commands)",
+    "body": [
+      "👋 Hi! Please read these files to learn our AI development workflow:",
+      "",
+      "📖 ai-contexts/contexts/master-context.md",
+      "📖 ai-contexts/contexts/code-workflow.md",
+      "📖 ai-contexts/custom/*.md (if any team-specific contexts exist)",
+      "",
+      "These files teach you:",
+      "- RESUME: Continue existing work after interruptions/handoffs",
+      "- TASK START: Begin new feature or task",
+      "- START: Create project plan and begin implementation",
+      "- Approval checkpoints and project plan tracking",
+      "- Team-specific standards and conventions (from custom/)",
+      "",
+      "What would you like to do?",
+      "• RESUME - Continue existing work",
+      "• TASK START <ticket> <description> - Start new work"
+    ]
+  },
+
+  "task-start": {
+    "prefix": "task-start",
+    "description": "Start a new task with template selection (Phase 1: Setup)",
+    "body": [
+      "TASK START ${1:ticket} ${2:description}",
+      "",
+      "Please show me the available templates and help me set up the context file for this ${3:feature/bug/refactor}."
+    ]
+  },
+
+  "start": {
+    "prefix": "start",
+    "description": "Begin work after filling context file (Phase 2: Execution)",
+    "body": [
+      "START",
+      "",
+      "I've filled in the requirements in the context file. Please create the project plan and begin Phase 1."
+    ]
+  },
+
+  "resume": {
+    "prefix": "resume",
+    "description": "Resume AI session and continue work from where it left off",
+    "body": [
+      "RESUME",
+      "",
+      "Please:",
+      "1. Load core contexts (master-context.md, code-workflow.md)",
+      "2. Find active project plan in ai-contexts/project-plans/active/",
+      "3. Read requirements from ai-contexts/wip/",
+      "4. Analyze completed vs pending tasks ([x] vs [ ])",
+      "5. Review recent git commits for context",
+      "6. Auto-detect and load relevant contexts",
+      "7. Check requirements-plan sync status",
+      "8. Present status summary with next task",
+      "9. Ask how to proceed (CONTINUE, REVIEW, REPLAN, TEST)"
+    ]
+  },
+
+  "resume-ticket": {
+    "prefix": "resume-ticket",
+    "description": "Resume specific project by ticket number",
+    "body": [
+      "RESUME ${1:TICKET-123}",
+      "",
+      "Please restore this specific project and show complete status."
+    ]
+  },
+
+  "continue": {
+    "prefix": "continue",
+    "description": "Continue implementation after RESUME",
+    "body": [
+      "CONTINUE",
+      "",
+      "Please proceed with the next task from the project plan."
+    ]
+  },
+
+  "review": {
+    "prefix": "review",
+    "description": "Review completed work after RESUME",
+    "body": [
+      "REVIEW",
+      "",
+      "Please show me detailed review of all completed work so far."
+    ]
+  },
+
+  "task-update": {
+    "prefix": "task-update",
+    "description": "Request AI to update project plan checkboxes",
+    "body": [
+      "TASK UPDATE",
+      "",
+      "Please:",
+      "1. Update checkboxes in current project plan based on completed work",
+      "2. Mark completed tasks with [x]",
+      "3. Add notes on any challenges or decisions made",
+      "4. Show updated progress summary",
+      "5. Identify next tasks to work on"
+    ]
+  },
+
+  "task-complete": {
+    "prefix": "task-complete",
+    "description": "Complete current task and create documentation triad",
+    "body": [
+      "TASK COMPLETE",
+      "",
+      "Please:",
+      "1. Verify all checkboxes are marked [x] in current project plan",
+      "2. Run DOCUMENT WORK to create final documentation",
+      "3. Create folder: ai-contexts/project-plans/completed/${CURRENT_YEAR}-${CURRENT_MONTH}/",
+      "4. Archive the complete documentation triad:",
+      "   - Move project plan from active/ to completed/${CURRENT_YEAR}-${CURRENT_MONTH}/",
+      "   - Move requirements context from wip/ to completed/${CURRENT_YEAR}-${CURRENT_MONTH}/ (rename with context- prefix)",
+      "   - Ensure final documentation is saved in completed/${CURRENT_YEAR}-${CURRENT_MONTH}/ (documentation- prefix)",
+      "5. Stage and commit all three documents: git add ai-contexts/project-plans/completed/ && git commit -m 'generated-message'",
+      "6. Provide completion summary showing all three archived documents with their purposes",
+      "7. Confirm complete knowledge base entry created"
+    ]
+  },
+
+  "task-status": {
+    "prefix": "task-status",
+    "description": "Show current task progress and status",
+    "body": [
+      "TASK STATUS",
+      "",
+      "Please:",
+      "1. Show current project plan progress",
+      "2. List completed [x] and pending [ ] tasks", 
+      "3. Calculate completion percentage",
+      "4. Estimate remaining work time",
+      "5. Highlight any blockers or issues",
+      "6. Suggest next steps"
+    ]
+  },
+
+  "move-user-context": {
+    "prefix": "move-context",
+    "description": "Move user context file as part of documentation triad",
+    "body": [
+      "MOVE USER CONTEXT",
+      "",
+      "Please:",
+      "1. Find related user context file in ai-contexts/wip/",
+      "2. Move to ai-contexts/project-plans/completed/${CURRENT_YEAR}-${CURRENT_MONTH}/",
+      "3. Rename with 'context-' prefix for clarity",
+      "4. Ensure it's part of the complete documentation triad:",
+      "   - Project plan (execution roadmap)",
+      "   - Requirements context (original requirements)", 
+      "   - Final documentation (implementation summary)",
+      "5. Add to same commit as other documentation",
+      "6. Confirm complete knowledge base entry created"
+    ]
+  },
+
+  "archive-project": {
+    "prefix": "archive-project",
+    "description": "Archive complete documentation triad (plan + context + final docs)",
+    "body": [
+      "ARCHIVE PROJECT",
+      "",
+      "Please:",
+      "1. Run DOCUMENT WORK to create final documentation first",
+      "2. Archive the complete documentation triad:",
+      "   - Move project plan from active/ to completed/${CURRENT_YEAR}-${CURRENT_MONTH}/",
+      "   - Move requirements context from wip/ to completed/${CURRENT_YEAR}-${CURRENT_MONTH}/ (context- prefix)",
+      "   - Ensure final documentation is in completed/${CURRENT_YEAR}-${CURRENT_MONTH}/ (documentation- prefix)",
+      "3. Generate comprehensive commit message covering all completed work",
+      "4. Commit all three documents together",
+      "5. Provide archival summary showing complete knowledge base entry:",
+      "   - Execution roadmap (project plan)",
+      "   - Original requirements (context)", 
+      "   - Implementation summary (final documentation)"
+    ]
+  },
+
+  "clean-wip": {
+    "prefix": "clean-wip",
+    "description": "Clean up completed items from wip folder",
+    "body": [
+      "CLEAN WIP",
+      "",
+      "Please:",
+      "1. List files in ai-contexts/wip/",
+      "2. Identify which have completed project plans",
+      "3. Ask permission before removing each file",
+      "4. Move to completed/ or delete based on preference",
+      "5. Confirm wip/ folder cleaned up"
+    ]
+  },
+
+  "document-work": {
+    "prefix": "document-work",
+    "description": "Generate commit message and create final documentation",
+    "body": [
+      "DOCUMENT WORK",
+      "",
+      "Please:",
+      "1. Read current project plan and requirements context",
+      "2. Generate comprehensive final documentation with:",
+      "   - Executive Summary (what was built and why)",
+      "   - Technical Implementation Details",
+      "   - Key Decisions Made and Rationale",
+      "   - Challenges Overcome and Solutions",
+      "   - Testing Strategy and Coverage",
+      "   - Performance Impact and Metrics",
+      "   - Future Maintenance Notes",
+      "   - Lessons Learned and Best Practices",
+      "3. Save as: ai-contexts/project-plans/completed/${CURRENT_YEAR}-${CURRENT_MONTH}/documentation-[ticket].md",
+      "4. Generate descriptive commit message based on completed work",
+      "5. Include key metrics and impact in commit message",
+      "6. Follow conventional commit format",
+      "7. Show all three documents will be archived together:",
+      "   - Project plan (execution roadmap)",
+      "   - Requirements context (original requirements)",
+      "   - Final documentation (implementation summary)",
+      "8. Suggest commit message for review"
+    ]
+  },
+
+  "summary-week": {
+    "prefix": "summary-week",
+    "description": "Show this week's completed work",
+    "body": [
+      "SUMMARY WEEK",
+      "",
+      "Please:",
+      "1. List all project plans completed this week",
+      "2. Show files from ai-contexts/project-plans/completed/",
+      "3. Summarize key accomplishments",
+      "4. Calculate productivity metrics",
+      "5. Highlight major features or fixes delivered"
+    ]
+  },
+
+  "summary-month": {
+    "prefix": "summary-month",
+    "description": "Show this month's completed work",
+    "body": [
+      "SUMMARY MONTH", 
+      "",
+      "Please:",
+      "1. List all project plans in completed/${CURRENT_YEAR}-${CURRENT_MONTH}/",
+      "2. Group by feature type (bug fix, feature, refactor)",
+      "3. Show completion trends and velocity",
+      "4. Highlight major deliverables",
+      "5. Generate monthly accomplishment report"
+    ]
+  },
+
+  "find-work": {
+    "prefix": "find-work",
+    "description": "Search completed project plans for specific work",
+    "body": [
+      "FIND WORK ${1:keyword}",
+      "",
+      "Please:",
+      "1. Search ai-contexts/project-plans/completed/ for '${1:keyword}'",
+      "2. Look in file names and content",
+      "3. Show matching project plans with dates",
+      "4. Provide brief summary of each match",
+      "5. Help locate relevant historical work"
+    ]
+  },
+
+  "rollback-task": {
+    "prefix": "rollback-task",
+    "description": "Move project plan back to active work",
+    "body": [
+      "ROLLBACK TASK",
+      "",
+      "Please:",
+      "1. Move specified project plan from completed/ back to active/",
+      "2. Reset relevant checkboxes to [ ] if needed",
+      "3. Add rollback note with reason",
+      "4. Update project plan with current date",
+      "5. Confirm task is back in active development"
+    ]
+  },
+
+  "duplicate-plan": {
+    "prefix": "duplicate-plan",
+    "description": "Copy project plan for similar work",
+    "body": [
+      "DUPLICATE PLAN ${1:new-ticket}",
+      "",
+      "Please:",
+      "1. Copy current/specified project plan as template",
+      "2. Update with new ticket: ${1:new-ticket}",
+      "3. Reset all checkboxes to [ ]",
+      "4. Update dates and file names",
+      "5. Customize for new requirements",
+      "6. Save as new project plan in active/"
+    ]
+  },
+
+  "template-save": {
+    "prefix": "template-save",
+    "description": "Save current project plan as reusable template",
+    "body": [
+      "TEMPLATE SAVE ${1:template-name}",
+      "",
+      "Please:",
+      "1. Copy current project plan structure",
+      "2. Remove specific ticket/date references",
+      "3. Reset checkboxes to [ ]",
+      "4. Add placeholder variables",
+      "5. Save as: templates/project-plans/${1:template-name}.md",
+      "6. Document template usage in README"
+    ]
+  },
+
+  "sync-requirements": {
+    "prefix": "sync-req",
+    "description": "Update requirements context to match project plan",
+    "body": [
+      "SYNC REQUIREMENTS",
+      "",
+      "Please:",
+      "1. Read current project plan in ai-contexts/project-plans/active/",
+      "2. Extract all requirements, constraints, and implementation details from analysis",
+      "3. Update requirements context file in ai-contexts/wip/",
+      "4. Show diff of what was added/updated in requirements",
+      "5. Mark sync timestamp in both files",
+      "6. Confirm requirements now match project plan"
+    ]
+  },
+
+  "replan": {
+    "prefix": "replan",
+    "description": "Re-analyze requirements and update project plan",
+    "body": [
+      "REPLAN",
+      "",
+      "Please:",
+      "1. Read updated requirements context from ai-contexts/wip/",
+      "2. Perform fresh impact analysis",
+      "3. Update project plan in ai-contexts/project-plans/active/",
+      "4. Show what changed (added tasks, updated estimates, new risks)",
+      "5. Mark as needing sync review",
+      "6. Recommend running SYNC REQUIREMENTS after review"
+    ]
+  },
+
+  "approve-plan": {
+    "prefix": "approve-plan",
+    "description": "Lock requirements and plan, begin implementation",
+    "body": [
+      "APPROVE PLAN",
+      "",
+      "Please:",
+      "1. Check if requirements and plan are in sync (compare timestamps)",
+      "2. If not synced, prompt to run SYNC REQUIREMENTS first",
+      "3. If synced, show plan summary (phases, tasks, estimates, risks)",
+      "4. Mark plan as 'Approved' and lock it",
+      "5. Begin Phase 1 implementation",
+      "6. Update project plan with approval timestamp"
+    ]
+  },
+
+  "plan-status": {
+    "prefix": "plan-status",
+    "description": "Check synchronization status and plan details",
+    "body": [
+      "PLAN STATUS",
+      "",
+      "Please:",
+      "1. Show last modification times for requirements and plan",
+      "2. Check if sync is needed (compare timestamps)",
+      "3. Display plan progress (phases completed, tasks done)",
+      "4. Show any warnings or recommendations",
+      "5. Display current task and next task"
+    ]
+  },
+
+  "unlock-plan": {
+    "prefix": "unlock-plan",
+    "description": "Reset to planning phase (emergency scope change)",
+    "body": [
+      "UNLOCK PLAN",
+      "",
+      "Please:",
+      "1. Warn that implementation progress will be reset",
+      "2. Show current progress that will be lost",
+      "3. Require confirmation",
+      "4. If confirmed, unlock plan and reset to planning phase",
+      "5. Allow REPLAN and SYNC REQUIREMENTS again",
+      "6. Mark plan as 'Unlocked' with reason and timestamp"
+    ]
+  },
+
+  "show-commands": {
+    "prefix": "show-commands",
+    "description": "Display all available workflow commands",
+    "body": [
+      "SHOW COMMANDS",
+      "",
+      "Please display all available workflow commands organized by category with descriptions."
+    ]
+  }
+,
+
+  "show-snippets": {
+    "prefix": "show-snippets",
+    "description": "Display all VS Code snippets for workflow commands",
+    "body": [
+      "SHOW SNIPPETS",
+      "",
+      "Please:",
+      "1. Read snippet files from integrations/vscode/",
+      "2. Display all snippets organized by category",
+      "3. Show prefix (trigger word) and description for each",
+      "4. Provide installation instructions",
+      "5. Show total count of available snippets"
+    ]
+  },
+
+  "compare-requirements": {
+    "prefix": "compare-req",
+    "description": "Analyze alignment between requirements and project plan",
+    "body": [
+      "COMPARE REQUIREMENTS",
+      "",
+      "Please:",
+      "1. Read requirements context from ai-contexts/wip/",
+      "2. Read current project plan from ai-contexts/project-plans/active/",
+      "3. Analyze alignment and identify gaps",
+      "4. Calculate alignment percentage",
+      "5. Provide specific recommendations",
+      "6. Suggest next action (SYNC, REPLAN, or APPROVE)"
+    ]
+  }
+}

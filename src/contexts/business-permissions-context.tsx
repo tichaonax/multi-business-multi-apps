@@ -41,7 +41,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
   const controllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (status === "loading" || !session?.users?.id) {
+    if (status === "loading" || !session?.user?.id) {
       if (status !== "loading") setLoading(false);
       return;
     }
@@ -101,19 +101,19 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
       controllerRef.current?.abort();
     };
     // Intentionally exclude currentBusinessId from deps to avoid loops when we set it here
-  }, [session?.users?.id, status]);
+  }, [session?.user?.id, status]);
 
   const currentBusiness = useMemo(() => {
     return businesses.find((b) => b.businessId === currentBusinessId && b.isActive) || null;
   }, [businesses, currentBusinessId]);
 
   const hasPermission = (permission: keyof BusinessPermissions): boolean => {
-    if (session?.users?.role === "admin") return true;
+    if (session?.user?.role === "admin") return true;
     return hasBusinessPermission(currentBusiness, permission);
   };
 
   const hasPermissionInBusiness = (permission: keyof BusinessPermissions, businessId: string): boolean => {
-    if (session?.users?.role === "admin") return true;
+    if (session?.user?.role === "admin") return true;
     const membership = businesses.find((b) => b.businessId === businessId && b.isActive);
     return hasBusinessPermission(membership, permission);
   };
@@ -136,7 +136,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
 
       if (!membership) {
         // If the user is an admin, offer to create dev/demo data for them via a nicer modal
-        const isAdmin = session?.users?.role === 'admin';
+        const isAdmin = session?.user?.role === 'admin';
         if (isAdmin) {
           // For admins, first check if the business exists on the server. If it does, try to set it
           // as the current business (server will allow admin switches). Only show the seed modal

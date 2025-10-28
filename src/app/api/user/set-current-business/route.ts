@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
       // Create a mock membership object for admin
       membership = {
-        business: business,
+        businesses: business, // Use 'businesses' to match Prisma relation name
         permissions: {}, // Admin has all permissions
         role: 'admin'
       };

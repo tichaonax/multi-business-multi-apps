@@ -225,7 +225,7 @@ export function CustomerDetailModal({ customerId, onClose, onUpdate }: CustomerD
 
           {activeTab === 'accounts' && (
             <div className="space-y-4">
-              {customer.divisionAccounts.length === 0 ? (
+              {(!customer.divisionAccounts || customer.divisionAccounts.length === 0) ? (
                 <div className="text-center py-12">
                   <Building2 className="h-12 w-12 text-secondary mx-auto mb-4" />
                   <p className="text-secondary">No division accounts yet</p>

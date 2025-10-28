@@ -7,10 +7,16 @@ import { BusinessProvider } from '@/components/universal'
 import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 import { useEffect } from 'react'
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 
 const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
 
 export default function GroceryStorePage() {
+  const { data: session } = useSession()
+  const currentUser = session?.user as any
+  const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
+
   const quickActions = [
     {
       title: 'Inventory Management',
@@ -44,6 +50,14 @@ export default function GroceryStorePage() {
       color: 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100',
       features: ['Purchase history', 'Loyalty tiers', 'Promotional targeting', 'Basket analysis']
     },
+    ...(canManageLaybys ? [{
+      title: 'Layby Management',
+      description: 'Customer layby agreements and payment tracking',
+      href: '/business/laybys',
+      icon: '🛍️',
+      color: 'bg-pink-50 border-pink-200 text-pink-700 hover:bg-pink-100',
+      features: ['Reserve items', 'Payment tracking', 'Balance management', 'Item release']
+    }] : []),
     {
       title: 'Supplier Management',
       description: 'Delivery tracking, quality control, vendor performance',

@@ -14,10 +14,14 @@ import { BusinessOrderDetailModal } from '@/components/business/business-order-d
 import { UserEditModal } from '@/components/user-management/user-edit-modal'
 import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import HealthIndicator from '@/components/ui/health-indicator'
+import { LaybyAlertsWidget } from '@/components/laybys/layby-alerts-widget'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function Dashboard() {
   const { data: session } = useSession()
+  const { currentBusiness } = useBusinessPermissionsContext()
   const currentUser = session?.user as any
+  const businessId = currentBusiness?.businessId
   const [stats, setStats] = useState({
     activeProjects: 0,
     totalRevenue: 0,
@@ -549,9 +553,14 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-        
+
+        {/* Layby Alerts Widget */}
+        <div className="mt-6">
+          <LaybyAlertsWidget businessId={businessId} />
+        </div>
+
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8 mt-6">
           <div className="card p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <div>

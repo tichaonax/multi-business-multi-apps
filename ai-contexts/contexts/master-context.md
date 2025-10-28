@@ -60,6 +60,75 @@ This is a hard requirement - no exceptions.
 
 ---
 
+## 📚 Custom Team Contexts (Auto-Load)
+
+**IMPORTANT:** After loading core framework contexts, automatically check for and load team-specific custom contexts.
+
+### Auto-Loading Custom Contexts
+
+1. **Check for custom folder:** Look for `ai-contexts/custom/` directory
+2. **List custom contexts:** Find all `.md` files in `custom/` (excluding `README.md`)
+3. **Auto-load if exists:** Read each custom context file automatically
+4. **Report loaded contexts:** Tell user which custom contexts were loaded
+
+### Custom Context Purpose
+
+Custom contexts contain **team-specific or company-specific** standards that extend the base framework:
+- Team coding standards and conventions
+- API design patterns specific to the company
+- Database naming conventions
+- Security requirements and policies
+- Deployment processes
+- Technology-specific patterns not in framework
+
+### Loading Order
+
+```
+1. ai-contexts/contexts/master-context.md (this file)
+2. ai-contexts/contexts/code-workflow.md
+3. ai-contexts/custom/*.md (all team custom contexts)
+4. Other framework contexts as needed (backend-api-context.md, etc.)
+```
+
+### Example Auto-Load Output
+
+```
+📚 Loading Contexts...
+
+Framework Contexts:
+✅ master-context.md - Workflow commands and principles
+✅ code-workflow.md - Development process and approval gates
+
+Custom Team Contexts:
+✅ custom/team-coding-standards.md - Company coding conventions
+✅ custom/api-design-patterns.md - Team API standards
+✅ custom/security-requirements.md - Company security policies
+
+All contexts loaded! Ready to work with team standards.
+```
+
+### Custom Context Priority
+
+- Custom contexts **extend** framework contexts (additive)
+- If custom context conflicts with framework, **custom takes precedence**
+- Custom contexts should clearly state when overriding framework defaults
+
+### No Custom Contexts
+
+If `custom/` folder is empty or doesn't exist:
+```
+📚 Loading Contexts...
+
+Framework Contexts:
+✅ master-context.md
+✅ code-workflow.md
+
+ℹ️ No custom team contexts found in ai-contexts/custom/
+Using framework defaults only.
+```
+
+---
+
 ## 🎯 Standardized AI Workflow Commands
 
 The following commands trigger standardized AI behaviors for common workflow operations:
@@ -143,6 +212,151 @@ Type `PHASE 1` to begin implementation of Phase 1, or request changes.
 
 🛑 I will not execute any code until you command a specific phase.
 ```
+
+### `RESUME`
+**Purpose:** Restore AI session after interruption, computer shutdown, or team handoff
+**When to Use:**
+- Starting new day after previous session
+- After computer shutdown/restart
+- Team member taking over project from another developer
+- Returning to project after days/weeks/months
+
+**AI Actions:**
+1. **Load Core Contexts**: Read `master-context.md` and `code-workflow.md` to relearn commands
+2. **Find Active Project**:
+   - If `RESUME {ticket}` provided: Find project plan matching ticket
+   - If `RESUME` alone: Search `ai-contexts/project-plans/active/` for active plans
+   - If multiple found: Show list and ask user to choose
+3. **Read Requirements**: Load `ai-contexts/wip/{ticket}-{description}.md`
+4. **Analyze Progress**:
+   - Count completed tasks ([x]) vs pending tasks ([ ])
+   - Identify current phase (first phase with unchecked tasks)
+   - Find next task (first unchecked [ ] task)
+5. **Review Git History**:
+   - Run `git log --oneline -10` on files mentioned in plan
+   - Run `git diff HEAD~5..HEAD` to understand recent changes
+   - Note last commit message and author
+6. **Auto-Detect Contexts**: Based on project type, load relevant contexts:
+   - API work → load `backend-api-context.md`
+   - React/components → load `component-context.md`
+   - Database → load `database-schema-context.md`
+7. **Check Sync Status**: Verify requirements-plan sync status
+8. **Present Comprehensive Status**: Show complete restoration summary
+9. **Ask How to Proceed**: Offer options (CONTINUE, REVIEW, REPLAN, TEST)
+
+**Example Response (Single Active Project):**
+```
+🔄 Resuming AI Development Session...
+
+📚 Contexts Loaded:
+✅ master-context.md - Workflow commands relearned
+✅ code-workflow.md - Development process loaded
+✅ backend-api-context.md - Auto-detected from project type
+
+📋 Active Project Plan:
+📁 projectplan-TICKET-123-user-auth-2025-10-24.md
+🎯 Feature: User authentication with JWT tokens
+📅 Started: 2025-10-24 09:00 AM
+📅 Last updated: 2025-10-24 16:45 PM
+
+📝 Requirements Context:
+📁 wip/TICKET-123-user-auth.md
+🔄 Sync Status: IN SYNC (last synced: 2025-10-24 10:25 AM)
+
+📊 Progress Summary:
+✅ Phase 1: Database Schema (COMPLETE - 5/5 tasks)
+✅ Phase 2: Authentication Endpoints (COMPLETE - 6/6 tasks)
+🔄 Phase 3: JWT Token Management (IN PROGRESS - 2/4 tasks)
+   ✅ Task 3.1: Implement JWT token generation
+   ✅ Task 3.2: Add token expiration logic
+   ⏳ Task 3.3: Create token refresh endpoint (NEXT)
+   ⏸️ Task 3.4: Add token validation middleware
+⏸️ Phase 4: Testing (NOT STARTED - 0/3 tasks)
+
+📂 Files Modified (from git):
+- src/models/User.ts (created)
+- src/routes/auth.ts (created)
+- src/middleware/auth.ts (modified)
+- src/utils/jwt.ts (created)
+
+💻 Last Commit:
+e716ac8 - "feat: Implement JWT token generation and expiration"
+Author: Developer A
+Date: 2025-10-24 16:45 PM
+
+🎯 Current Status:
+Phase 3 is 50% complete (2/4 tasks done)
+Next task: Task 3.3 - Create token refresh endpoint
+
+🔍 Code Context:
+I can see you've implemented:
+- User model with password hashing (bcrypt rounds=10)
+- Login/register endpoints with validation
+- JWT token generation with 24-hour expiration
+- Rate limiting: 5 failed attempts = lockout
+
+Ready to continue with Task 3.3 (token refresh endpoint).
+
+---
+
+✅ Session restored! I'm up to date with your progress.
+
+How would you like to proceed?
+1. CONTINUE - Resume implementation of Task 3.3
+2. REVIEW - Review completed work in detail
+3. REPLAN - Make changes to the plan
+4. TEST - Run tests on completed work
+
+Type: CONTINUE, REVIEW, REPLAN, or TEST
+```
+
+**Example Response (Multiple Active Projects):**
+```
+🔄 Multiple active projects found:
+
+1. 📋 projectplan-TICKET-123-user-auth-2025-10-24.md
+   📊 Progress: 60% (12/20 tasks)
+   📅 Last updated: 2025-10-24 16:45 PM
+   🎯 Next: Phase 3, Task 3.3 - Token refresh endpoint
+
+2. 📋 projectplan-TICKET-456-payment-gateway-2025-10-23.md
+   📊 Progress: 25% (5/20 tasks)
+   📅 Last updated: 2025-10-23 17:30 PM
+   🎯 Next: Phase 2, Task 2.1 - Stripe SDK setup
+
+Which project would you like to resume?
+Type: 1, 2, or RESUME TICKET-123
+```
+
+**Team Handoff Example:**
+```
+🔄 Resuming AI Development Session...
+
+👤 Previous Developer: Developer A (last commit: 2025-10-24 16:45)
+👤 Current Developer: Developer B (taking over)
+
+📋 Active Project: TICKET-123 User Authentication
+📊 Progress: 60% (12/20 tasks)
+🎯 Current Phase: Phase 3 - JWT Implementation
+⏳ Next Task: Task 3.3 - Create token refresh endpoint
+
+🎯 Handoff Notes:
+Developer A left off at Task 3.3 (token refresh endpoint).
+All tests passing for completed phases (Phases 1-2).
+No blockers noted in plan.
+
+✅ Session restored! Ready for you to continue where Developer A left off.
+
+How would you like to proceed?
+1. CONTINUE - Resume implementation
+2. REVIEW - Review what Developer A implemented
+3. TEST - Run tests on completed work
+```
+
+**Optional Parameters:**
+- `RESUME` - Resume most recent active project
+- `RESUME {ticket}` - Resume specific project by ticket (e.g., `RESUME TICKET-123`)
+- `RESUME {filename}` - Resume by exact project plan filename
 
 ### `PHASE 1` or `EXECUTE PHASE 1`
 **AI Actions:**
@@ -307,6 +521,343 @@ Phase 2: Components [2/5] 🔄 In Progress
 4. Move to completed/ or delete based on user preference
 5. Confirm wip/ folder cleaned up
 
+## Requirements-Plan Synchronization Commands
+
+### `COMPARE REQUIREMENTS`
+**Purpose:** Diagnostic analysis of alignment between requirements and project plan
+**When:** Before deciding whether to SYNC REQUIREMENTS or REPLAN
+**Type:** Read-only diagnostic operation (makes no changes)
+
+**AI Actions:**
+1. Read requirements context file from `ai-contexts/wip/`
+2. Read current project plan from `ai-contexts/project-plans/active/`
+3. Analyze alignment and identify gaps:
+   - Requirements in context but missing from plan
+   - Details in plan but missing from requirements
+   - Mismatches or inconsistencies
+4. Calculate alignment percentage
+5. Provide specific recommendations
+6. Suggest next action (SYNC REQUIREMENTS, REPLAN, or APPROVE PLAN)
+
+**Example Response:**
+```
+🔍 Comparing Requirements with Project Plan...
+
+📝 Requirements: wip/TICKET-123-user-auth.md
+📋 Project Plan: projectplan-TICKET-123-user-auth-2025-10-24.md
+
+📊 Alignment Analysis:
+
+✅ Aligned (80%):
+- User registration with email/password
+- Login functionality
+- Session management basics
+- Password hashing with bcrypt
+
+⚠️ Missing from Requirements (Plan has details):
+- JWT token expiration: 24 hours (from Phase 2 analysis)
+- Password requirements: min 8 chars, 1 uppercase, 1 number
+- Rate limiting: 5 failed attempts = 15min lockout
+- Database schema: users table needs 'locked_until' column
+- Error handling: Return 401 for invalid credentials
+
+⚠️ Missing from Plan (Requirements mention):
+- "Remember me" functionality (mentioned in requirements)
+- Email verification (listed in success criteria)
+
+❌ Mismatches:
+- Requirements say "sessions expire after 1 hour"
+- Plan specifies "JWT tokens expire after 24 hours"
+  → Need to clarify which is correct
+
+📈 Overall Alignment: 65%
+- 8 items aligned
+- 5 items in plan but not requirements
+- 2 items in requirements but not plan
+- 1 mismatch needs resolution
+
+💡 Recommendations:
+
+1. **Resolve Mismatch First:**
+   - Clarify session/token expiration time (1 hour vs 24 hours)
+   - Update requirements or plan to match decision
+
+2. **Then Choose:**
+   - Run `SYNC REQUIREMENTS` to add plan details to requirements
+     → Adds: JWT expiration, password rules, rate limiting, DB schema
+   - OR run `REPLAN` to add missing features to plan
+     → Adds: "Remember me", email verification
+
+3. **Or:**
+   - Manually update requirements to include missing items
+   - Then run `REPLAN` to regenerate plan with all features
+
+🎯 Suggested Next Step:
+SYNC REQUIREMENTS (to capture plan's detailed analysis in requirements for QA)
+
+After sync, manually add "Remember me" and "Email verification" to requirements, then REPLAN.
+```
+
+**Workflow Integration:**
+```
+TASK START → Fill Requirements → START → Generate Plan
+                ↓
+    Requirements evolve ← → Plan gets detailed
+                ↓
+COMPARE REQUIREMENTS → identifies gaps (read-only diagnostic)
+                ↓
+        [User decides based on comparison]
+                ↓
+SYNC REQUIREMENTS or REPLAN → re-align
+                ↓
+COMPARE REQUIREMENTS again → verify alignment
+                ↓
+APPROVE PLAN → lock and implement
+```
+
+### `SYNC REQUIREMENTS`
+**Purpose:** Update requirements context to match current project plan
+**When:** After creating/modifying project plan, before starting implementation
+
+**AI Actions:**
+1. Read current project plan in `ai-contexts/project-plans/active/`
+2. Extract all requirements, constraints, and implementation details from analysis
+3. Update requirements context file in `ai-contexts/wip/`
+4. Show diff of what was added/updated in requirements
+5. Mark sync timestamp in both files
+6. Confirm requirements now match project plan
+
+**Example Response:**
+```
+📋 Syncing requirements with project plan...
+
+Reading: projectplan-TICKET-123-user-auth-2025-10-24.md
+Updating: wip/TICKET-123-user-auth.md
+
+📝 Changes to Requirements:
+
+✅ Added:
+- JWT token expiration: 24 hours (from Phase 2 analysis)
+- Password strength: min 8 chars, 1 uppercase, 1 number
+- Rate limiting: 5 failed attempts = 15min lockout
+- Database: users table needs 'locked_until' column
+
+✏️ Updated:
+- Success Criteria: Added "passwords must be hashed with bcrypt rounds=10"
+- Testing Requirements: Added integration tests for lockout
+
+🔍 Review updated requirements?
+wip/TICKET-123-user-auth.md
+
+✅ Requirements now match project plan. Ready to proceed!
+```
+
+### `REPLAN`
+**Purpose:** Re-analyze requirements and update project plan
+**When:** After user manually updates requirements with new ideas/scope changes
+
+**AI Actions:**
+1. Read updated requirements context from `ai-contexts/wip/`
+2. Perform fresh impact analysis
+3. Update project plan in `ai-contexts/project-plans/active/`
+4. Show what changed in the plan (added tasks, updated estimates, new risks)
+5. Mark as needing sync review
+6. Recommend running SYNC REQUIREMENTS after review
+
+**Example Response:**
+```
+📋 Re-analyzing requirements...
+
+Reading: wip/TICKET-123-user-auth.md
+Updating: projectplan-TICKET-123-user-auth-2025-10-24.md
+
+📝 Changes to Project Plan:
+
+✅ Added Tasks:
+- Phase 2, Task 2.5: Integrate Google OAuth2 library
+- Phase 2, Task 2.6: Create /auth/google/callback endpoint
+- Phase 4, Task 4.5: Test Google login flow
+
+✏️ Updated:
+- Risk Assessment: Added dependency on Google OAuth service
+- Testing Plan: Added OAuth integration tests
+- Files Affected: Added oauth-config.ts
+
+⚠️ Impact: +2 hours estimated time
+
+📊 Updated Plan Status:
+- Phases: 4 → 4 (unchanged)
+- Tasks: 15 → 18 (+3 tasks)
+- Estimated Time: 2 days → 2.5 days
+
+🔍 Review updated plan?
+projectplan-TICKET-123-user-auth-2025-10-24.md
+
+⚠️ Requirements and plan may be out of sync.
+Run SYNC REQUIREMENTS after reviewing changes.
+```
+
+### `APPROVE PLAN`
+**Purpose:** Lock requirements and plan, begin implementation
+**When:** After requirements and plan are synchronized and finalized
+
+**AI Actions:**
+1. Check if requirements and plan are in sync (compare timestamps)
+2. If not synced, prompt user to run SYNC REQUIREMENTS first
+3. If synced, show plan summary (phases, tasks, estimates, risks)
+4. Mark plan as "Approved" and lock it
+5. Begin Phase 1 implementation
+6. Update project plan with approval timestamp
+
+**Example Response (Not Synced):**
+```
+✅ Checking synchronization status...
+
+Requirements: wip/TICKET-123-user-auth.md
+Last modified: 2025-10-24 10:15 AM
+
+Project Plan: projectplan-TICKET-123-user-auth-2025-10-24.md
+Last modified: 2025-10-24 10:20 AM
+
+⚠️ Plan was modified after requirements.
+
+Would you like to SYNC REQUIREMENTS first?
+This ensures QA has complete requirements.
+
+Options:
+1. SYNC REQUIREMENTS (recommended)
+2. APPROVE ANYWAY (skip sync)
+3. CANCEL (review plan first)
+```
+
+**Example Response (Synced):**
+```
+✅ Synchronization verified!
+
+Requirements and plan last synced: 2025-10-24 10:25 AM
+No changes since sync.
+
+📋 Plan Summary:
+- 4 Phases
+- 18 Tasks
+- Estimated: 2.5 days
+- All risks documented
+- Tests planned
+
+🔒 Locking plan for implementation...
+
+✅ Plan approved and locked!
+
+🚀 Starting Phase 1: Database Schema Setup
+
+Phase 1 Tasks:
+- [1.1] Create users table
+- [1.2] Add authentication columns
+- [1.3] Create migration script
+
+Proceeding with Task 1.1...
+```
+
+### `PLAN STATUS`
+**Purpose:** Check synchronization status and plan details
+**When:** Anytime during planning phase
+
+**AI Actions:**
+1. Show last modification times for requirements and plan
+2. Check if sync is needed (compare timestamps)
+3. Display plan progress (phases completed, tasks done)
+4. Show any warnings or recommendations
+5. Display current task and next task
+
+**Example Response (In Sync):**
+```
+📊 Project Plan Status
+
+📋 Plan: projectplan-TICKET-123-user-auth-2025-10-24.md
+📝 Requirements: wip/TICKET-123-user-auth.md
+
+🔄 Synchronization:
+✅ Last synced: 2025-10-24 10:25 AM
+✅ Requirements: No changes since sync
+✅ Plan: No changes since sync
+✅ Status: IN SYNC
+
+📈 Progress:
+- Phase 1: [████████░░] 80% (4/5 tasks)
+- Phase 2: [░░░░░░░░░░] 0% (0/6 tasks)
+- Phase 3: [░░░░░░░░░░] 0% (0/4 tasks)
+- Phase 4: [░░░░░░░░░░] 0% (0/3 tasks)
+
+Overall: 22% complete (4/18 tasks)
+
+🎯 Current: Phase 1, Task 1.5 - Test user table creation
+⏭️ Next: Phase 2, Task 2.1 - Implement registration endpoint
+
+✅ Ready to proceed!
+```
+
+**Example Response (Out of Sync):**
+```
+📊 Project Plan Status
+
+📋 Plan: projectplan-TICKET-123-user-auth-2025-10-24.md
+📝 Requirements: wip/TICKET-123-user-auth.md
+
+🔄 Synchronization:
+⚠️ Last synced: 2025-10-24 09:00 AM
+⚠️ Requirements: Modified 10:15 AM (75 min ago)
+⚠️ Plan: Modified 10:20 AM (70 min ago)
+❌ Status: OUT OF SYNC
+
+🔍 Detected Changes:
+- Requirements: Added OAuth requirement
+- Plan: Added 3 new tasks for OAuth
+
+⚠️ Recommendation: Run SYNC REQUIREMENTS before implementation
+
+📈 Progress:
+Overall: 0% complete (0/18 tasks)
+
+🎯 Status: Planning phase
+⏭️ Next: Sync requirements, then APPROVE PLAN
+```
+
+### `UNLOCK PLAN`
+**Purpose:** Reset to planning phase (emergency scope change mid-implementation)
+**When:** Need to change scope after plan is locked
+
+**AI Actions:**
+1. Warn user that implementation progress will be reset
+2. Show current progress that will be lost
+3. Require confirmation
+4. If confirmed, unlock plan and reset to planning phase
+5. Allow REPLAN and SYNC REQUIREMENTS again
+6. Mark plan as "Unlocked" with reason and timestamp
+
+**Example Response:**
+```
+⚠️ Warning: This will reset implementation progress.
+
+Current progress will be lost:
+- Phase 1: 80% complete (4/5 tasks)
+- Phase 2: 20% complete (1/6 tasks)
+
+Are you sure? (yes/no)
+
+[User: yes]
+
+✅ Plan unlocked.
+⚠️ Progress reset to planning phase.
+
+You can now:
+- Update requirements
+- REPLAN
+- SYNC REQUIREMENTS
+- APPROVE PLAN again
+
+Note: Completed code is not deleted, only plan progress is reset.
+```
+
 ## Reporting Commands
 
 ### `DOCUMENT WORK`
@@ -423,9 +974,90 @@ ADVANCED:
 
 HELP:
   SHOW COMMANDS               - Display this command reference
+  SHOW SNIPPETS               - Display all VS Code snippets available
 
 💡 TIP: All commands available as VS Code snippets with 'ai-' prefix
 📖 Full documentation: contexts/workflow-commands-reference.md
+```
+
+### `SHOW SNIPPETS`
+**Purpose:** Display all VS Code snippets registered for workflow commands
+**AI Actions:**
+1. List snippet files location: `integrations/vscode/`
+2. Read both snippet files:
+   - `ai-workflow-snippets.code-snippets` (basic templates)
+   - `ai-workflow-commands.code-snippets` (workflow commands)
+3. Parse JSON and extract all snippet definitions
+4. Display snippets organized by category (Session, Task, Sync, File, Reporting, Advanced, Help)
+5. Show prefix (trigger word) and description for each
+6. Provide installation instructions for VS Code
+7. Show total count of available snippets
+
+**Example Response:**
+```
+📋 VS Code Snippets for AI Workflow
+
+📁 Location: integrations/vscode/
+
+📦 ai-workflow-commands.code-snippets (28 snippets):
+
+SESSION MANAGEMENT:
+  ai-train              - First-time AI training message
+  resume                - Resume AI session and continue work
+  resume-ticket         - Resume specific project by ticket
+  continue              - Continue implementation after RESUME
+  review                - Review completed work after RESUME
+
+TASK MANAGEMENT:
+  task-start            - Start new task with template selection
+  start                 - Begin work after filling context file
+  task-update           - Update project plan checkboxes
+  task-complete         - Complete and archive project
+  task-status           - Show current task progress
+
+REQUIREMENTS-PLAN SYNC:
+  sync-req              - Update requirements to match plan
+  replan                - Re-analyze and update plan
+  approve-plan          - Lock plan and begin implementation
+  plan-status           - Check synchronization status
+  unlock-plan           - Reset to planning phase
+
+FILE MANAGEMENT:
+  move-context          - Move user context to completed
+  archive-project       - Archive project plan and context
+  clean-wip             - Clean completed items from wip
+
+REPORTING:
+  document-work         - Generate commit message
+  summary-week          - Show this week's completed work
+  summary-month         - Show this month's completed work
+  find-work             - Search completed project plans
+
+ADVANCED:
+  rollback-task         - Move project back to active
+  duplicate-plan        - Copy project plan for similar work
+  template-save         - Save plan as reusable template
+
+HELP:
+  show-commands         - Display all workflow commands
+
+📦 ai-workflow-snippets.code-snippets (4 snippets):
+  ai-master             - Load core AI contexts
+  ai-feature            - Start feature development session
+  ai-debug              - Start debugging session
+  ai-refactor           - Start refactoring session
+
+📊 Total: 32 snippets available
+
+💡 Installation:
+1. Copy files from integrations/vscode/ to:
+   - Windows: %APPDATA%\Code\User\snippets\
+   - Mac/Linux: ~/.config/Code/User/snippets/
+2. Restart VS Code
+3. Type snippet prefix in any file (e.g., "task-start")
+4. Press Tab to expand snippet
+
+📖 Documentation: contexts/How-to-Use-VS-Code-Snippets.md
 ```
 
 ## Command Standards

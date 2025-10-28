@@ -61,7 +61,7 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
 
   const fetchIdTemplates = async () => {
     try {
-      const response = await fetch('/api/admin/id-format-templates')
+      const response = await fetch('/api/id-format-templates')
       if (response.ok) {
         const data = await response.json()
         setIdTemplates(data.templates || [])

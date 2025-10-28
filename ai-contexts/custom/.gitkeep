@@ -1,0 +1,3 @@
+# This file ensures the custom/ folder is tracked in git
+# Teams add their custom context files here
+# This folder is preserved during framework upgrades

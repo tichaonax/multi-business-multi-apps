@@ -4,10 +4,27 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider, useBusinessContext } from '@/components/universal'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 
 const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
 
 function HardwareContent() {
+  const { data: session } = useSession()
+  const currentUser = session?.user as any
+  const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
+
+  const actions = [
+    { label: 'Point of Sale', href: '/hardware/pos', icon: '🛒', description: 'Process customer sales with barcode scanner' },
+    { label: 'Inventory', href: '/hardware/inventory', icon: '📦', description: 'Manage stock levels and bulk orders' },
+    { label: 'Cut-to-Size', href: '/hardware/cut-to-size', icon: '✂️', description: 'Custom cutting and measurement orders' },
+    { label: 'Suppliers', href: '/hardware/suppliers', icon: '🚛', description: 'Manage vendor relationships and orders' },
+    { label: 'Projects', href: '/hardware/projects', icon: '🏗️', description: 'Track contractor and bulk projects' },
+    { label: 'Tools & Equipment', href: '/hardware/tools', icon: '🔧', description: 'Tool rentals and equipment sales' },
+    ...(canManageLaybys ? [{ label: 'Layby Management', href: '/business/laybys', icon: '🛍️', description: 'Customer layby agreements and payments' }] : []),
+    { label: 'Employee Management', href: '/hardware/employees', icon: '👥', description: 'Manage hardware store staff and schedules' }
+  ]
+
   return (
     <div className="space-y-6">
       {/* Metrics Row */}
@@ -35,15 +52,7 @@ function HardwareContent() {
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-primary mb-4">Hardware Store Operations</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            { label: 'Point of Sale', href: '/hardware/pos', icon: '🛒', description: 'Process customer sales with barcode scanner' },
-            { label: 'Inventory', href: '/hardware/inventory', icon: '📦', description: 'Manage stock levels and bulk orders' },
-            { label: 'Cut-to-Size', href: '/hardware/cut-to-size', icon: '✂️', description: 'Custom cutting and measurement orders' },
-            { label: 'Suppliers', href: '/hardware/suppliers', icon: '🚛', description: 'Manage vendor relationships and orders' },
-            { label: 'Projects', href: '/hardware/projects', icon: '🏗️', description: 'Track contractor and bulk projects' },
-            { label: 'Tools & Equipment', href: '/hardware/tools', icon: '🔧', description: 'Tool rentals and equipment sales' },
-            { label: 'Employee Management', href: '/hardware/employees', icon: '👥', description: 'Manage hardware store staff and schedules' }
-          ].map((action, index) => (
+          {actions.map((action, index) => (
             <Link
               key={index}
               href={action.href}
