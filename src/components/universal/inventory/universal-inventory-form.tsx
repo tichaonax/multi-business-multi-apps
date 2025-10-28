@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react'
 
+interface InventorySubcategory {
+  id: string
+  name: string
+  emoji?: string
+  displayOrder: number
+}
+
 interface UniversalInventoryItem {
   id?: string
   businessId: string
@@ -9,7 +16,9 @@ interface UniversalInventoryItem {
   name: string
   sku: string
   description?: string
-  category: string
+  category?: string // Legacy field for backward compatibility
+  categoryId?: string
+  subcategoryId?: string
   currentStock: number
   unit: string
   costPrice: number
@@ -55,7 +64,8 @@ export function UniversalInventoryForm({
     name: '',
     sku: '',
     description: '',
-    category: '',
+    categoryId: '',
+    subcategoryId: '',
     currentStock: 0,
     unit: '',
     costPrice: 0,
@@ -66,7 +76,15 @@ export function UniversalInventoryForm({
     attributes: {}
   })
 
-  const [categories, setCategories] = useState<Array<{name: string, emoji?: string, color?: string}>>([])
+  const [categories, setCategories] = useState<Array<{
+    id: string
+    name: string
+    emoji?: string
+    color?: string
+    subcategories?: InventorySubcategory[]
+  }>>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [availableSubcategories, setAvailableSubcategories] = useState<InventorySubcategory[]>([])
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -74,6 +92,15 @@ export function UniversalInventoryForm({
   useEffect(() => {
     if (item) {
       setFormData(item)
+      // Set selected category if editing
+      if (item.categoryId) {
+        setSelectedCategory(item.categoryId)
+        // Find and set subcategories for the selected category
+        const category = categories.find(c => c.id === item.categoryId)
+        if (category?.subcategories) {
+          setAvailableSubcategories(category.subcategories)
+        }
+      }
     } else {
       setFormData({
         businessId,
@@ -81,7 +108,8 @@ export function UniversalInventoryForm({
         name: '',
         sku: '',
         description: '',
-        category: '',
+        categoryId: '',
+        subcategoryId: '',
         currentStock: 0,
         unit: '',
         costPrice: 0,
@@ -92,9 +120,9 @@ export function UniversalInventoryForm({
         attributes: {}
       })
     }
-  }, [item, businessId, businessType])
+  }, [item, businessId, businessType, categories])
 
-  // Fetch categories
+  // Fetch categories with subcategories
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -102,9 +130,11 @@ export function UniversalInventoryForm({
         if (response.ok) {
           const data = await response.json()
           setCategories(data.categories?.map((cat: any) => ({
+            id: cat.id,
             name: cat.name,
             emoji: cat.emoji || cat.icon || '📦',
-            color: cat.color || 'gray'
+            color: cat.color || 'gray',
+            subcategories: cat.subcategories || []
           })) || [])
         }
       } catch (error) {
@@ -142,12 +172,34 @@ export function UniversalInventoryForm({
     }))
   }
 
+  const handleCategoryChange = (categoryId: string) => {
+    // Update form data with new category
+    setFormData(prev => ({
+      ...prev,
+      categoryId,
+      subcategoryId: '' // Reset subcategory when category changes
+    }))
+
+    // Update selected category and available subcategories
+    setSelectedCategory(categoryId)
+    const category = categories.find(c => c.id === categoryId)
+    setAvailableSubcategories(category?.subcategories || [])
+
+    // Clear errors
+    if (errors.categoryId) {
+      setErrors(prev => ({
+        ...prev,
+        categoryId: ''
+      }))
+    }
+  }
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
     if (!formData.name.trim()) newErrors.name = 'Name is required'
     if (!formData.sku.trim()) newErrors.sku = 'SKU is required'
-    if (!formData.category.trim()) newErrors.category = 'Category is required'
+    if (!formData.categoryId?.trim()) newErrors.categoryId = 'Category is required'
     if (!formData.unit.trim()) newErrors.unit = 'Unit is required'
     if (formData.currentStock < 0) newErrors.currentStock = 'Stock cannot be negative'
     if (formData.costPrice < 0) newErrors.costPrice = 'Cost price cannot be negative'
@@ -586,18 +638,43 @@ export function UniversalInventoryForm({
                 Category *
               </label>
               <select
-                value={formData.category}
-                onChange={(e) => handleInputChange('category', e.target.value)}
-                className={`input-field ${errors.category ? 'border-red-300' : ''}`}
+                value={formData.categoryId || ''}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className={`input-field ${errors.categoryId ? 'border-red-300' : ''}`}
               >
                 <option value="">Select category...</option>
                 {categories.map((category) => (
-                  <option key={category.name} value={category.name}>
+                  <option key={category.id} value={category.id}>
                     {category.emoji} {category.name}
                   </option>
                 ))}
               </select>
-              {errors.category && <p className="text-red-600 text-sm mt-1">{errors.category}</p>}
+              {errors.categoryId && <p className="text-red-600 text-sm mt-1">{errors.categoryId}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                Subcategory (Optional)
+              </label>
+              <select
+                value={formData.subcategoryId || ''}
+                onChange={(e) => handleInputChange('subcategoryId', e.target.value || '')}
+                className="input-field"
+                disabled={!selectedCategory || availableSubcategories.length === 0}
+              >
+                <option value="">No subcategory</option>
+                {availableSubcategories.map((subcategory) => (
+                  <option key={subcategory.id} value={subcategory.id}>
+                    {subcategory.emoji && `${subcategory.emoji} `}{subcategory.name}
+                  </option>
+                ))}
+              </select>
+              {!selectedCategory && (
+                <p className="text-gray-500 text-sm mt-1">Select a category first</p>
+              )}
+              {selectedCategory && availableSubcategories.length === 0 && (
+                <p className="text-gray-500 text-sm mt-1">No subcategories available for this category</p>
+              )}
             </div>
 
             <div>

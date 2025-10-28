@@ -5,6 +5,14 @@ import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+interface InventorySubcategory {
+  id: string
+  name: string
+  emoji?: string
+  description?: string
+  displayOrder: number
+}
+
 interface InventoryCategory {
   id: string
   businessId: string
@@ -17,6 +25,7 @@ interface InventoryCategory {
   sortOrder: number
   isActive: boolean
   itemCount: number
+  subcategories?: InventorySubcategory[]
   createdAt: string
   updatedAt: string
 }
@@ -47,6 +56,12 @@ export async function GET(
         ...(includeInactive ? {} : { isActive: true })
       },
       include: {
+        inventory_subcategories: {
+          orderBy: [
+            { displayOrder: 'asc' },
+            { name: 'asc' }
+          ]
+        },
         _count: {
           select: {
             business_products: true
@@ -68,7 +83,14 @@ export async function GET(
       color: cat.color || 'gray', // Use database color, fallback to default
       sortOrder: 1, // Could be added to database schema
       isActive: cat.isActive,
-      itemCount: cat._count.businessProducts,
+      itemCount: cat._count.business_products,
+      subcategories: cat.inventory_subcategories.map(sub => ({
+        id: sub.id,
+        name: sub.name,
+        emoji: sub.emoji || undefined,
+        description: sub.description || undefined,
+        displayOrder: sub.displayOrder
+      })),
       createdAt: cat.createdAt.toISOString(),
       updatedAt: cat.updatedAt.toISOString()
     }))

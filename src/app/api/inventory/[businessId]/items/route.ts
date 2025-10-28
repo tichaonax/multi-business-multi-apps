@@ -260,6 +260,29 @@ export async function POST(
       categoryId = category.id
     }
 
+    // Validate subcategory if provided
+    let subcategoryId = body.subcategoryId || null
+    if (subcategoryId) {
+      const subcategory = await prisma.inventorySubcategories.findUnique({
+        where: { id: subcategoryId },
+        include: { category: true }
+      })
+
+      if (!subcategory) {
+        return NextResponse.json(
+          { error: 'Invalid subcategory' },
+          { status: 400 }
+        )
+      }
+
+      if (subcategory.categoryId !== categoryId) {
+        return NextResponse.json(
+          { error: 'Subcategory does not belong to the selected category' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Create the product
     const product = await prisma.businessProducts.create({
       data: {
@@ -270,6 +293,7 @@ export async function POST(
         sku: body.sku || null,
         barcode: body.barcode || null,
         categoryId: categoryId || undefined,
+        subcategoryId: subcategoryId,
         basePrice: parseFloat(basePrice),
         costPrice: body.costPrice ? parseFloat(body.costPrice) : null,
         businessType: business.type,
@@ -278,7 +302,8 @@ export async function POST(
         updatedAt: new Date()
       },
       include: {
-        business_categories: true
+        business_categories: true,
+        inventory_subcategory: true
       }
     })
 

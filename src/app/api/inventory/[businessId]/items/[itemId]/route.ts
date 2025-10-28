@@ -1,38 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-
-// Use the same mock data structure from the parent route
-// In real implementation, this would use the same database
-const mockInventoryItems: Record<string, any[]> = {
-  'restaurant-demo': [
-    {
-      id: 'inv-rest-001',
-      businessId: 'restaurant-demo',
-      businessType: 'restaurant',
-      name: 'Ground Beef 80/20',
-      sku: 'PROT-BEEF-001',
-      description: 'Fresh ground beef, 80% lean',
-      category: 'Proteins',
-      currentStock: 15.5,
-      unit: 'lbs',
-      costPrice: 6.99,
-      sellPrice: 12.99,
-      supplier: 'Prime Meats Inc.',
-      location: 'Walk-in Cooler A2',
-      isActive: true,
-      createdAt: '2024-09-01T10:00:00Z',
-      updatedAt: '2024-09-14T14:30:00Z',
-      attributes: {
-        allergens: [],
-        preparationTime: 8,
-        recipeYield: 4,
-        expirationDays: 3,
-        storageTemp: 'refrigerated'
-      }
-    }
-  ]
-}
+import { prisma } from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
@@ -98,37 +67,82 @@ export async function PUT(
     }
 
     const { businessId, itemId } = await params
-    const updates = await request.json()
+    const body = await request.json()
 
-    // Find and update the specific item
-    const items = mockInventoryItems[businessId] || []
-    const itemIndex = items.findIndex(item => item.id === itemId)
+    // Verify product exists and belongs to business
+    const existingProduct = await prisma.businessProducts.findFirst({
+      where: {
+        id: itemId,
+        businessId
+      }
+    })
 
-    if (itemIndex === -1) {
+    if (!existingProduct) {
       return NextResponse.json(
-        { error: 'Inventory item not found' },
+        { error: 'Product not found' },
         { status: 404 }
       )
     }
 
-    // Update item
-    const updatedItem = {
-      ...items[itemIndex],
-      ...updates,
-      updatedAt: new Date().toISOString()
+    // Validate subcategory if provided
+    if (body.subcategoryId) {
+      const subcategory = await prisma.inventorySubcategories.findUnique({
+        where: { id: body.subcategoryId }
+      })
+
+      if (!subcategory) {
+        return NextResponse.json(
+          { error: 'Invalid subcategory' },
+          { status: 400 }
+        )
+      }
+
+      // Verify subcategory belongs to the category
+      const categoryId = body.categoryId || existingProduct.categoryId
+      if (subcategory.categoryId !== categoryId) {
+        return NextResponse.json(
+          { error: 'Subcategory does not belong to the selected category' },
+          { status: 400 }
+        )
+      }
     }
 
-    mockInventoryItems[businessId][itemIndex] = updatedItem
+    // Prepare update data
+    const updateData: any = {
+      updatedAt: new Date()
+    }
+
+    if (body.name) updateData.name = body.name
+    if (body.description !== undefined) updateData.description = body.description
+    if (body.sku) updateData.sku = body.sku
+    if (body.barcode) updateData.barcode = body.barcode
+    if (body.categoryId) updateData.categoryId = body.categoryId
+    if (body.subcategoryId !== undefined) updateData.subcategoryId = body.subcategoryId
+    if (body.basePrice) updateData.basePrice = parseFloat(body.basePrice)
+    if (body.sellPrice) updateData.basePrice = parseFloat(body.sellPrice) // Accept sellPrice for compatibility
+    if (body.costPrice !== undefined) updateData.costPrice = body.costPrice ? parseFloat(body.costPrice) : null
+    if (body.isActive !== undefined) updateData.isActive = body.isActive
+    if (body.attributes) updateData.attributes = body.attributes
+
+    // Update the product
+    const updatedProduct = await prisma.businessProducts.update({
+      where: { id: itemId },
+      data: updateData,
+      include: {
+        business_categories: true,
+        inventory_subcategory: true
+      }
+    })
 
     return NextResponse.json({
-      message: 'Inventory item updated successfully',
-      item: updatedItem
+      message: 'Product updated successfully',
+      item: updatedProduct
     })
 
   } catch (error) {
-    console.error('Error updating inventory item:', error)
+    console.error('Error updating product:', error)
     return NextResponse.json(
-      { error: 'Failed to update inventory item' },
+      { error: 'Failed to update product' },
       { status: 500 }
     )
   }

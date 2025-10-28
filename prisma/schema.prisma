@@ -224,6 +224,7 @@ model BusinessProducts {
   barcode                  String?
   brandId                  String?
   categoryId               String
+  subcategoryId            String?
   productType              ProductType              @default(PHYSICAL)
   condition                ProductCondition         @default(NEW)
   basePrice                Decimal                  @db.Decimal(10, 2)
@@ -250,6 +251,7 @@ model BusinessProducts {
   business_brands          BusinessBrands?          @relation(fields: [brandId], references: [id])
   businesses               Businesses               @relation(fields: [businessId], references: [id])
   business_categories      BusinessCategories       @relation(fields: [categoryId], references: [id])
+  inventory_subcategory    InventorySubcategories?  @relation(fields: [subcategoryId], references: [id])
   business_stock_movements BusinessStockMovements[]
   menu_combo_items         MenuComboItems[]
   product_attributes       ProductAttributes[]
@@ -1133,8 +1135,9 @@ model InventorySubcategories {
   displayOrder  Int                @default(0)
   createdAt     DateTime           @default(now())
   createdBy     String?
-  category      BusinessCategories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  users         Users?             @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
+  category          BusinessCategories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users             Users?             @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
+  business_products BusinessProducts[]
 
   @@unique([categoryId, name])
   @@map("inventory_subcategories")
