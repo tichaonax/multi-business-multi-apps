@@ -50,12 +50,20 @@ export async function GET(request: NextRequest) {
         businesses: {
           select: { name: true, type: true }
         },
+        domain: {
+          select: { id: true, name: true, emoji: true, description: true }
+        },
         parentCategory: {
-          select: { id: true, name: true }
+          select: { id: true, name: true, emoji: true, color: true }
         },
         childCategories: {
-          select: { id: true, name: true, displayOrder: true },
+          select: { id: true, name: true, emoji: true, color: true, displayOrder: true },
           where: { isActive: true },
+          orderBy: { displayOrder: 'asc' }
+        },
+        inventory_subcategories: {
+          select: { id: true, name: true, emoji: true, description: true, displayOrder: true },
+          where: { isDefault: false },
           orderBy: { displayOrder: 'asc' }
         },
         ...(includeProducts && {
@@ -69,19 +77,26 @@ export async function GET(request: NextRequest) {
             },
             where: { isActive: true }
           }
-        })
+        }),
+        _count: {
+          select: {
+            business_products: true,
+            inventory_subcategories: true
+          }
+        }
       },
       orderBy: { displayOrder: 'asc' }
     })
 
-    // Map canonical relation names back to legacy API shape (parent, children, products)
+    // Map canonical relation names back to legacy API shape (parent, children, products, subcategories)
     const mapped = (categories as any[]).map((c) => {
-      const { parentCategory, childCategories, businessProducts, ...rest } = c || {}
+      const { parentCategory, childCategories, businessProducts, inventory_subcategories, ...rest } = c || {}
       return {
         ...rest,
         parent: parentCategory ?? null,
         children: childCategories ?? [],
-        products: businessProducts ?? []
+        products: businessProducts ?? [],
+        subcategories: inventory_subcategories ?? []
       }
     })
 
