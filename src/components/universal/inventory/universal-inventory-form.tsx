@@ -66,7 +66,7 @@ export function UniversalInventoryForm({
     attributes: {}
   })
 
-  const [categories, setCategories] = useState<string[]>([])
+  const [categories, setCategories] = useState<Array<{name: string, emoji?: string, color?: string}>>([])
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -101,7 +101,11 @@ export function UniversalInventoryForm({
         const response = await fetch(`/api/inventory/${businessId}/categories`)
         if (response.ok) {
           const data = await response.json()
-          setCategories(data.categories?.map((cat: any) => cat.name) || [])
+          setCategories(data.categories?.map((cat: any) => ({
+            name: cat.name,
+            emoji: cat.emoji || cat.icon || '📦',
+            color: cat.color || 'gray'
+          })) || [])
         }
       } catch (error) {
         console.error('Failed to fetch categories:', error)
@@ -588,8 +592,8 @@ export function UniversalInventoryForm({
               >
                 <option value="">Select category...</option>
                 {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
+                  <option key={category.name} value={category.name}>
+                    {category.emoji} {category.name}
                   </option>
                 ))}
               </select>

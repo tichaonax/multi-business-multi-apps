@@ -11,7 +11,8 @@ interface InventoryCategory {
   businessType: string
   name: string
   description?: string
-  icon?: string
+  emoji?: string
+  icon?: string // Legacy field for backward compatibility
   color?: string
   sortOrder: number
   isActive: boolean
@@ -62,8 +63,9 @@ export async function GET(
       businessType: cat.businessType,
       name: cat.name,
       description: cat.description || '',
-      icon: '📦', // Default icon, could be made configurable
-      color: 'gray', // Default color, could be made configurable
+      emoji: cat.emoji || '📦', // Use database emoji, fallback to default
+      icon: cat.emoji || '📦', // Legacy field for backward compatibility
+      color: cat.color || 'gray', // Use database color, fallback to default
       sortOrder: 1, // Could be added to database schema
       isActive: cat.isActive,
       itemCount: cat._count.businessProducts,
@@ -166,8 +168,9 @@ export async function POST(
         businessType: category.businessType,
         name: category.name,
         description: category.description,
-        icon: '📦',
-        color: 'gray',
+        emoji: category.emoji || '📦',
+        icon: category.emoji || '📦', // Legacy field for backward compatibility
+        color: category.color || 'gray',
         sortOrder: 1,
         isActive: category.isActive,
         itemCount: 0,
