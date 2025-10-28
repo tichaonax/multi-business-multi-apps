@@ -46,7 +46,7 @@ export default function InventoryCategoriesPage() {
         if (!response.ok) throw new Error('Failed to fetch categories');
 
         const data = await response.json();
-        setCategories(data.success ? data.data : []);
+        setCategories(data.categories || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load categories');
       } finally {
@@ -150,7 +150,7 @@ export default function InventoryCategoriesPage() {
       const response = await fetch(`/api/inventory/categories?businessId=${currentBusinessId}&includeSubcategories=true`);
       if (response.ok) {
         const data = await response.json();
-        setCategories(data.success ? data.data : []);
+        setCategories(data.categories || []);
       }
     } catch (err) {
       console.error('Failed to refresh categories:', err);
