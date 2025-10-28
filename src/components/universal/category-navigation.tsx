@@ -6,6 +6,8 @@ import { useBusinessContext } from './business-context'
 export interface UniversalCategory {
   id: string
   name: string
+  emoji?: string
+  color?: string
   description?: string
   displayOrder: number
   isActive: boolean
@@ -14,14 +16,26 @@ export interface UniversalCategory {
   parent?: {
     id: string
     name: string
+    emoji?: string
+    color?: string
   }
   children: Array<{
     id: string
     name: string
+    emoji?: string
+    color?: string
+    displayOrder: number
+  }>
+  subcategories?: Array<{
+    id: string
+    name: string
+    emoji?: string
+    description?: string
     displayOrder: number
   }>
   _count?: {
     products: number
+    subcategories?: number
   }
 }
 
@@ -168,7 +182,8 @@ export function UniversalCategoryNavigation({
     const isSelected = selectedCategoryId === category.id
     const hasChildren = category.children.length > 0
     const isExpanded = expandedCategories.has(category.id)
-    const icon = getCategoryIcon(category.name, category.businessType)
+    // Use emoji from database, fallback to hardcoded icons for backward compatibility
+    const icon = category.emoji || getCategoryIcon(category.name, category.businessType)
 
     const baseClasses = `
       flex items-center justify-between p-2 rounded-lg transition-colors cursor-pointer
