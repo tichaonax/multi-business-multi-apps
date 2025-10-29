@@ -440,6 +440,34 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* Supplier Management - Business-specific supplier management */}
+        {(isSystemAdmin(currentUser) ||
+          hasBusinessPermission('canViewSuppliers') ||
+          hasBusinessPermission('canCreateSuppliers') ||
+          hasBusinessPermission('canEditSuppliers')) && (
+          <Link
+            href="/business/suppliers"
+            className={getLinkClasses('/business/suppliers')}
+          >
+            <span className="text-lg">🚚</span>
+            <span>Suppliers</span>
+          </Link>
+        )}
+
+        {/* Location Management - Business-specific location management */}
+        {(isSystemAdmin(currentUser) ||
+          hasBusinessPermission('canViewLocations') ||
+          hasBusinessPermission('canCreateLocations') ||
+          hasBusinessPermission('canEditLocations')) && (
+          <Link
+            href="/business/locations"
+            className={getLinkClasses('/business/locations')}
+          >
+            <span className="text-lg">📍</span>
+            <span>Locations</span>
+          </Link>
+        )}
+
         {/* Customer Management - Cross-business functionality */}
         {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canAccessCustomers') || hasPermission(currentUser, 'canManageCustomers')) && (
           <Link

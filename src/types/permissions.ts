@@ -151,6 +151,19 @@ export interface CoreBusinessPermissions {
   canReconcilePayroll: boolean;
   canViewPayrollReports: boolean;
   canManageAdvances: boolean;
+
+  // Supplier Management
+  canViewSuppliers: boolean;
+  canCreateSuppliers: boolean;
+  canEditSuppliers: boolean;
+  canDeleteSuppliers: boolean;
+  canManageSupplierCatalog: boolean;
+
+  // Location Management
+  canViewLocations: boolean;
+  canCreateLocations: boolean;
+  canEditLocations: boolean;
+  canDeleteLocations: boolean;
 }
 
 // Business-Type-Specific Permission Modules
@@ -705,6 +718,19 @@ export const CORE_PERMISSIONS = {
     { key: 'canEditInventorySubcategories', label: 'Edit Inventory Subcategories' },
     { key: 'canDeleteInventorySubcategories', label: 'Delete Inventory Subcategories' },
   ],
+  supplierManagement: [
+    { key: 'canViewSuppliers', label: 'View Suppliers' },
+    { key: 'canCreateSuppliers', label: 'Create Suppliers' },
+    { key: 'canEditSuppliers', label: 'Edit Suppliers' },
+    { key: 'canDeleteSuppliers', label: 'Delete Suppliers' },
+    { key: 'canManageSupplierCatalog', label: 'Manage Supplier Catalog' },
+  ],
+  locationManagement: [
+    { key: 'canViewLocations', label: 'View Locations' },
+    { key: 'canCreateLocations', label: 'Create Locations' },
+    { key: 'canEditLocations', label: 'Edit Locations' },
+    { key: 'canDeleteLocations', label: 'Delete Locations' },
+  ],
   payrollManagement: [
     { key: 'canAccessPayroll', label: 'Access Payroll' },
     { key: 'canManagePayroll', label: 'Manage Payroll' },
@@ -805,6 +831,19 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canReconcilePayroll: true,
   canViewPayrollReports: true,
   canManageAdvances: true,
+
+  // Supplier Management - Full access
+  canViewSuppliers: true,
+  canCreateSuppliers: true,
+  canEditSuppliers: true,
+  canDeleteSuppliers: true,
+  canManageSupplierCatalog: true,
+
+  // Location Management - Full access
+  canViewLocations: true,
+  canCreateLocations: true,
+  canEditLocations: true,
+  canDeleteLocations: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -886,6 +925,19 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canReconcilePayroll: true,
   canViewPayrollReports: true,
   canManageAdvances: true,
+
+  // Supplier Management - Manager access
+  canViewSuppliers: true,
+  canCreateSuppliers: true,
+  canEditSuppliers: true,
+  canDeleteSuppliers: false,
+  canManageSupplierCatalog: true,
+
+  // Location Management - Manager access
+  canViewLocations: true,
+  canCreateLocations: true,
+  canEditLocations: true,
+  canDeleteLocations: false,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -967,6 +1019,19 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canReconcilePayroll: false,
   canViewPayrollReports: false,
   canManageAdvances: false,
+
+  // Supplier Management - View only
+  canViewSuppliers: true,
+  canCreateSuppliers: false,
+  canEditSuppliers: false,
+  canDeleteSuppliers: false,
+  canManageSupplierCatalog: false,
+
+  // Location Management - View only
+  canViewLocations: true,
+  canCreateLocations: false,
+  canEditLocations: false,
+  canDeleteLocations: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -1046,6 +1111,19 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canReconcilePayroll: false,
   canViewPayrollReports: true,
   canManageAdvances: false,
+
+  // Supplier Management - View only
+  canViewSuppliers: true,
+  canCreateSuppliers: false,
+  canEditSuppliers: false,
+  canDeleteSuppliers: false,
+  canManageSupplierCatalog: false,
+
+  // Location Management - View only
+  canViewLocations: true,
+  canCreateLocations: false,
+  canEditLocations: false,
+  canDeleteLocations: false,
 };
 
 // System admin permissions (cross-business)
@@ -1125,6 +1203,19 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canReconcilePayroll: true,
   canViewPayrollReports: true,
   canManageAdvances: true,
+
+  // Supplier Management - Full access
+  canViewSuppliers: true,
+  canCreateSuppliers: true,
+  canEditSuppliers: true,
+  canDeleteSuppliers: true,
+  canManageSupplierCatalog: true,
+
+  // Location Management - Full access
+  canViewLocations: true,
+  canCreateLocations: true,
+  canEditLocations: true,
+  canDeleteLocations: true,
 };
 
 // User-Level Permission Presets

@@ -60,11 +60,19 @@ export default function GroceryStorePage() {
     }] : []),
     {
       title: 'Supplier Management',
-      description: 'Delivery tracking, quality control, vendor performance',
-      href: '/grocery/suppliers',
+      description: 'Manage vendors, payment terms, and supplier relationships',
+      href: '/business/suppliers',
       icon: '🚚',
       color: 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100',
-      features: ['Delivery scheduling', 'Quality scores', 'Payment terms', 'Performance metrics']
+      features: ['Supplier contacts', 'Payment terms', 'Account balances', 'Credit limits']
+    },
+    {
+      title: 'Location Management',
+      description: 'Storage locations, warehouses, and inventory organization',
+      href: '/business/locations',
+      icon: '📍',
+      color: 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100',
+      features: ['Location codes', 'Hierarchy setup', 'Capacity tracking', 'Product assignment']
     },
     {
       title: 'Department Management',

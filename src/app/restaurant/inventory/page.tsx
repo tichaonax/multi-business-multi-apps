@@ -3,21 +3,53 @@
 import { useState } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { RestaurantInventoryStats } from './components/inventory-stats'
+import { BusinessProvider } from '@/components/universal'
+import {
+  UniversalInventoryForm,
+  UniversalInventoryGrid,
+  UniversalInventoryStats
+} from '@/components/universal/inventory'
 import { RestaurantRecipeManager } from './components/recipe-manager'
 import { RestaurantPrepTracker } from './components/prep-tracker'
 import { RestaurantWasteLog } from './components/waste-log'
 import { RestaurantExpirationAlerts } from './components/expiration-alerts'
-import { InventoryItemsTable } from './components/inventory-items-table'
-import { AddInventoryItemModal } from './components/add-inventory-item-modal'
+
+const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'restaurant-demo-business'
 
 export default function RestaurantInventoryPage() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts'>('ingredients')
-  const [showAddModal, setShowAddModal] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const handleItemAdded = () => {
     setRefreshTrigger(prev => prev + 1)
+    setShowAddForm(false)
+    setSelectedItem(null)
+  }
+
+  const handleFormSubmit = async (formData: any) => {
+    try {
+      const method = selectedItem ? 'PUT' : 'POST'
+      const url = selectedItem
+        ? `/api/inventory/${BUSINESS_ID}/items/${selectedItem.id}`
+        : `/api/inventory/${BUSINESS_ID}/items`
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save item')
+      }
+
+      handleItemAdded()
+    } catch (error) {
+      console.error('Error saving item:', error)
+      throw error
+    }
   }
 
   const tabs = [
@@ -49,7 +81,8 @@ export default function RestaurantInventoryPage() {
 
   return (
     <BusinessTypeRoute requiredBusinessType="restaurant">
-      <ContentLayout
+      <BusinessProvider businessId={BUSINESS_ID}>
+        <ContentLayout
         title="Restaurant Inventory Management"
         subtitle="Manage ingredients, recipes, prep tracking, and food costs"
         breadcrumb={[
@@ -63,7 +96,7 @@ export default function RestaurantInventoryPage() {
               📊 Reports
             </button>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => setShowAddForm(true)}
               className="btn-primary"
             >
               ➕ Add Ingredient
@@ -73,7 +106,7 @@ export default function RestaurantInventoryPage() {
       >
         <div className="space-y-6">
           {/* Inventory Overview Stats */}
-          <RestaurantInventoryStats />
+          <UniversalInventoryStats businessId={BUSINESS_ID} />
 
           {/* Tab Navigation */}
           <div className="card">
@@ -114,7 +147,7 @@ export default function RestaurantInventoryPage() {
                         📥 Receive Order
                       </button>
                       <button
-                        onClick={() => setShowAddModal(true)}
+                        onClick={() => setShowAddForm(true)}
                         className="btn-primary text-sm"
                       >
                         ➕ Add Ingredient
@@ -122,7 +155,7 @@ export default function RestaurantInventoryPage() {
                     </div>
                   </div>
 
-                  {/* Ingredient Categories */}
+                  {/* Ingredient Categories - Keep for now but will be replaced by UniversalInventoryGrid */}
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {[
                       { name: 'Proteins', icon: '🥩', count: 12, color: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' },
@@ -142,8 +175,15 @@ export default function RestaurantInventoryPage() {
                     ))}
                   </div>
 
-                  {/* Real Inventory Items Table */}
-                  <InventoryItemsTable businessId="restaurant-demo" key={refreshTrigger} />
+                  {/* Universal Inventory Grid */}
+                  <UniversalInventoryGrid
+                    businessId={BUSINESS_ID}
+                    businessType="restaurant"
+                    onItemEdit={(item) => {
+                      setSelectedItem(item)
+                      setShowAddForm(true)
+                    }}
+                  />
                 </div>
               )}
 
@@ -152,16 +192,102 @@ export default function RestaurantInventoryPage() {
               {activeTab === 'alerts' && <RestaurantExpirationAlerts />}
             </div>
           </div>
-        </div>
 
-        {/* Add Inventory Item Modal */}
-        <AddInventoryItemModal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          businessId="restaurant-demo"
-          onItemAdded={handleItemAdded}
-        />
+          {/* Universal Inventory Form Modal */}
+          {showAddForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+                  <h2 className="text-xl font-semibold text-primary">
+                    {selectedItem ? 'Edit Ingredient' : 'Add New Ingredient'}
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowAddForm(false)
+                      setSelectedItem(null)
+                    }}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  <UniversalInventoryForm
+                    businessId={BUSINESS_ID}
+                    businessType="restaurant"
+                    item={selectedItem}
+                    onSubmit={handleFormSubmit}
+                    onCancel={() => {
+                      setShowAddForm(false)
+                      setSelectedItem(null)
+                    }}
+                    renderMode="inline"
+                    customFields={[
+                      {
+                        name: 'storageTemp',
+                        label: 'Storage Temperature',
+                        type: 'select',
+                        options: [
+                          { value: 'room', label: 'Room Temperature' },
+                          { value: 'refrigerated', label: 'Refrigerated (32°F - 40°F)' },
+                          { value: 'frozen', label: 'Frozen (-10°F - 0°F)' }
+                        ],
+                        section: 'restaurant'
+                      },
+                      {
+                        name: 'expirationDays',
+                        label: 'Shelf Life (Days)',
+                        type: 'number',
+                        placeholder: 'Average days until expiration',
+                        section: 'restaurant'
+                      },
+                      {
+                        name: 'allergens',
+                        label: 'Allergens',
+                        type: 'multiselect',
+                        options: [
+                          { value: 'gluten', label: 'Gluten' },
+                          { value: 'dairy', label: 'Dairy' },
+                          { value: 'eggs', label: 'Eggs' },
+                          { value: 'nuts', label: 'Tree Nuts' },
+                          { value: 'peanuts', label: 'Peanuts' },
+                          { value: 'shellfish', label: 'Shellfish' },
+                          { value: 'fish', label: 'Fish' },
+                          { value: 'soy', label: 'Soy' }
+                        ],
+                        section: 'restaurant'
+                      },
+                      {
+                        name: 'preparationTime',
+                        label: 'Preparation Time (minutes)',
+                        type: 'number',
+                        placeholder: 'Time to prepare/cook this ingredient',
+                        section: 'restaurant'
+                      },
+                      {
+                        name: 'yield',
+                        label: 'Yield/Portion Size',
+                        type: 'text',
+                        placeholder: 'e.g., 100g, 1 cup, 2 pieces',
+                        section: 'restaurant'
+                      },
+                      {
+                        name: 'supplier',
+                        label: 'Primary Supplier',
+                        type: 'text',
+                        placeholder: 'Supplier name or contact',
+                        section: 'restaurant'
+                      }
+                    ]}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </ContentLayout>
+      </BusinessProvider>
     </BusinessTypeRoute>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, parsePhoneNumber, formatPhoneNumber, formatLocalNumber, type CountryCode } from '@/lib/country-codes'
+import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, parsePhoneNumber, formatPhoneNumber, formatLocalNumber, validatePhoneNumber, getPhoneNumberLength, type CountryCode } from '@/lib/country-codes'
 
 interface PhoneNumberInputProps {
   value: string
@@ -28,6 +28,7 @@ export function PhoneNumberInput({
   const [localNumber, setLocalNumber] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [validationError, setValidationError] = useState<string | undefined>()
 
   // Parse initial value
   useEffect(() => {
@@ -65,6 +66,14 @@ export function PhoneNumberInput({
       cleanedDigits = cleanedDigits.slice(dialDigits.length)
     }
 
+    // Validate with new country code
+    const validation = validatePhoneNumber(cleanedDigits, country.code)
+    if (!validation.valid && cleanedDigits.length > 0) {
+      setValidationError(validation.message)
+    } else {
+      setValidationError(undefined)
+    }
+
     const fullNumber = formatPhoneNumber(country.code, cleanedDigits)
     onChange(fullNumber, country.code, cleanedDigits)
   }
@@ -80,11 +89,28 @@ export function PhoneNumberInput({
     if (countryDialDigits && cleanedDigits.startsWith(countryDialDigits)) {
       cleanedDigits = cleanedDigits.slice(countryDialDigits.length)
     }
-    
+
+    // Validate phone number length
+    const validation = validatePhoneNumber(cleanedDigits, selectedCountry?.code)
+
+    // Prevent entering more digits than allowed
+    const maxLength = getPhoneNumberLength(selectedCountry?.code)
+    if (cleanedDigits.length > maxLength) {
+      // Don't update if user is trying to add more digits than allowed
+      return
+    }
+
+    // Set validation error if invalid
+    if (!validation.valid && cleanedDigits.length > 0) {
+      setValidationError(validation.message)
+    } else {
+      setValidationError(undefined)
+    }
+
     // Format the number for display
     const formattedLocal = formatLocalNumber(cleanedDigits, selectedCountry?.code)
     setLocalNumber(formattedLocal)
-    
+
     if (selectedCountry) {
       // Store the unformatted version in the full phone number
       const fullNumber = formatPhoneNumber(selectedCountry.code, cleanedDigits)
@@ -171,8 +197,8 @@ export function PhoneNumberInput({
       </div>
 
       {/* Error Message */}
-      {error && (
-        <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>
+      {(error || validationError) && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error || validationError}</p>
       )}
 
       {/* Help Text */}

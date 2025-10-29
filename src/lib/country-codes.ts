@@ -144,6 +144,59 @@ export function formatPhoneNumber(countryCode: string, localNumber: string): str
   return `${country.dialCode} ${localNumber}`
 }
 
+// Get expected phone number length for a country
+export function getPhoneNumberLength(countryCode?: string): number {
+  switch (countryCode) {
+    case 'ZW': // Zimbabwe: 9 digits (77 123 4567)
+    case 'ZA': // South Africa: 9 digits
+    case 'KE': // Kenya: 9 digits
+    case 'UG': // Uganda: 9 digits
+    case 'TZ': // Tanzania: 9 digits
+      return 9
+    case 'BW': // Botswana: 8 digits (71 123 456)
+      return 8
+    case 'US': // United States: 10 digits
+    case 'CA': // Canada: 10 digits
+    case 'GB': // UK: 10 digits
+    case 'IN': // India: 10 digits
+    case 'AU': // Australia: 10 digits (includes leading 0)
+      return 10
+    case 'DE': // Germany: 10-11 digits
+    case 'FR': // France: 9 digits
+    case 'IT': // Italy: 10 digits
+    case 'ES': // Spain: 9 digits
+      return 9
+    default:
+      return 10 // Default to 10 digits
+  }
+}
+
+// Validate phone number length for a country
+export function validatePhoneNumber(localNumber: string, countryCode?: string): { valid: boolean; message?: string } {
+  const digits = localNumber.replace(/\D/g, '')
+  const expectedLength = getPhoneNumberLength(countryCode)
+
+  if (!digits) {
+    return { valid: true } // Empty is valid (not required)
+  }
+
+  if (digits.length < expectedLength) {
+    return {
+      valid: false,
+      message: `Phone number should be ${expectedLength} digits`
+    }
+  }
+
+  if (digits.length > expectedLength) {
+    return {
+      valid: false,
+      message: `Phone number is too long (max ${expectedLength} digits)`
+    }
+  }
+
+  return { valid: true }
+}
+
 // Enhanced function to format full phone number for display
 export function formatPhoneNumberForDisplay(phoneNumber: string): string {
   if (!phoneNumber) return ''

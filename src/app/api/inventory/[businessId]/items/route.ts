@@ -108,6 +108,8 @@ export async function GET(
         business_categories: true,
         inventory_subcategory: true,
         business_brands: true,
+        business_suppliers: true,
+        business_locations: true,
         product_variants: {
           include: {
             business_stock_movements: true
@@ -141,15 +143,19 @@ export async function GET(
         sku: product.sku || '',
         description: product.description || '',
         category: product.business_categories?.name || 'Uncategorized',
+        categoryId: product.categoryId || null,
         categoryEmoji: product.business_categories?.emoji || '📦',
         subcategory: product.inventory_subcategory?.name || null,
+        subcategoryId: product.subcategoryId || null,
         subcategoryEmoji: product.inventory_subcategory?.emoji || null,
         currentStock,
         unit: 'units',
   costPrice: parseFloat(product.costPrice?.toString() || '0'),
         sellPrice: parseFloat(product.basePrice?.toString() || '0'),
-        supplier: '',
-        location: '',
+        supplier: product.business_suppliers?.name || '',
+        supplierId: product.supplierId || null,
+        location: product.business_locations?.name || '',
+        locationId: product.locationId || null,
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
@@ -302,6 +308,38 @@ export async function POST(
       }
     }
 
+    // Validate supplier if provided
+    if (body.supplierId) {
+      const supplier = await prisma.businessSuppliers.findFirst({
+        where: {
+          id: body.supplierId,
+          businessId
+        }
+      })
+      if (!supplier) {
+        return NextResponse.json(
+          { error: 'Invalid supplier' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate location if provided
+    if (body.locationId) {
+      const location = await prisma.businessLocations.findFirst({
+        where: {
+          id: body.locationId,
+          businessId
+        }
+      })
+      if (!location) {
+        return NextResponse.json(
+          { error: 'Invalid location' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Create the product
     const product = await prisma.businessProducts.create({
       data: {
@@ -313,6 +351,8 @@ export async function POST(
         barcode: body.barcode || null,
         categoryId: categoryId || undefined,
         subcategoryId: subcategoryId,
+        supplierId: body.supplierId || null,
+        locationId: body.locationId || null,
         basePrice: parseFloat(basePrice),
         costPrice: body.costPrice ? parseFloat(body.costPrice) : null,
         businessType: business.type,
@@ -322,7 +362,9 @@ export async function POST(
       },
       include: {
         business_categories: true,
-        inventory_subcategory: true
+        inventory_subcategory: true,
+        business_suppliers: true,
+        business_locations: true
       }
     })
 

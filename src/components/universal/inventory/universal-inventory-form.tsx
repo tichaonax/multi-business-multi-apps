@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { SupplierSelector } from '@/components/suppliers/supplier-selector'
+import { LocationSelector } from '@/components/locations/location-selector'
 
 interface InventorySubcategory {
   id: string
@@ -23,8 +25,10 @@ interface UniversalInventoryItem {
   unit: string
   costPrice: number
   sellPrice: number
-  supplier?: string
-  location?: string
+  supplier?: string // Legacy - for display only
+  supplierId?: string
+  location?: string // Legacy - for display only
+  locationId?: string
   isActive: boolean
   attributes?: Record<string, any>
 }
@@ -71,7 +75,9 @@ export function UniversalInventoryForm({
     costPrice: 0,
     sellPrice: 0,
     supplier: '',
+    supplierId: undefined,
     location: '',
+    locationId: undefined,
     isActive: true,
     attributes: {}
   })
@@ -94,15 +100,6 @@ export function UniversalInventoryForm({
   useEffect(() => {
     if (item) {
       setFormData(item)
-      // Set selected category if editing
-      if (item.categoryId) {
-        setSelectedCategory(item.categoryId)
-        // Find and set subcategories for the selected category
-        const category = categories.find(c => c.id === item.categoryId)
-        if (category?.subcategories) {
-          setAvailableSubcategories(category.subcategories)
-        }
-      }
     } else {
       setFormData({
         businessId,
@@ -117,12 +114,28 @@ export function UniversalInventoryForm({
         costPrice: 0,
         sellPrice: 0,
         supplier: '',
+        supplierId: undefined,
         location: '',
+        locationId: undefined,
         isActive: true,
         attributes: {}
       })
+      setSelectedCategory('')
+      setAvailableSubcategories([])
     }
-  }, [item, businessId, businessType, categories])
+  }, [item, businessId, businessType])
+
+  // Set selected category and subcategories when categories are loaded and item has a category
+  useEffect(() => {
+    if (item?.categoryId && categories.length > 0) {
+      setSelectedCategory(item.categoryId)
+      // Find and set subcategories for the selected category
+      const category = categories.find(c => c.id === item.categoryId)
+      if (category?.subcategories) {
+        setAvailableSubcategories(category.subcategories)
+      }
+    }
+  }, [item, categories])
 
   // Fetch categories with subcategories
   useEffect(() => {
@@ -150,6 +163,9 @@ export function UniversalInventoryForm({
   }, [businessId])
 
   const handleInputChange = (field: string, value: any) => {
+    if (field === 'locationId') {
+      console.log('UniversalInventoryForm - locationId changed to:', value)
+    }
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -233,9 +249,20 @@ export function UniversalInventoryForm({
       return
     }
 
+    console.log('UniversalInventoryForm - submitting with formData.locationId:', formData.locationId)
+    console.log('UniversalInventoryForm - full formData:', formData)
+
     setLoading(true)
 
     try {
+      // If onSubmit is provided, let the parent handle the submission
+      if (onSubmit) {
+        await onSubmit(formData)
+        setLoading(false)
+        return
+      }
+
+      // Legacy mode: form handles the API call when onSave is provided
       const method = mode === 'edit' ? 'PUT' : 'POST'
       const url = mode === 'edit' && item?.id
         ? `/api/inventory/${businessId}/items/${item.id}`
@@ -251,10 +278,7 @@ export function UniversalInventoryForm({
 
       if (response.ok) {
         const data = await response.json()
-        // Prefer onSubmit (page-level handler). Fall back to legacy onSave for compatibility.
-        if (onSubmit) {
-          await onSubmit(data.item)
-        } else if (onSave) {
+        if (onSave) {
           onSave(data.item)
         }
       } else {
@@ -779,31 +803,19 @@ export function UniversalInventoryForm({
               {errors.sellPrice && <p className="text-red-600 text-sm mt-1">{errors.sellPrice}</p>}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Supplier
-              </label>
-              <input
-                type="text"
-                value={formData.supplier}
-                onChange={(e) => handleInputChange('supplier', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Supplier name"
-              />
-            </div>
+            <SupplierSelector
+              businessId={businessId}
+              value={formData.supplierId || null}
+              onChange={(supplierId) => handleInputChange('supplierId', supplierId || undefined)}
+              canCreate={true}
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Location
-              </label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => handleInputChange('location', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Storage location"
-              />
-            </div>
+            <LocationSelector
+              businessId={businessId}
+              value={formData.locationId || null}
+              onChange={(locationId) => handleInputChange('locationId', locationId || undefined)}
+              canCreate={true}
+            />
           </div>
 
           <div>

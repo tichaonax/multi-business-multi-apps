@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -22,6 +22,19 @@ export default function ClothingInventoryPage() {
   const [showViewModal, setShowViewModal] = useState(false)
   const alert = useAlert()
   const confirm = useConfirm()
+
+  // Restore active tab from sessionStorage on mount
+  useEffect(() => {
+    const savedTab = sessionStorage.getItem('clothing-inventory-active-tab')
+    if (savedTab && ['overview', 'inventory', 'movements', 'alerts', 'reports'].includes(savedTab)) {
+      setActiveTab(savedTab as any)
+    }
+  }, [])
+
+  // Save active tab whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('clothing-inventory-active-tab', activeTab)
+  }, [activeTab])
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
@@ -68,43 +81,28 @@ export default function ClothingInventoryPage() {
 
       const method = selectedItem ? 'PUT' : 'POST'
 
-      // Transform form data to include clothing-specific attributes
-      const clothingFormData = {
+      // Attributes are already in formData.attributes from the form
+      // Just ensure businessId and businessType are set
+      const payload = {
         ...formData,
         businessId: BUSINESS_ID,
-        businessType: 'clothing',
-        attributes: {
-          ...formData.attributes,
-          // Clothing-specific attributes
-          brand: formData.brand,
-          sizes: formData.sizes || [],
-          colors: formData.colors || [],
-          material: formData.material,
-          careInstructions: formData.careInstructions,
-          gender: formData.gender || 'unisex',
-          season: formData.season || 'all-season',
-          condition: formData.condition || 'new',
-          style: formData.style,
-          fit: formData.fit,
-          neckline: formData.neckline,
-          sleeveLength: formData.sleeveLength,
-          fabricWeight: formData.fabricWeight,
-          isEthical: formData.isEthical || false,
-          isSustainable: formData.isSustainable || false,
-          countryOfOrigin: formData.countryOfOrigin
-        }
+        businessType: 'clothing'
       }
 
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clothingFormData)
+        body: JSON.stringify(payload)
       })
 
       if (response.ok) {
         // Close form immediately
         setShowAddForm(false)
         setSelectedItem(null)
+        // Set tab to inventory before reload
+        setActiveTab('inventory')
+        // Small delay to ensure sessionStorage is written
+        await new Promise(resolve => setTimeout(resolve, 50))
         // Reload page to show updated inventory
         window.location.reload()
       } else {
@@ -351,7 +349,7 @@ export default function ClothingInventoryPage() {
             businessId={BUSINESS_ID}
             businessType="clothing"
             item={selectedItem}
-            onSave={handleFormSubmit}
+            onSubmit={handleFormSubmit}
             onCancel={() => {
               setShowAddForm(false)
               setSelectedItem(null)
@@ -415,6 +413,10 @@ export default function ClothingInventoryPage() {
                         <div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">Current Stock</div>
                           <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.currentStock} {selectedItem.unit}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Supplier</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.supplier || 'Not specified'}</div>
                         </div>
                         <div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">Location</div>

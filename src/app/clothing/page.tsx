@@ -56,6 +56,22 @@ export default function ClothingPage() {
             </Link>
           )}
 
+          <Link href="/business/suppliers" className="block">
+            <div className="card p-6 hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-4">🚚</div>
+              <h3 className="text-lg font-semibold mb-2 text-primary">Suppliers</h3>
+              <p className="text-secondary">Manage vendors and suppliers</p>
+            </div>
+          </Link>
+
+          <Link href="/business/locations" className="block">
+            <div className="card p-6 hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-4">📍</div>
+              <h3 className="text-lg font-semibold mb-2 text-primary">Locations</h3>
+              <p className="text-secondary">Storage locations and warehouses</p>
+            </div>
+          </Link>
+
           <Link href="/clothing/discounts" className="block">
             <div className="card p-6 hover:shadow-lg transition-shadow">
               <div className="text-4xl mb-4">🏷️</div>

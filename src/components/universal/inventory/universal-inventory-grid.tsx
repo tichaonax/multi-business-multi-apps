@@ -63,10 +63,14 @@ export function UniversalInventoryGrid({
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedSupplier, setSelectedSupplier] = useState<string>('all')
+  const [selectedLocation, setSelectedLocation] = useState<string>('all')
   const [sortField, setSortField] = useState<string>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [categories, setCategories] = useState<string[]>([])
+  const [suppliers, setSuppliers] = useState<string[]>([])
+  const [locations, setLocations] = useState<string[]>([])
 
   // Fetch inventory items
   useEffect(() => {
@@ -97,6 +101,14 @@ export function UniversalInventoryGrid({
   const uniqueCategories = [...new Set(fetchedItems.map((item) => item.category || '').filter(Boolean))] as string[]
   setCategories(uniqueCategories)
 
+  // Extract suppliers for filtering
+  const uniqueSuppliers = [...new Set(fetchedItems.map((item) => item.supplier || '').filter(Boolean))] as string[]
+  setSuppliers(uniqueSuppliers)
+
+  // Extract locations for filtering
+  const uniqueLocations = [...new Set(fetchedItems.map((item) => item.location || '').filter(Boolean))] as string[]
+  setLocations(uniqueLocations)
+
       } catch (error) {
         console.error('Error fetching inventory items:', error)
         setError('Failed to load inventory items')
@@ -111,8 +123,19 @@ export function UniversalInventoryGrid({
     }
   }, [businessId, currentPage, pageSize, searchTerm, selectedCategory])
 
+  // Filter items by supplier and location
+  const filteredItems = items.filter(item => {
+    if (selectedSupplier !== 'all' && item.supplier !== selectedSupplier) {
+      return false
+    }
+    if (selectedLocation !== 'all' && item.location !== selectedLocation) {
+      return false
+    }
+    return true
+  })
+
   // Sort items
-  const sortedItems = [...items].sort((a, b) => {
+  const sortedItems = [...filteredItems].sort((a, b) => {
   let aValue: any = (a as any)[sortField]
   let bValue: any = (b as any)[sortField]
 
@@ -295,6 +318,36 @@ export function UniversalInventoryGrid({
 
               <div className="flex-1">
                 <select
+                  value={selectedSupplier}
+                  onChange={(e) => setSelectedSupplier(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="all">All Suppliers</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier} value={supplier}>
+                      {supplier}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1">
+                <select
+                  value={selectedLocation}
+                  onChange={(e) => setSelectedLocation(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="all">All Locations</option>
+                  {locations.map((location) => (
+                    <option key={location} value={location}>
+                      {location}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1">
+                <select
                   onChange={(e) => {
                     const [field, direction] = e.target.value.split(':')
                     setSortField(field)
@@ -348,6 +401,7 @@ export function UniversalInventoryGrid({
                   >
                     Unit Cost {allowSorting && (sortField === 'costPrice' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
+                  <th className="text-left p-3 font-medium text-secondary">Supplier</th>
                   <th className="text-left p-3 font-medium text-secondary">Location</th>
                   {showBusinessSpecificFields && (
                     <th className="text-left p-3 font-medium text-secondary">Details</th>
@@ -392,6 +446,9 @@ export function UniversalInventoryGrid({
                     </td>
                     <td className="p-3 font-medium">
                       ${item.costPrice.toFixed(2)}
+                    </td>
+                    <td className="p-3 text-secondary">
+                      {item.supplier || 'Not specified'}
                     </td>
                     <td className="p-3 text-secondary">
                       {item.location || 'Not specified'}
@@ -501,12 +558,16 @@ export function UniversalInventoryGrid({
                       <div className="font-medium">${item.costPrice.toFixed(2)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-secondary">Location</div>
-                      <div className="truncate">{item.location || 'Not specified'}</div>
-                    </div>
-                    <div>
                       <div className="text-xs text-secondary">Sell Price</div>
                       <div className="font-medium">${item.sellPrice.toFixed(2)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-secondary">Supplier</div>
+                      <div className="truncate">{item.supplier || 'Not specified'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-secondary">Location</div>
+                      <div className="truncate">{item.location || 'Not specified'}</div>
                     </div>
                   </div>
 

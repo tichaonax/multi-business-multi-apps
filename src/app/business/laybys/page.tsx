@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Plus, Search, Filter, RefreshCw } from 'lucide-react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { ContentLayout } from '@/components/layout/content-layout'
 
 export default function LaybysPage() {
   const { data: session } = useSession()
@@ -22,6 +23,7 @@ export default function LaybysPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedLayby, setSelectedLayby] = useState<CustomerLayby | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Filters
   const [filters, setFilters] = useState({
@@ -99,7 +101,7 @@ export default function LaybysPage() {
       setShowDetailModal(true)
     } catch (err) {
       console.error('Error fetching layby details:', err)
-      alert('Failed to load layby details')
+      setErrorMessage('Failed to load layby details. Please try again.')
     }
   }
 
@@ -184,20 +186,22 @@ export default function LaybysPage() {
 
   return (
     <ProtectedRoute>
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-primary">Layby Management</h1>
-            <p className="text-secondary mt-1">
-              Manage customer layby agreements and payments
-            </p>
-          </div>
+      <ContentLayout
+        title="🛍️ Layby Management"
+        subtitle="Manage customer layby agreements and payments"
+        breadcrumb={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: currentBusiness?.businessName || 'Business', href: `/${currentBusiness?.businessType || 'dashboard'}` },
+          { label: 'Layby Management', isActive: true }
+        ]}
+        headerActions={
           <Button onClick={handleCreateNew}>
             <Plus className="h-4 w-4 mr-2" />
             New Layby
           </Button>
-        </div>
+        }
+      >
+        <div className="space-y-6">
 
         {/* Filters */}
         <div className="card p-6 mb-6">
@@ -349,7 +353,37 @@ export default function LaybysPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </ContentLayout>
+
+      {/* Error Modal */}
+        {errorMessage && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Error</h3>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm">{errorMessage}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 rounded-b-lg flex justify-end">
+                <button
+                  onClick={() => setErrorMessage(null)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </ProtectedRoute>
   )
 }

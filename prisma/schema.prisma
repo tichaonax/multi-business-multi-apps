@@ -225,6 +225,8 @@ model BusinessProducts {
   brandId                  String?
   categoryId               String
   subcategoryId            String?
+  supplierId               String?
+  locationId               String?
   productType              ProductType              @default(PHYSICAL)
   condition                ProductCondition         @default(NEW)
   basePrice                Decimal                  @db.Decimal(10, 2)
@@ -252,6 +254,8 @@ model BusinessProducts {
   businesses               Businesses               @relation(fields: [businessId], references: [id])
   business_categories      BusinessCategories       @relation(fields: [categoryId], references: [id])
   inventory_subcategory    InventorySubcategories?  @relation(fields: [subcategoryId], references: [id])
+  business_suppliers       BusinessSuppliers?       @relation("ProductSupplier", fields: [supplierId], references: [id])
+  business_locations       BusinessLocations?       @relation("ProductLocation", fields: [locationId], references: [id])
   business_stock_movements BusinessStockMovements[]
   menu_combo_items         MenuComboItems[]
   product_attributes       ProductAttributes[]
@@ -293,9 +297,13 @@ model BusinessSuppliers {
   contactPerson     String?
   email             String?
   phone             String?
+  taxId             String?
   address           String?
   paymentTerms      String?
   creditLimit       Decimal?           @db.Decimal(12, 2)
+  emoji             String?
+  accountBalance    Decimal?           @default(0) @db.Decimal(12, 2)
+  notes             String?
   isActive          Boolean            @default(true)
   businessType      String
   attributes        Json?
@@ -303,9 +311,33 @@ model BusinessSuppliers {
   updatedAt         DateTime
   businesses        Businesses         @relation(fields: [businessId], references: [id])
   supplier_products SupplierProducts[]
+  business_products BusinessProducts[] @relation("ProductSupplier")
 
   @@unique([businessId, supplierNumber])
   @@map("business_suppliers")
+}
+
+model BusinessLocations {
+  id                String             @id
+  businessId        String
+  locationCode      String
+  name              String
+  emoji             String?
+  description       String?
+  locationType      String?
+  capacity          Int?
+  isActive          Boolean            @default(true)
+  parentLocationId  String?
+  attributes        Json?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime
+  businesses        Businesses         @relation(fields: [businessId], references: [id])
+  parent_location   BusinessLocations? @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  child_locations   BusinessLocations[] @relation("LocationHierarchy")
+  business_products BusinessProducts[] @relation("ProductLocation")
+
+  @@unique([businessId, locationCode])
+  @@map("business_locations")
 }
 
 model BusinessTransactions {
@@ -355,6 +387,7 @@ model Businesses {
   business_products                                                        BusinessProducts[]
   business_stock_movements                                                 BusinessStockMovements[]
   business_suppliers                                                       BusinessSuppliers[]
+  business_locations                                                       BusinessLocations[]
   business_transactions                                                    BusinessTransactions[]
   businesses                                                               Businesses?                   @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
   other_businesses                                                         Businesses[]                  @relation("businessesTobusinesses")
