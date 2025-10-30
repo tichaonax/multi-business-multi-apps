@@ -5,6 +5,10 @@ import { BarcodeScanner } from '@/components/universal/barcode-scanner'
 import { UniversalProduct } from '@/components/universal/product-card'
 import { useState, useEffect, useRef } from 'react'
 import { useToastContext } from '@/components/ui/toast'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { SessionUser } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface MenuItem {
   id: string
@@ -30,13 +34,31 @@ export default function RestaurantPOS() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Use the business permissions context for proper business management
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  // Get user info
+  const sessionUser = session?.user as SessionUser
+  const employeeId = sessionUser?.id
+
+  // Toast context (hook) must be called unconditionally to preserve hooks order
+  const toast = useToastContext()
+
+  // Check if current business is a restaurant business
+  const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
 
   const categories = ['all', 'appetizers', 'mains', 'desserts', 'beverages']
 
-  useEffect(() => {
-    loadMenuItems()
-  }, [])
-
+  // Load menu items (defined early so hooks order is stable).
   const loadMenuItems = async () => {
     try {
       const response = await fetch('/api/universal/products?businessType=restaurant&isAvailable=true&isActive=true')
@@ -71,6 +93,109 @@ export default function RestaurantPOS() {
       ])
     }
   }
+
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) {
+      router.push('/auth/signin')
+    }
+  }, [session, status, router])
+
+  // Trigger loading of menu items when we have a selected restaurant business.
+  useEffect(() => {
+    if (status === 'loading' || businessLoading) return
+    if (!currentBusinessId || !isRestaurantBusiness) return
+    loadMenuItems()
+    // Intentionally depend on currentBusinessId and isRestaurantBusiness
+  }, [currentBusinessId, isRestaurantBusiness, status, businessLoading])
+
+  // Show loading while session or business context is loading
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Don't render if no session or no business access
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to use the POS system.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user has any restaurant businesses
+  const restaurantBusinesses = businesses.filter(b => b.businessType === 'restaurant' && b.isActive)
+  const hasRestaurantBusinesses = restaurantBusinesses.length > 0
+
+  // If no current business selected and user has restaurant businesses, show selection prompt
+  if (!currentBusiness && hasRestaurantBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Restaurant Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {restaurantBusinesses.length} restaurant business{restaurantBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to use the POS system.
+          </p>
+          <div className="space-y-2">
+            {restaurantBusinesses.slice(0, 3).map(business => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If current business is not restaurant, show error
+  if (currentBusiness && !isRestaurantBusiness) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Restaurant POS is only available for restaurant businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Please select a restaurant business from the sidebar to use this POS system.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // If no restaurant businesses at all, show message
+  if (!hasRestaurantBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Restaurant Businesses</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have access to any restaurant businesses. The Restaurant POS system requires access to at least one restaurant business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contact your administrator if you need access to restaurant businesses.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // At this point, we have a valid restaurant business selected
+  const businessId = currentBusinessId!
+
+  
 
   const addToCart = (item: MenuItem) => {
     setCart(prev => {
@@ -151,7 +276,7 @@ export default function RestaurantPOS() {
         body: JSON.stringify({
           items: cart,
           total,
-          businessId: 'restaurant-demo',
+          businessId: businessId,
           idempotencyKey
         }),
       })
@@ -188,8 +313,6 @@ export default function RestaurantPOS() {
       return v.toString(16)
     })
   }
-  const toast = useToastContext()
-
   return (
     <BusinessTypeRoute requiredBusinessType="restaurant">
       <div className="min-h-screen page-background bg-white dark:bg-gray-900">
@@ -199,7 +322,7 @@ export default function RestaurantPOS() {
 
             <BarcodeScanner
               onProductScanned={handleProductScanned}
-              businessId="restaurant"
+              businessId={businessId}
               showScanner={showBarcodeScanner}
               onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
             />

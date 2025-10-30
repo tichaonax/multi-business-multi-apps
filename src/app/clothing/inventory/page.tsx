@@ -12,8 +12,9 @@ import {
   UniversalLowStockAlerts,
   UniversalInventoryStats
 } from '@/components/universal/inventory'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function ClothingInventoryPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -22,6 +23,17 @@ export default function ClothingInventoryPage() {
   const [showViewModal, setShowViewModal] = useState(false)
   const alert = useAlert()
   const confirm = useConfirm()
+
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
 
   // Restore active tab from sessionStorage on mount
   useEffect(() => {
@@ -35,6 +47,57 @@ export default function ClothingInventoryPage() {
   useEffect(() => {
     sessionStorage.setItem('clothing-inventory-active-tab', activeTab)
   }, [activeTab])
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) router.push('/auth/signin')
+  }, [session, status, router])
+
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to access inventory.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const clothingBusinesses = businesses.filter((b: any) => b.businessType === 'clothing' && b.isActive)
+  const hasClothingBusinesses = clothingBusinesses.length > 0
+
+  if (!currentBusiness && hasClothingBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Clothing Business</h2>
+          <p className="text-gray-600 mb-4">You have access to {clothingBusinesses.length} clothing business{clothingBusinesses.length > 1 ? 'es' : ''}. Please select one from the sidebar.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (currentBusiness && currentBusiness.businessType !== 'clothing') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600">The Clothing Inventory page is only for clothing businesses. Please select a clothing business.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const businessId = currentBusinessId!
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
@@ -58,7 +121,7 @@ export default function ClothingInventoryPage() {
     const confirmed = await confirm(`Are you sure you want to delete ${item.name}?`)
     if (confirmed) {
       try {
-        const response = await fetch(`/api/inventory/${BUSINESS_ID}/items/${item.id}`, {
+  const response = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
           method: 'DELETE'
         })
 
@@ -76,8 +139,8 @@ export default function ClothingInventoryPage() {
   const handleFormSubmit = async (formData: any) => {
     try {
       const url = selectedItem
-        ? `/api/inventory/${BUSINESS_ID}/items/${selectedItem.id}`
-        : `/api/inventory/${BUSINESS_ID}/items`
+        ? `/api/inventory/${businessId}/items/${selectedItem.id}`
+        : `/api/inventory/${businessId}/items`
 
       const method = selectedItem ? 'PUT' : 'POST'
 
@@ -85,7 +148,7 @@ export default function ClothingInventoryPage() {
       // Just ensure businessId and businessType are set
       const payload = {
         ...formData,
-        businessId: BUSINESS_ID,
+        businessId,
         businessType: 'clothing'
       }
 
@@ -126,7 +189,7 @@ export default function ClothingInventoryPage() {
   }
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+  <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="clothing">
         <ContentLayout
           title="👕 Inventory Management"
@@ -189,7 +252,7 @@ export default function ClothingInventoryPage() {
 
                     {/* Universal Inventory Stats */}
                     <UniversalInventoryStats
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="clothing"
                       showTrends={true}
                       showBusinessSpecific={true}
@@ -216,7 +279,7 @@ export default function ClothingInventoryPage() {
                     </div>
 
                     <UniversalInventoryGrid
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="clothing"
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
@@ -237,7 +300,7 @@ export default function ClothingInventoryPage() {
                     <h3 className="text-lg font-semibold">Stock Movements</h3>
 
                     <UniversalStockMovements
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       showFilters={true}
                       maxItems={100}
                       layout="full"
@@ -274,7 +337,7 @@ export default function ClothingInventoryPage() {
                     </div>
 
                     <UniversalLowStockAlerts
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="clothing"
                       alertTypes={['low_stock', 'out_of_stock', 'overstock']}
                       showFilters={true}
@@ -332,7 +395,7 @@ export default function ClothingInventoryPage() {
 
                     {/* Universal stats with clothing focus */}
                     <UniversalInventoryStats
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="clothing"
                       showTrends={true}
                       showBusinessSpecific={true}
@@ -346,7 +409,7 @@ export default function ClothingInventoryPage() {
 
           {/* Add/Edit Item Form Modal */}
           <UniversalInventoryForm
-            businessId={BUSINESS_ID}
+            businessId={businessId}
             businessType="clothing"
             item={selectedItem}
             onSubmit={handleFormSubmit}

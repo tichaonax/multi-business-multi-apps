@@ -1,11 +1,12 @@
-'use client'
+"use client"
 
 import { useState, useRef, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider, useBusinessContext } from '@/components/universal'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface POSItem {
   id: string
@@ -594,8 +595,84 @@ function GroceryPOSContent() {
 
 // Main export component that wraps everything with providers
 export default function GroceryPOSPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) router.push('/auth/signin')
+  }, [session, status, router])
+
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to use the POS system.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const groceryBusinesses = businesses.filter((b: any) => b.businessType === 'grocery' && b.isActive)
+  const hasGroceryBusinesses = groceryBusinesses.length > 0
+
+  if (!currentBusiness && hasGroceryBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Grocery Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {groceryBusinesses.length} grocery business{groceryBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to use the POS system.
+          </p>
+          <div className="space-y-2">
+            {groceryBusinesses.slice(0, 3).map((business: any) => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (currentBusiness && currentBusiness.businessType !== 'grocery') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Grocery POS is only available for grocery businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">Please select a grocery business from the sidebar to use this POS system.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const businessId = currentBusinessId!
+
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="grocery">
         <GroceryPOSContent />
       </BusinessTypeRoute>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { UniversalProduct } from './product-card'
 
 interface BarcodeScannerProps {
@@ -8,6 +8,10 @@ interface BarcodeScannerProps {
   businessId: string
   showScanner?: boolean
   onToggleScanner?: () => void
+  /** Minimum length of barcode before triggering a lookup (default: 4) */
+  minBarcodeLength?: number
+  /** Debounce window (ms) to coalesce rapid triggers into one lookup (default: 300) */
+  lookupDebounceMs?: number
 }
 
 interface BarcodeMapping {
@@ -21,12 +25,160 @@ export function BarcodeScanner({
   onProductScanned,
   businessId,
   showScanner = false,
-  onToggleScanner
+  onToggleScanner,
+  minBarcodeLength,
+  lookupDebounceMs
 }: BarcodeScannerProps) {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [scanBuffer, setScanBuffer] = useState('')
+  const [inputFocused, setInputFocused] = useState(false)
+  const [lastRawEvent, setLastRawEvent] = useState<string | null>(null)
+  // Use refs for high-frequency mutable values to avoid re-render churn
+  const scanBufferRef = useRef('')
+  const lastKeyTimeRef = useRef(0)
+  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Abort controller for in-flight fetches so we can cancel redundant requests
+  const fetchControllerRef = useRef<AbortController | null>(null)
+  // Deduping last queried barcode to avoid repeated API calls for same code
+  const lastQueriedBarcodeRef = useRef<string | null>(null)
+  const lastQueriedAtRef = useRef<number>(0)
+  // Scheduled/debounce lookup to coalesce multiple triggers into one API call
+  const scheduledLookupRef = useRef<NodeJS.Timeout | null>(null)
+  const scheduledBarcodeRef = useRef<string | null>(null)
+  // minBarcodeLength and lookupDebounceMs are optional props; fall back to defaults below
+
+  // Local show state fallback when parent does not provide onToggleScanner
+  const [internalShow, setInternalShow] = useState<boolean>(showScanner)
+  useEffect(() => {
+    // keep internal in sync if parent is controlling
+    setInternalShow(showScanner)
+  }, [showScanner])
+
+  const effectiveShow = typeof onToggleScanner === 'function' ? showScanner : internalShow
+  const toggleScanner = () => {
+    if (typeof onToggleScanner === 'function') {
+      onToggleScanner()
+    } else {
+      setInternalShow((s) => !s)
+    }
+  }
+
+  // Debug logging
+  useEffect(() => {
+    // component mounted
+    if (effectiveShow && typeof document !== 'undefined') {
+      try {
+        // intentionally no-op: avoid noisy debug logs in production
+      } catch (err) {}
+    }
+  }, [effectiveShow, businessId])
+
+  // Auto-focus input when scanner becomes visible
+  useEffect(() => {
+    if (effectiveShow && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [effectiveShow])
+
+  // Global keyboard listener for barcode scanner (stable handler using refs)
+  useEffect(() => {
+    if (!effectiveShow) return
+
+    const KEY_GAP_THRESHOLD = 80 // ms between keys to consider as continuous scan
+  const COMPLETE_DELAY = 150
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Ignore keys typed into inputs/textareas/contenteditable to avoid double-handling
+      // but allow if the target is our scanner input (so hardware that focuses the input still works)
+      const target = e.target as HTMLElement | null
+      let isTargetOurInput = false
+      if (target && inputRef.current) {
+        isTargetOurInput = target === inputRef.current
+      }
+      if (target) {
+        const tag = target.tagName
+        const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (target as any).isContentEditable
+        if (isInput && !isTargetOurInput) return
+      }
+
+      const now = Date.now()
+      const timeDiff = now - lastKeyTimeRef.current
+      const isChar = e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey
+
+      if (isChar) {
+        // If keys are close together or we've already started a buffer, append
+        if (timeDiff < KEY_GAP_THRESHOLD || scanBufferRef.current.length > 0) {
+          scanBufferRef.current += e.key
+        } else {
+          // start a new buffer
+          scanBufferRef.current = e.key
+        }
+
+        // Mirror buffer to state for UI
+        setScanBuffer(scanBufferRef.current)
+        lastKeyTimeRef.current = now
+
+        // reset timeout
+        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current)
+        scanTimeoutRef.current = setTimeout(() => {
+          const buf = scanBufferRef.current
+          scanBufferRef.current = ''
+          setScanBuffer('')
+          const effectiveMin = typeof minBarcodeLength === 'number' ? minBarcodeLength : 4
+          if (buf.length >= effectiveMin) {
+            handleBarcodeInput(buf.trim())
+          }
+        }, COMPLETE_DELAY)
+      } else if (e.key === 'Enter' && scanBufferRef.current.length > 0) {
+        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current)
+        const buf = scanBufferRef.current
+        scanBufferRef.current = ''
+        setScanBuffer('')
+        handleBarcodeInput(buf.trim())
+      }
+    }
+
+    // Also attach capture-phase listeners to surface events that may be intercepted
+    const handleCaptureKey = (e: KeyboardEvent) => {
+      try {
+        setLastRawEvent(`key:${e.key} code:${e.code} target:${(e.target as HTMLElement)?.tagName}`)
+      } catch (err) {}
+    }
+
+    const handleDocInput = (e: Event) => {
+      try {
+        const val = (e.target as HTMLInputElement)?.value
+        setLastRawEvent(`input target:${(e.target as HTMLElement)?.tagName} valueLen:${val?.length || 0}`)
+      } catch (err) {}
+    }
+
+    const handleDocPaste = (e: ClipboardEvent) => {
+      try {
+        const pasted = (e.clipboardData || (window as any).clipboardData)?.getData('text') || ''
+        setLastRawEvent(`paste:${pasted.slice(0,50)}`)
+      } catch (err) {}
+    }
+
+    document.addEventListener('keydown', handleCaptureKey, true)
+    document.addEventListener('input', handleDocInput, true)
+    document.addEventListener('paste', handleDocPaste, true)
+
+    document.addEventListener('keydown', handleGlobalKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeyDown)
+      document.removeEventListener('keydown', handleCaptureKey, true)
+      document.removeEventListener('input', handleDocInput, true)
+      document.removeEventListener('paste', handleDocPaste, true)
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current)
+        scanTimeoutRef.current = null
+      }
+    }
+  }, [effectiveShow])
 
   // Demo barcode mappings - in a real implementation, this would come from the database
   const getDemoBarcodeMapping = (businessId: string): BarcodeMapping => {
@@ -39,7 +191,7 @@ export function BarcodeScanner({
     }
 
     // Add business-specific demo barcodes based on business type
-    if (businessId.includes('grocery') || window?.location?.pathname?.includes('grocery')) {
+  if ((businessId && businessId.includes('grocery')) || (typeof window !== 'undefined' && window.location.pathname.includes('grocery'))) {
       return {
         ...baseMappings,
         '1234567890123': { productId: 'grocery-banana', variantId: 'fresh' },
@@ -50,7 +202,7 @@ export function BarcodeScanner({
       }
     }
 
-    if (businessId.includes('clothing') || window?.location?.pathname?.includes('clothing')) {
+  if ((businessId && businessId.includes('clothing')) || (typeof window !== 'undefined' && window.location.pathname.includes('clothing'))) {
       return {
         ...baseMappings,
         '1234567890123': { productId: 'clothing-tshirt', variantId: 'medium-black' },
@@ -61,7 +213,7 @@ export function BarcodeScanner({
       }
     }
 
-    if (businessId.includes('hardware') || window?.location?.pathname?.includes('hardware')) {
+  if ((businessId && businessId.includes('hardware')) || (typeof window !== 'undefined' && window.location.pathname.includes('hardware'))) {
       return {
         ...baseMappings,
         '1234567890123': { productId: 'hardware-hammer', variantId: '16oz' },
@@ -75,82 +227,164 @@ export function BarcodeScanner({
     return baseMappings
   }
 
-  const handleBarcodeInput = async (barcode: string) => {
+  // Schedule a lookup instead of firing immediately so multiple quick triggers
+  // (global key buffer + input events) coalesce into a single API call.
+  // Accept optional `forceImmediate` to bypass debounce for explicit Enter/submits.
+  const handleBarcodeInput = (barcode: string, forceImmediate = false) => {
     const trimmedBarcode = barcode.trim()
     if (!trimmedBarcode) return
+  // Scheduling barcode lookup
 
-    setIsLoading(true)
-    setError(null)
+    // Minimal length to avoid firing API for short/partial inputs
+    const effectiveMinLength = typeof minBarcodeLength === 'number' ? minBarcodeLength : 4
+    if (trimmedBarcode.length < effectiveMinLength) {
+      return
+    }
+
+    // If forceImmediate, cancel any scheduled lookup and run lookup now
+    const performLookup = async (toLookup: string) => {
+      // Dedupe identical queries in a short window to reduce noise
+      const now = Date.now()
+      if (lastQueriedBarcodeRef.current === toLookup && (now - lastQueriedAtRef.current) < 3000) {
+        return
+      }
+
+      // Abort any previous in-flight request — we only care about the latest scan
+      try {
+        if (fetchControllerRef.current) {
+          try { fetchControllerRef.current.abort() } catch (e) {}
+        }
+      } catch (e) {}
+
+      const controller = new AbortController()
+      fetchControllerRef.current = controller
+
+      setIsLoading(true)
+      setError(null)
 
     try {
-      // First, try to find the product via API
-      const response = await fetch(`/api/universal/products/barcode/${encodeURIComponent(trimmedBarcode)}?businessId=${businessId}`)
+  // Include current businessId in the path so server can scope lookups precisely
+  const response = await fetch(`/api/products/by-barcode/${encodeURIComponent(businessId)}/${encodeURIComponent(toLookup)}`, { signal: controller.signal })
+        // Record that we queried this barcode (even if 404) so we don't hammer the server
+        lastQueriedBarcodeRef.current = toLookup
+        lastQueriedAtRef.current = Date.now()
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success && data.data) {
-          onProductScanned(data.data.product, data.data.variantId)
-          setLastScannedBarcode(trimmedBarcode)
+        if (response.ok) {
+          const data = await response.json()
+          // Support either legacy { success: true, data: { product }} or direct { product: {...} }
+          const product = data?.data?.product ?? data?.product
+          const variantId = data?.data?.variantId ?? data?.variantId ?? (product ? product.id : undefined)
+
+          if (product) {
+            onProductScanned(product as UniversalProduct, variantId)
+            setLastScannedBarcode(toLookup)
+            setBarcodeInput('')
+            clearLastScanned()
+            return
+          }
+        } else if (response.status !== 404) {
+          // Non-404 errors should be surfaced
+          const errText = await response.text().catch(() => '')
+          // intentionally not logging here to avoid noisy client logs
+        }
+
+        // Fallback to demo mapping if API doesn't find the product
+        const demoMapping = getDemoBarcodeMapping(businessId)
+        const productMapping = demoMapping[toLookup]
+
+        if (productMapping) {
+          // Create a demo product for the mapping
+          const demoProduct: UniversalProduct = {
+            id: productMapping.productId,
+            name: getDemoProductName(productMapping.productId),
+            description: `Demo product for barcode ${toLookup}`,
+            basePrice: getDemoPrice(productMapping.productId),
+            businessType: getBusinessTypeFromPath(),
+            productType: 'PHYSICAL',
+            condition: 'NEW',
+            category: {
+              id: 'demo-category',
+              name: 'Demo Category'
+            },
+            sku: `SKU-${productMapping.productId}`,
+            isActive: true,
+            variants: productMapping.variantId ? [{
+              id: productMapping.variantId,
+              name: getDemoVariantName(productMapping.variantId),
+              sku: `SKU-${productMapping.variantId}`,
+              price: getDemoPrice(productMapping.productId),
+              stockQuantity: 100,
+              attributes: getDemoAttributes(productMapping.variantId)
+            }] : undefined
+          }
+
+          onProductScanned(demoProduct, productMapping.variantId)
+          setLastScannedBarcode(toLookup)
           setBarcodeInput('')
           clearLastScanned()
+        } else {
+          setError(`Product not found for barcode: ${toLookup}`)
+          setTimeout(() => setError(null), 5000)
+        }
+      } catch (err: any) {
+        // Ignore aborts triggered by new incoming scans
+        if (err?.name === 'AbortError') {
           return
         }
-      }
-
-      // Fallback to demo mapping if API doesn't find the product
-      const demoMapping = getDemoBarcodeMapping(businessId)
-      const productMapping = demoMapping[trimmedBarcode]
-
-      if (productMapping) {
-        // Create a demo product for the mapping
-        const demoProduct: UniversalProduct = {
-          id: productMapping.productId,
-          name: getDemoProductName(productMapping.productId),
-          description: `Demo product for barcode ${trimmedBarcode}`,
-          basePrice: getDemoPrice(productMapping.productId),
-          businessType: getBusinessTypeFromPath(),
-          productType: 'PHYSICAL',
-          condition: 'NEW',
-          category: {
-            id: 'demo-category',
-            name: 'Demo Category'
-          },
-          sku: `SKU-${productMapping.productId}`,
-          isActive: true,
-          variants: productMapping.variantId ? [{
-            id: productMapping.variantId,
-            name: getDemoVariantName(productMapping.variantId),
-            sku: `SKU-${productMapping.variantId}`,
-            price: getDemoPrice(productMapping.productId),
-            stockQuantity: 100,
-            attributes: getDemoAttributes(productMapping.variantId)
-          }] : undefined
-        }
-
-        onProductScanned(demoProduct, productMapping.variantId)
-        setLastScannedBarcode(trimmedBarcode)
-        setBarcodeInput('')
-        clearLastScanned()
-      } else {
-        setError(`Product not found for barcode: ${trimmedBarcode}`)
+        console.error('📱 Scanner: error during barcode lookup', err)
+        setError('Failed to scan barcode')
         setTimeout(() => setError(null), 5000)
+      } finally {
+        setIsLoading(false)
+        fetchControllerRef.current = null
       }
-    } catch (err) {
-      setError('Failed to scan barcode')
-      setTimeout(() => setError(null), 5000)
-    } finally {
-      setIsLoading(false)
     }
+
+    if (forceImmediate) {
+      if (scheduledLookupRef.current) {
+        clearTimeout(scheduledLookupRef.current)
+        scheduledLookupRef.current = null
+      }
+      scheduledBarcodeRef.current = null
+      void performLookup(trimmedBarcode)
+      return
+    }
+
+    // Update scheduled barcode: prefer the longer (more complete) value
+    if (!scheduledBarcodeRef.current || trimmedBarcode.length >= scheduledBarcodeRef.current.length) {
+      scheduledBarcodeRef.current = trimmedBarcode
+    }
+
+    if (scheduledLookupRef.current) {
+      clearTimeout(scheduledLookupRef.current)
+      scheduledLookupRef.current = null
+    }
+
+    // Increase debounce window slightly to allow all listeners to finish
+    const effectiveDebounce = typeof lookupDebounceMs === 'number' ? lookupDebounceMs : 300
+    scheduledLookupRef.current = setTimeout(() => {
+      const toLookup = scheduledBarcodeRef.current
+      scheduledBarcodeRef.current = null
+      scheduledLookupRef.current = null
+      if (!toLookup) return
+      void performLookup(toLookup)
+    }, effectiveDebounce)
   }
 
   const clearLastScanned = () => {
     setTimeout(() => setLastScannedBarcode(null), 3000)
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Debug: log key events received by the input
+  // input keydown received
+
+    if (e.key === 'Enter' || (e as any).keyCode === 13) {
       e.preventDefault()
-      handleBarcodeInput(barcodeInput)
+      // ensure we grab current value (barcodeInput may be stale in some fast-emitting scanners)
+      const value = (e.currentTarget && (e.currentTarget as HTMLInputElement).value) || barcodeInput
+      handleBarcodeInput(value)
+      setBarcodeInput('')
     }
   }
 
@@ -279,10 +513,10 @@ export function BarcodeScanner({
     }
   }
 
-  if (!showScanner) {
+  if (!effectiveShow) {
     return (
       <button
-        onClick={onToggleScanner}
+        onClick={toggleScanner}
         className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
       >
         📱 Show Barcode Scanner
@@ -296,36 +530,74 @@ export function BarcodeScanner({
         <div className="flex items-center gap-2">
           <span className="text-2xl">📱</span>
           <h3 className="font-semibold text-blue-900">Universal Barcode Scanner</h3>
+          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+            Active
+          </span>
         </div>
-        {onToggleScanner && (
-          <button
-            onClick={onToggleScanner}
-            className="text-blue-600 hover:text-blue-800 text-sm"
-          >
-            Hide Scanner
-          </button>
-        )}
+        <button
+          onClick={toggleScanner}
+          className="text-blue-600 hover:text-blue-800 text-sm"
+        >
+          Hide Scanner
+        </button>
       </div>
 
       <div className="space-y-3">
         <div>
           <p className="text-sm text-blue-700 mb-2">
-            Focus the input below and scan or type a barcode to add products to your cart
+            Focus the input below and scan or type a barcode to add products to your cart.
+            <strong> Scanner automatically detects rapid input.</strong>
           </p>
+          {scanBuffer && (
+            <div className="text-xs text-blue-600 mb-2">
+              🔍 Scanning: <code className="bg-blue-100 px-1 rounded">{scanBuffer}</code>
+            </div>
+          )}
           <div className="flex gap-2">
             <input
+              ref={inputRef}
               type="text"
-              value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              value={scanBuffer || barcodeInput}
+              onChange={(e) => {
+                const v = e.target.value
+                setBarcodeInput(v)
+                // clear internal scan buffer when manually typing in field
+                scanBufferRef.current = ''
+                setScanBuffer('')
+              }}
+              // onInput fires for input events and some scanners that emulate paste
+              onInput={(e) => {
+                const v = (e.currentTarget as HTMLInputElement).value
+                // Heuristic: if we receive a rapid paste-like input (long string) treat it as a full barcode
+                if (v && v.trim().length > 6) {
+                  // slight debounce to allow scanner to finish
+                  setTimeout(() => {
+                    const current = (inputRef.current as HTMLInputElement)?.value || v
+                    if (current && current.trim().length > 3) {
+                      handleBarcodeInput(current.trim())
+                      setBarcodeInput('')
+                    }
+                  }, 80)
+                }
+              }}
+              onPaste={(e) => {
+                const pasted = (e.clipboardData || (window as any).clipboardData)?.getData('text') || ''
+                if (pasted && pasted.trim().length > 0) {
+                  setTimeout(() => {
+                    handleBarcodeInput(pasted.trim())
+                    setBarcodeInput('')
+                  }, 20)
+                }
+              }}
+              onKeyDown={handleKeyDown}
               placeholder="Scan or enter barcode..."
               className="flex-1 px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
               autoFocus
               disabled={isLoading}
             />
             <button
-              onClick={() => handleBarcodeInput(barcodeInput)}
-              disabled={!barcodeInput.trim() || isLoading}
+              onClick={() => handleBarcodeInput(scanBuffer || barcodeInput)}
+              disabled={!(scanBuffer || barcodeInput).trim() || isLoading}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Scanning...' : 'Add'}
@@ -362,6 +634,9 @@ export function BarcodeScanner({
                 <span>{product}</span>
               </div>
             ))}
+          </div>
+          <div className="mt-2 text-xs text-gray-500">
+            💡 <strong>Troubleshooting:</strong> If scanner doesn't work, check that it's configured to send Enter key after scanning, or use manual entry.
           </div>
         </div>
       </div>

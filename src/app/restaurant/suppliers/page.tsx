@@ -7,8 +7,10 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
 import { UniversalSupplierGrid, UniversalSupplierForm } from '@/components/universal/supplier'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'restaurant-demo'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { SessionUser } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function RestaurantSuppliersPage() {
   const [activeTab, setActiveTab] = useState<'suppliers' | 'deliveries' | 'orders' | 'performance'>('suppliers')
@@ -18,12 +20,122 @@ export default function RestaurantSuppliersPage() {
   const [loading, setLoading] = useState(false)
   const confirm = useConfirm()
   const toast = useToastContext()
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Use the business permissions context for proper business management
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  // Get user info
+  const sessionUser = session?.user as SessionUser
+
+  // Check if current business is a restaurant business
+  const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
+
+  // Redirect to signin if not authenticated
+  React.useEffect(() => {
+    if (status === 'loading') return
+    if (!session) {
+      router.push('/auth/signin')
+    }
+  }, [session, status, router])
+
+  // Show loading while session or business context is loading
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Don't render if no session or no business access
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to use the supplier management system.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user has any restaurant businesses
+  const restaurantBusinesses = businesses.filter(b => b.businessType === 'restaurant' && b.isActive)
+  const hasRestaurantBusinesses = restaurantBusinesses.length > 0
+
+  // If no current business selected and user has restaurant businesses, show selection prompt
+  if (!currentBusiness && hasRestaurantBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Restaurant Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {restaurantBusinesses.length} restaurant business{restaurantBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to use the supplier management system.
+          </p>
+          <div className="space-y-2">
+            {restaurantBusinesses.slice(0, 3).map(business => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If current business is not restaurant, show error
+  if (currentBusiness && !isRestaurantBusiness) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Restaurant Supplier Management is only available for restaurant businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Please select a restaurant business from the sidebar to use this system.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // If no restaurant businesses at all, show message
+  if (!hasRestaurantBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Restaurant Businesses</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have access to any restaurant businesses. The Restaurant Supplier Management system requires access to at least one restaurant business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contact your administrator if you need access to restaurant businesses.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // At this point, we have a valid restaurant business selected
+  const businessId = currentBusinessId!
 
   // Load suppliers from API
   const loadSuppliers = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/suppliers?businessId=${BUSINESS_ID}&businessType=restaurant`)
+      const response = await fetch(`/api/suppliers?businessId=${businessId}&businessType=restaurant`)
       if (response.ok) {
         const data = await response.json()
         setSuppliers(data.suppliers || [])
@@ -61,7 +173,7 @@ export default function RestaurantSuppliersPage() {
     const ok = await confirm({ title: 'Delete supplier', description: `Are you sure you want to delete ${supplier.name}?`, confirmText: 'Delete', cancelText: 'Cancel' })
     if (!ok) return
     try {
-      const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${BUSINESS_ID}`, {
+      const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${businessId}`, {
         method: 'DELETE'
       })
       if (response.ok) {
@@ -114,7 +226,7 @@ export default function RestaurantSuppliersPage() {
   }
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="restaurant">
         <ContentLayout
           title="Restaurant Supplier Management"
@@ -237,7 +349,7 @@ export default function RestaurantSuppliersPage() {
                     </div>
 
                     <UniversalSupplierGrid
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="restaurant"
                       suppliers={suppliers}
                       loading={loading}
@@ -479,7 +591,7 @@ export default function RestaurantSuppliersPage() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
               <div className="w-full flex items-start justify-center pt-8">
                 <UniversalSupplierForm
-                  businessId={BUSINESS_ID}
+                  businessId={businessId}
                   businessType="restaurant"
                   supplier={selectedSupplier}
                   onSubmit={handleSupplierSubmit}

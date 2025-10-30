@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { BusinessProvider, useBusinessContext } from '@/components/universal'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
+import { BusinessProvider, useBusinessContext, BarcodeScanner } from '@/components/universal'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { SessionUser } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface POSItem {
   id: string
@@ -54,9 +56,26 @@ function GroceryPOSContent() {
   const [isScaleConnected, setIsScaleConnected] = useState(true)
   const [currentWeight, setCurrentWeight] = useState(0)
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
 
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const pluInputRef = useRef<HTMLInputElement>(null)
+
+  // Use the business permissions context for proper business management
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading
+  } = useBusinessPermissionsContext()
+
+  // Get user info
+  const { data: session, status } = useSession()
+  const sessionUser = session?.user as SessionUser
+  const employeeId = sessionUser?.id
+
+  // Check if current business is a grocery business
+  const isGroceryBusiness = currentBusiness?.businessType === 'grocery'
 
   // Sample product database
   const productDatabase: POSItem[] = [
@@ -261,7 +280,7 @@ function GroceryPOSContent() {
     try {
       // Create order using universal orders API
       const orderData = {
-        businessId: BUSINESS_ID,
+        businessId: currentBusinessId,
         businessType: 'grocery',
         customerId: customer?.id,
         orderType: 'SALE',
@@ -357,23 +376,63 @@ function GroceryPOSContent() {
                 <label className="block text-sm font-medium text-secondary mb-2">
                   📷 Barcode Scanner
                 </label>
-                <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
-                  <input
-                    ref={barcodeInputRef}
-                    type="text"
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    placeholder="Scan or enter barcode"
-                    className="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Add
-                  </button>
-                </form>
+                    <div>
+                      <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
+                        <input
+                          ref={barcodeInputRef}
+                          type="text"
+                          value={barcodeInput}
+                          onChange={(e) => setBarcodeInput(e.target.value)}
+                          placeholder="Scan or enter barcode"
+                          className="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          Add
+                        </button>
+                      </form>
+
+                      {/* Scanner placed below the manual input to avoid layout squish.
+                          On small screens it will be full-width; on larger screens it will
+                          naturally size to its content. */}
+                      <div className="mt-4">
+                        <button
+                          onClick={() => setShowScanner(!showScanner)}
+                          className="mb-2 px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm"
+                        >
+                          {showScanner ? 'Hide Scanner' : 'Show Scanner'}
+                        </button>
+
+                        {showScanner && (
+                          <div className="w-full md:w-80">
+                            <BarcodeScanner
+                              onProductScanned={(product: any, variantId?: string) => {
+                                // Map UniversalProduct -> POSItem shape expected by addToCart
+                                const price = variantId && product?.variants?.length
+                                  ? (product.variants.find((v: any) => v.id === variantId)?.price ?? product.basePrice)
+                                  : (product.basePrice ?? 0)
+                                const posItem: POSItem = {
+                                  id: product.id,
+                                  name: product.name,
+                                  barcode: product.sku ?? product.barcode ?? undefined,
+                                  category: product.businessType || 'General',
+                                  unitType: 'each',
+                                  price,
+                                  unit: 'each'
+                                }
+                                addToCart(posItem)
+                              }}
+                              businessId={currentBusinessId!}
+                              showScanner={showScanner}
+                              onToggleScanner={() => setShowScanner(!showScanner)}
+                              minBarcodeLength={6}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
               </div>
 
               {/* PLU Entry */}
@@ -661,8 +720,120 @@ function GroceryPOSContent() {
 
 // Main export component that wraps everything with providers
 export default function GroceryPOSPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Use the business permissions context for proper business management
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  // Get user info
+  const sessionUser = session?.user as SessionUser
+  const employeeId = sessionUser?.id
+
+  // Check if current business is a grocery business
+  const isGroceryBusiness = currentBusiness?.businessType === 'grocery'
+
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) {
+      router.push('/auth/signin')
+    }
+  }, [session, status, router])
+
+  // Show loading while session or business context is loading
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Don't render if no session or no business access
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to use the POS system.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user has any grocery businesses
+  const groceryBusinesses = businesses.filter(b => b.businessType === 'grocery' && b.isActive)
+  const hasGroceryBusinesses = groceryBusinesses.length > 0
+
+  // If no current business selected and user has grocery businesses, show selection prompt
+  if (!currentBusiness && hasGroceryBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Grocery Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {groceryBusinesses.length} grocery business{groceryBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to use the POS system.
+          </p>
+          <div className="space-y-2">
+            {groceryBusinesses.slice(0, 3).map(business => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If current business is not grocery, show error
+  if (currentBusiness && !isGroceryBusiness) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Grocery POS is only available for grocery businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Please select a grocery business from the sidebar to use this POS system.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // If no grocery businesses at all, show message
+  if (!hasGroceryBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Grocery Businesses</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have access to any grocery businesses. The Grocery POS system requires access to at least one grocery business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contact your administrator if you need access to grocery businesses.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // At this point, we have a valid grocery business selected
+  const businessId = currentBusinessId!
+
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="grocery">
         <GroceryPOSContent />
       </BusinessTypeRoute>

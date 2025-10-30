@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useBusinessContext } from '@/components/universal'
+import { BarcodeScanner, UniversalProduct } from '@/components/universal'
 
 interface CartItem {
   id: string
@@ -18,6 +19,8 @@ interface CartItem {
     color?: string
     condition?: string
   }
+  product?: UniversalProduct
+  variant?: any
   isReturn?: boolean
   returnReason?: string
 }
@@ -60,6 +63,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showSupervisorModal, setShowSupervisorModal] = useState(false)
   const [printReceipt, setPrintReceipt] = useState(true)
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
 
   // Sample product data for quick add
   const [quickAddProducts] = useState([
@@ -82,7 +86,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
     }
   ])
 
-  const addToCart = (productId: string, variantId: string, quantity = 1) => {
+  const addToCart = (productId: string, variantId: string, quantity?: number) => {
     const product = quickAddProducts.find(p => p.id === productId)
     const variant = product?.variants.find(v => v.id === variantId)
 
@@ -93,7 +97,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
     if (existingItem) {
       setCart(cart.map(item =>
         item.variantId === variantId
-          ? { ...item, quantity: item.quantity + quantity }
+          ? { ...item, quantity: item.quantity + (quantity || 1) }
           : item
       ))
     } else {
@@ -104,8 +108,41 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
         name: product.name,
         sku: variant.sku,
         price: variant.price,
-        quantity,
+        quantity: quantity || 1,
         attributes: variant.attributes,
+        isReturn: mode === 'return'
+      }
+      setCart([...cart, newItem])
+    }
+  }
+
+  // Overloaded function for scanner integration
+  const addToCartFromScanner = (product: UniversalProduct, variantId?: string, quantity = 1) => {
+    const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined
+    const unitPrice = variant?.price ?? product.basePrice
+
+    const existingItem = cart.find(item =>
+      item.productId === product.id && item.variantId === variantId
+    )
+
+    if (existingItem) {
+      setCart(cart.map(item =>
+        item.productId === product.id && item.variantId === variantId
+          ? { ...item, quantity: item.quantity + quantity }
+          : item
+      ))
+    } else {
+      const newItem: CartItem = {
+        id: Date.now().toString(),
+        productId: product.id,
+        variantId,
+        name: product.name,
+        sku: variant?.sku || product.sku || `SKU-${product.id}`,
+        price: unitPrice,
+        quantity,
+        attributes: variant?.attributes || {},
+        product,
+        variant,
         isReturn: mode === 'return'
       }
       setCart([...cart, newItem])
@@ -213,7 +250,6 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
 
       if (printReceipt) {
         // In real implementation, would trigger receipt printing
-        console.log('Printing receipt for order:', orderId)
       }
 
       onOrderComplete?.(orderId)
@@ -317,6 +353,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
           </div>
         </div>
 
+        {/* Barcode Scanner */}
+        <BarcodeScanner
+          onProductScanned={(product, variantId) => addToCartFromScanner(product, variantId)}
+          businessId={businessId}
+          showScanner={showBarcodeScanner}
+          onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
+        />
+
         {/* Return Processing */}
         {mode === 'return' && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -371,6 +415,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
                       SKU: {item.sku}
                       {item.attributes?.size && ` • Size: ${item.attributes.size}`}
                       {item.attributes?.color && ` • ${item.attributes.color}`}
+                      {item.variant?.name && ` • ${item.variant.name}`}
                       {item.isReturn && item.returnReason && ` • Return: ${item.returnReason}`}
                     </div>
                     <div className="flex items-center gap-2 mt-1">

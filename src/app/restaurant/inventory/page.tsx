@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -13,14 +13,127 @@ import { RestaurantRecipeManager } from './components/recipe-manager'
 import { RestaurantPrepTracker } from './components/prep-tracker'
 import { RestaurantWasteLog } from './components/waste-log'
 import { RestaurantExpirationAlerts } from './components/expiration-alerts'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'restaurant-demo-business'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { SessionUser } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function RestaurantInventoryPage() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts'>('ingredients')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Use the business permissions context for proper business management
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  // Get user info
+  const sessionUser = session?.user as SessionUser
+  const employeeId = sessionUser?.id
+
+  // Check if current business is a restaurant business
+  const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
+
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) {
+      router.push('/auth/signin')
+    }
+  }, [session, status, router])
+
+  // Show loading while session or business context is loading
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Don't render if no session or no business access
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to use the inventory system.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user has any restaurant businesses
+  const restaurantBusinesses = businesses.filter(b => b.businessType === 'restaurant' && b.isActive)
+  const hasRestaurantBusinesses = restaurantBusinesses.length > 0
+
+  // If no current business selected and user has restaurant businesses, show selection prompt
+  if (!currentBusiness && hasRestaurantBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Restaurant Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {restaurantBusinesses.length} restaurant business{restaurantBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to use the inventory system.
+          </p>
+          <div className="space-y-2">
+            {restaurantBusinesses.slice(0, 3).map(business => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If current business is not restaurant, show error
+  if (currentBusiness && !isRestaurantBusiness) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Restaurant Inventory is only available for restaurant businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Please select a restaurant business from the sidebar to use this inventory system.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // If no restaurant businesses at all, show message
+  if (!hasRestaurantBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Restaurant Businesses</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have access to any restaurant businesses. The Restaurant Inventory system requires access to at least one restaurant business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contact your administrator if you need access to restaurant businesses.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // At this point, we have a valid restaurant business selected
+  const businessId = currentBusinessId!
 
   const handleItemAdded = () => {
     setRefreshTrigger(prev => prev + 1)
@@ -32,8 +145,8 @@ export default function RestaurantInventoryPage() {
     try {
       const method = selectedItem ? 'PUT' : 'POST'
       const url = selectedItem
-        ? `/api/inventory/${BUSINESS_ID}/items/${selectedItem.id}`
-        : `/api/inventory/${BUSINESS_ID}/items`
+        ? `/api/inventory/${businessId}/items/${selectedItem.id}`
+        : `/api/inventory/${businessId}/items`
 
       const response = await fetch(url, {
         method,
@@ -81,7 +194,7 @@ export default function RestaurantInventoryPage() {
 
   return (
     <BusinessTypeRoute requiredBusinessType="restaurant">
-      <BusinessProvider businessId={BUSINESS_ID}>
+      <BusinessProvider businessId={businessId}>
         <ContentLayout
         title="Restaurant Inventory Management"
         subtitle="Manage ingredients, recipes, prep tracking, and food costs"
@@ -106,7 +219,7 @@ export default function RestaurantInventoryPage() {
       >
         <div className="space-y-6">
           {/* Inventory Overview Stats */}
-          <UniversalInventoryStats businessId={BUSINESS_ID} />
+          <UniversalInventoryStats businessId={businessId} />
 
           {/* Tab Navigation */}
           <div className="card">
@@ -177,7 +290,7 @@ export default function RestaurantInventoryPage() {
 
                   {/* Universal Inventory Grid */}
                   <UniversalInventoryGrid
-                    businessId={BUSINESS_ID}
+                    businessId={businessId}
                     businessType="restaurant"
                     onItemEdit={(item) => {
                       setSelectedItem(item)
@@ -214,7 +327,7 @@ export default function RestaurantInventoryPage() {
 
                 <div className="p-6">
                   <UniversalInventoryForm
-                    businessId={BUSINESS_ID}
+                    businessId={businessId}
                     businessType="restaurant"
                     item={selectedItem}
                     onSubmit={handleFormSubmit}

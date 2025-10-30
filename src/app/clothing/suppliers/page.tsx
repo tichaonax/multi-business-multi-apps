@@ -1,12 +1,13 @@
-'use client'
+"use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
 import { UniversalSupplierGrid, UniversalSupplierForm } from '@/components/universal/supplier'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function ClothingSuppliersPage() {
   const [activeTab, setActiveTab] = useState<'suppliers' | 'deliveries' | 'orders' | 'performance'>('suppliers')
@@ -15,11 +16,73 @@ export default function ClothingSuppliersPage() {
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) router.push('/auth/signin')
+  }, [session, status, router])
+
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to manage suppliers.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const clothingBusinesses = businesses.filter((b: any) => b.businessType === 'clothing' && b.isActive)
+  const hasClothingBusinesses = clothingBusinesses.length > 0
+
+  if (!currentBusiness && hasClothingBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Clothing Business</h2>
+          <p className="text-gray-600 mb-4">You have access to {clothingBusinesses.length} clothing business{clothingBusinesses.length > 1 ? 'es' : ''}. Please select one from the sidebar.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (currentBusiness && currentBusiness.businessType !== 'clothing') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600">The Clothing Suppliers page is only for clothing businesses. Please select a clothing business.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const businessId = currentBusinessId!
+
   // Load suppliers from API
   const loadSuppliers = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/suppliers?businessId=${BUSINESS_ID}&businessType=clothing`)
+      const response = await fetch(`/api/suppliers?businessId=${businessId}&businessType=clothing`)
       if (response.ok) {
         const data = await response.json()
         setSuppliers(data.suppliers || [])
@@ -34,7 +97,7 @@ export default function ClothingSuppliersPage() {
   // Load suppliers on component mount
   React.useEffect(() => {
     loadSuppliers()
-  }, [])
+  }, [businessId])
 
   const tabs = [
     { id: 'suppliers', label: 'Supplier Directory', icon: '🏢', description: 'Manage your fashion suppliers' },
@@ -56,7 +119,7 @@ export default function ClothingSuppliersPage() {
   const handleSupplierDelete = async (supplier: any) => {
     if (confirm(`Are you sure you want to delete ${supplier.name}?`)) {
       try {
-        const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${BUSINESS_ID}`, {
+  const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${businessId}`, {
           method: 'DELETE'
         })
         if (response.ok) {
@@ -110,7 +173,7 @@ export default function ClothingSuppliersPage() {
   }
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="clothing">
         <ContentLayout
           title="Fashion Supplier Management"
@@ -234,7 +297,7 @@ export default function ClothingSuppliersPage() {
                     </div>
 
                     <UniversalSupplierGrid
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="clothing"
                       suppliers={suppliers}
                       loading={loading}
@@ -479,7 +542,7 @@ export default function ClothingSuppliersPage() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
               <div className="w-full flex items-start justify-center pt-8">
                 <UniversalSupplierForm
-                  businessId={BUSINESS_ID}
+                  businessId={businessId}
                   businessType="clothing"
                   supplier={selectedSupplier}
                   onSubmit={handleSupplierSubmit}

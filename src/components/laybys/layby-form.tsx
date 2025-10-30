@@ -121,7 +121,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
     if (!barcode.trim()) return
 
     try {
-      const response = await fetch(`/api/products/by-barcode/${encodeURIComponent(barcode)}`)
+  const response = await fetch(`/api/products/by-barcode/${encodeURIComponent(businessId)}/${encodeURIComponent(barcode)}`)
 
       if (!response.ok) {
         alert('Product not found')

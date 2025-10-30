@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -8,13 +8,75 @@ import { ClothingProductList } from './components/product-list'
 import { ClothingVariantManager } from './components/variant-manager'
 import { ClothingSeasonalManager } from './components/seasonal-manager'
 import { ClothingBulkImport } from './components/bulk-import'
-
-// This would typically come from session/auth
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'cmfj6cfvz00001pgg2rn9710e'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function ClothingProductsPage() {
   const [activeTab, setActiveTab] = useState<'products' | 'variants' | 'seasonal' | 'import'>('products')
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null)
+
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) router.push('/auth/signin')
+  }, [session, status, router])
+
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to access products.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const clothingBusinesses = businesses.filter((b: any) => b.businessType === 'clothing' && b.isActive)
+  const hasClothingBusinesses = clothingBusinesses.length > 0
+
+  if (!currentBusiness && hasClothingBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Clothing Business</h2>
+          <p className="text-gray-600 mb-4">You have access to {clothingBusinesses.length} clothing business{clothingBusinesses.length > 1 ? 'es' : ''}. Please select one from the sidebar.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (currentBusiness && currentBusiness.businessType !== 'clothing') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600">The Clothing Products page is only for clothing businesses. Please select a clothing business.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const businessId = currentBusinessId!
 
   const tabs = [
     {
@@ -61,7 +123,7 @@ export default function ClothingProductsPage() {
   }
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+  <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="clothing">
         <ContentLayout
           title="Product Management"
@@ -128,7 +190,7 @@ export default function ClothingProductsPage() {
               <div className="p-6">
                 {activeTab === 'products' && (
                   <ClothingProductList
-                    businessId={BUSINESS_ID}
+                    businessId={businessId}
                     onProductView={handleProductView}
                     onProductEdit={handleProductEdit}
                     onVariantManage={handleVariantManage}
@@ -137,18 +199,18 @@ export default function ClothingProductsPage() {
 
                 {activeTab === 'variants' && (
                   <ClothingVariantManager
-                    businessId={BUSINESS_ID}
+                    businessId={businessId}
                     selectedProduct={selectedProduct}
                     onProductSelect={setSelectedProduct}
                   />
                 )}
 
                 {activeTab === 'seasonal' && (
-                  <ClothingSeasonalManager businessId={BUSINESS_ID} />
+                  <ClothingSeasonalManager businessId={businessId} />
                 )}
 
                 {activeTab === 'import' && (
-                  <ClothingBulkImport businessId={BUSINESS_ID} />
+                  <ClothingBulkImport businessId={businessId} />
                 )}
               </div>
             </div>

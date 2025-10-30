@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -8,13 +8,75 @@ import { ClothingCustomerStats } from './components/customer-stats'
 import { ClothingCustomerList } from './components/customer-list'
 import { ClothingCustomerSegmentation } from './components/customer-segmentation'
 import { ClothingCustomerAnalytics } from './components/customer-analytics'
-
-// This would typically come from session/auth
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'cmfj6cfvz00001pgg2rn9710e'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function ClothingCustomersPage() {
   const [activeTab, setActiveTab] = useState<'customers' | 'segmentation' | 'analytics'>('customers')
   const [selectedSegment, setSelectedSegment] = useState<string | null>(null)
+
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) router.push('/auth/signin')
+  }, [session, status, router])
+
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to manage customers.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const clothingBusinesses = businesses.filter((b: any) => b.businessType === 'clothing' && b.isActive)
+  const hasClothingBusinesses = clothingBusinesses.length > 0
+
+  if (!currentBusiness && hasClothingBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Clothing Business</h2>
+          <p className="text-gray-600 mb-4">You have access to {clothingBusinesses.length} clothing business{clothingBusinesses.length > 1 ? 'es' : ''}. Please select one from the sidebar.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (currentBusiness && currentBusiness.businessType !== 'clothing') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600">The Clothing Customers page is only for clothing businesses. Please select a clothing business.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const businessId = currentBusinessId!
 
   const tabs = [
     {
@@ -50,7 +112,7 @@ export default function ClothingCustomersPage() {
   }
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="clothing">
         <ContentLayout
           title="Customer Management"
@@ -62,7 +124,7 @@ export default function ClothingCustomersPage() {
         >
           <div className="space-y-6">
             {/* Customer Overview Stats */}
-            <ClothingCustomerStats businessId={BUSINESS_ID} />
+            <ClothingCustomerStats businessId={businessId} />
 
             {/* Tab Navigation */}
             <div className="card">
@@ -119,7 +181,7 @@ export default function ClothingCustomersPage() {
                     </div>
 
                     <ClothingCustomerList
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       selectedSegment={selectedSegment}
                       onCustomerView={handleCustomerView}
                       onCustomerEdit={handleCustomerEdit}
@@ -129,7 +191,7 @@ export default function ClothingCustomersPage() {
 
                 {activeTab === 'segmentation' && (
                   <ClothingCustomerSegmentation
-                    businessId={BUSINESS_ID}
+                    businessId={businessId}
                     onSegmentSelect={setSelectedSegment}
                     onViewSegment={(segment) => {
                       setSelectedSegment(segment)
@@ -139,14 +201,14 @@ export default function ClothingCustomersPage() {
                 )}
 
                 {activeTab === 'analytics' && (
-                  <ClothingCustomerAnalytics businessId={BUSINESS_ID} />
+                  <ClothingCustomerAnalytics businessId={businessId} />
                 )}
               </div>
             </div>
 
             {/* Clothing-specific Customer Features */}
             <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 sm:p-6">
-              <h2 className="text-lg font-semibold text-green-900 dark:text-green-100 dark:text-green-100 mb-4">
+              <h2 className="text-lg font-semibold text-green-900 dark:text-green-100 mb-4">
                 👔 Clothing Customer Management Features
               </h2>
 

@@ -8,28 +8,141 @@ import {
   UniversalPOS
 } from '@/components/universal'
 import { ClothingAdvancedPOS } from './components/advanced-pos'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { SessionUser } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 // This would typically come from session/auth
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'cmfj6cfvz00001pgg2rn9710e'
-const EMPLOYEE_ID = process.env.NEXT_PUBLIC_DEMO_EMPLOYEE_ID || 'demo-employee'
+// const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
+// const EMPLOYEE_ID = process.env.NEXT_PUBLIC_DEMO_EMPLOYEE_ID || 'demo-employee'
 
 export default function ClothingPOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
   const [useAdvancedPOS, setUseAdvancedPOS] = useState(true)
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Use the business permissions context for proper business management
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  // Get user info
+  const sessionUser = session?.user as SessionUser
+  const employeeId = sessionUser?.id
+
+  // Check if current business is a clothing business
+  const isClothingBusiness = currentBusiness?.businessType === 'clothing'
+
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) {
+      router.push('/auth/signin')
+    }
+  }, [session, status, router])
+
+  // Show loading while session or business context is loading
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Don't render if no session or no business access
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to use the POS system.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user has any clothing businesses
+  const clothingBusinesses = businesses.filter(b => b.businessType === 'clothing' && b.isActive)
+  const hasClothingBusinesses = clothingBusinesses.length > 0
+
+  // If no current business selected and user has clothing businesses, show selection prompt
+  if (!currentBusiness && hasClothingBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Clothing Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {clothingBusinesses.length} clothing business{clothingBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to use the POS system.
+          </p>
+          <div className="space-y-2">
+            {clothingBusinesses.slice(0, 3).map(business => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If current business is not clothing, show error
+  if (currentBusiness && !isClothingBusiness) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Clothing POS is only available for clothing businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Please select a clothing business from the sidebar to use this POS system.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // If no clothing businesses at all, show message
+  if (!hasClothingBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Clothing Businesses</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have access to any clothing businesses. The Clothing POS system requires access to at least one clothing business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contact your administrator if you need access to clothing businesses.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // At this point, we have a valid clothing business selected
+  const businessId = currentBusinessId!
 
   const handleAddToCart = (productId: string, variantId?: string, quantity = 1) => {
-    console.log('Add to cart:', { productId, variantId, quantity })
     // This would integrate with the POS system
   }
 
   const handleOrderComplete = (orderId: string) => {
-    console.log('Order completed:', orderId)
     // Could redirect to receipt or show success message
   }
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="clothing">
         <ContentLayout
           title="Clothing Store POS"
@@ -75,8 +188,8 @@ export default function ClothingPOSPage() {
             {/* POS System */}
             {useAdvancedPOS ? (
               <ClothingAdvancedPOS
-                businessId={BUSINESS_ID}
-                employeeId={EMPLOYEE_ID}
+                businessId={businessId}
+                employeeId={employeeId!}
                 onOrderComplete={handleOrderComplete}
               />
             ) : (
@@ -84,8 +197,8 @@ export default function ClothingPOSPage() {
                 {/* Basic POS System */}
                 <div>
                   <UniversalPOS
-                    businessId={BUSINESS_ID}
-                    employeeId={EMPLOYEE_ID}
+                    businessId={businessId}
+                    employeeId={employeeId!}
                     onOrderComplete={handleOrderComplete}
                   />
                 </div>
@@ -99,7 +212,7 @@ export default function ClothingPOSPage() {
                       </h2>
 
                       <UniversalProductGrid
-                        businessId={BUSINESS_ID}
+                        businessId={businessId}
                         onAddToCart={handleAddToCart}
                         layout="grid"
                         itemsPerPage={8}

@@ -191,6 +191,20 @@ export async function PUT(
     if (body.isActive !== undefined) updateData.isActive = body.isActive
     if (body.attributes) updateData.attributes = body.attributes
 
+    // If SKU is being changed, ensure uniqueness within the business
+    if (updateData.sku && updateData.sku !== existingProduct.sku) {
+      const conflict = await prisma.businessProducts.findFirst({
+        where: {
+          businessId,
+          sku: updateData.sku,
+          NOT: { id: itemId }
+        }
+      })
+
+      if (conflict) {
+        return NextResponse.json({ error: 'SKU already exists for this business' }, { status: 400 })
+      }
+    }
     // Update the product
     const updatedProduct = await prisma.businessProducts.update({
       where: { id: itemId },
@@ -250,6 +264,11 @@ export async function PUT(
 
   } catch (error) {
     console.error('Error updating product:', error)
+    // Handle Prisma unique constraint error explicitly
+    // PrismaClientKnownRequestError has code 'P2002' for unique constraint violations
+    if ((error as any)?.code === 'P2002') {
+      return NextResponse.json({ error: 'Unique constraint failed (possible duplicate SKU)' }, { status: 409 })
+    }
     return NextResponse.json(
       { error: 'Failed to update product' },
       { status: 500 }

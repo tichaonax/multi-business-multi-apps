@@ -1,12 +1,13 @@
-'use client'
+"use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
 import { UniversalSupplierGrid, UniversalSupplierForm } from '@/components/universal/supplier'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function GrocerySuppliersPage() {
   const [activeTab, setActiveTab] = useState<'suppliers' | 'deliveries' | 'orders' | 'performance'>('suppliers')
@@ -15,11 +16,92 @@ export default function GrocerySuppliersPage() {
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  // If session is loading, don't render yet
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) {
+      router.push('/auth/signin')
+    }
+  }, [session, status, router])
+
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to manage suppliers.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // If user has grocery businesses but hasn't selected one yet, prompt selection
+  const groceryBusinesses = businesses.filter((b: any) => b.businessType === 'grocery' && b.isActive)
+  const hasGroceryBusinesses = groceryBusinesses.length > 0
+
+  if (!currentBusiness && hasGroceryBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Grocery Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {groceryBusinesses.length} grocery business{groceryBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to manage suppliers.
+          </p>
+          <div className="space-y-2">
+            {groceryBusinesses.slice(0, 3).map((business: any) => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (currentBusiness && currentBusiness.businessType !== 'grocery') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Grocery Suppliers page is only available for grocery businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">Please select a grocery business from the sidebar to continue.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // At this point we have a valid business selected
+  const businessId = currentBusinessId!
+
   // Load suppliers from API
   const loadSuppliers = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/suppliers?businessId=${BUSINESS_ID}&businessType=grocery`)
+  const response = await fetch(`/api/suppliers?businessId=${businessId}&businessType=grocery`)
       if (response.ok) {
         const data = await response.json()
         setSuppliers(data.suppliers || [])
@@ -56,7 +138,7 @@ export default function GrocerySuppliersPage() {
   const handleSupplierDelete = async (supplier: any) => {
     if (confirm(`Are you sure you want to delete ${supplier.name}?`)) {
       try {
-        const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${BUSINESS_ID}`, {
+  const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${businessId}`, {
           method: 'DELETE'
         })
         if (response.ok) {
@@ -110,7 +192,7 @@ export default function GrocerySuppliersPage() {
   }
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="grocery">
         <ContentLayout
           title="Grocery Supplier Management"
@@ -234,7 +316,7 @@ export default function GrocerySuppliersPage() {
                     </div>
 
                     <UniversalSupplierGrid
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="grocery"
                       suppliers={suppliers}
                       loading={loading}
@@ -470,7 +552,7 @@ export default function GrocerySuppliersPage() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
               <div className="w-full flex items-start justify-center pt-8">
                 <UniversalSupplierForm
-                  businessId={BUSINESS_ID}
+                  businessId={businessId}
                   businessType="grocery"
                   supplier={selectedSupplier}
                   onSubmit={handleSupplierSubmit}

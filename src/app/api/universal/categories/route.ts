@@ -53,10 +53,10 @@ export async function GET(request: NextRequest) {
         domain: {
           select: { id: true, name: true, emoji: true, description: true }
         },
-        parentCategory: {
+        business_categories: {
           select: { id: true, name: true, emoji: true, color: true }
         },
-        childCategories: {
+        other_business_categories: {
           select: { id: true, name: true, emoji: true, color: true, displayOrder: true },
           where: { isActive: true },
           orderBy: { displayOrder: 'asc' }
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
           orderBy: { displayOrder: 'asc' }
         },
         ...(includeProducts && {
-          businessProducts: {
+          business_products: {
             select: {
               id: true,
               name: true,
@@ -90,11 +90,11 @@ export async function GET(request: NextRequest) {
 
     // Map canonical relation names back to legacy API shape (parent, children, products, subcategories)
     const mapped = (categories as any[]).map((c) => {
-      const { parentCategory, childCategories, businessProducts, inventory_subcategories, ...rest } = c || {}
+      const { business_categories, other_business_categories, businessProducts, inventory_subcategories, ...rest } = c || {}
       return {
         ...rest,
-        parent: parentCategory ?? null,
-        children: childCategories ?? [],
+        parent: business_categories ?? null,
+        children: other_business_categories ?? [],
         products: businessProducts ?? [],
         subcategories: inventory_subcategories ?? []
       }
@@ -179,10 +179,10 @@ export async function POST(request: NextRequest) {
         businesses: {
           select: { name: true, type: true }
         },
-        parentCategory: {
+        business_categories: {
           select: { id: true, name: true }
         },
-        childCategories: {
+        other_business_categories: {
           select: { id: true, name: true, displayOrder: true },
           where: { isActive: true },
           orderBy: { displayOrder: 'asc' }
@@ -258,10 +258,10 @@ export async function PUT(request: NextRequest) {
         businesses: {
           select: { name: true, type: true }
         },
-        parentCategory: {
+        business_categories: {
           select: { id: true, name: true }
         },
-        childCategories: {
+        other_business_categories: {
           select: { id: true, name: true, displayOrder: true },
           where: { isActive: true },
           orderBy: { displayOrder: 'asc' }
@@ -312,7 +312,7 @@ export async function DELETE(request: NextRequest) {
           where: { isActive: true },
           select: { id: true }
         },
-        childCategories: {
+        other_business_categories: {
           where: { isActive: true },
           select: { id: true }
         }
@@ -333,7 +333,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    if ((categoryWithProducts.childCategories ?? []).length > 0) {
+    if ((categoryWithProducts.other_business_categories ?? []).length > 0) {
       return NextResponse.json(
         { error: 'Cannot delete category with active child categories. Move or deactivate child categories first.' },
         { status: 409 }

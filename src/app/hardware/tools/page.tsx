@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
 import { UniversalInventoryForm } from '@/components/universal/inventory'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 // Sample tool data
 const toolCategories = [
@@ -283,7 +284,7 @@ function ToolsContent() {
                 try {
                   setReportLoading(true)
                   setReportError(null)
-                  const res = await fetch(`/api/inventory/${BUSINESS_ID}/reports?reportType=inventory_value`)
+                  const res = await fetch(`/api/inventory/${businessId}/reports?reportType=inventory_value`)
                   if (!res.ok) {
                       const err = await res.json().catch(() => ({}))
                       setReportError(err.error || 'Failed to generate report')
@@ -438,7 +439,7 @@ function ToolsContent() {
 
       {/* Add/Edit Tool Form Modal (uses universal inventory form) */}
       <UniversalInventoryForm
-        businessId={BUSINESS_ID}
+        businessId={businessId}
         businessType="hardware"
         item={selectedTool}
         onSubmit={async (saved: any) => {
@@ -559,8 +560,116 @@ function ToolsContent() {
 }
 
 export default function HardwareToolsPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Use the business permissions context for proper business management
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  // Check if current business is a hardware business
+  const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
+
+  // Redirect to signin if not authenticated
+  React.useEffect(() => {
+    if (status === 'loading') return
+    if (!session) {
+      router.push('/auth/signin')
+    }
+  }, [session, status, router])
+
+  // Show loading while session or business context is loading
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Don't render if no session or no business access
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to use the tools and equipment management.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user has any hardware businesses
+  const hardwareBusinesses = businesses.filter(b => b.businessType === 'hardware' && b.isActive)
+  const hasHardwareBusinesses = hardwareBusinesses.length > 0
+
+  // If no current business selected and user has hardware businesses, show selection prompt
+  if (!currentBusiness && hasHardwareBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Hardware Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {hardwareBusinesses.length} hardware business{hardwareBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to use the tools and equipment management.
+          </p>
+          <div className="space-y-2">
+            {hardwareBusinesses.slice(0, 3).map(business => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If current business is not hardware, show error
+  if (currentBusiness && !isHardwareBusiness) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Tools & Equipment Management is only available for hardware businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Please select a hardware business from the sidebar to use this system.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // If no hardware businesses at all, show message
+  if (!hasHardwareBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Hardware Businesses</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have access to any hardware businesses. The Tools & Equipment Management requires access to at least one hardware business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contact your administrator if you need access to hardware businesses.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // At this point, we have a valid hardware business selected
+  const businessId = currentBusinessId!
+
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="hardware">
         <ContentLayout
           title="Tools & Equipment"

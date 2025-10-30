@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import Link from 'next/link'
@@ -12,13 +12,76 @@ import {
   UniversalLowStockAlerts,
   UniversalInventoryStats
 } from '@/components/universal/inventory'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function GroceryInventoryPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) router.push('/auth/signin')
+  }, [session, status, router])
+
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to access inventory.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const groceryBusinesses = businesses.filter((b: any) => b.businessType === 'grocery' && b.isActive)
+  const hasGroceryBusinesses = groceryBusinesses.length > 0
+
+  if (!currentBusiness && hasGroceryBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Grocery Business</h2>
+          <p className="text-gray-600 mb-4">You have access to {groceryBusinesses.length} grocery business{groceryBusinesses.length > 1 ? 'es' : ''}. Please select one from the sidebar.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (currentBusiness && currentBusiness.businessType !== 'grocery') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600">The Grocery Inventory page is only for grocery businesses. Please select a grocery business.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const businessId = currentBusinessId!
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
@@ -42,7 +105,7 @@ export default function GroceryInventoryPage() {
   const handleItemDelete = async (item: any) => {
     if (confirm(`Are you sure you want to delete ${item.name}?`)) {
       try {
-        const response = await fetch(`/api/inventory/${BUSINESS_ID}/items/${item.id}`, {
+  const response = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
           method: 'DELETE'
         })
 
@@ -61,15 +124,15 @@ export default function GroceryInventoryPage() {
   const handleFormSubmit = async (formData: any) => {
     try {
       const url = selectedItem
-        ? `/api/inventory/${BUSINESS_ID}/items/${selectedItem.id}`
-        : `/api/inventory/${BUSINESS_ID}/items`
+        ? `/api/inventory/${businessId}/items/${selectedItem.id}`
+        : `/api/inventory/${businessId}/items`
 
       const method = selectedItem ? 'PUT' : 'POST'
 
       // Transform form data to include grocery-specific attributes
       const groceryFormData = {
         ...formData,
-        businessId: BUSINESS_ID,
+        businessId,
         businessType: 'grocery',
         attributes: {
           ...formData.attributes,
@@ -107,7 +170,7 @@ export default function GroceryInventoryPage() {
   }
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+  <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="grocery">
         <ContentLayout
           title="Grocery Inventory Management"
@@ -173,7 +236,7 @@ export default function GroceryInventoryPage() {
 
                     {/* Universal Inventory Stats */}
                     <UniversalInventoryStats
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="grocery"
                       showTrends={true}
                       showBusinessSpecific={true}
@@ -191,7 +254,7 @@ export default function GroceryInventoryPage() {
                     </div>
 
                     <UniversalInventoryGrid
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="grocery"
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
@@ -225,7 +288,7 @@ export default function GroceryInventoryPage() {
                     <h3 className="text-lg font-semibold">Stock Movements</h3>
 
                     <UniversalStockMovements
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       showFilters={true}
                       maxItems={100}
                       layout="full"
@@ -262,7 +325,7 @@ export default function GroceryInventoryPage() {
                     </div>
 
                     <UniversalLowStockAlerts
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="grocery"
                       alertTypes={['low_stock', 'out_of_stock', 'expiring_soon', 'expired']}
                       showFilters={true}
@@ -320,7 +383,7 @@ export default function GroceryInventoryPage() {
 
                     {/* Universal stats with grocery focus */}
                     <UniversalInventoryStats
-                      businessId={BUSINESS_ID}
+                      businessId={businessId}
                       businessType="grocery"
                       showTrends={true}
                       showBusinessSpecific={true}
@@ -353,7 +416,7 @@ export default function GroceryInventoryPage() {
                   </div>
 
                   <UniversalInventoryForm
-                    businessId={BUSINESS_ID}
+                    businessId={businessId}
                     businessType="grocery"
                     item={selectedItem}
                     onSubmit={handleFormSubmit}

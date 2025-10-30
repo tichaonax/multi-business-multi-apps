@@ -1,16 +1,16 @@
 'use client'
 
+import React from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { BusinessProvider, useBusinessContext } from '@/components/universal'
+import { BusinessProvider } from '@/components/universal'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
-
-function HardwareContent() {
-  const { data: session } = useSession()
+function HardwareContent({ session }: { session: any }) {
   const currentUser = session?.user as any
   const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
 
@@ -78,8 +78,8 @@ function HardwareContent() {
       </div>
 
       {/* Hardware-Specific Features */}
-      <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 dark:border-orange-800 rounded-lg p-6">
-        <h3 className="font-semibold text-orange-900 dark:text-orange-100 dark:text-orange-100 mb-4">🔧 Hardware Store Features</h3>
+      <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">
+        <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-4">🔧 Hardware Store Features</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="card p-4 rounded-lg border border-orange-200 dark:border-orange-800">
             <h4 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">✂️ Cut-to-Size Service</h4>
@@ -106,8 +106,116 @@ function HardwareContent() {
 }
 
 export default function HardwarePage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Use the business permissions context for proper business management
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading,
+    businesses
+  } = useBusinessPermissionsContext()
+
+  // Check if current business is a hardware business
+  const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
+
+  // Redirect to signin if not authenticated
+  React.useEffect(() => {
+    if (status === 'loading') return
+    if (!session) {
+      router.push('/auth/signin')
+    }
+  }, [session, status, router])
+
+  // Show loading while session or business context is loading
+  if (status === 'loading' || businessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Don't render if no session or no business access
+  if (!session || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be logged in to use the hardware store system.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user has any hardware businesses
+  const hardwareBusinesses = businesses.filter(b => b.businessType === 'hardware' && b.isActive)
+  const hasHardwareBusinesses = hardwareBusinesses.length > 0
+
+  // If no current business selected and user has hardware businesses, show selection prompt
+  if (!currentBusiness && hasHardwareBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Hardware Business</h2>
+          <p className="text-gray-600 mb-4">
+            You have access to {hardwareBusinesses.length} hardware business{hardwareBusinesses.length > 1 ? 'es' : ''}.
+            Please select one from the sidebar to use the hardware store system.
+          </p>
+          <div className="space-y-2">
+            {hardwareBusinesses.slice(0, 3).map(business => (
+              <div key={business.businessId} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium">{business.businessName}</p>
+                <p className="text-sm text-gray-600">Role: {business.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If current business is not hardware, show error
+  if (currentBusiness && !isHardwareBusiness) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 mb-4">
+            The Hardware Store Dashboard is only available for hardware businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Please select a hardware business from the sidebar to use this system.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // If no hardware businesses at all, show message
+  if (!hasHardwareBusinesses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Hardware Businesses</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have access to any hardware businesses. The Hardware Store system requires access to at least one hardware business.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contact your administrator if you need access to hardware businesses.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // At this point, we have a valid hardware business selected
+  const businessId = currentBusinessId!
+
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="hardware">
         <ContentLayout
           title="🔧 Hardware Store Dashboard"
@@ -116,7 +224,7 @@ export default function HardwarePage() {
             { label: 'Hardware Store', isActive: true }
           ]}
         >
-          <HardwareContent />
+          <HardwareContent session={session} />
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>
