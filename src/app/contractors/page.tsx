@@ -11,6 +11,7 @@ import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { DateInput } from '@/components/ui/date-input'
 import { hasUserPermission } from '@/lib/permission-utils'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
 interface Person {
   id: string
@@ -96,6 +97,10 @@ export default function ContractorsPage() {
     }
   }, [session?.user])
 
+  // alert/confirm hooks
+  const customAlert = useAlert()
+  const confirm = useConfirm()
+
   // Check if user has permission to manage contractors
   if (!session?.user || !hasUserPermission(session.user, 'canManagePersonalContractors')) {
     return (
@@ -125,6 +130,7 @@ export default function ContractorsPage() {
       </ProtectedRoute>
     )
   }
+
 
   const fetchContractors = async () => {
     try {
@@ -182,11 +188,11 @@ export default function ContractorsPage() {
         fetchContractors()
       } else {
         const error = await response.json()
-        alert('Failed to create contractor: ' + error.error)
+        await customAlert({ title: 'Failed to create contractor', description: error?.error || 'Unknown error' })
       }
     } catch (error) {
       console.error('Error creating contractor:', error)
-      alert('Failed to create contractor')
+      await customAlert({ title: 'Failed to create contractor', description: 'An unexpected error occurred.' })
     } finally {
       setSubmitting(false)
     }
@@ -225,14 +231,14 @@ export default function ContractorsPage() {
         setShowEditModal(false)
         setSelectedContractor(null)
         fetchContractors()
-        alert('Contractor updated successfully!')
+        await customAlert({ title: 'Contractor updated', description: 'Contractor updated successfully!' })
       } else {
         const error = await response.json()
-        alert('Failed to update contractor: ' + error.error)
+        await customAlert({ title: 'Failed to update contractor', description: error?.error || 'Unknown error' })
       }
     } catch (error) {
       console.error('Error updating contractor:', error)
-      alert('Failed to update contractor')
+      await customAlert({ title: 'Failed to update contractor', description: 'An unexpected error occurred.' })
     } finally {
       setSubmitting(false)
     }
@@ -282,9 +288,14 @@ export default function ContractorsPage() {
   }
 
   const handleRemoveFromProject = async (projectContractorId: string, projectName: string) => {
-    if (!confirm(`Are you sure you want to remove ${selectedContractor?.fullName} from ${projectName}?`)) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Remove from project?',
+      description: `Are you sure you want to remove ${selectedContractor?.fullName} from ${projectName}?`,
+      confirmText: 'Remove',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/construction/project-contractors/${projectContractorId}`, {
@@ -295,14 +306,14 @@ export default function ContractorsPage() {
       if (response.ok) {
         // Refresh contractors list to show updated assignments
         fetchContractors()
-        alert(`${selectedContractor?.fullName} has been removed from ${projectName}.`)
+        await customAlert({ title: 'Removed', description: `${selectedContractor?.fullName} has been removed from ${projectName}.` })
       } else {
         const error = await response.json()
-        alert('Failed to remove contractor: ' + error.error)
+        await customAlert({ title: 'Failed to remove contractor', description: error?.error || 'Unknown error' })
       }
     } catch (error) {
       console.error('Error removing contractor from project:', error)
-      alert('Failed to remove contractor from project')
+      await customAlert({ title: 'Failed to remove contractor', description: 'An unexpected error occurred.' })
     }
   }
 
@@ -355,14 +366,14 @@ export default function ContractorsPage() {
         setShowProjectModal(false)
         
         // Show success message
-        alert(`Project "${newProject.name}" has been created and selected.`)
+        await customAlert({ title: 'Project created', description: `Project "${newProject.name}" has been created and selected.` })
       } else {
         const error = await response.json()
-        alert('Failed to create project: ' + error.error)
+        await customAlert({ title: 'Failed to create project', description: error?.error || 'Unknown error' })
       }
     } catch (error) {
       console.error('Error creating project:', error)
-      alert('Failed to create project')
+      await customAlert({ title: 'Failed to create project', description: 'An unexpected error occurred.' })
     } finally {
       setSubmitting(false)
     }
@@ -407,14 +418,14 @@ export default function ContractorsPage() {
         // Refresh contractors list to show updated assignments
         fetchContractors()
         
-        alert(`${selectedContractor.fullName} has been assigned to the project successfully!`)
+        await customAlert({ title: 'Assigned', description: `${selectedContractor.fullName} has been assigned to the project successfully!` })
       } else {
         const error = await response.json()
-        alert('Failed to assign contractor: ' + error.error)
+        await customAlert({ title: 'Failed to assign contractor', description: error?.error || 'Unknown error' })
       }
     } catch (error) {
       console.error('Error assigning contractor:', error)
-      alert('Failed to assign contractor to project')
+      await customAlert({ title: 'Failed to assign contractor', description: 'An unexpected error occurred.' })
     } finally {
       setSubmitting(false)
     }

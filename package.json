@@ -95,8 +95,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
-    "drizzle-kit": "^0.31.4",
-    "drizzle-orm": "^0.44.5",
+    
     "eslint": "^9.34.0",
     "eslint-config-next": "^15.5.2",
     "exceljs": "^4.4.0",

@@ -17,7 +17,7 @@ export default function NewLaybyPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const alert = useAlert()
+  const customAlert = useAlert()
 
   const { currentBusiness, hasPermission } = useBusinessPermissionsContext()
   const currentUser = session?.user as any
@@ -54,7 +54,7 @@ export default function NewLaybyPage() {
       const result = await response.json()
 
       // Show success message and redirect after user acknowledges
-      await alert({
+      await customAlert({
         title: 'Layby Created Successfully!',
         description: `Layby Number: ${result.data.laybyNumber}\n\nClick OK to proceed to collect the initial deposit.`,
         confirmText: 'OK - Collect Deposit'

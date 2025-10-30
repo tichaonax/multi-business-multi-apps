@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { hasPermission } from '@/lib/permission-utils'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
@@ -57,6 +58,7 @@ interface CompensationFormData {
 
 export default function BenefitsPage() {
   const { data: session } = useSession()
+  const customAlert = useAlert()
   const { format: globalDateFormat } = useDateFormat()
   const [benefitTypes, setBenefitTypes] = useState<BenefitType[]>([])
   const [compensationTypes, setCompensationTypes] = useState<CompensationType[]>([])
@@ -174,7 +176,7 @@ export default function BenefitsPage() {
     e.preventDefault()
     
     if (!benefitForm.name.trim()) {
-      alert('Benefit name is required')
+      await customAlert({ title: 'Name required', description: 'Benefit name is required' })
       return
     }
 
@@ -198,11 +200,11 @@ export default function BenefitsPage() {
         closeBenefitModal()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to save benefit type')
+        await customAlert({ title: 'Save failed', description: error.error || 'Failed to save benefit type' })
       }
     } catch (error) {
       console.error('Error saving benefit type:', error)
-      alert('Failed to save benefit type')
+      await customAlert({ title: 'Save failed', description: 'Failed to save benefit type' })
     }
   }
 
@@ -246,7 +248,7 @@ export default function BenefitsPage() {
     e.preventDefault()
     
     if (!compensationForm.name.trim()) {
-      alert('Compensation type name is required')
+      await customAlert({ title: 'Name required', description: 'Compensation type name is required' })
       return
     }
 
@@ -271,11 +273,11 @@ export default function BenefitsPage() {
         closeCompensationModal()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to save compensation type')
+        await customAlert({ title: 'Save failed', description: error.error || 'Failed to save compensation type' })
       }
     } catch (error) {
       console.error('Error saving compensation type:', error)
-      alert('Failed to save compensation type')
+      await customAlert({ title: 'Save failed', description: 'Failed to save compensation type' })
     }
   }
 
@@ -300,11 +302,11 @@ export default function BenefitsPage() {
         fetchData()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to update benefit status')
+        await customAlert({ title: 'Update failed', description: error.error || 'Failed to update benefit status' })
       }
     } catch (error) {
       console.error('Error updating benefit status:', error)
-      alert('Failed to update benefit status')
+      await customAlert({ title: 'Update failed', description: 'Failed to update benefit status' })
     }
   }
 
@@ -329,11 +331,11 @@ export default function BenefitsPage() {
         fetchData()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to update compensation status')
+        await customAlert({ title: 'Update failed', description: error.error || 'Failed to update compensation status' })
       }
     } catch (error) {
       console.error('Error updating compensation status:', error)
-      alert('Failed to update compensation status')
+      await customAlert({ title: 'Update failed', description: 'Failed to update compensation status' })
     }
   }
 

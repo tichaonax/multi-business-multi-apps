@@ -8,6 +8,7 @@ import { UniversalSupplierGrid, UniversalSupplierForm } from '@/components/unive
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
 export default function GrocerySuppliersPage() {
   const [activeTab, setActiveTab] = useState<'suppliers' | 'deliveries' | 'orders' | 'performance'>('suppliers')
@@ -18,6 +19,8 @@ export default function GrocerySuppliersPage() {
 
   const { data: session, status } = useSession()
   const router = useRouter()
+  const customAlert = useAlert()
+  const confirm = useConfirm()
 
   const {
     currentBusiness,
@@ -136,21 +139,22 @@ export default function GrocerySuppliersPage() {
   }
 
   const handleSupplierDelete = async (supplier: any) => {
-    if (confirm(`Are you sure you want to delete ${supplier.name}?`)) {
-      try {
-  const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${businessId}`, {
-          method: 'DELETE'
-        })
-        if (response.ok) {
-          await loadSuppliers() // Reload suppliers
-          alert('Supplier deleted successfully')
-        } else {
-          throw new Error('Failed to delete supplier')
-        }
-      } catch (error) {
-        console.error('Error deleting supplier:', error)
-        alert('Error deleting supplier')
+    const ok = await confirm({ title: 'Delete supplier', description: `Are you sure you want to delete ${supplier.name}?`, confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
+
+    try {
+      const response = await fetch(`/api/suppliers/${supplier.id}?businessId=${businessId}`, {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        await loadSuppliers() // Reload suppliers
+        await customAlert({ title: 'Supplier deleted', description: 'Supplier deleted successfully' })
+      } else {
+        throw new Error('Failed to delete supplier')
       }
+    } catch (error) {
+      console.error('Error deleting supplier:', error)
+      await customAlert({ title: 'Delete failed', description: 'Error deleting supplier' })
     }
   }
 
@@ -172,15 +176,15 @@ export default function GrocerySuppliersPage() {
 
       if (response.ok) {
         await loadSuppliers() // Reload suppliers
-        setShowAddForm(false)
-        setSelectedSupplier(null)
-        alert(`Supplier ${selectedSupplier ? 'updated' : 'created'} successfully`)
+  setShowAddForm(false)
+  setSelectedSupplier(null)
+  await customAlert({ title: 'Supplier saved', description: `Supplier ${selectedSupplier ? 'updated' : 'created'} successfully` })
       } else {
         throw new Error(`Failed to ${selectedSupplier ? 'update' : 'create'} supplier`)
       }
     } catch (error) {
       console.error('Error saving supplier:', error)
-      alert(`Error ${selectedSupplier ? 'updating' : 'creating'} supplier`)
+      await customAlert({ title: 'Save failed', description: `Error ${selectedSupplier ? 'updating' : 'creating'} supplier` })
     } finally {
       setLoading(false)
     }
@@ -188,7 +192,7 @@ export default function GrocerySuppliersPage() {
 
   const handleCreateOrder = (supplier: any) => {
     console.log('Creating order for supplier:', supplier)
-    alert(`Creating purchase order for ${supplier.name} - Feature coming soon!`)
+    void customAlert({ title: 'Coming soon', description: `Creating purchase order for ${supplier.name} - Feature coming soon!` })
   }
 
   return (

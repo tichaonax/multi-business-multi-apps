@@ -17,7 +17,7 @@ export default function DriverTripsPage() {
   useEffect(() => {
     if (status === 'loading') return
 
-    if (!session?.users?.id) {
+    if (!session?.user?.id) {
       router.push('/auth/signin')
       return
     }
@@ -36,8 +36,7 @@ export default function DriverTripsPage() {
       </div>
     )
   }
-
-  if (!session?.users?.id || !hasUserPermission(session.user, 'canLogDriverTrips')) {
+  if (!session?.user?.id || !hasUserPermission(session.user, 'canLogDriverTrips')) {
     return null
   }
 
@@ -83,7 +82,7 @@ export default function DriverTripsPage() {
           <div className="card p-6 text-center">
             <Car className="mx-auto h-12 w-12 text-primary mb-4" />
             <h2 className="text-xl font-semibold text-primary mb-2">
-              Welcome, {session.users.name}!
+              Welcome, {session.user?.name}!
             </h2>
             <p className="text-secondary">
               Log your driving trips with accurate mileage and trip details.

@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { UniversalInventoryForm } from '@/components/universal/inventory'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -126,11 +127,12 @@ function ToolsContent() {
   const [reportData, setReportData] = useState<any | null>(null)
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportError, setReportError] = useState<string | null>(null)
+  const customAlert = useAlert()
 
   // Helper: download CSV from array of objects
   const downloadCSV = (rows: any[], filename = 'report.csv') => {
     if (!rows || rows.length === 0) {
-      alert('No data to export')
+      void customAlert({ title: 'No data', description: 'No data to export' })
       return
     }
 
@@ -183,7 +185,7 @@ function ToolsContent() {
       return downloadCSV(rows, `${report.reportType || 'report'}-summary.csv`)
     }
 
-    alert('Report format not supported for CSV export')
+    void customAlert({ title: 'Export not supported', description: 'Report format not supported for CSV export' })
   }
 
   const filteredTools = tools.filter(tool => {

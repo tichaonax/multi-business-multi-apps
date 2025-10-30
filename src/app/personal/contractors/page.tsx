@@ -12,6 +12,7 @@ import { NationalIdInput } from '@/components/ui/national-id-input'
 import { DriverLicenseInput } from '@/components/ui/driver-license-input'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { PersonEditForm } from '@/components/personal/person-edit-form'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 interface Person {
   id: string
@@ -39,6 +40,7 @@ interface Person {
 }
 
 export default function ContractorsPage() {
+  const customAlert = useAlert()
   const { data: session, status } = useSession()
   const router = useRouter()
   const [persons, setPersons] = useState<Person[]>([])
@@ -88,7 +90,7 @@ export default function ContractorsPage() {
     e.preventDefault()
     
     if (!newPerson.fullName.trim() || !newPerson.phone.trim() || !newPerson.nationalId.trim()) {
-      alert('Please fill in all required fields')
+      void customAlert({ title: 'Missing fields', description: 'Please fill in all required fields' })
       return
     }
 
@@ -127,11 +129,11 @@ export default function ContractorsPage() {
         fetchPersons()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to add person')
+        void customAlert({ title: 'Error', description: error.error || 'Failed to add person' })
       }
     } catch (error) {
       console.error('Error adding person:', error)
-      alert('Failed to add person')
+      void customAlert({ title: 'Error', description: 'Failed to add person' })
     }
   }
 
@@ -146,11 +148,11 @@ export default function ContractorsPage() {
       if (response.ok) {
         fetchPersons()
       } else {
-        alert('Failed to update person status')
+        void customAlert({ title: 'Error', description: 'Failed to update person status' })
       }
     } catch (error) {
       console.error('Error updating person:', error)
-      alert('Failed to update person status')
+      void customAlert({ title: 'Error', description: 'Failed to update person status' })
     }
   }
 
@@ -185,11 +187,11 @@ export default function ContractorsPage() {
         handleEditClose()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to update person')
+        void customAlert({ title: 'Error', description: error.error || 'Failed to update person' })
       }
     } catch (error) {
       console.error('Error updating person:', error)
-      alert('Failed to update person')
+      void customAlert({ title: 'Error', description: 'Failed to update person' })
     }
   }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useBusinessContext, useBusinessFeatures } from './business-context'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { UniversalProduct } from './product-card'
 import { BarcodeScanner } from './barcode-scanner'
 
@@ -24,6 +25,7 @@ interface UniversalPOSProps {
 
 export function UniversalPOS({ businessId, employeeId, onOrderComplete }: UniversalPOSProps) {
   const { formatCurrency, config } = useBusinessContext()
+  const customAlert = useAlert()
   const businessFeatures = useBusinessFeatures()
   const [cart, setCart] = useState<CartItem[]>([])
   const [customerInfo, setCustomerInfo] = useState<{
@@ -189,8 +191,8 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
         clearCart()
         onOrderComplete?.(result.data.id)
 
-        // Show success message
-        alert(`Order ${result.data.orderNumber} completed successfully!`)
+  // Show success message
+  await customAlert({ title: 'Order completed', description: `Order ${result.data.orderNumber} completed successfully!` })
       } else {
         throw new Error(result.error || 'Order processing failed')
       }

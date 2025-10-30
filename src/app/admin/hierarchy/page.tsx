@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { hasPermission } from '@/lib/permission-utils'
 
@@ -67,6 +68,7 @@ interface HierarchyNode {
 
 export default function HierarchyPage() {
   const { data: session } = useSession()
+  const customAlert = useAlert()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [loading, setLoading] = useState(true)
@@ -199,7 +201,7 @@ export default function HierarchyPage() {
     e.preventDefault()
     
     if (!assignmentForm.employeeId || !assignmentForm.businessId) {
-      alert('Please select employee and business')
+      await customAlert({ title: 'Missing fields', description: 'Please select employee and business' })
       return
     }
 
@@ -217,11 +219,11 @@ export default function HierarchyPage() {
         closeAssignModal()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to create assignment')
+        await customAlert({ title: 'Create failed', description: error.error || 'Failed to create assignment' })
       }
     } catch (error) {
       console.error('Error creating assignment:', error)
-      alert('Failed to create assignment')
+      await customAlert({ title: 'Create failed', description: 'Failed to create assignment' })
     }
   }
 
@@ -239,11 +241,11 @@ export default function HierarchyPage() {
         fetchData()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to update supervisor')
+        await customAlert({ title: 'Update failed', description: error.error || 'Failed to update supervisor' })
       }
     } catch (error) {
       console.error('Error updating supervisor:', error)
-      alert('Failed to update supervisor')
+      await customAlert({ title: 'Update failed', description: 'Failed to update supervisor' })
     }
   }
 

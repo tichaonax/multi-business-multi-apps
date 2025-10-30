@@ -4,6 +4,7 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { PersonRegistrationForm } from '@/components/construction/person-registration-form'
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { useParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { hasPermission } from '@/lib/permission-utils'
@@ -97,6 +98,7 @@ export default function ProjectDetailsPage() {
   })
   const [persons, setPersons] = useState<any[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const customAlert = useAlert()
   const [showPersonForm, setShowPersonForm] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -188,11 +190,11 @@ export default function ProjectDetailsPage() {
         fetchProject() // Refresh project data
       } else {
         const error = await response.json()
-        alert('Failed to create stage: ' + error.error)
+        await customAlert({ title: 'Create stage failed', description: error.error || 'Failed to create stage' })
       }
     } catch (error) {
       console.error('Error creating stage:', error)
-      alert('Failed to create stage')
+      await customAlert({ title: 'Create stage failed', description: 'Failed to create stage' })
     } finally {
       setSubmitting(false)
     }
@@ -246,11 +248,11 @@ export default function ProjectDetailsPage() {
         fetchProject() // Refresh project data
       } else {
         const error = await response.json()
-        alert('Failed to add contractor: ' + error.error)
+        await customAlert({ title: 'Add contractor failed', description: error.error || 'Failed to add contractor' })
       }
     } catch (error) {
       console.error('Error adding contractor:', error)
-      alert('Failed to add contractor')
+      await customAlert({ title: 'Add contractor failed', description: 'Failed to add contractor' })
     } finally {
       setSubmitting(false)
     }
@@ -294,11 +296,11 @@ export default function ProjectDetailsPage() {
         fetchProject() // Refresh project data
       } else {
         const error = await response.json()
-        alert('Failed to update project: ' + error.error)
+        await customAlert({ title: 'Update project failed', description: error.error || 'Failed to update project' })
       }
     } catch (error) {
       console.error('Error updating project:', error)
-      alert('Failed to update project')
+      await customAlert({ title: 'Update project failed', description: 'Failed to update project' })
     } finally {
       setSubmitting(false)
     }

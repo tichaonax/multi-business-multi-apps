@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -64,6 +65,7 @@ interface ComboBuilderProps {
 
 export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuilderProps) {
   const [combos, setCombos] = useState<Combo[]>([])
+  const confirm = useConfirm()
   const [showForm, setShowForm] = useState(false)
   const [editingCombo, setEditingCombo] = useState<Combo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -237,9 +239,8 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
   }
 
   const handleDeleteCombo = async (comboId: string) => {
-    if (!confirm('Are you sure you want to delete this combo?')) {
-      return
-    }
+    const ok = await confirm({ title: 'Delete combo', description: 'Are you sure you want to delete this combo?', confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/universal/menu-combos/${comboId}`, {

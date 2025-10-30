@@ -62,18 +62,18 @@ export async function POST(req: NextRequest) {
     }
 
     const shortName = await generateUniqueShortName(prisma as any, name.trim())
-    const business = await prisma.businesses.create({
-      // Cast to any because local Prisma client may not include the newly added shortName field yet
-      data: ({
-        name: name.trim(),
-        type: type.trim(),
-        description: description?.trim() || null,
-        shortName,
-        isActive: true,
-        settings: {},
-        createdBy: session.user.id
-      } as any)
-    })
+
+    const createData = ({
+      name: name.trim(),
+      type: type.trim(),
+      description: description?.trim() || null,
+      shortName,
+      isActive: true,
+      settings: {},
+      createdBy: session.user.id
+    } as any)
+
+    const business = await prisma.businesses.create({ data: createData })
 
     // Create audit log
     await prisma.auditLogs.create({

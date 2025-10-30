@@ -3,6 +3,7 @@
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -45,6 +46,7 @@ const PAYMENT_STATUSES = [
 ]
 
 export default function GroceryOrdersPage() {
+  const customAlert = useAlert()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -105,14 +107,14 @@ export default function GroceryOrdersPage() {
         if (data.success) {
           await loadOrders()
         } else {
-          alert('Failed to update order status')
+          await customAlert({ title: 'Update Failed', description: 'Failed to update order status' })
         }
       } else {
-        alert('Failed to update order status')
+        await customAlert({ title: 'Update Failed', description: 'Failed to update order status' })
       }
     } catch (error) {
       console.error('Error updating order status:', error)
-      alert('Error updating order status')
+      await customAlert({ title: 'Update Error', description: 'Error updating order status' })
     }
   }
 

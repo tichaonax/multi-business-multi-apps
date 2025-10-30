@@ -50,7 +50,8 @@ export async function GET(req: NextRequest, { params }: Context) {
         isActive: true,
       },
       include: {
-        user: {
+        // Prisma relation is declared as `users` on BusinessMemberships model
+        users: {
           select: {
             id: true,
             name: true,
@@ -144,7 +145,7 @@ export async function POST(req: NextRequest, { params }: Context) {
             invitedBy: session.user.id,
           },
           include: {
-            user: {
+            users: {
               select: {
                 id: true,
                 name: true,
@@ -171,7 +172,7 @@ export async function POST(req: NextRequest, { params }: Context) {
         isActive: true,
       },
       include: {
-        user: {
+        users: {
           select: {
             id: true,
             name: true,

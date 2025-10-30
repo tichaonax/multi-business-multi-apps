@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { hasPermission } from '@/lib/permission-utils'
 import { DateInput } from '@/components/ui/date-input'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
 interface DisciplinaryAction {
   id: string
@@ -87,6 +88,9 @@ export default function DisciplinaryPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedAction, setSelectedAction] = useState<DisciplinaryAction | null>(null)
 
+  const customAlert = useAlert()
+  const confirm = useConfirm()
+
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -168,7 +172,7 @@ export default function DisciplinaryPage() {
     e.preventDefault()
     
     if (!formData.employeeId || !formData.type || !formData.description || !formData.actionTaken) {
-      alert('Please fill in all required fields')
+      await customAlert({ title: 'Validation', description: 'Please fill in all required fields' })
       return
     }
 
@@ -189,16 +193,17 @@ export default function DisciplinaryPage() {
         closeCreateModal()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to create disciplinary action')
+        await customAlert({ title: 'Create failed', description: error.error || 'Failed to create disciplinary action' })
       }
     } catch (error) {
       console.error('Error creating disciplinary action:', error)
-      alert('Failed to create disciplinary action')
+      await customAlert({ title: 'Create failed', description: 'Failed to create disciplinary action' })
     }
   }
 
   const resolveAction = async (actionId: string) => {
-    if (!confirm('Mark this disciplinary action as resolved?')) return
+    const ok = await confirm({ title: 'Resolve action', description: 'Mark this disciplinary action as resolved?' })
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/disciplinary-actions/${actionId}`, {
@@ -216,11 +221,11 @@ export default function DisciplinaryPage() {
         fetchData()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to resolve disciplinary action')
+        await customAlert({ title: 'Resolve failed', description: error.error || 'Failed to resolve disciplinary action' })
       }
     } catch (error) {
       console.error('Error resolving disciplinary action:', error)
-      alert('Failed to resolve disciplinary action')
+      await customAlert({ title: 'Resolve failed', description: 'Failed to resolve disciplinary action' })
     }
   }
 

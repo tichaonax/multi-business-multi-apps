@@ -2,6 +2,7 @@
 
 import { DollarSign, CreditCard, Smartphone, Building2, Printer, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 interface Payment {
   id: string
@@ -20,6 +21,7 @@ interface PaymentHistoryTimelineProps {
 }
 
 export function PaymentHistoryTimeline({ payments, balanceRemaining }: PaymentHistoryTimelineProps) {
+  const customAlert = useAlert()
   const getPaymentIcon = (method: string) => {
     switch (method) {
       case 'CASH':
@@ -50,7 +52,7 @@ export function PaymentHistoryTimeline({ payments, balanceRemaining }: PaymentHi
   const handlePrintReceipt = (paymentId: string) => {
     // TODO: Implement receipt printing
     console.log('Print receipt for payment:', paymentId)
-    alert('Receipt printing will be implemented soon')
+    void customAlert({ title: 'Coming soon', description: 'Receipt printing will be implemented soon' })
   }
 
   if (payments.length === 0) {

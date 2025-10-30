@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -58,6 +59,7 @@ const DAYS_OF_WEEK = [
 
 export function PromotionManager({ businessId, categories, menuItems, onPromotionChange }: PromotionManagerProps) {
   const [promotions, setPromotions] = useState<Promotion[]>([])
+  const confirm = useConfirm()
   const [showForm, setShowForm] = useState(false)
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
   const [loading, setLoading] = useState(true)
@@ -188,9 +190,8 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
   }
 
   const handleDeletePromotion = async (promotionId: string) => {
-    if (!confirm('Are you sure you want to delete this promotion?')) {
-      return
-    }
+    const ok = await confirm({ title: 'Delete promotion', description: 'Are you sure you want to delete this promotion?', confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/universal/promotions/${promotionId}`, {

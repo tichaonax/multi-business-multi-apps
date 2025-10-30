@@ -178,9 +178,14 @@ export default function AdminUsersPage() {
         {showCreateBusiness && (
           <BusinessCreationModal
             onClose={() => setShowCreateBusiness(false)}
-            onSuccess={(message) => {
-              setSuccess(message)
-              setTimeout(() => setSuccess(''), 5000)
+            onSuccess={(result) => {
+              // The modal now returns an object { message?, business? }
+              if (result?.message) {
+                setSuccess(result.message)
+                setTimeout(() => setSuccess(''), 5000)
+              }
+              // We don't auto-switch here (admin users page) but callers
+              // could use result.business?.id when needed.
             }}
             onError={(error) => {
               setError(error)

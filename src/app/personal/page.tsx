@@ -12,6 +12,7 @@ import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { useNavigation } from '@/contexts/navigation-context'
 import { canDeletePersonalExpense } from '@/lib/expense-deletion-utils'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 // use shared Expense type from src/types/expense.ts
 
@@ -72,6 +73,7 @@ function PermissionCard({
 }
 
 export default function PersonalPage() {
+  const customAlert = useAlert()
   const { data: session } = useSession()
   const globalDateFormat = useDateFormat()
   const { navigateTo } = useNavigation()
@@ -206,7 +208,7 @@ export default function PersonalPage() {
 
     } catch (error) {
       console.error('Failed to delete expense:', error)
-      alert('Failed to delete expense. Please try again.')
+      void customAlert({ title: 'Delete failed', description: 'Failed to delete expense. Please try again.' })
     } finally {
       setDeleting(false)
       setDeleteConfirmExpense(null)

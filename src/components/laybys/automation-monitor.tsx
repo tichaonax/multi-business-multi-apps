@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, CheckCircle2, XCircle, AlertCircle, Clock, Play } from 'lucide-react'
 
@@ -28,6 +29,7 @@ interface HealthStatus {
 }
 
 export function AutomationMonitor() {
+  const customAlert = useAlert()
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [health, setHealth] = useState<HealthStatus | null>(null)
@@ -78,8 +80,8 @@ export function AutomationMonitor() {
         throw new Error('Failed to run automation')
       }
 
-      const result = await response.json()
-      alert(`Automation completed: ${result.data.totalProcessed} processed, ${result.data.totalErrors} errors`)
+  const result = await response.json()
+  await customAlert({ title: 'Automation Completed', description: `Automation completed: ${result.data.totalProcessed} processed, ${result.data.totalErrors} errors` })
 
       // Refresh logs
       await fetchLogs()

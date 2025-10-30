@@ -4,8 +4,16 @@ import { useState } from 'react'
 
 interface BusinessCreationModalProps {
   onClose: () => void
-  onSuccess: (message: string) => void
+  // onSuccess now receives the full server response so callers can access
+  // the created business object (if present) as well as the message.
+  onSuccess: (result: { message?: string; business?: any }) => void
   onError: (error: string) => void
+  // Optional: initial values for edit mode
+  initial?: { name?: string; type?: string; description?: string }
+  // Optional: HTTP method override for the form (default POST). Use 'PUT' for edit.
+  method?: 'POST' | 'PUT'
+  // Optional: resource id when using PUT
+  id?: string
 }
 
 const BUSINESS_TYPES = [
@@ -19,11 +27,11 @@ const BUSINESS_TYPES = [
   'other'
 ]
 
-export function BusinessCreationModal({ onClose, onSuccess, onError }: BusinessCreationModalProps) {
+export function BusinessCreationModal({ onClose, onSuccess, onError, initial, method = 'POST', id }: BusinessCreationModalProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    type: 'other',
-    description: ''
+    name: initial?.name || '',
+    type: initial?.type || 'other',
+    description: initial?.description || ''
   })
   const [loading, setLoading] = useState(false)
 
@@ -37,42 +45,45 @@ export function BusinessCreationModal({ onClose, onSuccess, onError }: BusinessC
 
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/businesses', {
-        method: 'POST',
+      const url = method === 'PUT' && id ? `/api/admin/businesses/${id}` : '/api/admin/businesses'
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       })
 
       const data = await response.json()
       if (response.ok) {
-        onSuccess(data.message)
+        // Pass the whole payload back to the caller so they can access
+        // the created/updated business id/object and perform follow-up actions
+        onSuccess({ message: data.message, business: data.business })
         onClose()
       } else {
-        onError(data.error || 'Failed to create business')
+        onError(data.error || `Failed to ${method === 'PUT' ? 'update' : 'create'} business`)
       }
     } catch (error) {
-      onError('Error creating business')
+      onError(method === 'PUT' ? 'Error updating business' : 'Error creating business')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-neutral-800 text-gray-900 dark:text-neutral-100 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto shadow-lg border border-gray-200 dark:border-neutral-700">
+        <div className="p-6 border-b border-gray-200 dark:border-neutral-700">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-primary">Create New Business</h2>
+            <h2 className="text-xl font-bold text-primary">{method === 'PUT' ? 'Edit Business' : 'Create New Business'}</h2>
             <button 
               onClick={onClose} 
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 dark:text-neutral-300 dark:hover:text-neutral-100"
             >
               ✕
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-primary">
           <div>
             <label className="block text-sm font-medium text-primary mb-2">
               Business Name <span className="text-red-500">*</span>
@@ -131,7 +142,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError }: BusinessC
               disabled={loading}
               className="btn-primary"
             >
-              {loading ? 'Creating...' : 'Create Business'}
+              {loading ? (method === 'PUT' ? 'Saving...' : 'Creating...') : (method === 'PUT' ? 'Save Changes' : 'Create Business')}
             </button>
           </div>
         </form>

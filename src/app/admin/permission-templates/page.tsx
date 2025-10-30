@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { BusinessType, BusinessPermissions } from '@/types/permissions'
@@ -27,6 +28,7 @@ interface CreateTemplateModalProps {
 }
 
 function CreateTemplateModal({ isOpen, onClose, onSuccess }: CreateTemplateModalProps) {
+  const customAlert = useAlert()
   const [formData, setFormData] = useState({
     name: '',
     businessType: 'clothing' as BusinessType,
@@ -55,10 +57,10 @@ function CreateTemplateModal({ isOpen, onClose, onSuccess }: CreateTemplateModal
         setFormData({ name: '', businessType: 'clothing', permissions: {} })
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to create template')
+        await customAlert({ title: 'Create Failed', description: error.error || 'Failed to create template' })
       }
     } catch (error) {
-      alert('Failed to create template')
+      await customAlert({ title: 'Create Failed', description: 'Failed to create template' })
     } finally {
       setIsSubmitting(false)
     }
@@ -132,6 +134,8 @@ function CreateTemplateModal({ isOpen, onClose, onSuccess }: CreateTemplateModal
 
 export default function PermissionTemplatesPage() {
   const { data: session } = useSession()
+  const customAlert = useAlert()
+  const confirm = useConfirm()
   const [templates, setTemplates] = useState<PermissionTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType | ''>('')
@@ -175,9 +179,8 @@ export default function PermissionTemplatesPage() {
   }, [selectedBusinessType])
 
   const handleDeleteTemplate = async (templateId: string) => {
-    if (!confirm('Are you sure you want to delete this permission template?')) {
-      return
-    }
+    const ok = await confirm({ title: 'Delete Permission Template', description: 'Are you sure you want to delete this permission template?', confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/admin/permission-templates/${templateId}`, {
@@ -187,10 +190,10 @@ export default function PermissionTemplatesPage() {
       if (response.ok) {
         fetchTemplates() // Refresh the list
       } else {
-        alert('Failed to delete template')
+        await customAlert({ title: 'Delete Failed', description: 'Failed to delete template' })
       }
     } catch (error) {
-      alert('Failed to delete template')
+      await customAlert({ title: 'Delete Failed', description: 'Failed to delete template' })
     }
   }
 

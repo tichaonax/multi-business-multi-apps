@@ -2,6 +2,7 @@
 
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useState, useEffect } from 'react';
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { hasUserPermission } from '@/lib/permission-utils';
@@ -20,6 +21,8 @@ const DEMO_BUSINESS_MAP: Record<string, string> = {
 
 export default function InventoryCategoriesPage() {
   const { data: session } = useSession();
+  const customAlert = useAlert();
+  const confirm = useConfirm();
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +97,8 @@ export default function InventoryCategoriesPage() {
   };
 
   const handleDeleteCategory = async (category: InventoryCategory) => {
-    if (!confirm(`Are you sure you want to delete the category "${category.name}"?`)) return;
+    const ok = await confirm({ title: 'Delete Category', description: `Are you sure you want to delete the category "${category.name}"?`, confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/inventory/categories/${category.id}`, {
@@ -109,7 +113,7 @@ export default function InventoryCategoriesPage() {
       // Refresh categories
       setCategories(categories.filter(c => c.id !== category.id));
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete category');
+      await customAlert({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Failed to delete category' })
     }
   };
 
@@ -126,7 +130,8 @@ export default function InventoryCategoriesPage() {
   };
 
   const handleDeleteSubcategory = async (subcategory: InventorySubcategory) => {
-    if (!confirm(`Are you sure you want to delete the subcategory "${subcategory.name}"?`)) return;
+    const ok = await confirm({ title: 'Delete Subcategory', description: `Are you sure you want to delete the subcategory "${subcategory.name}"?`, confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/inventory/subcategories/${subcategory.id}`, {
@@ -150,7 +155,7 @@ export default function InventoryCategoriesPage() {
       });
       setCategories(updatedCategories);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete subcategory');
+      await customAlert({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Failed to delete subcategory' })
     }
   };
 

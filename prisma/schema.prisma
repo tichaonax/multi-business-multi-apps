@@ -8,7 +8,7 @@ datasource db {
 }
 
 model Accounts {
-  id                String  @id
+  id                String  @id @default(uuid())
   userId            String
   type              String
   provider          String
@@ -27,7 +27,7 @@ model Accounts {
 }
 
 model AuditLogs {
-  id         String   @id
+  id         String   @id @default(uuid())
   userId     String
   action     String
   entityType String
@@ -46,7 +46,7 @@ model AuditLogs {
 }
 
 model BenefitTypes {
-  id                     String                 @id
+  id                     String                 @id @default(uuid())
   name                   String                 @unique
   description            String?
   type                   String
@@ -63,7 +63,7 @@ model BenefitTypes {
 }
 
 model BusinessAccounts {
-  id         String     @id
+  id         String     @id @default(uuid())
   businessId String     @unique
   balance    Decimal    @default(0) @db.Decimal(12, 2)
   createdAt  DateTime   @default(now())
@@ -76,7 +76,7 @@ model BusinessAccounts {
 }
 
 model BusinessBrands {
-  id                String             @id
+  id                String             @id @default(uuid())
   businessId        String
   name              String
   description       String?
@@ -95,28 +95,28 @@ model BusinessBrands {
 }
 
 model BusinessCategories {
-  id                        String                     @id
+  id                        String                   @id @default(uuid())
   businessId                String
   name                      String
   description               String?
   parentId                  String?
-  displayOrder              Int                        @default(0)
-  isActive                  Boolean                    @default(true)
+  displayOrder              Int                      @default(0)
+  isActive                  Boolean                  @default(true)
   businessType              String
   attributes                Json?
-  emoji                     String                     @default("📦")
-  color                     String                     @default("#3B82F6")
+  emoji                     String                   @default("📦")
+  color                     String                   @default("#3B82F6")
   domainId                  String?
-  isUserCreated             Boolean                    @default(false)
+  isUserCreated             Boolean                  @default(false)
   createdBy                 String?
-  createdAt                 DateTime                   @default(now())
+  createdAt                 DateTime                 @default(now())
   updatedAt                 DateTime
-  businesses                Businesses                 @relation(fields: [businessId], references: [id])
-  business_categories       BusinessCategories?        @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
-  other_business_categories BusinessCategories[]       @relation("business_categoriesTobusiness_categories")
+  businesses                Businesses               @relation(fields: [businessId], references: [id])
+  business_categories       BusinessCategories?      @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
+  other_business_categories BusinessCategories[]     @relation("business_categoriesTobusiness_categories")
   business_products         BusinessProducts[]
-  domain                    InventoryDomains?          @relation(fields: [domainId], references: [id])
-  users                     Users?                     @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
+  domain                    InventoryDomains?        @relation(fields: [domainId], references: [id])
+  users                     Users?                   @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
   inventory_subcategories   InventorySubcategories[]
 
   @@unique([businessId, name])
@@ -124,7 +124,7 @@ model BusinessCategories {
 }
 
 model BusinessCustomers {
-  id              String           @id
+  id              String           @id @default(uuid())
   businessId      String
   customerNumber  String
   name            String
@@ -152,7 +152,7 @@ model BusinessCustomers {
 }
 
 model BusinessMemberships {
-  id                   String               @id
+  id                   String               @id @default(uuid())
   userId               String
   businessId           String
   role                 String               @default("employee")
@@ -171,7 +171,7 @@ model BusinessMemberships {
 }
 
 model BusinessOrderItems {
-  id               String          @id
+  id               String          @id @default(uuid())
   orderId          String
   productVariantId String
   quantity         Int
@@ -187,7 +187,7 @@ model BusinessOrderItems {
 }
 
 model BusinessOrders {
-  id                   String               @id
+  id                   String               @id @default(uuid())
   businessId           String
   orderNumber          String
   customerId           String?
@@ -216,7 +216,7 @@ model BusinessOrders {
 }
 
 model BusinessProducts {
-  id                       String                   @id
+  id                       String                   @id @default(uuid())
   businessId               String
   name                     String
   description              String?
@@ -268,7 +268,7 @@ model BusinessProducts {
 }
 
 model BusinessStockMovements {
-  id                String            @id
+  id                String            @id @default(uuid())
   businessId        String
   productVariantId  String
   movementType      StockMovementType
@@ -290,7 +290,7 @@ model BusinessStockMovements {
 }
 
 model BusinessSuppliers {
-  id                String             @id
+  id                String             @id @default(uuid())
   businessId        String
   supplierNumber    String
   name              String
@@ -318,7 +318,7 @@ model BusinessSuppliers {
 }
 
 model BusinessLocations {
-  id                String             @id
+  id                String              @id @default(uuid())
   businessId        String
   locationCode      String
   name              String
@@ -326,22 +326,22 @@ model BusinessLocations {
   description       String?
   locationType      String?
   capacity          Int?
-  isActive          Boolean            @default(true)
+  isActive          Boolean             @default(true)
   parentLocationId  String?
   attributes        Json?
-  createdAt         DateTime           @default(now())
+  createdAt         DateTime            @default(now())
   updatedAt         DateTime
-  businesses        Businesses         @relation(fields: [businessId], references: [id])
-  parent_location   BusinessLocations? @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  businesses        Businesses          @relation(fields: [businessId], references: [id])
+  parent_location   BusinessLocations?  @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   child_locations   BusinessLocations[] @relation("LocationHierarchy")
-  business_products BusinessProducts[] @relation("ProductLocation")
+  business_products BusinessProducts[]  @relation("ProductLocation")
 
   @@unique([businessId, locationCode])
   @@map("business_locations")
 }
 
 model BusinessTransactions {
-  id            String     @id
+  id            String     @id @default(uuid())
   businessId    String
   amount        Decimal    @db.Decimal(12, 2)
   type          String
@@ -360,7 +360,7 @@ model BusinessTransactions {
 }
 
 model Businesses {
-  id                                                                       String                        @id
+  id                                                                       String                        @id @default(uuid())
   name                                                                     String
   type                                                                     String
   description                                                              String?
@@ -411,7 +411,7 @@ model Businesses {
 }
 
 model ChatMessages {
-  id         String     @id
+  id         String     @id @default(uuid())
   message    String
   createdAt  DateTime   @default(now())
   roomId     String?
@@ -423,7 +423,7 @@ model ChatMessages {
 }
 
 model ChatParticipants {
-  id         String     @id
+  id         String     @id @default(uuid())
   joinedAt   DateTime   @default(now())
   roomId     String?
   userId     String?
@@ -434,7 +434,7 @@ model ChatParticipants {
 }
 
 model ChatRooms {
-  id                String             @id
+  id                String             @id @default(uuid())
   name              String
   type              String             @default("group")
   createdAt         DateTime           @default(now())
@@ -447,7 +447,7 @@ model ChatRooms {
 }
 
 model CompensationTypes {
-  id                   String              @id
+  id                   String              @id @default(uuid())
   name                 String              @unique
   type                 String
   description          String?
@@ -464,7 +464,7 @@ model CompensationTypes {
 }
 
 model ConflictResolutions {
-  id                 String             @id
+  id                 String             @id @default(uuid())
   conflictType       ConflictType
   resolutionStrategy ResolutionStrategy
   sourceEventId      String
@@ -482,7 +482,7 @@ model ConflictResolutions {
 }
 
 model ConstructionExpenses {
-  id                    String                @id
+  id                    String                @id @default(uuid())
   category              String
   description           String
   amount                Decimal               @db.Decimal(12, 2)
@@ -498,7 +498,7 @@ model ConstructionExpenses {
 }
 
 model ConstructionProjects {
-  id                    String                 @id
+  id                    String                 @id @default(uuid())
   name                  String
   description           String?
   status                String                 @default("active")
@@ -521,7 +521,7 @@ model ConstructionProjects {
 }
 
 model ContractBenefits {
-  id                 String            @id
+  id                 String            @id @default(uuid())
   amount             Decimal           @db.Decimal(12, 2)
   notes              String?
   benefitTypeId      String
@@ -535,7 +535,7 @@ model ContractBenefits {
 }
 
 model ContractRenewals {
-  id                                                                          String             @id
+  id                                                                          String             @id @default(uuid())
   status                                                                      String             @default("pending")
   notes                                                                       String?
   autoRenewalMonths                                                           Int?
@@ -562,88 +562,88 @@ model ContractRenewals {
 }
 
 model CustomerLayby {
-  id                    String                  @id @default(cuid())
-  laybyNumber           String                  @unique
-  businessId            String
-  customerId            String?
+  id          String  @id @default(cuid())
+  laybyNumber String  @unique
+  businessId  String
+  customerId  String?
 
   // Status & Financial
-  status                LaybyStatus             @default(ACTIVE)
-  totalAmount           Decimal                 @db.Decimal(12, 2)
-  depositAmount         Decimal                 @db.Decimal(12, 2)
-  depositPercent        Decimal                 @db.Decimal(5, 2)
-  balanceRemaining      Decimal                 @db.Decimal(12, 2)
-  totalPaid             Decimal                 @default(0) @db.Decimal(12, 2)
+  status           LaybyStatus @default(ACTIVE)
+  totalAmount      Decimal     @db.Decimal(12, 2)
+  depositAmount    Decimal     @db.Decimal(12, 2)
+  depositPercent   Decimal     @db.Decimal(5, 2)
+  balanceRemaining Decimal     @db.Decimal(12, 2)
+  totalPaid        Decimal     @default(0) @db.Decimal(12, 2)
 
   // Terms & Schedule
-  installmentAmount     Decimal?                @db.Decimal(12, 2)
-  installmentFrequency  InstallmentFrequency?
-  paymentDueDate        DateTime?
-  completionDueDate     DateTime?
+  installmentAmount    Decimal?              @db.Decimal(12, 2)
+  installmentFrequency InstallmentFrequency?
+  paymentDueDate       DateTime?
+  completionDueDate    DateTime?
 
   // Fees & Charges
-  serviceFee            Decimal                 @default(0) @db.Decimal(12, 2)
-  lateFee               Decimal                 @default(0) @db.Decimal(12, 2)
-  administrationFee     Decimal                 @default(0) @db.Decimal(12, 2)
-  totalFees             Decimal                 @default(0) @db.Decimal(12, 2)
+  serviceFee        Decimal @default(0) @db.Decimal(12, 2)
+  lateFee           Decimal @default(0) @db.Decimal(12, 2)
+  administrationFee Decimal @default(0) @db.Decimal(12, 2)
+  totalFees         Decimal @default(0) @db.Decimal(12, 2)
 
   // Items & Release
-  items                 Json
-  itemsReleased         Boolean                 @default(false)
-  itemsReleasedAt       DateTime?
-  itemsReleasedBy       String?
+  items           Json
+  itemsReleased   Boolean   @default(false)
+  itemsReleasedAt DateTime?
+  itemsReleasedBy String?
 
   // Metadata
-  notes                 String?
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  createdBy             String
-  completedAt           DateTime?
-  cancelledAt           DateTime?
-  cancellationReason    String?
-  cancellationRefund    Decimal?                @db.Decimal(12, 2)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          String
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  cancellationRefund Decimal?  @db.Decimal(12, 2)
 
   // Relations
-  business              Businesses              @relation(fields: [businessId], references: [id])
-  customer              BusinessCustomers?      @relation(fields: [customerId], references: [id])
-  creator               Users                   @relation("CustomerLaybyCreator", fields: [createdBy], references: [id])
-  payments              CustomerLaybyPayment[]
+  business Businesses             @relation(fields: [businessId], references: [id])
+  customer BusinessCustomers?     @relation(fields: [customerId], references: [id])
+  creator  Users                  @relation("CustomerLaybyCreator", fields: [createdBy], references: [id])
+  payments CustomerLaybyPayment[]
 
-  @@map("customer_laybys")
   @@index([businessId])
   @@index([customerId])
   @@index([status])
+  @@map("customer_laybys")
 }
 
 model CustomerLaybyPayment {
-  id                String                  @id @default(cuid())
-  laybyId           String
-  receiptNumber     String                  @unique
+  id            String @id @default(cuid())
+  laybyId       String
+  receiptNumber String @unique
 
   // Payment Details
-  amount            Decimal                 @db.Decimal(12, 2)
-  paymentMethod     PaymentMethod
-  paymentReference  String?
+  amount           Decimal       @db.Decimal(12, 2)
+  paymentMethod    PaymentMethod
+  paymentReference String?
 
   // Metadata
-  paymentDate       DateTime                @default(now())
+  paymentDate       DateTime @default(now())
   processedBy       String
   notes             String?
-  isRefund          Boolean                 @default(false)
+  isRefund          Boolean  @default(false)
   refundedPaymentId String?
 
   // Relations
-  layby             CustomerLayby           @relation(fields: [laybyId], references: [id], onDelete: Cascade)
-  processor         Users                   @relation("CustomerLaybyPaymentProcessor", fields: [processedBy], references: [id])
-  refundedPayment   CustomerLaybyPayment?   @relation("RefundRelation", fields: [refundedPaymentId], references: [id])
-  refunds           CustomerLaybyPayment[]  @relation("RefundRelation")
+  layby           CustomerLayby          @relation(fields: [laybyId], references: [id], onDelete: Cascade)
+  processor       Users                  @relation("CustomerLaybyPaymentProcessor", fields: [processedBy], references: [id])
+  refundedPayment CustomerLaybyPayment?  @relation("RefundRelation", fields: [refundedPaymentId], references: [id])
+  refunds         CustomerLaybyPayment[] @relation("RefundRelation")
 
-  @@map("customer_layby_payments")
   @@index([laybyId])
+  @@map("customer_layby_payments")
 }
 
 model DataSnapshots {
-  id                  String   @id
+  id                  String   @id @default(uuid())
   nodeId              String
   tableName           String
   recordId            String
@@ -665,7 +665,7 @@ model DataSnapshots {
 }
 
 model DisciplinaryActions {
-  id                                                   String    @id
+  id                                                   String    @id @default(uuid())
   employeeId                                           String
   actionType                                           String
   violationType                                        String
@@ -696,7 +696,7 @@ model DisciplinaryActions {
 }
 
 model DriverAuthorizations {
-  id                 String             @id
+  id                 String             @id @default(uuid())
   driverId           String
   vehicleId          String
   authorizedBy       String
@@ -717,7 +717,7 @@ model DriverAuthorizations {
 }
 
 model DriverLicenseTemplates {
-  id          String      @id
+  id          String      @id @default(uuid())
   name        String
   description String?
   pattern     String
@@ -733,7 +733,7 @@ model DriverLicenseTemplates {
 }
 
 model EmployeeAllowances {
-  id                                                  String     @id
+  id                                                  String     @id @default(uuid())
   employeeId                                          String
   type                                                String
   amount                                              Decimal    @db.Decimal(12, 2)
@@ -750,7 +750,7 @@ model EmployeeAllowances {
 }
 
 model EmployeeAttendance {
-  id          String    @id
+  id          String    @id @default(uuid())
   date        DateTime
   status      String    @default("present")
   notes       String?
@@ -766,7 +766,7 @@ model EmployeeAttendance {
 }
 
 model EmployeeBenefits {
-  id            String       @id
+  id            String       @id @default(uuid())
   amount        Decimal      @db.Decimal(12, 2)
   notes         String?
   benefitTypeId String
@@ -784,7 +784,7 @@ model EmployeeBenefits {
 }
 
 model EmployeeBonuses {
-  id                                               String     @id
+  id                                               String     @id @default(uuid())
   amount                                           Decimal    @db.Decimal(12, 2)
   approvedAt                                       DateTime?
   approvedBy                                       String?
@@ -799,7 +799,7 @@ model EmployeeBonuses {
 }
 
 model EmployeeBusinessAssignments {
-  id         String     @id
+  id         String     @id @default(uuid())
   role       String?
   notes      String?
   assignedBy String?
@@ -819,7 +819,7 @@ model EmployeeBusinessAssignments {
 }
 
 model EmployeeContracts {
-  id                                                                         String              @id
+  id                                                                         String              @id @default(uuid())
   version                                                                    Int                 @default(1)
   status                                                                     String              @default("draft")
   notes                                                                      String?
@@ -876,7 +876,7 @@ model EmployeeContracts {
 }
 
 model EmployeeDeductionPayments {
-  id                  String             @id
+  id                  String             @id @default(uuid())
   amount              Decimal            @db.Decimal(12, 2)
   createdAt           DateTime           @default(now())
   deductionId         String
@@ -889,7 +889,7 @@ model EmployeeDeductionPayments {
 }
 
 model EmployeeDeductions {
-  id                                                  String                      @id
+  id                                                  String                      @id @default(uuid())
   amount                                              Decimal                     @db.Decimal(12, 2)
   approvedAt                                          DateTime?
   approvedBy                                          String?
@@ -905,7 +905,7 @@ model EmployeeDeductions {
 }
 
 model EmployeeLeaveBalance {
-  id              String    @id
+  id              String    @id @default(uuid())
   year            Int
   annualLeaveDays Int       @default(0)
   createdAt       DateTime  @default(now())
@@ -923,7 +923,7 @@ model EmployeeLeaveBalance {
 }
 
 model EmployeeLeaveRequests {
-  id                                                      String     @id
+  id                                                      String     @id @default(uuid())
   reason                                                  String?
   status                                                  String     @default("pending")
   approvedAt                                              DateTime?
@@ -943,7 +943,7 @@ model EmployeeLeaveRequests {
 }
 
 model EmployeeLoanPayments {
-  id             String        @id
+  id             String        @id @default(uuid())
   amount         Decimal       @db.Decimal(12, 2)
   createdAt      DateTime      @default(now())
   loanId         String
@@ -956,7 +956,7 @@ model EmployeeLoanPayments {
 }
 
 model EmployeeLoans {
-  id                                             String                 @id
+  id                                             String                 @id @default(uuid())
   status                                         String                 @default("active")
   approvedAt                                     DateTime?
   approvedBy                                     String?
@@ -976,7 +976,7 @@ model EmployeeLoans {
 }
 
 model EmployeeSalaryIncreases {
-  id                                                        String     @id
+  id                                                        String     @id @default(uuid())
   reason                                                    String?
   approvedAt                                                DateTime?
   approvedBy                                                String?
@@ -994,7 +994,7 @@ model EmployeeSalaryIncreases {
 }
 
 model EmployeeTimeTracking {
-  id            String    @id
+  id            String    @id @default(uuid())
   employeeId    String
   year          Int
   month         Int
@@ -1010,7 +1010,7 @@ model EmployeeTimeTracking {
 }
 
 model Employees {
-  id                                                                        String                        @id
+  id                                                                        String                        @id @default(uuid())
   email                                                                     String?                       @unique
   phone                                                                     String
   address                                                                   String?
@@ -1079,7 +1079,7 @@ model Employees {
 }
 
 model ExpenseDomains {
-  id                 String              @id
+  id                 String              @id @default(uuid())
   name               String              @unique
   emoji              String
   description        String?
@@ -1091,7 +1091,7 @@ model ExpenseDomains {
 }
 
 model ExpenseCategories {
-  id                    String                 @id
+  id                    String                 @id @default(uuid())
   domainId              String?
   name                  String
   emoji                 String                 @default("💰")
@@ -1111,7 +1111,7 @@ model ExpenseCategories {
 }
 
 model ExpenseSubcategories {
-  id                String             @id
+  id                String             @id @default(uuid())
   categoryId        String
   name              String
   emoji             String?
@@ -1144,30 +1144,30 @@ model EmojiLookup {
 }
 
 model InventoryDomains {
-  id                   String               @id
-  name                 String               @unique
-  emoji                String
-  description          String?
-  businessType         String
-  isActive             Boolean              @default(true)
-  isSystemTemplate     Boolean              @default(false)
-  createdAt            DateTime             @default(now())
-  business_categories  BusinessCategories[]
+  id                  String               @id @default(uuid())
+  name                String               @unique
+  emoji               String
+  description         String?
+  businessType        String
+  isActive            Boolean              @default(true)
+  isSystemTemplate    Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  business_categories BusinessCategories[]
 
   @@map("inventory_domains")
 }
 
 model InventorySubcategories {
-  id            String             @id
-  categoryId    String
-  name          String
-  emoji         String?
-  description   String?
-  isDefault     Boolean            @default(false)
-  isUserCreated Boolean            @default(false)
-  displayOrder  Int                @default(0)
-  createdAt     DateTime           @default(now())
-  createdBy     String?
+  id                String             @id @default(uuid())
+  categoryId        String
+  name              String
+  emoji             String?
+  description       String?
+  isDefault         Boolean            @default(false)
+  isUserCreated     Boolean            @default(false)
+  displayOrder      Int                @default(0)
+  createdAt         DateTime           @default(now())
+  createdBy         String?
   category          BusinessCategories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   users             Users?             @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
   business_products BusinessProducts[]
@@ -1177,7 +1177,7 @@ model InventorySubcategories {
 }
 
 model FundSources {
-  id         String   @id
+  id         String   @id @default(uuid())
   name       String
   emoji      String?  @default("💰")
   createdAt  DateTime @default(now())
@@ -1190,7 +1190,7 @@ model FundSources {
 }
 
 model IdFormatTemplates {
-  id          String      @id
+  id          String      @id @default(uuid())
   name        String
   description String?
   pattern     String
@@ -1206,7 +1206,7 @@ model IdFormatTemplates {
 }
 
 model InitialLoadSessions {
-  id               String    @id
+  id               String    @id @default(uuid())
   sessionId        String    @unique
   sourceNodeId     String
   targetNodeId     String
@@ -1226,7 +1226,7 @@ model InitialLoadSessions {
 }
 
 model InterBusinessLoans {
-  id                                                             String             @id
+  id                                                             String             @id @default(uuid())
   loanNumber                                                     String             @unique
   principalAmount                                                Decimal            @db.Decimal(12, 2)
   interestRate                                                   Decimal            @default(0) @db.Decimal(5, 2)
@@ -1257,7 +1257,7 @@ model InterBusinessLoans {
 }
 
 model JobTitles {
-  id                 String              @id
+  id                 String              @id @default(uuid())
   title              String              @unique
   description        String?
   responsibilities   String[]
@@ -1273,7 +1273,7 @@ model JobTitles {
 }
 
 model LoanTransactions {
-  id                    String             @id
+  id                    String             @id @default(uuid())
   loanId                String
   transactionType       String
   amount                Decimal            @db.Decimal(12, 2)
@@ -1295,7 +1295,7 @@ model LoanTransactions {
 }
 
 model MenuComboItems {
-  id                String           @id
+  id                String           @id @default(uuid())
   comboId           String
   productId         String
   variantId         String?
@@ -1311,7 +1311,7 @@ model MenuComboItems {
 }
 
 model MenuCombos {
-  id                 String           @id
+  id                 String           @id @default(uuid())
   businessId         String
   name               String
   description        String?
@@ -1333,7 +1333,7 @@ model MenuCombos {
 }
 
 model MenuItems {
-  id          String       @id
+  id          String       @id @default(uuid())
   name        String
   description String?
   price       Decimal      @db.Decimal(10, 2)
@@ -1348,7 +1348,7 @@ model MenuItems {
 }
 
 model MenuPromotions {
-  id                   String        @id
+  id                   String        @id @default(uuid())
   businessId           String
   name                 String
   description          String?
@@ -1374,7 +1374,7 @@ model MenuPromotions {
 }
 
 model NetworkPartitions {
-  id                 String    @id
+  id                 String    @id @default(uuid())
   nodeId             String
   partitionType      String
   startTime          DateTime
@@ -1389,7 +1389,7 @@ model NetworkPartitions {
 }
 
 model NodeStates {
-  id          String   @id
+  id          String   @id @default(uuid())
   nodeId      String   @unique
   nodeName    String
   lastSeen    DateTime @default(now())
@@ -1403,7 +1403,7 @@ model NodeStates {
 }
 
 model OfflineQueue {
-  id           String    @id
+  id           String    @id @default(uuid())
   nodeId       String
   eventId      String
   tableName    String
@@ -1423,7 +1423,7 @@ model OfflineQueue {
 }
 
 model OrderItems {
-  id         String     @id
+  id         String     @id @default(uuid())
   quantity   Int
   price      Decimal    @db.Decimal(10, 2)
   notes      String?
@@ -1436,7 +1436,7 @@ model OrderItems {
 }
 
 model Orders {
-  id          String       @id
+  id          String       @id @default(uuid())
   total       Decimal      @db.Decimal(10, 2)
   status      String       @default("pending")
   createdAt   DateTime     @default(now())
@@ -1450,7 +1450,7 @@ model Orders {
 }
 
 model PayrollAdjustments {
-  id                                          String          @id
+  id                                          String          @id @default(uuid())
   payrollEntryId                              String?
   amount                                      Decimal         @db.Decimal(12, 2)
   reason                                      String?
@@ -1470,7 +1470,7 @@ model PayrollAdjustments {
 }
 
 model PayrollEntries {
-  id                      String                 @id
+  id                      String                 @id @default(uuid())
   payrollPeriodId         String?
   employeeId              String?
   employeeNumber          String?
@@ -1526,7 +1526,7 @@ model PayrollEntries {
 }
 
 model PayrollEntryBenefits {
-  id                String         @id
+  id                String         @id @default(uuid())
   payrollEntryId    String
   benefitTypeId     String
   benefitName       String
@@ -1545,7 +1545,7 @@ model PayrollEntryBenefits {
 }
 
 model PayrollExports {
-  id              String         @id
+  id              String         @id @default(uuid())
   payrollPeriodId String
   businessId      String
   year            Int
@@ -1570,7 +1570,7 @@ model PayrollExports {
 }
 
 model PayrollPeriods {
-  id                                      String           @id
+  id                                      String           @id @default(uuid())
   businessId                              String
   year                                    Int
   month                                   Int
@@ -1602,7 +1602,7 @@ model PayrollPeriods {
 }
 
 model PermissionTemplates {
-  id                   String                @id
+  id                   String                @id @default(uuid())
   name                 String
   permissions          Json                  @default("{}")
   businessType         String
@@ -1617,7 +1617,7 @@ model PermissionTemplates {
 }
 
 model PersonalBudgets {
-  id          String   @id
+  id          String   @id @default(uuid())
   amount      Decimal  @db.Decimal(12, 2)
   description String?
   type        String   @default("deposit")
@@ -1629,7 +1629,7 @@ model PersonalBudgets {
 }
 
 model PersonalExpenses {
-  id                   String                @id
+  id                   String                @id @default(uuid())
   categoryId           String?
   subcategoryId        String?
   category             String
@@ -1652,7 +1652,7 @@ model PersonalExpenses {
 }
 
 model Persons {
-  id                       String                  @id
+  id                       String                  @id @default(uuid())
   email                    String?                 @unique
   phone                    String
   address                  String?
@@ -1677,7 +1677,7 @@ model Persons {
 }
 
 model ProductAttributes {
-  id                String            @id
+  id                String            @id @default(uuid())
   productId         String
   key               String
   value             String
@@ -1691,7 +1691,7 @@ model ProductAttributes {
 }
 
 model ProductImages {
-  id                String           @id
+  id                String           @id @default(uuid())
   productId         String
   imageUrl          String
   altText           String?
@@ -1708,7 +1708,7 @@ model ProductImages {
 }
 
 model ProductVariants {
-  id                       String                   @id
+  id                       String                   @id @default(uuid())
   productId                String
   name                     String?
   sku                      String                   @unique
@@ -1733,7 +1733,7 @@ model ProductVariants {
 }
 
 model ProjectContractors {
-  id                           String                       @id
+  id                           String                       @id @default(uuid())
   role                         String?
   status                       String                       @default("active")
   notes                        String?
@@ -1758,7 +1758,7 @@ model ProjectContractors {
 }
 
 model ProjectStages {
-  id                           String                       @id
+  id                           String                       @id @default(uuid())
   name                         String
   description                  String?
   status                       String                       @default("pending")
@@ -1781,7 +1781,7 @@ model ProjectStages {
 }
 
 model ProjectTransactions {
-  id                                           String                      @id
+  id                                           String                      @id @default(uuid())
   amount                                       Decimal                     @db.Decimal(12, 2)
   description                                  String
   status                                       String                      @default("pending")
@@ -1819,7 +1819,7 @@ model ProjectTransactions {
 }
 
 model ProjectTypes {
-  id                    String                 @id
+  id                    String                 @id @default(uuid())
   name                  String                 @unique
   description           String?
   businessType          String
@@ -1834,7 +1834,7 @@ model ProjectTypes {
 }
 
 model Projects {
-  id                   String                @id
+  id                   String                @id @default(uuid())
   name                 String
   description          String?
   projectTypeId        String
@@ -1858,7 +1858,7 @@ model Projects {
 }
 
 model Sessions {
-  id           String   @id
+  id           String   @id @default(uuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
@@ -1868,7 +1868,7 @@ model Sessions {
 }
 
 model StageContractorAssignments {
-  id                   String                @id
+  id                   String                @id @default(uuid())
   notes                String?
   createdAt            DateTime              @default(now())
   depositAmount        Decimal?              @db.Decimal(12, 2)
@@ -1890,7 +1890,7 @@ model StageContractorAssignments {
 }
 
 model SupplierProducts {
-  id                 String            @id
+  id                 String            @id @default(uuid())
   supplierId         String
   productId          String
   supplierSku        String?
@@ -1909,7 +1909,7 @@ model SupplierProducts {
 }
 
 model SyncConfigurations {
-  id                  String    @id
+  id                  String    @id @default(uuid())
   nodeId              String    @unique
   registrationKeyHash String?
   lastConfigUpdate    DateTime?
@@ -1920,7 +1920,7 @@ model SyncConfigurations {
 }
 
 model SyncEvents {
-  eventId         String        @id
+  eventId         String        @id @default(uuid())
   sourceNodeId    String
   tableName       String
   recordId        String
@@ -1942,7 +1942,7 @@ model SyncEvents {
 }
 
 model SyncMetrics {
-  id                   String   @id
+  id                   String   @id @default(uuid())
   nodeId               String
   metricDate           DateTime
   eventsGenerated      Int      @default(0)
@@ -1963,7 +1963,7 @@ model SyncMetrics {
 }
 
 model SyncNodes {
-  id               String    @id
+  id               String    @id @default(uuid())
   nodeId           String    @unique
   nodeName         String
   ipAddress        String?
@@ -1988,7 +1988,7 @@ model SyncNodes {
 }
 
 model SyncSessions {
-  id           String    @id
+  id           String    @id @default(uuid())
   sessionId    String    @unique
   sourceNodeId String
   targetNodeId String?
@@ -2004,7 +2004,7 @@ model SyncSessions {
 }
 
 model Users {
-  id                                                              String                      @id
+  id                                                              String                      @id @default(uuid())
   email                                                           String                      @unique
   passwordHash                                                    String
   name                                                            String
@@ -2033,8 +2033,8 @@ model Users {
   chat_messages                                                   ChatMessages[]
   chat_participants                                               ChatParticipants[]
   chat_rooms                                                      ChatRooms[]
-  customer_layby_creators                                         CustomerLayby[]                  @relation("CustomerLaybyCreator")
-  customer_layby_payment_processors                               CustomerLaybyPayment[]           @relation("CustomerLaybyPaymentProcessor")
+  customer_layby_creators                                         CustomerLayby[]             @relation("CustomerLaybyCreator")
+  customer_layby_payment_processors                               CustomerLaybyPayment[]      @relation("CustomerLaybyPaymentProcessor")
   construction_expenses                                           ConstructionExpenses[]
   construction_projects                                           ConstructionProjects[]
   driver_authorizations                                           DriverAuthorizations[]
@@ -2073,7 +2073,7 @@ model Users {
 }
 
 model VehicleDrivers {
-  id                    String                 @id
+  id                    String                 @id @default(uuid())
   fullName              String
   licenseNumber         String                 @unique
   licenseExpiry         DateTime
@@ -2095,7 +2095,7 @@ model VehicleDrivers {
 }
 
 model VehicleExpenses {
-  id                   String        @id
+  id                   String        @id @default(uuid())
   vehicleId            String
   tripId               String?
   businessId           String?
@@ -2123,7 +2123,7 @@ model VehicleExpenses {
 }
 
 model VehicleLicenses {
-  id               String      @id
+  id               String      @id @default(uuid())
   vehicleId        String
   licenseType      LicenseType
   licenseNumber    String
@@ -2142,7 +2142,7 @@ model VehicleLicenses {
 }
 
 model VehicleMaintenanceRecords {
-  id                           String                       @id
+  id                           String                       @id @default(uuid())
   vehicleId                    String
   serviceType                  ServiceType
   serviceCategory              String?
@@ -2170,7 +2170,7 @@ model VehicleMaintenanceRecords {
 }
 
 model VehicleMaintenanceServiceExpenses {
-  id                           String                     @id
+  id                           String                     @id @default(uuid())
   serviceId                    String
   expenseType                  String
   amount                       Decimal                    @db.Decimal(10, 2)
@@ -2187,7 +2187,7 @@ model VehicleMaintenanceServiceExpenses {
 }
 
 model VehicleMaintenanceServices {
-  id                                   String                              @id
+  id                                   String                              @id @default(uuid())
   maintenanceRecordId                  String
   serviceName                          String
   serviceType                          String
@@ -2207,7 +2207,7 @@ model VehicleMaintenanceServices {
 }
 
 model VehicleReimbursements {
-  id                                             String              @id
+  id                                             String              @id @default(uuid())
   userId                                         String
   vehicleId                                      String
   businessId                                     String
@@ -2234,7 +2234,7 @@ model VehicleReimbursements {
 }
 
 model VehicleTrips {
-  id                    String               @id
+  id                    String               @id @default(uuid())
   vehicleId             String
   driverId              String
   businessId            String?
@@ -2262,7 +2262,7 @@ model VehicleTrips {
 }
 
 model Vehicles {
-  id                          String                      @id
+  id                          String                      @id @default(uuid())
   licensePlate                String                      @unique
   vin                         String                      @unique
   make                        String

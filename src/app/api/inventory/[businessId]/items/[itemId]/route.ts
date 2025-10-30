@@ -43,9 +43,9 @@ export async function GET(
     }
 
     // Calculate current stock
-    const currentStock = product.product_variants.reduce((total, variant) => {
-      const stockMovements = variant.business_stock_movements || []
-      const variantStock = stockMovements.reduce((sum, movement) => {
+    const currentStock = product.product_variants.reduce((total: number, variant: any) => {
+      const stockMovements: any[] = variant.business_stock_movements || []
+      const variantStock = stockMovements.reduce((sum: number, movement: any) => {
         return sum + Number(movement.quantity)
       }, 0)
       return total + variantStock
@@ -223,9 +223,9 @@ export async function PUT(
     })
 
     // Calculate current stock
-    const currentStock = updatedProduct.product_variants.reduce((total, variant) => {
-      const stockMovements = variant.business_stock_movements || []
-      const variantStock = stockMovements.reduce((sum, movement) => {
+    const currentStock = updatedProduct.product_variants.reduce((total: number, variant: any) => {
+      const stockMovements: any[] = variant.business_stock_movements || []
+      const variantStock = stockMovements.reduce((sum: number, movement: any) => {
         return sum + Number(movement.quantity)
       }, 0)
       return total + variantStock

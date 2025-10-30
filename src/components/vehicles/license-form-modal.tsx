@@ -30,7 +30,9 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
     issueDate: license?.issueDate || '',
     expiryDate: license?.expiryDate || '',
     issuingAuthority: license?.issuingAuthority || '',
-    notes: license?.notes || '',
+    // VehicleLicense type doesn't declare `notes` but the form supports it; use a
+    // safe cast to avoid TypeScript errors while preserving runtime behavior.
+    notes: (license as any)?.notes || '',
     isActive: license?.isActive ?? true
   })
   const [loading, setLoading] = useState(false)

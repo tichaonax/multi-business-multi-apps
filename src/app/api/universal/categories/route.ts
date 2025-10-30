@@ -11,7 +11,7 @@ const CreateCategorySchema = z.object({
   parentId: z.string().optional(),
   displayOrder: z.number().int().min(0).default(0),
   businessType: z.string().min(1),
-  attributes: z.record(z.unknown()).optional()
+  attributes: z.record(z.string(), z.unknown()).optional()
 })
 
 const UpdateCategorySchema = CreateCategorySchema.partial().extend({

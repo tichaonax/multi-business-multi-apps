@@ -157,7 +157,7 @@ export function VehicleAssignmentModal({ driver, isOpen, onClose, onSuccess }: V
           body: JSON.stringify({
             driverId: driver.id,
             vehicleId: assignment.vehicleId,
-            authorizedBy: session?.users?.id || '',
+            authorizedBy: session?.user?.id || '',
             authorizedDate: new Date().toISOString(),
             expiryDate: assignment.expiryDate || null,
             authorizationLevel: assignment.authorizationLevel,

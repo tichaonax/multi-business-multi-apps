@@ -135,8 +135,8 @@ export default function ProjectsPage() {
                          project.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.project_types.name.toLowerCase().includes(searchTerm.toLowerCase())
 
-    // My Projects filter
-    const matchesMyProjects = !showMyProjectsOnly || project.users?.id === session?.users?.id
+  // My Projects filter
+  const matchesMyProjects = !showMyProjectsOnly || project.users?.id === session?.user?.id
 
     return matchesSearch && matchesMyProjects
   })

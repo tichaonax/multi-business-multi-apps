@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useBusinessContext } from '@/components/universal'
+import { useConfirm } from '@/components/ui/confirm-modal'
 
 interface ProductVariant {
   id: string
@@ -50,6 +51,7 @@ export function ClothingVariantManager({
   const [bulkPrice, setBulkPrice] = useState('')
   const [bulkStock, setBulkStock] = useState('')
   const [selectedVariants, setSelectedVariants] = useState<Set<string>>(new Set())
+  const confirm = useConfirm()
 
   // Default size and color options for clothing
   const availableSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4', '6', '8', '10', '12', '14', '16', '18']
@@ -181,8 +183,9 @@ export function ClothingVariantManager({
     ))
   }
 
-  const deleteVariant = (variantId: string) => {
-    if (!confirm('Are you sure you want to delete this variant?')) return
+  const deleteVariant = async (variantId: string) => {
+    const ok = await confirm({ title: 'Delete variant', description: 'Are you sure you want to delete this variant?', confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
 
     setProducts(products.map(product => ({
       ...product,
@@ -469,7 +472,7 @@ export function ClothingVariantManager({
                                 </div>
 
                                 <button
-                                  onClick={() => deleteVariant(variant.id)}
+                                  onClick={() => void deleteVariant(variant.id)}
                                   className="mt-2 text-xs text-red-600 hover:text-red-700"
                                   title="Delete variant"
                                 >

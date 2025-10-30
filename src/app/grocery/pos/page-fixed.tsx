@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider, useBusinessContext } from '@/components/universal'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -46,6 +47,7 @@ interface Customer {
 // Main POS content component that uses the business context
 function GroceryPOSContent() {
   const { formatCurrency } = useBusinessContext()
+  const customAlert = useAlert()
   const [cart, setCart] = useState<CartItem[]>([])
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [barcodeInput, setBarcodeInput] = useState('')
@@ -207,28 +209,28 @@ function GroceryPOSContent() {
       if (product) {
         if (product.weightRequired) {
           // Need to weigh the item
-          alert('Please place item on scale and confirm weight')
+          void customAlert({ title: 'Weight required', description: 'Please place item on scale and confirm weight' })
         } else {
           addToCart(product)
         }
       } else {
-        alert('Product not found')
+        void customAlert({ title: 'Not found', description: 'Product not found' })
       }
     }
   }
 
   const handlePLUSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (pluInput) {
+      if (pluInput) {
       const product = findProductByPLU(pluInput)
       if (product) {
         if (product.weightRequired && currentWeight === 0) {
-          alert('Please place item on scale to get weight')
+          void customAlert({ title: 'Weight required', description: 'Please place item on scale to get weight' })
         } else {
           addToCart(product, 1, currentWeight)
         }
       } else {
-        alert('PLU code not found')
+        void customAlert({ title: 'Not found', description: 'PLU code not found' })
       }
     }
   }
@@ -244,22 +246,22 @@ function GroceryPOSContent() {
     return { subtotal, tax, total, snapEligibleAmount, loyaltyPoints }
   }
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     const totals = calculateTotals()
 
     if (paymentMethod === 'snap' && customer?.snapBalance) {
       if (customer.snapBalance < totals.snapEligibleAmount) {
-        alert('Insufficient SNAP balance. Please use another payment method for remaining amount.')
+        await customAlert({ title: 'Insufficient SNAP', description: 'Insufficient SNAP balance. Please use another payment method for remaining amount.' })
         return
       }
     }
 
     // Simulate payment processing
-    alert(`Payment processed: ${formatCurrency(totals.total)} via ${paymentMethod.toUpperCase()}`)
+    await customAlert({ title: 'Payment processed', description: `Payment processed: ${formatCurrency(totals.total)} via ${paymentMethod.toUpperCase()}` })
 
     // Add loyalty points if customer is logged in
     if (customer) {
-      alert(`${totals.loyaltyPoints} loyalty points added to your account!`)
+      await customAlert({ title: 'Loyalty Points', description: `${totals.loyaltyPoints} loyalty points added to your account!` })
     }
 
     // Clear cart after successful payment
@@ -368,7 +370,7 @@ function GroceryPOSContent() {
                 <button
                   key={product.id}
                   onClick={() => product.weightRequired ?
-                    (currentWeight > 0 ? addToCart(product, 1, currentWeight) : alert('Please weigh item first')) :
+                    (currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })) :
                     addToCart(product)
                   }
                   className="p-3 bg-gray-100 border rounded-lg hover:bg-gray-200 text-sm"

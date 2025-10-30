@@ -46,7 +46,7 @@ export function DataBackup() {
   const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm()
-  const alert = useAlert()
+  const customAlert = useAlert()
 
   const handleBackup = async () => {
     try {
@@ -83,7 +83,7 @@ export function DataBackup() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      await alert({ title: 'Backup Failed', description: 'The backup operation failed. Please try again.' });
+      await customAlert({ title: 'Backup Failed', description: 'The backup operation failed. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -95,7 +95,7 @@ export function DataBackup() {
       setRestoreFile(selectedFile);
       setRestoreResult(null);
     } else {
-      await alert({ title: 'Invalid File', description: 'Please select a JSON backup file.' });
+      await customAlert({ title: 'Invalid File', description: 'Please select a JSON backup file.' });
     }
   };
 
@@ -126,7 +126,7 @@ export function DataBackup() {
       const result = await response.json();
       setRestoreResult(result);
     } catch (error) {
-      await alert({ title: 'Restore Failed', description: 'The restore operation failed. Please check the backup file and try again.' });
+      await customAlert({ title: 'Restore Failed', description: 'The restore operation failed. Please check the backup file and try again.' });
     } finally {
       setLoading(false);
     }

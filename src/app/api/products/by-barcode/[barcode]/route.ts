@@ -4,7 +4,10 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 // GET - Lookup product by barcode/SKU
-export async function GET(
+// NOTE: renamed to legacyGET to avoid registering this handler as an app route
+// The canonical, business-scoped route is located at
+// src/app/api/products/by-barcode/[businessId]/[barcode]/route.ts
+export async function legacyGET(
   request: NextRequest,
   context: { params: Promise<{ barcode: string }> }
 ) {

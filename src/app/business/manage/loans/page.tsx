@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
 import { BalanceValidationWarning } from '@/components/business/balance-validation-warning'
 import { useBusinessBalance } from '@/hooks/useBusinessBalance'
@@ -48,6 +49,7 @@ interface Loan {
 export default function BusinessLoansPage() {
   const { data: session } = useSession()
   const globalDateFormat = useDateFormat()
+  const customAlert = useAlert()
   const [loans, setLoans] = useState<Loan[]>([])
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [loading, setLoading] = useState(true)
@@ -153,13 +155,13 @@ export default function BusinessLoansPage() {
     e.preventDefault()
 
     if (!newLoan.lenderBusinessId || !newLoan.borrowerBusinessId || !newLoan.principalAmount) {
-      alert('Please fill in all required fields')
+      await customAlert({ title: 'Validation', description: 'Please fill in all required fields' })
       return
     }
 
     // Prevent self-loans (business lending to itself)
     if (newLoan.lenderBusinessId === newLoan.borrowerBusinessId) {
-      alert('A business cannot loan money to itself. Please select different lender and borrower businesses.')
+      await customAlert({ title: 'Invalid selection', description: 'A business cannot loan money to itself. Please select different lender and borrower businesses.' })
       return
     }
 
@@ -195,14 +197,14 @@ export default function BusinessLoansPage() {
           dueDate: '',
           transferType: 'loan'
         })
-        alert('Loan created successfully!')
+        await customAlert({ title: 'Success', description: 'Loan created successfully!' })
       } else {
         const error = await response.json()
-        alert(`Failed to create loan: ${error.error || 'Unknown error'}`)
+        await customAlert({ title: 'Create loan failed', description: `Failed to create loan: ${error.error || 'Unknown error'}` })
       }
     } catch (error) {
       console.error('Error creating loan:', error)
-      alert('Error creating loan')
+      await customAlert({ title: 'Create loan failed', description: 'Error creating loan' })
     }
   }
 
@@ -220,7 +222,7 @@ export default function BusinessLoansPage() {
     e.preventDefault()
     
     if (!selectedLoan || !newPayment.amount || !newPayment.description) {
-      alert('Please fill in all required fields')
+      await customAlert({ title: 'Validation', description: 'Please fill in all required fields' })
       return
     }
 
@@ -248,14 +250,14 @@ export default function BusinessLoansPage() {
           transactionDate: new Date().toISOString().split('T')[0],
           notes: ''
         })
-        alert('Payment processed successfully!')
+        await customAlert({ title: 'Success', description: 'Payment processed successfully!' })
       } else {
         const error = await response.json()
-        alert(`Failed to process payment: ${error.error || 'Unknown error'}`)
+        await customAlert({ title: 'Payment failed', description: `Failed to process payment: ${error.error || 'Unknown error'}` })
       }
     } catch (error) {
       console.error('Error processing payment:', error)
-      alert('Error processing payment')
+      await customAlert({ title: 'Payment failed', description: 'Error processing payment' })
     }
   }
 

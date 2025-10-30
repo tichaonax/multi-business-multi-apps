@@ -8,6 +8,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { useSession } from 'next-auth/react'
 import { VehicleDriver } from '@/types/vehicle'
 import { hasPermission, isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { Car, Calendar, Shield } from 'lucide-react'
 
  interface DriverDetailModalProps {
@@ -47,6 +48,7 @@ import { Car, Calendar, Shield } from 'lucide-react'
      dateOfBirth: driver.dateOfBirth ? formatDateByFormat(driver.dateOfBirth, globalDateFormat) : '',
      address: driver.address || ''
    })
+  const customAlert = useAlert()
 
   useEffect(() => {
     // Keep form in sync when driver changes or date format changes
@@ -130,9 +132,9 @@ import { Car, Calendar, Shield } from 'lucide-react'
        // Notify parent of update
        if (onUpdate && body?.data) onUpdate(body.data)
        setEditing(false)
-     } catch (err: any) {
-       alert(err?.message || 'Failed to update driver')
-     } finally {
+    } catch (err: any) {
+      await customAlert({ title: 'Update failed', description: err?.message || 'Failed to update driver' })
+    } finally {
        setSubmitting(false)
      }
    }

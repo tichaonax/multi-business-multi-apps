@@ -273,14 +273,14 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const getDisplayedLicenses = () => {
     if (!vehicleData.vehicleLicenses) return []
 
-    if (showAllLicenses) {
-      return vehicleData.vehicle_licenses.sort((a, b) =>
+      if (showAllLicenses) {
+        return vehicleData.vehicleLicenses.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
     }
 
     // Group by license type and get latest 2 of each
-    const licensesByType = vehicleData.vehicle_licenses.reduce((acc, license) => {
+    const licensesByType = vehicleData.vehicleLicenses.reduce((acc, license) => {
       if (!acc[license.licenseType]) {
         acc[license.licenseType] = []
       }
@@ -288,7 +288,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       return acc
     }, {} as Record<string, typeof vehicleData.vehicleLicenses>)
 
-    const result: typeof vehicleData.vehicleLicenses = []
+  const result: typeof vehicleData.vehicleLicenses = []
     Object.values(licensesByType).forEach(licenses => {
       const sortedLicenses = licenses.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -305,7 +305,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const getLatestLicensesByType = () => {
     if (!vehicleData.vehicleLicenses) return []
 
-    const licensesByType = vehicleData.vehicle_licenses.reduce((acc, license) => {
+    const licensesByType = vehicleData.vehicleLicenses.reduce((acc, license) => {
       const licenseType = license.licenseType
 
       if (!acc[licenseType]) {
@@ -333,7 +333,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       }
 
       return acc
-    }, {} as Record<string, typeof vehicleData.vehicleLicenses[0]>)
+  }, {} as Record<string, typeof vehicleData.vehicleLicenses[0]>)
 
     return Object.values(licensesByType).sort((a, b) => a.licenseType.localeCompare(b.licenseType))
   }
@@ -707,7 +707,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                 <div>
                   <Label>Business</Label>
                   <p className="text-sm text-secondary bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                    {vehicle.businesses.name}
+                    {vehicle.business.name}
                   </p>
                 </div>
               )}
@@ -716,7 +716,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                 <div>
                   <Label>Owner</Label>
                   <p className="text-sm text-secondary bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                    {vehicle.users.name}
+                    {vehicle.user.name}
                   </p>
                 </div>
               )}
@@ -812,7 +812,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
               )}
             </div>
 
-            {vehicleData.vehicleLicenses && vehicleData.vehicle_licenses.length > 0 ? (
+            {vehicleData.vehicleLicenses && vehicleData.vehicleLicenses.length > 0 ? (
               <div className="space-y-4">
                 {/* Overview - Latest License of Each Type */}
                 <div className="space-y-2">
@@ -851,14 +851,14 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-medium text-primary">Manage Licenses</h4>
                       <div className="flex items-center space-x-2">
-                        {getDisplayedLicenses().length !== vehicleData.vehicle_licenses.length && (
+                        {getDisplayedLicenses().length !== vehicleData.vehicleLicenses.length && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setShowAllLicenses(!showAllLicenses)}
                             className="text-xs"
                           >
-                            {showAllLicenses ? 'Show Latest Only' : `Show All (${vehicleData.vehicle_licenses.length})`}
+                            {showAllLicenses ? 'Show Latest Only' : `Show All (${vehicleData.vehicleLicenses.length})`}
                           </Button>
                         )}
                         {selectedLicenseIds.length > 0 && (
@@ -959,9 +959,9 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                       })}
                     </div>
 
-                    {!showAllLicenses && getDisplayedLicenses().length < vehicleData.vehicle_licenses.length && (
+                    {!showAllLicenses && getDisplayedLicenses().length < vehicleData.vehicleLicenses.length && (
                       <div className="text-xs text-gray-500 text-center py-2">
-                        Showing latest {getDisplayedLicenses().length} of {vehicleData.vehicle_licenses.length} licenses
+                        Showing latest {getDisplayedLicenses().length} of {vehicleData.vehicleLicenses.length} licenses
                       </div>
                     )}
                   </div>

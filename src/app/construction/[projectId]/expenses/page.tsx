@@ -3,6 +3,7 @@
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DateInput } from '@/components/ui/date-input'
@@ -68,6 +69,7 @@ export default function ProjectExpensesPage() {
   const [stages, setStages] = useState<any[]>([])
   const [contractors, setContractors] = useState<any[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const customAlert = useAlert()
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const [showStatusModal, setShowStatusModal] = useState<{ transactionId: string, currentStatus: string } | null>(null)
   const [showEditModal, setShowEditModal] = useState<Transaction | null>(null)
@@ -119,14 +121,14 @@ export default function ProjectExpensesPage() {
       fetchTransactions()
     }
   }, [projectId])
-
   const fetchProject = async () => {
     try {
       const response = await fetch(`/api/construction/projects/${projectId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setProject(data)
+      if (!response.ok) {
+        throw new Error('Failed to fetch project')
       }
+      const data = await response.json()
+      setProject(data)
     } catch (error) {
       console.error('Error fetching project:', error)
     }
@@ -241,11 +243,11 @@ export default function ProjectExpensesPage() {
         fetchTransactions() // Refresh transactions
       } else {
         const error = await transactionResponse.json()
-        alert('Failed to create project expense: ' + error.error)
+        await customAlert({ title: 'Create expense failed', description: error.error || 'Failed to create project expense' })
       }
     } catch (error) {
       console.error('Error creating expense:', error)
-      alert('Failed to create expense')
+      await customAlert({ title: 'Create expense failed', description: 'Failed to create expense' })
     } finally {
       setSubmitting(false)
     }
@@ -309,11 +311,11 @@ export default function ProjectExpensesPage() {
         fetchTransactions() // Refresh transactions
       } else {
         const error = await transactionResponse.json()
-        alert('Failed to record payment: ' + error.error)
+        await customAlert({ title: 'Record payment failed', description: error.error || 'Failed to record payment' })
       }
     } catch (error) {
       console.error('Error recording payment:', error)
-      alert('Failed to record payment')
+      await customAlert({ title: 'Record payment failed', description: 'Failed to record payment' })
     } finally {
       setSubmitting(false)
     }
@@ -342,7 +344,7 @@ export default function ProjectExpensesPage() {
 
       if (!personResponse.ok) {
         const error = await personResponse.json()
-        alert('Failed to create person: ' + error.error)
+        await customAlert({ title: 'Create person failed', description: error.error || 'Failed to create person' })
         return
       }
 
@@ -362,8 +364,8 @@ export default function ProjectExpensesPage() {
       if (contractorResponse.ok) {
         const newContractor = await contractorResponse.json()
         
-        // Update contractors list first
-        await fetchContractors()
+  // Update contractors list first
+  await fetchContractors()
         
         // Then select the new contractor and close modal
         setPaymentForm({ ...paymentForm, contractorId: newContractor.id })
@@ -381,15 +383,15 @@ export default function ProjectExpensesPage() {
         })
         setShowContractorModal(false)
         
-        // Show success message
-        alert(`Contractor "${newContractor.persons.fullName}" has been added to the project and selected for payment.`)
+  // Show success message
+  await customAlert({ title: 'Contractor added', description: `Contractor "${newContractor.persons.fullName}" has been added to the project and selected for payment.` })
       } else {
         const error = await contractorResponse.json()
-        alert('Failed to assign contractor to project: ' + error.error)
+        await customAlert({ title: 'Assign failed', description: error.error || 'Failed to assign contractor to project' })
       }
     } catch (error) {
       console.error('Error creating contractor:', error)
-      alert('Failed to create contractor')
+      await customAlert({ title: 'Create contractor failed', description: 'Failed to create contractor' })
     } finally {
       setSubmitting(false)
     }
@@ -419,7 +421,7 @@ export default function ProjectExpensesPage() {
         // Update stages list first
         await fetchStages()
         
-        // Then select the new stage and close modal
+  // Then select the new stage and close modal
         setPaymentForm({ ...paymentForm, stageId: newStage.id })
         
         // Reset form and close modal
@@ -432,15 +434,15 @@ export default function ProjectExpensesPage() {
         })
         setShowStageModal(false)
         
-        // Show success message
-        alert(`Project stage "${newStage.name}" has been added and selected.`)
+  // Show success message
+  await customAlert({ title: 'Stage added', description: `Project stage "${newStage.name}" has been added and selected.` })
       } else {
         const error = await response.json()
-        alert('Failed to create project stage: ' + error.error)
+        await customAlert({ title: 'Create stage failed', description: error.error || 'Failed to create project stage' })
       }
     } catch (error) {
       console.error('Error creating stage:', error)
-      alert('Failed to create project stage')
+      await customAlert({ title: 'Create stage failed', description: 'Failed to create project stage' })
     } finally {
       setSubmitting(false)
     }
@@ -463,11 +465,11 @@ export default function ProjectExpensesPage() {
         setShowStatusModal(null)
       } else {
         const error = await response.json()
-        alert('Failed to update status: ' + error.error)
+        await customAlert({ title: 'Update failed', description: error.error || 'Failed to update status' })
       }
     } catch (error) {
       console.error('Error updating transaction status:', error)
-      alert('Failed to update transaction status')
+      await customAlert({ title: 'Update failed', description: 'Failed to update transaction status' })
     } finally {
       setUpdatingStatus(null)
     }

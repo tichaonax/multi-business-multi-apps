@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessContext } from '@/components/universal'
 import { BarcodeScanner, UniversalProduct } from '@/components/universal'
 
@@ -47,6 +48,7 @@ interface ClothingAdvancedPOSProps {
 
 export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }: ClothingAdvancedPOSProps) {
   const { formatCurrency } = useBusinessContext()
+  const customAlert = useAlert()
   const [cart, setCart] = useState<CartItem[]>([])
   const [mode, setMode] = useState<'sale' | 'return' | 'exchange'>('sale')
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -271,7 +273,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
       } : null)
       setShowSupervisorModal(false)
     } else {
-      alert('Invalid supervisor PIN')
+      void customAlert({ title: 'Invalid supervisor PIN' })
     }
   }
 

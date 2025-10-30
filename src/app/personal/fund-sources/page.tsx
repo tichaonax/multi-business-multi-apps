@@ -2,6 +2,7 @@
 
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { useState, useEffect } from 'react'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import Link from 'next/link'
 
 interface FundSource {
@@ -14,6 +15,8 @@ interface FundSource {
 }
 
 export default function FundSourcesPage() {
+  const customAlert = useAlert()
+  const confirm = useConfirm()
   const [fundSources, setFundSources] = useState<FundSource[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -60,21 +63,22 @@ export default function FundSourcesPage() {
         setFundSources([...fundSources, data])
         setNewSource({ name: '', emoji: '💰' })
         setShowAddForm(false)
-        alert('Fund source added successfully!')
+        await customAlert({ title: 'Added', description: 'Fund source added successfully!' })
       } else {
         console.error('Failed to add fund source:', data)
-        alert(`Failed to add fund source: ${data.error || 'Unknown error'}`)
+        await customAlert({ title: 'Failed to add', description: `Failed to add fund source: ${data.error || 'Unknown error'}` })
       }
     } catch (error) {
       console.error('Error adding fund source:', error)
-      alert('Error adding fund source. Check console for details.')
+      await customAlert({ title: 'Error', description: 'Error adding fund source. Check console for details.' })
     } finally {
       setLoading(false)
     }
   }
 
   const handleDeleteSource = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this fund source?')) return
+    const ok = await confirm({ title: 'Confirm delete', description: 'Are you sure you want to delete this fund source?' })
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/personal/fund-sources?id=${id}`, {
@@ -86,6 +90,7 @@ export default function FundSourcesPage() {
       }
     } catch (error) {
       console.error('Error deleting fund source:', error)
+      await customAlert({ title: 'Delete failed', description: 'Failed to delete fund source' })
     }
   }
 

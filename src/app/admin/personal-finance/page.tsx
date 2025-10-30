@@ -8,6 +8,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { canDeletePersonalExpense } from '@/lib/expense-deletion-utils'
 import { useSession } from 'next-auth/react'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 interface User {
   id: string
@@ -97,6 +98,7 @@ export default function AdminPersonalFinancePage() {
   const [deletingExpense, setDeletingExpense] = useState<PersonalExpense | null>(null)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const customAlert = useAlert()
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
@@ -253,21 +255,21 @@ export default function AdminPersonalFinancePage() {
 
         // Show success message with rollback details if available
         if (result.rollback && result.rollback.totalRollback > 0) {
-          alert(`Expense deleted successfully. Financial rollback applied: $${result.rollback.totalRollback.toFixed(2)}`)
+          await customAlert({ title: 'Expense Deleted', description: `Financial rollback applied: $${result.rollback.totalRollback.toFixed(2)}` })
         } else {
-          alert('Expense deleted successfully')
+          await customAlert({ title: 'Expense Deleted', description: 'Expense deleted successfully' })
         }
       } else {
         // Show error message with specific details
         if (result.isTimeRestricted) {
-          alert(`Delete failed: ${result.error}`)
+          await customAlert({ title: 'Delete Failed', description: `Delete failed: ${result.error}` })
         } else {
-          alert(result.error || 'Failed to delete expense')
+          await customAlert({ title: 'Delete Failed', description: result.error || 'Failed to delete expense' })
         }
       }
     } catch (error) {
       console.error('Error deleting expense:', error)
-      alert('Error deleting expense. Please try again.')
+      await customAlert({ title: 'Error deleting expense', description: 'Error deleting expense. Please try again.' })
     } finally {
       setDeleteLoading(false)
     }

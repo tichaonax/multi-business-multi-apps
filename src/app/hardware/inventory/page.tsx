@@ -14,6 +14,7 @@ import {
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
 export default function HardwareInventoryPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -21,6 +22,8 @@ export default function HardwareInventoryPage() {
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const customAlert = useAlert()
+  const confirm = useConfirm()
 
   // Use the business permissions context for proper business management
   const {
@@ -146,20 +149,21 @@ export default function HardwareInventoryPage() {
   }
 
   const handleItemDelete = async (item: any) => {
-    if (confirm(`Are you sure you want to delete ${item.name}?`)) {
-      try {
-        const response = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
-          method: 'DELETE'
-        })
+    const ok = await confirm({ title: 'Delete item', description: `Are you sure you want to delete ${item.name}?`, confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
 
-        if (response.ok) {
-          window.location.reload()
-        } else {
-          alert('Failed to delete item')
-        }
-      } catch (error) {
-        alert('Error deleting item')
+    try {
+      const response = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        window.location.reload()
+      } else {
+        await customAlert({ title: 'Delete failed', description: 'Failed to delete item' })
       }
+    } catch (error) {
+      await customAlert({ title: 'Delete failed', description: 'Error deleting item' })
     }
   }
 
@@ -218,16 +222,16 @@ export default function HardwareInventoryPage() {
         body: JSON.stringify(hardwareFormData)
       })
 
-      if (response.ok) {
+        if (response.ok) {
         setShowAddForm(false)
         setSelectedItem(null)
         window.location.reload()
       } else {
         const error = await response.json()
-        alert(error.message || 'Failed to save item')
+        await customAlert({ title: 'Save failed', description: error.message || 'Failed to save item' })
       }
     } catch (error) {
-      alert('Error saving item')
+      await customAlert({ title: 'Save failed', description: 'Error saving item' })
       console.error('Save error:', error)
     }
   }

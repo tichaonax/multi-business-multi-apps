@@ -3,6 +3,7 @@
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { MenuItemCard, MenuItem as MenuItemType } from '@/components/restaurant/menu-item-card'
 import { MenuItemForm } from '@/components/restaurant/menu-item-form'
 import { MenuCategoryFilter } from '@/components/restaurant/menu-category-filter'
@@ -15,6 +16,9 @@ import { Badge } from '@/components/ui/badge'
 type MenuItem = MenuItemType
 
 export default function MenuManagementPage() {
+  const customAlert = useAlert()
+  const confirm = useConfirm()
+  // NOTE: we will import hooks properly below via patch to avoid accidental lint issues
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([])
   const [loading, setLoading] = useState(true)
@@ -198,9 +202,15 @@ export default function MenuManagementPage() {
   }
 
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm('Are you sure you want to delete this menu item?')) {
-      return
-    }
+    // use the app confirm modal
+    const ok = await confirm({
+      title: 'Delete menu item',
+      description: 'Are you sure you want to delete this menu item? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/universal/products/${itemId}`, {

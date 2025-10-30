@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { hasUserPermission } from '@/lib/permission-utils';
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { ExpenseCategoryHierarchy, ExpenseCategory, ExpenseSubcategory } from '@/types/expense-category';
 import { CategoryEditor } from '@/components/business/category-editor';
 import { SubcategoryEditor } from '@/components/business/subcategory-editor';
@@ -37,6 +38,9 @@ export default function BusinessCategoriesPage() {
   const canCreateSubcategories = hasUserPermission(session?.user, 'canCreateBusinessSubcategories');
   const canEditSubcategories = hasUserPermission(session?.user, 'canEditBusinessSubcategories');
   const canDeleteSubcategories = hasUserPermission(session?.user, 'canDeleteBusinessSubcategories');
+
+  const customAlert = useAlert();
+  const confirm = useConfirm();
 
   // Fetch category hierarchy
   useEffect(() => {
@@ -97,9 +101,8 @@ export default function BusinessCategoriesPage() {
   };
 
   const handleDeleteCategory = async (category: ExpenseCategory) => {
-    if (!confirm(`Are you sure you want to delete "${category.name}"?`)) {
-      return;
-    }
+      const ok = await confirm({ title: 'Delete category', description: `Are you sure you want to delete "${category.name}"?` })
+      if (!ok) return
 
     try {
       const response = await fetch(`/api/business/categories/${category.id}`, {
@@ -108,7 +111,7 @@ export default function BusinessCategoriesPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Failed to delete category');
+        await customAlert({ title: 'Delete failed', description: error.error || 'Failed to delete category' })
         return;
       }
 
@@ -116,7 +119,7 @@ export default function BusinessCategoriesPage() {
       window.location.reload();
     } catch (err) {
       console.error('Error deleting category:', err);
-      alert('Failed to delete category');
+      await customAlert({ title: 'Delete failed', description: 'Failed to delete category' })
     }
   };
 
@@ -137,9 +140,8 @@ export default function BusinessCategoriesPage() {
   };
 
   const handleDeleteSubcategory = async (subcategory: ExpenseSubcategory) => {
-    if (!confirm(`Are you sure you want to delete "${subcategory.name}"?`)) {
-      return;
-    }
+    const ok = await confirm({ title: 'Delete subcategory', description: `Are you sure you want to delete "${subcategory.name}"?` })
+    if (!ok) return
 
     try {
       const response = await fetch(`/api/business/subcategories/${subcategory.id}`, {
@@ -148,7 +150,7 @@ export default function BusinessCategoriesPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Failed to delete subcategory');
+        await customAlert({ title: 'Delete failed', description: error.error || 'Failed to delete subcategory' })
         return;
       }
 
@@ -156,7 +158,7 @@ export default function BusinessCategoriesPage() {
       window.location.reload();
     } catch (err) {
       console.error('Error deleting subcategory:', err);
-      alert('Failed to delete subcategory');
+      await customAlert({ title: 'Delete failed', description: 'Failed to delete subcategory' })
     }
   };
 

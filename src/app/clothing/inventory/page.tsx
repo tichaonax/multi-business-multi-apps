@@ -21,7 +21,7 @@ export default function ClothingInventoryPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [showViewModal, setShowViewModal] = useState(false)
-  const alert = useAlert()
+  const customAlert = useAlert()
   const confirm = useConfirm()
 
   const { data: session, status } = useSession()
@@ -118,20 +118,25 @@ export default function ClothingInventoryPage() {
   }
 
   const handleItemDelete = async (item: any) => {
-    const confirmed = await confirm(`Are you sure you want to delete ${item.name}?`)
+    const confirmed = await confirm({
+      title: 'Delete item',
+      description: `Are you sure you want to delete ${item.name}?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
     if (confirmed) {
       try {
   const response = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
           method: 'DELETE'
         })
 
-        if (response.ok) {
-          window.location.reload()
-        } else {
-          await alert('Failed to delete item')
-        }
+            if (response.ok) {
+              window.location.reload()
+            } else {
+              await customAlert({ title: 'Failed to delete item' })
+            }
       } catch (error) {
-        await alert('Error deleting item')
+  await customAlert({ title: 'Error deleting item' })
       }
     }
   }
@@ -172,7 +177,7 @@ export default function ClothingInventoryPage() {
         // Extract error message from API response
         const errorData = await response.json()
         const errorMessage = errorData.message || errorData.error || 'Unable to save item. Please try again.'
-        await alert(errorMessage)
+  await customAlert({ title: 'Save failed', description: errorMessage })
       }
     } catch (error: any) {
       // Handle network errors or other exceptions
@@ -183,7 +188,7 @@ export default function ClothingInventoryPage() {
         errorMessage = error.message
       }
 
-      await alert(errorMessage)
+  await customAlert({ title: 'Save failed', description: errorMessage })
       console.error('Save error:', error)
     }
   }

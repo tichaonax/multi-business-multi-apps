@@ -52,7 +52,7 @@ export function DataImport() {
   const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm()
-  const alert = useAlert()
+  const customAlert = useAlert()
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -62,7 +62,7 @@ export function DataImport() {
         setImportResult(null);
         setShowPreview(false);
       } else {
-        await alert({ title: 'Invalid File', description: 'Please select a JSON or CSV file.' });
+        await customAlert({ title: 'Invalid File', description: 'Please select a JSON or CSV file.' });
       }
     }
   };
@@ -93,7 +93,7 @@ export function DataImport() {
       setShowPreview(true);
 
     } catch (error) {
-      await alert({ title: 'Preview Failed', description: 'Preview failed. Please check the file format and try again.' });
+      await customAlert({ title: 'Preview Failed', description: 'Preview failed. Please check the file format and try again.' });
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,7 @@ export function DataImport() {
       setShowPreview(false);
 
     } catch (error) {
-      await alert({ title: 'Import Failed', description: 'Import failed. Please check the file format and try again.' });
+      await customAlert({ title: 'Import Failed', description: 'Import failed. Please check the file format and try again.' });
     } finally {
       setLoading(false);
     }

@@ -16,9 +16,11 @@ import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-
 import HealthIndicator from '@/components/ui/health-indicator'
 import { LaybyAlertsWidget } from '@/components/laybys/layby-alerts-widget'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 export default function Dashboard() {
   const { data: session } = useSession()
+  const customAlert = useAlert()
   const { currentBusiness } = useBusinessPermissionsContext()
   const currentUser = session?.user as any
   const businessId = currentBusiness?.businessId
@@ -239,7 +241,7 @@ export default function Dashboard() {
   const handleActivityClick = async (activity: any) => {
     // Check if user has access to this activity
     if (activity.linkAccess && !activity.linkAccess.hasAccess) {
-      alert(`Access Denied: ${activity.linkAccess.reason || 'You do not have permission to view this item.'}`)
+      await customAlert({ title: 'Access Denied', description: activity.linkAccess.reason || 'You do not have permission to view this item.' })
       return
     }
 
@@ -258,22 +260,22 @@ export default function Dashboard() {
             setSelectedExpense(fullExpenseData)
             setShowExpenseModal(true)
           } else if (response.status === 403) {
-            alert('Access Denied: You do not have permission to view this expense.')
+            await customAlert({ title: 'Access Denied', description: 'You do not have permission to view this expense.' })
           } else if (response.status === 404) {
-            alert('Expense not found or has been deleted.')
+            await customAlert({ title: 'Not Found', description: 'Expense not found or has been deleted.' })
           } else {
-            alert('Failed to load expense details. Please try again.')
+            await customAlert({ title: 'Load Failed', description: 'Failed to load expense details. Please try again.' })
             console.error('Failed to fetch expense details')
           }
         } catch (error) {
-          alert('Network error. Please check your connection and try again.')
-          console.error('Error fetching expense details:', error)
+    await customAlert({ title: 'Network Error', description: 'Please check your connection and try again.' })
+    console.error('Error fetching expense details:', error)
         }
         break
       case 'order':
         // Check business access for orders
         if (activity.businessInfo && !activity.businessInfo.userHasAccess) {
-          alert(`Access Denied: You do not have access to ${activity.businessInfo.businessName} orders.`)
+          await customAlert({ title: 'Access Denied', description: `You do not have access to ${activity.businessInfo.businessName} orders.` })
           return
         }
         setSelectedOrderId(entityId)
@@ -299,17 +301,17 @@ export default function Dashboard() {
             const userData = await response.json()
             setSelectedUser(userData)
             setShowUserModal(true)
-          } else if (response.status === 403) {
-            alert('Access Denied: You do not have permission to view this user.')
+            } else if (response.status === 403) {
+            await customAlert({ title: 'Access Denied', description: 'You do not have permission to view this user.' })
           } else if (response.status === 404) {
-            alert('User not found or has been deleted.')
+            await customAlert({ title: 'Not Found', description: 'User not found or has been deleted.' })
           } else {
-            alert('Failed to load user details. Please try again.')
+            await customAlert({ title: 'Load Failed', description: 'Failed to load user details. Please try again.' })
             console.error('Failed to fetch user details')
           }
         } catch (error) {
-          alert('Network error. Please check your connection and try again.')
-          console.error('Error fetching user details:', error)
+    await customAlert({ title: 'Network Error', description: 'Please check your connection and try again.' })
+    console.error('Error fetching user details:', error)
         }
         break
       default:
@@ -647,14 +649,14 @@ export default function Dashboard() {
                   className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 >
                   <option value="my">My Activities</option>
-                  {session?.users?.role === 'admin' && <option value="all">All Activities</option>}
-                  {session?.users?.role === 'admin' && <option value="user">By User</option>}
+                  {session?.user?.role === 'admin' && <option value="all">All Activities</option>}
+                  {session?.user?.role === 'admin' && <option value="user">By User</option>}
                   <option value="business">By Business</option>
                 </select>
               </div>
 
               {/* User Selector (when scope is 'user') */}
-              {activityFilterScope === 'user' && session?.users?.role === 'admin' && (
+              {activityFilterScope === 'user' && session?.user?.role === 'admin' && (
                 <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
                   <label className="text-sm font-medium text-primary flex-shrink-0">User:</label>
                   <select
@@ -1584,9 +1586,9 @@ export default function Dashboard() {
             // Could show success message if needed
             console.log('User updated:', message)
           }}
-          onError={(error) => {
-            // Handle error - could show toast or alert
-            alert(`Error: ${error}`)
+          onError={async (error) => {
+            // Handle error - show modal alert
+            await customAlert({ title: 'Error', description: String(error) })
             console.error('User update error:', error)
           }}
         />

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessContext } from '@/components/universal'
 
 interface ImportJob {
@@ -21,16 +22,17 @@ interface ClothingBulkImportProps {
 
 export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
   const { formatDate } = useBusinessContext()
+  const customAlert = useAlert()
   const [dragOver, setDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [importJobs, setImportJobs] = useState<ImportJob[]>([])
   const [activeTab, setActiveTab] = useState<'upload' | 'jobs'>('upload')
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     if (file && (file.type === 'text/csv' || file.name.endsWith('.xlsx'))) {
       setSelectedFile(file)
     } else {
-      alert('Please select a CSV or Excel file')
+      await customAlert({ title: 'Invalid file', description: 'Please select a CSV or Excel file' })
     }
   }
 

@@ -46,7 +46,7 @@ export default function ProfilePage() {
   }, [])
 
   const loadProfile = async () => {
-    if (!session?.users?.id) return
+    if (!session?.user?.id) return
 
     try {
       const response = await fetch(`/api/user/profile`)

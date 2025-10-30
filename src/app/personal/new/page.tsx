@@ -13,6 +13,7 @@ import { ProjectCreationModal } from '@/components/projects/project-creation-mod
 import { PersonRegistrationForm } from '@/components/construction/person-registration-form'
 import { CategorySelector } from '@/components/personal/category-selector'
 import { SubcategoryCreator } from '@/components/personal/subcategory-creator'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 interface Category {
   id: string
@@ -88,6 +89,7 @@ interface Loan {
 }
 
 export default function NewExpensePage() {
+  const customAlert = useAlert()
   const { data: session } = useSession()
   const router = useRouter()
   const [categories, setCategories] = useState<Category[]>([])
@@ -429,19 +431,19 @@ export default function NewExpensePage() {
     if (!formData.amount || !formData.description) return
 
     // Validate project payments
-    if (formData.paymentType === 'project') {
+      if (formData.paymentType === 'project') {
       if (!formData.projectId) {
-        alert('Please select a project for project payments')
+        void customAlert({ title: 'Missing project', description: 'Please select a project for project payments' })
         return
       }
       // Only require contractor for contractor sub-payments
       if (formData.projectSubType === 'contractor' && !formData.contractorId) {
-        alert('Please select a contractor for contractor payments')
+        void customAlert({ title: 'Missing contractor', description: 'Please select a contractor for contractor payments' })
         return
       }
       // For generic projects, require project type selection
       if (!formData.projectTypeId) {
-        alert('Please select a project type for project payments')
+        void customAlert({ title: 'Missing project type', description: 'Please select a project type for project payments' })
         return
       }
     }
@@ -509,13 +511,13 @@ export default function NewExpensePage() {
   const handleCreateContractor = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newContractor.name || !newContractor.nationalId) {
-      alert('Please provide contractor name and national ID')
+      void customAlert({ title: 'Missing contractor info', description: 'Please provide contractor name and national ID' })
       return
     }
 
     // For project payments, require a project. For contractor payments, project is optional
-    if (formData.paymentType === 'project' && !formData.projectId) {
-      alert('Please select a project first')
+      if (formData.paymentType === 'project' && !formData.projectId) {
+      void customAlert({ title: 'Missing project', description: 'Please select a project first' })
       return
     }
 
@@ -569,11 +571,11 @@ export default function NewExpensePage() {
         setShowNewContractorForm(false)
       } else {
         console.error('Failed to create contractor')
-        alert('Failed to create contractor')
+          void customAlert({ title: 'Error', description: 'Failed to create contractor' })
       }
     } catch (error) {
       console.error('Error creating contractor:', error)
-      alert('Error creating contractor')
+        void customAlert({ title: 'Error', description: 'Error creating contractor' })
     }
   }
 

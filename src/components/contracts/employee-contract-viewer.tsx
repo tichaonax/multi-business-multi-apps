@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 interface EmployeeContract {
   id: string
@@ -36,6 +37,7 @@ interface EmployeeContract {
 
 export function EmployeeContractViewer() {
   const { data: session } = useSession()
+  const customAlert = useAlert()
   const [contracts, setContracts] = useState<EmployeeContract[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -47,7 +49,7 @@ export function EmployeeContractViewer() {
   }, [session])
 
   const loadEmployeeContracts = async () => {
-    if (!session?.users?.id) {
+  if (!session?.user?.id) {
       setLoading(false)
       return
     }
@@ -66,7 +68,7 @@ export function EmployeeContractViewer() {
       }
 
       const employeeData = await employeeResponse.json()
-      const currentUserEmployee = employeeData.employees?.find((emp: any) => emp.users?.id === session.users.id)
+  const currentUserEmployee = employeeData.employees?.find((emp: any) => emp.users?.id === session.user?.id)
 
       if (!currentUserEmployee) {
         setError('No employee record found for your user account')
@@ -93,7 +95,7 @@ export function EmployeeContractViewer() {
 
   const downloadContract = async (contractId: string, contractNumber: string) => {
     if (!employeeId) {
-      alert('Unable to download contract: Employee ID not found')
+      await customAlert({ title: 'Unable to download', description: 'Employee ID not found' })
       return
     }
 

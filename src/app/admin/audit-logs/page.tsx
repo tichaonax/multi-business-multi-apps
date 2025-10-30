@@ -73,7 +73,7 @@ export default function AuditLogsPage() {
   }, [status, router]);
 
   useEffect(() => {
-    if (session?.users?.role === 'admin') {
+    if (session?.user?.role === 'admin') {
       fetchAuditLogs();
       fetchStatistics();
     }
@@ -160,7 +160,7 @@ export default function AuditLogsPage() {
     );
   }
 
-  if (!session || session.users?.role !== 'admin') {
+  if (!session || session.user?.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="p-8 text-center">
@@ -328,7 +328,7 @@ export default function AuditLogsPage() {
                         </span>
                       </div>
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {log.users.name} ({log.users.email})
+                        {log.user?.name} ({log.user?.email})
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {formatTimestamp(log.timestamp)}

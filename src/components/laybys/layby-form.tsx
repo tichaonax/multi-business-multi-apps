@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Loader2, CheckCircle, XCircle, User, Phone, Mail, ShoppingBag, Barcode } from 'lucide-react'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 interface LaybyFormProps {
   businessId: string
@@ -55,6 +56,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
   const [customer, setCustomer] = useState<CustomerDetails | null>(null)
   const [loadingCustomer, setLoadingCustomer] = useState(false)
   const [customerError, setCustomerError] = useState('')
+  const customAlert = useAlert()
 
   // Customer lookup function
   const lookupCustomer = async (customerId: string) => {
@@ -124,7 +126,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
   const response = await fetch(`/api/products/by-barcode/${encodeURIComponent(businessId)}/${encodeURIComponent(barcode)}`)
 
       if (!response.ok) {
-        alert('Product not found')
+        await customAlert({ title: 'Not found', description: 'Product not found' })
         return
       }
 
@@ -150,7 +152,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
       setItems(newItems)
     } catch (error) {
       console.error('Error fetching product:', error)
-      alert('Failed to lookup product')
+      await customAlert({ title: 'Lookup failed', description: 'Failed to lookup product' })
     }
   }
 

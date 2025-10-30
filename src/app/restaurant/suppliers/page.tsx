@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useConfirm } from '@/components/ui/confirm-modal'
+import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -19,6 +19,7 @@ export default function RestaurantSuppliersPage() {
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const confirm = useConfirm()
+  const customAlert = useAlert()
   const toast = useToastContext()
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -206,23 +207,23 @@ export default function RestaurantSuppliersPage() {
 
       if (response.ok) {
         await loadSuppliers() // Reload suppliers
-        setShowAddForm(false)
-        setSelectedSupplier(null)
-        alert(`Supplier ${selectedSupplier ? 'updated' : 'created'} successfully`)
+  setShowAddForm(false)
+  setSelectedSupplier(null)
+  await customAlert({ title: 'Supplier saved', description: `Supplier ${selectedSupplier ? 'updated' : 'created'} successfully` })
       } else {
         throw new Error(`Failed to ${selectedSupplier ? 'update' : 'create'} supplier`)
       }
     } catch (error) {
-      console.error('Error saving supplier:', error)
-      alert(`Error ${selectedSupplier ? 'updating' : 'creating'} supplier`)
+  console.error('Error saving supplier:', error)
+  await customAlert({ title: 'Supplier save failed', description: `Error ${selectedSupplier ? 'updating' : 'creating'} supplier` })
     } finally {
       setLoading(false)
     }
   }
 
   const handleCreateOrder = (supplier: any) => {
-    console.log('Creating order for supplier:', supplier)
-    alert(`Creating purchase order for ${supplier.name} - Feature coming soon!`)
+  console.log('Creating order for supplier:', supplier)
+  void customAlert({ title: 'Coming soon', description: `Creating purchase order for ${supplier.name} - Feature coming soon!` })
   }
 
   return (

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { hasPermission } from '@/lib/permission-utils'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 interface JobTitle {
   id: string
@@ -55,6 +56,7 @@ const DEPARTMENTS = [
 
 export default function JobTitlesPage() {
   const { data: session } = useSession()
+  const customAlert = useAlert()
   const [jobTitles, setJobTitles] = useState<JobTitle[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -175,7 +177,7 @@ export default function JobTitlesPage() {
     e.preventDefault()
     
     if (!formData.title.trim()) {
-      alert('Title is required')
+      await customAlert({ title: 'Title required', description: 'Title is required' })
       return
     }
 
@@ -206,11 +208,11 @@ export default function JobTitlesPage() {
         closeModals()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to save job title')
+        await customAlert({ title: 'Save failed', description: error.error || 'Failed to save job title' })
       }
     } catch (error) {
       console.error('Error saving job title:', error)
-      alert('Failed to save job title')
+      await customAlert({ title: 'Save failed', description: 'Failed to save job title' })
     }
   }
 
@@ -235,11 +237,11 @@ export default function JobTitlesPage() {
         fetchJobTitles()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to update job title status')
+        await customAlert({ title: 'Update failed', description: error.error || 'Failed to update job title status' })
       }
     } catch (error) {
       console.error('Error updating job title:', error)
-      alert('Failed to update job title status')
+      await customAlert({ title: 'Update failed', description: 'Failed to update job title status' })
     }
   }
 
