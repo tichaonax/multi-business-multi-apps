@@ -47,10 +47,20 @@ export async function GET(
     // Query parameters
     const includeInactive = searchParams.get('includeInactive') === 'true'
 
-    // Get categories for the business from database
+    // Get business to find its type
+    const business = await prisma.businesses.findUnique({
+      where: { id: businessId },
+      select: { type: true }
+    })
+
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+
+    // Get categories for the business TYPE (shared across all businesses of this type)
     const businessCategories = await prisma.businessCategories.findMany({
       where: {
-        businessId,
+        businessType: business.type,  // ✅ Query by TYPE not businessId
         ...(includeInactive ? {} : { isActive: true })
       },
       include: {
@@ -72,7 +82,7 @@ export async function GET(
     // Transform to match expected interface
     const categories = businessCategories.map(cat => ({
       id: cat.id,
-      businessId: cat.businessId,
+      businessId: cat.businessId || businessId,  // Use actual businessId for compatibility
       businessType: cat.businessType,
       name: cat.name,
       description: cat.description || '',
@@ -167,14 +177,33 @@ export async function POST(
       )
     }
 
-    // Create the category
+    // Check if category already exists for this business type
+    const existingCategory = await prisma.businessCategories.findFirst({
+      where: {
+        businessType: business.type,
+        name: body.name
+      }
+    })
+
+    if (existingCategory) {
+      return NextResponse.json(
+        { error: `Category "${body.name}" already exists for ${business.type} businesses` },
+        { status: 409 }
+      )
+    }
+
+    // Create the category at TYPE level (shared across all businesses of this type)
     const category = await prisma.businessCategories.create({
       data: {
-        businessId,
+        businessId,  // Keep for compatibility, but query by businessType
         name: body.name,
         description: body.description || '',
+        emoji: body.emoji || '📦',
+        color: body.color || '#3B82F6',
         businessType: business.type,
-        isActive: body.isActive !== false
+        isUserCreated: true,  // Mark as user-created (not system template)
+        isActive: body.isActive !== false,
+        updatedAt: new Date()
       }
     })
 

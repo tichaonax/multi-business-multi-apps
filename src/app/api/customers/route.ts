@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch customers
-    const [customersRaw, total] = await Promise.all([
+    const [customers, total] = await Promise.all([
       prisma.businessCustomers.findMany({
         where,
         include: {
@@ -109,13 +109,9 @@ export async function GET(request: NextRequest) {
             take: 5, // Limit to recent orders
             orderBy: { createdAt: 'desc' }
           },
-          customer_laybys: {
-            select: { id: true, status: true }
-          },
           _count: {
             select: {
-              business_orders: true,
-              customer_laybys: true
+              business_orders: true
             }
           }
         },
@@ -125,28 +121,6 @@ export async function GET(request: NextRequest) {
       }),
       prisma.businessCustomers.count({ where })
     ])
-
-    // Map to expected format for frontend
-    const customers = customersRaw.map((customer) => ({
-      id: customer.id,
-      customerNumber: customer.customerNumber,
-      type: customer.customerType || 'INDIVIDUAL',
-      fullName: customer.name,
-      companyName: (customer.attributes as any)?.companyName || null,
-      primaryEmail: customer.email,
-      primaryPhone: customer.phone,
-      address: customer.address,
-      city: customer.city,
-      isActive: customer.isActive,
-      divisionAccounts: [], // Not using division accounts in this context
-      linkedUser: null,
-      linkedEmployee: null,
-      _count: {
-        divisionAccounts: 1, // Each customer has one business account
-        laybys: customer._count.customer_laybys,
-        creditApplications: 0 // Credit applications feature not yet implemented
-      }
-    }))
 
     return NextResponse.json({
       customers,

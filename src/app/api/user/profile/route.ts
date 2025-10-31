@@ -51,7 +51,16 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    return NextResponse.json(user)
+    // Transform snake_case to camelCase for frontend
+    const responseData = {
+      ...user,
+      businessMemberships: user.business_memberships
+    }
+    
+    // Remove the snake_case version
+    delete (responseData as any).business_memberships
+
+    return NextResponse.json(responseData)
   } catch (error) {
     console.error('Error fetching user profile:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

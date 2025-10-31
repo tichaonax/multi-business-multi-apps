@@ -119,7 +119,7 @@ model BusinessCategories {
   users                     Users?                   @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
   inventory_subcategories   InventorySubcategories[]
 
-  @@unique([businessId, name])
+  @@unique([businessType, name])
   @@map("business_categories")
 }
 
