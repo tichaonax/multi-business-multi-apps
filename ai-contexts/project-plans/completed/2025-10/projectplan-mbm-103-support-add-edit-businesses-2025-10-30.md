@@ -1,12 +1,9 @@
 ```markdown
-```markdown
 # Project Plan: MBM-103 — support add or edit businesses
 
 Created: 2025-10-30
 Ticket: MBM-103
 Author: ticha (updated after implementation)
-
-NOTE: Moved to `ai-contexts/project-plans/completed/` on 2025-10-30. Implementation complete; documentation and extended testing deferred to follow-up tasks.
 
 ## Task Overview
 
@@ -170,4 +167,4 @@ Please review this plan. Type one of:
 - `APPROVE PLAN` — lock plan and proceed to Phase 2 planning/execution (AI will still require explicit `PHASE 2` to execute Phase 2 tasks)
 - `REVISE [details]` — request changes to the plan
 
-```
+``` 

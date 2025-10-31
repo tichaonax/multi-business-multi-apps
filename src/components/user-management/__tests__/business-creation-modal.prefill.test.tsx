@@ -56,7 +56,9 @@ describe('BusinessCreationModal pre-fill from fetched business-config', () => {
       }
     }
 
-    jest.spyOn(global, 'fetch' as any).mockResolvedValueOnce({
+    // Some Jest environments (node) may not have global.fetch; mock safely
+    const originalFetch = (global as any).fetch
+    ;(global as any).fetch = jest.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => mockData
     } as any)
@@ -80,3 +82,4 @@ describe('BusinessCreationModal pre-fill from fetched business-config', () => {
     expect(typeSelect).toHaveValue('retail')
   })
 })
+
