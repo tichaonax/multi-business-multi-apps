@@ -362,6 +362,8 @@ export function UniversalInventoryGrid({
                   <option value="currentStock:desc">Sort by Stock (High-Low)</option>
                   <option value="costPrice:asc">Sort by Cost (Low-High)</option>
                   <option value="costPrice:desc">Sort by Cost (High-Low)</option>
+                  <option value="sellPrice:asc">Sort by Sell Price (Low-High)</option>
+                  <option value="sellPrice:desc">Sort by Sell Price (High-Low)</option>
                 </select>
               </div>
             </div>
@@ -400,6 +402,12 @@ export function UniversalInventoryGrid({
                     onClick={() => allowSorting && handleSort('costPrice')}
                   >
                     Unit Cost {allowSorting && (sortField === 'costPrice' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
+                  </th>
+                  <th
+                    className={`text-left p-3 font-medium text-secondary ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    onClick={() => allowSorting && handleSort('sellPrice')}
+                  >
+                    Sell Price {allowSorting && (sortField === 'sellPrice' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
                   <th className="text-left p-3 font-medium text-secondary">Supplier</th>
                   <th className="text-left p-3 font-medium text-secondary">Location</th>
@@ -444,8 +452,11 @@ export function UniversalInventoryGrid({
                         {item.currentStock} {item.unit}
                       </div>
                     </td>
-                    <td className="p-3 font-medium">
+                    <td className="p-3 font-medium text-orange-600 dark:text-orange-400">
                       ${item.costPrice.toFixed(2)}
+                    </td>
+                    <td className="p-3 font-medium text-green-600 dark:text-green-400">
+                      ${item.sellPrice.toFixed(2)}
                     </td>
                     <td className="p-3 text-secondary">
                       {item.supplier || 'Not specified'}
