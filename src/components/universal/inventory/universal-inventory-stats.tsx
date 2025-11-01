@@ -265,12 +265,73 @@ export function UniversalInventoryStats({
         }
       }
     } else if (businessType === 'clothing') {
+      // Calculate real clothing-specific metrics from actual data
+      let seasonalItemsCount = 0
+      let markdownItemsTotal = 0
+      let markdownItemsCount = 0
+      const sizeMap = new Map<string, number>()
+      const brandSet = new Set<string>()
+      
+      items.forEach((item: any) => {
+        // Count seasonal items (items with attributes.season or current promotions)
+        if (item.attributes?.season || item.promotionStartDate) {
+          seasonalItemsCount++
+        }
+        
+        // Calculate markdown percentage from items with discounts
+        if (item.discountPercent && parseFloat(item.discountPercent) > 0) {
+          markdownItemsTotal += parseFloat(item.discountPercent)
+          markdownItemsCount++
+        } else if (item.originalPrice && item.basePrice && parseFloat(item.originalPrice) > parseFloat(item.basePrice)) {
+          const markdown = ((parseFloat(item.originalPrice) - parseFloat(item.basePrice)) / parseFloat(item.originalPrice)) * 100
+          markdownItemsTotal += markdown
+          markdownItemsCount++
+        }
+        
+        // Collect sizes from variants
+        if (item.variants && Array.isArray(item.variants)) {
+          item.variants.forEach((variant: any) => {
+            // Try to get size from attributes first
+            let size = variant.attributes?.size || variant.attributes?.Size
+            
+            // If no attributes, try parsing from variant name (e.g., "M / Black", "Size 8 / Floral")
+            if (!size && variant.name) {
+              // Match common size patterns: S, M, L, XL, XXL, or Size followed by number
+              const sizeMatch = variant.name.match(/\b(XXS|XS|S|M|L|XL|XXL|XXXL|Size\s+\d+|\d+)\b/i)
+              if (sizeMatch) {
+                size = sizeMatch[1].toUpperCase()
+              }
+            }
+            
+            if (size) {
+              sizeMap.set(size, (sizeMap.get(size) || 0) + variant.stockQuantity)
+            }
+          })
+        }
+        
+        // Count unique brands
+        if (item.brand || item.brandId) {
+          brandSet.add(item.brand || item.brandId)
+        }
+      })
+      
+      // Calculate percentages
+      const seasonalStockPercent = totalItems > 0 ? (seasonalItemsCount / totalItems) * 100 : 0
+      const avgMarkdownPercent = markdownItemsCount > 0 ? markdownItemsTotal / markdownItemsCount : 0
+      
+      // Calculate size distribution percentages
+      const totalSizeStock = Array.from(sizeMap.values()).reduce((sum, count) => sum + count, 0)
+      const sizeDistribution: Record<string, number> = {}
+      sizeMap.forEach((count, size) => {
+        sizeDistribution[size] = totalSizeStock > 0 ? Math.round((count / totalSizeStock) * 100) : 0
+      })
+      
       businessSpecific = {
         clothing: {
-          seasonalStock: 45.2,
-          avgMarkdown: 18.5,
-          sizeDistribution: { 'S': 20, 'M': 35, 'L': 30, 'XL': 15 },
-          brandCount: 12
+          seasonalStock: Math.round(seasonalStockPercent * 10) / 10,
+          avgMarkdown: Math.round(avgMarkdownPercent * 10) / 10,
+          sizeDistribution: Object.keys(sizeDistribution).length > 0 ? sizeDistribution : { 'No sizes': 100 },
+          brandCount: brandSet.size
         }
       }
     } else if (businessType === 'hardware') {

@@ -81,7 +81,15 @@ export function ClothingCustomerAnalytics({ businessId }: ClothingCustomerAnalyt
       setLoading(true)
       setError(null)
 
-      // Sample comprehensive customer analytics data
+      // TODO: Replace with real data from customer orders, business_order_items, and customers tables
+      // This requires:
+      // - Customer acquisition tracking (date-based queries on customers table)
+      // - Retention rates (repeat purchase analysis from business_order_items)
+      // - Seasonal trends (grouping orders by season/month)
+      // - Category preferences (aggregating by business_categories)
+      // - Segment analysis (customer spending patterns and RFM analysis)
+      // - Risk analysis (days since last order, order frequency patterns)
+      // For now, using sample data for UI demonstration
       const sampleAnalytics: CustomerAnalytics = {
         customerAcquisition: {
           thisMonth: 87,
