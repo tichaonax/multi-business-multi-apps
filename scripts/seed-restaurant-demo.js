@@ -131,7 +131,11 @@ async function seed() {
     const now = new Date()
     const business = await prisma.businesses.upsert({
       where: { id: businessId },
-      update: { updatedAt: now },
+      update: { 
+        name: 'Restaurant [Demo]',
+        description: 'Demo business for testing - safe to delete',
+        updatedAt: now 
+      },
       create: {
         id: businessId,
         name: 'Restaurant [Demo]',

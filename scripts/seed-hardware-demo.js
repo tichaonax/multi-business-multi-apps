@@ -5,13 +5,18 @@ async function seed() {
   try {
     const businessId = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
 
-  // Create business if not exists (reuse if found)
+      // Ensure business exists
+    const now = new Date()
     const business = await prisma.businesses.upsert({
       where: { id: businessId },
-      update: { updatedAt: now },
-      create: { 
-        id: businessId, 
-        name: 'Hardware [Demo]', 
+      update: { 
+        name: 'Hardware [Demo]',
+        description: 'Demo business for testing - safe to delete',
+        updatedAt: now 
+      },
+      create: {
+        id: businessId,
+        name: 'Hardware [Demo]',
         type: 'hardware',
         description: 'Demo business for testing - safe to delete',
         isActive: true,
@@ -20,8 +25,6 @@ async function seed() {
       }
     })
     console.log('Using business for hardware demo:', businessId)
-
-  const now = new Date()
 
     // Categories
     const cat1 = await prisma.businessCategories.upsert({

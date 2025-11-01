@@ -106,19 +106,23 @@ async function seed() {
 
     console.log('Seeding grocery demo data for', businessId)
 
-    // Ensure business exists (reuse if found, otherwise create)
+    // Ensure business exists
     const now = new Date()
     const business = await prisma.businesses.upsert({
       where: { id: businessId },
-      update: { updatedAt: now },
-      create: { 
-        id: businessId, 
-        name: 'Grocery [Demo]', 
-        type: 'grocery', 
-        description: 'Demo business for testing - safe to delete', 
-        isActive: true, 
-        createdAt: now, 
+      update: { 
+        name: 'Grocery [Demo]',
+        description: 'Demo business for testing - safe to delete',
         updatedAt: now 
+      },
+      create: {
+        id: businessId,
+        name: 'Grocery [Demo]',
+        type: 'grocery',
+        description: 'Demo business for testing - safe to delete',
+        isActive: true,
+        createdAt: now,
+        updatedAt: now
       }
     })
     console.log('Using business for grocery demo:', businessId)
