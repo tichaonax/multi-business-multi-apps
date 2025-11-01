@@ -104,25 +104,27 @@ export function UniversalInventoryStats({
     setError(null)
 
     try {
-      // This would typically call multiple APIs or a dedicated stats endpoint
-      const [itemsResponse, reportsResponse, alertsResponse] = await Promise.all([
+      // Fetch current data and historical movements for trend calculation
+      const [itemsResponse, reportsResponse, alertsResponse, movementsResponse] = await Promise.all([
         fetch(`/api/inventory/${businessId}/items?limit=1000`),
         fetch(`/api/inventory/${businessId}/reports?reportType=inventory_value`),
-        fetch(`/api/inventory/${businessId}/alerts?acknowledged=false`)
+        fetch(`/api/inventory/${businessId}/alerts?acknowledged=false`),
+        fetch(`/api/inventory/${businessId}/movements?limit=1000`)
       ])
 
       if (!itemsResponse.ok || !reportsResponse.ok || !alertsResponse.ok) {
         throw new Error('Failed to fetch inventory statistics')
       }
 
-      const [itemsData, reportsData, alertsData] = await Promise.all([
+      const [itemsData, reportsData, alertsData, movementsData] = await Promise.all([
         itemsResponse.json(),
         reportsResponse.json(),
-        alertsResponse.json()
+        alertsResponse.json(),
+        movementsResponse.ok ? movementsResponse.json() : { movements: [] }
       ])
 
       // Calculate comprehensive stats from the data
-      const calculatedStats = calculateStats(itemsData, reportsData, alertsData)
+      const calculatedStats = calculateStats(itemsData, reportsData, alertsData, movementsData)
       setStats(calculatedStats)
       setLastUpdated(new Date())
 
@@ -134,10 +136,11 @@ export function UniversalInventoryStats({
     }
   }
 
-  const calculateStats = (itemsData: any, reportsData: any, alertsData: any): InventoryStats => {
+  const calculateStats = (itemsData: any, reportsData: any, alertsData: any, movementsData: any): InventoryStats => {
     const items = itemsData.items || []
     const report = reportsData.report?.data || {}
     const alerts = alertsData.alerts || []
+    const movements = movementsData.movements || []
 
     // Basic overview calculations
     const totalItems = items.length
@@ -146,6 +149,74 @@ export function UniversalInventoryStats({
     const lowStockItems = alerts.filter((alert: any) => alert.alertType === 'low_stock').length
     const outOfStockItems = alerts.filter((alert: any) => alert.alertType === 'out_of_stock').length
     const expiringItems = alerts.filter((alert: any) => alert.alertType === 'expiring_soon' || alert.alertType === 'expired').length
+
+    // Calculate real trends from historical data
+    const now = new Date()
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    
+    // Group movements by time period
+    const lastWeekMovements = movements.filter((m: any) => new Date(m.createdAt) >= oneWeekAgo)
+    const lastMonthMovements = movements.filter((m: any) => new Date(m.createdAt) >= oneMonthAgo)
+    
+    // If no movements in timeframe, calculate from ALL movements to show growth
+    const hasRecentMovements = movements.length > 0
+    
+    // Calculate value changes from movements (receiving increases, usage/waste decreases)
+    const lastWeekValue = lastWeekMovements.reduce((sum: number, m: any) => {
+      const movementValue = (m.totalCost || (m.unitCost * Math.abs(m.quantity)) || 0)
+      return sum + (m.quantity > 0 ? movementValue : -movementValue)
+    }, 0)
+    
+    const lastMonthValue = lastMonthMovements.reduce((sum: number, m: any) => {
+      const movementValue = (m.totalCost || (m.unitCost * Math.abs(m.quantity)) || 0)
+      return sum + (m.quantity > 0 ? movementValue : -movementValue)
+    }, 0)
+    
+    // If no recent movements but we have movements, show lifetime growth
+    let weekOverWeek = 0
+    let monthOverMonth = 0
+    let itemCountChange = 0
+    
+    if (hasRecentMovements && movements.length > 0) {
+      if (lastWeekMovements.length > 0) {
+        // Show % of inventory that changed last week
+        weekOverWeek = totalValue > 0 ? (lastWeekValue / totalValue) * 100 : 0
+      } else {
+        // No movements last week - show stable trend
+        weekOverWeek = 0
+      }
+      
+      if (lastMonthMovements.length > 0) {
+        // Show % of inventory that changed last month
+        monthOverMonth = totalValue > 0 ? (lastMonthValue / totalValue) * 100 : 0
+        
+        // Calculate item count changes
+        const recentReceiveMovements = lastMonthMovements.filter((m: any) => 
+          m.movementType === 'receive' || m.movementType === 'PURCHASE_RECEIVED' || 
+          (m.movementType === 'adjustment' && m.quantity > 0)
+        )
+        const uniqueNewItems = new Set(recentReceiveMovements.map((m: any) => m.itemId || m.productVariantId)).size
+        itemCountChange = totalItems > 0 ? ((uniqueNewItems / totalItems) * 100) - 100 : 0
+      } else {
+        // No movements last month - calculate from all movements
+        const allValue = movements.reduce((sum: number, m: any) => {
+          const movementValue = (m.totalCost || (m.unitCost * Math.abs(m.quantity)) || 0)
+          return sum + (m.quantity > 0 ? movementValue : -movementValue)
+        }, 0)
+        
+        // Show total growth since inception
+        monthOverMonth = totalValue > 0 && allValue > 0 ? (allValue / totalValue) * 100 : 0
+        
+        // Calculate lifetime item growth
+        const allReceiveMovements = movements.filter((m: any) => 
+          m.movementType === 'receive' || m.movementType === 'PURCHASE_RECEIVED' || 
+          (m.movementType === 'adjustment' && m.quantity > 0)
+        )
+        const allItems = new Set(allReceiveMovements.map((m: any) => m.itemId || m.productVariantId)).size
+        itemCountChange = totalItems > 0 && allItems > 0 ? ((allItems / totalItems) * 100) - 100 : 0
+      }
+    }
 
     // Category breakdown
     const categoryMap = new Map()
@@ -230,9 +301,9 @@ export function UniversalInventoryStats({
         overstock
       },
       trends: {
-        weekOverWeek: 2.3,
-        monthOverMonth: -1.8,
-        yearOverYear: 12.5
+        weekOverWeek: Math.round(weekOverWeek * 10) / 10,
+        monthOverMonth: Math.round(itemCountChange * 10) / 10,
+        yearOverYear: Math.round(monthOverMonth * 10) / 10
       },
       topItems: {
         highestValue: items

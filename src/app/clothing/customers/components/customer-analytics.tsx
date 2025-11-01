@@ -130,7 +130,7 @@ export function ClothingCustomerAnalytics({ businessId }: ClothingCustomerAnalyt
           {
             segment: 'Price-Conscious',
             customerCount: 342,
-            revenue: 47850,
+            revenue: 11098, // Real calculation: customerCount * avgOrderValue
             avgOrderValue: 32.45,
             retentionRate: 45.2,
             growthRate: 8.7

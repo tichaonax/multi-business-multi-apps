@@ -16,59 +16,113 @@ interface InventoryReport {
   summary: any
 }
 
-// Generate mock report data
-function generateInventoryValueReport(businessId: string, startDate: string, endDate: string) {
-  return {
-    totalInventoryValue: 47850.00,
-    totalItems: 147,
-    categories: [
-      {
-        category: 'Proteins',
-        value: 15240.00,
-        percentage: 31.8,
-        items: 12,
-        averageValue: 1270.00
+// Generate real report data from database
+async function generateInventoryValueReport(businessId: string, startDate: string, endDate: string) {
+  const { PrismaClient } = require('@prisma/client')
+  const prisma = new PrismaClient()
+
+  try {
+    // Get all products with variants for this business
+    const products = await prisma.businessProducts.findMany({
+      where: {
+        businessId,
+        isActive: true
       },
-      {
-        category: 'Vegetables',
-        value: 8920.00,
-        percentage: 18.6,
-        items: 24,
-        averageValue: 371.67
-      },
-      {
-        category: 'Dairy',
-        value: 6780.00,
-        percentage: 14.2,
-        items: 8,
-        averageValue: 847.50
-      },
-      {
-        category: 'Pantry',
-        value: 12450.00,
-        percentage: 26.0,
-        items: 35,
-        averageValue: 355.71
-      },
-      {
-        category: 'Beverages',
-        value: 3280.00,
-        percentage: 6.9,
-        items: 16,
-        averageValue: 205.00
-      },
-      {
-        category: 'Supplies',
-        value: 1180.00,
-        percentage: 2.5,
-        items: 22,
-        averageValue: 53.64
+      include: {
+        product_variants: true,
+        business_categories: true
       }
-    ],
-    trends: {
-      weekOverWeek: 2.3,
-      monthOverMonth: -1.8,
-      yearOverYear: 12.5
+    })
+
+    let totalInventoryValue = 0
+    let totalItems = 0
+    const categoryMap = new Map<string, { value: number; items: number }>()
+
+    // Calculate values from real data
+    for (const product of products) {
+      for (const variant of product.product_variants) {
+        const price = parseFloat(variant.price?.toString() || '0')
+        const stock = variant.stockQuantity || 0
+        const value = price * stock
+
+        totalInventoryValue += value
+        totalItems++
+
+        // Group by category
+        const categoryName = product.business_categories?.name || 'Uncategorized'
+        const categoryData = categoryMap.get(categoryName) || { value: 0, items: 0 }
+        categoryData.value += value
+        categoryData.items++
+        categoryMap.set(categoryName, categoryData)
+      }
+    }
+
+    // Build categories array
+    const categories = Array.from(categoryMap.entries()).map(([category, data]) => ({
+      category,
+      value: data.value,
+      percentage: totalInventoryValue > 0 ? (data.value / totalInventoryValue) * 100 : 0,
+      items: data.items,
+      averageValue: data.items > 0 ? data.value / data.items : 0
+    })).sort((a, b) => b.value - a.value)
+
+    // Calculate trends from stock movements
+    const now = new Date()
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    const movements = await prisma.businessStockMovements.findMany({
+      where: {
+        businessId,
+        createdAt: {
+          gte: oneMonthAgo
+        }
+      }
+    })
+
+    const lastWeekMovements = movements.filter((m: any) => new Date(m.createdAt) >= oneWeekAgo)
+    const lastMonthMovements = movements
+
+    const lastWeekValue = lastWeekMovements.reduce((sum: number, m: any) => {
+      const value = m.unitCost ? m.unitCost * Math.abs(m.quantity) : 0
+      return sum + (m.quantity > 0 ? value : -value)
+    }, 0)
+
+    const lastMonthValue = lastMonthMovements.reduce((sum: number, m: any) => {
+      const value = m.unitCost ? m.unitCost * Math.abs(m.quantity) : 0
+      return sum + (m.quantity > 0 ? value : -value)
+    }, 0)
+
+    await prisma.$disconnect()
+
+    return {
+      totalInventoryValue: Math.round(totalInventoryValue * 100) / 100,
+      totalItems,
+      categories: categories.map(c => ({
+        ...c,
+        value: Math.round(c.value * 100) / 100,
+        percentage: Math.round(c.percentage * 10) / 10,
+        averageValue: Math.round(c.averageValue * 100) / 100
+      })),
+      trends: {
+        weekOverWeek: totalInventoryValue > 0 ? Math.round((lastWeekValue / totalInventoryValue) * 1000) / 10 : 0,
+        monthOverMonth: totalInventoryValue > 0 ? Math.round((lastMonthValue / totalInventoryValue) * 1000) / 10 : 0,
+        yearOverYear: 0 // Would need 1 year of data
+      }
+    }
+  } catch (error) {
+    console.error('Error calculating inventory value:', error)
+    await prisma.$disconnect()
+    // Return empty data structure on error
+    return {
+      totalInventoryValue: 0,
+      totalItems: 0,
+      categories: [],
+      trends: {
+        weekOverWeek: 0,
+        monthOverMonth: 0,
+        yearOverYear: 0
+      }
     }
   }
 }
@@ -338,7 +392,7 @@ export async function GET(
 
     switch (reportType) {
       case 'inventory_value':
-        reportData = generateInventoryValueReport(businessId, startDate, endDate)
+        reportData = await generateInventoryValueReport(businessId, startDate, endDate)
         reportSummary = {
           title: 'Inventory Value Report',
           description: 'Current inventory value by category with trends',

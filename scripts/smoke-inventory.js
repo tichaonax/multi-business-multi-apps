@@ -3,25 +3,68 @@ const prisma = new PrismaClient()
 
 const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
 
-function generateInventoryValueReport(businessId) {
+async function generateInventoryValueReport(businessId) {
+  // This is a smoke test - simplified calculation from actual database
+  // Note: Using try/catch to gracefully handle if no products exist
+  let products = []
+  
+  try {
+    products = await prisma.businessProducts.findMany({
+      where: { businessId, isActive: true },
+      include: { product_variants: true, business_categories: true }
+    })
+  } catch (err) {
+    // If error (e.g., no products), return zero values
+    console.log('Note: Could not fetch products, returning zero values')
+    return {
+      totalInventoryValue: 0,
+      totalItems: 0,
+      categories: [],
+      trends: { weekOverWeek: 0 }
+    }
+  }
+
+  let totalValue = 0
+  let totalItems = 0
+  const categoryMap = new Map()
+
+  for (const product of products) {
+    for (const variant of product.product_variants) {
+      const price = parseFloat(variant.price?.toString() || '0')
+      const stock = variant.stockQuantity || 0
+      const value = price * stock
+      
+      totalValue += value
+      totalItems++
+
+      const categoryName = product.business_categories?.name || 'Uncategorized'
+      const catData = categoryMap.get(categoryName) || { value: 0, items: 0 }
+      catData.value += value
+      catData.items++
+      categoryMap.set(categoryName, catData)
+    }
+  }
+
+  const categories = Array.from(categoryMap.entries()).map(([category, data]) => ({
+    category,
+    value: Math.round(data.value * 100) / 100,
+    percentage: totalValue > 0 ? Math.round((data.value / totalValue) * 1000) / 10 : 0
+  }))
+
   return {
-    totalInventoryValue: 47850.0,
-    totalItems: 147,
-    categories: [
-      { category: 'Proteins', value: 15240.0, percentage: 31.8 },
-      { category: 'Vegetables', value: 8920.0, percentage: 18.6 },
-      { category: 'Dairy', value: 6780.0, percentage: 14.2 }
-    ],
-    trends: { weekOverWeek: 2.3 }
+    totalInventoryValue: Math.round(totalValue * 100) / 100,
+    totalItems,
+    categories: categories.slice(0, 3), // Top 3 for smoke test
+    trends: { weekOverWeek: 0 } // Would need movements to calculate
   }
 }
 
 async function computeCurrentStockForProduct(product) {
   // Sum movements across variants
   let total = 0
-  const variants = await prisma.productVariant.findMany({ where: { productId: product.id }, include: { stockMovements: true } })
+  const variants = await prisma.productVariants.findMany({ where: { productId: product.id }, include: { business_stock_movements: true } })
   for (const v of variants) {
-    const variantStock = (v.stockMovements || []).reduce((sum, m) => {
+    const variantStock = (v.business_stock_movements || []).reduce((sum, m) => {
       // movementType uses enum values like PURCHASE_RECEIVED, SALE, etc.
       // Treat PURCHASE_RECEIVED and PRODUCTION_IN and RETURN_IN, TRANSFER_IN as IN; others as OUT
       const inTypes = ['PURCHASE_RECEIVED', 'PRODUCTION_IN', 'RETURN_IN', 'TRANSFER_IN']
@@ -42,7 +85,7 @@ async function run() {
       process.exit(1)
     }
 
-  const products = await prisma.businessProduct.findMany({ where: { businessId: BUSINESS_ID }, include: { businessCategory: true } })
+  const products = await prisma.businessProducts.findMany({ where: { businessId: BUSINESS_ID }, include: { business_categories: true } })
     console.log('Products count for business:', products.length)
 
     if (products.length > 0) {
@@ -55,7 +98,7 @@ async function run() {
         name: p.name,
         sku: p.sku || '',
         description: p.description || '',
-  category: p.businessCategory?.name || 'Uncategorized',
+  category: p.business_categories?.name || 'Uncategorized',
         currentStock,
         unit: 'units',
         costPrice: parseFloat(p.costPrice?.toString() || '0'),
@@ -74,7 +117,7 @@ async function run() {
       itemId: product.id,
       itemName: product.name,
       itemSku: product.sku || '',
-  category: product.businessCategory?.name || 'General',
+  category: product.business_categories?.name || 'General',
       currentStock: 5,
       threshold: 10,
       unit: 'units',
@@ -88,7 +131,7 @@ async function run() {
     console.log('Demo alerts generated:', demoAlerts.length)
     if (demoAlerts.length > 0) console.log('First alert sample:', demoAlerts[0])
 
-    const report = generateInventoryValueReport(BUSINESS_ID)
+    const report = await generateInventoryValueReport(BUSINESS_ID)
     console.log('Report sample summary:', { totalInventoryValue: report.totalInventoryValue, totalItems: report.totalItems })
 
     console.log('Smoke inventory check complete')

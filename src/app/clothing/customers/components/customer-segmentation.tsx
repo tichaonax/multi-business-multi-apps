@@ -64,7 +64,7 @@ export function ClothingCustomerSegmentation({
             brandPreference: ['H&M', 'Target', 'Walmart Fashion']
           },
           customerCount: 342,
-          totalRevenue: 47850.00,
+          totalRevenue: 11098.00, // Real calculation would come from customer order data
           avgOrderValue: 32.45,
           topBrands: ['H&M', 'Target', 'Generic', 'Walmart Fashion'],
           characteristics: [
