@@ -46,15 +46,28 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Best-effort audit log
     try {
+      // Determine if this is a reactivation (inactive -> active)
+      const isReactivation = !existing.isActive && updateData.isActive === true
+      
       await prisma.auditLogs.create({
         data: {
-          action: 'BUSINESS_UPDATED',
+          action: isReactivation ? 'BUSINESS_REACTIVATED' : 'BUSINESS_UPDATED',
           entityType: 'Business',
           entityId: updated.id,
           userId: session.user.id,
           details: {
-            before: { name: existing.name, type: existing.type, description: existing.description || null },
-            after: { name: updated.name, type: updated.type, description: updated.description || null }
+            before: { 
+              name: existing.name, 
+              type: existing.type, 
+              description: existing.description || null,
+              isActive: existing.isActive
+            },
+            after: { 
+              name: updated.name, 
+              type: updated.type, 
+              description: updated.description || null,
+              isActive: updated.isActive
+            }
           }
         } as any
       })

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { BusinessSwitcher } from '@/components/business/business-switcher';
 import { BusinessCreationModal } from '@/components/user-management/business-creation-modal';
 import { BusinessDeletionModal } from '@/components/business/business-deletion-modal';
+import BusinessReactivationModal from '@/components/business/business-reactivation-modal';
 import { useToastContext } from '@/components/ui/toast'
 import { ContentLayout } from '@/components/layout/content-layout';
 import { formatDateByFormat } from '@/lib/country-codes';
@@ -33,6 +34,7 @@ function BusinessManagePageContent() {
   const [showCreateBusiness, setShowCreateBusiness] = useState(false)
   const [showEditBusiness, setShowEditBusiness] = useState(false)
   const [showDeleteBusiness, setShowDeleteBusiness] = useState(false)
+  const [showReactivateBusiness, setShowReactivateBusiness] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
   const [editBusinessInitial, setEditBusinessInitial] = useState<{ name?: string; type?: string; description?: string } | null>(null)
   const [editBusinessId, setEditBusinessId] = useState<string | null>(null)
@@ -154,49 +156,64 @@ function BusinessManagePageContent() {
                 </div>
               </div>
               <div className="ml-4 flex flex-col gap-2">
-                {(isSystemAdmin || hasPermission('canEditBusiness')) && (
+                {/* Show reactivation button if business is inactive and user is admin */}
+                {isSystemAdmin && !currentBusiness?.isActive && (
                   <button
-                    onClick={async () => {
-                      // Fetch full business config (includes description) before opening edit modal
-                      const id = currentBusiness?.businessId
-                      if (!id) return
-                      try {
-                        setEditLoading(true)
-                        const res = await fetch(`/api/universal/business-config?businessId=${encodeURIComponent(id)}`)
-                        if (!res.ok) {
-                          const err = await res.json().catch(() => ({}))
-                          toast.push(err?.error || 'Failed to load business details')
-                          return
-                        }
-                        const json = await res.json()
-                        const biz = json?.data
-                        setEditBusinessInitial({
-                          name: biz?.businessName || currentBusiness?.businessName || '',
-                          type: biz?.businessType || currentBusiness?.businessType || 'other',
-                          description: biz?.businessDescription || ''
-                        })
-                        setEditBusinessId(id)
-                        setShowEditBusiness(true)
-                      } catch (err) {
-                        console.error('Failed to fetch business details for edit:', err)
-                        toast.push('Failed to load business details')
-                      } finally {
-                        setEditLoading(false)
-                      }
-                    }}
-                    className="btn-secondary"
-                    disabled={editLoading}
+                    onClick={() => setShowReactivateBusiness(true)}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
                   >
-                    {editLoading ? 'Loading...' : 'Edit Business'}
+                    Reactivate Business
                   </button>
                 )}
-                {isSystemAdmin && hasPermission('canDeleteBusiness') && (
-                  <button
-                    onClick={() => setShowDeleteBusiness(true)}
-                    className="px-4 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    Delete Business
-                  </button>
+                
+                {/* Only show edit/delete for active businesses */}
+                {currentBusiness?.isActive && (
+                  <>
+                    {(isSystemAdmin || hasPermission('canEditBusiness')) && (
+                      <button
+                        onClick={async () => {
+                          // Fetch full business config (includes description) before opening edit modal
+                          const id = currentBusiness?.businessId
+                          if (!id) return
+                          try {
+                            setEditLoading(true)
+                            const res = await fetch(`/api/universal/business-config?businessId=${encodeURIComponent(id)}`)
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({}))
+                              toast.push(err?.error || 'Failed to load business details')
+                              return
+                            }
+                            const json = await res.json()
+                            const biz = json?.data
+                            setEditBusinessInitial({
+                              name: biz?.businessName || currentBusiness?.businessName || '',
+                              type: biz?.businessType || currentBusiness?.businessType || 'other',
+                              description: biz?.businessDescription || ''
+                            })
+                            setEditBusinessId(id)
+                            setShowEditBusiness(true)
+                          } catch (err) {
+                            console.error('Failed to fetch business details for edit:', err)
+                            toast.push('Failed to load business details')
+                          } finally {
+                            setEditLoading(false)
+                          }
+                        }}
+                        className="btn-secondary"
+                        disabled={editLoading}
+                      >
+                        {editLoading ? 'Loading...' : 'Edit Business'}
+                      </button>
+                    )}
+                    {isSystemAdmin && hasPermission('canDeleteBusiness') && (
+                      <button
+                        onClick={() => setShowDeleteBusiness(true)}
+                        className="px-4 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        Delete Business
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -421,6 +438,30 @@ function BusinessManagePageContent() {
           onError={(error) => {
             toast.push(error)
             setShowDeleteBusiness(false)
+          }}
+        />
+      )}
+
+      {/* Business Reactivation Modal */}
+      {showReactivateBusiness && currentBusiness?.businessId && currentBusiness?.businessName && (
+        <BusinessReactivationModal
+          business={{
+            id: currentBusiness.businessId,
+            name: currentBusiness.businessName,
+            type: currentBusiness.businessType || 'other'
+          }}
+          onClose={() => setShowReactivateBusiness(false)}
+          onSuccess={async () => {
+            setShowReactivateBusiness(false)
+            toast.push('Business reactivated successfully')
+            // Refresh the business context to show updated active status
+            if (currentBusiness?.businessId) {
+              try {
+                await switchBusiness(currentBusiness.businessId)
+              } catch (e) {
+                console.error('Failed to refresh business after reactivation:', e)
+              }
+            }
           }}
         />
       )}
