@@ -5,11 +5,13 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useState, useEffect } from 'react';
 import { BusinessSwitcher } from '@/components/business/business-switcher';
 import { BusinessCreationModal } from '@/components/user-management/business-creation-modal';
+import { BusinessDeletionModal } from '@/components/business/business-deletion-modal';
 import { useToastContext } from '@/components/ui/toast'
 import { ContentLayout } from '@/components/layout/content-layout';
 import { formatDateByFormat } from '@/lib/country-codes';
 import { useDateFormat } from '@/contexts/settings-context';
 import { useAlert } from '@/components/ui/confirm-modal'
+import { useRouter } from 'next/navigation'
 
 interface BusinessMember {
   id: string;
@@ -27,8 +29,10 @@ interface BusinessMember {
 function BusinessManagePageContent() {
   const { currentBusiness, hasPermission, activeBusinesses, switchBusiness, loading: contextLoading, isSystemAdmin } = useBusinessPermissionsContext();
   const toast = useToastContext()
+  const router = useRouter()
   const [showCreateBusiness, setShowCreateBusiness] = useState(false)
   const [showEditBusiness, setShowEditBusiness] = useState(false)
+  const [showDeleteBusiness, setShowDeleteBusiness] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
   const [editBusinessInitial, setEditBusinessInitial] = useState<{ name?: string; type?: string; description?: string } | null>(null)
   const [editBusinessId, setEditBusinessId] = useState<string | null>(null)
@@ -133,18 +137,23 @@ function BusinessManagePageContent() {
               <div className="w-full">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Business Name</label>
-                    <p className="mt-1 text-lg">{currentBusiness?.businessName}</p>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Business Name</label>
+                    <p className="mt-1 text-lg text-gray-900 dark:text-white">{currentBusiness?.businessName}</p>
+                    {currentBusiness?.businessName.includes('[Demo]') && (
+                      <span className="inline-flex items-center mt-1 px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 rounded-full">
+                        Demo Business
+                      </span>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Your Role</label>
-                    <p className="mt-1 text-lg capitalize">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Your Role</label>
+                    <p className="mt-1 text-lg capitalize text-gray-900 dark:text-white">
                       {currentBusiness?.role?.replace('-', ' ')}
                     </p>
                   </div>
                 </div>
               </div>
-              <div className="ml-4">
+              <div className="ml-4 flex flex-col gap-2">
                 {(isSystemAdmin || hasPermission('canEditBusiness')) && (
                   <button
                     onClick={async () => {
@@ -179,6 +188,14 @@ function BusinessManagePageContent() {
                     disabled={editLoading}
                   >
                     {editLoading ? 'Loading...' : 'Edit Business'}
+                  </button>
+                )}
+                {isSystemAdmin && hasPermission('canDeleteBusiness') && (
+                  <button
+                    onClick={() => setShowDeleteBusiness(true)}
+                    className="px-4 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    Delete Business
                   </button>
                 )}
               </div>
@@ -387,6 +404,24 @@ function BusinessManagePageContent() {
           initial={editBusinessInitial}
           method="PUT"
           id={editBusinessId}
+        />
+      )}
+
+      {/* Business Deletion Modal */}
+      {showDeleteBusiness && currentBusiness?.businessId && (
+        <BusinessDeletionModal
+          businessId={currentBusiness.businessId}
+          onClose={() => setShowDeleteBusiness(false)}
+          onSuccess={() => {
+            setShowDeleteBusiness(false)
+            toast.push('Business deleted successfully')
+            // Redirect to dashboard since current business is gone
+            router.push('/dashboard')
+          }}
+          onError={(error) => {
+            toast.push(error)
+            setShowDeleteBusiness(false)
+          }}
         />
       )}
     </>

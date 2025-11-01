@@ -80,34 +80,48 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const id = params.id
     if (!id) return NextResponse.json({ error: 'Missing business id' }, { status: 400 })
 
-    const existing = await prisma.businesses.findUnique({ where: { id }, include: { business_memberships: true, employees: true } })
+    // Check if hard delete is requested (only for demo businesses)
+    const { searchParams } = new URL(req.url)
+    const hardDelete = searchParams.get('hardDelete') === 'true'
+
+    const existing = await prisma.businesses.findUnique({ where: { id } })
     if (!existing) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
 
-    const activeMemberships = (existing.business_memberships || []).filter((m: any) => m.isActive)
-    const activeEmployees = (existing.employees || []).filter((e: any) => e.isActive)
-    if (activeMemberships.length > 0 || activeEmployees.length > 0) {
-      return NextResponse.json({ error: 'Cannot delete business with active memberships or employees. Deactivate them first.' }, { status: 400 })
-    }
+    const isDemoBusiness = existing.name.includes('[Demo]')
 
-    const deleted = await prisma.businesses.update({ where: { id }, data: { isActive: false, updatedAt: new Date() } })
+    // Hard delete (permanent) - only for demo businesses
+    if (hardDelete) {
+      if (!isDemoBusiness) {
+        return NextResponse.json({ 
+          error: 'Hard delete is only allowed for demo businesses. Use soft delete (deactivation) for real businesses.' 
+        }, { status: 400 })
+      }
 
-    try {
-      await prisma.auditLogs.create({
-        data: {
-          action: 'BUSINESS_DELETED',
-          entityType: 'Business',
-          entityId: deleted.id,
-          userId: session.user.id,
-          details: { name: deleted.name }
-        } as any
+      // Import deletion service
+      const { deleteBusinessHard } = await import('@/lib/business-deletion-service')
+      const result = await deleteBusinessHard(id, session.user.id)
+
+      if (!result.success) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+
+      return NextResponse.json({ 
+        message: 'Business permanently deleted', 
+        deletedCounts: result.deletedCounts 
       })
-    } catch (e) {
-      console.warn('Failed to create audit log', e)
     }
 
-    return NextResponse.json({ message: 'Business deactivated', business: deleted })
+    // Soft delete (deactivation) - for all businesses
+    const { deleteBusinessSoft } = await import('@/lib/business-deletion-service')
+    const result = await deleteBusinessSoft(id, session.user.id)
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
+
+    return NextResponse.json({ message: 'Business deactivated' })
   } catch (error) {
     console.error('Error deleting business:', error)
-    return NextResponse.json({ error: 'Failed to deactivate business' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to delete business' }, { status: 500 })
   }
 }
