@@ -57,92 +57,92 @@ BEGIN
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Subcategories for Men's Fashion
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Shirts', 'Dress shirts, casual shirts, t-shirts', '👕', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Shirts', 'Dress shirts, casual shirts, t-shirts', '👕', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Men''s Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Pants', 'Trousers, jeans, shorts', '👖', 2, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Pants', 'Trousers, jeans, shorts', '👖', 2, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Men''s Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Suits', 'Business suits and formal wear', '🤵', 3, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Suits', 'Business suits and formal wear', '🤵', 3, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Men''s Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Outerwear', 'Jackets, coats, blazers', '🧥', 4, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Outerwear', 'Jackets, coats, blazers', '🧥', 4, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Men''s Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
     -- Subcategories for Women's Fashion
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Dresses', 'Casual, formal, and evening dresses', '👗', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Dresses', 'Casual, formal, and evening dresses', '👗', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Women''s Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Tops', 'Blouses, shirts, t-shirts', '👚', 2, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Tops', 'Blouses, shirts, t-shirts', '👚', 2, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Women''s Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Bottoms', 'Skirts, pants, jeans', '👖', 3, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Bottoms', 'Skirts, pants, jeans', '👖', 3, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Women''s Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Outerwear', 'Jackets, coats, cardigans', '🧥', 4, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Outerwear', 'Jackets, coats, cardigans', '🧥', 4, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Women''s Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
     -- Subcategories for Kids Fashion
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Boys', 'Boys'' clothing and accessories', '👦', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Boys', 'Boys'' clothing and accessories', '👦', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Kids Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Girls', 'Girls'' clothing and accessories', '👧', 2, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Girls', 'Girls'' clothing and accessories', '👧', 2, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Kids Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Baby', 'Baby clothing and essentials', '👶', 3, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Baby', 'Baby clothing and essentials', '👶', 3, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Kids Fashion'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
     -- Subcategories for Footwear
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Casual Shoes', 'Sneakers, loafers, casual footwear', '👟', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Casual Shoes', 'Sneakers, loafers, casual footwear', '👟', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Footwear'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Formal Shoes', 'Dress shoes, heels, formal footwear', '👞', 2, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Formal Shoes', 'Dress shoes, heels, formal footwear', '👞', 2, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Footwear'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Sports Shoes', 'Athletic shoes, running shoes', '⚽', 3, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Sports Shoes', 'Athletic shoes, running shoes', '⚽', 3, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Footwear'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
     -- Subcategories for Accessories
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Bags', 'Handbags, backpacks, wallets', '👜', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Bags', 'Handbags, backpacks, wallets', '👜', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Accessories'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Jewelry', 'Necklaces, bracelets, rings', '💍', 2, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Jewelry', 'Necklaces, bracelets, rings', '💍', 2, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Accessories'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Watches', 'Wristwatches and timepieces', '⌚', 3, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Watches', 'Wristwatches and timepieces', '⌚', 3, true, NOW()
     FROM business_categories WHERE "businessType" = 'clothing' AND name = 'Accessories'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
@@ -182,23 +182,23 @@ BEGIN
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Hardware Subcategories (using dynamic lookup)
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Hammers', 'Claw hammers, sledgehammers', '🔨', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Hammers', 'Claw hammers, sledgehammers', '🔨', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'hardware' AND name = 'Hand Tools'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Screwdrivers', 'Flathead, Phillips, precision', '🔧', 2, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Screwdrivers', 'Flathead, Phillips, precision', '🔧', 2, true, NOW()
     FROM business_categories WHERE "businessType" = 'hardware' AND name = 'Hand Tools'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Drills', 'Electric drills, hammer drills', '🔩', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Drills', 'Electric drills, hammer drills', '🔩', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'hardware' AND name = 'Power Tools'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Saws', 'Circular saws, jigsaws, miter saws', '🪚', 2, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Saws', 'Circular saws, jigsaws, miter saws', '🪚', 2, true, NOW()
     FROM business_categories WHERE "businessType" = 'hardware' AND name = 'Power Tools'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
@@ -228,23 +228,23 @@ BEGIN
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Grocery Subcategories (using dynamic lookup)
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Fruits', 'Fresh fruits and berries', '🍎', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Fruits', 'Fresh fruits and berries', '🍎', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'grocery' AND name = 'Fresh Produce'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Vegetables', 'Fresh vegetables', '🥕', 2, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Vegetables', 'Fresh vegetables', '🥕', 2, true, NOW()
     FROM business_categories WHERE "businessType" = 'grocery' AND name = 'Fresh Produce'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Beef', 'Fresh beef and steaks', '🥩', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Beef', 'Fresh beef and steaks', '🥩', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'grocery' AND name = 'Meat & Seafood'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Milk', 'Fresh milk and alternatives', '🥛', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Milk', 'Fresh milk and alternatives', '🥛', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'grocery' AND name = 'Dairy Products'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
@@ -269,13 +269,13 @@ BEGIN
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Restaurant Subcategories (using dynamic lookup)
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Salads', 'Fresh salads and greens', '🥗', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Salads', 'Fresh salads and greens', '🥗', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'restaurant' AND name = 'Appetizers'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
-    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isActive", "createdAt", "updatedAt")
-    SELECT id, 'Meat Dishes', 'Beef, pork, lamb dishes', '🥩', 1, true, NOW(), NOW()
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Meat Dishes', 'Beef, pork, lamb dishes', '🥩', 1, true, NOW()
     FROM business_categories WHERE "businessType" = 'restaurant' AND name = 'Main Courses'
     ON CONFLICT ("categoryId", name) DO NOTHING;
     
