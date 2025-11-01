@@ -10,9 +10,38 @@ import { useRouter } from 'next/navigation'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
-function HardwareContent({ session }: { session: any }) {
+function HardwareContent({ session, businessId }: { session: any; businessId: string }) {
   const currentUser = session?.user as any
   const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
+  const [stats, setStats] = React.useState<{
+    dailySales: number
+    ordersToday: number
+    inventoryValue: number
+    lowStockItems: number
+    cutToSizeOrders: number
+  } | null>(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/hardware/${businessId}/dashboard`)
+        if (response.ok) {
+          const data = await response.json()
+          setStats(data.data)
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (businessId) {
+      fetchStats()
+    }
+  }, [businessId])
 
   const actions = [
     { label: 'Point of Sale', href: '/hardware/pos', icon: '🛒', description: 'Process customer sales with barcode scanner' },
@@ -26,17 +55,54 @@ function HardwareContent({ session }: { session: any }) {
     { label: 'Employee Management', href: '/hardware/employees', icon: '👥', description: 'Manage hardware store staff and schedules' }
   ]
 
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount)
+  }
+
+  const metrics = [
+    { 
+      label: 'Daily Sales', 
+      value: loading ? '...' : formatCurrency(stats?.dailySales || 0), 
+      icon: '💰', 
+      color: 'text-green-600' 
+    },
+    { 
+      label: 'Orders Today', 
+      value: loading ? '...' : (stats?.ordersToday || 0).toString(), 
+      icon: '📦', 
+      color: 'text-blue-600' 
+    },
+    { 
+      label: 'Inventory Value', 
+      value: loading ? '...' : formatCurrency(stats?.inventoryValue || 0), 
+      icon: '🏪', 
+      color: 'text-purple-600' 
+    },
+    { 
+      label: 'Low Stock Items', 
+      value: loading ? '...' : (stats?.lowStockItems || 0).toString(), 
+      icon: '⚠️', 
+      color: 'text-red-600' 
+    },
+    { 
+      label: 'Cut-to-Size Orders', 
+      value: loading ? '...' : (stats?.cutToSizeOrders || 0).toString(), 
+      icon: '✂️', 
+      color: 'text-orange-600' 
+    }
+  ]
+
   return (
     <div className="space-y-6">
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {[
-          { label: 'Daily Sales', value: '$8,420', icon: '💰', color: 'text-green-600' },
-          { label: 'Orders Today', value: '34', icon: '📦', color: 'text-blue-600' },
-          { label: 'Inventory Value', value: '$125,340', icon: '🏪', color: 'text-purple-600' },
-          { label: 'Low Stock Items', value: '12', icon: '⚠️', color: 'text-red-600' },
-          { label: 'Cut-to-Size Orders', value: '8', icon: '✂️', color: 'text-orange-600' }
-        ].map((metric, index) => (
+        {metrics.map((metric, index) => (
           <div key={index} className="card p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -224,7 +290,7 @@ export default function HardwarePage() {
             { label: 'Hardware Store', isActive: true }
           ]}
         >
-          <HardwareContent session={session} />
+          <HardwareContent session={session} businessId={businessId} />
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>

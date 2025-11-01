@@ -82,6 +82,7 @@ export default function EmployeesPage() {
   })
   const [departments, setDepartments] = useState<string[]>([])
   const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; type: string }>>([])
+  const [initialFilterSet, setInitialFilterSet] = useState(false)
   const [salaryIncreaseModal, setSalaryIncreaseModal] = useState<{
     isOpen: boolean
     employee: { id: string; fullName: string; currentSalary?: number } | null
@@ -97,23 +98,38 @@ export default function EmployeesPage() {
   const canExportPayroll = currentUser && hasPermission(currentUser, 'canExportEmployeeData') &&
     hasPermission(currentUser, 'canViewEmployeeReports')
 
-  useEffect(() => {
-    if (canViewEmployees) {
-      fetchEmployees()
-      fetchDepartments()
-      fetchBusinesses()
-    }
-  }, [canViewEmployees, currentPage, statusFilter, departmentFilter, businessFilter, searchTerm])
-  
-  // Read businessType from URL on mount
+  // Auto-select business from URL businessType parameter (run first, before fetch)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const businessType = urlParams.get('businessType')
-    if (businessType) {
-      // Set the filter to match the businessType - will be used in next fetch
-      setBusinessFilter(businessType)
+    
+    if (businessType && businesses.length > 0 && !initialFilterSet) {
+      // Find the business matching the type from URL
+      const matchingBusiness = businesses.find(b => b.type === businessType)
+      if (matchingBusiness) {
+        setBusinessFilter(matchingBusiness.id)
+        setInitialFilterSet(true)
+      }
+    } else if (!businessType && businesses.length > 0 && !initialFilterSet) {
+      // No URL param, mark as ready to fetch
+      setInitialFilterSet(true)
     }
-  }, [])
+  }, [businesses, initialFilterSet])
+
+  useEffect(() => {
+    // Only fetch after initial filter has been set (or determined there's no URL param)
+    if (canViewEmployees && initialFilterSet) {
+      fetchEmployees()
+      fetchDepartments()
+    }
+  }, [canViewEmployees, initialFilterSet, currentPage, statusFilter, departmentFilter, businessFilter, searchTerm])
+  
+  // Fetch businesses on mount
+  useEffect(() => {
+    if (canViewEmployees) {
+      fetchBusinesses()
+    }
+  }, [canViewEmployees])
 
   const fetchEmployees = async () => {
     try {
