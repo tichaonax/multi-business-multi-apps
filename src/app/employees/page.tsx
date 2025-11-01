@@ -101,8 +101,19 @@ export default function EmployeesPage() {
     if (canViewEmployees) {
       fetchEmployees()
       fetchDepartments()
+      fetchBusinesses()
     }
-  }, [canViewEmployees, currentPage, statusFilter, departmentFilter, searchTerm])
+  }, [canViewEmployees, currentPage, statusFilter, departmentFilter, businessFilter, searchTerm])
+  
+  // Read businessType from URL on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const businessType = urlParams.get('businessType')
+    if (businessType) {
+      // Set the filter to match the businessType - will be used in next fetch
+      setBusinessFilter(businessType)
+    }
+  }, [])
 
   const fetchEmployees = async () => {
     try {
@@ -125,6 +136,15 @@ export default function EmployeesPage() {
 
       if (departmentFilter) {
         params.append('department', departmentFilter)
+      }
+
+      if (businessFilter) {
+        // Check if it's a UUID (businessId) or a type string (businessType)
+        if (businessFilter.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+          params.append('businessId', businessFilter)
+        } else {
+          params.append('businessType', businessFilter)
+        }
       }
 
       const response = await fetch(`/api/employees?${params}`)
