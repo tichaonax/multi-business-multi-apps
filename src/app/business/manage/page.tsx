@@ -45,6 +45,9 @@ function BusinessManagePageContent() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('employee');
   const [inviting, setInviting] = useState(false);
+  const [editingMember, setEditingMember] = useState<BusinessMember | null>(null);
+  const [editMemberRole, setEditMemberRole] = useState('');
+  const [updatingMember, setUpdatingMember] = useState(false);
   const customAlert = useAlert();
 
   useEffect(() => {
@@ -75,6 +78,69 @@ function BusinessManagePageContent() {
     }
   };
 
+  const handleEditMember = (member: BusinessMember) => {
+    setEditingMember(member);
+    setEditMemberRole(member.role);
+  };
+
+  const updateMemberRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMember || !currentBusiness?.businessId) return;
+
+    setUpdatingMember(true);
+    try {
+      const response = await fetch(`/api/businesses/${currentBusiness.businessId}/members/${editingMember.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: editMemberRole }),
+      });
+
+      if (response.ok) {
+        toast.push('Member role updated successfully');
+        setEditingMember(null);
+        fetchMembers();
+      } else {
+        const error = await response.json();
+        await customAlert({ title: 'Update failed', description: error.error || 'Failed to update member role' })
+      }
+    } catch (error) {
+      console.error('Failed to update member:', error);
+      await customAlert({ title: 'Update failed', description: 'Failed to update member role' })
+    } finally {
+      setUpdatingMember(false);
+    }
+  };
+
+  const removeMember = async (memberId: string, memberName: string) => {
+    if (!currentBusiness?.businessId) return;
+
+    const confirmed = await customAlert({
+      title: 'Remove Member',
+      description: `Are you sure you want to remove ${memberName} from this business?`,
+      confirmText: 'Remove',
+      cancelText: 'Cancel'
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`/api/businesses/${currentBusiness.businessId}/members/${memberId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.push('Member removed successfully');
+        fetchMembers();
+      } else {
+        const error = await response.json();
+        await customAlert({ title: 'Remove failed', description: error.error || 'Failed to remove member' })
+      }
+    } catch (error) {
+      console.error('Failed to remove member:', error);
+      await customAlert({ title: 'Remove failed', description: 'Failed to remove member' })
+    }
+  };
+
   const inviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail || !currentBusiness?.businessId) return;
@@ -90,6 +156,7 @@ function BusinessManagePageContent() {
       if (response.ok) {
         setInviteEmail('');
         setInviteRole('employee');
+        toast.push('Member invited successfully');
         fetchMembers();
       } else {
         const error = await response.json();
@@ -239,70 +306,76 @@ function BusinessManagePageContent() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-neutral-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Email
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Role
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Joined
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {membersLoading ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                         Loading members...
                       </td>
                     </tr>
                   ) : members.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                         No members found
                       </td>
                     </tr>
                   ) : (
                     members.map((member) => (
-                      <tr key={member.id} className="hover:bg-gray-50">
+                      <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
                               {member.user?.name?.charAt(0)?.toUpperCase() || '?'}
                             </div>
                             <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">
                                 {member.user?.name || 'Unknown User'}
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                           {member.user?.email || 'No email'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded capitalize">
+                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded capitalize">
                             {member.role?.replace('-', ' ') || 'No role'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {formatDateByFormat(member.joinedAt, globalDateFormat)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {hasPermission('canEditUserPermissions') && (
-                            <button className="text-blue-600 hover:text-blue-500 mr-3">
+                            <button 
+                              onClick={() => handleEditMember(member)}
+                              className="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
+                            >
                               Edit
                             </button>
                           )}
                           {hasPermission('canRemoveUsers') && member.role !== 'business-owner' && (
-                            <button className="text-red-600 hover:text-red-500">
+                            <button 
+                              onClick={() => removeMember(member.id, member.user?.name || 'Unknown User')}
+                              className="text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300"
+                            >
                               Remove
                             </button>
                           )}
@@ -464,6 +537,82 @@ function BusinessManagePageContent() {
             }
           }}
         />
+      )}
+
+      {/* Edit Member Modal */}
+      {editingMember && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Edit Member Role
+                </h2>
+                <button
+                  onClick={() => setEditingMember(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <form onSubmit={updateMemberRole} className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Member
+                </label>
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                    {editingMember.user?.name?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {editingMember.user?.name || 'Unknown User'}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {editingMember.user?.email || 'No email'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Role
+                </label>
+                <select
+                  value={editMemberRole}
+                  onChange={(e) => setEditMemberRole(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white"
+                  required
+                >
+                  <option value="employee">Employee</option>
+                  <option value="business-manager">Business Manager</option>
+                  <option value="read-only">Read Only</option>
+                  {hasPermission('canManageBusinessUsers') && (
+                    <option value="business-owner">Business Owner</option>
+                  )}
+                </select>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingMember(null)}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                  disabled={updatingMember}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingMember}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updatingMember ? 'Updating...' : 'Update Role'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </>
   );
