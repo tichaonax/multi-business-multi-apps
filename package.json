@@ -28,6 +28,7 @@
     "test:sync:watch": "jest --config=src/lib/sync/__tests__/jest.config.js --watch",
     "seed:all": "node scripts/seed-all-employee-data.js",
     "seed:migration": "node scripts/seed-migration-data.js",
+    "seed:categories": "node scripts/seed-type-categories.js",
     "migrate:seed": "node scripts/migrate-and-seed.js",
     "post-migration:seed": "node scripts/post-migration-seed.js",
     "setup:production": "node scripts/production-setup.js",
