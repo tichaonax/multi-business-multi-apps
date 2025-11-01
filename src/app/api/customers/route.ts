@@ -77,17 +77,12 @@ export async function GET(request: NextRequest) {
 
     // Type filter
     if (type) {
-      where.type = type
+      where.customerType = type
     }
 
-    // Business filter - if businessId provided, only show customers with accounts in that business
+    // Business filter - if businessId provided, only show customers for that business
     if (businessId) {
-      where.divisionAccounts = {
-        some: {
-          businessId,
-          isActive: true
-        }
-      }
+      where.businessId = businessId
     }
 
     // Fetch customers
