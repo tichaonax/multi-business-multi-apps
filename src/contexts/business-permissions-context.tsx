@@ -14,6 +14,7 @@ interface BusinessPermissionsContextType {
   businesses: BusinessMembership[];
   activeBusinesses: BusinessMembership[];
   switchBusiness: (businessId: string) => Promise<void>;
+  refreshBusinesses: () => Promise<void>;
   isSystemAdmin: boolean;
   isBusinessOwner: boolean;
   isAuthenticated: boolean;
@@ -120,6 +121,14 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
 
   const switchBusiness = async (businessId: string): Promise<void> => {
     let membership = businesses.find((b) => b.businessId === businessId && b.isActive);
+    
+    // Check if trying to switch to an inactive business
+    const inactiveBusiness = businesses.find((b) => b.businessId === businessId && !b.isActive);
+    if (inactiveBusiness) {
+      toast.push('Cannot switch to inactive business. Please reactivate it first.');
+      throw new Error('Business is inactive');
+    }
+    
     if (!membership) {
       // The memberships cache may be stale (demo seeding/unseeding operations can change available businesses).
       // Try a one-off refetch to avoid spurious console errors and to pick up newly-created demo businesses.
@@ -129,6 +138,13 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
           const refreshed: BusinessMembership[] = await res.json();
           setBusinesses(refreshed);
           membership = refreshed.find((b) => b.businessId === businessId && b.isActive) || undefined;
+          
+          // Re-check for inactive business after refresh
+          const stillInactive = refreshed.find((b) => b.businessId === businessId && !b.isActive);
+          if (stillInactive) {
+            toast.push('Cannot switch to inactive business. Please reactivate it first.');
+            throw new Error('Business is inactive');
+          }
         }
       } catch (err) {
         // ignore network errors here; we'll handle below
@@ -197,6 +213,27 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
     }
   };
 
+  const refreshBusinesses = async (): Promise<void> => {
+    try {
+      const res = await fetch("/api/user/business-memberships");
+      if (res.ok) {
+        const refreshed: BusinessMembership[] = await res.json();
+        setBusinesses(refreshed);
+        
+        // If current business is no longer active, switch to first active one
+        const currentStillActive = refreshed.find(b => b.businessId === currentBusinessId && b.isActive);
+        if (!currentStillActive && refreshed.length > 0) {
+          const firstActive = refreshed.find(b => b.isActive);
+          if (firstActive) {
+            setCurrentBusinessId(firstActive.businessId);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh businesses:", err);
+    }
+  };
+
   const activeBusinesses = getActiveBusinesses(businesses);
   const isSystemAdmin = currentBusiness?.permissions?.canManageAllBusinesses || false;
   const isBusinessOwner = currentBusiness?.role === "business-owner";
@@ -209,6 +246,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
     businesses,
     activeBusinesses,
     switchBusiness,
+    refreshBusinesses,
     isSystemAdmin,
     isBusinessOwner,
     isAuthenticated,

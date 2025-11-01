@@ -28,7 +28,7 @@ interface BusinessMember {
 }
 
 function BusinessManagePageContent() {
-  const { currentBusiness, hasPermission, activeBusinesses, switchBusiness, loading: contextLoading, isSystemAdmin } = useBusinessPermissionsContext();
+  const { currentBusiness, hasPermission, activeBusinesses, switchBusiness, refreshBusinesses, loading: contextLoading, isSystemAdmin } = useBusinessPermissionsContext();
   const toast = useToastContext()
   const router = useRouter()
   const [showCreateBusiness, setShowCreateBusiness] = useState(false)
@@ -198,6 +198,54 @@ function BusinessManagePageContent() {
           </div>
         }
       >
+          {/* Admin Quick Links */}
+          {isSystemAdmin && (
+            <div className="card p-4 mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300">System Administrator</h3>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">Access administrative functions</p>
+                </div>
+                <button
+                  onClick={() => router.push('/business/inactive')}
+                  className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  🗃️ View Inactive Businesses
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Inactive Business Warning */}
+          {!currentBusiness?.isActive && (
+            <div className="card p-6 mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700">
+              <div className="flex items-start gap-4">
+                <div className="text-3xl">⚠️</div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-red-900 dark:text-red-300 mb-2">
+                    Business Inactive - Read-Only Mode
+                  </h3>
+                  <p className="text-sm text-red-800 dark:text-red-400 mb-3">
+                    This business has been deactivated. All data is preserved but cannot be modified.
+                  </p>
+                  <ul className="text-sm text-red-700 dark:text-red-400 space-y-1 list-disc list-inside mb-4">
+                    <li>Cannot edit business information</li>
+                    <li>Cannot add, edit, or remove members</li>
+                    <li>Cannot modify products, orders, or inventory</li>
+                    <li>Data is viewable but read-only</li>
+                  </ul>
+                  {isSystemAdmin && (
+                    <button
+                      onClick={() => setShowReactivateBusiness(true)}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
+                    >
+                      ✨ Reactivate This Business
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Business Info */}
           <div className="card p-6">
@@ -291,7 +339,7 @@ function BusinessManagePageContent() {
             <div className="p-6 border-b">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold">Team Members</h2>
-                {hasPermission('canInviteUsers') && (
+                {hasPermission('canInviteUsers') && currentBusiness?.isActive && (
                   <button
                     onClick={() => document.getElementById('invite-form')?.scrollIntoView()}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -363,7 +411,7 @@ function BusinessManagePageContent() {
                           {formatDateByFormat(member.joinedAt, globalDateFormat)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {hasPermission('canEditUserPermissions') && (
+                          {hasPermission('canEditUserPermissions') && currentBusiness?.isActive && (
                             <button 
                               onClick={() => handleEditMember(member)}
                               className="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
@@ -371,7 +419,7 @@ function BusinessManagePageContent() {
                               Edit
                             </button>
                           )}
-                          {hasPermission('canRemoveUsers') && member.role !== 'business-owner' && (
+                          {hasPermission('canRemoveUsers') && member.role !== 'business-owner' && currentBusiness?.isActive && (
                             <button 
                               onClick={() => removeMember(member.id, member.user?.name || 'Unknown User')}
                               className="text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300"
@@ -388,8 +436,8 @@ function BusinessManagePageContent() {
             </div>
           </div>
 
-          {/* Invite Form */}
-          {hasPermission('canInviteUsers') && (
+          {/* Invite Form - Only show for active businesses */}
+          {hasPermission('canInviteUsers') && currentBusiness?.isActive && (
             <div id="invite-form" className="card p-6">
               <h2 className="text-xl font-semibold mb-4">Invite New Member</h2>
               <form onSubmit={inviteMember} className="space-y-4">
@@ -502,11 +550,28 @@ function BusinessManagePageContent() {
         <BusinessDeletionModal
           businessId={currentBusiness.businessId}
           onClose={() => setShowDeleteBusiness(false)}
-          onSuccess={() => {
+          onSuccess={async () => {
             setShowDeleteBusiness(false)
-            toast.push('Business deleted successfully')
-            // Redirect to dashboard since current business is gone
-            router.push('/dashboard')
+            toast.push('Business deactivated successfully')
+            
+            // Auto-switch to another active business
+            const otherBusinesses = activeBusinesses.filter(b => b.businessId !== currentBusiness.businessId)
+            
+            if (otherBusinesses.length > 0) {
+              // Switch to the first available business
+              try {
+                await switchBusiness(otherBusinesses[0].businessId)
+                toast.push(`Switched to ${otherBusinesses[0].businessName}`)
+                // Stay on manage page to show the new business
+              } catch (err) {
+                console.error('Failed to switch business:', err)
+                router.push('/dashboard')
+              }
+            } else {
+              // No active businesses left - redirect to dashboard
+              toast.push('No active businesses remaining. Please select or create a business.')
+              router.push('/dashboard')
+            }
           }}
           onError={(error) => {
             toast.push(error)
@@ -527,13 +592,12 @@ function BusinessManagePageContent() {
           onSuccess={async () => {
             setShowReactivateBusiness(false)
             toast.push('Business reactivated successfully')
-            // Refresh the business context to show updated active status
-            if (currentBusiness?.businessId) {
-              try {
-                await switchBusiness(currentBusiness.businessId)
-              } catch (e) {
-                console.error('Failed to refresh business after reactivation:', e)
-              }
+            // Refresh the business context to show updated active status and update sidebar
+            try {
+              await refreshBusinesses()
+              toast.push('Business list updated')
+            } catch (e) {
+              console.error('Failed to refresh businesses after reactivation:', e)
             }
           }}
         />

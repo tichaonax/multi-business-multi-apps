@@ -14,11 +14,12 @@ export async function GET() {
 
     const user = session.user as SessionUser;
 
-    // System admins get access to all businesses
+    // System admins get access to all ACTIVE businesses only
+    // Inactive businesses should NOT appear in business switcher
     if (isSystemAdmin(user)) {
       const allBusinesses = await prisma.businesses.findMany({
         where: {
-          isActive: true,
+          isActive: true, // Only active businesses
         },
         select: {
           id: true,
@@ -52,7 +53,7 @@ export async function GET() {
           canAccessPayroll: true,
           canViewReports: true,
         },
-        isActive: true,
+        isActive: business.isActive, // Use actual business active status
         joinedAt: new Date(),
         lastAccessedAt: new Date(),
       }));

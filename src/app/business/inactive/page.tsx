@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { RefreshCw, Building2, AlertCircle, ArrowLeft } from 'lucide-react'
 import BusinessReactivationModal from '@/components/business/business-reactivation-modal'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface InactiveBusiness {
   id: string
@@ -16,6 +17,7 @@ interface InactiveBusiness {
 }
 
 export default function InactiveBusinessesPage() {
+  const { refreshBusinesses } = useBusinessPermissionsContext()
   const [businesses, setBusinesses] = useState<InactiveBusiness[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -44,9 +46,15 @@ export default function InactiveBusinessesPage() {
     fetchInactiveBusinesses()
   }, [])
 
-  const handleReactivationSuccess = () => {
+  const handleReactivationSuccess = async () => {
     setSelectedBusiness(null)
     fetchInactiveBusinesses()
+    // Refresh global business context to update sidebar
+    try {
+      await refreshBusinesses()
+    } catch (e) {
+      console.error('Failed to refresh businesses:', e)
+    }
   }
 
   if (loading) {
