@@ -284,15 +284,18 @@ class HybridServiceWrapper extends EventEmitter {
                           statusOutput.includes('No pending migrations') ||
                           (code === 0 && statusOutput.includes('migrations'));
         
-        const needsInitialSchema = statusOutput.includes('Environment variable not found: DATABASE_URL') ||
+        // Check for pending migrations FIRST (more specific check)
+        const hasPendingMigrations = statusOutput.includes('following migration') ||
+                                     statusOutput.includes('Following migration') ||
+                                     statusOutput.includes('have not yet been applied') ||
+                                     statusOutput.includes('pending migration');
+        
+        // Only consider initial schema if connection fails or DB doesn't exist
+        const needsInitialSchema = !hasPendingMigrations && (
+                                   statusOutput.includes('Environment variable not found: DATABASE_URL') ||
                                    statusOutput.includes('database does not exist') ||
                                    statusOutput.includes('Could not connect to database') ||
-                                   (code !== 0 && statusOutput.includes('database'));
-        
-        const hasPendingMigrations = statusOutput.includes('following migration(s) have not yet been applied') ||
-                                     statusOutput.includes('pending migration') ||
-                                     statusOutput.includes('migration file') ||
-                                     (code !== 0 && !needsInitialSchema);
+                                   statusOutput.includes('database "multi_business_db" does not exist'));
 
         let migrationCommand, migrationArgs;
         
@@ -547,7 +550,7 @@ class HybridServiceWrapper extends EventEmitter {
    */
   async buildApplication() {
     return new Promise((resolve, reject) => {
-      console.log('🔨 Building Next.js application...');
+      console.log('🔨 Checking Next.js application build status...');
 
       // Check if build should be skipped
       if (process.env.SKIP_BUILD === 'true') {
@@ -559,6 +562,7 @@ class HybridServiceWrapper extends EventEmitter {
       // Check if .next directory exists and has a valid production build
       const nextDir = path.join(__dirname, '..', '.next');
       const buildIdFile = path.join(nextDir, 'BUILD_ID');
+      const buildCommitFile = path.join(nextDir, '.build-commit');
 
       // A valid build requires the BUILD_ID file to exist and be non-empty
       let hasValidBuild = false;
@@ -572,7 +576,28 @@ class HybridServiceWrapper extends EventEmitter {
         }
       }
 
-      const shouldBuild = !hasValidBuild || process.env.FORCE_BUILD === 'true';
+      // Check if code has changed by comparing git commits
+      let codeChanged = false;
+      if (hasValidBuild && fs.existsSync(buildCommitFile)) {
+        try {
+          const { execSync } = require('child_process');
+          const currentCommit = execSync('git rev-parse --short HEAD', { 
+            cwd: path.join(__dirname, '..'),
+            encoding: 'utf8' 
+          }).trim();
+          const lastBuildCommit = fs.readFileSync(buildCommitFile, 'utf8').trim();
+          
+          if (currentCommit !== lastBuildCommit) {
+            console.log(`📝 Code changed: ${lastBuildCommit} → ${currentCommit}`);
+            codeChanged = true;
+          }
+        } catch (err) {
+          // Git not available or not a repo - skip commit check
+          console.log('⚠️  Could not check git commit (not a git repo or git not installed)');
+        }
+      }
+
+      const shouldBuild = !hasValidBuild || codeChanged || process.env.FORCE_BUILD === 'true';
 
       if (!shouldBuild) {
         console.log('✅ Application build already exists, skipping build');
@@ -621,6 +646,20 @@ class HybridServiceWrapper extends EventEmitter {
       buildProcess.on('close', (code) => {
         if (code === 0) {
           console.log('✅ Application build completed successfully');
+
+          // Save build commit for future change detection
+          try {
+            const { execSync } = require('child_process');
+            const currentCommit = execSync('git rev-parse --short HEAD', { 
+              cwd: path.join(__dirname, '..'),
+              encoding: 'utf8' 
+            }).trim();
+            const buildCommitFile = path.join(__dirname, '..', '.next', '.build-commit');
+            fs.writeFileSync(buildCommitFile, currentCommit, 'utf8');
+            console.log(`📝 Saved build commit: ${currentCommit}`);
+          } catch (err) {
+            console.log('⚠️  Could not save build commit (git not available)');
+          }
 
           // Verify build completion
           this.verifyBuildCompletion()
