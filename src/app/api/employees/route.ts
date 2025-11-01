@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search') || ''
     const department = searchParams.get('department') || ''
     const businessId = searchParams.get('businessId') || ''
+    const businessType = searchParams.get('businessType') || ''
     const status = searchParams.get('status') || 'all'
     const sortBy = searchParams.get('sortBy') || ''
     const sortOrder = searchParams.get('sortOrder') || ''
@@ -34,6 +35,11 @@ export async function GET(req: NextRequest) {
       ...(status === 'active' ? { isActive: true } : {}),
       ...(status === 'inactive' ? { isActive: false } : {}),
       ...(businessId && { primaryBusinessId: businessId }),
+      ...(businessType && {
+        businesses: {
+          type: businessType
+        }
+      }),
       ...(search && {
         OR: [
           { fullName: { contains: search, mode: 'insensitive' } },
