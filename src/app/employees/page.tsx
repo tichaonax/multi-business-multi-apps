@@ -208,10 +208,12 @@ export default function EmployeesPage() {
       const response = await fetch('/api/businesses')
       if (response.ok) {
         const data = await response.json()
-        setBusinesses(data)
+        // API returns { businesses: [...], isAdmin: boolean }
+        setBusinesses(data.businesses || [])
       }
     } catch (error) {
       console.error('Error fetching businesses:', error)
+      setBusinesses([]) // Ensure businesses is always an array
     }
   }
 
