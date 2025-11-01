@@ -6,7 +6,7 @@ import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
 // Admin PUT/DELETE for /api/admin/businesses/[id]
 interface RouteParams {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
@@ -21,7 +21,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Only system administrators can update businesses' }, { status: 403 })
     }
 
-    const id = params.id
+    const { id } = await params
     if (!id) return NextResponse.json({ error: 'Missing business id' }, { status: 400 })
 
     const payload = await req.json()
@@ -90,7 +90,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const user = session.user as SessionUser
     if (!isSystemAdmin(user)) return NextResponse.json({ error: 'Only system administrators can delete businesses' }, { status: 403 })
 
-    const id = params.id
+    const { id } = await params
     if (!id) return NextResponse.json({ error: 'Missing business id' }, { status: 400 })
 
     // Check if hard delete is requested (only for demo businesses)

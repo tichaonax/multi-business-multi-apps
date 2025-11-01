@@ -224,7 +224,7 @@ export async function deleteBusinessHard(
 
       // 8. Delete employee-related data
       const employees = await tx.employees.findMany({
-        where: { businessId },
+        where: { primaryBusinessId: businessId },
         select: { id: true }
       })
 
@@ -243,7 +243,7 @@ export async function deleteBusinessHard(
       }
 
       const { count: employeesCount } = await tx.employees.deleteMany({
-        where: { businessId }
+        where: { primaryBusinessId: businessId }
       })
       deletedCounts.employees = employeesCount
 
@@ -440,6 +440,24 @@ export async function getDeletionImpact(businessId: string) {
 
     const isDemoBusiness = business.name.includes('[Demo]')
 
+    // Get employee details with primary business info
+    const employees = await prisma.employees.findMany({
+      where: { primaryBusinessId: businessId },
+      select: {
+        id: true,
+        fullName: true,
+        employeeNumber: true,
+        primaryBusinessId: true,
+        isActive: true,
+        businesses: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    })
+
     // Count related records
     const [
       ordersCount,
@@ -448,7 +466,6 @@ export async function getDeletionImpact(businessId: string) {
       suppliersCount,
       locationsCount,
       projectsCount,
-      employeesCount,
       vehiclesCount,
       membershipsCount,
       customersCount
@@ -459,7 +476,6 @@ export async function getDeletionImpact(businessId: string) {
       prisma.businessSuppliers.count({ where: { businessId } }),
       prisma.businessLocations.count({ where: { businessId } }),
       prisma.projects.count({ where: { businessId } }),
-      prisma.employees.count({ where: { businessId } }),
       prisma.vehicles.count({ where: { businessId } }),
       prisma.businessMemberships.count({ where: { businessId } }),
       prisma.businessCustomers.count({ where: { businessId } })
@@ -476,11 +492,19 @@ export async function getDeletionImpact(businessId: string) {
         suppliers: suppliersCount,
         locations: locationsCount,
         projects: projectsCount,
-        employees: employeesCount,
+        employees: employees.length,
         vehicles: vehiclesCount,
         memberships: membershipsCount,
         customers: customersCount
-      }
+      },
+      employeeDetails: employees.map(emp => ({
+        id: emp.id,
+        fullName: emp.fullName,
+        employeeNumber: emp.employeeNumber,
+        primaryBusinessId: emp.primaryBusinessId,
+        primaryBusinessName: emp.businesses.name,
+        isActive: emp.isActive
+      }))
     }
   } catch (error) {
     console.error('Error getting deletion impact:', error)

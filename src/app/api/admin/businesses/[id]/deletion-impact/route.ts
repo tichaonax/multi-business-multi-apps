@@ -5,7 +5,7 @@ import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import { getDeletionImpact } from '@/lib/business-deletion-service'
 
 interface RouteParams {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Only system administrators can view deletion impact' }, { status: 403 })
     }
 
-    const id = params.id
+    const { id } = await params
     if (!id) {
       return NextResponse.json({ error: 'Missing business id' }, { status: 400 })
     }

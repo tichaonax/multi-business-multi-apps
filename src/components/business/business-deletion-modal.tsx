@@ -2,6 +2,15 @@
 
 import React, { useState, useEffect } from 'react'
 
+interface EmployeeDetail {
+  id: string
+  fullName: string
+  employeeNumber: string
+  primaryBusinessId: string
+  primaryBusinessName: string
+  isActive: boolean
+}
+
 interface DeletionImpact {
   businessName: string
   businessType: string
@@ -18,6 +27,7 @@ interface DeletionImpact {
     memberships: number
     customers: number
   }
+  employeeDetails?: EmployeeDetail[]
 }
 
 interface BusinessDeletionModalProps {
@@ -232,6 +242,39 @@ export function BusinessDeletionModal({
                   Total: {totalRecords} related records
                 </div>
               </div>
+
+              {/* Employee Details */}
+              {impact.employeeDetails && impact.employeeDetails.length > 0 && (
+                <div className="border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-3">
+                    Employees with this as Primary Business:
+                  </h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {impact.employeeDetails.map((employee) => (
+                      <div key={employee.id} className="text-sm bg-white dark:bg-neutral-800 rounded p-2 border border-blue-200 dark:border-blue-800">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">{employee.fullName}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              Employee #: {employee.employeeNumber}
+                            </p>
+                          </div>
+                          <span className={`px-2 py-1 text-xs rounded ${
+                            employee.isActive 
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                          }`}>
+                            {employee.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Primary Business: {employee.primaryBusinessName}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Warning */}
               {deletionType === 'hard' && (
