@@ -35,26 +35,25 @@ async function seed() {
     for (const p of products) {
       // Upsert product
       const prod = await prisma.businessProducts.upsert({
-        where: { id: p.id },
-        update: { description: p.name, basePrice: p.basePrice, costPrice: p.costPrice, attributes: {} },
-        create: { id: p.id, businessId, name: p.name, description: p.name, sku: p.sku, barcode: null, categoryId: p.categoryId, basePrice: p.basePrice, costPrice: p.costPrice, businessType: 'clothing', isActive: true, attributes: {}, updatedAt: now }
+        where: { businessId_sku: { businessId, sku: p.sku } },
+        update: { description: p.name, basePrice: p.basePrice, costPrice: p.costPrice, attributes: {}, updatedAt: now },
+        create: { businessId, name: p.name, description: p.name, sku: p.sku, barcode: null, categoryId: p.categoryId, basePrice: p.basePrice, costPrice: p.costPrice, businessType: 'clothing', isActive: true, attributes: {}, createdAt: now, updatedAt: now }
       }).catch(() => null)
 
       if (!prod) continue
 
       // Create variants
       for (const v of p.variants || []) {
-        const variantId = `${prod.id}-variant-${v.idSuffix}`
-        await prisma.productVariants.upsert({
-          where: { id: variantId },
-          update: { price: v.price, stockQuantity: v.stock, isActive: true },
-          create: { id: variantId, productId: prod.id, name: v.name, sku: v.sku, barcode: null, price: v.price, stockQuantity: v.stock, isActive: true, updatedAt: now }
+        const variant = await prisma.productVariants.upsert({
+          where: { sku: v.sku },
+          update: { price: v.price, stockQuantity: v.stock, isActive: true, updatedAt: now },
+          create: { productId: prod.id, name: v.name, sku: v.sku, barcode: null, price: v.price, stockQuantity: v.stock, isActive: true, createdAt: now, updatedAt: now }
         }).catch(() => null)
 
         // initial stock movements
-        if (v.stock && v.stock > 0) {
-          const movementId = `${variantId}-stock-1`
-          await prisma.businessStockMovements.createMany({ data: [{ id: movementId, businessId, productVariantId: variantId, movementType: 'PURCHASE_RECEIVED', quantity: v.stock, unitCost: p.costPrice || null, reference: 'Seed initial stock', reason: 'Initial demo stock', businessType: 'clothing', businessProductId: prod.id, createdAt: now }], skipDuplicates: true }).catch(() => null)
+        if (variant && v.stock && v.stock > 0) {
+          const movementId = `${variant.id}-stock-1`
+          await prisma.businessStockMovements.createMany({ data: [{ id: movementId, businessId, productVariantId: variant.id, movementType: 'PURCHASE_RECEIVED', quantity: v.stock, unitCost: p.costPrice || null, reference: 'Seed initial stock', reason: 'Initial demo stock', businessType: 'clothing', businessProductId: prod.id, createdAt: now }], skipDuplicates: true }).catch(() => null)
         }
       }
     }

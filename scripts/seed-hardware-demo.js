@@ -45,50 +45,48 @@ async function seed() {
 
     // Products
     const p1 = await prisma.businessProducts.upsert({
-      where: { id: `${businessId}-prod-1` },
-      update: {},
+      where: { businessId_sku: { businessId, sku: 'HB-M8-30' } },
+      update: { basePrice: 0.12, updatedAt: now },
       create: {
-        id: `${businessId}-prod-1`,
         businessId,
         businessType: 'hardware',
         name: 'Hex Bolt M8 x 30mm',
         sku: 'HB-M8-30',
         basePrice: 0.12,
         categoryId: cat1.id,
-        description: 'Standard hex bolt for general purpose'
-        ,
+        description: 'Standard hex bolt for general purpose',
+        createdAt: now,
         updatedAt: now
       }
     })
 
     const p2 = await prisma.businessProducts.upsert({
-      where: { id: `${businessId}-prod-2` },
-      update: {},
+      where: { businessId_sku: { businessId, sku: 'DR-18V-001' } },
+      update: { basePrice: 89.99, updatedAt: now },
       create: {
-        id: `${businessId}-prod-2`,
         businessId,
         businessType: 'hardware',
         name: 'Cordless Drill - 18V',
         sku: 'DR-18V-001',
         basePrice: 89.99,
         categoryId: cat2.id,
-        description: 'Lightweight cordless drill for DIY tasks'
-        ,
+        description: 'Lightweight cordless drill for DIY tasks',
+        createdAt: now,
         updatedAt: now
       }
     })
 
     // Variants / images
     const v1 = await prisma.productVariants.upsert({
-      where: { id: `${p1.id}-variant-default` },
-      update: {},
-      create: { id: `${p1.id}-variant-default`, productId: p1.id, sku: `${p1.sku}-STD`, price: p1.basePrice, stockQuantity: 500, updatedAt: now }
+      where: { sku: 'HB-M8-30-STD' },
+      update: { stockQuantity: 500, updatedAt: now },
+      create: { productId: p1.id, sku: 'HB-M8-30-STD', price: p1.basePrice, stockQuantity: 500, createdAt: now, updatedAt: now }
     }).catch(() => null)
 
     const v2 = await prisma.productVariants.upsert({
-      where: { id: `${p2.id}-variant-default` },
-      update: {},
-      create: { id: `${p2.id}-variant-default`, productId: p2.id, sku: `${p2.sku}-STD`, price: p2.basePrice, stockQuantity: 25, updatedAt: now }
+      where: { sku: 'DR-18V-001-STD' },
+      update: { stockQuantity: 25, updatedAt: now },
+      create: { productId: p2.id, sku: 'DR-18V-001-STD', price: p2.basePrice, stockQuantity: 25, createdAt: now, updatedAt: now }
     }).catch(() => null)
 
     await prisma.productImages.createMany({

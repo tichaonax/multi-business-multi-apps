@@ -17,12 +17,10 @@ async function createProductWithStock(businessId, categoryId, productData, initi
 
   // Prefer upsert by sku (there is a unique constraint @@unique([businessId, sku]))
   if (productData.sku) {
-    const prodId = `${businessId}-prod-${productData.sku}`
     product = await prisma.businessProducts.upsert({
       where: { businessId_sku: { businessId, sku: productData.sku } },
-      update: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {} },
+      update: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {}, updatedAt: new Date() },
       create: {
-        id: prodId,
         businessId,
         name: productData.name,
         description: productData.description || '',
@@ -34,6 +32,7 @@ async function createProductWithStock(businessId, categoryId, productData, initi
         businessType: 'grocery',
         isActive: true,
         attributes: productData.attributes || {},
+        createdAt: new Date(),
         updatedAt: new Date()
       },
     include: { business_categories: true }
@@ -42,10 +41,9 @@ async function createProductWithStock(businessId, categoryId, productData, initi
     // No sku provided: try finding by businessId+name, then update or create
     const existing = await prisma.businessProducts.findFirst({ where: { businessId, name: productData.name } })
     if (existing) {
-      product = await prisma.businessProducts.update({ where: { id: existing.id }, data: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {} } })
+      product = await prisma.businessProducts.update({ where: { id: existing.id }, data: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {}, updatedAt: new Date() } })
     } else {
-      const prodId = `${businessId}-prod-${productData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '')}`
-      product = await prisma.businessProducts.create({ data: { id: prodId, businessId, name: productData.name, description: productData.description || '', sku: null, barcode: productData.barcode || null, categoryId: categoryId || undefined, basePrice: productData.basePrice, costPrice: productData.costPrice || null, businessType: 'grocery', isActive: true, attributes: productData.attributes || {}, updatedAt: new Date() } })
+      product = await prisma.businessProducts.create({ data: { businessId, name: productData.name, description: productData.description || '', sku: null, barcode: productData.barcode || null, categoryId: categoryId || undefined, basePrice: productData.basePrice, costPrice: productData.costPrice || null, businessType: 'grocery', isActive: true, attributes: productData.attributes || {}, createdAt: new Date(), updatedAt: new Date() } })
     }
   }
 
