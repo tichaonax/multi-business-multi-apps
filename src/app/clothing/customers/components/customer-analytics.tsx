@@ -92,6 +92,7 @@ export function ClothingCustomerAnalytics({ businessId }: ClothingCustomerAnalyt
       // For now, using sample data for UI demonstration
       const sampleAnalytics: CustomerAnalytics = {
         customerAcquisition: {
+          // Sample data - would query customers table with date filters
           thisMonth: 87,
           lastMonth: 72,
           thisYear: 892,
@@ -105,12 +106,14 @@ export function ClothingCustomerAnalytics({ businessId }: ClothingCustomerAnalyt
           ]
         },
         customerRetention: {
+          // Sample data - would calculate repeat purchase rates from business_order_items
           oneMonth: 85.2,
           threeMonths: 72.8,
           sixMonths: 64.5,
           oneYear: 52.3
         },
         purchaseBehavior: {
+          // Sample data - would analyze order history patterns
           avgTimeBetweenOrders: 45,
           seasonalTrends: [
             { season: 'Spring', revenue: 45600, orders: 312 },
@@ -127,46 +130,49 @@ export function ClothingCustomerAnalytics({ businessId }: ClothingCustomerAnalyt
           ]
         },
         segmentAnalysis: [
+          // TODO: All segment data below is sample/demo data
+          // Real calculation would analyze customer order patterns from business_order_items
           {
             segment: 'Style-Conscious',
-            customerCount: 367,
-            revenue: 102890,
-            avgOrderValue: 76.80,
-            retentionRate: 68.5,
-            growthRate: 12.3
+            customerCount: 367, // Sample data
+            revenue: 102890, // Sample data
+            avgOrderValue: 76.80, // Sample data
+            retentionRate: 68.5, // Sample data - calculate from repeat purchase rate
+            growthRate: 12.3 // Sample data - calculate from period-over-period growth
           },
           {
             segment: 'Price-Conscious',
-            customerCount: 342,
-            revenue: 11098, // Real calculation: customerCount * avgOrderValue
-            avgOrderValue: 32.45,
-            retentionRate: 45.2,
-            growthRate: 8.7
+            customerCount: 342, // Sample data
+            revenue: 11098, // Sample data
+            avgOrderValue: 32.45, // Sample data
+            retentionRate: 45.2, // Sample data - calculate from repeat purchase rate
+            growthRate: 8.7 // Sample data - calculate from period-over-period growth
           },
           {
             segment: 'Quality-Focused',
-            customerCount: 298,
-            revenue: 89640,
-            avgOrderValue: 87.25,
-            retentionRate: 78.9,
-            growthRate: 15.6
+            customerCount: 298, // Sample data
+            revenue: 89640, // Sample data
+            avgOrderValue: 87.25, // Sample data
+            retentionRate: 78.9, // Sample data - calculate from repeat purchase rate
+            growthRate: 15.6 // Sample data - calculate from period-over-period growth
           },
           {
             segment: 'Brand-Conscious',
-            customerCount: 240,
-            revenue: 156000,
-            avgOrderValue: 245.50,
-            retentionRate: 82.1,
-            growthRate: 22.4
+            customerCount: 240, // Sample data
+            revenue: 156000, // Sample data
+            avgOrderValue: 245.50, // Sample data
+            retentionRate: 82.1, // Sample data - calculate from repeat purchase rate
+            growthRate: 22.4 // Sample data - calculate from period-over-period growth
           }
         ],
         riskAnalysis: {
+          // Sample data - would calculate from customer order recency and frequency
           churnRisk: [
             {
               customerId: 'cust_risk_1',
               name: 'Amanda Wilson',
               email: 'amanda.w@email.com',
-              riskScore: 85,
+              riskScore: 85, // Sample - calculate from days since last order vs avg frequency
               lastOrderDays: 120,
               totalSpent: 450.00
             },
@@ -174,7 +180,7 @@ export function ClothingCustomerAnalytics({ businessId }: ClothingCustomerAnalyt
               customerId: 'cust_risk_2',
               name: 'Robert Kim',
               email: 'robert.k@email.com',
-              riskScore: 78,
+              riskScore: 78, // Sample
               lastOrderDays: 95,
               totalSpent: 670.00
             },
@@ -182,7 +188,7 @@ export function ClothingCustomerAnalytics({ businessId }: ClothingCustomerAnalyt
               customerId: 'cust_risk_3',
               name: 'Jennifer Lopez',
               email: 'jennifer.l@email.com',
-              riskScore: 72,
+              riskScore: 72, // Sample
               lastOrderDays: 85,
               totalSpent: 890.00
             }
@@ -192,16 +198,16 @@ export function ClothingCustomerAnalytics({ businessId }: ClothingCustomerAnalyt
               customerId: 'cust_react_1',
               name: 'Mark Thompson',
               email: 'mark.t@email.com',
-              lastOrderDays: 180,
-              avgOrderValue: 125.00,
+              lastOrderDays: 180, // Sample - query from business_order_items
+              avgOrderValue: 125.00, // Sample
               segment: 'quality'
             },
             {
               customerId: 'cust_react_2',
               name: 'Lisa Chang',
               email: 'lisa.c@email.com',
-              lastOrderDays: 210,
-              avgOrderValue: 85.00,
+              lastOrderDays: 210, // Sample
+              avgOrderValue: 85.00, // Sample
               segment: 'style'
             }
           ]
