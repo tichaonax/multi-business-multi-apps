@@ -52,37 +52,52 @@ export function BusinessDeletionModal({
   const [error, setError] = useState<string | null>(null)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [activeEmployeeCount, setActiveEmployeeCount] = useState(0)
+  const [hasFetched, setHasFetched] = useState(false)
 
   useEffect(() => {
-    fetchDeletionImpact()
-  }, [businessId])
+    // Only fetch once when the modal opens
+    if (!hasFetched && businessId) {
+      setHasFetched(true)
+      fetchDeletionImpact()
+    }
+  }, [businessId, hasFetched])
 
   const fetchDeletionImpact = async () => {
     try {
+      console.log('[DeletionModal] Fetching deletion impact for business:', businessId)
       const response = await fetch(`/api/admin/businesses/${businessId}/deletion-impact`)
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.error || 'Failed to fetch deletion impact')
       }
       const data = await response.json()
+      console.log('[DeletionModal] Deletion impact data:', {
+        businessName: data.businessName,
+        employeeDetailsCount: data.employeeDetails?.length || 0,
+        employeeDetails: data.employeeDetails
+      })
       setImpact(data)
       
       // Count active employees
       const activeCount = data.employeeDetails?.filter((emp: EmployeeDetail) => emp.isActive).length || 0
+      console.log('[DeletionModal] Active employee count:', activeCount)
       setActiveEmployeeCount(activeCount)
       
       // Set default deletion type based on whether it's a demo business
       setDeletionType(data.isDemoBusiness ? 'hard' : 'soft')
       setStep('confirm')
     } catch (err) {
+      console.error('[DeletionModal] Error fetching deletion impact:', err)
       setError(err instanceof Error ? err.message : 'Failed to load deletion impact')
       setStep('confirm')
     }
   }
 
   const handleTransferComplete = () => {
+    console.log('[DeletionModal] Transfer completed, refreshing deletion impact')
     setShowTransferModal(false)
-    // Refresh the deletion impact to update employee counts
+    // Reset step to loading and refresh the deletion impact to update employee counts
+    setStep('loading')
     fetchDeletionImpact()
   }
 
@@ -151,8 +166,19 @@ export function BusinessDeletionModal({
       )}
 
       {/* Deletion Modal */}
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        onClick={(e) => {
+          // Only close if clicking the backdrop, not the modal content
+          if (e.target === e.currentTarget && step !== 'loading' && step !== 'deleting') {
+            onClose()
+          }
+        }}
+      >
+        <div 
+          className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
