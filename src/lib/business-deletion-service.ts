@@ -83,7 +83,7 @@ export async function deleteBusinessHard(
     if (business.employees.length > 0) {
       return {
         success: false,
-        error: `Cannot delete business with ${business.employees.length} active employee(s). Deactivate them first.`
+        error: `Cannot delete business with ${business.employees.length} active employee(s). Transfer them to another business first.`
       }
     }
 
@@ -387,7 +387,7 @@ export async function deleteBusinessSoft(
     if (business.employees.length > 0) {
       return {
         success: false,
-        error: `Cannot deactivate business with ${business.employees.length} active employee(s). Deactivate them first.`
+        error: `Cannot deactivate business with ${business.employees.length} active employee(s). Transfer them to another business first.`
       }
     }
 
