@@ -6,13 +6,22 @@ async function seed() {
     const businessId = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
     console.log('Seeding clothing demo data for', businessId)
 
-    // Ensure business exists
-    let business = await prisma.businesses.findUnique({ where: { id: businessId } })
+    // Ensure business exists (reuse if found, otherwise create)
     const now = new Date()
-    if (!business) {
-      business = await prisma.businesses.create({ data: { id: businessId, name: 'Clothing Demo', type: 'clothing', description: 'Auto-created for demo', isActive: true, createdAt: now, updatedAt: now } })
-      console.log('Created placeholder business for clothing demo:', businessId)
-    }
+    const business = await prisma.businesses.upsert({
+      where: { id: businessId },
+      update: { updatedAt: now },
+      create: { 
+        id: businessId, 
+        name: 'Clothing [Demo]', 
+        type: 'clothing', 
+        description: 'Demo business for testing - safe to delete', 
+        isActive: true, 
+        createdAt: now, 
+        updatedAt: now 
+      }
+    })
+    console.log('Using business for clothing demo:', businessId)
 
     // Categories / Collections
     const categories = [

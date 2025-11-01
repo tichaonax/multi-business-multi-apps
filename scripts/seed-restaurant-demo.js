@@ -128,17 +128,21 @@ async function seed() {
     console.log('Seeding restaurant demo data for', businessId)
 
     // Ensure the demo business exists (idempotent)
+    const now = new Date()
     const business = await prisma.businesses.upsert({
       where: { id: businessId },
-      update: {},
+      update: { updatedAt: now },
       create: {
         id: businessId,
-        name: 'Restaurant Demo',
+        name: 'Restaurant [Demo]',
         type: 'restaurant',
-        description: 'Demo restaurant business created by seed script',
-        isActive: true
+        description: 'Demo business for testing - safe to delete',
+        isActive: true,
+        createdAt: now,
+        updatedAt: now
       }
     })
+    console.log('Using business for restaurant demo:', businessId)
 
     const categories = [
       { name: 'Starters', desc: 'Appetizers and small plates' },
