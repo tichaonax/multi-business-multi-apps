@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { EmployeeTransferModal } from './employee-transfer-modal'
 
 interface EmployeeDetail {
   id: string
@@ -49,6 +50,8 @@ export function BusinessDeletionModal({
   const [typedName, setTypedName] = useState('')
   const [typedConfirmation, setTypedConfirmation] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [activeEmployeeCount, setActiveEmployeeCount] = useState(0)
 
   useEffect(() => {
     fetchDeletionImpact()
@@ -64,6 +67,10 @@ export function BusinessDeletionModal({
       const data = await response.json()
       setImpact(data)
       
+      // Count active employees
+      const activeCount = data.employeeDetails?.filter((emp: EmployeeDetail) => emp.isActive).length || 0
+      setActiveEmployeeCount(activeCount)
+      
       // Set default deletion type based on whether it's a demo business
       setDeletionType(data.isDemoBusiness ? 'hard' : 'soft')
       setStep('confirm')
@@ -71,6 +78,12 @@ export function BusinessDeletionModal({
       setError(err instanceof Error ? err.message : 'Failed to load deletion impact')
       setStep('confirm')
     }
+  }
+
+  const handleTransferComplete = () => {
+    setShowTransferModal(false)
+    // Refresh the deletion impact to update employee counts
+    fetchDeletionImpact()
   }
 
   const handleDelete = async () => {
@@ -101,6 +114,8 @@ export function BusinessDeletionModal({
   const canProceedToTypeName = () => {
     if (!impact) return false
     if (deletionType === 'hard' && !impact.isDemoBusiness) return false
+    // Block deletion if there are active employees that haven't been transferred
+    if (activeEmployeeCount > 0) return false
     return true
   }
 
@@ -122,8 +137,22 @@ export function BusinessDeletionModal({
     : 0
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <>
+      {/* Employee Transfer Modal */}
+      {showTransferModal && impact && (
+        <EmployeeTransferModal
+          isOpen={showTransferModal}
+          onClose={() => setShowTransferModal(false)}
+          businessId={businessId}
+          businessName={impact.businessName}
+          businessType={impact.businessType}
+          onTransferComplete={handleTransferComplete}
+        />
+      )}
+
+      {/* Deletion Modal */}
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
@@ -243,11 +272,31 @@ export function BusinessDeletionModal({
                 </div>
               </div>
 
+              {/* Active Employee Warning */}
+              {activeEmployeeCount > 0 && (
+                <div className="border-2 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                  <h4 className="font-semibold text-red-800 dark:text-red-300 mb-2 flex items-center gap-2">
+                    <span className="text-2xl">⚠️</span>
+                    Transfer Required: {activeEmployeeCount} Active Employee{activeEmployeeCount !== 1 ? 's' : ''}
+                  </h4>
+                  <p className="text-sm text-red-700 dark:text-red-400 mb-3">
+                    You must transfer all active employees to another business before deletion can proceed.
+                    This ensures employees maintain their primary business assignment and triggers automatic contract renewals.
+                  </p>
+                  <button
+                    onClick={() => setShowTransferModal(true)}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    Transfer Employees Now
+                  </button>
+                </div>
+              )}
+
               {/* Employee Details */}
               {impact.employeeDetails && impact.employeeDetails.length > 0 && (
                 <div className="border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
                   <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-3">
-                    Employees with this as Primary Business:
+                    Employees with this as Primary Business ({impact.employeeDetails.length}):
                   </h4>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {impact.employeeDetails.map((employee) => (
@@ -398,13 +447,21 @@ export function BusinessDeletionModal({
             </button>
             
             {step === 'confirm' && (
-              <button
-                onClick={() => setStep('type-name')}
-                disabled={!canProceedToTypeName()}
-                className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Continue
-              </button>
+              <div className="flex items-center gap-3">
+                {activeEmployeeCount > 0 && (
+                  <span className="text-sm text-red-600 dark:text-red-400">
+                    Transfer {activeEmployeeCount} employee{activeEmployeeCount !== 1 ? 's' : ''} first
+                  </span>
+                )}
+                <button
+                  onClick={() => setStep('type-name')}
+                  disabled={!canProceedToTypeName()}
+                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={activeEmployeeCount > 0 ? 'Transfer employees before continuing' : ''}
+                >
+                  Continue
+                </button>
+              </div>
             )}
 
             {step === 'type-name' && (
@@ -428,7 +485,8 @@ export function BusinessDeletionModal({
             )}
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
