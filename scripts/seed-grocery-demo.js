@@ -4,10 +4,11 @@ const prisma = new PrismaClient()
 async function upsertCategory(businessId, name, description) {
   const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '')
   const id = `${businessId}-cat-${slug}`
+  const now = new Date()
   return prisma.businessCategories.upsert({
-    where: { businessId_name: { businessId, name } },
-    update: { description },
-    create: { id, businessId, name, description, businessType: 'grocery', updatedAt: new Date() }
+    where: { businessType_name: { businessType: 'grocery', name } },
+    update: { description, updatedAt: now },
+    create: { id, businessId, name, description, businessType: 'grocery', isActive: true, createdAt: now, updatedAt: now }
   })
 }
 

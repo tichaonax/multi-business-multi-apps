@@ -7,9 +7,9 @@ async function upsertCategory(businessId, name, description) {
   const id = `${businessId}-cat-${slug}`
   const now = new Date()
   return prisma.businessCategories.upsert({
-    where: { businessId_name: { businessId, name } },
+    where: { businessType_name: { businessType: 'restaurant', name } },
     update: { description, updatedAt: now },
-    create: { id, businessId, name, description, businessType: 'restaurant', createdAt: now, updatedAt: now }
+    create: { id, businessId, name, description, businessType: 'restaurant', isActive: true, createdAt: now, updatedAt: now }
   })
 }
 

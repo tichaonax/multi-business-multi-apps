@@ -23,7 +23,7 @@ async function seed() {
     ]
 
     for (const c of categories) {
-      await prisma.businessCategories.upsert({ where: { id: c.id }, update: { description: c.desc }, create: { id: c.id, businessId, businessType: 'clothing', name: c.name, description: c.desc, updatedAt: now } }).catch(() => null)
+      await prisma.businessCategories.upsert({ where: { id: c.id }, update: { description: c.desc, updatedAt: now }, create: { id: c.id, businessId, businessType: 'clothing', name: c.name, description: c.desc, isActive: true, createdAt: now, updatedAt: now } }).catch(() => null)
     }
 
     // Sample products with variants (sizes/colors)

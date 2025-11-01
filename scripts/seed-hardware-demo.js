@@ -18,14 +18,14 @@ async function seed() {
     // Categories
     const cat1 = await prisma.businessCategories.upsert({
       where: { id: `${businessId}-cat-fasteners` },
-      update: {},
-      create: { id: `${businessId}-cat-fasteners`, businessId, businessType: 'hardware', name: 'Fasteners & Hardware', updatedAt: now }
+      update: { updatedAt: now },
+      create: { id: `${businessId}-cat-fasteners`, businessId, businessType: 'hardware', name: 'Fasteners & Hardware', isActive: true, createdAt: now, updatedAt: now }
     })
 
     const cat2 = await prisma.businessCategories.upsert({
       where: { id: `${businessId}-cat-tools` },
-      update: {},
-      create: { id: `${businessId}-cat-tools`, businessId, businessType: 'hardware', name: 'Tools', updatedAt: now }
+      update: { updatedAt: now },
+      create: { id: `${businessId}-cat-tools`, businessId, businessType: 'hardware', name: 'Tools', isActive: true, createdAt: now, updatedAt: now }
     })
 
     // Suppliers
