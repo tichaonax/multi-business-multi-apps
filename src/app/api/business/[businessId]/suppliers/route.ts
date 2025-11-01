@@ -54,9 +54,9 @@ export async function GET(
       )
     }
 
-    // Build where clause
+    // Build where clause - Query by businessType for shared suppliers
     const where: any = {
-      businessId: businessId,
+      businessType: business.type,
     }
 
     if (isActive !== null) {
@@ -72,7 +72,7 @@ export async function GET(
       ]
     }
 
-    // Get suppliers with product count
+    // Get suppliers with product count (shared across all businesses of same type)
     const suppliers = await prisma.businessSuppliers.findMany({
       where,
       include: {
@@ -185,12 +185,33 @@ export async function POST(
       )
     }
 
+    // Check for duplicate supplier by name and businessType (shared suppliers)
+    const existingSupplier = await prisma.businessSuppliers.findFirst({
+      where: {
+        businessType: business.type,
+        name: {
+          equals: body.name,
+          mode: 'insensitive'
+        }
+      }
+    })
+
+    if (existingSupplier) {
+      return NextResponse.json(
+        {
+          error: 'Duplicate supplier',
+          message: `A supplier named "${body.name}" already exists for ${business.type} businesses. Suppliers are shared across all businesses of the same type.`
+        },
+        { status: 409 }
+      )
+    }
+
     // Generate supplier number if not provided
     let supplierNumber = body.supplierNumber
     if (!supplierNumber) {
-      // Get the highest supplier number for this business
+      // Get the highest supplier number for this businessType
       const lastSupplier = await prisma.businessSuppliers.findFirst({
-        where: { businessId },
+        where: { businessType: business.type },
         orderBy: { supplierNumber: 'desc' },
         select: { supplierNumber: true }
       })
@@ -200,16 +221,19 @@ export async function POST(
         const match = lastSupplier.supplierNumber.match(/(\d+)$/)
         if (match) {
           const nextNum = parseInt(match[1]) + 1
-          supplierNumber = `SUP-${String(nextNum).padStart(3, '0')}`
+          const prefix = business.type.substring(0, 3).toUpperCase()
+          supplierNumber = `${prefix}-SUP-${String(nextNum).padStart(3, '0')}`
         } else {
-          supplierNumber = 'SUP-001'
+          const prefix = business.type.substring(0, 3).toUpperCase()
+          supplierNumber = `${prefix}-SUP-001`
         }
       } else {
-        supplierNumber = 'SUP-001'
+        const prefix = business.type.substring(0, 3).toUpperCase()
+        supplierNumber = `${prefix}-SUP-001`
       }
     }
 
-    // Create the supplier
+    // Create the supplier (shared across all businesses of same type)
     const supplier = await prisma.businessSuppliers.create({
       data: {
         id: randomUUID(),
@@ -264,7 +288,7 @@ export async function POST(
       return NextResponse.json(
         {
           error: 'Duplicate supplier',
-          message: 'A supplier with this number already exists in this business.'
+          message: 'A supplier with this number already exists for this business type. Suppliers are shared across all businesses of the same type.'
         },
         { status: 409 }
       )

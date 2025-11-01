@@ -308,12 +308,12 @@ model BusinessSuppliers {
   businessType      String
   attributes        Json?
   createdAt         DateTime           @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime           @updatedAt
   businesses        Businesses         @relation(fields: [businessId], references: [id])
   supplier_products SupplierProducts[]
   business_products BusinessProducts[] @relation("ProductSupplier")
 
-  @@unique([businessId, supplierNumber])
+  @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
 }
 

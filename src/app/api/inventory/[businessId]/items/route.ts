@@ -308,12 +308,12 @@ export async function POST(
       }
     }
 
-    // Validate supplier if provided
+    // Validate supplier if provided (check by businessType for shared suppliers)
     if (body.supplierId) {
       const supplier = await prisma.businessSuppliers.findFirst({
         where: {
           id: body.supplierId,
-          businessId
+          businessType: business.type
         }
       })
       if (!supplier) {

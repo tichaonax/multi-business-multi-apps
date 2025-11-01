@@ -46,10 +46,11 @@ export async function GET(
     }
 
     // Get supplier with product count
+    // Query by businessType for shared suppliers
     const supplier = await prisma.businessSuppliers.findFirst({
       where: {
         id,
-        businessId
+        businessType: business.type
       },
       include: {
         _count: {
@@ -142,17 +143,17 @@ export async function PUT(
       )
     }
 
-    // Check if supplier exists
+    // Check if supplier exists and belongs to this business type
     const existingSupplier = await prisma.businessSuppliers.findFirst({
       where: {
         id,
-        businessId
+        businessType: business.type
       }
     })
 
     if (!existingSupplier) {
       return NextResponse.json(
-        { error: 'Supplier not found' },
+        { error: 'Supplier not found or does not belong to this business type' },
         { status: 404 }
       )
     }
@@ -211,7 +212,7 @@ export async function PUT(
       return NextResponse.json(
         {
           error: 'Duplicate supplier',
-          message: 'A supplier with this number already exists in this business.'
+          message: 'A supplier with this number already exists for this business type. Suppliers are shared across all businesses of the same type.'
         },
         { status: 409 }
       )
@@ -267,11 +268,11 @@ export async function DELETE(
       )
     }
 
-    // Check if supplier exists
+    // Check if supplier exists and belongs to this business type
     const supplier = await prisma.businessSuppliers.findFirst({
       where: {
         id,
-        businessId
+        businessType: business.type
       },
       include: {
         _count: {
@@ -285,18 +286,18 @@ export async function DELETE(
 
     if (!supplier) {
       return NextResponse.json(
-        { error: 'Supplier not found' },
+        { error: 'Supplier not found or does not belong to this business type' },
         { status: 404 }
       )
     }
 
-    // Check if supplier is being used
+    // Check if supplier is being used across all businesses of this type
     const productCount = supplier._count.business_products + supplier._count.supplier_products
     if (productCount > 0) {
       return NextResponse.json(
         {
           error: 'Supplier in use',
-          message: `Cannot delete supplier. It is currently linked to ${productCount} product(s). Please remove these associations first.`
+          message: `Cannot delete supplier. It is shared across businesses of type ${business.type} and is currently linked to ${productCount} product(s). Please remove these associations first.`
         },
         { status: 400 }
       )

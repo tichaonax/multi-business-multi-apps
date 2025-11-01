@@ -107,6 +107,11 @@ export async function PUT(
       where: {
         id: itemId,
         businessId
+      },
+      include: {
+        businesses: {
+          select: { type: true }
+        }
       }
     })
 
@@ -140,12 +145,12 @@ export async function PUT(
       }
     }
 
-    // Validate supplier if provided
+    // Validate supplier if provided (check by businessType for shared suppliers)
     if (body.supplierId) {
       const supplier = await prisma.businessSuppliers.findFirst({
         where: {
           id: body.supplierId,
-          businessId
+          businessType: existingProduct.businesses.type
         }
       })
       if (!supplier) {
