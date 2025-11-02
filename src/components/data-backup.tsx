@@ -26,9 +26,28 @@ interface BackupOptions {
   includeAuditLogs: boolean;
   includeDemoData: boolean;
   selectedDemoBusinessId?: string;
+  selectedRealBusinessId?: string;
 }
 
 interface DemoBusiness {
+  id: string;
+  name: string;
+  type: string;
+  description: string | null;
+  createdAt: string;
+  counts: {
+    products: number;
+    variants: number;
+    categories: number;
+    suppliers: number;
+    customers: number;
+    employees: number;
+    members: number;
+    stockMovements: number;
+  };
+}
+
+interface RealBusiness {
   id: string;
   name: string;
   type: string;
@@ -74,13 +93,16 @@ export function DataBackup() {
   const [demoBusinesses, setDemoBusinesses] = useState<DemoBusiness[]>([]);
   const [loadingDemos, setLoadingDemos] = useState(false);
   const [deletingDemo, setDeletingDemo] = useState<string | null>(null);
+  const [realBusinesses, setRealBusinesses] = useState<RealBusiness[]>([]);
+  const [loadingRealBusinesses, setLoadingRealBusinesses] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm()
   const customAlert = useAlert()
 
-  // Load demo businesses on component mount
+  // Load demo and real businesses on component mount
   useEffect(() => {
     loadDemoBusinesses();
+    loadRealBusinesses();
   }, []);
 
   const loadDemoBusinesses = async () => {
@@ -95,6 +117,21 @@ export function DataBackup() {
       console.error('Failed to load demo businesses:', error);
     } finally {
       setLoadingDemos(false);
+    }
+  };
+
+  const loadRealBusinesses = async () => {
+    setLoadingRealBusinesses(true);
+    try {
+      const response = await fetch('/api/admin/real-businesses');
+      if (response.ok) {
+        const data = await response.json();
+        setRealBusinesses(data.businesses || []);
+      }
+    } catch (error) {
+      console.error('Failed to load real businesses:', error);
+    } finally {
+      setLoadingRealBusinesses(false);
     }
   };
 
@@ -181,6 +218,11 @@ export function DataBackup() {
       params.set('type', backupOptions.type);
       params.set('includeAuditLogs', backupOptions.includeAuditLogs.toString());
       params.set('includeDemoData', backupOptions.includeDemoData.toString());
+      
+      // Add businessId if specific real business is selected
+      if (backupOptions.selectedRealBusinessId) {
+        params.set('businessId', backupOptions.selectedRealBusinessId);
+      }
 
       const response = await fetch(`/api/backup?${params}`);
 
@@ -372,6 +414,40 @@ export function DataBackup() {
             {loadingDemos && (
               <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
                 Loading demo businesses...
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Real Business Selector - for users, business-data, and employees backups */}
+        {(backupOptions.type === 'users' || backupOptions.type === 'business-data' || backupOptions.type === 'employees') && realBusinesses.length > 0 && (
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-950 dark:border-blue-800">
+            <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+              Select Business to Backup (Optional)
+            </h4>
+            <select
+              value={backupOptions.selectedRealBusinessId || ''}
+              onChange={(e) =>
+                setBackupOptions({
+                  ...backupOptions,
+                  selectedRealBusinessId: e.target.value || undefined,
+                })
+              }
+              className="w-full p-2 border border-blue-300 rounded-md bg-white dark:bg-slate-800 dark:border-blue-700 text-slate-900 dark:text-slate-100"
+            >
+              <option value="">All Businesses ({realBusinesses.length})</option>
+              {realBusinesses.map((business) => (
+                <option key={business.id} value={business.id}>
+                  {business.name} ({business.type}) - {business.counts.products} products, {business.counts.employees} employees
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+              Leave blank to backup all businesses, or select a specific business to backup only its data
+            </p>
+            {loadingRealBusinesses && (
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                Loading businesses...
               </p>
             )}
           </div>

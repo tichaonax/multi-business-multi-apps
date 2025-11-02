@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const backupType = searchParams.get('type') || 'full';
     const includeAuditLogs = searchParams.get('includeAuditLogs') === 'true';
     const includeDemoData = searchParams.get('includeDemoData') === 'true'; // Demo data excluded by default
+    const businessId = searchParams.get('businessId'); // Optional: backup specific business only
 
     const backupData: any = {
       metadata: {
@@ -25,7 +26,12 @@ export async function GET(request: NextRequest) {
         source: 'multi-business-multi-apps',
         includeAuditLogs,
         includeDemoData,
-        note: includeDemoData ? 'Demo data included' : 'Demo data excluded (production backup)'
+        businessId: businessId || undefined,
+        note: businessId 
+          ? `Specific business backup (${businessId})`
+          : includeDemoData 
+            ? 'Demo data included' 
+            : 'Demo data excluded (production backup)'
       }
     };
 
@@ -126,31 +132,67 @@ export async function GET(request: NextRequest) {
 
       case 'users':
         // Users and permissions only
-        backupData.users = await prisma.users.findMany({
-          include: {
-            business_memberships: {
-              include: {
-                businesses: true,
-                permissionTemplates: true
+        const usersBusinessFilter = businessId ? { id: businessId } : (includeDemoData ? {} : { isDemo: false });
+        
+        if (businessId) {
+          // If specific business, get only users who are members
+          backupData.users = await prisma.users.findMany({
+            where: {
+              business_memberships: {
+                some: {
+                  businessId: businessId
+                }
+              }
+            },
+            include: {
+              business_memberships: {
+                where: { businessId: businessId },
+                include: {
+                  businesses: true,
+                  permissionTemplates: true
+                }
               }
             }
-          }
-        });
+          });
 
-        backupData.business_memberships = await prisma.businessMemberships.findMany({
-          include: {
-            users: true,
-            businesses: true,
-            permissionTemplates: true
-          }
-        });
+          backupData.business_memberships = await prisma.businessMemberships.findMany({
+            where: { businessId: businessId },
+            include: {
+              users: true,
+              businesses: true,
+              permissionTemplates: true
+            }
+          });
+        } else {
+          // All users and memberships
+          backupData.users = await prisma.users.findMany({
+            include: {
+              business_memberships: {
+                include: {
+                  businesses: true,
+                  permissionTemplates: true
+                }
+              }
+            }
+          });
+
+          backupData.business_memberships = await prisma.businessMemberships.findMany({
+            include: {
+              users: true,
+              businesses: true,
+              permissionTemplates: true
+            }
+          });
+        }
 
         backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
         break;
 
       case 'business-data':
         // Business information and settings (excluding demo by default)
-        const businessDataFilter = includeDemoData ? {} : { isDemo: false };
+        const businessDataFilter = businessId 
+          ? { id: businessId }
+          : (includeDemoData ? {} : { isDemo: false });
         
         backupData.businesses = await prisma.businesses.findMany({
           where: businessDataFilter,
@@ -175,14 +217,16 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        // Business products and categories (only for non-demo businesses)
+        // Business products and categories (only for selected/non-demo businesses)
         backupData.businessCategories = await prisma.businessCategories.findMany({
-          where: includeDemoData ? {} : {
-            OR: [
-              { businessId: { in: businessDataIds } },
-              { businessId: null }
-            ]
-          }
+          where: businessId 
+            ? { businessId: businessId }
+            : (includeDemoData ? {} : {
+                OR: [
+                  { businessId: { in: businessDataIds } },
+                  { businessId: null }
+                ]
+              })
         });
         backupData.businessBrands = await prisma.businessBrands.findMany({
           where: {
@@ -190,12 +234,14 @@ export async function GET(request: NextRequest) {
           }
         });
         backupData.businessProducts = await prisma.businessProducts.findMany({
-          where: includeDemoData ? {} : {
-            OR: [
-              { businessId: { in: businessDataIds } },
-              { businessId: null }
-            ]
-          }
+          where: businessId
+            ? { businessId: businessId }
+            : (includeDemoData ? {} : {
+                OR: [
+                  { businessId: { in: businessDataIds } },
+                  { businessId: null }
+                ]
+              })
         });
         backupData.businessCustomers = await prisma.businessCustomers.findMany({
           where: {
@@ -213,8 +259,17 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'employees':
-        // Employee data
+        // Employee data (with optional business filter)
+        const employeeBusinessFilter = businessId 
+          ? { primaryBusinessId: businessId }
+          : (includeDemoData ? {} : {
+              businesses: {
+                isDemo: false
+              }
+            });
+        
         backupData.employees = await prisma.employees.findMany({
+          where: employeeBusinessFilter,
           include: {
             job_titles: true,
             compensation_types: true,
@@ -226,7 +281,16 @@ export async function GET(request: NextRequest) {
           }
         });
 
+        const employeeIds = backupData.employees.map((e: any) => e.id);
+
         backupData.employeeContracts = await prisma.employeeContracts.findMany({
+          where: businessId
+            ? { primaryBusinessId: businessId }
+            : (includeDemoData ? {} : {
+                businesses_employee_contracts_primaryBusinessIdTobusinesses: {
+                  isDemo: false
+                }
+              }),
           include: {
             employees_employee_contracts_employeeIdToemployees: true,
             businesses_employee_contracts_primaryBusinessIdTobusinesses: true,
@@ -236,10 +300,18 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.employeeBusinessAssignments = await prisma.employeeBusinessAssignments.findMany();
-        backupData.employeeBenefits = await prisma.employeeBenefits.findMany();
-        backupData.employeeAttendance = await prisma.employeeAttendance.findMany();
-        backupData.disciplinaryActions = await prisma.disciplinaryActions.findMany();
+        backupData.employeeBusinessAssignments = await prisma.employeeBusinessAssignments.findMany({
+          where: { employeeId: { in: employeeIds } }
+        });
+        backupData.employeeBenefits = await prisma.employeeBenefits.findMany({
+          where: { employeeId: { in: employeeIds } }
+        });
+        backupData.employeeAttendance = await prisma.employeeAttendance.findMany({
+          where: { employeeId: { in: employeeIds } }
+        });
+        backupData.disciplinaryActions = await prisma.disciplinaryActions.findMany({
+          where: { employeeId: { in: employeeIds } }
+        });
         break;
 
       case 'reference-data':
