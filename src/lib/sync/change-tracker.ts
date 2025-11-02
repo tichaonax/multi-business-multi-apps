@@ -308,10 +308,16 @@ export class DatabaseChangeTracker {
         { priority: 'desc' },
         { lamportClock: 'asc' }
       ],
-      take: limit
+      take: limit * 2 // Fetch more to account for filtering
     })
 
-    return events.map((event: any) => ({
+    // Filter out demo business events
+    const filteredEvents = await this.filterDemoBusinessEvents(events)
+
+    // Return only the requested limit after filtering
+    const limitedEvents = filteredEvents.slice(0, limit)
+
+    return limitedEvents.map((event: any) => ({
       eventId: event.eventId,
       sourceNodeId: event.sourceNodeId,
       tableName: event.tableName,
@@ -325,6 +331,71 @@ export class DatabaseChangeTracker {
       priority: event.priority,
       metadata: event.metadata
     }))
+  }
+
+  /**
+   * Filter out events related to demo businesses
+   * Demo businesses have IDs ending with "-demo-business" or "-demo"
+   */
+  private async filterDemoBusinessEvents(events: any[]): Promise<any[]> {
+    const filtered: any[] = []
+
+    for (const event of events) {
+      const isDemoEvent = await this.isDemoBusinessEvent(event)
+      if (!isDemoEvent) {
+        filtered.push(event)
+      }
+    }
+
+    return filtered
+  }
+
+  /**
+   * Check if an event is related to a demo business
+   */
+  private async isDemoBusinessEvent(event: any): Promise<boolean> {
+    try {
+      const { tableName, recordId, changeData } = event
+
+      // Check if the event is directly on the businesses table
+      if (tableName === 'businesses' || tableName === 'Businesses') {
+        return this.isDemoBusinessId(recordId)
+      }
+
+      // For other tables, check if they have a businessId field in changeData
+      if (changeData && typeof changeData === 'object') {
+        const businessId = changeData.businessId || changeData.business_id
+        if (businessId && typeof businessId === 'string') {
+          return this.isDemoBusinessId(businessId)
+        }
+      }
+
+      // For tables without direct businessId, we'll allow the sync
+      // (could be extended to check related tables if needed)
+      return false
+    } catch (error) {
+      console.error('Error checking if event is demo business:', error)
+      // On error, allow the event to sync (safer to sync than to miss real data)
+      return false
+    }
+  }
+
+  /**
+   * Check if a business ID is a demo business
+   * Demo businesses have IDs like: "clothing-demo-business", "hardware-demo-business", "restaurant-demo", etc.
+   */
+  private isDemoBusinessId(businessId: string): boolean {
+    if (!businessId || typeof businessId !== 'string') {
+      return false
+    }
+
+    const lowerBusinessId = businessId.toLowerCase()
+
+    // Check for common demo business ID patterns
+    return lowerBusinessId.includes('-demo-business') ||
+           lowerBusinessId.endsWith('-demo') ||
+           lowerBusinessId.startsWith('demo-') ||
+           lowerBusinessId === 'demo'
   }
 
   /**

@@ -138,6 +138,7 @@ export class SyncService extends EventEmitter {
 
     try {
       this.log('info', `Starting sync service: ${this.config.nodeName} (${this.nodeId})`)
+      this.log('info', '⚠️  Demo business data will be excluded from synchronization')
 
       // Initialize database sync system (with retry/reconnect support)
       try {
