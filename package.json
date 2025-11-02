@@ -119,6 +119,9 @@
     "xlsx": "^0.18.5",
     "zod": "^4.1.5"
   },
+  "prisma": {
+    "seed": "node scripts/post-migration-seed.js"
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",

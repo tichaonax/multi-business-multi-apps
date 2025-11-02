@@ -28,7 +28,7 @@ model Accounts {
 
 model AuditLogs {
   id         String   @id @default(uuid())
-  userId     String
+  userId     String?
   action     String
   entityType String
   entityId   String
@@ -40,7 +40,7 @@ model AuditLogs {
   recordId   String?
   changes    Json?
   details    Json?
-  users      Users    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  users      Users?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
 }
@@ -292,7 +292,7 @@ model BusinessStockMovements {
 
 model BusinessSuppliers {
   id                String             @id @default(uuid())
-  businessId        String
+  businessId        String? // Optional: tracks which business created this supplier (for audit)
   supplierNumber    String
   name              String
   contactPerson     String?
@@ -306,11 +306,11 @@ model BusinessSuppliers {
   accountBalance    Decimal?           @default(0) @db.Decimal(12, 2)
   notes             String?
   isActive          Boolean            @default(true)
-  businessType      String
+  businessType      String // Suppliers are shared by businessType (e.g., all hardware businesses)
   attributes        Json?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
-  businesses        Businesses         @relation(fields: [businessId], references: [id])
+  businesses        Businesses?        @relation(fields: [businessId], references: [id])
   supplier_products SupplierProducts[]
   business_products BusinessProducts[] @relation("ProductSupplier")
 

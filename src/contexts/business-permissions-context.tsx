@@ -33,7 +33,15 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
   const toast = useToastContext()
   const [showSeedModal, setShowSeedModal] = useState(false)
   const [seedTargetBusiness, setSeedTargetBusiness] = useState<string | null>(null)
-  const [currentBusinessId, setCurrentBusinessId] = useState<string | null>(null);
+  
+  // Initialize currentBusinessId from localStorage if available
+  const [currentBusinessId, setCurrentBusinessId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('currentBusinessId');
+    }
+    return null;
+  });
+  
   const [businesses, setBusinesses] = useState<BusinessMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +72,14 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
         if (!currentBusinessId) {
           const activeMemberships = getActiveBusinesses(memberships);
           if (activeMemberships.length > 0) {
-            setCurrentBusinessId(activeMemberships[0].businessId);
+            // Default to first active business
+            const defaultBusiness = activeMemberships[0].businessId;
+            setCurrentBusinessId(defaultBusiness);
+            
+            // Persist to localStorage
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('currentBusinessId', defaultBusiness);
+            }
 
             // Try to load the user's last accessed business in the background
             fetch("/api/user/last-accessed-business")
@@ -73,15 +88,34 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
                 const lastAccessedId = data?.lastAccessed?.businessId;
                 if (
                   lastAccessedId &&
-                  lastAccessedId !== activeMemberships[0].businessId &&
+                  lastAccessedId !== defaultBusiness &&
                   activeMemberships.some((m) => m.businessId === lastAccessedId)
                 ) {
                   setCurrentBusinessId(lastAccessedId);
+                  // Persist to localStorage
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('currentBusinessId', lastAccessedId);
+                  }
                 }
               })
               .catch(() => {
                 /* ignore */
               });
+          }
+        } else {
+          // Validate that the currentBusinessId from localStorage is still valid
+          const isValidBusiness = memberships.some(m => m.businessId === currentBusinessId && m.isActive);
+          if (!isValidBusiness) {
+            // Current business from localStorage is no longer valid, switch to first active
+            const activeMemberships = getActiveBusinesses(memberships);
+            if (activeMemberships.length > 0) {
+              const newBusinessId = activeMemberships[0].businessId;
+              setCurrentBusinessId(newBusinessId);
+              // Persist to localStorage
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('currentBusinessId', newBusinessId);
+              }
+            }
           }
         }
 
@@ -178,8 +212,11 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
                 // ignore
               }
 
-              // Update current business id locally and return
+              // Update current business id locally and persist to localStorage
               setCurrentBusinessId(businessId)
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('currentBusinessId', businessId);
+              }
               return
             }
           } catch (e) {
@@ -201,6 +238,11 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
     const updated = [membership, ...businesses.filter((b) => b.businessId !== businessId)];
     setBusinesses(updated);
     setCurrentBusinessId(businessId);
+    
+    // Persist to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('currentBusinessId', businessId);
+    }
 
     try {
       await fetch("/api/user/set-current-business", {
@@ -226,6 +268,10 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
           const firstActive = refreshed.find(b => b.isActive);
           if (firstActive) {
             setCurrentBusinessId(firstActive.businessId);
+            // Persist to localStorage
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('currentBusinessId', firstActive.businessId);
+            }
           }
         }
       }

@@ -7,7 +7,7 @@ import { InventorySubcategory, InventoryCategory } from '@/types/inventory-categ
 interface InventorySubcategoryEditorProps {
   subcategory?: InventorySubcategory | null; // null/undefined = create mode, otherwise edit mode
   category: InventoryCategory;
-  onSuccess: () => void;
+  onSuccess: (createdSubcategory?: InventorySubcategory) => void;
   onCancel: () => void;
   isOpen: boolean;
 }
@@ -78,7 +78,8 @@ export function InventorySubcategoryEditor({
         throw new Error(errorData.error || `Failed to ${isEditMode ? 'update' : 'create'} subcategory`);
       }
 
-      onSuccess();
+      const result = await response.json();
+      onSuccess(result.subcategory);
 
       // Reset form
       setName('');

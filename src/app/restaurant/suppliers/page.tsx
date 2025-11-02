@@ -78,7 +78,7 @@ export default function RestaurantSuppliersPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Restaurant Business</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You have access to {restaurantBusinesses.length} restaurant business{restaurantBusinesses.length > 1 ? 'es' : ''}.
             Please select one from the sidebar to use the supplier management system.
           </p>
@@ -101,10 +101,10 @@ export default function RestaurantSuppliersPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             The Restaurant Supplier Management is only available for restaurant businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Please select a restaurant business from the sidebar to use this system.
           </p>
         </div>
@@ -117,11 +117,11 @@ export default function RestaurantSuppliersPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Restaurant Businesses</h2>
-          <p className="text-gray-600 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No Restaurant Businesses</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You don't have access to any restaurant businesses. The Restaurant Supplier Management system requires access to at least one restaurant business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Contact your administrator if you need access to restaurant businesses.
           </p>
         </div>

@@ -28,6 +28,7 @@ interface UniversalInventoryItem {
 interface UniversalInventoryGridProps {
   businessId: string
   businessType?: string
+  categoryFilter?: string  // External category filter (from parent component)
   onItemEdit?: (item: UniversalInventoryItem) => void
   onItemView?: (item: UniversalInventoryItem) => void
   onItemDelete?: (item: UniversalInventoryItem) => void
@@ -45,6 +46,7 @@ interface UniversalInventoryGridProps {
 export function UniversalInventoryGrid({
   businessId,
   businessType = 'restaurant',
+  categoryFilter,  // External filter from parent
   onItemEdit,
   onItemView,
   onItemDelete,
@@ -71,6 +73,9 @@ export function UniversalInventoryGrid({
   const [categories, setCategories] = useState<string[]>([])
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [locations, setLocations] = useState<string[]>([])
+  
+  // Use external categoryFilter if provided, otherwise use internal state
+  const effectiveCategory = categoryFilter || selectedCategory
 
   // Fetch inventory items
   useEffect(() => {
@@ -83,7 +88,7 @@ export function UniversalInventoryGrid({
           page: currentPage.toString(),
           limit: pageSize.toString(),
           ...(searchTerm && { search: searchTerm }),
-          ...(selectedCategory !== 'all' && { category: selectedCategory })
+          ...(effectiveCategory !== 'all' && { category: effectiveCategory })
         })
 
         const response = await fetch(`/api/inventory/${businessId}/items?${params}`)
@@ -121,7 +126,7 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, searchTerm, selectedCategory])
+  }, [businessId, currentPage, pageSize, searchTerm, selectedCategory, categoryFilter])
 
   // Filter items by supplier and location
   const filteredItems = items.filter(item => {
@@ -228,14 +233,20 @@ export function UniversalInventoryGrid({
       case 'hardware':
         return (
           <div className="text-xs space-y-1">
-            {attributes.manufacturer && (
+            {attributes.manufacturer && typeof attributes.manufacturer === 'string' && (
               <div className="font-medium">{attributes.manufacturer}</div>
             )}
-            {attributes.model && (
+            {attributes.model && typeof attributes.model === 'string' && (
               <div>Model: {attributes.model}</div>
             )}
-            {attributes.warranty && (
+            {attributes.warranty && typeof attributes.warranty === 'string' && (
               <div className="text-blue-600">Warranty: {attributes.warranty}</div>
+            )}
+            {attributes.material && typeof attributes.material === 'string' && (
+              <div>Material: {attributes.material}</div>
+            )}
+            {attributes.brand && typeof attributes.brand === 'string' && (
+              <div>Brand: {attributes.brand}</div>
             )}
           </div>
         )
@@ -257,10 +268,10 @@ export function UniversalInventoryGrid({
     return (
       <div className="space-y-4">
         <div className="animate-pulse">
-          <div className="h-10 bg-gray-200 rounded mb-4"></div>
+          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded"></div>
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
             ))}
           </div>
         </div>

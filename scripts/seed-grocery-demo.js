@@ -1,14 +1,37 @@
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
-async function upsertCategory(businessId, name, description) {
-  const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '')
-  const id = `${businessId}-cat-${slug}`
-  const now = new Date()
-  return prisma.businessCategories.upsert({
-    where: { businessType_name: { businessType: 'grocery', name } },
-    update: { description, updatedAt: now },
-    create: { id, businessId, name, description, businessType: 'grocery', isActive: true, createdAt: now, updatedAt: now }
+/**
+ * Ensure type-based categories exist before seeding demo data
+ */
+async function ensureCategoriesExist() {
+  const categoriesExist = await prisma.businessCategories.findFirst({
+    where: { businessType: 'grocery', businessId: null }
+  })
+
+  if (!categoriesExist) {
+    console.log('📂 Type-based categories not found. Auto-seeding categories...')
+    try {
+      const { seedTypeCategories } = require('./seed-type-categories.js')
+      await seedTypeCategories()
+      console.log('✅ Categories seeded successfully')
+    } catch (err) {
+      console.error('❌ Failed to seed categories:', err.message)
+      throw new Error('Cannot proceed without categories. Please run: npm run seed:categories')
+    }
+  } else {
+    console.log('✅ Type-based categories already exist')
+  }
+}
+
+// Get existing type-based category (don't create new ones)
+async function getCategory(name) {
+  return prisma.businessCategories.findFirst({
+    where: { 
+      businessType: 'grocery', 
+      name,
+      businessId: null  // Type-based categories have NULL businessId
+    }
   })
 }
 
@@ -106,7 +129,10 @@ async function seed() {
 
     console.log('Seeding grocery demo data for', businessId)
 
-    // Ensure business exists
+    // STEP 1: Ensure categories exist (auto-seed if missing)
+    await ensureCategoriesExist()
+
+    // STEP 2: Ensure business exists
     const now = new Date()
     const business = await prisma.businesses.upsert({
       where: { id: businessId },
@@ -139,32 +165,75 @@ async function seed() {
       { name: 'Snacks & Candy', desc: 'Snacks, chips, candy' }
     ]
 
+    // Get type-based categories (should already exist from seed-type-categories.js)
     const createdCats = {}
     for (const c of categories) {
-      const cat = await upsertCategory(businessId, c.name, c.desc)
+      const cat = await getCategory(c.name)
+      if (!cat) {
+        console.error(`❌ Category "${c.name}" not found! Please run: npm run seed:categories first`)
+        process.exitCode = 1
+        return
+      }
       createdCats[c.name] = cat.id
     }
+    console.log('✅ Using type-based categories')
 
-    // Products (seed a small set across categories)
+    // Products with realistic cost prices (expanded list)
     const products = [
+      // Fresh Produce
       { name: 'Bananas', sku: 'PROD-BAN-001', category: 'Fresh Produce', basePrice: 0.69, costPrice: 0.25, attributes: { pluCode: '4011', temperatureZone: 'ambient', organicCertified: false }, initialStock: 120 },
-      { name: 'Roma Tomatoes', sku: 'PROD-TOM-001', category: 'Fresh Produce', basePrice: 1.29, costPrice: 0.5, attributes: { pluCode: '4087', temperatureZone: 'ambient' }, initialStock: 80 },
-      { name: 'Whole Milk 1L', sku: 'PROD-MLK-001', category: 'Dairy & Eggs', basePrice: 2.49, costPrice: 1.2, attributes: { storageTemp: 'refrigerated', expirationDays: 7 }, initialStock: 40 },
-      { name: 'Ground Beef 80/20 1lb', sku: 'PROD-BEEF-001', category: 'Meat & Seafood', basePrice: 5.99, costPrice: 3.5, attributes: { storageTemp: 'refrigerated', expirationDays: 3 }, initialStock: 30 },
-      { name: 'Sourdough Loaf', sku: 'PROD-BREAD-001', category: 'Bakery', basePrice: 3.5, costPrice: 1.5, attributes: { expirationDays: 2 }, initialStock: 25 },
-      { name: 'Frozen Peas 1kg', sku: 'PROD-FZN-PEAS-001', category: 'Frozen Foods', basePrice: 2.99, costPrice: 1.0, attributes: { storageTemp: 'frozen' }, initialStock: 60 },
-      { name: 'Olive Oil Extra Virgin 1L', sku: 'PROD-OIL-001', category: 'Pantry Staples', basePrice: 12.99, costPrice: 8.0, attributes: {}, initialStock: 5 },
-      { name: 'Cola 330ml', sku: 'PROD-COLA-001', category: 'Beverages', basePrice: 1.25, costPrice: 0.5, attributes: {}, initialStock: 200 },
-      { name: 'Salted Potato Chips 150g', sku: 'PROD-CHIP-001', category: 'Snacks & Candy', basePrice: 1.79, costPrice: 0.7, attributes: {}, initialStock: 90 }
+      { name: 'Roma Tomatoes', sku: 'PROD-TOM-001', category: 'Fresh Produce', basePrice: 1.29, costPrice: 0.50, attributes: { pluCode: '4087', temperatureZone: 'ambient' }, initialStock: 80 },
+      { name: 'Iceberg Lettuce', sku: 'PROD-LET-001', category: 'Fresh Produce', basePrice: 1.99, costPrice: 0.85, attributes: { temperatureZone: 'refrigerated' }, initialStock: 45 },
+      { name: 'Red Apples', sku: 'PROD-APP-001', category: 'Fresh Produce', basePrice: 0.89, costPrice: 0.35, attributes: { pluCode: '4016' }, initialStock: 95 },
+      
+      // Dairy & Eggs
+      { name: 'Whole Milk 1L', sku: 'PROD-MLK-001', category: 'Dairy & Eggs', basePrice: 2.49, costPrice: 1.20, attributes: { storageTemp: 'refrigerated', expirationDays: 7 }, initialStock: 40 },
+      { name: 'Large Eggs (Dozen)', sku: 'PROD-EGG-001', category: 'Dairy & Eggs', basePrice: 3.99, costPrice: 2.10, attributes: { storageTemp: 'refrigerated', expirationDays: 21 }, initialStock: 60 },
+      { name: 'Cheddar Cheese 500g', sku: 'PROD-CHE-001', category: 'Dairy & Eggs', basePrice: 6.99, costPrice: 3.80, attributes: { storageTemp: 'refrigerated' }, initialStock: 35 },
+      { name: 'Greek Yogurt 500g', sku: 'PROD-YOG-001', category: 'Dairy & Eggs', basePrice: 4.49, costPrice: 2.40, attributes: { storageTemp: 'refrigerated', expirationDays: 14 }, initialStock: 50 },
+      
+      // Meat & Seafood
+      { name: 'Ground Beef 80/20 1lb', sku: 'PROD-BEEF-001', category: 'Meat & Seafood', basePrice: 5.99, costPrice: 3.50, attributes: { storageTemp: 'refrigerated', expirationDays: 3 }, initialStock: 30 },
+      { name: 'Chicken Breast 1lb', sku: 'PROD-CHK-001', category: 'Meat & Seafood', basePrice: 7.99, costPrice: 4.80, attributes: { storageTemp: 'refrigerated', expirationDays: 3 }, initialStock: 25 },
+      { name: 'Salmon Fillet 1lb', sku: 'PROD-SAL-001', category: 'Meat & Seafood', basePrice: 12.99, costPrice: 8.50, attributes: { storageTemp: 'refrigerated', expirationDays: 2 }, initialStock: 18 },
+      
+      // Bakery
+      { name: 'Sourdough Loaf', sku: 'PROD-BREAD-001', category: 'Bakery', basePrice: 3.50, costPrice: 1.50, attributes: { expirationDays: 2 }, initialStock: 25 },
+      { name: 'Croissants (6 pack)', sku: 'PROD-CRO-001', category: 'Bakery', basePrice: 5.99, costPrice: 2.80, attributes: { expirationDays: 2 }, initialStock: 20 },
+      { name: 'Bagels (6 pack)', sku: 'PROD-BAG-001', category: 'Bakery', basePrice: 4.49, costPrice: 2.00, attributes: { expirationDays: 3 }, initialStock: 30 },
+      
+      // Frozen Foods
+      { name: 'Frozen Peas 1kg', sku: 'PROD-FZN-PEAS-001', category: 'Frozen Foods', basePrice: 2.99, costPrice: 1.00, attributes: { storageTemp: 'frozen' }, initialStock: 60 },
+      { name: 'Frozen Pizza', sku: 'PROD-FZN-PIZ-001', category: 'Frozen Foods', basePrice: 6.99, costPrice: 3.20, attributes: { storageTemp: 'frozen' }, initialStock: 40 },
+      { name: 'Ice Cream 1L', sku: 'PROD-FZN-ICE-001', category: 'Frozen Foods', basePrice: 5.49, costPrice: 2.80, attributes: { storageTemp: 'frozen' }, initialStock: 35 },
+      
+      // Pantry Staples
+      { name: 'Olive Oil Extra Virgin 1L', sku: 'PROD-OIL-001', category: 'Pantry Staples', basePrice: 12.99, costPrice: 8.00, attributes: {}, initialStock: 15 },
+      { name: 'Spaghetti 500g', sku: 'PROD-PAS-001', category: 'Pantry Staples', basePrice: 1.99, costPrice: 0.85, attributes: {}, initialStock: 80 },
+      { name: 'Rice 2kg', sku: 'PROD-RIC-001', category: 'Pantry Staples', basePrice: 4.99, costPrice: 2.50, attributes: {}, initialStock: 50 },
+      { name: 'Canned Tomatoes 400g', sku: 'PROD-CAN-TOM-001', category: 'Pantry Staples', basePrice: 1.49, costPrice: 0.70, attributes: {}, initialStock: 100 },
+      
+      // Beverages
+      { name: 'Cola 330ml', sku: 'PROD-COLA-001', category: 'Beverages', basePrice: 1.25, costPrice: 0.50, attributes: {}, initialStock: 200 },
+      { name: 'Orange Juice 1L', sku: 'PROD-OJ-001', category: 'Beverages', basePrice: 3.99, costPrice: 2.00, attributes: { storageTemp: 'refrigerated' }, initialStock: 45 },
+      { name: 'Bottled Water 1.5L', sku: 'PROD-WAT-001', category: 'Beverages', basePrice: 0.99, costPrice: 0.40, attributes: {}, initialStock: 150 },
+      { name: 'Coffee Beans 500g', sku: 'PROD-COF-001', category: 'Beverages', basePrice: 14.99, costPrice: 8.50, attributes: {}, initialStock: 25 },
+      
+      // Snacks & Candy
+      { name: 'Salted Potato Chips 150g', sku: 'PROD-CHIP-001', category: 'Snacks & Candy', basePrice: 1.79, costPrice: 0.70, attributes: {}, initialStock: 90 },
+      { name: 'Chocolate Bar 100g', sku: 'PROD-CHOC-001', category: 'Snacks & Candy', basePrice: 2.49, costPrice: 1.10, attributes: {}, initialStock: 120 },
+      { name: 'Mixed Nuts 200g', sku: 'PROD-NUT-001', category: 'Snacks & Candy', basePrice: 5.99, costPrice: 3.20, attributes: {}, initialStock: 40 },
+      { name: 'Gummy Bears 250g', sku: 'PROD-GUM-001', category: 'Snacks & Candy', basePrice: 3.49, costPrice: 1.60, attributes: {}, initialStock: 65 }
     ]
 
+    console.log(`\n📦 Creating ${products.length} grocery products...`)
     for (const p of products) {
       const catId = createdCats[p.category]
       const { product, variant } = await createProductWithStock(businessId, catId, p, p.initialStock)
-      console.log('Created product', product.name, 'variant', variant.sku, 'stock', p.initialStock)
+      console.log(`✅ ${product.name} - ${p.initialStock} units (cost: $${p.costPrice}, price: $${p.basePrice})`)
     }
 
-    console.log('Grocery demo seed complete')
+    console.log(`\n✅ Grocery demo seed complete - ${products.length} products created`)
   } catch (err) {
     console.error('Grocery seed failed:', err)
     process.exitCode = 1

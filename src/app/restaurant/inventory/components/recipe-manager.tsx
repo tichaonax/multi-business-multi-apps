@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface RecipeIngredient {
   id: string
@@ -33,9 +34,87 @@ interface Recipe {
 export function RestaurantRecipeManager() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
   const [showRecipeModal, setShowRecipeModal] = useState(false)
+  const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All')
+  const { currentBusinessId } = useBusinessPermissionsContext()
 
-  // Mock data - replace with actual API data
-  const recipes: Recipe[] = [
+  // Fetch menu items as recipes
+  useEffect(() => {
+    const fetchRecipes = async () => {
+      if (!currentBusinessId) return
+
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/inventory/${currentBusinessId}/items?limit=1000`)
+        
+        if (response.ok) {
+          const data = await response.json()
+          const items = data.items || []
+          
+          // Filter for menu items (items without ingredientType attribute)
+          // and convert them to recipe format
+          const menuItems = items
+            .filter((item: any) => !item.attributes?.ingredientType)
+            .map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              description: item.description || '',
+              category: item.category || 'Uncategorized',
+              servings: 1,
+              prepTime: item.attributes?.prepTime || 15,
+              cookTime: item.attributes?.cookTime || 10,
+              difficulty: item.attributes?.difficulty || 'Medium',
+              ingredients: [], // We'll need a separate endpoint for recipe ingredients
+              totalCost: item.costPrice || 0,
+              costPerServing: item.costPrice || 0,
+              sellPrice: item.sellPrice || 0,
+              profitMargin: item.costPrice && item.sellPrice
+                ? ((item.sellPrice - item.costPrice) / item.sellPrice) * 100
+                : 0,
+              instructions: [],
+              allergens: item.attributes?.allergens || [],
+              isActive: item.isActive !== false
+            }))
+          
+          setRecipes(menuItems)
+        }
+      } catch (error) {
+        console.error('Error fetching recipes:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRecipes()
+  }, [currentBusinessId])
+
+  // Get unique categories from recipes
+  const categories = ['All', ...Array.from(new Set(recipes.map(r => r.category)))]
+
+  // Filter recipes by selected category
+  const filteredRecipes = selectedCategoryFilter === 'All'
+    ? recipes
+    : recipes.filter(r => r.category === selectedCategoryFilter)
+
+  // Calculate statistics
+  const activeRecipes = recipes.filter(r => r.isActive)
+  const totalRecipeValue = activeRecipes.reduce((sum, recipe) => sum + recipe.totalCost, 0)
+  const averageMargin = activeRecipes.length > 0
+    ? activeRecipes.reduce((sum, recipe) => sum + recipe.profitMargin, 0) / activeRecipes.length
+    : 0
+  const lowMarginCount = activeRecipes.filter(recipe => recipe.profitMargin < 60).length
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      </div>
+    )
+  }
+
+  // Keep mock data structure for reference
+  const mockRecipes: Recipe[] = [
     {
       id: '1',
       name: 'Classic Beef Burger',
@@ -160,8 +239,6 @@ export function RestaurantRecipeManager() {
     }
   ]
 
-  const categories = ['All', 'Burgers', 'Salads', 'Appetizers', 'Entrees', 'Desserts', 'Beverages']
-
   const handleRecipeClick = (recipe: Recipe) => {
     setSelectedRecipe(recipe)
     setShowRecipeModal(true)
@@ -187,7 +264,12 @@ export function RestaurantRecipeManager() {
         {categories.map((category) => (
           <button
             key={category}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            onClick={() => setSelectedCategoryFilter(category)}
+            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+              selectedCategoryFilter === category
+                ? 'bg-orange-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+            }`}
           >
             {category}
           </button>
@@ -199,17 +281,17 @@ export function RestaurantRecipeManager() {
   <div className="card p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
           <h4 className="font-semibold text-green-800 dark:text-green-300 mb-2">💰 Total Recipe Value</h4>
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-            ${recipes.reduce((sum, recipe) => sum + recipe.totalCost, 0).toFixed(2)}
+            ${totalRecipeValue.toFixed(2)}
           </div>
           <div className="text-sm text-green-700 dark:text-green-400">
-            Across {recipes.length} active recipes
+            Across {activeRecipes.length} active recipes
           </div>
         </div>
 
   <div className="card p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">📈 Average Margin</h4>
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-            {(recipes.reduce((sum, recipe) => sum + recipe.profitMargin, 0) / recipes.length).toFixed(1)}%
+            {averageMargin.toFixed(1)}%
           </div>
           <div className="text-sm text-blue-700 dark:text-blue-400">
             Target: 65-75%
@@ -219,7 +301,7 @@ export function RestaurantRecipeManager() {
   <div className="card p-4 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
           <h4 className="font-semibold text-orange-800 dark:text-orange-300 mb-2">⚠️ Needs Review</h4>
           <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-            {recipes.filter(recipe => recipe.profitMargin < 60).length}
+            {lowMarginCount}
           </div>
           <div className="text-sm text-orange-700 dark:text-orange-400">
             Low margin recipes
@@ -262,7 +344,15 @@ export function RestaurantRecipeManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {recipes.map((recipe) => (
+              {filteredRecipes.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-secondary">
+                    <div className="text-4xl mb-2">👨‍🍳</div>
+                    <div>No recipes found in this category</div>
+                  </td>
+                </tr>
+              ) : (
+                filteredRecipes.map((recipe) => (
                 <tr
                   key={recipe.id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
@@ -317,7 +407,7 @@ export function RestaurantRecipeManager() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

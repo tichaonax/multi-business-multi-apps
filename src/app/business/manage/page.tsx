@@ -48,6 +48,7 @@ function BusinessManagePageContent() {
   const [editingMember, setEditingMember] = useState<BusinessMember | null>(null);
   const [editMemberRole, setEditMemberRole] = useState('');
   const [updatingMember, setUpdatingMember] = useState(false);
+  const [inactiveBusinessCount, setInactiveBusinessCount] = useState(0);
   const customAlert = useAlert();
 
   useEffect(() => {
@@ -57,6 +58,23 @@ function BusinessManagePageContent() {
     }
   }, [currentBusiness?.businessId]);
 
+  useEffect(() => {
+    if (isSystemAdmin) {
+      fetchInactiveBusinessCount();
+    }
+  }, [isSystemAdmin]);
+
+  const fetchInactiveBusinessCount = async () => {
+    try {
+      const response = await fetch('/api/admin/businesses/inactive');
+      if (response.ok) {
+        const data = await response.json();
+        setInactiveBusinessCount(data.length);
+      }
+    } catch (error) {
+      console.error('Failed to fetch inactive business count:', error);
+    }
+  };
 
   const fetchMembers = async () => {
     if (!currentBusiness?.businessId) return;
@@ -204,11 +222,20 @@ function BusinessManagePageContent() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300">System Administrator</h3>
-                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">Access administrative functions</p>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                    {inactiveBusinessCount > 0 
+                      ? `Access administrative functions (${inactiveBusinessCount} inactive business${inactiveBusinessCount !== 1 ? 'es' : ''})`
+                      : 'Access administrative functions (no inactive businesses)'}
+                  </p>
                 </div>
                 <button
                   onClick={() => router.push('/business/inactive')}
-                  className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  disabled={inactiveBusinessCount === 0}
+                  className={`px-3 py-2 text-sm rounded-lg transition-colors ${
+                    inactiveBusinessCount === 0
+                      ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
                 >
                   🗃️ View Inactive Businesses
                 </button>
@@ -552,24 +579,24 @@ function BusinessManagePageContent() {
           onClose={() => setShowDeleteBusiness(false)}
           onSuccess={async () => {
             setShowDeleteBusiness(false)
-            toast.push('Business deactivated successfully')
+            const deletedBusinessName = currentBusiness.businessName
             
-            // Auto-switch to another active business
-            const otherBusinesses = activeBusinesses.filter(b => b.businessId !== currentBusiness.businessId)
-            
-            if (otherBusinesses.length > 0) {
-              // Switch to the first available business
-              try {
-                await switchBusiness(otherBusinesses[0].businessId)
-                toast.push(`Switched to ${otherBusinesses[0].businessName}`)
-                // Stay on manage page to show the new business
-              } catch (err) {
-                console.error('Failed to switch business:', err)
-                router.push('/dashboard')
-              }
-            } else {
-              // No active businesses left - redirect to dashboard
-              toast.push('No active businesses remaining. Please select or create a business.')
+            try {
+              // Show initial success message
+              toast.push(`${deletedBusinessName} deleted successfully`)
+              
+              // Refresh the business list to get updated data
+              await refreshBusinesses()
+              await fetchInactiveBusinessCount() // Update inactive count
+              
+              // Wait a bit for context to fully update
+              await new Promise(resolve => setTimeout(resolve, 200))
+              
+              // Navigate to dashboard - it will handle business selection properly
+              router.push('/dashboard')
+            } catch (err) {
+              console.error('Failed to refresh businesses after deletion:', err)
+              toast.push('Business deleted. Please refresh the page.')
               router.push('/dashboard')
             }
           }}
@@ -595,6 +622,7 @@ function BusinessManagePageContent() {
             // Refresh the business context to show updated active status and update sidebar
             try {
               await refreshBusinesses()
+              await fetchInactiveBusinessCount() // Update inactive count
               toast.push('Business list updated')
             } catch (e) {
               console.error('Failed to refresh businesses after reactivation:', e)

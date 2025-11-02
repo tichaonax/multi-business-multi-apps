@@ -529,7 +529,7 @@ export function UniversalInventoryStats({
 
           {/* Value by Category */}
           <div className="card p-6">
-            <h3 className="text-lg font-semibold mb-4">Value by Category</h3>
+            <h3 className="text-lg font-semibold mb-4">Value by Category <span className="text-xs text-secondary font-normal">(click to filter)</span></h3>
             <div className="space-y-3">
               {stats.valueByCategory.slice(0, 6).map((category) => (
                 <button
@@ -538,14 +538,14 @@ export function UniversalInventoryStats({
                     // Navigate to filtered inventory view by category
                     window.location.href = `/${businessType}/inventory?tab=inventory&category=${encodeURIComponent(category.category)}`
                   }}
-                  className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors text-left"
+                  className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors border border-transparent hover:border-gray-300 dark:hover:border-gray-600 cursor-pointer text-left group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="font-medium text-primary">{category.category}</div>
+                    <div className="font-medium text-primary group-hover:text-blue-600 dark:group-hover:text-blue-400">{category.category}</div>
                     <div className="text-sm text-secondary">({category.items} items)</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium text-primary">{formatCurrency(category.value)}</div>
+                    <div className="font-medium text-primary group-hover:text-blue-600 dark:group-hover:text-blue-400">{formatCurrency(category.value)}</div>
                     <div className="text-sm text-secondary">{category.percentage.toFixed(1)}%</div>
                   </div>
                 </button>
@@ -556,7 +556,7 @@ export function UniversalInventoryStats({
           {/* Top Items */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">Highest Value Items</h3>
+              <h3 className="text-lg font-semibold mb-4">Highest Value Items <span className="text-xs text-secondary font-normal">(click to view)</span></h3>
               <div className="space-y-3">
                 {stats.topItems.highestValue.map((item, index) => (
                   <button
@@ -565,13 +565,13 @@ export function UniversalInventoryStats({
                       // Navigate to inventory view and highlight/search for this specific item
                       window.location.href = `/${businessType}/inventory?tab=inventory&search=${encodeURIComponent(item.sku)}`
                     }}
-                    className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors text-left"
+                    className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors border border-transparent hover:border-gray-300 dark:hover:border-gray-600 cursor-pointer text-left group"
                   >
                     <div>
-                      <div className="font-medium text-primary">{item.name}</div>
+                      <div className="font-medium text-primary group-hover:text-blue-600 dark:group-hover:text-blue-400">{item.name}</div>
                       <div className="text-sm text-secondary">{item.category} • {item.sku}</div>
                     </div>
-                    <div className="font-medium text-primary">{formatCurrency(item.value)}</div>
+                    <div className="font-medium text-primary group-hover:text-blue-600 dark:group-hover:text-blue-400">{formatCurrency(item.value)}</div>
                   </button>
                 ))}
               </div>

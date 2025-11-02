@@ -115,8 +115,7 @@ export default function GroceryInventoryPage() {
       })
 
       if (response.ok) {
-        // Refresh the grid - the UniversalInventoryGrid will handle this
-        window.location.reload()
+        router.refresh()
       } else {
         await customAlert({ title: 'Delete failed', description: 'Failed to delete item' })
       }
@@ -161,8 +160,8 @@ export default function GroceryInventoryPage() {
         if (response.ok) {
         setShowAddForm(false)
         setSelectedItem(null)
-        // Refresh will be handled by the components
-        window.location.reload()
+        setActiveTab('inventory')
+        router.refresh()
       } else {
         const error = await response.json()
         await customAlert({ title: 'Save failed', description: error.message || 'Failed to save item' })

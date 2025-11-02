@@ -102,6 +102,10 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const isDemoBusiness = existing.name.includes('[Demo]')
 
+    // Verify the user exists in database (handle stale sessions after DB reset)
+    const userExists = await prisma.users.findUnique({ where: { id: session.user.id } })
+    const validUserId = userExists ? session.user.id : null
+
     // Hard delete (permanent) - only for demo businesses
     if (hardDelete) {
       if (!isDemoBusiness) {
@@ -112,7 +116,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
       // Import deletion service
       const { deleteBusinessHard } = await import('@/lib/business-deletion-service')
-      const result = await deleteBusinessHard(id, session.user.id)
+      const result = await deleteBusinessHard(id, validUserId)
 
       if (!result.success) {
         return NextResponse.json({ error: result.error }, { status: 400 })
@@ -126,7 +130,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     // Soft delete (deactivation) - for all businesses
     const { deleteBusinessSoft } = await import('@/lib/business-deletion-service')
-    const result = await deleteBusinessSoft(id, session.user.id)
+    const result = await deleteBusinessSoft(id, validUserId)
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 })

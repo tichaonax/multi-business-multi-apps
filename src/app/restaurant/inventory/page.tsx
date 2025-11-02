@@ -23,6 +23,8 @@ export default function RestaurantInventoryPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
   const { data: session, status } = useSession()
   const router = useRouter()
 
@@ -49,6 +51,36 @@ export default function RestaurantInventoryPage() {
       router.push('/auth/signin')
     }
   }, [session, status, router])
+
+  // Fetch category counts - MUST be before any conditional returns
+  useEffect(() => {
+    const fetchCategoryCounts = async () => {
+      if (!currentBusinessId) return
+      
+      try {
+        const response = await fetch(`/api/inventory/${currentBusinessId}/items?limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          const items = data.items || []
+          
+          // Count items by ingredientType (from attributes) for ingredients, or category for menu items
+          const counts: Record<string, number> = {}
+          items.forEach((item: any) => {
+            // For ingredients, use ingredientType from attributes
+            const ingredientType = item.attributes?.ingredientType
+            const category = ingredientType || item.category || 'Uncategorized'
+            counts[category] = (counts[category] || 0) + 1
+          })
+          
+          setCategoryCounts(counts)
+        }
+      } catch (error) {
+        console.error('Error fetching category counts:', error)
+      }
+    }
+
+    fetchCategoryCounts()
+  }, [currentBusinessId, refreshTrigger])
 
   // Show loading while session or business context is loading
   if (status === 'loading' || businessLoading) {
@@ -81,7 +113,7 @@ export default function RestaurantInventoryPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Restaurant Business</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You have access to {restaurantBusinesses.length} restaurant business{restaurantBusinesses.length > 1 ? 'es' : ''}.
             Please select one from the sidebar to use the inventory system.
           </p>
@@ -104,10 +136,10 @@ export default function RestaurantInventoryPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             The Restaurant Inventory is only available for restaurant businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Please select a restaurant business from the sidebar to use this inventory system.
           </p>
         </div>
@@ -120,11 +152,11 @@ export default function RestaurantInventoryPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Restaurant Businesses</h2>
-          <p className="text-gray-600 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No Restaurant Businesses</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You don't have access to any restaurant businesses. The Restaurant Inventory system requires access to at least one restaurant business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Contact your administrator if you need access to restaurant businesses.
           </p>
         </div>
@@ -268,30 +300,57 @@ export default function RestaurantInventoryPage() {
                     </div>
                   </div>
 
-                  {/* Ingredient Categories - Keep for now but will be replaced by UniversalInventoryGrid */}
+                  {/* Ingredient Categories - Click to filter */}
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {[
-                      { name: 'Proteins', icon: '🥩', count: 12, color: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' },
-                      { name: 'Vegetables', icon: '🥬', count: 24, color: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' },
-                      { name: 'Dairy', icon: '🥛', count: 8, color: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' },
-                      { name: 'Pantry', icon: '🏺', count: 35, color: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300' },
-                      { name: 'Beverages', icon: '🥤', count: 16, color: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300' },
-                      { name: 'Supplies', icon: '📦', count: 22, color: 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300' }
-                    ].map((category) => (
-                      <div key={category.name} className={`card p-4 border-2 ${category.color} hover:shadow-md transition-shadow cursor-pointer`}>
-                        <div className="text-center">
-                          <div className="text-2xl mb-2">{category.icon}</div>
-                          <div className="font-semibold text-sm">{category.name}</div>
-                          <div className="text-xs opacity-75">{category.count} items</div>
-                        </div>
-                      </div>
-                    ))}
+                      { name: 'Proteins', icon: '🥩', color: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' },
+                      { name: 'Vegetables', icon: '🥬', color: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' },
+                      { name: 'Dairy', icon: '🥛', color: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' },
+                      { name: 'Pantry', icon: '🏺', color: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300' },
+                      { name: 'Beverages', icon: '🥤', color: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300' },
+                      { name: 'Supplies', icon: '📦', color: 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300' }
+                    ].map((category) => {
+                      const count = categoryCounts[category.name] || 0
+                      return (
+                        <button
+                          key={category.name}
+                          onClick={() => setSelectedCategory(selectedCategory === category.name ? null : category.name)}
+                          className={`card p-4 border-2 ${category.color} hover:shadow-md transition-all cursor-pointer ${
+                            selectedCategory === category.name ? 'ring-2 ring-offset-2 ring-blue-500 scale-105' : ''
+                          } ${count === 0 ? 'opacity-50' : ''}`}
+                          disabled={count === 0}
+                        >
+                          <div className="text-center">
+                            <div className="text-2xl mb-2">{category.icon}</div>
+                            <div className="font-semibold text-sm">{category.name}</div>
+                            <div className="text-xs opacity-75">{count} {count === 1 ? 'item' : 'items'}</div>
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
+
+                  {/* Selected Category Indicator */}
+                  {selectedCategory && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <span>Showing:</span>
+                      <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full font-medium">
+                        {selectedCategory}
+                      </span>
+                      <button
+                        onClick={() => setSelectedCategory(null)}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Clear filter
+                      </button>
+                    </div>
+                  )}
 
                   {/* Universal Inventory Grid */}
                   <UniversalInventoryGrid
                     businessId={businessId}
                     businessType="restaurant"
+                    categoryFilter={selectedCategory || undefined}
                     onItemEdit={(item) => {
                       setSelectedItem(item)
                       setShowAddForm(true)

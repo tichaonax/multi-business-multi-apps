@@ -131,7 +131,7 @@ export default function ClothingInventoryPage() {
         })
 
             if (response.ok) {
-              window.location.reload()
+              router.refresh()
             } else {
               await customAlert({ title: 'Failed to delete item' })
             }
@@ -167,12 +167,8 @@ export default function ClothingInventoryPage() {
         // Close form immediately
         setShowAddForm(false)
         setSelectedItem(null)
-        // Set tab to inventory before reload
         setActiveTab('inventory')
-        // Small delay to ensure sessionStorage is written
-        await new Promise(resolve => setTimeout(resolve, 50))
-        // Reload page to show updated inventory
-        window.location.reload()
+        router.refresh()
       } else {
         // Extract error message from API response
         const errorData = await response.json()

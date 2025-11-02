@@ -780,7 +780,7 @@ export default function GroceryPOSPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Grocery Business</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You have access to {groceryBusinesses.length} grocery business{groceryBusinesses.length > 1 ? 'es' : ''}.
             Please select one from the sidebar to use the POS system.
           </p>
@@ -803,10 +803,10 @@ export default function GroceryPOSPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             The Grocery POS is only available for grocery businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Please select a grocery business from the sidebar to use this POS system.
           </p>
         </div>
@@ -819,11 +819,11 @@ export default function GroceryPOSPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Grocery Businesses</h2>
-          <p className="text-gray-600 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No Grocery Businesses</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You don't have access to any grocery businesses. The Grocery POS system requires access to at least one grocery business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Contact your administrator if you need access to grocery businesses.
           </p>
         </div>

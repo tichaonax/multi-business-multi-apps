@@ -616,7 +616,7 @@ export default function HardwareToolsPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Hardware Business</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You have access to {hardwareBusinesses.length} hardware business{hardwareBusinesses.length > 1 ? 'es' : ''}.
             Please select one from the sidebar to use the tools and equipment management.
           </p>
@@ -639,10 +639,10 @@ export default function HardwareToolsPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             The Tools & Equipment Management is only available for hardware businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Please select a hardware business from the sidebar to use this system.
           </p>
         </div>
@@ -655,11 +655,11 @@ export default function HardwareToolsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Hardware Businesses</h2>
-          <p className="text-gray-600 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No Hardware Businesses</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You don't have access to any hardware businesses. The Tools & Equipment Management requires access to at least one hardware business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Contact your administrator if you need access to hardware businesses.
           </p>
         </div>

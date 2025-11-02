@@ -1,15 +1,37 @@
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
-async function upsertCategory(businessId, name, description) {
-  // create a stable id for category so upserts are idempotent
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-  const id = `${businessId}-cat-${slug}`
-  const now = new Date()
-  return prisma.businessCategories.upsert({
-    where: { businessType_name: { businessType: 'restaurant', name } },
-    update: { description, updatedAt: now },
-    create: { id, businessId, name, description, businessType: 'restaurant', isActive: true, createdAt: now, updatedAt: now }
+/**
+ * Ensure type-based categories exist before seeding demo data
+ */
+async function ensureCategoriesExist() {
+  const categoriesExist = await prisma.businessCategories.findFirst({
+    where: { businessType: 'restaurant', businessId: null }
+  })
+
+  if (!categoriesExist) {
+    console.log('📂 Type-based categories not found. Auto-seeding categories...')
+    try {
+      const { seedTypeCategories } = require('./seed-type-categories.js')
+      await seedTypeCategories()
+      console.log('✅ Categories seeded successfully')
+    } catch (err) {
+      console.error('❌ Failed to seed categories:', err.message)
+      throw new Error('Cannot proceed without categories. Please run: npm run seed:categories')
+    }
+  } else {
+    console.log('✅ Type-based categories already exist')
+  }
+}
+
+// Get existing type-based category (don't create new ones)
+async function getCategory(name) {
+  return prisma.businessCategories.findFirst({
+    where: { 
+      businessType: 'restaurant', 
+      name,
+      businessId: null  // Type-based categories have NULL businessId
+    }
   })
 }
 
@@ -127,7 +149,10 @@ async function seed() {
 
     console.log('Seeding restaurant demo data for', businessId)
 
-    // Ensure the demo business exists (idempotent)
+    // STEP 1: Ensure categories exist (auto-seed if missing)
+    await ensureCategoriesExist()
+
+    // STEP 2: Ensure the demo business exists (idempotent)
     const now = new Date()
     const business = await prisma.businesses.upsert({
       where: { id: businessId },
@@ -149,32 +174,62 @@ async function seed() {
     console.log('Using business for restaurant demo:', businessId)
 
     const categories = [
-      { name: 'Starters', desc: 'Appetizers and small plates' },
-      { name: 'Mains', desc: 'Main courses' },
+      { name: 'Appetizers', desc: 'Appetizers and small plates' },
+      { name: 'Main Courses', desc: 'Main courses' },
       { name: 'Desserts', desc: 'Sweet treats' },
-      { name: 'Drinks', desc: 'Beverages and soft drinks' }
+      { name: 'Beverages', desc: 'Beverages and soft drinks' }
     ]
 
+    // Get type-based categories (should already exist from seed-type-categories.js)
     const createdCats = {}
     for (const c of categories) {
-      const cat = await upsertCategory(businessId, c.name, c.desc)
+      const cat = await getCategory(c.name)
+      if (!cat) {
+        console.error(`❌ Category "${c.name}" not found! Please run: npm run seed:categories first`)
+        process.exitCode = 1
+        return
+      }
       createdCats[c.name] = cat.id
     }
+    console.log('✅ Using type-based categories')
 
+    // Expanded menu with realistic pricing
     const items = [
-      { name: 'Garlic Bread', sku: 'RST-GARBR-001', category: 'Starters', basePrice: 3.5, costPrice: 1.0, attributes: { vegetarian: true }, initialStock: 50 },
-      { name: 'Caesar Salad', sku: 'RST-SAL-001', category: 'Starters', basePrice: 6.5, costPrice: 2.5, attributes: { glutenFree: false }, initialStock: 30 },
-      { name: 'Grilled Chicken', sku: 'RST-CHIK-001', category: 'Mains', basePrice: 12.5, costPrice: 6.0, attributes: { temperatureZone: 'hot' }, initialStock: 40 },
-      { name: 'Spaghetti Bolognese', sku: 'RST-SPAG-001', category: 'Mains', basePrice: 10.0, costPrice: 4.0, attributes: { vegetarian: false }, initialStock: 35 },
-      { name: 'Chocolate Brownie', sku: 'RST-BROWN-001', category: 'Desserts', basePrice: 4.5, costPrice: 1.2, attributes: { containsNuts: false }, initialStock: 20 },
-      { name: 'Coca-Cola 330ml', sku: 'RST-COLA-001', category: 'Drinks', basePrice: 1.5, costPrice: 0.4, attributes: {}, initialStock: 120 },
-      { name: 'Orange Juice 250ml', sku: 'RST-OJ-001', category: 'Drinks', basePrice: 2.0, costPrice: 0.6, attributes: { chilled: true }, initialStock: 80 }
+      // Appetizers
+      { name: 'Garlic Bread', sku: 'RST-GARBR-001', category: 'Appetizers', basePrice: 5.99, costPrice: 1.80, attributes: { vegetarian: true }, initialStock: 50 },
+      { name: 'Caesar Salad', sku: 'RST-SAL-001', category: 'Appetizers', basePrice: 8.99, costPrice: 3.50, attributes: { glutenFree: false }, initialStock: 35 },
+      { name: 'Bruschetta', sku: 'RST-BRUS-001', category: 'Appetizers', basePrice: 7.99, costPrice: 2.80, attributes: { vegetarian: true }, initialStock: 40 },
+      { name: 'Chicken Wings (8pc)', sku: 'RST-WINGS-001', category: 'Appetizers', basePrice: 9.99, costPrice: 4.20, attributes: { spicy: true }, initialStock: 45 },
+      { name: 'Soup of the Day', sku: 'RST-SOUP-001', category: 'Appetizers', basePrice: 6.99, costPrice: 2.00, attributes: { vegetarian: true }, initialStock: 30 },
+      
+      // Main Courses
+      { name: 'Grilled Chicken Breast', sku: 'RST-CHIK-001', category: 'Main Courses', basePrice: 16.99, costPrice: 7.50, attributes: { temperatureZone: 'hot', glutenFree: true }, initialStock: 40 },
+      { name: 'Spaghetti Bolognese', sku: 'RST-SPAG-001', category: 'Main Courses', basePrice: 14.99, costPrice: 5.80, attributes: { vegetarian: false }, initialStock: 45 },
+      { name: 'Margherita Pizza', sku: 'RST-PIZ-001', category: 'Main Courses', basePrice: 13.99, costPrice: 4.50, attributes: { vegetarian: true }, initialStock: 50 },
+      { name: 'Beef Burger & Fries', sku: 'RST-BURG-001', category: 'Main Courses', basePrice: 15.99, costPrice: 6.80, attributes: {}, initialStock: 55 },
+      { name: 'Grilled Salmon', sku: 'RST-SAL-002', category: 'Main Courses', basePrice: 22.99, costPrice: 12.50, attributes: { glutenFree: true }, initialStock: 25 },
+      { name: 'Vegetable Stir Fry', sku: 'RST-STIR-001', category: 'Main Courses', basePrice: 12.99, costPrice: 4.80, attributes: { vegetarian: true, vegan: true }, initialStock: 35 },
+      { name: 'Ribeye Steak 10oz', sku: 'RST-STEAK-001', category: 'Main Courses', basePrice: 28.99, costPrice: 16.00, attributes: { glutenFree: true }, initialStock: 20 },
+      
+      // Desserts
+      { name: 'Chocolate Brownie', sku: 'RST-BROWN-001', category: 'Desserts', basePrice: 6.99, costPrice: 2.20, attributes: { containsNuts: false }, initialStock: 35 },
+      { name: 'Tiramisu', sku: 'RST-TIRA-001', category: 'Desserts', basePrice: 7.99, costPrice: 2.80, attributes: {}, initialStock: 30 },
+      { name: 'Cheesecake', sku: 'RST-CAKE-001', category: 'Desserts', basePrice: 6.99, costPrice: 2.50, attributes: {}, initialStock: 28 },
+      { name: 'Ice Cream Sundae', sku: 'RST-ICE-001', category: 'Desserts', basePrice: 5.99, costPrice: 1.80, attributes: {}, initialStock: 40 },
+      
+      // Beverages
+      { name: 'Coca-Cola 330ml', sku: 'RST-COLA-001', category: 'Beverages', basePrice: 2.99, costPrice: 0.80, attributes: {}, initialStock: 150 },
+      { name: 'Orange Juice 250ml', sku: 'RST-OJ-001', category: 'Beverages', basePrice: 3.99, costPrice: 1.20, attributes: { chilled: true }, initialStock: 80 },
+      { name: 'Sparkling Water 500ml', sku: 'RST-WAT-001', category: 'Beverages', basePrice: 2.49, costPrice: 0.60, attributes: {}, initialStock: 100 },
+      { name: 'Coffee', sku: 'RST-COF-001', category: 'Beverages', basePrice: 3.49, costPrice: 0.90, attributes: { hot: true }, initialStock: 60 },
+      { name: 'Iced Tea', sku: 'RST-TEA-001', category: 'Beverages', basePrice: 3.99, costPrice: 1.00, attributes: { chilled: true }, initialStock: 70 }
     ]
 
+    console.log(`\n🍽️ Creating ${items.length} menu items...`)
     for (const it of items) {
       const catId = createdCats[it.category]
       const { product, variant } = await createMenuItemWithStock(businessId, catId, it, it.initialStock)
-        console.log('Created menu item', product.name, 'variant', variant.sku, 'stock', it.initialStock)
+      console.log(`✅ ${product.name} - ${it.initialStock} units (cost: $${it.costPrice}, price: $${it.basePrice})`)
 
         // Attach sample images for demo products (use placeholders)
         try {
@@ -204,6 +259,87 @@ async function seed() {
         } catch (err) {
           console.error('Failed to attach product images for', product.id, err)
         }
+    }
+
+    // Create raw ingredient inventory for realistic restaurant operations
+    console.log(`\n🥬 Creating ingredient inventory...`)
+    // Map ingredient categories to existing menu categories for now
+    const ingredientCategoryMap = {
+      'Proteins': 'Main Courses',
+      'Vegetables': 'Appetizers',
+      'Dairy': 'Appetizers', 
+      'Pantry': 'Appetizers',
+      'Beverages': 'Beverages',
+      'Supplies': 'Appetizers'
+    }
+    
+    const ingredients = [
+      // Proteins
+      { name: 'Chicken Breast', sku: 'ING-CHKB-001', category: 'Proteins', costPrice: 3.50, initialStock: 80, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 7, ingredientType: 'Proteins' } },
+      { name: 'Ground Beef', sku: 'ING-BEEF-001', category: 'Proteins', costPrice: 4.20, initialStock: 60, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 5, ingredientType: 'Proteins' } },
+      { name: 'Salmon Fillet', sku: 'ING-SALM-001', category: 'Proteins', costPrice: 8.50, initialStock: 40, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 3, ingredientType: 'Proteins' } },
+      { name: 'Pork Chops', sku: 'ING-PORK-001', category: 'Proteins', costPrice: 4.80, initialStock: 50, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 5, ingredientType: 'Proteins' } },
+      { name: 'Shrimp', sku: 'ING-SHRP-001', category: 'Proteins', costPrice: 12.00, initialStock: 30, unit: 'lb', attributes: { storageTemp: 'frozen', shelfLife: 90, ingredientType: 'Proteins' } },
+      
+      // Vegetables
+      { name: 'Tomatoes', sku: 'ING-TOMT-001', category: 'Vegetables', costPrice: 1.20, initialStock: 100, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 7 } },
+      { name: 'Lettuce', sku: 'ING-LETT-001', category: 'Vegetables', costPrice: 1.50, initialStock: 80, unit: 'head', attributes: { storageTemp: 'refrigerated', shelfLife: 5 } },
+      { name: 'Onions', sku: 'ING-ONON-001', category: 'Vegetables', costPrice: 0.80, initialStock: 120, unit: 'lb', attributes: { storageTemp: 'room', shelfLife: 30 } },
+      { name: 'Bell Peppers', sku: 'ING-PEPS-001', category: 'Vegetables', costPrice: 1.80, initialStock: 70, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 7 } },
+      { name: 'Mushrooms', sku: 'ING-MUSH-001', category: 'Vegetables', costPrice: 3.20, initialStock: 50, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 5 } },
+      { name: 'Spinach', sku: 'ING-SPIN-001', category: 'Vegetables', costPrice: 2.50, initialStock: 60, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 5 } },
+      { name: 'Carrots', sku: 'ING-CARR-001', category: 'Vegetables', costPrice: 0.90, initialStock: 100, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 14 } },
+      
+      // Dairy
+      { name: 'Whole Milk', sku: 'ING-MILK-001', category: 'Dairy', costPrice: 3.20, initialStock: 40, unit: 'gal', attributes: { storageTemp: 'refrigerated', shelfLife: 7 } },
+      { name: 'Heavy Cream', sku: 'ING-CREM-001', category: 'Dairy', costPrice: 4.50, initialStock: 30, unit: 'qt', attributes: { storageTemp: 'refrigerated', shelfLife: 14 } },
+      { name: 'Butter', sku: 'ING-BUTR-001', category: 'Dairy', costPrice: 3.80, initialStock: 50, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 30 } },
+      { name: 'Mozzarella Cheese', sku: 'ING-MOZZ-001', category: 'Dairy', costPrice: 5.20, initialStock: 45, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 21 } },
+      { name: 'Parmesan Cheese', sku: 'ING-PARM-001', category: 'Dairy', costPrice: 8.50, initialStock: 35, unit: 'lb', attributes: { storageTemp: 'refrigerated', shelfLife: 60 } },
+      { name: 'Eggs', sku: 'ING-EGGS-001', category: 'Dairy', costPrice: 2.80, initialStock: 60, unit: 'dozen', attributes: { storageTemp: 'refrigerated', shelfLife: 21 } },
+      
+      // Pantry
+      { name: 'Flour (All-Purpose)', sku: 'ING-FLOR-001', category: 'Pantry', costPrice: 0.60, initialStock: 200, unit: 'lb', attributes: { storageTemp: 'room', shelfLife: 180 } },
+      { name: 'Sugar', sku: 'ING-SUGR-001', category: 'Pantry', costPrice: 0.50, initialStock: 150, unit: 'lb', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Salt', sku: 'ING-SALT-001', category: 'Pantry', costPrice: 0.30, initialStock: 100, unit: 'lb', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Olive Oil', sku: 'ING-OILV-001', category: 'Pantry', costPrice: 8.50, initialStock: 40, unit: 'gal', attributes: { storageTemp: 'room', shelfLife: 180 } },
+      { name: 'Pasta (Spaghetti)', sku: 'ING-PAST-001', category: 'Pantry', costPrice: 1.20, initialStock: 120, unit: 'lb', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Rice', sku: 'ING-RICE-001', category: 'Pantry', costPrice: 0.80, initialStock: 150, unit: 'lb', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Tomato Sauce', sku: 'ING-TOMS-001', category: 'Pantry', costPrice: 2.50, initialStock: 80, unit: 'qt', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Garlic', sku: 'ING-GARL-001', category: 'Pantry', costPrice: 1.50, initialStock: 60, unit: 'lb', attributes: { storageTemp: 'room', shelfLife: 60 } },
+      
+      // Beverages
+      { name: 'Coca-Cola Syrup', sku: 'ING-COLA-SYR', category: 'Beverages', costPrice: 45.00, initialStock: 10, unit: 'box', attributes: { storageTemp: 'room', shelfLife: 90 } },
+      { name: 'Orange Juice (Fresh)', sku: 'ING-OJ-FRSH', category: 'Beverages', costPrice: 8.50, initialStock: 25, unit: 'gal', attributes: { storageTemp: 'refrigerated', shelfLife: 7 } },
+      { name: 'Bottled Water', sku: 'ING-WATR-BTL', category: 'Beverages', costPrice: 0.25, initialStock: 200, unit: 'bottle', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Coffee Beans', sku: 'ING-COFF-BNS', category: 'Beverages', costPrice: 12.50, initialStock: 40, unit: 'lb', attributes: { storageTemp: 'room', shelfLife: 90 } },
+      { name: 'Tea Bags', sku: 'ING-TEA-BAGS', category: 'Beverages', costPrice: 8.00, initialStock: 30, unit: 'box', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      
+      // Supplies
+      { name: 'Paper Napkins', sku: 'SUP-NAPK-001', category: 'Supplies', costPrice: 15.00, initialStock: 50, unit: 'case', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Disposable Cups', sku: 'SUP-CUPS-001', category: 'Supplies', costPrice: 18.00, initialStock: 40, unit: 'case', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Paper Plates', sku: 'SUP-PLAT-001', category: 'Supplies', costPrice: 22.00, initialStock: 35, unit: 'case', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'Plastic Utensils', sku: 'SUP-UTEN-001', category: 'Supplies', costPrice: 16.00, initialStock: 45, unit: 'case', attributes: { storageTemp: 'room', shelfLife: 365 } },
+      { name: 'To-Go Containers', sku: 'SUP-CONT-001', category: 'Supplies', costPrice: 28.00, initialStock: 30, unit: 'case', attributes: { storageTemp: 'room', shelfLife: 365 } }
+    ]
+
+    for (const ing of ingredients) {
+      // Map ingredient category to existing menu category
+      const mappedCategory = ingredientCategoryMap[ing.category]
+      const catId = createdCats[mappedCategory]
+      
+      // Ingredients don't have a selling price, only cost
+      // Store the original ingredient category in attributes for filtering
+      const ingredientData = { 
+        ...ing, 
+        basePrice: 0,
+        attributes: { 
+          ...ing.attributes, 
+          ingredientType: ing.category 
+        }
+      }
+      const { product, variant } = await createMenuItemWithStock(businessId, catId, ingredientData, ing.initialStock)
+      console.log(`✅ ${product.name} (${ing.category}) - ${ing.initialStock} ${ing.unit} (cost: $${ing.costPrice})`)
     }
 
     // Create a few sample orders referencing created products (idempotent upsert)
@@ -283,7 +419,10 @@ async function seed() {
       console.error('Error creating sample orders/kitchen tickets:', err)
     }
 
-    console.log('Restaurant demo seed complete')
+    console.log(`\n✅ Restaurant demo seed complete:`)
+    console.log(`   📋 ${items.length} menu items`)
+    console.log(`   🥬 ${ingredients.length} ingredients`)
+    console.log(`   📦 ${items.length + ingredients.length} total inventory items`)
   } catch (err) {
     console.error('Restaurant seed failed:', err)
     process.exitCode = 1

@@ -47,7 +47,7 @@ interface DeletionResult {
 
 export async function deleteBusinessHard(
   businessId: string,
-  userId: string
+  userId: string | null
 ): Promise<DeletionResult> {
   try {
     // First, verify the business exists and get its details
@@ -331,7 +331,7 @@ export async function deleteBusinessHard(
           action: 'BUSINESS_HARD_DELETED',
           entityType: 'Business',
           entityId: businessId,
-          userId,
+          ...(userId && { userId }), // Only include userId if it exists
           details: {
             businessName: business.name,
             businessType: business.type,
@@ -361,7 +361,7 @@ export async function deleteBusinessHard(
  */
 export async function deleteBusinessSoft(
   businessId: string,
-  userId: string
+  userId: string | null
 ): Promise<DeletionResult> {
   try {
     const business = await prisma.businesses.findUnique({
@@ -404,7 +404,7 @@ export async function deleteBusinessSoft(
           action: 'BUSINESS_DEACTIVATED',
           entityType: 'Business',
           entityId: businessId,
-          userId,
+          ...(userId && { userId }), // Only include userId if it exists
           details: {
             businessName: business.name,
             businessType: business.type

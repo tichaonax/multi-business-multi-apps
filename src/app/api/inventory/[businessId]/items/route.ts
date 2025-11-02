@@ -95,13 +95,12 @@ export async function GET(
       ]
     }
 
-    if (category && category !== 'all') {
-      where.business_categories = {
-        name: { contains: category, mode: 'insensitive' }
-      }
-    }
+    // Note: We'll filter by category/ingredientType after fetching since ingredientType is in JSON
+    // Only add category filter to where clause if we're sure it's a regular category
+    const shouldFilterByCategory = category && category !== 'all'
 
     // Get products from database with proper relationships
+    // Don't apply category filter in where clause - we'll do it after transformation
     const products = await prisma.businessProducts.findMany({
       where,
       include: {
@@ -117,22 +116,17 @@ export async function GET(
         }
       },
       orderBy: { name: 'asc' },
-      skip: (page - 1) * limit,
-      take: limit
+      // Fetch more items before pagination to account for filtering by ingredientType
+      skip: shouldFilterByCategory ? 0 : (page - 1) * limit,
+      take: shouldFilterByCategory ? 1000 : limit
     })
-
-    const total = await prisma.businessProducts.count({ where })
 
     // Transform to match the expected interface
     const items = products.map(product => {
-      // Calculate current stock from stock movements
-      // Sum stockQuantity from movements (movements may have positive/negative quantities)
+      // Calculate current stock from variants
+      // Use stockQuantity directly from variants (which is maintained by the system)
       const currentStock = product.product_variants.reduce((total, variant) => {
-        const stockMovements = variant.business_stock_movements || []
-        const variantStock = stockMovements.reduce((sum, movement) => {
-          return sum + Number(movement.quantity)
-        }, 0)
-        return total + variantStock
+        return total + (Number(variant.stockQuantity) || 0)
       }, 0)
 
       return {
@@ -163,18 +157,38 @@ export async function GET(
       }
     })
 
+    // Apply category/ingredientType filter
+    let filteredItems = items
+    if (shouldFilterByCategory) {
+      filteredItems = items.filter(item => {
+        // Check if item has ingredientType in attributes (for ingredients)
+        const ingredientType = item.attributes?.ingredientType as string | undefined
+        // Match by ingredientType OR regular category
+        return (
+          (ingredientType && ingredientType.toLowerCase() === category!.toLowerCase()) ||
+          (item.category && item.category.toLowerCase().includes(category!.toLowerCase()))
+        )
+      })
+    }
+
     // Apply low stock filter if requested
-    const filteredItems = lowStock
-      ? items.filter(item => item.currentStock < 10)
-      : items
+    if (lowStock) {
+      filteredItems = filteredItems.filter(item => item.currentStock < 10)
+    }
+
+    // Apply pagination after filtering
+    const startIndex = (page - 1) * limit
+    const endIndex = startIndex + limit
+    const paginatedItems = filteredItems.slice(startIndex, endIndex)
+    const totalFiltered = filteredItems.length
 
     return NextResponse.json({
-      items: filteredItems,
+      items: paginatedItems,
       pagination: {
         page,
         limit,
-        total,
-        totalPages: Math.ceil(total / limit)
+        total: totalFiltered,
+        totalPages: Math.ceil(totalFiltered / limit)
       },
       filters: {
         category,

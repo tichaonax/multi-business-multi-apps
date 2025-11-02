@@ -402,13 +402,18 @@ async function seedTypeCategories() {
   await prisma.$disconnect();
 }
 
-// Run the seeding
-seedTypeCategories()
-  .then(() => {
-    console.log('\n✅ Done!');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('\n❌ Error:', error);
-    process.exit(1);
-  });
+// Export for use by other scripts
+module.exports = { seedTypeCategories };
+
+// Run the seeding if executed directly
+if (require.main === module) {
+  seedTypeCategories()
+    .then(() => {
+      console.log('\n✅ Done!');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('\n❌ Error:', error);
+      process.exit(1);
+    });
+}

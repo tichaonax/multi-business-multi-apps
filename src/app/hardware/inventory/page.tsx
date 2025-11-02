@@ -115,11 +115,11 @@ export default function HardwareInventoryPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Hardware Businesses</h2>
-          <p className="text-gray-600 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No Hardware Businesses</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             You don't have access to any hardware businesses. The Hardware Inventory Management system requires access to at least one hardware business.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Contact your administrator if you need access to hardware businesses.
           </p>
         </div>
@@ -158,7 +158,7 @@ export default function HardwareInventoryPage() {
       })
 
       if (response.ok) {
-        window.location.reload()
+        router.refresh()
       } else {
         await customAlert({ title: 'Delete failed', description: 'Failed to delete item' })
       }
@@ -225,8 +225,9 @@ export default function HardwareInventoryPage() {
         if (response.ok) {
         setShowAddForm(false)
         setSelectedItem(null)
-        window.location.reload()
-      } else {
+        setActiveTab('inventory')
+        router.refresh()
+      } else{
         const error = await response.json()
         await customAlert({ title: 'Save failed', description: error.message || 'Failed to save item' })
       }

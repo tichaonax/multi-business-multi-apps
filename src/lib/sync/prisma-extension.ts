@@ -12,6 +12,7 @@ const EXCLUDED_TABLES = new Set([
   'Session',
   'VerificationToken',
   'AuditLog',
+  'AuditLogs',  // Both singular and plural forms for safety
   'SyncNode',
   'SyncEvent',
   'ConflictResolution',

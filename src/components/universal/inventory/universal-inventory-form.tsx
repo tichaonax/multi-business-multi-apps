@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { SupplierSelector } from '@/components/suppliers/supplier-selector'
 import { LocationSelector } from '@/components/locations/location-selector'
+import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor'
+import { useSession } from 'next-auth/react'
+import { hasUserPermission } from '@/lib/permission-utils'
 
 interface InventorySubcategory {
   id: string
@@ -95,11 +98,18 @@ export function UniversalInventoryForm({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showSkuScanner, setShowSkuScanner] = useState(false)
   const [skuScanInput, setSkuScanInput] = useState('')
+  const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
+  
+  const { data: session } = useSession()
 
   // Initialize form data when item prop changes
   useEffect(() => {
     if (item) {
       setFormData(item)
+      // Set selected category immediately when editing
+      if (item.categoryId) {
+        setSelectedCategory(item.categoryId)
+      }
     } else {
       setFormData({
         businessId,
@@ -127,35 +137,48 @@ export function UniversalInventoryForm({
 
   // Set selected category and subcategories when categories are loaded and item has a category
   useEffect(() => {
-    if (item?.categoryId && categories.length > 0) {
-      setSelectedCategory(item.categoryId)
+    const categoryId = item?.categoryId || formData.categoryId
+    if (categoryId && categories.length > 0) {
+      setSelectedCategory(categoryId)
       // Find and set subcategories for the selected category
-      const category = categories.find(c => c.id === item.categoryId)
+      const category = categories.find(c => c.id === categoryId)
       if (category?.subcategories) {
         setAvailableSubcategories(category.subcategories)
       }
     }
-  }, [item, categories])
+  }, [item, categories, formData.categoryId])
 
   // Fetch categories with subcategories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await fetch(`/api/inventory/${businessId}/categories`)
-        if (response.ok) {
-          const data = await response.json()
-          setCategories(data.categories?.map((cat: any) => ({
-            id: cat.id,
-            name: cat.name,
-            emoji: cat.emoji || cat.icon || '📦',
-            color: cat.color || 'gray',
-            subcategories: cat.subcategories || []
-          })) || [])
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch(`/api/inventory/${businessId}/categories`)
+      if (response.ok) {
+        const data = await response.json()
+        const fetchedCategories = data.categories?.map((cat: any) => ({
+          id: cat.id,
+          name: cat.name,
+          emoji: cat.emoji || cat.icon || '📦',
+          color: cat.color || 'gray',
+          subcategories: cat.subcategories || []
+        })) || []
+        
+        setCategories(fetchedCategories)
+        
+        // Re-populate available subcategories if a category is selected
+        if (selectedCategory) {
+          const category = fetchedCategories.find((c: any) => c.id === selectedCategory)
+          if (category?.subcategories) {
+            setAvailableSubcategories(category.subcategories)
+          }
         }
-      } catch (error) {
-        console.error('Failed to fetch categories:', error)
       }
+    } catch (error) {
+      console.error('Failed to fetch categories:', error)
     }
+  }
+
+  useEffect(() => {
+    fetchCategories()
 
     if (businessId) {
       fetchCategories()
@@ -210,6 +233,21 @@ export function UniversalInventoryForm({
         categoryId: ''
       }))
     }
+  }
+
+  const handleSubcategoryCreated = async (createdSubcategory?: any) => {
+    // Refresh categories to get the new subcategory
+    await fetchCategories()
+    
+    // Auto-select the newly created subcategory after refresh
+    if (createdSubcategory?.id) {
+      setFormData(prev => ({
+        ...prev,
+        subcategoryId: createdSubcategory.id
+      }))
+    }
+    
+    setShowSubcategoryEditor(false)
   }
 
   const handleSkuScan = (scannedValue: string) => {
@@ -720,14 +758,25 @@ export function UniversalInventoryForm({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Subcategory (Optional)
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Subcategory (Optional)
+                </label>
+                {selectedCategory && session?.user && hasUserPermission(session.user, 'canCreateInventorySubcategories') && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSubcategoryEditor(true)}
+                    className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                  >
+                    + Create Subcategory
+                  </button>
+                )}
+              </div>
               <select
                 value={formData.subcategoryId || ''}
                 onChange={(e) => handleInputChange('subcategoryId', e.target.value || '')}
                 className="input-field"
-                disabled={!selectedCategory || availableSubcategories.length === 0}
+                disabled={!selectedCategory}
               >
                 <option value="">No subcategory</option>
                 {availableSubcategories.map((subcategory) => (
@@ -740,7 +789,7 @@ export function UniversalInventoryForm({
                 <p className="text-gray-500 text-sm mt-1">Select a category first</p>
               )}
               {selectedCategory && availableSubcategories.length === 0 && (
-                <p className="text-gray-500 text-sm mt-1">No subcategories available for this category</p>
+                <p className="text-gray-500 text-sm mt-1">No subcategories available. Click "+ Create Subcategory" to add one.</p>
               )}
             </div>
 
@@ -915,18 +964,59 @@ export function UniversalInventoryForm({
     </div>
   )
 
+  // Get selected category for subcategory editor
+  const selectedCategoryData = categories.find(c => c.id === selectedCategory)
+
   if (renderMode === 'modal') {
     if (!isOpen) return null
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-        <div className="w-full flex items-start justify-center pt-8">{/* ensure modal starts lower so top isn't clipped */}
-          {panel}
+      <>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="w-full flex items-start justify-center pt-8">{/* ensure modal starts lower so top isn't clipped */}
+            {panel}
+          </div>
         </div>
-      </div>
+        
+        {/* Subcategory Editor Modal */}
+        {showSubcategoryEditor && selectedCategoryData && (
+          <InventorySubcategoryEditor
+            category={{
+              id: selectedCategoryData.id,
+              name: selectedCategoryData.name,
+              emoji: selectedCategoryData.emoji,
+              businessType: businessType,
+              isActive: true
+            } as any}
+            onSuccess={handleSubcategoryCreated}
+            onCancel={() => setShowSubcategoryEditor(false)}
+            isOpen={showSubcategoryEditor}
+          />
+        )}
+      </>
     )
   }
 
   // inline render mode — parent provides the modal wrapper
-  return panel
+  return (
+    <>
+      {panel}
+      
+      {/* Subcategory Editor Modal */}
+      {showSubcategoryEditor && selectedCategoryData && (
+        <InventorySubcategoryEditor
+          category={{
+            id: selectedCategoryData.id,
+            name: selectedCategoryData.name,
+            emoji: selectedCategoryData.emoji,
+            businessType: businessType,
+            isActive: true
+          } as any}
+          onSuccess={handleSubcategoryCreated}
+          onCancel={() => setShowSubcategoryEditor(false)}
+          isOpen={showSubcategoryEditor}
+        />
+      )}
+    </>
+  )
 }

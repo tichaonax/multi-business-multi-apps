@@ -56,20 +56,23 @@ export async function PUT(
       return NextResponse.json({ error: 'Subcategory not found' }, { status: 404 });
     }
 
-    // Verify user has access to this business
-    const membership = await prisma.businessMemberships.findFirst({
-      where: {
-        userId: user.id,
-        businessId: existingSubcategory.category.businessId,
-        isActive: true,
-      },
-    });
+    // For business-specific categories, verify user has access to that business
+    // Type-based categories (businessId is null) are accessible to all users with permission
+    if (existingSubcategory.category.businessId) {
+      const membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: user.id,
+          businessId: existingSubcategory.category.businessId,
+          isActive: true,
+        },
+      });
 
-    if (!membership && user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'You do not have access to this business' },
-        { status: 403 }
-      );
+      if (!membership && user.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
     }
 
     // Parse request body
@@ -189,20 +192,23 @@ export async function DELETE(
       return NextResponse.json({ error: 'Subcategory not found' }, { status: 404 });
     }
 
-    // Verify user has access to this business
-    const membership = await prisma.businessMemberships.findFirst({
-      where: {
-        userId: user.id,
-        businessId: existingSubcategory.category.businessId,
-        isActive: true,
-      },
-    });
+    // For business-specific categories, verify user has access to that business
+    // Type-based categories (businessId is null) are accessible to all users with permission
+    if (existingSubcategory.category.businessId) {
+      const membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: user.id,
+          businessId: existingSubcategory.category.businessId,
+          isActive: true,
+        },
+      });
 
-    if (!membership && user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'You do not have access to this business' },
-        { status: 403 }
-      );
+      if (!membership && user.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
     }
 
     // TODO: Check if subcategory has associated products when that relation is implemented

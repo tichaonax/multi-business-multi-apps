@@ -1,11 +1,110 @@
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
+/**
+ * Create a product with stock and stock movement
+ */
+async function createProductWithStock(businessId, categoryId, supplierId, productData, initialStock = 0) {
+  const now = new Date()
+  
+  // Create or update product
+  const product = await prisma.businessProducts.upsert({
+    where: { businessId_sku: { businessId, sku: productData.sku } },
+    update: { 
+      basePrice: productData.basePrice, 
+      costPrice: productData.costPrice, 
+      supplierId,
+      updatedAt: now 
+    },
+    create: {
+      businessId,
+      businessType: 'hardware',
+      name: productData.name,
+      sku: productData.sku,
+      basePrice: productData.basePrice,
+      costPrice: productData.costPrice,
+      categoryId,
+      supplierId,
+      description: productData.description,
+      createdAt: now,
+      updatedAt: now
+    }
+  })
+
+  // Create variant with stock
+  const variantSku = `${productData.sku}-STD`
+  const variant = await prisma.productVariants.upsert({
+    where: { sku: variantSku },
+    update: { 
+      stockQuantity: initialStock, 
+      price: productData.basePrice, 
+      updatedAt: now 
+    },
+    create: { 
+      productId: product.id, 
+      sku: variantSku, 
+      price: productData.basePrice, 
+      stockQuantity: initialStock, 
+      createdAt: now, 
+      updatedAt: now 
+    }
+  })
+
+  // Create stock movement for initial stock
+  if (initialStock > 0) {
+    const movementId = `${variant.id}-stock-init`
+    await prisma.businessStockMovements.createMany({
+      data: [{
+        id: movementId,
+        businessId,
+        productVariantId: variant.id,
+        movementType: 'PURCHASE_RECEIVED',
+        quantity: initialStock,
+        unitCost: productData.costPrice,
+        reference: 'Seed initial stock',
+        reason: 'Initial demo stock',
+        businessType: 'hardware',
+        businessProductId: product.id,
+        createdAt: now
+      }],
+      skipDuplicates: true
+    })
+  }
+
+  return { product, variant }
+}
+
+/**
+ * Ensure type-based categories exist before seeding demo data
+ */
+async function ensureCategoriesExist() {
+  const categoriesExist = await prisma.businessCategories.findFirst({
+    where: { businessType: 'hardware', businessId: null }
+  })
+
+  if (!categoriesExist) {
+    console.log('📂 Type-based categories not found. Auto-seeding categories...')
+    try {
+      const { seedTypeCategories } = require('./seed-type-categories.js')
+      await seedTypeCategories()
+      console.log('✅ Categories seeded successfully')
+    } catch (err) {
+      console.error('❌ Failed to seed categories:', err.message)
+      throw new Error('Cannot proceed without categories. Please run: npm run seed:categories')
+    }
+  } else {
+    console.log('✅ Type-based categories already exist')
+  }
+}
+
 async function seed() {
   try {
     const businessId = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
 
-      // Ensure business exists
+    // STEP 1: Ensure categories exist (auto-seed if missing)
+    await ensureCategoriesExist()
+
+    // STEP 2: Ensure business exists
     const now = new Date()
     const business = await prisma.businesses.upsert({
       where: { id: businessId },
@@ -26,20 +125,23 @@ async function seed() {
     })
     console.log('Using business for hardware demo:', businessId)
 
-    // Categories
-    const cat1 = await prisma.businessCategories.upsert({
-      where: { id: `${businessId}-cat-fasteners` },
-      update: { updatedAt: now },
-      create: { id: `${businessId}-cat-fasteners`, businessId, businessType: 'hardware', name: 'Fasteners & Hardware', isActive: true, createdAt: now, updatedAt: now }
+    // STEP 3: Get type-based categories
+    const cat1 = await prisma.businessCategories.findFirst({
+      where: { businessType: 'hardware', name: 'Hand Tools', businessId: null }
+    })
+    const cat2 = await prisma.businessCategories.findFirst({
+      where: { businessType: 'hardware', name: 'Power Tools', businessId: null }
     })
 
-    const cat2 = await prisma.businessCategories.upsert({
-      where: { id: `${businessId}-cat-tools` },
-      update: { updatedAt: now },
-      create: { id: `${businessId}-cat-tools`, businessId, businessType: 'hardware', name: 'Tools', isActive: true, createdAt: now, updatedAt: now }
-    })
+    if (!cat1 || !cat2) {
+      console.error('❌ Hardware categories still not found after seeding!')
+      process.exitCode = 1
+      return
+    }
 
-    // Suppliers
+    console.log('✅ Using type-based categories:', { handTools: cat1.id, powerTools: cat2.id })
+
+    // STEP 4: Create Suppliers
     const supplier = await prisma.businessSuppliers.upsert({
       where: { id: `${businessId}-sup-1` },
       update: {},
@@ -53,69 +155,100 @@ async function seed() {
         updatedAt: now
       }
     })
+    console.log('✅ Created supplier:', supplier.name)
 
-    // Products
-    const p1 = await prisma.businessProducts.upsert({
-      where: { businessId_sku: { businessId, sku: 'HB-M8-30' } },
-      update: { basePrice: 0.12, updatedAt: now },
-      create: {
-        businessId,
-        businessType: 'hardware',
-        name: 'Hex Bolt M8 x 30mm',
+    // STEP 5: Create Products with realistic cost prices and stock
+    const products = [
+      {
         sku: 'HB-M8-30',
-        basePrice: 0.12,
-        categoryId: cat1.id,
+        name: 'Hex Bolt M8 x 30mm',
         description: 'Standard hex bolt for general purpose',
-        createdAt: now,
-        updatedAt: now
-      }
-    })
-
-    const p2 = await prisma.businessProducts.upsert({
-      where: { businessId_sku: { businessId, sku: 'DR-18V-001' } },
-      update: { basePrice: 89.99, updatedAt: now },
-      create: {
-        businessId,
-        businessType: 'hardware',
-        name: 'Cordless Drill - 18V',
+        basePrice: 0.12,
+        costPrice: 0.05,
+        categoryId: cat1.id,
+        stock: 500
+      },
+      {
+        sku: 'HB-M10-40',
+        name: 'Hex Bolt M10 x 40mm',
+        description: 'Heavy-duty hex bolt',
+        basePrice: 0.25,
+        costPrice: 0.11,
+        categoryId: cat1.id,
+        stock: 350
+      },
+      {
+        sku: 'SCR-PH2-50',
+        name: 'Phillips Screwdriver',
+        description: 'Professional grade screwdriver',
+        basePrice: 8.99,
+        costPrice: 4.50,
+        categoryId: cat1.id,
+        stock: 75
+      },
+      {
+        sku: 'HAM-CL-16',
+        name: 'Claw Hammer 16oz',
+        description: 'Fiberglass handle claw hammer',
+        basePrice: 15.99,
+        costPrice: 8.50,
+        categoryId: cat1.id,
+        stock: 45
+      },
+      {
         sku: 'DR-18V-001',
-        basePrice: 89.99,
-        categoryId: cat2.id,
+        name: 'Cordless Drill - 18V',
         description: 'Lightweight cordless drill for DIY tasks',
-        createdAt: now,
-        updatedAt: now
+        basePrice: 89.99,
+        costPrice: 52.99,
+        categoryId: cat2.id,
+        stock: 25
+      },
+      {
+        sku: 'SAW-CIR-7',
+        name: 'Circular Saw 7.25"',
+        description: 'Electric circular saw with laser guide',
+        basePrice: 129.99,
+        costPrice: 75.00,
+        categoryId: cat2.id,
+        stock: 18
+      },
+      {
+        sku: 'GRN-ANG-4',
+        name: 'Angle Grinder 4.5"',
+        description: 'Powerful angle grinder for cutting and grinding',
+        basePrice: 65.99,
+        costPrice: 38.00,
+        categoryId: cat2.id,
+        stock: 30
+      },
+      {
+        sku: 'DRL-IMP-20V',
+        name: 'Impact Driver 20V',
+        description: 'High-torque impact driver with LED light',
+        basePrice: 99.99,
+        costPrice: 58.00,
+        categoryId: cat2.id,
+        stock: 22
       }
-    })
+    ]
 
-    // Variants / images
-    const v1 = await prisma.productVariants.upsert({
-      where: { sku: 'HB-M8-30-STD' },
-      update: { stockQuantity: 500, updatedAt: now },
-      create: { productId: p1.id, sku: 'HB-M8-30-STD', price: p1.basePrice, stockQuantity: 500, createdAt: now, updatedAt: now }
-    }).catch(() => null)
+    for (const productData of products) {
+      try {
+        const { product, variant } = await createProductWithStock(
+          businessId, 
+          productData.categoryId, 
+          supplier.id, 
+          productData, 
+          productData.stock
+        )
+        console.log(`✅ Created product: ${productData.name} (${productData.stock} units, cost: $${productData.costPrice}, price: $${productData.basePrice})`)
+      } catch (err) {
+        console.error(`❌ Failed to create product ${productData.name}:`, err.message)
+      }
+    }
 
-    const v2 = await prisma.productVariants.upsert({
-      where: { sku: 'DR-18V-001-STD' },
-      update: { stockQuantity: 25, updatedAt: now },
-      create: { productId: p2.id, sku: 'DR-18V-001-STD', price: p2.basePrice, stockQuantity: 25, createdAt: now, updatedAt: now }
-    }).catch(() => null)
-
-    await prisma.productImages.createMany({
-      data: [
-        { id: `${p1.id}-img-1`, productId: p1.id, imageUrl: '/images/seed/hardware/hex-bolt.jpg', altText: 'Hex Bolt', businessType: 'hardware' },
-        { id: `${p2.id}-img-1`, productId: p2.id, imageUrl: '/images/seed/hardware/drill.jpg', altText: 'Cordless Drill', businessType: 'hardware' }
-      ],
-      skipDuplicates: true
-    }).catch(() => null)
-
-    // Initial stock movements
-    await prisma.businessStockMovements.createMany({
-      data: [
-        { id: `${p1.id}-stock-1`, businessId, productVariantId: `${p1.id}-variant-default`, movementType: 'PURCHASE_RECEIVED', quantity: 500, notes: 'Initial seed stock', createdAt: new Date(), businessType: 'hardware' },
-        { id: `${p2.id}-stock-1`, businessId, productVariantId: `${p2.id}-variant-default`, movementType: 'PURCHASE_RECEIVED', quantity: 25, notes: 'Initial seed stock', createdAt: new Date(), businessType: 'hardware' }
-      ],
-      skipDuplicates: true
-    }).catch(() => null)
+    console.log(`\n✅ Seeded ${products.length} hardware products with realistic cost and stock data`)
 
     console.log('Hardware demo seed complete for business:', businessId)
     await prisma.$disconnect()
