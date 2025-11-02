@@ -1396,6 +1396,7 @@ export interface BusinessMembership {
   role: BusinessPermissionPreset;
   permissions: BusinessPermissions;
   isActive: boolean;
+  isDemo?: boolean; // Flag to indicate demo business
   joinedAt: Date;
   lastAccessedAt: Date | null;
 }

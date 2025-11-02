@@ -372,6 +372,7 @@ model Businesses {
   updatedAt                                                                DateTime                      @default(now())
   umbrellaBusinessId                                                       String?
   isUmbrellaBusiness                                                       Boolean                       @default(false)
+  isDemo                                                                   Boolean                       @default(false)
   umbrellaBusinessName                                                     String?                       @default("Demo Umbrella Company")
   umbrellaBusinessAddress                                                  String?
   umbrellaBusinessEmail                                                    String?

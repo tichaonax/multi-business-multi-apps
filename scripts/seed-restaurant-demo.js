@@ -159,6 +159,7 @@ async function seed() {
       update: { 
         name: 'Restaurant [Demo]',
         description: 'Demo business for testing - safe to delete',
+        isDemo: true,
         updatedAt: now 
       },
       create: {
@@ -167,6 +168,7 @@ async function seed() {
         type: 'restaurant',
         description: 'Demo business for testing - safe to delete',
         isActive: true,
+        isDemo: true,
         createdAt: now,
         updatedAt: now
       }

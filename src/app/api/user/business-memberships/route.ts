@@ -27,6 +27,7 @@ export async function GET() {
           type: true,
           description: true,
           isActive: true,
+          isDemo: true,
         },
         orderBy: {
           name: 'asc',
@@ -54,6 +55,7 @@ export async function GET() {
           canViewReports: true,
         },
         isActive: business.isActive, // Use actual business active status
+        isDemo: business.isDemo, // Include demo flag
         joinedAt: new Date(),
         lastAccessedAt: new Date(),
       }));
@@ -74,6 +76,7 @@ export async function GET() {
             type: true,
             description: true,
             isActive: true,
+            isDemo: true,
           },
         },
       },
@@ -90,6 +93,7 @@ export async function GET() {
       role: membership.role as any,
       permissions: mergeWithBusinessPermissions(membership.permissions as any),
       isActive: membership.isActive && membership.businesses.isActive,
+      isDemo: membership.businesses.isDemo, // Include demo flag
       joinedAt: membership.joinedAt,
       lastAccessedAt: membership.lastAccessedAt,
     }));
