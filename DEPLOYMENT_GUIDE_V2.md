@@ -6,6 +6,38 @@ This guide covers deploying the Multi-Business Management Platform to a second s
 
 ---
 
+## ⚡ **QUICK START - COMPLETE WORKFLOW**
+
+For a fresh server installation:
+
+```bash
+# 1. Clone repository
+git clone https://github.com/tichaonax/multi-business-multi-apps.git
+cd multi-business-multi-apps
+
+# 2. Install smart hooks (recommended)
+node scripts/install-git-hooks.js --smart
+
+# 3. Configure environment
+copy .env.example .env
+# Edit .env with your settings (DATABASE_URL, SYNC_NODE_ID, etc.)
+
+# 4. Run fresh installation
+npm run setup
+
+# 5. Seed business categories (REQUIRED)
+npm run seed:categories
+
+# 6. Install and start Windows service (as Administrator)
+npm run service:install
+npm run service:start
+
+# 7. Access application at http://localhost:8080
+# Admin login: admin@business.local / admin123
+```
+
+---
+
 ## 📋 **DEPLOYMENT INFRASTRUCTURE IMPROVEMENTS**
 
 ### ✅ **What's Been Fixed**
@@ -145,12 +177,110 @@ npm run setup
 - **Creates database automatically** (if it doesn't exist)
 - Sets up database schema
 - Applies all migrations
-- Seeds initial data
+- Seeds initial data (~128 reference data records)
 - Builds the application
 - Creates admin user: `admin@business.local` / `admin123`
 
+> **⚠️ IMPORTANT:** After setup completes, you must seed business categories separately. See [Post-Deployment: Seed Business Categories](#post-deployment-seed-business-categories) below.
+
 **✅ No Manual Database Creation Required!**
 The setup script will automatically create the database using the credentials in your `.env` file.
+
+---
+
+## 📦 **POST-DEPLOYMENT: SEED BUSINESS CATEGORIES**
+
+### **STEP 5.1: Seed Default Inventory Categories**
+
+After fresh installation completes, you **must** seed business categories. The system requires default inventory categories for each business type (clothing, hardware, grocery, restaurant).
+
+#### Run Category Seeding
+
+```bash
+npm run seed:categories
+```
+
+Or directly:
+
+```bash
+node scripts/seed-type-categories.js
+```
+
+#### What This Seeds
+
+**Categories are shared by business type** (not by individual businesses):
+
+- **Clothing**: 5 categories, 17 subcategories
+  - Men's Fashion (Shirts, Pants, Suits, Outerwear)
+  - Women's Fashion (Dresses, Tops, Bottoms, Outerwear)
+  - Kids Fashion (Boys, Girls, Baby)
+  - Footwear (Casual, Formal, Sports)
+  - Accessories (Bags, Jewelry, Watches)
+
+- **Hardware**: 5 categories, 14 subcategories
+  - Hand Tools (Hammers, Screwdrivers, Wrenches, Measuring)
+  - Power Tools (Drills, Saws, Sanders)
+  - Building Materials (Lumber, Cement, Paint)
+  - Plumbing (Pipes, Fittings)
+  - Electrical (Wire, Switches)
+
+- **Grocery**: 6 categories, 15 subcategories
+  - Fresh Produce (Fruits, Vegetables, Herbs)
+  - Meat & Seafood (Beef, Chicken, Seafood)
+  - Dairy Products (Milk, Cheese, Yogurt)
+  - Bakery (Bread, Pastries)
+  - Beverages (Soft Drinks, Juices)
+  - Pantry & Canned Goods (Canned Goods, Pasta)
+
+- **Restaurant**: 4 categories, 13 subcategories
+  - Appetizers (Salads, Soups, Finger Foods)
+  - Main Courses (Meat, Seafood, Vegetarian, Pasta)
+  - Desserts (Cakes, Ice Cream)
+  - Beverages (Hot, Cold, Alcoholic)
+
+**Total**: 20 categories, 59 subcategories across 4 business types
+
+#### Expected Output
+
+```bash
+🌱 Starting Type-Level Category Seeding...
+
+📦 Processing clothing business type...
+   ✅ Created category: Men's Fashion
+      └─ Created 4 subcategories
+   ✅ Created category: Women's Fashion
+      └─ Created 4 subcategories
+   ...
+
+====================================================================
+✅ SEEDING COMPLETE
+====================================================================
+📊 Categories created: 20
+📊 Subcategories created: 59
+
+📋 Final Category Count by Business Type:
+   clothing: 5 categories
+   hardware: 5 categories
+   grocery: 6 categories
+   restaurant: 4 categories
+
+✅ Done!
+```
+
+#### Prerequisites
+
+- Database must be migrated (all migrations applied ✅ done by setup)
+- **At least one business of each type should exist**
+- If no business exists for a type, categories for that type will be skipped
+
+#### Important Notes
+
+- **Run once per deployment** - Categories only need seeding once
+- **Shared by type** - All businesses of same type share these categories
+- **Idempotent** - Safe to re-run; skips existing categories
+- See [FRESH_DEPLOYMENT_GUIDE.md](FRESH_DEPLOYMENT_GUIDE.md) for detailed category information
+
+---
 
 ### **STEP 6: Windows Service Installation**
 
@@ -341,6 +471,30 @@ npm run build:service
 npx prisma generate
 ```
 
+### **Category Seeding Issues**
+
+**"No business exists yet for type X":**
+- **Problem**: Trying to seed categories before creating businesses
+- **Solution**: 
+  1. Create at least one business first (via admin UI)
+  2. Then run `npm run seed:categories`
+
+**"Categories already exist" or script skips types:**
+- **Problem**: Categories detected, seeding skipped
+- **Solution**: This is normal. Categories only need seeding once per business type.
+
+**Duplicate key error (P2002):**
+- **Problem**: Category with same name already exists
+- **Solution**: Script automatically handles this. No action needed.
+
+**To verify seeding worked:**
+```sql
+SELECT businessType, name, emoji 
+FROM business_categories 
+WHERE isUserCreated = false 
+ORDER BY businessType, displayOrder;
+```
+
 ---
 
 ## 📝 **MAINTENANCE COMMANDS**
@@ -394,11 +548,29 @@ node scripts/migrate-environment.js rollback  # Rollback migration
 - [ ] Environment variables configured correctly
 - [ ] Database created and accessible
 - [ ] `npm run setup` completed successfully
+- [ ] **Business categories seeded** (`npm run seed:categories`)
 - [ ] Windows service installed and running
 - [ ] Application accessible at http://localhost:8080
 - [ ] Admin login works (admin@business.local)
 - [ ] Sync connection visible in admin panel
 - [ ] Smart git hooks installed (optional but recommended)
+
+### Verify Categories Were Seeded
+
+Run this SQL query to confirm categories:
+
+```sql
+SELECT businessType, COUNT(*) as category_count
+FROM business_categories
+WHERE isUserCreated = false
+GROUP BY businessType;
+```
+
+Expected results:
+- `clothing`: 5 categories
+- `hardware`: 5 categories
+- `grocery`: 6 categories
+- `restaurant`: 4 categories
 
 ---
 
