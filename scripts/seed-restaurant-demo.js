@@ -195,6 +195,72 @@ async function seed() {
     }
     console.log('✅ Using type-based categories')
 
+    // STEP 3: Create Suppliers (type-based for restaurant businesses)
+    const suppliers = [
+      { 
+        name: 'Fresh Produce Market', 
+        supplierNumber: 'RST-SUP-001',
+        contactPerson: 'Produce Manager',
+        email: 'orders@freshproducemarket.com',
+        phone: '+1-555-0301',
+        description: 'Fresh vegetables and fruits supplier'
+      },
+      { 
+        name: 'Prime Meat Distributors', 
+        supplierNumber: 'RST-SUP-002',
+        contactPerson: 'Meat Manager',
+        email: 'orders@primemeat.com',
+        phone: '+1-555-0302',
+        description: 'Fresh meat and poultry supplier'
+      },
+      { 
+        name: 'Seafood Express', 
+        supplierNumber: 'RST-SUP-003',
+        contactPerson: 'Seafood Manager',
+        email: 'orders@seafoodexpress.com',
+        phone: '+1-555-0303',
+        description: 'Fresh seafood and fish supplier'
+      },
+      { 
+        name: 'Restaurant Supply Co', 
+        supplierNumber: 'RST-SUP-004',
+        contactPerson: 'Supply Manager',
+        email: 'orders@restaurantsupply.com',
+        phone: '+1-555-0304',
+        description: 'Dry goods, beverages, and restaurant supplies'
+      }
+    ]
+
+    console.log('\n📦 Creating suppliers...')
+    const createdSuppliers = []
+    for (const s of suppliers) {
+      const supplier = await prisma.businessSuppliers.upsert({
+        where: { businessType_supplierNumber: { businessType: 'restaurant', supplierNumber: s.supplierNumber } },
+        update: { 
+          name: s.name,
+          contactPerson: s.contactPerson,
+          email: s.email,
+          phone: s.phone,
+          notes: s.description,
+          updatedAt: new Date()
+        },
+        create: {
+          businessType: 'restaurant',
+          name: s.name,
+          supplierNumber: s.supplierNumber,
+          contactPerson: s.contactPerson,
+          email: s.email,
+          phone: s.phone,
+          notes: s.description,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      })
+      createdSuppliers.push(supplier)
+      console.log(`  ✅ ${supplier.name}`)
+    }
+
     // Expanded menu with realistic pricing
     const items = [
       // Appetizers

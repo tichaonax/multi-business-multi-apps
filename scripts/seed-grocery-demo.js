@@ -178,6 +178,72 @@ async function seed() {
     }
     console.log('✅ Using type-based categories')
 
+    // STEP 3: Create Suppliers (type-based for grocery businesses)
+    const suppliers = [
+      { 
+        name: 'Fresh Farm Produce Co', 
+        supplierNumber: 'GRO-SUP-001',
+        contactPerson: 'Farm Manager',
+        email: 'orders@freshfarm.com',
+        phone: '+1-555-0101',
+        description: 'Fresh fruits and vegetables supplier'
+      },
+      { 
+        name: 'Dairy Delights Distributors', 
+        supplierNumber: 'GRO-SUP-002',
+        contactPerson: 'Dairy Manager',
+        email: 'orders@dairydelights.com',
+        phone: '+1-555-0102',
+        description: 'Dairy products and eggs supplier'
+      },
+      { 
+        name: 'Prime Meats & Seafood', 
+        supplierNumber: 'GRO-SUP-003',
+        contactPerson: 'Meat Manager',
+        email: 'orders@primemeats.com',
+        phone: '+1-555-0103',
+        description: 'Fresh meat and seafood supplier'
+      },
+      { 
+        name: 'Pantry Goods Wholesale', 
+        supplierNumber: 'GRO-SUP-004',
+        contactPerson: 'Warehouse Manager',
+        email: 'orders@pantrygoods.com',
+        phone: '+1-555-0104',
+        description: 'Canned goods, dry goods, and beverages supplier'
+      }
+    ]
+
+    console.log('\n📦 Creating suppliers...')
+    const createdSuppliers = []
+    for (const s of suppliers) {
+      const supplier = await prisma.businessSuppliers.upsert({
+        where: { businessType_supplierNumber: { businessType: 'grocery', supplierNumber: s.supplierNumber } },
+        update: { 
+          name: s.name,
+          contactPerson: s.contactPerson,
+          email: s.email,
+          phone: s.phone,
+          notes: s.description,
+          updatedAt: now
+        },
+        create: {
+          businessType: 'grocery',
+          name: s.name,
+          supplierNumber: s.supplierNumber,
+          contactPerson: s.contactPerson,
+          email: s.email,
+          phone: s.phone,
+          notes: s.description,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now
+        }
+      })
+      createdSuppliers.push(supplier)
+      console.log(`  ✅ ${supplier.name}`)
+    }
+
     // Products with realistic cost prices (organized by available categories)
     const products = [
       // Fresh Produce

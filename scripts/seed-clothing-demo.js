@@ -87,6 +87,64 @@ async function seed() {
       where: { categoryId: womensFashionCat.id, name: 'Dresses' }
     })
 
+    // STEP 4: Create Suppliers (type-based for clothing businesses)
+    const suppliers = [
+      { 
+        name: 'Fashion Forward Imports', 
+        supplierNumber: 'CLO-SUP-001',
+        contactPerson: 'Import Manager',
+        email: 'orders@fashionforward.com',
+        phone: '+1-555-0201',
+        description: "Men's and women's apparel supplier"
+      },
+      { 
+        name: 'Quality Fabrics Co', 
+        supplierNumber: 'CLO-SUP-002',
+        contactPerson: 'Fabric Manager',
+        email: 'orders@qualityfabrics.com',
+        phone: '+1-555-0202',
+        description: 'Textile and fabric supplier'
+      },
+      { 
+        name: 'Accessory Warehouse', 
+        supplierNumber: 'CLO-SUP-003',
+        contactPerson: 'Accessories Manager',
+        email: 'orders@accessorywarehouse.com',
+        phone: '+1-555-0203',
+        description: 'Belts, bags, and accessories supplier'
+      }
+    ]
+
+    console.log('\n📦 Creating suppliers...')
+    const createdSuppliers = []
+    for (const s of suppliers) {
+      const supplier = await prisma.businessSuppliers.upsert({
+        where: { businessType_supplierNumber: { businessType: 'clothing', supplierNumber: s.supplierNumber } },
+        update: { 
+          name: s.name,
+          contactPerson: s.contactPerson,
+          email: s.email,
+          phone: s.phone,
+          notes: s.description,
+          updatedAt: now
+        },
+        create: {
+          businessType: 'clothing',
+          name: s.name,
+          supplierNumber: s.supplierNumber,
+          contactPerson: s.contactPerson,
+          email: s.email,
+          phone: s.phone,
+          notes: s.description,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now
+        }
+      })
+      createdSuppliers.push(supplier)
+      console.log(`  ✅ ${supplier.name}`)
+    }
+
     // Expanded product list with realistic pricing and variants
     const products = [
       { 
