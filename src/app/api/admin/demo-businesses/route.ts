@@ -48,20 +48,16 @@ export async function GET(request: NextRequest) {
         // Count product variants
         const variantCount = await prisma.productVariants.count({
           where: {
-            businessProduct: {
+            business_products: {
               businessId: business.id
             }
           }
         });
 
         // Count stock movements
-        const stockMovementCount = await prisma.stockMovements.count({
+        const stockMovementCount = await prisma.businessStockMovements.count({
           where: {
-            variant: {
-              businessProduct: {
-                businessId: business.id
-              }
-            }
+            businessId: business.id
           }
         });
 

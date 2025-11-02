@@ -544,23 +544,36 @@ function BusinessManagePageContent() {
         <BusinessCreationModal
           onClose={() => setShowEditBusiness(false)}
           onSuccess={async (result) => {
+            // Close modal immediately to prevent it from blocking renders
+            setShowEditBusiness(false)
+            
             try {
               if (result?.message) {
                 toast.push(result.message)
               }
-              // After edit, refresh memberships/current business display if possible
-              if (editBusinessId) {
+              
+              // Store the ID before async operations
+              const bizIdToRefresh = editBusinessId
+              
+              // Give database time to commit
+              await new Promise(resolve => setTimeout(resolve, 150))
+              
+              // Refresh memberships to get updated business name
+              await refreshBusinesses()
+              
+              // Give React time to propagate state changes
+              await new Promise(resolve => setTimeout(resolve, 100))
+              
+              // Switch to force re-render (creates new array in context)
+              if (bizIdToRefresh) {
                 try {
-                  await switchBusiness(editBusinessId)
+                  await switchBusiness(bizIdToRefresh)
                 } catch (e) {
-                  // switching is best-effort; ignore failures but log
-                  console.error('Failed to refresh/switch after edit:', e)
+                  console.error('Failed to switch after edit:', e)
                 }
               }
             } catch (err) {
               console.error('Error handling edit success:', err)
-            } finally {
-              setShowEditBusiness(false)
             }
           }}
           onError={(error) => {

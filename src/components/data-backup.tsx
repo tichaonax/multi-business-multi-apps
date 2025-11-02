@@ -25,6 +25,7 @@ interface BackupOptions {
   type: 'full' | 'users' | 'business-data' | 'employees' | 'reference-data' | 'demo-only';
   includeAuditLogs: boolean;
   includeDemoData: boolean;
+  includeBusinessData: boolean;
   selectedDemoBusinessId?: string;
   selectedRealBusinessId?: string;
 }
@@ -86,6 +87,7 @@ export function DataBackup() {
     type: 'full',
     includeAuditLogs: false,
     includeDemoData: false, // Demo data excluded by default
+    includeBusinessData: true, // Business data included by default
     selectedDemoBusinessId: undefined,
   });
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
@@ -180,44 +182,20 @@ export function DataBackup() {
       setLoading(true);
 
       const params = new URLSearchParams();
-      
-      // Demo-only backup uses different endpoint
-      if (backupOptions.type === 'demo-only') {
-        const apiUrl = backupOptions.selectedDemoBusinessId
-          ? `/api/admin/demo-backup?businessId=${backupOptions.selectedDemoBusinessId}`
-          : `/api/admin/demo-backup`;
-        const response = await fetch(apiUrl);
-        
-        if (!response.ok) {
-          throw new Error('Demo backup failed');
-        }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = `demo-backup_all_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json`;
-
-        if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
-          if (filenameMatch) {
-            filename = filenameMatch[1];
-          }
-        }
-
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        return;
-      }
-
       params.set('type', backupOptions.type);
       params.set('includeAuditLogs', backupOptions.includeAuditLogs.toString());
-      params.set('includeDemoData', backupOptions.includeDemoData.toString());
+      params.set('includeBusinessData', backupOptions.includeBusinessData.toString());
+      
+      // For demo-only backups, always include demo data
+      if (backupOptions.type === 'demo-only') {
+        params.set('includeDemoData', 'true');
+        // If specific demo business is selected, add businessId
+        if (backupOptions.selectedDemoBusinessId) {
+          params.set('businessId', backupOptions.selectedDemoBusinessId);
+        }
+      } else {
+        params.set('includeDemoData', backupOptions.includeDemoData.toString());
+      }
       
       // Add businessId if specific real business is selected
       if (backupOptions.selectedRealBusinessId) {
@@ -456,26 +434,49 @@ export function DataBackup() {
         {/* Backup Options */}
         <div className="space-y-3">
           {backupOptions.type === 'full' && (
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="includeAuditLogs"
-                checked={backupOptions.includeAuditLogs}
-                onChange={(e) =>
-                  setBackupOptions({
-                    ...backupOptions,
-                    includeAuditLogs: e.target.checked,
-                  })
-                }
-                className="mr-2"
-              />
-              <label
-                htmlFor="includeAuditLogs"
-                className="text-sm text-slate-700 dark:text-slate-300"
-              >
-                Include audit logs (last 10,000 entries)
-              </label>
-            </div>
+            <>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="includeBusinessData"
+                  checked={backupOptions.includeBusinessData}
+                  onChange={(e) =>
+                    setBackupOptions({
+                      ...backupOptions,
+                      includeBusinessData: e.target.checked,
+                    })
+                  }
+                  className="mr-2"
+                />
+                <label
+                  htmlFor="includeBusinessData"
+                  className="text-sm text-slate-700 dark:text-slate-300"
+                >
+                  Include business data (products, inventory, categories, suppliers, customers)
+                </label>
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="includeAuditLogs"
+                  checked={backupOptions.includeAuditLogs}
+                  onChange={(e) =>
+                    setBackupOptions({
+                      ...backupOptions,
+                      includeAuditLogs: e.target.checked,
+                    })
+                  }
+                  className="mr-2"
+                />
+                <label
+                  htmlFor="includeAuditLogs"
+                  className="text-sm text-slate-700 dark:text-slate-300"
+                >
+                  Include audit logs (last 10,000 entries)
+                </label>
+              </div>
+            </>
           )}
           
           {backupOptions.type !== 'demo-only' && backupOptions.type !== 'reference-data' && (

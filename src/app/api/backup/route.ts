@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session || session.users?.role !== 'admin') {
+    if (!session || session.user?.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const backupType = searchParams.get('type') || 'full';
     const includeAuditLogs = searchParams.get('includeAuditLogs') === 'true';
     const includeDemoData = searchParams.get('includeDemoData') === 'true'; // Demo data excluded by default
+    const includeBusinessData = searchParams.get('includeBusinessData') !== 'false'; // Business data included by default
     const businessId = searchParams.get('businessId'); // Optional: backup specific business only
 
     const backupData: any = {
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
         source: 'multi-business-multi-apps',
         includeAuditLogs,
         includeDemoData,
+        includeBusinessData,
         businessId: businessId || undefined,
         note: businessId 
           ? `Specific business backup (${businessId})`
@@ -66,7 +68,7 @@ export async function GET(request: NextRequest) {
               },
               include: {
                 businesses: true,
-                permissionTemplates: true
+                permission_templates: true
               }
             },
             employees: true
@@ -86,14 +88,14 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        backupData.business_memberships = await prisma.businessMemberships.findMany({
+        backupData.businessMemberships = await prisma.businessMemberships.findMany({
           where: {
             businessId: { in: businessIds }
           },
           include: {
             users: true,
             businesses: true,
-            permissionTemplates: true
+            permission_templates: true
           }
         });
 
@@ -108,6 +110,60 @@ export async function GET(request: NextRequest) {
             compensation_types: true
           }
         });
+
+        // Business Data - Products, Inventory, Categories, Suppliers, Customers
+        // Only include if includeBusinessData is true (default)
+        if (includeBusinessData) {
+          backupData.businessProducts = await prisma.businessProducts.findMany({
+            where: { businessId: { in: businessIds } },
+            include: {
+              product_variants: true,
+              product_images: true,
+              product_attributes: true
+            }
+          });
+
+          backupData.productVariants = await prisma.productVariants.findMany({
+            where: {
+              business_products: {
+                businessId: { in: businessIds }
+              }
+            }
+          });
+
+          backupData.businessStockMovements = await prisma.businessStockMovements.findMany({
+            where: { businessId: { in: businessIds } }
+          });
+
+          // Get business types for type-based data filtering
+          const businessTypes = [...new Set(backupData.businesses.map((b: any) => b.type))];
+
+          backupData.businessCategories = await prisma.businessCategories.findMany({
+            where: {
+              OR: [
+                { businessId: { in: businessIds } },
+                { businessId: null, businessType: { in: businessTypes } }
+              ]
+            }
+          });
+
+          backupData.businessSuppliers = await prisma.businessSuppliers.findMany({
+            where: {
+              OR: [
+                { businessId: { in: businessIds } },
+                { businessId: null, businessType: { in: businessTypes } }
+              ]
+            }
+          });
+
+          backupData.businessCustomers = await prisma.businessCustomers.findMany({
+            where: { businessId: { in: businessIds } }
+          });
+
+          backupData.businessBrands = await prisma.businessBrands.findMany({
+            where: { businessId: { in: businessIds } }
+          });
+        }
 
         // Reference data
         backupData.jobTitles = await prisma.jobTitles.findMany();
@@ -130,6 +186,128 @@ export async function GET(request: NextRequest) {
         }
         break;
 
+      case 'demo-only':
+        // Demo businesses only backup - include ONLY demo businesses and their data
+        const demoBusinessFilter: any = { isDemo: true, isActive: true };
+        if (businessId) {
+          demoBusinessFilter.id = businessId;
+        }
+        
+        const demoBusinesses = await prisma.businesses.findMany({
+          where: demoBusinessFilter,
+          include: {
+            business_memberships: true,
+            employees: true,
+            other_businesses: true
+          }
+        });
+        
+        if (demoBusinesses.length === 0) {
+          return NextResponse.json({ 
+            error: businessId ? 'Demo business not found' : 'No demo businesses found' 
+          }, { status: 404 });
+        }
+        
+        backupData.businesses = demoBusinesses;
+        const demoBusinessIds = demoBusinesses.map((b: any) => b.id);
+
+        // Get all users who are members of demo businesses
+        backupData.users = await prisma.users.findMany({
+          where: {
+            business_memberships: {
+              some: {
+                businessId: { in: demoBusinessIds }
+              }
+            }
+          },
+          include: {
+            business_memberships: {
+              where: {
+                businessId: { in: demoBusinessIds }
+              },
+              include: {
+                businesses: true,
+                permission_templates: true
+              }
+            },
+            employees: true
+          }
+        });
+
+        // Get employees for demo businesses
+        backupData.employees = await prisma.employees.findMany({
+          where: {
+            primaryBusinessId: { in: demoBusinessIds }
+          },
+          include: {
+            job_titles: true,
+            compensation_types: true,
+            businesses: true,
+            employee_contracts_employee_contracts_employeeIdToemployees: true,
+            employee_business_assignments: true
+          }
+        });
+
+        // Get business memberships for demo businesses
+        backupData.businessMemberships = await prisma.businessMemberships.findMany({
+          where: {
+            businessId: { in: demoBusinessIds }
+          },
+          include: {
+            users: true,
+            businesses: true,
+            permission_templates: true
+          }
+        });
+
+        // Get business-specific data for demo businesses
+        backupData.businessCategories = await prisma.businessCategories.findMany({
+          where: {
+            OR: [
+              { businessId: { in: demoBusinessIds } },
+              { businessId: null, businessType: { in: demoBusinesses.map((b: any) => b.type) } }
+            ]
+          }
+        });
+
+        backupData.businessProducts = await prisma.businessProducts.findMany({
+          where: { businessId: { in: demoBusinessIds } }
+        });
+
+        backupData.productVariants = await prisma.productVariants.findMany({
+          where: {
+            business_products: {
+              businessId: { in: demoBusinessIds }
+            }
+          }
+        });
+
+        backupData.businessStockMovements = await prisma.businessStockMovements.findMany({
+          where: { businessId: { in: demoBusinessIds } }
+        });
+
+        backupData.businessSuppliers = await prisma.businessSuppliers.findMany({
+          where: {
+            OR: [
+              { businessId: { in: demoBusinessIds } },
+              { businessType: { in: demoBusinesses.map((b: any) => b.type) } }
+            ]
+          }
+        });
+
+        backupData.businessCustomers = await prisma.businessCustomers.findMany({
+          where: { businessId: { in: demoBusinessIds } }
+        });
+
+        // Reference data
+        backupData.jobTitles = await prisma.jobTitles.findMany();
+        backupData.compensationTypes = await prisma.compensationTypes.findMany();
+        backupData.benefit_types = await prisma.benefitTypes.findMany();
+        backupData.idFormatTemplates = await prisma.idFormatTemplates.findMany();
+        backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany();
+        backupData.permissionTemplates = await prisma.permissionTemplates.findMany();
+        break;
+
       case 'users':
         // Users and permissions only
         const usersBusinessFilter = businessId ? { id: businessId } : (includeDemoData ? {} : { isDemo: false });
@@ -149,7 +327,7 @@ export async function GET(request: NextRequest) {
                 where: { businessId: businessId },
                 include: {
                   businesses: true,
-                  permissionTemplates: true
+                  permission_templates: true
                 }
               }
             }
@@ -160,7 +338,7 @@ export async function GET(request: NextRequest) {
             include: {
               users: true,
               businesses: true,
-              permissionTemplates: true
+              permission_templates: true
             }
           });
         } else {
@@ -170,7 +348,7 @@ export async function GET(request: NextRequest) {
               business_memberships: {
                 include: {
                   businesses: true,
-                  permissionTemplates: true
+                  permission_templates: true
                 }
               }
             }
@@ -180,7 +358,7 @@ export async function GET(request: NextRequest) {
             include: {
               users: true,
               businesses: true,
-              permissionTemplates: true
+              permission_templates: true
             }
           });
         }
@@ -213,7 +391,7 @@ export async function GET(request: NextRequest) {
               select: { id: true, name: true, email: true }
             },
             businesses: true,
-            permissionTemplates: true
+            permission_templates: true
           }
         });
 
@@ -330,7 +508,26 @@ export async function GET(request: NextRequest) {
 
     // Generate filename with service name prefix and full timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-    const filename = `MultiBusinessSyncService-backup_${backupType}_${timestamp}.json`;
+    
+    // Build descriptive filename
+    let filenameParts = ['MultiBusinessSyncService-backup', backupType];
+    
+    // Add flags to filename for clarity
+    if (backupType === 'full') {
+      if (!includeBusinessData) {
+        filenameParts.push('definitions-only');
+      }
+      if (includeDemoData) {
+        filenameParts.push('with-demos');
+      }
+    }
+    
+    if (businessId) {
+      filenameParts.push('single-business');
+    }
+    
+    filenameParts.push(timestamp);
+    const filename = `${filenameParts.join('_')}.json`;
 
     const response = new NextResponse(JSON.stringify(backupData, null, 2), {
       status: 200,
@@ -355,7 +552,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session || session.users?.role !== 'admin') {
+    if (!session || session.user?.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -452,7 +649,7 @@ export async function POST(request: NextRequest) {
         if (backupData.benefit_types) {
           for (const benefitType of backupData.benefit_types) {
             try {
-              await tx.benefit_types.upsert({
+              await tx.benefitTypes.upsert({
                 where: { id: benefitType.id },
                 update: {
                   name: benefitType.name,

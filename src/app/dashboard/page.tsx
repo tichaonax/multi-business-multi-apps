@@ -453,6 +453,25 @@ export default function Dashboard() {
         ) : (
           // Regular dashboard for non-drivers
           <>
+            {/* Quick Action - Go to Current Business */}
+            {currentBusiness && (
+              <div className="mb-6">
+                <Link 
+                  href={`/${currentBusiness.businessType}`}
+                  className="inline-flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+                >
+                  <span className="text-2xl">🏢</span>
+                  <div className="text-left">
+                    <div className="text-sm opacity-90">Go to Business</div>
+                    <div className="text-lg">{currentBusiness.businessName}</div>
+                  </div>
+                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
+            )}
+
             {/* Quick Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div
