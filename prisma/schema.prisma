@@ -96,7 +96,7 @@ model BusinessBrands {
 
 model BusinessCategories {
   id                        String                   @id @default(uuid())
-  businessId                String
+  businessId                String?
   name                      String
   description               String?
   parentId                  String?
@@ -111,7 +111,7 @@ model BusinessCategories {
   createdBy                 String?
   createdAt                 DateTime                 @default(now())
   updatedAt                 DateTime
-  businesses                Businesses               @relation(fields: [businessId], references: [id])
+  businesses                Businesses?              @relation(fields: [businessId], references: [id])
   business_categories       BusinessCategories?      @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
   other_business_categories BusinessCategories[]     @relation("business_categoriesTobusiness_categories")
   business_products         BusinessProducts[]
@@ -120,6 +120,7 @@ model BusinessCategories {
   inventory_subcategories   InventorySubcategories[]
 
   @@unique([businessType, name])
+  @@index([businessType])
   @@map("business_categories")
 }
 

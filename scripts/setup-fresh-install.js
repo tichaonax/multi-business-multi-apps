@@ -207,6 +207,11 @@ async function main() {
       required: false
     },
     {
+      command: 'node scripts/seed-type-categories.js',
+      description: 'Seeding business type categories (20 categories, 59 subcategories)',
+      required: true
+    },
+    {
       command: 'npm run create-admin',
       description: 'Creating admin user',
       required: false

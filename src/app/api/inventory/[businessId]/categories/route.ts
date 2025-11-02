@@ -193,9 +193,10 @@ export async function POST(
     }
 
     // Create the category at TYPE level (shared across all businesses of this type)
+    // User-created categories can optionally be linked to specific business or be type-wide (null)
     const category = await prisma.businessCategories.create({
       data: {
-        businessId,  // Keep for compatibility, but query by businessType
+        businessId: body.shareWithType ? null : businessId,  // null = shared by type, businessId = business-specific
         name: body.name,
         description: body.description || '',
         emoji: body.emoji || '📦',
@@ -203,6 +204,7 @@ export async function POST(
         businessType: business.type,
         isUserCreated: true,  // Mark as user-created (not system template)
         isActive: body.isActive !== false,
+        createdBy: session.user.id,
         updatedAt: new Date()
       }
     })

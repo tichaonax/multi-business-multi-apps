@@ -326,25 +326,14 @@ async function seedTypeCategories() {
       continue;
     }
 
-    // Get or create a reference business for this type
-    let referenceBusiness = await prisma.businesses.findFirst({
-      where: { type: businessType },
-      select: { id: true }
-    });
-
-    if (!referenceBusiness) {
-      console.log(`   ⚠️  No ${businessType} business exists yet. Categories will be created when first business is added.`);
-      continue;
-    }
-
     // Process each category
     for (const category of data.categories) {
       try {
-        // Create category
+        // Create category with NULL businessId (shared by type, not tied to specific business)
         const createdCategory = await prisma.businessCategories.create({
           data: {
             id: category.id,
-            businessId: referenceBusiness.id,
+            businessId: null,
             businessType: businessType,
             name: category.name,
             description: category.description,

@@ -2,13 +2,21 @@
 
 ## Post-Deployment Steps for New Server Installation
 
-After running a fresh deployment on a new server, follow these steps to seed default data:
+### ✅ Categories Now Seeded Automatically!
 
-### 1. Seed Default Inventory Categories
+**As of the latest update, business categories are automatically seeded during fresh installation.**
 
-The system needs default inventory categories for each business type (clothing, hardware, grocery, restaurant). These categories are shared across all businesses of the same type.
+When you run `npm run setup`, the system automatically:
+- Creates default categories for clothing, hardware, grocery, and restaurant business types
+- Creates all subcategories for each category
+- Categories are shared by `businessType` (not tied to specific businesses)
+- Seeding happens BEFORE any businesses exist (no longer requires businesses first)
 
-**Run this command after fresh deployment:**
+**You do NOT need to manually run `npm run seed:categories` anymore!**
+
+### Manual Category Seeding (Legacy/Migration Scenarios)
+
+If you're working with an existing database or need to re-seed categories:
 
 ```bash
 npm run seed:categories
@@ -23,9 +31,9 @@ node scripts/seed-type-categories.js
 **What this does:**
 - Creates default categories for clothing, hardware, grocery, and restaurant businesses
 - Creates subcategories for each category
-- Categories are shared by `businessType` (not `businessId`)
-- Only runs if categories don't already exist
-- Requires at least one business of each type to exist first
+- Categories are shared by `businessType` and can have NULL `businessId`
+- Only runs if categories don't already exist (idempotent)
+- **No longer requires businesses to exist first** (as of latest migration)
 
 ### 2. Expected Output
 
@@ -121,12 +129,8 @@ ORDER BY bc.businessType, bc.displayOrder, s.displayOrder;
 
 ## Troubleshooting
 
-### "No business exists yet for type X"
-**Problem:** You're trying to seed categories before creating any businesses.
-
-**Solution:** 
-1. Create at least one business first (via admin UI or seed script)
-2. Then run `npm run seed:categories`
+### "No business exists yet for type X" (LEGACY - No longer applies)
+**Note:** This issue has been resolved. Categories no longer require businesses to exist first. They are now automatically seeded during `npm run setup` with NULL businessId values, making them available to all businesses of the matching type.
 
 ### "Categories already exist"
 **Problem:** The script detected existing categories and skipped seeding.
@@ -153,10 +157,7 @@ npm run db:generate
 # 4. Create first admin user (if needed)
 npm run create-admin
 
-# 5. Seed default categories
-npm run seed:categories
-
-# 6. Start the application
+# 5. Start the application (categories already seeded automatically in step 3)
 npm run build
 npm start
 
