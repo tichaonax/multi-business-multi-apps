@@ -36,21 +36,51 @@ export async function GET(request: NextRequest) {
     const includeSubcategories = searchParams.get('includeSubcategories') === 'true';
     const includeProducts = searchParams.get('includeProducts') !== 'false';
 
-    // Build where clause
+    // Get requesting business demo status for ONE-WAY isolation
+    let requestingBusiness: { isDemo: boolean } | null = null;
+    if (businessId) {
+      requestingBusiness = await prisma.businesses.findUnique({
+        where: { id: businessId },
+        select: { isDemo: true }
+      });
+    }
+
+    // Build where clause with ONE-WAY CATEGORY ISOLATION
     const where: any = {
       isActive: true,
     };
 
-    if (businessId) where.businessId = businessId;
     if (domainId) where.domainId = domainId;
     if (parentId) where.parentId = parentId;
     if (businessType) where.businessType = businessType;
+
+    // Apply ONE-WAY isolation filter if businessId provided
+    if (businessId && requestingBusiness) {
+      where.OR = [
+        { businessId: null }, // Type-based categories always visible
+        { businessId: businessId }, // Own categories
+        ...(requestingBusiness.isDemo
+          ? [{ businessId: { not: null } }] // Demo sees all categories
+          : [
+              { businesses: { isDemo: false } }, // Real only sees real business categories
+              { businesses: null } // Include categories with no business link
+            ]
+        )
+      ];
+    } else if (businessId) {
+      where.businessId = businessId;
+    }
 
     // Fetch categories
     const categories = await prisma.businessCategories.findMany({
       where,
       include: {
         domain: true,
+        businesses: {
+          select: {
+            isDemo: true,
+          },
+        },
         users: {
           select: {
             id: true,

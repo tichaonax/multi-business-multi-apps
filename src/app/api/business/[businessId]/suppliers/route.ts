@@ -54,28 +54,50 @@ export async function GET(
       )
     }
 
-    // Build where clause - Query by businessType for shared suppliers
-    const where: any = {
+    // ONE-WAY SUPPLIER ISOLATION:
+    // - Suppliers are shared by businessType
+    // - Demo businesses see ALL suppliers of that type
+    // - Real businesses only see suppliers from real businesses or shared (businessId=null)
+    const supplierFilter: any = {
       businessType: business.type,
+      OR: [
+        { businessId: null }, // Shared suppliers (no owner) always visible
+        ...(business.isDemo
+          ? [{ businessId: { not: null } }] // Demo sees all suppliers
+          : [
+              { businesses: { isDemo: false } }, // Real only sees real business suppliers
+              { businesses: null } // Include suppliers with no business link
+            ]
+        )
+      ]
     }
 
     if (isActive !== null) {
-      where.isActive = isActive === 'true'
+      supplierFilter.isActive = isActive === 'true'
     }
 
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { supplierNumber: { contains: search, mode: 'insensitive' } },
-        { contactPerson: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } }
+      supplierFilter.AND = [
+        {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { supplierNumber: { contains: search, mode: 'insensitive' } },
+            { contactPerson: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } }
+          ]
+        }
       ]
     }
 
     // Get suppliers with product count (shared across all businesses of same type)
     const suppliers = await prisma.businessSuppliers.findMany({
-      where,
+      where: supplierFilter,
       include: {
+        businesses: {
+          select: {
+            isDemo: true
+          }
+        },
         _count: {
           select: {
             business_products: true,
@@ -88,7 +110,7 @@ export async function GET(
       take: limit
     })
 
-    const total = await prisma.businessSuppliers.count({ where })
+    const total = await prisma.businessSuppliers.count({ where: supplierFilter })
 
     // Transform response
     const items = suppliers.map(supplier => ({

@@ -47,23 +47,44 @@ export async function GET(
     // Query parameters
     const includeInactive = searchParams.get('includeInactive') === 'true'
 
-    // Get business to find its type
+    // Get business to find its type and demo status
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },
-      select: { type: true }
+      select: { type: true, isDemo: true }
     })
 
     if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
+    // ONE-WAY CATEGORY ISOLATION:
+    // - Type-based categories (businessId=null) always visible to all
+    // - Demo businesses see ALL categories (one-way visibility)
+    // - Real businesses only see categories from real businesses or type-based
+    const categoryFilter: any = {
+      businessType: business.type,  // ✅ Query by TYPE not businessId
+      ...(includeInactive ? {} : { isActive: true }),
+      OR: [
+        { businessId: null }, // Type-based categories always visible
+        ...(business.isDemo
+          ? [{ businessId: { not: null } }] // Demo sees all categories
+          : [
+              { businesses: { isDemo: false } }, // Real only sees real business categories
+              { businesses: null } // Include categories with no business link (orphaned/type-based)
+            ]
+        )
+      ]
+    }
+
     // Get categories for the business TYPE (shared across all businesses of this type)
     const businessCategories = await prisma.businessCategories.findMany({
-      where: {
-        businessType: business.type,  // ✅ Query by TYPE not businessId
-        ...(includeInactive ? {} : { isActive: true })
-      },
+      where: categoryFilter,
       include: {
+        businesses: {
+          select: {
+            isDemo: true
+          }
+        },
         inventory_subcategories: {
           orderBy: [
             { displayOrder: 'asc' },
