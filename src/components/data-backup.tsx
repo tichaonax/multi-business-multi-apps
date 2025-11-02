@@ -17,8 +17,9 @@ import {
 } from 'lucide-react';
 
 interface BackupOptions {
-  type: 'full' | 'users' | 'business-data' | 'employees' | 'reference-data';
+  type: 'full' | 'users' | 'business-data' | 'employees' | 'reference-data' | 'demo-only';
   includeAuditLogs: boolean;
+  includeDemoData: boolean;
 }
 
 interface RestoreResult {
@@ -41,6 +42,7 @@ export function DataBackup() {
   const [backupOptions, setBackupOptions] = useState<BackupOptions>({
     type: 'full',
     includeAuditLogs: false,
+    includeDemoData: false, // Demo data excluded by default
   });
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
@@ -53,8 +55,41 @@ export function DataBackup() {
       setLoading(true);
 
       const params = new URLSearchParams();
+      
+      // Demo-only backup uses different endpoint
+      if (backupOptions.type === 'demo-only') {
+        const response = await fetch(`/api/admin/demo-backup`);
+        
+        if (!response.ok) {
+          throw new Error('Demo backup failed');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `demo-backup_all_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json`;
+
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        return;
+      }
+
       params.set('type', backupOptions.type);
       params.set('includeAuditLogs', backupOptions.includeAuditLogs.toString());
+      params.set('includeDemoData', backupOptions.includeDemoData.toString());
 
       const response = await fetch(`/api/backup?${params}`);
 
@@ -111,7 +146,11 @@ export function DataBackup() {
       const fileContent = await restoreFile.text();
       const backupData = JSON.parse(fileContent);
 
-      const response = await fetch('/api/backup', {
+      // Determine which endpoint to use based on backup type
+      const isDemoBackup = backupData.metadata?.backupType === 'demo-business';
+      const endpoint = isDemoBackup ? '/api/admin/demo-backup' : '/api/backup';
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,8 +174,14 @@ export function DataBackup() {
   const backupTypes = [
     {
       id: 'full' as const,
-      name: 'Full Backup',
-      description: 'Complete database backup with all data including users, businesses, employees, and reference data',
+      name: 'Full Backup (Production)',
+      description: 'Complete database backup excluding demo businesses (recommended for production backups)',
+      icon: Database,
+    },
+    {
+      id: 'demo-only' as const,
+      name: '🎭 Demo Businesses Only',
+      description: 'Backup only demo businesses with all their data for restoration or migration',
       icon: Database,
     },
     {
@@ -211,28 +256,62 @@ export function DataBackup() {
         </div>
 
         {/* Backup Options */}
-        {backupOptions.type === 'full' && (
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="includeAuditLogs"
-              checked={backupOptions.includeAuditLogs}
-              onChange={(e) =>
-                setBackupOptions({
-                  ...backupOptions,
-                  includeAuditLogs: e.target.checked,
-                })
-              }
-              className="mr-2"
-            />
-            <label
-              htmlFor="includeAuditLogs"
-              className="text-sm text-slate-700 dark:text-slate-300"
-            >
-              Include audit logs (last 10,000 entries)
-            </label>
-          </div>
-        )}
+        <div className="space-y-3">
+          {backupOptions.type === 'full' && (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="includeAuditLogs"
+                checked={backupOptions.includeAuditLogs}
+                onChange={(e) =>
+                  setBackupOptions({
+                    ...backupOptions,
+                    includeAuditLogs: e.target.checked,
+                  })
+                }
+                className="mr-2"
+              />
+              <label
+                htmlFor="includeAuditLogs"
+                className="text-sm text-slate-700 dark:text-slate-300"
+              >
+                Include audit logs (last 10,000 entries)
+              </label>
+            </div>
+          )}
+          
+          {backupOptions.type !== 'demo-only' && backupOptions.type !== 'reference-data' && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg dark:bg-amber-950 dark:border-amber-800">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                      Include Demo Data
+                    </label>
+                    <input
+                      type="checkbox"
+                      id="includeDemoData"
+                      checked={backupOptions.includeDemoData}
+                      onChange={(e) =>
+                        setBackupOptions({
+                          ...backupOptions,
+                          includeDemoData: e.target.checked,
+                        })
+                      }
+                      className="ml-2"
+                    />
+                  </div>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    {backupOptions.includeDemoData 
+                      ? '⚠️ Demo businesses will be included in this backup' 
+                      : '✅ Demo businesses will be excluded (recommended for production)'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Create Backup Button */}
         <div className="flex justify-end">
