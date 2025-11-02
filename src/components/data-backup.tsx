@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button';
 import {
@@ -14,12 +14,36 @@ import {
   Building,
   UserCheck,
   Loader2,
+  Trash2,
+  Package,
+  ShoppingCart,
+  Users as UsersIcon,
+  Boxes,
 } from 'lucide-react';
 
 interface BackupOptions {
   type: 'full' | 'users' | 'business-data' | 'employees' | 'reference-data' | 'demo-only';
   includeAuditLogs: boolean;
   includeDemoData: boolean;
+  selectedDemoBusinessId?: string;
+}
+
+interface DemoBusiness {
+  id: string;
+  name: string;
+  type: string;
+  description: string | null;
+  createdAt: string;
+  counts: {
+    products: number;
+    variants: number;
+    categories: number;
+    suppliers: number;
+    customers: number;
+    employees: number;
+    members: number;
+    stockMovements: number;
+  };
 }
 
 interface RestoreResult {
@@ -43,12 +67,76 @@ export function DataBackup() {
     type: 'full',
     includeAuditLogs: false,
     includeDemoData: false, // Demo data excluded by default
+    selectedDemoBusinessId: undefined,
   });
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
+  const [demoBusinesses, setDemoBusinesses] = useState<DemoBusiness[]>([]);
+  const [loadingDemos, setLoadingDemos] = useState(false);
+  const [deletingDemo, setDeletingDemo] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm()
   const customAlert = useAlert()
+
+  // Load demo businesses on component mount
+  useEffect(() => {
+    loadDemoBusinesses();
+  }, []);
+
+  const loadDemoBusinesses = async () => {
+    setLoadingDemos(true);
+    try {
+      const response = await fetch('/api/admin/demo-businesses');
+      if (response.ok) {
+        const data = await response.json();
+        setDemoBusinesses(data.businesses || []);
+      }
+    } catch (error) {
+      console.error('Failed to load demo businesses:', error);
+    } finally {
+      setLoadingDemos(false);
+    }
+  };
+
+  const handleDeleteDemoBusiness = async (businessId: string, businessName: string) => {
+    const ok = await confirm({
+      title: 'Delete Demo Business',
+      description: `Are you sure you want to delete "${businessName}"? This will permanently delete all products, inventory, categories, suppliers, employees, and related data. This action cannot be undone.`,
+      confirmText: 'Delete Demo Business',
+      cancelText: 'Cancel'
+    });
+
+    if (!ok) return;
+
+    setDeletingDemo(businessId);
+    try {
+      const response = await fetch(`/api/admin/demo-backup?businessId=${businessId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await customAlert({
+          title: 'Success',
+          description: `Demo business "${businessName}" has been deleted successfully.`
+        });
+        // Reload demo businesses list
+        await loadDemoBusinesses();
+      } else {
+        const data = await response.json();
+        await customAlert({
+          title: 'Delete Failed',
+          description: data.error || 'Failed to delete demo business.'
+        });
+      }
+    } catch (error) {
+      await customAlert({
+        title: 'Delete Failed',
+        description: 'An error occurred while deleting the demo business.'
+      });
+    } finally {
+      setDeletingDemo(null);
+    }
+  };
 
   const handleBackup = async () => {
     try {
@@ -58,7 +146,10 @@ export function DataBackup() {
       
       // Demo-only backup uses different endpoint
       if (backupOptions.type === 'demo-only') {
-        const response = await fetch(`/api/admin/demo-backup`);
+        const apiUrl = backupOptions.selectedDemoBusinessId
+          ? `/api/admin/demo-backup?businessId=${backupOptions.selectedDemoBusinessId}`
+          : `/api/admin/demo-backup`;
+        const response = await fetch(apiUrl);
         
         if (!response.ok) {
           throw new Error('Demo backup failed');
@@ -254,6 +345,37 @@ export function DataBackup() {
             );
           })}
         </div>
+
+        {/* Demo Business Selector */}
+        {backupOptions.type === 'demo-only' && (
+          <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg dark:bg-purple-950 dark:border-purple-800">
+            <h4 className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-3">
+              Select Demo Business to Backup
+            </h4>
+            <select
+              value={backupOptions.selectedDemoBusinessId || ''}
+              onChange={(e) =>
+                setBackupOptions({
+                  ...backupOptions,
+                  selectedDemoBusinessId: e.target.value || undefined,
+                })
+              }
+              className="w-full p-2 border border-purple-300 rounded-md bg-white dark:bg-slate-800 dark:border-purple-700 text-slate-900 dark:text-slate-100"
+            >
+              <option value="">All Demo Businesses ({demoBusinesses.length})</option>
+              {demoBusinesses.map((business) => (
+                <option key={business.id} value={business.id}>
+                  {business.name} ({business.type}) - {business.counts.products} products, {business.counts.categories} categories
+                </option>
+              ))}
+            </select>
+            {loadingDemos && (
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                Loading demo businesses...
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Backup Options */}
         <div className="space-y-3">
@@ -494,6 +616,183 @@ export function DataBackup() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-slate-200 dark:border-slate-700"></div>
+
+      {/* Demo Business Management Section */}
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+            🎭 Demo Business Management
+          </h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            View, backup, and manage your demo businesses. Demo businesses are used for testing and training purposes.
+          </p>
+        </div>
+
+        {loadingDemos ? (
+          <div className="text-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+            <p className="text-sm text-slate-600 dark:text-slate-400">Loading demo businesses...</p>
+          </div>
+        ) : demoBusinesses.length === 0 ? (
+          <div className="text-center py-12 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+            <Database className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
+              No Demo Businesses Found
+            </h3>
+            <p className="text-slate-600 dark:text-slate-400">
+              There are no demo businesses in the system. You can create demo businesses from the admin panel.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {demoBusinesses.map((business) => (
+              <div
+                key={business.id}
+                className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-semibold text-slate-900 dark:text-slate-100">
+                        {business.name}
+                      </h4>
+                      <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 rounded">
+                        {business.type}
+                      </span>
+                    </div>
+                    {business.description && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {business.description}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                      Created: {new Date(business.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Statistics Grid */}
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  <div className="text-center p-2 bg-blue-50 dark:bg-blue-950 rounded">
+                    <div className="flex items-center justify-center mb-1">
+                      <Package className="h-3 w-3 text-blue-600" />
+                    </div>
+                    <div className="text-xs font-semibold text-blue-900 dark:text-blue-100">
+                      {business.counts.products}
+                    </div>
+                    <div className="text-xs text-blue-700 dark:text-blue-300">
+                      Products
+                    </div>
+                  </div>
+                  <div className="text-center p-2 bg-green-50 dark:bg-green-950 rounded">
+                    <div className="flex items-center justify-center mb-1">
+                      <Boxes className="h-3 w-3 text-green-600" />
+                    </div>
+                    <div className="text-xs font-semibold text-green-900 dark:text-green-100">
+                      {business.counts.categories}
+                    </div>
+                    <div className="text-xs text-green-700 dark:text-green-300">
+                      Categories
+                    </div>
+                  </div>
+                  <div className="text-center p-2 bg-amber-50 dark:bg-amber-950 rounded">
+                    <div className="flex items-center justify-center mb-1">
+                      <ShoppingCart className="h-3 w-3 text-amber-600" />
+                    </div>
+                    <div className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+                      {business.counts.suppliers}
+                    </div>
+                    <div className="text-xs text-amber-700 dark:text-amber-300">
+                      Suppliers
+                    </div>
+                  </div>
+                  <div className="text-center p-2 bg-purple-50 dark:bg-purple-950 rounded">
+                    <div className="flex items-center justify-center mb-1">
+                      <UsersIcon className="h-3 w-3 text-purple-600" />
+                    </div>
+                    <div className="text-xs font-semibold text-purple-900 dark:text-purple-100">
+                      {business.counts.employees}
+                    </div>
+                    <div className="text-xs text-purple-700 dark:text-purple-300">
+                      Employees
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Stats */}
+                <div className="text-xs text-slate-600 dark:text-slate-400 mb-3 space-y-1">
+                  <div className="flex justify-between">
+                    <span>Variants:</span>
+                    <span className="font-medium">{business.counts.variants}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Stock Movements:</span>
+                    <span className="font-medium">{business.counts.stockMovements}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Customers:</span>
+                    <span className="font-medium">{business.counts.customers}</span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setBackupOptions({
+                        ...backupOptions,
+                        type: 'demo-only',
+                        selectedDemoBusinessId: business.id,
+                      });
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="flex-1"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Backup
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteDemoBusiness(business.id, business.name)}
+                    disabled={deletingDemo === business.id}
+                    className="text-red-600 hover:text-red-700 hover:border-red-300 dark:text-red-400"
+                  >
+                    {deletingDemo === business.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Refresh Button */}
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            onClick={loadDemoBusinesses}
+            disabled={loadingDemos}
+          >
+            {loadingDemos ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Refreshing...
+              </>
+            ) : (
+              'Refresh List'
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
