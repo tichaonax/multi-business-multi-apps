@@ -127,14 +127,14 @@ export async function GET(req: NextRequest) {
             type: true
           }
         },
-        projectTransactions: {
+        project_transactions: {
           select: {
             id: true,
             amount: true,
             status: true
           }
         },
-        user: {
+        users: {
           select: {
             id: true,
             name: true,
@@ -183,12 +183,12 @@ export async function GET(req: NextRequest) {
         completedTransactionCount: completedTransactions.length,
         createdAt: project.createdAt,
         expectedCompletionDate: project.endDate,
-        business: project.business ? {
+        business: project.businesses ? {
           id: project.businesses.id,
           name: project.businesses.name,
           type: project.businesses.type
         } : null,
-        createdBy: project.user ? {
+        createdBy: project.users ? {
           id: project.users.id,
           name: project.users.name,
           email: project.users.email

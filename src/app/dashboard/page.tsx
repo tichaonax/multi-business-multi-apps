@@ -1469,7 +1469,7 @@ export default function Dashboard() {
                               <div className="flex items-center mt-2 space-x-4">
                                 {project.business ? (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
-                                    {project.businesses.businessName} ({project.businesses.businessType})
+                                    {project.business.name} ({project.business.type})
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
