@@ -74,7 +74,8 @@ export default function AddServicePage() {
 
       if (response.ok) {
         await customAlert('Service created successfully!')
-        router.push('/services/list')
+        // Use replace instead of push to prevent back button from returning to form
+        router.replace('/services/list')
       } else {
         const error = await response.json()
         await customAlert(`Error: ${error.message || 'Failed to create service'}`)

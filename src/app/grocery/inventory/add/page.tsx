@@ -76,8 +76,8 @@ export default function AddGroceryInventoryPage() {
         throw new Error(errorData.error || 'Failed to create inventory item')
       }
 
-      // Redirect to inventory list
-      router.push('/grocery/inventory')
+      // Use replace instead of push to prevent back button from returning to form
+      router.replace('/grocery/inventory')
     } catch (err) {
       console.error('Error creating inventory item:', err)
       setError(err instanceof Error ? err.message : 'Failed to create inventory item')

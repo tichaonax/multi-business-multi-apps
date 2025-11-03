@@ -60,8 +60,8 @@ export default function NewLaybyPage() {
         confirmText: 'OK - Collect Deposit'
       })
 
-      // Redirect to layby detail page
-      router.push(`/business/laybys/${result.data.id}`)
+      // Use replace instead of push to prevent back button from returning to form
+      router.replace(`/business/laybys/${result.data.id}`)
     } catch (err) {
       console.error('Error creating layby:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')

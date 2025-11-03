@@ -90,10 +90,33 @@ export default function ProjectsPage() {
     { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' }
   ]
 
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string>('')
+  const [urlParamsRead, setUrlParamsRead] = useState<boolean>(false)
+
+  // Read URL parameters on mount
   useEffect(() => {
-    fetchProjects()
-    fetchProjectTypes()
-  }, [selectedBusinessType, selectedStatus, selectedProjectType])
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const businessType = urlParams.get('businessType')
+      const status = urlParams.get('status')
+      const projectType = urlParams.get('projectTypeId')
+      const businessId = urlParams.get('businessId')
+      
+      if (businessType) setSelectedBusinessType(businessType)
+      if (status) setSelectedStatus(status)
+      if (projectType) setSelectedProjectType(projectType)
+      if (businessId) setSelectedBusinessId(businessId)
+      
+      setUrlParamsRead(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (urlParamsRead) {
+      fetchProjects()
+      fetchProjectTypes()
+    }
+  }, [selectedBusinessType, selectedStatus, selectedProjectType, selectedBusinessId, urlParamsRead])
 
   const fetchProjects = async () => {
     try {
@@ -101,6 +124,7 @@ export default function ProjectsPage() {
       if (selectedBusinessType) params.append('businessType', selectedBusinessType)
       if (selectedStatus) params.append('status', selectedStatus)
       if (selectedProjectType) params.append('projectTypeId', selectedProjectType)
+      if (selectedBusinessId) params.append('businessId', selectedBusinessId)
 
       const response = await fetch(`/api/projects?${params.toString()}`)
       if (response.ok) {

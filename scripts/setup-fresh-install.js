@@ -212,6 +212,11 @@ async function main() {
       required: true
     },
     {
+      command: 'node scripts/setup-project-management-schema.js',
+      description: 'Seeding project types (13 types across 3 business types)',
+      required: true
+    },
+    {
       command: 'npm run create-admin',
       description: 'Creating admin user',
       required: false

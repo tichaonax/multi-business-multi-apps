@@ -189,7 +189,8 @@ export default function EmployeeEditPage() {
       })
 
       if (response.ok) {
-        router.push(`/employees/${employeeId}`)
+        // Use replace instead of push to prevent back button from returning to form
+        router.replace(`/employees/${employeeId}`)
       } else {
         const errorData = await response.json()
         setError(errorData.error || 'Failed to update employee')

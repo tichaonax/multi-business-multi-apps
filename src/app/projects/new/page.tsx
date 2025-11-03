@@ -195,7 +195,8 @@ export default function NewProjectPage() {
 
       if (response.ok) {
         const newProject = await response.json()
-        router.push(`/projects/${newProject.id}`)
+        // Use replace instead of push to prevent back button from returning to form
+        router.replace(`/projects/${newProject.id}`)
       } else {
         const errorData = await response.json()
         setError(errorData.error || 'Failed to create project')

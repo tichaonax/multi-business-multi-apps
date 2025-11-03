@@ -114,7 +114,8 @@ export default function AddMoneyPage() {
         })
 
         if (response.ok) {
-          router.push('/personal')
+          // Use replace instead of push to prevent back button from returning to form
+          router.replace('/personal')
         } else {
           const errorData = await response.json()
           console.error('Failed to record loan repayment:', errorData)
@@ -142,7 +143,8 @@ export default function AddMoneyPage() {
         })
 
         if (response.ok) {
-          router.push('/personal')
+          // Use replace instead of push to prevent back button from returning to form
+          router.replace('/personal')
         } else {
           console.error('Failed to add money')
         }

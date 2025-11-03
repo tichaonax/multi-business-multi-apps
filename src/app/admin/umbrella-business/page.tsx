@@ -235,19 +235,19 @@ export default function UmbrellaBusinessManagement() {
             {/* Preview Section */}
             <div className="card p-6 mt-6">
               <h3 className="text-lg font-semibold text-primary mb-4">Contract Preview</h3>
-              <div className="bg-gray-50 p-6 rounded-lg">
+              <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="text-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                     {formData.umbrellaBusinessName.toUpperCase()}
                   </h2>
-                  <div className="border-b border-gray-300 w-2/3 mx-auto mb-2"></div>
-                  <h3 className="text-lg font-semibold text-gray-700">Primary Business Name</h3>
+                  <div className="border-b border-gray-300 dark:border-gray-600 w-2/3 mx-auto mb-2"></div>
+                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Primary Business Name</h3>
                 </div>
 
                 <div className="mt-6">
-                  <h4 className="font-semibold text-gray-800 mb-2">EMPLOYER:</h4>
-                  <div className="ml-4 space-y-1 text-sm">
-                    <p className="font-semibold">{formData.umbrellaBusinessName}</p>
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">EMPLOYER:</h4>
+                  <div className="ml-4 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                    <p className="font-semibold text-gray-900 dark:text-gray-100">{formData.umbrellaBusinessName}</p>
                     {formData.umbrellaBusinessAddress && (
                       <p>Address: {formData.umbrellaBusinessAddress}</p>
                     )}

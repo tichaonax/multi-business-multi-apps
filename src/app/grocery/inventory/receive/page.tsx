@@ -140,9 +140,9 @@ export default function ReceiveGroceryInventoryPage() {
       // Refresh items to show updated stock
       fetchInventoryItems()
 
-      // Redirect after a short delay
+      // Redirect after a short delay - use replace to prevent back button from returning to form
       setTimeout(() => {
-        router.push('/grocery/inventory')
+        router.replace('/grocery/inventory')
       }, 2000)
     } catch (err) {
       console.error('Error receiving inventory:', err)

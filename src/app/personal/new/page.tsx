@@ -475,7 +475,8 @@ export default function NewExpensePage() {
       if (response.ok) {
         // Refresh balance after successful expense creation
         await fetchBalance()
-        router.push(sourcePage === 'dashboard' ? '/dashboard' : '/personal')
+        // Use replace instead of push to prevent back button from returning to form
+        router.replace(sourcePage === 'dashboard' ? '/dashboard' : '/personal')
       } else {
         // Handle different error response types
         let errorMessage = 'Failed to create expense'

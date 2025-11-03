@@ -24,9 +24,14 @@ export async function GET(req: NextRequest) {
     const businessType = searchParams.get('businessType')
     const status = searchParams.get('status')
     const projectTypeId = searchParams.get('projectTypeId')
+    const businessId = searchParams.get('businessId')
 
     // Build filter criteria
     const whereClause: any = {}
+
+    if (businessId) {
+      whereClause.businessId = businessId
+    }
 
     if (businessType) {
       whereClause.businessType = businessType
