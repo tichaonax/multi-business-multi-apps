@@ -83,64 +83,72 @@ async function seed() {
         name: 'BuildRight Supply Co.', 
         contactPerson: 'Mike Johnson',
         email: 'mike@buildright.com',
-        phone: '(555) 123-4001',
-        address: '1500 Industrial Blvd, Suite 200'
+        phone: '+12635551234001',
+        address: '1500 Industrial Blvd, Suite 200',
+        productsSupplied: 'Lumber, Plywood, 2x4s, 2x6s, Framing materials, Concrete, Cement, Rebar, Construction hardware, Fasteners'
       },
       { 
         number: 'SUP-002', 
         name: 'ElectroTech Distributors', 
         contactPerson: 'Sarah Williams',
         email: 'sarah@electrotechdist.com',
-        phone: '(555) 123-4002',
-        address: '2800 Commerce Drive'
+        phone: '+12635551234002',
+        address: '2800 Commerce Drive',
+        productsSupplied: 'Electrical wire, Circuit breakers, Electrical panels, Outlets, Switches, Conduit, Junction boxes, LED fixtures, Smart home devices'
       },
       { 
         number: 'SUP-003', 
         name: 'Pro Plumbing Supply', 
         contactPerson: 'Tom Davis',
         email: 'tom@proplumbingsupply.com',
-        phone: '(555) 123-4003',
-        address: '950 Warehouse Lane'
+        phone: '+12635551234003',
+        address: '950 Warehouse Lane',
+        productsSupplied: 'PVC pipes, Copper pipes, PEX tubing, Fittings, Valves, Water heaters, Faucets, Toilets, Sinks, Drains'
       },
       { 
         number: 'SUP-004', 
         name: 'HVAC Parts Depot', 
         contactPerson: 'Jennifer Martinez',
         email: 'jmartinez@hvacpartsdepot.com',
-        phone: '(555) 123-4004',
-        address: '4200 Air Conditioning Way'
+        phone: '+12635551234004',
+        address: '4200 Air Conditioning Way',
+        productsSupplied: 'AC units, Furnaces, Heat pumps, Thermostats, Ductwork, Air filters, Refrigerant, HVAC controls, Ventilation fans'
       },
       { 
         number: 'SUP-005', 
         name: 'Premier Paint & Finish', 
         contactPerson: 'Robert Chen',
         email: 'robert@premierpaint.com',
-        phone: '(555) 123-4005',
-        address: '3100 Color Street'
+        phone: '+12635551234005',
+        address: '3100 Color Street',
+        productsSupplied: 'Interior paint, Exterior paint, Primer, Stain, Varnish, Paint brushes, Rollers, Spray equipment, Drop cloths, Tape'
       },
       { 
         number: 'SUP-006', 
         name: 'Hardwood Lumber Specialists', 
         contactPerson: 'Amanda Foster',
         email: 'afoster@hardwoodlumber.com',
-        phone: '(555) 123-4006',
-        address: '7800 Sawmill Road'
+        phone: '+12635551234006',
+        address: '7800 Sawmill Road',
+        productsSupplied: 'Hardwood flooring, Oak, Maple, Cherry, Walnut, Cabinet grade lumber, Trim molding, Crown molding, Baseboards'
       },
       { 
         number: 'SUP-007', 
         name: 'Tile & Stone Emporium', 
         contactPerson: 'David Lee',
         email: 'david@tileandstoneemp.com',
-        phone: '(555) 123-4007',
-        address: '5500 Marble Avenue'
+        phone: '+12635551234007',
+        address: '5500 Marble Avenue',
+        productsSupplied: 'Ceramic tile, Porcelain tile, Natural stone, Marble, Granite, Grout, Thin-set mortar, Tile saws, Spacers, Sealers'
       },
       { 
         number: 'SUP-008', 
         name: 'Roofing Materials Direct', 
         contactPerson: 'Lisa Thompson',
         email: 'lthompson@roofingdirect.com',
-        phone: '(555) 123-4008',
-        address: '9200 Shingle Boulevard'
+        phone: '+12635551234008',
+        address: '9200 Shingle Boulevard',
+        productsSupplied: 'Asphalt shingles, Metal roofing, Underlayment, Flashing, Ridge vents, Gutters, Downspouts, Roof cement, Roofing nails'
       }
     ]
 
@@ -157,7 +165,8 @@ async function seed() {
           contactPerson: sup.contactPerson,
           email: sup.email,
           phone: sup.phone,
-          address: sup.address
+          address: sup.address,
+          productsSupplied: sup.productsSupplied
         },
         create: {
           businessType: 'services',
@@ -166,7 +175,8 @@ async function seed() {
           contactPerson: sup.contactPerson,
           email: sup.email,
           phone: sup.phone,
-          address: sup.address
+          address: sup.address,
+          productsSupplied: sup.productsSupplied
         }
       })
     }

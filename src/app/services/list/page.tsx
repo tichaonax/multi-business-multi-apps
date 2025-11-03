@@ -36,6 +36,17 @@ export default function ServicesListPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
 
+  // Handle query parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get('status')
+    if (status === 'active') {
+      setStatusFilter('active')
+    } else if (status === 'inactive') {
+      setStatusFilter('inactive')
+    }
+  }, [])
+
   useEffect(() => {
     if (currentBusiness?.businessId) {
       fetchServices()

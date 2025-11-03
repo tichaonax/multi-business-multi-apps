@@ -86,7 +86,7 @@ export default function ServicesPage() {
         >
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="card p-6">
+            <Link href="/services/list" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <div className="flex items-center">
                 <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
                   <span className="text-2xl">🔧</span>
@@ -96,9 +96,9 @@ export default function ServicesPage() {
                   <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.totalServices}</p>
                 </div>
               </div>
-            </div>
+            </Link>
 
-            <div className="card p-6">
+            <Link href="/services/list?status=active" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <div className="flex items-center">
                 <div className="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
                   <span className="text-2xl">✅</span>
@@ -108,9 +108,9 @@ export default function ServicesPage() {
                   <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.activeServices}</p>
                 </div>
               </div>
-            </div>
+            </Link>
 
-            <div className="card p-6">
+            <Link href="/services/categories" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <div className="flex items-center">
                 <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
                   <span className="text-2xl">📂</span>
@@ -120,9 +120,9 @@ export default function ServicesPage() {
                   <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.categories}</p>
                 </div>
               </div>
-            </div>
+            </Link>
 
-            <div className="card p-6">
+            <Link href="/services/suppliers" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <div className="flex items-center">
                 <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-lg">
                   <span className="text-2xl">🏢</span>
@@ -132,7 +132,7 @@ export default function ServicesPage() {
                   <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.suppliers}</p>
                 </div>
               </div>
-            </div>
+            </Link>
           </div>
 
           {/* Quick Actions */}

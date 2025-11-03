@@ -363,6 +363,47 @@ export function Sidebar() {
           </div>
         )}
 
+        {/* Construction/Services Module Links - Show when in construction or services business */}
+        {currentBusiness && (currentBusiness.businessType === 'construction' || currentBusiness.businessType === 'services') && (
+          <>
+            <div className="pt-4 pb-2">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Construction Services</h3>
+            </div>
+
+            <Link
+              href="/services"
+              className={getLinkClasses('/services')}
+            >
+              <span className="text-lg">🔧</span>
+              <span>Services Dashboard</span>
+            </Link>
+
+            <Link
+              href="/services/list"
+              className={getLinkClasses('/services/list')}
+            >
+              <span className="text-lg">📋</span>
+              <span>Service Offerings</span>
+            </Link>
+
+            <Link
+              href="/services/categories"
+              className={getLinkClasses('/services/categories')}
+            >
+              <span className="text-lg">📂</span>
+              <span>Service Categories</span>
+            </Link>
+
+            <Link
+              href="/services/suppliers"
+              className={getLinkClasses('/services/suppliers')}
+            >
+              <span className="text-lg">🏢</span>
+              <span>Suppliers</span>
+            </Link>
+          </>
+        )}
+
         {/* Individual Access Items - Only for actual managers and system admins, NOT promoted drivers */}
 
         {/* Employees - Only for users with management permissions, not just viewing */}

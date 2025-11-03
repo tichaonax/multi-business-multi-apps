@@ -300,6 +300,7 @@ model BusinessSuppliers {
   phone             String?
   taxId             String?
   address           String?
+  productsSupplied  String? // Comma-separated list of products/materials supplied
   paymentTerms      String?
   creditLimit       Decimal?           @db.Decimal(12, 2)
   emoji             String?

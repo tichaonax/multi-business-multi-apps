@@ -170,6 +170,7 @@ export async function PUT(
     if (body.phone !== undefined) updateData.phone = body.phone
     if (body.taxId !== undefined) updateData.taxId = body.taxId
     if (body.address !== undefined) updateData.address = body.address
+    if (body.productsSupplied !== undefined) updateData.productsSupplied = body.productsSupplied
     if (body.paymentTerms !== undefined) updateData.paymentTerms = body.paymentTerms
     if (body.creditLimit !== undefined) updateData.creditLimit = body.creditLimit ? parseFloat(body.creditLimit) : null
     if (body.accountBalance !== undefined) updateData.accountBalance = parseFloat(body.accountBalance)

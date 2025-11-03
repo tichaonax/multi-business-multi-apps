@@ -6,6 +6,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useEffect, useState } from 'react'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 
 interface Supplier {
   id: string
@@ -14,6 +15,7 @@ interface Supplier {
   email: string | null
   phone: string | null
   address: string | null
+  productsSupplied: string | null
   isActive: boolean
   _count?: {
     business_products: number
@@ -34,6 +36,7 @@ export default function ServiceSuppliersPage() {
     email: '',
     phone: '',
     address: '',
+    productsSupplied: '',
     isActive: true,
   })
 
@@ -49,10 +52,12 @@ export default function ServiceSuppliersPage() {
       const response = await fetch(`/api/business/${currentBusiness?.businessId}/suppliers`)
       if (response.ok) {
         const data = await response.json()
-        setSuppliers(data)
+        // API returns { suppliers: [...], pagination: {...} }
+        setSuppliers(data.suppliers || [])
       }
     } catch (error) {
       console.error('Error fetching suppliers:', error)
+      setSuppliers([])
     } finally {
       setLoading(false)
     }
@@ -103,6 +108,7 @@ export default function ServiceSuppliersPage() {
       email: supplier.email || '',
       phone: supplier.phone || '',
       address: supplier.address || '',
+      productsSupplied: supplier.productsSupplied || '',
       isActive: supplier.isActive,
     })
     setShowAddModal(true)
@@ -165,7 +171,7 @@ export default function ServiceSuppliersPage() {
   }
 
   const resetForm = () => {
-    setFormData({ name: '', contactPerson: '', email: '', phone: '', address: '', isActive: true })
+    setFormData({ name: '', contactPerson: '', email: '', phone: '', address: '', productsSupplied: '', isActive: true })
     setEditingSupplier(null)
     setShowAddModal(false)
   }
@@ -335,15 +341,12 @@ export default function ServiceSuppliersPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        Phone
-                      </label>
-                      <input
-                        type="tel"
+                      <PhoneNumberInput
                         value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="input w-full"
-                        placeholder="(555) 123-4567"
+                        onChange={(fullNumber) => setFormData({ ...formData, phone: fullNumber })}
+                        label="Phone"
+                        placeholder="77 123 4567"
+                        className="w-full"
                       />
                     </div>
                   </div>
@@ -359,6 +362,22 @@ export default function ServiceSuppliersPage() {
                       className="input w-full"
                       placeholder="Street address, city, state, zip"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Products/Materials Supplied
+                    </label>
+                    <textarea
+                      value={formData.productsSupplied}
+                      onChange={(e) => setFormData({ ...formData, productsSupplied: e.target.value })}
+                      rows={3}
+                      className="input w-full"
+                      placeholder="Lumber, Screws, Nails, Paint, Electrical supplies..."
+                    />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Enter comma-separated items this supplier provides
+                    </p>
                   </div>
 
                   <div>
