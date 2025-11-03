@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         },
         project_contractors: {
           include: {
-            constructionProjects: {
+            construction_projects: {
               select: {
                 id: true,
                 name: true,
@@ -41,14 +41,14 @@ export async function GET(req: NextRequest) {
         },
         project_transactions: {
           include: {
-            personalExpenses: {
+            personal_expenses: {
               select: {
                 amount: true,
                 date: true,
                 userId: true
               }
             },
-            projectStages: {
+            project_stages: {
               select: {
                 name: true
               }

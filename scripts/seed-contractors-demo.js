@@ -30,11 +30,16 @@ async function seed() {
 
     // STEP 2: Create type-based categories for services
     const categories = [
-      { name: 'Construction Services', description: 'Building and construction' },
-      { name: 'Electrical Services', description: 'Electrical installations and repairs' },
-      { name: 'Plumbing Services', description: 'Plumbing installations and repairs' },
-      { name: 'Painting Services', description: 'Interior and exterior painting' },
-      { name: 'Carpentry Services', description: 'Woodwork and carpentry' }
+      { name: 'General Construction', description: 'General contracting and construction management services' },
+      { name: 'Electrical', description: 'Electrical installations, repairs, and upgrades' },
+      { name: 'Plumbing', description: 'Plumbing installations, repairs, and maintenance' },
+      { name: 'HVAC', description: 'Heating, ventilation, and air conditioning services' },
+      { name: 'Painting & Finishing', description: 'Interior and exterior painting and finishing work' },
+      { name: 'Carpentry & Millwork', description: 'Custom woodwork, cabinets, and carpentry services' },
+      { name: 'Flooring', description: 'Floor installation and refinishing services' },
+      { name: 'Roofing', description: 'Roof installation, repair, and maintenance' },
+      { name: 'Masonry', description: 'Brick, stone, and concrete work' },
+      { name: 'Landscaping', description: 'Landscape design and installation services' }
     ]
 
     const categoryIds = {}
@@ -74,25 +79,68 @@ async function seed() {
     // STEP 3: Create suppliers (material suppliers for contractors)
     const suppliers = [
       { 
-        number: 'CONT-SUP-001', 
-        name: 'BuildRight Materials', 
+        number: 'SUP-001', 
+        name: 'BuildRight Supply Co.', 
         contactPerson: 'Mike Johnson',
         email: 'mike@buildright.com',
-        phone: '+1-555-0101'
+        phone: '(555) 123-4001',
+        address: '1500 Industrial Blvd, Suite 200'
       },
       { 
-        number: 'CONT-SUP-002', 
-        name: 'ElectroSupply Co', 
+        number: 'SUP-002', 
+        name: 'ElectroTech Distributors', 
         contactPerson: 'Sarah Williams',
-        email: 'sarah@electrosupply.com',
-        phone: '+1-555-0102'
+        email: 'sarah@electrotechdist.com',
+        phone: '(555) 123-4002',
+        address: '2800 Commerce Drive'
       },
       { 
-        number: 'CONT-SUP-003', 
-        name: 'Plumbers Warehouse', 
+        number: 'SUP-003', 
+        name: 'Pro Plumbing Supply', 
         contactPerson: 'Tom Davis',
-        email: 'tom@plumberswarehouse.com',
-        phone: '+1-555-0103'
+        email: 'tom@proplumbingsupply.com',
+        phone: '(555) 123-4003',
+        address: '950 Warehouse Lane'
+      },
+      { 
+        number: 'SUP-004', 
+        name: 'HVAC Parts Depot', 
+        contactPerson: 'Jennifer Martinez',
+        email: 'jmartinez@hvacpartsdepot.com',
+        phone: '(555) 123-4004',
+        address: '4200 Air Conditioning Way'
+      },
+      { 
+        number: 'SUP-005', 
+        name: 'Premier Paint & Finish', 
+        contactPerson: 'Robert Chen',
+        email: 'robert@premierpaint.com',
+        phone: '(555) 123-4005',
+        address: '3100 Color Street'
+      },
+      { 
+        number: 'SUP-006', 
+        name: 'Hardwood Lumber Specialists', 
+        contactPerson: 'Amanda Foster',
+        email: 'afoster@hardwoodlumber.com',
+        phone: '(555) 123-4006',
+        address: '7800 Sawmill Road'
+      },
+      { 
+        number: 'SUP-007', 
+        name: 'Tile & Stone Emporium', 
+        contactPerson: 'David Lee',
+        email: 'david@tileandstoneemp.com',
+        phone: '(555) 123-4007',
+        address: '5500 Marble Avenue'
+      },
+      { 
+        number: 'SUP-008', 
+        name: 'Roofing Materials Direct', 
+        contactPerson: 'Lisa Thompson',
+        email: 'lthompson@roofingdirect.com',
+        phone: '(555) 123-4008',
+        address: '9200 Shingle Boulevard'
       }
     ]
 
@@ -108,7 +156,8 @@ async function seed() {
           name: sup.name,
           contactPerson: sup.contactPerson,
           email: sup.email,
-          phone: sup.phone
+          phone: sup.phone,
+          address: sup.address
         },
         create: {
           businessType: 'services',
@@ -116,7 +165,8 @@ async function seed() {
           name: sup.name,
           contactPerson: sup.contactPerson,
           email: sup.email,
-          phone: sup.phone
+          phone: sup.phone,
+          address: sup.address
         }
       })
     }
@@ -124,89 +174,384 @@ async function seed() {
 
     // STEP 4: Create service offerings (products)
     const services = [
+      // General Construction
       {
-        sku: 'SERV-001',
-        name: 'General Construction - Per Hour',
-        description: 'General construction services billed hourly',
-        categoryName: 'Construction Services',
-        basePrice: 75.00,
-        costPrice: 50.00
-      },
-      {
-        sku: 'SERV-002',
-        name: 'Electrical Installation',
-        description: 'Electrical wiring and fixture installation',
-        categoryName: 'Electrical Services',
-        basePrice: 95.00,
-        costPrice: 65.00
-      },
-      {
-        sku: 'SERV-003',
-        name: 'Plumbing Repair',
-        description: 'Plumbing repairs and installations',
-        categoryName: 'Plumbing Services',
+        sku: 'GC-001',
+        name: 'General Contractor - Labor Hour',
+        description: 'Skilled general contracting labor, hourly rate for project management and coordination',
+        categoryName: 'General Construction',
         basePrice: 85.00,
-        costPrice: 55.00
+        costPrice: 60.00,
+        unitOfMeasure: 'hour'
       },
       {
-        sku: 'SERV-004',
-        name: 'Interior Painting - Per Room',
-        description: 'Professional interior painting service',
-        categoryName: 'Painting Services',
-        basePrice: 350.00,
-        costPrice: 200.00
+        sku: 'GC-002',
+        name: 'Foundation Repair & Waterproofing',
+        description: 'Complete foundation inspection, crack repair, and waterproofing services',
+        categoryName: 'General Construction',
+        basePrice: 4500.00,
+        costPrice: 2800.00,
+        unitOfMeasure: 'project'
       },
       {
-        sku: 'SERV-005',
-        name: 'Exterior Painting - Per Square Foot',
-        description: 'Exterior painting with weather-resistant paint',
-        categoryName: 'Painting Services',
-        basePrice: 5.50,
-        costPrice: 3.00
+        sku: 'GC-003',
+        name: 'Structural Framing',
+        description: 'Wall framing, roof trusses, and structural support installation',
+        categoryName: 'General Construction',
+        basePrice: 65.00,
+        costPrice: 45.00,
+        unitOfMeasure: 'hour'
+      },
+      
+      // Electrical
+      {
+        sku: 'EL-001',
+        name: 'Licensed Electrician - Hour',
+        description: 'Certified electrician hourly rate for installations, repairs, and troubleshooting',
+        categoryName: 'Electrical',
+        basePrice: 95.00,
+        costPrice: 65.00,
+        unitOfMeasure: 'hour'
       },
       {
-        sku: 'SERV-006',
-        name: 'Custom Carpentry',
-        description: 'Custom woodwork and carpentry services',
-        categoryName: 'Carpentry Services',
-        basePrice: 80.00,
-        costPrice: 50.00
+        sku: 'EL-002',
+        name: 'Electrical Panel Upgrade (200A)',
+        description: 'Upgrade to 200-amp electrical panel with circuit breakers, includes permit',
+        categoryName: 'Electrical',
+        basePrice: 2800.00,
+        costPrice: 1700.00,
+        unitOfMeasure: 'project'
       },
       {
-        sku: 'SERV-007',
-        name: 'Kitchen Cabinet Installation',
-        description: 'Professional kitchen cabinet installation',
-        categoryName: 'Carpentry Services',
-        basePrice: 1200.00,
-        costPrice: 800.00
+        sku: 'EL-003',
+        name: 'Whole House Rewiring',
+        description: 'Complete electrical rewiring for residential property up to 2000 sqft',
+        categoryName: 'Electrical',
+        basePrice: 8500.00,
+        costPrice: 5200.00,
+        unitOfMeasure: 'project'
       },
       {
-        sku: 'SERV-008',
-        name: 'Electrical Panel Upgrade',
-        description: 'Upgrade electrical panel to meet current codes',
-        categoryName: 'Electrical Services',
-        basePrice: 2500.00,
-        costPrice: 1500.00
+        sku: 'EL-004',
+        name: 'Outlet & Switch Installation',
+        description: 'Installation of electrical outlets, switches, and cover plates',
+        categoryName: 'Electrical',
+        basePrice: 75.00,
+        costPrice: 45.00,
+        unitOfMeasure: 'unit'
+      },
+      
+      // Plumbing
+      {
+        sku: 'PL-001',
+        name: 'Licensed Plumber - Hour',
+        description: 'Certified plumber hourly rate for installations, repairs, and maintenance',
+        categoryName: 'Plumbing',
+        basePrice: 90.00,
+        costPrice: 60.00,
+        unitOfMeasure: 'hour'
       },
       {
-        sku: 'SERV-009',
-        name: 'Bathroom Plumbing Renovation',
-        description: 'Complete bathroom plumbing renovation',
-        categoryName: 'Plumbing Services',
+        sku: 'PL-002',
+        name: 'Bathroom Plumbing Package',
+        description: 'Complete bathroom plumbing installation: toilet, sink, shower/tub fixtures',
+        categoryName: 'Plumbing',
+        basePrice: 3200.00,
+        costPrice: 1900.00,
+        unitOfMeasure: 'project'
+      },
+      {
+        sku: 'PL-003',
+        name: 'Water Heater Installation',
+        description: 'Installation of 40-50 gallon water heater, includes removal of old unit',
+        categoryName: 'Plumbing',
+        basePrice: 1800.00,
+        costPrice: 1100.00,
+        unitOfMeasure: 'project'
+      },
+      {
+        sku: 'PL-004',
+        name: 'Kitchen Sink & Faucet Install',
+        description: 'Installation of kitchen sink, faucet, and garbage disposal connection',
+        categoryName: 'Plumbing',
+        basePrice: 650.00,
+        costPrice: 400.00,
+        unitOfMeasure: 'project'
+      },
+      
+      // HVAC
+      {
+        sku: 'HV-001',
+        name: 'HVAC Technician - Hour',
+        description: 'Licensed HVAC technician for installations, repairs, and maintenance',
+        categoryName: 'HVAC',
+        basePrice: 110.00,
+        costPrice: 75.00,
+        unitOfMeasure: 'hour'
+      },
+      {
+        sku: 'HV-002',
+        name: 'Central AC Unit Installation',
+        description: 'Installation of 3-ton central air conditioning unit with 10-year warranty',
+        categoryName: 'HVAC',
+        basePrice: 5500.00,
+        costPrice: 3500.00,
+        unitOfMeasure: 'project'
+      },
+      {
+        sku: 'HV-003',
+        name: 'Furnace Replacement',
+        description: '80,000 BTU high-efficiency furnace installation with ductwork inspection',
+        categoryName: 'HVAC',
+        basePrice: 4200.00,
+        costPrice: 2700.00,
+        unitOfMeasure: 'project'
+      },
+      {
+        sku: 'HV-004',
+        name: 'Ductwork Cleaning & Sealing',
+        description: 'Complete ductwork cleaning and air sealing service for improved efficiency',
+        categoryName: 'HVAC',
+        basePrice: 800.00,
+        costPrice: 450.00,
+        unitOfMeasure: 'project'
+      },
+      
+      // Painting & Finishing
+      {
+        sku: 'PT-001',
+        name: 'Professional Painter - Hour',
+        description: 'Experienced painter hourly rate for interior and exterior work',
+        categoryName: 'Painting & Finishing',
+        basePrice: 55.00,
+        costPrice: 35.00,
+        unitOfMeasure: 'hour'
+      },
+      {
+        sku: 'PT-002',
+        name: 'Interior Room Painting',
+        description: 'Complete interior room painting: walls, ceiling, trim (up to 12x12 room)',
+        categoryName: 'Painting & Finishing',
+        basePrice: 450.00,
+        costPrice: 250.00,
+        unitOfMeasure: 'room'
+      },
+      {
+        sku: 'PT-003',
+        name: 'Exterior House Painting',
+        description: 'Professional exterior painting with premium weather-resistant paint',
+        categoryName: 'Painting & Finishing',
+        basePrice: 6.50,
+        costPrice: 3.80,
+        unitOfMeasure: 'sqft'
+      },
+      {
+        sku: 'PT-004',
+        name: 'Cabinet Refinishing',
+        description: 'Kitchen or bathroom cabinet sanding, priming, and refinishing',
+        categoryName: 'Painting & Finishing',
+        basePrice: 2200.00,
+        costPrice: 1300.00,
+        unitOfMeasure: 'project'
+      },
+      
+      // Carpentry & Millwork
+      {
+        sku: 'CR-001',
+        name: 'Master Carpenter - Hour',
+        description: 'Skilled carpenter for custom woodwork, framing, and finish carpentry',
+        categoryName: 'Carpentry & Millwork',
+        basePrice: 75.00,
+        costPrice: 50.00,
+        unitOfMeasure: 'hour'
+      },
+      {
+        sku: 'CR-002',
+        name: 'Custom Kitchen Cabinets',
+        description: 'Design and installation of custom kitchen cabinetry (10 linear feet)',
+        categoryName: 'Carpentry & Millwork',
+        basePrice: 1800.00,
+        costPrice: 1100.00,
+        unitOfMeasure: 'project'
+      },
+      {
+        sku: 'CR-003',
+        name: 'Crown Molding Installation',
+        description: 'Installation of decorative crown molding throughout room',
+        categoryName: 'Carpentry & Millwork',
+        basePrice: 12.00,
+        costPrice: 7.00,
+        unitOfMeasure: 'foot'
+      },
+      {
+        sku: 'CR-004',
+        name: 'Deck Construction',
+        description: 'Custom deck construction with composite or pressure-treated lumber',
+        categoryName: 'Carpentry & Millwork',
+        basePrice: 45.00,
+        costPrice: 28.00,
+        unitOfMeasure: 'sqft'
+      },
+      
+      // Flooring
+      {
+        sku: 'FL-001',
+        name: 'Flooring Installer - Hour',
+        description: 'Professional flooring installation specialist',
+        categoryName: 'Flooring',
+        basePrice: 65.00,
+        costPrice: 42.00,
+        unitOfMeasure: 'hour'
+      },
+      {
+        sku: 'FL-002',
+        name: 'Hardwood Floor Installation',
+        description: 'Installation of solid hardwood flooring with finishing',
+        categoryName: 'Flooring',
+        basePrice: 12.50,
+        costPrice: 7.80,
+        unitOfMeasure: 'sqft'
+      },
+      {
+        sku: 'FL-003',
+        name: 'Laminate Flooring Install',
+        description: 'Installation of laminate flooring with underlayment',
+        categoryName: 'Flooring',
+        basePrice: 6.50,
+        costPrice: 4.00,
+        unitOfMeasure: 'sqft'
+      },
+      {
+        sku: 'FL-004',
+        name: 'Tile Floor Installation',
+        description: 'Ceramic or porcelain tile installation with grout and sealing',
+        categoryName: 'Flooring',
+        basePrice: 15.00,
+        costPrice: 9.50,
+        unitOfMeasure: 'sqft'
+      },
+      
+      // Roofing
+      {
+        sku: 'RF-001',
+        name: 'Roofing Crew - Hour',
+        description: 'Professional roofing crew for installations and repairs',
+        categoryName: 'Roofing',
+        basePrice: 95.00,
+        costPrice: 65.00,
+        unitOfMeasure: 'hour'
+      },
+      {
+        sku: 'RF-002',
+        name: 'Asphalt Shingle Roof Replacement',
+        description: 'Complete roof replacement with architectural shingles, 25-year warranty',
+        categoryName: 'Roofing',
+        basePrice: 8.50,
+        costPrice: 5.20,
+        unitOfMeasure: 'sqft'
+      },
+      {
+        sku: 'RF-003',
+        name: 'Roof Inspection & Repair',
+        description: 'Comprehensive roof inspection with minor leak repairs',
+        categoryName: 'Roofing',
+        basePrice: 450.00,
+        costPrice: 280.00,
+        unitOfMeasure: 'project'
+      },
+      {
+        sku: 'RF-004',
+        name: 'Gutter Installation',
+        description: 'Seamless aluminum gutter installation with downspouts',
+        categoryName: 'Roofing',
+        basePrice: 18.00,
+        costPrice: 11.00,
+        unitOfMeasure: 'foot'
+      },
+      
+      // Masonry
+      {
+        sku: 'MS-001',
+        name: 'Mason - Hour',
+        description: 'Skilled mason for brick, stone, and concrete work',
+        categoryName: 'Masonry',
+        basePrice: 70.00,
+        costPrice: 48.00,
+        unitOfMeasure: 'hour'
+      },
+      {
+        sku: 'MS-002',
+        name: 'Brick Patio Installation',
+        description: 'Custom brick patio with sand base and polymeric sand joints',
+        categoryName: 'Masonry',
+        basePrice: 28.00,
+        costPrice: 17.00,
+        unitOfMeasure: 'sqft'
+      },
+      {
+        sku: 'MS-003',
+        name: 'Stone Veneer Installation',
+        description: 'Natural or manufactured stone veneer for exterior walls',
+        categoryName: 'Masonry',
+        basePrice: 35.00,
+        costPrice: 22.00,
+        unitOfMeasure: 'sqft'
+      },
+      {
+        sku: 'MS-004',
+        name: 'Concrete Driveway',
+        description: 'Poured concrete driveway with proper grading and reinforcement',
+        categoryName: 'Masonry',
+        basePrice: 12.00,
+        costPrice: 7.50,
+        unitOfMeasure: 'sqft'
+      },
+      
+      // Landscaping
+      {
+        sku: 'LS-001',
+        name: 'Landscaper - Hour',
+        description: 'Professional landscaper for design and installation services',
+        categoryName: 'Landscaping',
+        basePrice: 60.00,
+        costPrice: 40.00,
+        unitOfMeasure: 'hour'
+      },
+      {
+        sku: 'LS-002',
+        name: 'Lawn Installation (Sod)',
+        description: 'Professional sod installation with soil preparation',
+        categoryName: 'Landscaping',
+        basePrice: 2.80,
+        costPrice: 1.70,
+        unitOfMeasure: 'sqft'
+      },
+      {
+        sku: 'LS-003',
+        name: 'Sprinkler System Installation',
+        description: 'Automated irrigation system with timer and zone control',
+        categoryName: 'Landscaping',
         basePrice: 3500.00,
-        costPrice: 2200.00
+        costPrice: 2200.00,
+        unitOfMeasure: 'project'
       },
       {
-        sku: 'SERV-010',
-        name: 'Foundation Repair',
-        description: 'Foundation inspection and repair services',
-        categoryName: 'Construction Services',
-        basePrice: 5000.00,
-        costPrice: 3000.00
+        sku: 'LS-004',
+        name: 'Tree & Shrub Planting',
+        description: 'Professional planting service including soil amendment and mulch',
+        categoryName: 'Landscaping',
+        basePrice: 150.00,
+        costPrice: 95.00,
+        unitOfMeasure: 'unit'
       }
     ]
 
     for (const service of services) {
+      // Include unit of measure in the description if specified
+      const fullDescription = service.unitOfMeasure 
+        ? `${service.description} (Unit: ${service.unitOfMeasure})`
+        : service.description
+
       await prisma.businessProducts.upsert({
         where: {
           businessId_sku: {
@@ -216,7 +561,7 @@ async function seed() {
         },
         update: {
           name: service.name,
-          description: service.description,
+          description: fullDescription,
           basePrice: service.basePrice,
           costPrice: service.costPrice,
           updatedAt: now
@@ -226,7 +571,7 @@ async function seed() {
           businessType: 'services',
           sku: service.sku,
           name: service.name,
-          description: service.description,
+          description: fullDescription,
           categoryId: categoryIds[service.categoryName],
           basePrice: service.basePrice,
           costPrice: service.costPrice,
@@ -237,7 +582,7 @@ async function seed() {
         }
       })
     }
-    console.log('Created service offerings for contractors')
+    console.log(`Created ${services.length} service offerings for contractors`)
 
     // Create some demo contractors (persons)
     const c1 = await prisma.persons.upsert({

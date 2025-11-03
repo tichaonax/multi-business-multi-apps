@@ -34,6 +34,7 @@ export async function GET() {
           type: true,
           description: true,
           isActive: true,
+          isDemo: true,
           createdAt: true,
           updatedAt: true,
         },

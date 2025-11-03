@@ -35,6 +35,7 @@ const businessTypeModules = [
   { type: 'clothing', icon: '👕', name: 'Clothing' },
   { type: 'hardware', icon: '🔧', name: 'Hardware' },
   { type: 'construction', icon: '🏗️', name: 'Construction' },
+  { type: 'services', icon: '🔧', name: 'Services' },
 ]
 
 export function Sidebar() {
