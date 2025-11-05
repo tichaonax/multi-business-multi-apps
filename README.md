@@ -17,83 +17,76 @@
 - **Audit Logging**: Complete activity tracking
 - **Backup & Restore**: Automated data protection
 - **Mobile Responsive**: Optimized for desktop, tablet, and mobile
-- **Windows Service**: Self-hosted solution
+- **Windows Service**: Self-hosted solution with automatic migrations
+- **Peer-to-Peer Sync**: Multi-server database synchronization with mDNS discovery
 
 ## Quick Start
 
-1. **Install Dependencies**
-   ```bash
-   npm install
-   ```
+### Fresh Installation
 
-2. **Configure Database**
-   - Set up PostgreSQL database
-   - Update `DATABASE_URL` in `.env.local`
-   - Generate and run migrations:
-   ```bash
-   npm run db:generate
-   npm run db:migrate
-   ```
+For a complete fresh installation with automated setup:
 
-3. **Development**
-   ```bash
-   npm run dev
-   ```
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd multi-business-multi-apps
 
-4. **Production Deployment**
-   ```bash
-   npm run build
-   npm run start:server
-   ```
+# 2. Configure environment
+cp .env.example .env.local
+# Edit .env.local with your settings
 
-5. **Windows Service Installation**
-   ```bash
-   npm run service:install
-   ```
+# 3. Run automated setup
+npm run setup
 
-Short service command reference
+# 4. Install Windows service (as Administrator)
+npm run service:install
 
-- Install the Windows service:
+# 5. Start service (as Administrator)
+npm run service:start
+```
 
-   ```bash
-   npm run service:install
-   ```
+**What `npm run setup` does automatically:**
+- Installs dependencies
+- Creates database if it doesn't exist
+- Runs all migrations
+- Seeds reference data (~128 records)
+- Seeds business categories (20 categories, 59 subcategories)
+- Builds application and service
+- Creates admin user: `admin@business.local` / `admin123`
 
-- Uninstall the Windows service:
+### Development
 
-   ```bash
-   npm run service:uninstall
-   ```
+```bash
+npm run dev
+# Access at http://localhost:8080
+```
 
-- Start the service:
+### Production Updates
 
-   ```bash
-   npm run service:start
-   ```
+```bash
+git pull
+npm run setup:update
+npm run service:restart  # As Administrator
+```
 
-- Stop the service:
+**📖 For complete deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
 
-   ```bash
-   npm run service:stop
-   ```
+## Windows Service Commands
 
-- Restart the service:
+**All commands require Administrator privileges**
 
-   ```bash
-   npm run service:restart
-   ```
+```bash
+# Service management
+npm run service:install     # Install Windows service
+npm run service:start       # Start service
+npm run service:stop        # Stop service
+npm run service:restart     # Restart service
+npm run service:status      # Check status
+npm run service:diagnose    # Diagnose issues
+npm run service:uninstall   # Uninstall service
+```
 
-- Diagnose service/system state:
-
-   ```bash
-   npm run service:diagnose
-   ```
-
-- Quick CI-friendly smoke-check (skip DB if needed):
-
-   ```bash
-   SKIP_DB_PRECHECK=true npm run service:smoke-check
-   ```
+**📖 For troubleshooting and advanced service management, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
 
 ## Project Structure
 
@@ -106,23 +99,69 @@ src/
 └── modules/             # Business-specific modules
 ```
 
-## Environment Variables
+## Environment Configuration
+
+Create `.env.local` in the project root with these required variables:
 
 ```env
-DATABASE_URL=postgresql://username:password@localhost:5432/multi_business_db
-NEXTAUTH_SECRET=your-secret-key-here
-NEXTAUTH_URL=http://localhost:8765
+# Database
+DATABASE_URL="postgresql://postgres:password@localhost:5432/multi_business_db"
+
+# Authentication
+NEXTAUTH_URL="http://localhost:8080"
+NEXTAUTH_SECRET="your-secret-key-here"
+
+# Application
+PORT=8080
+
+# Sync Service (for multi-server deployments)
+SYNC_NODE_ID="unique-per-server"
+SYNC_NODE_NAME="sync-node-server1"
+SYNC_REGISTRATION_KEY="same-on-all-servers"
+SYNC_SERVICE_PORT=8765
 ```
+
+**Generate secure values:**
+```bash
+# Generate NEXTAUTH_SECRET
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+# Generate SYNC_NODE_ID
+node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
+```
+
+**📖 See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete environment configuration guide**
 
 ## Available Scripts
 
-- `npm run dev` - Start development server
+### Setup & Deployment
+- `npm run setup` - Fresh installation (automated)
+- `npm run setup:update` - Update after git pull
+- `npm run hooks:install` - Install git hooks for automatic updates
+
+### Development
+- `npm run dev` - Start development server (port 8080)
 - `npm run build` - Build for production
 - `npm run test` - Run test suite
 - `npm run lint` - Run ESLint
 - `npm run type-check` - Run TypeScript checks
+
+### Service Management (Administrator required)
 - `npm run service:install` - Install as Windows service
+- `npm run service:start` - Start service
+- `npm run service:stop` - Stop service
+- `npm run service:restart` - Restart service
+- `npm run service:status` - Check service status
+- `npm run service:diagnose` - Diagnose issues
 - `npm run service:uninstall` - Remove Windows service
+
+### Database
+- `npm run db:studio` - Open Prisma Studio GUI
+- `npm run db:generate` - Generate Prisma client
+- `npm run db:migrate` - Create migration (development)
+- `npm run db:deploy` - Apply migrations (production)
+
+**📖 For complete command reference, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
 
 ## Module Overview
 
@@ -158,6 +197,32 @@ NEXTAUTH_URL=http://localhost:8765
 - Audit logging for all critical actions
 - Encrypted backup files
 - Session management
+- Peer-to-peer sync with registration key authentication
+
+## Documentation
+
+### Deployment & Operations
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Complete deployment guide
+  - Fresh installation workflow
+  - Production updates
+  - Windows service management
+  - Environment configuration
+  - Troubleshooting
+  - Maintenance procedures
+
+- **[PRISMA_GUIDE.md](./PRISMA_GUIDE.md)** - Prisma best practices
+  - Naming conventions
+  - Safe vs dangerous commands
+  - Migration workflows
+  - Common issues & solutions
+
+### Project Planning
+- **[projectplan.md](./projectplan.md)** - Current project planning and implementation notes
+
+### Getting Help
+- For deployment issues, see [DEPLOYMENT.md - Troubleshooting](./DEPLOYMENT.md#troubleshooting)
+- For Prisma/database issues, see [PRISMA_GUIDE.md](./PRISMA_GUIDE.md)
+- Check service logs: `logs/service.log` and `windows-service/daemon/service.log`
 
 ## License
 
