@@ -122,12 +122,26 @@ SYNC_SERVICE_PORT=8765
 ```
 
 **Generate secure values:**
-```bash
-# Generate NEXTAUTH_SECRET
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
-# Generate SYNC_NODE_ID
+*Git Bash / Linux / macOS:*
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # NEXTAUTH_SECRET
+node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"     # SYNC_NODE_ID
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"    # SYNC_REGISTRATION_KEY
+```
+
+*PowerShell:*
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # NEXTAUTH_SECRET
+node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"     # SYNC_NODE_ID
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"    # SYNC_REGISTRATION_KEY
+```
+
+*Command Prompt (CMD):*
+```cmd
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 **📖 See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete environment configuration guide**

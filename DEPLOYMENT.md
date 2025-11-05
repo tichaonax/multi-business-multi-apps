@@ -106,16 +106,21 @@ PORT=8080
 
 **Generate Unique Values:**
 
+*Git Bash / Linux / macOS:*
 ```bash
-# Generate NextAuth secret
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-# Generate sync node ID
-node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
-
-# Generate sync registration key (use SAME value on all servers)
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # NEXTAUTH_SECRET
+node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"     # SYNC_NODE_ID
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"    # SYNC_REGISTRATION_KEY (same on ALL servers)
 ```
+
+*PowerShell / Command Prompt:*
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # NEXTAUTH_SECRET
+node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"     # SYNC_NODE_ID
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"    # SYNC_REGISTRATION_KEY (same on ALL servers)
+```
+
+**Note:** The commands work in all shells. Copy the generated value and paste into your `.env.local` file.
 
 ### Step 3: Install Git Hooks (Optional but Recommended)
 
