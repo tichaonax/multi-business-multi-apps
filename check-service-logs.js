@@ -35,30 +35,30 @@ async function checkServiceActivity() {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
     const recentEvents = await prisma.syncEvents.count({
       where: {
-        timestamp: {
+        createdAt: {
           gte: fiveMinutesAgo
         }
       }
     })
-    
+
     console.log(`📋 Sync Events (last 5 minutes): ${recentEvents}`)
-    
+
     if (recentEvents > 0) {
       const events = await prisma.syncEvents.findMany({
         where: {
-          timestamp: {
+          createdAt: {
             gte: fiveMinutesAgo
           }
         },
-        orderBy: { timestamp: 'desc' },
+        orderBy: { createdAt: 'desc' },
         take: 5
       })
-      
+
       console.log('\nRecent Events:')
       for (const event of events) {
-        console.log(`  • ${event.eventType} - ${event.tableName} (${event.operation})`)
+        console.log(`  • ${event.tableName} (${event.operation})`)
         console.log(`    From: ${event.sourceNodeId?.substring(0, 8) || 'unknown'}`)
-        console.log(`    Time: ${event.timestamp.toLocaleTimeString()}`)
+        console.log(`    Time: ${event.createdAt.toLocaleTimeString()}`)
       }
     }
     
