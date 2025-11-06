@@ -289,3 +289,65 @@ None required. The fix is complete and maintains the correct workflow:
 - Git hooks workflow remains unchanged
 
 **Fix and documentation are production-ready.**
+
+---
+
+## REVERT - Service Installation Should Remain Optional
+
+**Date:** 2025-11-05
+**Status:** ✅ Reverted
+
+### User Feedback
+
+User correctly pointed out that the service installation should remain **OPTIONAL** for developers who don't need it:
+
+- Developers working on the app may not want/need the Windows service
+- Requiring admin privileges for basic setup is too restrictive
+- Service installation should be a separate, explicit step for production deployments
+
+### Changes Reverted
+
+Restored original behavior where:
+1. `npm run setup` - Builds everything (no admin required, no service install)
+2. `npm run service:install` - Separate optional step to install service (requires admin)
+3. `npm run service:start` - Start the installed service
+
+### Files Restored
+
+#### 1. scripts/setup-fresh-install.js
+**Removed:**
+- Admin privilege check at start of setup
+- Service installation step from setup process
+
+**Restored:**
+- Original completion message showing optional service installation steps
+- Clear separation between Development and Production workflows
+
+#### 2. Documentation (DEPLOYMENT.md, SETUP.md, README.md)
+**Restored:**
+- Service installation as optional Step 5/Step 6
+- No admin requirement for basic `npm run setup`
+- Clear distinction: dev mode (no service) vs production mode (with service)
+
+### Final Workflow (Correct)
+
+**For Development:**
+```bash
+npm run setup    # No admin required
+npm run dev      # Start dev server
+```
+
+**For Production:**
+```bash
+npm run setup                 # No admin required
+npm run service:install       # Requires admin
+npm run service:start         # Requires admin
+```
+
+### Lessons Learned
+
+- Service installation must remain optional for development workflows
+- Admin privileges should only be required when actually installing the Windows service
+- Setup script should support both dev and production use cases without forcing one or the other
+
+**Original workflow restored and is production-ready.**

@@ -133,68 +133,56 @@ npm run hooks:install
 - Detects fresh install vs update scenarios
 - Provides specific setup instructions automatically
 
-### Step 4: Run Fresh Installation (As Administrator)
-
-**⚠️ IMPORTANT: Open PowerShell or Terminal as Administrator**
-
-Right-click Start → "Windows PowerShell (Admin)" or "Terminal (Admin)"
+### Step 4: Run Fresh Installation
 
 ```bash
 npm run setup
 ```
 
 **What this does automatically:**
-1. **Checks for Administrator privileges** (required for service installation)
-2. Installs all dependencies (`npm install`)
-3. Creates database if it doesn't exist
-4. Sets up database schema
-5. Applies all migrations
-6. Seeds ~128 reference data records
-7. **Seeds business categories** (20 categories, 59 subcategories)
+1. Installs all dependencies (`npm install`)
+2. Creates database if it doesn't exist
+3. Sets up database schema
+4. Applies all migrations
+5. Seeds ~128 reference data records
+6. **Seeds business categories** (20 categories, 59 subcategories)
    - Clothing: 5 categories, 17 subcategories
    - Hardware: 5 categories, 14 subcategories
    - Grocery: 6 categories, 15 subcategories
    - Restaurant: 4 categories, 13 subcategories
-8. Builds Next.js application
-9. Builds Windows service
-10. **Installs Windows service** (new in this version)
-11. Creates admin user: `admin@business.local` / `admin123`
+7. Builds Next.js application
+8. Builds Windows service
+9. Creates admin user: `admin@business.local` / `admin123`
 
 **Expected Output:**
 
 ```
-🔐 Checking administrator privileges...
-✅ Administrator privileges confirmed
-
-... (installation progress) ...
-
-✅ Hybrid service installed successfully!
-
-📋 Service Details:
-   Name: multibusinesssyncservice.exe
-   Description: Multi-Business Sync Service (Hybrid Mode)
-   Script: C:\path\to\project\windows-service\service-wrapper-hybrid.js
-
-🚀 Usage:
-   Start:        npm run service:start
-   Force Build:  npm run service:start -- --force-build
-   Stop:         npm run service:stop
-   Status:       npm run service:status
-   Diagnose:     npm run service:diagnose
-
 ✅ SETUP COMPLETED SUCCESSFULLY!
 
-📖 For Development:
-   Start the dev server: npm run dev
-   Access the app at: http://localhost:8080
-   Login with: admin@business.local / admin123
+📖 Next steps:
+   For Development:
+     1. Start the dev server: npm run dev
+     2. Access the app at: http://localhost:8080
+     3. Login with: admin@business.local / admin123
 
-📖 For Production:
-   The Windows service is now installed.
-   See the service installation output above for next steps.
+   For Production (Windows Service):
+     1. Install service (as Administrator): npm run service:install
+     2. Start service (as Administrator): npm run service:start
+     3. Access the app at: http://localhost:8080
+     4. Login with: admin@business.local / admin123
 ```
 
-### Step 5: Start Service
+### Step 5: Install Windows Service (Production Only)
+
+**⚠️ Run as Administrator:**
+
+```powershell
+npm run service:install
+```
+
+This installs the Windows service but does NOT start it. This is intentional to allow you to configure firewall rules and environment variables first.
+
+### Step 6: Start Service
 
 **Run as Administrator:**
 
@@ -208,7 +196,7 @@ This command:
 - Starts the Windows service
 - Starts the Next.js application on port 8080
 
-### Step 6: Verify Installation
+### Step 7: Verify Installation
 
 1. **Check service status:**
    ```bash

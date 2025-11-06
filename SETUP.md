@@ -11,10 +11,6 @@ This guide covers the complete setup process for fresh installations and after p
 
 ## Fresh Installation (New Machine)
 
-**⚠️ IMPORTANT: Fresh installation requires Administrator privileges**
-
-The setup script installs a Windows service, which requires admin rights. Open PowerShell or Terminal as Administrator before proceeding.
-
 ### 1. Clone the Repository
 
 ```bash
@@ -24,7 +20,7 @@ cd multi-business-multi-apps
 
 ### 2. Configure Environment Variables
 
-Create a `.env` or `.env.local` file in the root directory with the following:
+Create a `.env` file in the root directory with the following:
 
 ```env
 # Database
@@ -41,49 +37,39 @@ PORT=8080
 
 **Important**: Replace the database credentials and generate a secure `NEXTAUTH_SECRET`.
 
-### 3. Run Automated Setup (As Administrator)
-
-**The setup script now handles everything, including service installation:**
+### 3. Run Automated Setup
 
 ```bash
 npm run setup
 ```
 
 **What this does automatically:**
-1. **Checks for Administrator privileges** (exits if not admin)
-2. Installs all dependencies
-3. Creates database if it doesn't exist
-4. Generates Prisma client
-5. Applies all database migrations
-6. Seeds reference data (~128 records)
-7. Seeds business categories (20 categories, 59 subcategories)
-8. Creates admin user (`admin@business.local` / `admin123`)
-9. Builds the Next.js application
-10. Builds the Windows service
-11. **Installs the Windows service** (NEW)
+1. Installs all dependencies
+2. Creates database if it doesn't exist
+3. Generates Prisma client
+4. Applies all database migrations
+5. Seeds reference data (~128 records)
+6. Seeds business categories (20 categories, 59 subcategories)
+7. Creates admin user (`admin@business.local` / `admin123`)
+8. Builds the Next.js application
+9. Builds the Windows service
 
-**If not running as Administrator:**
+### 4. Choose Your Runtime
 
-The script will exit with clear instructions:
-
-```
-❌ Administrator privileges required!
-
-This setup script installs a Windows service, which requires admin rights.
-
-To fix this:
-  1. Close this terminal
-  2. Open PowerShell as Administrator:
-     - Right-click Start button
-     - Select "Windows PowerShell (Admin)" or "Terminal (Admin)"
-  3. Navigate to project directory
-  4. Run setup again: npm run setup
+**For Development:**
+```bash
+npm run dev
+# Access at http://localhost:8080
 ```
 
-### 4. Start the Service
+**For Production (Windows Service):**
 
-After setup completes, start the Windows service:
+First, install the service as Administrator:
+```bash
+npm run service:install
+```
 
+Then start the service:
 ```bash
 npm run service:start
 ```
@@ -104,28 +90,41 @@ The application will be available at `http://localhost:8080`.
 
 ---
 
-## Development Mode (Without Service)
+## Windows Sync Service Installation (Optional - For Multi-Machine Sync)
 
-If you want to run in development mode without the Windows service:
+**⚠️ READ FIRST**: See [SYNC-ONE-TIME-SETUP.md](SYNC-ONE-TIME-SETUP.md) for complete one-time setup guide including firewall configuration and environment variables.
+
+If you need the background sync service for database synchronization between multiple machines:
+
+### 1. Build the Service
 
 ```bash
-npm run dev
+npm run build:service
 ```
 
-**Note:** This doesn't require Administrator privileges and is suitable for development work.
+This compiles the TypeScript service files to JavaScript in the `dist/` folder.
 
----
+### 2. Install the Windows Service
 
-## Service Management
+**Run as Administrator:**
 
-After installing the service via `npm run setup`, you can manage it with these commands:
+```bash
+npm run service:install
+```
+
+**IMPORTANT**: The service installs but does NOT auto-start. You must manually start it:
+
+```bash
+npm run service:start
+```
+
+This is intentional to allow you to configure firewall rules and environment variables first.
+
+### 3. Manage the Service
 
 ```bash
 # Check service status
 npm run service:status
-
-# Start the service
-npm run service:start
 
 # Stop the service
 npm run service:stop
@@ -133,7 +132,7 @@ npm run service:stop
 # Restart the service
 npm run service:restart
 
-# Uninstall the service (as Administrator)
+# Uninstall the service
 npm run service:uninstall
 ```
 
@@ -183,19 +182,19 @@ npm run service:install
 
 ---
 
-## Quick Setup Commands
+## Quick Setup Script
 
-For convenience, automated setup scripts are available:
+For convenience, you can run the automated setup script:
 
 ```bash
-# Fresh installation (requires Administrator privileges)
+# Fresh installation
 npm run setup
 
-# After pulling updates (does NOT require Administrator)
+# After pulling updates
 npm run setup:update
 ```
 
-**Note:** Fresh installation requires Administrator privileges because it installs the Windows service. Updates do not require admin privileges.
+These scripts automate all the steps above.
 
 ---
 

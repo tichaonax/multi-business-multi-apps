@@ -24,10 +24,6 @@
 
 ### Fresh Installation
 
-**⚠️ IMPORTANT: Open PowerShell or Terminal as Administrator before starting**
-
-Right-click Start → "Windows PowerShell (Admin)" or "Terminal (Admin)"
-
 ```bash
 # 1. Clone repository
 git clone <repository-url>
@@ -37,27 +33,29 @@ cd multi-business-multi-apps
 cp .env.example .env.local
 # Edit .env.local with your settings
 
-# 3. Run automated setup (includes service installation)
+# 3. Run automated setup
 npm run setup
 
-# 4. Start service
+# 4. For Production: Install Windows service (as Administrator)
+npm run service:install
+
+# 5. For Production: Start service (as Administrator)
 npm run service:start
+
+# OR for Development: Start dev server (no admin required)
+npm run dev
 ```
 
 **What `npm run setup` does automatically:**
-- **Checks for Administrator privileges** (required for service installation)
 - Installs dependencies
 - Creates database if it doesn't exist
 - Runs all migrations
 - Seeds reference data (~128 records)
 - Seeds business categories (20 categories, 59 subcategories)
 - Builds application and service
-- **Installs Windows service** (new)
 - Creates admin user: `admin@business.local` / `admin123`
 
 ### Development
-
-For development without the Windows service (no admin privileges required):
 
 ```bash
 npm run dev
