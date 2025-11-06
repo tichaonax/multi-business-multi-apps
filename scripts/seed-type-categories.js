@@ -316,22 +316,27 @@ async function seedTypeCategories() {
   for (const [businessType, data] of Object.entries(CATEGORY_DATA)) {
     console.log(`\n📦 Processing ${businessType} business type...`);
 
-    // Check if categories already exist for this type
-    const existingCount = await prisma.businessCategories.count({
-      where: { businessType, isUserCreated: false }
-    });
-
-    if (existingCount > 0) {
-      console.log(`   ⏭️  Skipping ${businessType} - ${existingCount} categories already exist`);
-      continue;
-    }
-
     // Process each category
     for (const category of data.categories) {
       try {
-        // Create category with NULL businessId (shared by type, not tied to specific business)
-        const createdCategory = await prisma.businessCategories.create({
-          data: {
+        // Upsert category with NULL businessId (shared by type, not tied to specific business)
+        const createdCategory = await prisma.businessCategories.upsert({
+          where: {
+            businessType_name: {
+              businessType: businessType,
+              name: category.name
+            }
+          },
+          update: {
+            description: category.description,
+            emoji: category.emoji,
+            color: category.color,
+            displayOrder: category.displayOrder,
+            domainId: category.domainId,
+            isActive: true,
+            updatedAt: new Date()
+          },
+          create: {
             id: category.id,
             businessId: null,
             businessType: businessType,
@@ -348,34 +353,41 @@ async function seedTypeCategories() {
         });
 
         totalCategoriesCreated++;
-        console.log(`   ✅ Created category: ${category.name}`);
+        console.log(`   ✅ Created/Updated category: ${category.name}`);
 
-        // Create subcategories
+        // Upsert subcategories
         if (category.subcategories && category.subcategories.length > 0) {
           for (const subcategory of category.subcategories) {
-            await prisma.inventorySubcategories.create({
-              data: {
+            await prisma.inventorySubcategories.upsert({
+              where: {
+                categoryId_name: {
+                  categoryId: createdCategory.id,
+                  name: subcategory.name
+                }
+              },
+              update: {
+                description: subcategory.description,
+                emoji: subcategory.emoji,
+                displayOrder: subcategory.displayOrder
+              },
+              create: {
                 id: subcategory.id,
                 categoryId: createdCategory.id,
                 name: subcategory.name,
                 description: subcategory.description,
                 emoji: subcategory.emoji,
                 displayOrder: subcategory.displayOrder,
-                isActive: true,
-                updatedAt: new Date()
+                isDefault: false,
+                isUserCreated: false
               }
             });
 
             totalSubcategoriesCreated++;
           }
-          console.log(`      └─ Created ${category.subcategories.length} subcategories`);
+          console.log(`      └─ Created/Updated ${category.subcategories.length} subcategories`);
         }
       } catch (error) {
-        if (error.code === 'P2002') {
-          console.log(`   ⏭️  Skipping ${category.name} - already exists`);
-        } else {
-          console.error(`   ❌ Error creating ${category.name}:`, error.message);
-        }
+        console.error(`   ❌ Error processing ${category.name}:`, error.message);
       }
     }
   }
