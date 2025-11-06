@@ -610,6 +610,9 @@ async function main() {
     console.log('   Use: node scripts/schema-protector.js diff')
     console.log('   To restore: node scripts/schema-protector.js restore')
   }
+
+  // Explicitly exit to return prompt
+  process.exit(0)
 }
 
 main().catch(error => {
