@@ -77,8 +77,13 @@ export class PeerDiscoveryService extends EventEmitter {
         })
       })
 
-      // Join multicast group
-      this.udpSocket.addMembership(this.multicastAddress)
+      // Get local IP address to ensure we join multicast on the correct interface
+      // This prevents VPN interfaces (like Tailscale) from intercepting multicast
+      const localIpAddress = this.getLocalIPAddress()
+      console.log(`🌐 Joining multicast group ${this.multicastAddress} on interface ${localIpAddress}`)
+
+      // Join multicast group on the specific local network interface
+      this.udpSocket.addMembership(this.multicastAddress, localIpAddress)
 
       // Start broadcasting our presence
       this.startBroadcasting()
