@@ -7,6 +7,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { execSync } = require('child_process')
 
 const ROOT_DIR = path.join(__dirname, '..')
 const HOOKS_DIR = path.join(ROOT_DIR, '.git', 'hooks')
@@ -28,6 +29,8 @@ function main() {
   console.log('🪝 INSTALLING GIT HOOKS')
   console.log('='.repeat(60) + '\n')
 
+  const GIT_DIR = path.join(ROOT_DIR, '.git')
+
   // Check if .git directory exists
   if (!fs.existsSync(GIT_DIR)) {
     console.error('❌ Error: Not a git repository')
@@ -35,8 +38,9 @@ function main() {
     process.exit(1)
   }
 
-  // Check if hooks directory exists
-  if (!fs.existsSync(HOOKS_DIR)) {
+  // Check if githooks directory exists
+  const GITHOOKS_DIR = path.join(ROOT_DIR, '.githooks')
+  if (!fs.existsSync(GITHOOKS_DIR)) {
     console.error('❌ Error: Hooks directory not found at .githooks/')
     process.exit(1)
   }
@@ -75,6 +79,8 @@ function main() {
     console.log('   • post-merge: Automatically rebuilds service after git pull')
     console.log('\n💡 The hooks will run automatically on relevant git operations.')
     console.log('   To disable: git config core.hooksPath .git/hooks\n')
+
+    process.exit(0)
 
   } catch (error) {
     console.error('\n❌ FAILED TO INSTALL HOOKS')
@@ -127,6 +133,9 @@ if (args.includes('--smart') || args.includes('-s')) {
   if (success) {
     console.log('\n✅ Smart hook installed! It will run automatically after git pull/merge.')
     console.log('   Test it with: node scripts/post-merge-hook.js\n')
+    process.exit(0)
+  } else {
+    process.exit(1)
   }
 } else {
   main()

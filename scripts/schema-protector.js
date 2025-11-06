@@ -165,40 +165,40 @@ class SchemaProtector {
 }
 
 // CLI Interface
-async function main() {
+function main() {
   const args = process.argv.slice(2)
   const command = args[0] || 'validate'
-  
+
   const protector = new SchemaProtector()
-  
+
   switch (command) {
     case 'backup':
       protector.createBackup()
-      break
-      
+      process.exit(0)
+
     case 'validate':
       const validation = protector.validateSchema()
       if (!validation.valid) {
         process.exit(1)
       }
-      break
-      
+      process.exit(0)
+
     case 'restore':
       const restored = protector.restoreSchema()
       if (!restored) {
         process.exit(1)
       }
-      break
-      
+      process.exit(0)
+
     case 'diff':
       protector.showDifferences()
-      break
-      
+      process.exit(0)
+
     case 'status':
       const status = protector.validateSchema()
       console.log(JSON.stringify(status, null, 2))
-      break
-      
+      process.exit(0)
+
     default:
       console.log('\n📖 Schema Protection Tool')
       console.log('\nUsage:')
@@ -209,14 +209,17 @@ async function main() {
       console.log('  node scripts/schema-protector.js status     # JSON status output')
       console.log('\nTip: Run "backup" before deployment operations')
       console.log('     Run "validate" after to check for unwanted changes')
+      process.exit(0)
   }
 }
 
 if (require.main === module) {
-  main().catch(error => {
+  try {
+    main()
+  } catch (error) {
     console.error('\n❌ Schema protector failed:', error.message)
     process.exit(1)
-  })
+  }
 }
 
 module.exports = { SchemaProtector }
