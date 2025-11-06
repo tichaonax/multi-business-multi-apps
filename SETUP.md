@@ -11,6 +11,10 @@ This guide covers the complete setup process for fresh installations and after p
 
 ## Fresh Installation (New Machine)
 
+**⚠️ IMPORTANT: Fresh installation requires Administrator privileges**
+
+The setup script installs a Windows service, which requires admin rights. Open PowerShell or Terminal as Administrator before proceeding.
+
 ### 1. Clone the Repository
 
 ```bash
@@ -18,15 +22,9 @@ git clone <repository-url>
 cd multi-business-multi-apps
 ```
 
-### 2. Install Dependencies
+### 2. Configure Environment Variables
 
-```bash
-npm install
-```
-
-### 3. Configure Environment Variables
-
-Create a `.env` file in the root directory with the following:
+Create a `.env` or `.env.local` file in the root directory with the following:
 
 ```env
 # Database
@@ -43,103 +41,91 @@ PORT=8080
 
 **Important**: Replace the database credentials and generate a secure `NEXTAUTH_SECRET`.
 
-### 4. Generate Prisma Client
+### 3. Run Automated Setup (As Administrator)
 
-**CRITICAL STEP**: The Prisma client must be generated on each machine after installing or updating dependencies.
-
-```bash
-npx prisma generate
-```
-
-This reads your `prisma/schema.prisma` and generates TypeScript types and the database client in `node_modules/.prisma/client/`.
-
-### 5. Set Up the Database
-
-**For Fresh Installations** (empty database), use `db push` to create the schema directly:
+**The setup script now handles everything, including service installation:**
 
 ```bash
-npx prisma db push
+npm run setup
 ```
 
-This creates all tables from your schema without migration history - perfect for fresh installs.
+**What this does automatically:**
+1. **Checks for Administrator privileges** (exits if not admin)
+2. Installs all dependencies
+3. Creates database if it doesn't exist
+4. Generates Prisma client
+5. Applies all database migrations
+6. Seeds reference data (~128 records)
+7. Seeds business categories (20 categories, 59 subcategories)
+8. Creates admin user (`admin@business.local` / `admin123`)
+9. Builds the Next.js application
+10. Builds the Windows service
+11. **Installs the Windows service** (NEW)
 
-**For Production Updates** (existing database with data), use migrations:
+**If not running as Administrator:**
 
-```bash
-npx prisma migrate deploy
+The script will exit with clear instructions:
+
+```
+❌ Administrator privileges required!
+
+This setup script installs a Windows service, which requires admin rights.
+
+To fix this:
+  1. Close this terminal
+  2. Open PowerShell as Administrator:
+     - Right-click Start button
+     - Select "Windows PowerShell (Admin)" or "Terminal (Admin)"
+  3. Navigate to project directory
+  4. Run setup again: npm run setup
 ```
 
-**Note**: The automated `npm run setup` script uses `db push` for fresh installations and includes safety checks to prevent running on existing databases.
+### 4. Start the Service
 
-### 6. Seed Reference Data
-
-The application requires reference data for employees, templates, and system settings:
-
-```bash
-# Seed all employee reference data (ID templates, job titles, compensation types, etc.)
-cd scripts
-node seed-all-employee-data.js
-
-# Create the admin user
-cd ..
-npm run create-admin
-```
-
-**Default Admin Credentials:**
-- Email: `admin@business.local`
-- Password: `admin123`
-
-### 7. Build the Application
-
-```bash
-npm run build
-```
-
-### 8. Start the Development Server
-
-```bash
-npm run dev
-```
-
-The application will be available at `http://localhost:8080`.
-
----
-
-## Windows Sync Service Installation (Optional - For Multi-Machine Sync)
-
-**⚠️ READ FIRST**: See [SYNC-ONE-TIME-SETUP.md](SYNC-ONE-TIME-SETUP.md) for complete one-time setup guide including firewall configuration and environment variables.
-
-If you need the background sync service for database synchronization between multiple machines:
-
-### 1. Build the Service
-
-```bash
-npm run build:service
-```
-
-This compiles the TypeScript service files to JavaScript in the `dist/` folder.
-
-### 2. Install the Windows Service
-
-**Run as Administrator:**
-
-```bash
-npm run service:install
-```
-
-**IMPORTANT**: The service installs but does NOT auto-start. You must manually start it:
+After setup completes, start the Windows service:
 
 ```bash
 npm run service:start
 ```
 
-This is intentional to allow you to configure firewall rules and environment variables first.
+This command:
+- Handles any pending database migrations
+- Rebuilds if needed (use `--force-build` flag to force)
+- Starts the Windows service
+- Starts the Next.js application on port 8080
 
-### 3. Manage the Service
+### 5. Access the Application
+
+The application will be available at `http://localhost:8080`.
+
+**Default Admin Credentials:**
+- Email: `admin@business.local`
+- Password: `admin123`
+
+---
+
+## Development Mode (Without Service)
+
+If you want to run in development mode without the Windows service:
+
+```bash
+npm run dev
+```
+
+**Note:** This doesn't require Administrator privileges and is suitable for development work.
+
+---
+
+## Service Management
+
+After installing the service via `npm run setup`, you can manage it with these commands:
 
 ```bash
 # Check service status
 npm run service:status
+
+# Start the service
+npm run service:start
 
 # Stop the service
 npm run service:stop
@@ -147,7 +133,7 @@ npm run service:stop
 # Restart the service
 npm run service:restart
 
-# Uninstall the service
+# Uninstall the service (as Administrator)
 npm run service:uninstall
 ```
 
@@ -197,19 +183,19 @@ npm run service:install
 
 ---
 
-## Quick Setup Script
+## Quick Setup Commands
 
-For convenience, you can run the automated setup script:
+For convenience, automated setup scripts are available:
 
 ```bash
-# Fresh installation
+# Fresh installation (requires Administrator privileges)
 npm run setup
 
-# After pulling updates
+# After pulling updates (does NOT require Administrator)
 npm run setup:update
 ```
 
-These scripts automate all the steps above.
+**Note:** Fresh installation requires Administrator privileges because it installs the Windows service. Updates do not require admin privileges.
 
 ---
 

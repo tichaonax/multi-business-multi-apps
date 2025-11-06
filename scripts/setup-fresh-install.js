@@ -128,10 +128,49 @@ async function createDatabaseIfNeeded() {
   }
 }
 
+async function checkAdminPrivileges() {
+  try {
+    const wincmd = require('node-windows')
+    return new Promise((resolve) => {
+      wincmd.isAdminUser((isAdmin) => {
+        resolve(isAdmin)
+      })
+    })
+  } catch (error) {
+    // If node-windows is not available, assume not admin
+    console.warn('⚠️  Could not check admin privileges:', error.message)
+    return false
+  }
+}
+
 async function main() {
   console.log('\n' + '='.repeat(60))
   console.log('🚀 MULTI-BUSINESS MULTI-APPS - FRESH INSTALLATION SETUP')
   console.log('='.repeat(60) + '\n')
+
+  // Check admin privileges for service installation
+  console.log('🔐 Checking administrator privileges...\n')
+  const isAdmin = await checkAdminPrivileges()
+
+  if (!isAdmin) {
+    console.log('❌ Administrator privileges required!')
+    console.log('')
+    console.log('This setup script installs a Windows service, which requires admin rights.')
+    console.log('')
+    console.log('To fix this:')
+    console.log('  1. Close this terminal')
+    console.log('  2. Open PowerShell as Administrator:')
+    console.log('     - Right-click Start button')
+    console.log('     - Select "Windows PowerShell (Admin)" or "Terminal (Admin)"')
+    console.log('  3. Navigate to project directory:')
+    console.log(`     cd "${process.cwd()}"`)
+    console.log('  4. Run setup again:')
+    console.log('     npm run setup')
+    console.log('')
+    process.exit(1)
+  }
+
+  console.log('✅ Administrator privileges confirmed\n')
 
   // Check if .env exists
   const envPath = path.join(ROOT_DIR, '.env')
@@ -230,6 +269,11 @@ async function main() {
       command: 'npm run build:service',
       description: 'Building the Windows service',
       required: true
+    },
+    {
+      command: 'npm run service:install',
+      description: 'Installing the Windows service',
+      required: true
     }
   ]
 
@@ -258,18 +302,16 @@ async function main() {
     console.log('Some optional steps failed. Check the output above.')
   }
   console.log('='.repeat(60))
-  console.log('\n📖 Next steps:')
-  console.log('   For Development:')
-  console.log('     1. Start the dev server: npm run dev')
-  console.log('     2. Access the app at: http://localhost:8080')
-  console.log('     3. Login with: admin@business.local / admin123')
+  console.log('\n📖 For Development:')
+  console.log('   Start the dev server: npm run dev')
+  console.log('   Access the app at: http://localhost:8080')
+  console.log('   Login with: admin@business.local / admin123')
   console.log('')
-  console.log('   For Production (Windows Service):')
-  console.log('     1. Install service (as Administrator): npm run service:install')
-  console.log('     2. Start service (as Administrator): npm run service:start')
-  console.log('     3. Access the app at: http://localhost:8080')
-  console.log('     4. Login with: admin@business.local / admin123')
-  console.log('\n📚 For more information, see SETUP.md\n')
+  console.log('📖 For Production:')
+  console.log('   The Windows service is now installed.')
+  console.log('   See the service installation output above for next steps.')
+  console.log('')
+  console.log('📚 For more information, see SETUP.md\n')
 }
 
 main().catch(error => {
