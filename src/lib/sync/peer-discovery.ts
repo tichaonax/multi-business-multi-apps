@@ -81,9 +81,19 @@ export class PeerDiscoveryService extends EventEmitter {
       // This prevents VPN interfaces (like Tailscale) from intercepting multicast
       const localIpAddress = this.getLocalIPAddress()
       console.log(`🌐 Joining multicast group ${this.multicastAddress} on interface ${localIpAddress}`)
+      console.log(`   Discovery Port: ${this.options.discoveryPort}`)
+      console.log(`   Service Name: ${this.options.serviceName}`)
+      console.log(`   Node ID: ${this.options.nodeId}`)
+      console.log(`   Node Name: ${this.options.nodeName}`)
 
       // Join multicast group on the specific local network interface
-      this.udpSocket.addMembership(this.multicastAddress, localIpAddress)
+      try {
+        this.udpSocket.addMembership(this.multicastAddress, localIpAddress)
+        console.log(`✅ Successfully joined multicast group`)
+      } catch (err) {
+        console.error(`❌ Failed to join multicast group:`, err)
+        throw err
+      }
 
       // Start broadcasting our presence
       this.startBroadcasting()
@@ -604,9 +614,15 @@ export class PeerDiscoveryService extends EventEmitter {
    * Store discovered peer in database for admin dashboard visibility
    */
   private async storePeerInDatabase(peer: PeerInfo): Promise<void> {
-    if (!this.prisma) return
-    
+    if (!this.prisma) {
+      console.warn(`⚠️  Cannot store peer ${peer.nodeName} - no database connection`)
+      return
+    }
+
     try {
+      console.log(`💾 Storing peer in database: ${peer.nodeName} (${peer.nodeId})`)
+      console.log(`   IP: ${peer.ipAddress}:${peer.port}`)
+
       await this.prisma.syncNodes.upsert({
         where: { nodeId: peer.nodeId },
         update: {
@@ -627,8 +643,11 @@ export class PeerDiscoveryService extends EventEmitter {
           capabilities: peer.capabilities || {}
         }
       })
+
+      console.log(`✅ Successfully stored peer ${peer.nodeName} in database`)
     } catch (error) {
-      console.error('Failed to store peer in database:', error)
+      console.error(`❌ Failed to store peer ${peer.nodeName} in database:`, error)
+      console.error(`   Error details:`, error instanceof Error ? error.message : String(error))
     }
   }  /**
    * Mark peer as inactive in database
