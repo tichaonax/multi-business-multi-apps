@@ -515,25 +515,39 @@ async function main() {
 
   // Step 5: Check if service rebuild is needed and handle reinstall if needed
   const serviceNeedsRebuild = await checkServiceNeedsRebuild()
+  let serviceNeedsInstall = false
+
   if (serviceNeedsRebuild) {
     console.log('🔧 Service files changed - handling service reinstall...')
-    
+
     // Check if service is currently installed
     const serviceInstalled = await checkServiceInstalled()
     if (serviceInstalled) {
       console.log('🗑️  Uninstalling existing service before rebuild...')
       run('npm run service:uninstall', 'Uninstalling existing service', true) // Optional - continue if fails
+      serviceNeedsInstall = true // Mark that we need to reinstall
     }
-    
+
     // Rebuild the service
     run('npm run build:service', 'Rebuilding Windows sync service', false)
-    
-    console.log('')
-    console.log('⚠️  SERVICE REINSTALL REQUIRED:')
-    console.log('   Service files were updated and service was uninstalled.')
-    console.log('   You must reinstall the service after this setup completes.')
-    console.log('   Run: npm run service:install')
-    console.log('')
+
+    // Reinstall the service if it was previously installed
+    if (serviceNeedsInstall) {
+      console.log('')
+      console.log('🔧 Reinstalling Windows service...')
+      const installSuccess = run('npm run service:install', 'Reinstalling Windows service', true) // Optional - continue if fails
+
+      if (installSuccess) {
+        console.log('✅ Service reinstalled successfully!')
+      } else {
+        console.log('')
+        console.log('⚠️  SERVICE INSTALLATION FAILED:')
+        console.log('   Service was rebuilt but installation failed.')
+        console.log('   You must manually install the service:')
+        console.log('   Run (as Administrator): npm run service:install')
+        console.log('')
+      }
+    }
   } else {
     console.log('ℹ️  Service rebuild not needed - no service files changed')
   }
@@ -556,18 +570,27 @@ async function main() {
     console.log('✅ UPGRADE BUILD COMPLETED SUCCESSFULLY!')
     console.log('='.repeat(60))
     console.log('')
-    
+
     // NOTE: UI validation will run automatically after migrations complete during service startup
     console.log('🔍 UI validation will run after service starts and migrations complete...')
-    
-    console.log('⚠️  IMPORTANT: Service restart will handle:')
+
+    console.log('⚠️  IMPORTANT: Service startup will handle:')
     console.log('   • Database migrations (automatic)')
     console.log('   • Reference data seeding (automatic)')
     console.log('   • Schema updates (automatic)')
     console.log('   • UI relations validation AFTER migrations (automatic)')
     console.log('')
-    console.log('🚀 To apply all changes, restart the service:')
-    console.log('   npm run service:restart (as Administrator)')
+
+    // Show appropriate next step based on whether service was reinstalled
+    if (serviceNeedsInstall) {
+      console.log('🚀 To apply all changes, START the service:')
+      console.log('   npm run service:start (as Administrator)')
+      console.log('')
+      console.log('   Note: Service was reinstalled due to service file changes.')
+    } else {
+      console.log('🚀 To apply all changes, RESTART the service:')
+      console.log('   npm run service:restart (as Administrator)')
+    }
     console.log('')
     console.log('   The service startup automatically runs:')
     console.log('   - npx prisma migrate deploy')
