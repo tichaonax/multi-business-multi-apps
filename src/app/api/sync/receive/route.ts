@@ -6,14 +6,44 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
 
 const prisma = new PrismaClient()
+
+/**
+ * Write image file to disk
+ */
+async function writeImageFile(imageUrl: string, base64Content: string): Promise<void> {
+  try {
+    const uploadDir = join(process.cwd(), 'public/uploads/images')
+    if (!existsSync(uploadDir)) {
+      await mkdir(uploadDir, { recursive: true })
+    }
+
+    const filePath = join(process.cwd(), 'public', imageUrl)
+    const buffer = Buffer.from(base64Content, 'base64')
+    await writeFile(filePath, buffer)
+    console.log(`✅ Wrote image file: ${imageUrl}`)
+  } catch (error) {
+    console.error(`Failed to write image file ${imageUrl}:`, error)
+    throw error
+  }
+}
 
 /**
  * Apply a sync event change to the actual database tables
  */
 async function applyChangeToDatabase(prisma: PrismaClient, event: any): Promise<void> {
-  const { table: tableName, recordId, operation, data } = event
+  const { table: tableName, recordId, operation, data, metadata } = event
+
+  // For ProductImages, write the file first if we have content
+  if ((tableName === 'ProductImages' || tableName === 'product_images') &&
+      metadata?.imageFileContent &&
+      data?.imageUrl) {
+    await writeImageFile(data.imageUrl, metadata.imageFileContent)
+  }
 
   // Get the Prisma model name (capitalize first letter)
   const modelName = tableName.charAt(0).toUpperCase() + tableName.slice(1)

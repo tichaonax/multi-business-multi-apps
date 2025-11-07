@@ -6,6 +6,9 @@
 import { PrismaClient, SyncOperation } from '@prisma/client'
 import { createHash } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
+import { readFile } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
 
 export interface VectorClock {
   [nodeId: string]: number
@@ -105,6 +108,24 @@ export class DatabaseChangeTracker {
   /**
    * Track a database change event
    */
+  /**
+   * Read image file content for sync
+   */
+  private async readImageFileContent(imageUrl: string): Promise<string | null> {
+    try {
+      const filePath = join(process.cwd(), 'public', imageUrl)
+      if (!existsSync(filePath)) {
+        console.warn(`Image file not found: ${filePath}`)
+        return null
+      }
+      const buffer = await readFile(filePath)
+      return buffer.toString('base64')
+    } catch (error) {
+      console.error(`Failed to read image file ${imageUrl}:`, error)
+      return null
+    }
+  }
+
   async trackChange(
     tableName: string,
     recordId: string,
@@ -117,6 +138,14 @@ export class DatabaseChangeTracker {
 
     if (!this.isEnabled || this.excludedTables.has(tableName)) {
       return ''
+    }
+
+    // For ProductImages, include file content in metadata
+    let imageFileContent: string | null = null
+    if ((tableName === 'ProductImages' || tableName === 'product_images') &&
+        changeData?.imageUrl &&
+        (operation === SyncOperation.CREATE || operation === SyncOperation.UPDATE)) {
+      imageFileContent = await this.readImageFileContent(changeData.imageUrl)
     }
 
     // Increment vector clock and Lamport clock
@@ -142,6 +171,7 @@ export class DatabaseChangeTracker {
         timestamp: new Date().toISOString(),
         nodeVersion: process.env.npm_package_version || '1.0.0',
         registrationKeyHash: this.hashRegistrationKey(),
+        ...(imageFileContent && { imageFileContent }),
         ...metadata
       }
     }

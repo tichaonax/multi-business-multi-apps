@@ -6,6 +6,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { PrismaClient } from '@prisma/client'
+import { readFile } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
 
 const prisma = new PrismaClient()
 
@@ -202,7 +205,22 @@ async function transferDataInBackground(
     const allBusinesses = await prisma.businesses.findMany()
     const businesses = allBusinesses.filter(b => !isDemoBusinessId(b.id))
 
-    const totalRecords = businesses.length
+    // Get product images for non-demo businesses
+    const businessIds = businesses.map(b => b.id)
+    const productImages = await prisma.productImages.findMany({
+      where: {
+        business_products: {
+          businessId: { in: businessIds }
+        }
+      },
+      include: {
+        business_products: {
+          select: { businessId: true }
+        }
+      }
+    })
+
+    const totalRecords = businesses.length + productImages.length
 
     await prisma.initialLoadSessions.update({
       where: { sessionId },
@@ -262,6 +280,77 @@ async function transferDataInBackground(
             transferredBytes,
             progress,
             currentStep: `Transferred ${transferredRecords} of ${totalRecords} records`
+          }
+        })
+      }
+
+      // Small delay
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+
+    // Transfer product images
+    for (const image of productImages) {
+      // Read image file content
+      let imageFileContent: string | null = null
+      try {
+        const filePath = join(process.cwd(), 'public', image.imageUrl)
+        if (existsSync(filePath)) {
+          const buffer = await readFile(filePath)
+          imageFileContent = buffer.toString('base64')
+        }
+      } catch (error) {
+        console.error(`Failed to read image file ${image.imageUrl}:`, error)
+      }
+
+      const syncEvent = {
+        id: crypto.randomUUID(),
+        sourceNodeId,
+        table: 'ProductImages',
+        recordId: image.id,
+        operation: 'CREATE',
+        data: {
+          id: image.id,
+          productId: image.productId,
+          imageUrl: image.imageUrl,
+          altText: image.altText,
+          isPrimary: image.isPrimary,
+          sortOrder: image.sortOrder,
+          imageSize: image.imageSize,
+          businessType: image.businessType,
+          createdAt: image.createdAt,
+          updatedAt: image.updatedAt
+        },
+        metadata: imageFileContent ? { imageFileContent } : {},
+        checksum: crypto.createHash('md5').update(JSON.stringify(image)).digest('hex')
+      }
+
+      const response = await fetch(`http://${targetPeer.ipAddress}:${targetPort}/api/sync/receive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Node-ID': sourceNodeId,
+          'X-Registration-Hash': regHash
+        },
+        body: JSON.stringify({
+          sessionId,
+          sourceNodeId,
+          events: [syncEvent]
+        })
+      })
+
+      if (response.ok) {
+        transferredRecords++
+        transferredBytes += BigInt(JSON.stringify(syncEvent).length)
+
+        const progress = Math.round((transferredRecords / totalRecords) * 100)
+
+        await prisma.initialLoadSessions.update({
+          where: { sessionId },
+          data: {
+            transferredRecords,
+            transferredBytes,
+            progress,
+            currentStep: `Transferred ${transferredRecords} of ${totalRecords} records (${productImages.length} images)`
           }
         })
       }
