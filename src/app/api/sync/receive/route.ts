@@ -71,6 +71,43 @@ async function applyChangeToDatabase(prisma: PrismaClient, event: any): Promise<
 }
 
 /**
+ * Check if a business ID is a demo business
+ */
+function isDemoBusinessId(businessId: string): boolean {
+  if (!businessId || typeof businessId !== 'string') {
+    return false
+  }
+
+  const lowerBusinessId = businessId.toLowerCase()
+  return lowerBusinessId.includes('-demo-business') ||
+         lowerBusinessId.endsWith('-demo') ||
+         lowerBusinessId.startsWith('demo-') ||
+         lowerBusinessId === 'demo'
+}
+
+/**
+ * Check if an event is for a demo business
+ */
+function isDemoBusinessEvent(event: any): boolean {
+  const { table, recordId, data } = event
+
+  // Check if the event is directly on the businesses table
+  if (table === 'businesses' || table === 'Businesses') {
+    return isDemoBusinessId(recordId)
+  }
+
+  // For other tables, check if they have a businessId field
+  if (data && typeof data === 'object') {
+    const businessId = data.businessId || data.business_id
+    if (businessId && typeof businessId === 'string') {
+      return isDemoBusinessId(businessId)
+    }
+  }
+
+  return false
+}
+
+/**
  * POST /api/sync/receive
  * Handle receiving sync data from peer nodes
  */
@@ -116,6 +153,17 @@ export async function POST(request: NextRequest) {
     // Process each event
     for (const event of events) {
       try {
+        // Filter out demo business events
+        if (isDemoBusinessEvent(event)) {
+          console.log(`Rejected demo business event: ${event.table}:${event.recordId}`)
+          processedEvents.push({
+            eventId: event.id,
+            status: 'rejected',
+            error: 'Demo businesses are not synced'
+          })
+          continue // Skip demo events
+        }
+
         // Check if event already exists (deduplication)
         const existingEvent = await prisma.syncEvents.findUnique({
           where: { eventId: event.id }

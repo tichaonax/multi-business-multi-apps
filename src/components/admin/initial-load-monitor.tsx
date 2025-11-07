@@ -53,15 +53,30 @@ interface DataSnapshot {
   }>
 }
 
+interface SyncPeer {
+  nodeId: string
+  nodeName: string
+  ipAddress: string
+  port: number
+  isActive: boolean
+  lastSeen: string
+}
+
 export function InitialLoadMonitor() {
   const [sessions, setSessions] = useState<InitialLoadSession[]>([])
   const [snapshots, setSnapshots] = useState<DataSnapshot[]>([])
+  const [peers, setPeers] = useState<SyncPeer[]>([])
+  const [selectedPeer, setSelectedPeer] = useState<SyncPeer | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchInitialLoadData()
-    const interval = setInterval(fetchInitialLoadData, 5000) // Update every 5 seconds
+    fetchPeers()
+    const interval = setInterval(() => {
+      fetchInitialLoadData()
+      fetchPeers()
+    }, 5000) // Update every 5 seconds
     return () => clearInterval(interval)
   }, [])
 
@@ -82,6 +97,22 @@ export function InitialLoadMonitor() {
       setError(error instanceof Error ? error.message : 'Unknown error')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchPeers = async () => {
+    try {
+      // Fetch active sync peers
+      const response = await fetch('/api/sync/stats')
+      if (response.ok) {
+        const data = await response.json()
+        setPeers(data.syncNodes || [])
+        if (data.syncNodes && data.syncNodes.length > 0 && !selectedPeer) {
+          setSelectedPeer(data.syncNodes[0])
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch peers:', error)
     }
   }
 
@@ -109,12 +140,9 @@ export function InitialLoadMonitor() {
 
   const initiateInitialLoad = async () => {
     try {
-      // Mock peer for demonstration
-      const mockPeer = {
-        nodeId: 'target-node-001',
-        nodeName: 'Target Node 1',
-        ipAddress: '192.168.1.100',
-  port: 8765
+      if (!selectedPeer) {
+        setError('Please select a target peer')
+        return
       }
 
       const response = await fetch('/api/admin/sync/initial-load', {
@@ -122,11 +150,12 @@ export function InitialLoadMonitor() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'initiate',
-          targetPeer: mockPeer,
+          targetPeer: selectedPeer,
           options: {
-            compressionEnabled: true,
-            encryptionEnabled: true,
-            checksumVerification: true
+            compressionEnabled: false,
+            encryptionEnabled: false,
+            checksumVerification: true,
+            selectedTables: ['businesses']
           }
         })
       })
@@ -137,7 +166,13 @@ export function InitialLoadMonitor() {
 
       const result = await response.json()
       console.log('Initial load initiated:', result)
-      await fetchInitialLoadData()
+
+      setError(null)
+
+      // Show success message and refresh
+      setTimeout(() => {
+        fetchInitialLoadData()
+      }, 1000)
 
     } catch (error) {
       console.error('Failed to initiate initial load:', error)
@@ -237,15 +272,58 @@ export function InitialLoadMonitor() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex space-x-4">
-            <Button onClick={createSnapshot} className="flex items-center">
-              <HardDrive className="h-4 w-4 mr-2" />
-              Create Snapshot
-            </Button>
-            <Button onClick={initiateInitialLoad} className="flex items-center">
-              <Upload className="h-4 w-4 mr-2" />
-              Initiate Load
-            </Button>
+          <div className="space-y-4">
+            {/* Peer Selection */}
+            {peers.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Target Peer</label>
+                <select
+                  className="w-full p-2 border rounded-md"
+                  value={selectedPeer?.nodeId || ''}
+                  onChange={(e) => {
+                    const peer = peers.find(p => p.nodeId === e.target.value)
+                    setSelectedPeer(peer || null)
+                  }}
+                >
+                  {peers.map(peer => (
+                    <option key={peer.nodeId} value={peer.nodeId}>
+                      {peer.nodeName} ({peer.ipAddress})
+                      {peer.isActive ? ' - Online' : ' - Offline'}
+                    </option>
+                  ))}
+                </select>
+                {selectedPeer && (
+                  <p className="text-xs text-muted-foreground">
+                    Will send data from this machine to {selectedPeer.nodeName}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {peers.length === 0 && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  No sync peers found. Make sure the remote machine sync service is running.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex space-x-4">
+              <Button onClick={createSnapshot} variant="outline" className="flex items-center">
+                <HardDrive className="h-4 w-4 mr-2" />
+                Create Snapshot
+              </Button>
+              <Button
+                onClick={initiateInitialLoad}
+                className="flex items-center"
+                disabled={!selectedPeer || !selectedPeer.isActive}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Initiate Load to {selectedPeer?.nodeName || 'Peer'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
