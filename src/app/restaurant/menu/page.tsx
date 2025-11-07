@@ -47,7 +47,19 @@ export default function MenuManagementPage() {
       setLoading(true)
       setError(null)
 
-      // Load menu items (products) first to get businessId
+      // Use consistent restaurant demo business ID
+      const businessId = 'restaurant-demo'
+
+      // Load categories first (independent of products)
+      const categoriesResponse = await fetch(`/api/universal/categories?businessId=${businessId}&businessType=restaurant`)
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json()
+        if (categoriesData.success) {
+          setCategories(categoriesData.data)
+        }
+      }
+
+      // Load menu items (products)
       const menuResponse = await fetch('/api/universal/products?businessType=restaurant')
       if (menuResponse.ok) {
         const menuData = await menuResponse.json()
@@ -77,21 +89,6 @@ export default function MenuManagementPage() {
             variants: product.variants || []
           }))
           setMenuItems(transformedItems)
-
-          // Get businessId from first product to load categories
-          if (menuData.data.length > 0) {
-            const businessId = menuData.data[0].businessId
-            const categoriesResponse = await fetch(`/api/universal/categories?businessId=${businessId}&businessType=restaurant`)
-            if (categoriesResponse.ok) {
-              const categoriesData = await categoriesResponse.json()
-              if (categoriesData.success) {
-                setCategories(categoriesData.data)
-              }
-            }
-          } else {
-            // No products found, set empty categories array
-            setCategories([])
-          }
         } else {
           setError(menuData.error || 'Failed to load menu items')
         }

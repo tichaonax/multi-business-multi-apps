@@ -115,6 +115,10 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
   // Form validation
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
 
+  // Category creation
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+
   useEffect(() => {
     if (item) {
       setFormData({
@@ -144,12 +148,12 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
         })))
       }
 
-      // Set variants
+      // Set variants (ensure price is always a number)
       if (item.variants) {
         setVariants(item.variants.map(v => ({
           id: v.id,
           name: v.name,
-          price: v.price,
+          price: typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0,
           isAvailable: v.isAvailable
         })))
       }
@@ -288,6 +292,43 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
     setVariants(prev => prev.filter((_, i) => i !== index))
   }
 
+  const createNewCategory = async () => {
+    if (!newCategoryName.trim()) {
+      setError('Category name is required')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/universal/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: 'restaurant-demo',
+          businessType: 'restaurant',
+          name: newCategoryName.trim(),
+          displayOrder: 0
+        })
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        // Update categories list in parent would be ideal, but for now just set the new category ID
+        handleInputChange('categoryId', result.data.id)
+        setIsCreatingCategory(false)
+        setNewCategoryName('')
+        setError(null)
+
+        // Reload page to refresh categories list
+        window.location.reload()
+      } else {
+        setError(result.error || 'Failed to create category')
+      }
+    } catch (err) {
+      setError('Network error while creating category')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -306,7 +347,12 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
         calories: formData.calories ? parseInt(formData.calories) : null,
         // Skip images until image upload API is implemented
         // images: images.filter(img => !img.toDelete),
-        variants: variants.filter(v => v.name.trim()),
+        variants: variants
+          .filter(v => v.name.trim())
+          .map(v => ({
+            ...v,
+            price: typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0
+          })),
         businessType: 'restaurant'
       }
 
@@ -422,20 +468,69 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
               <label className="block text-sm font-medium text-primary mb-1">
                 Category *
               </label>
-              <select
-                value={formData.categoryId}
-                onChange={(e) => handleInputChange('categoryId', e.target.value)}
-                className={`input-field ${
-                  validationErrors.categoryId ? 'border-red-300' : ''
-                }`}
-              >
-                <option value="">Select a category</option>
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+              {!isCreatingCategory ? (
+                <div className="flex gap-2">
+                  <select
+                    value={formData.categoryId}
+                    onChange={(e) => {
+                      if (e.target.value === '__create_new__') {
+                        setIsCreatingCategory(true)
+                      } else {
+                        handleInputChange('categoryId', e.target.value)
+                      }
+                    }}
+                    className={`input-field flex-1 ${
+                      validationErrors.categoryId ? 'border-red-300' : ''
+                    }`}
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                    <option value="__create_new__">➕ Create New Category...</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Enter new category name"
+                    className="flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        createNewCategory()
+                      } else if (e.key === 'Escape') {
+                        setIsCreatingCategory(false)
+                        setNewCategoryName('')
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={createNewCategory}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    ✓
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingCategory(false)
+                      setNewCategoryName('')
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    ✕
+                  </Button>
+                </div>
+              )}
               {validationErrors.categoryId && (
                 <p className="text-red-600 text-sm mt-1">{validationErrors.categoryId}</p>
               )}
