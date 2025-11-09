@@ -29,9 +29,11 @@ interface UniversalInventoryGridProps {
   businessId: string
   businessType?: string
   categoryFilter?: string  // External category filter (from parent component)
+  departmentFilter?: string  // External department filter (from parent component)
   onItemEdit?: (item: UniversalInventoryItem) => void
   onItemView?: (item: UniversalInventoryItem) => void
   onItemDelete?: (item: UniversalInventoryItem) => void
+  onResetExternalFilters?: () => void  // Callback to reset parent filters
   showActions?: boolean
   headerActions?: React.ReactNode
   layout?: 'table' | 'grid' | 'cards'
@@ -47,9 +49,11 @@ export function UniversalInventoryGrid({
   businessId,
   businessType = 'restaurant',
   categoryFilter,  // External filter from parent
+  departmentFilter,  // External department filter from parent
   onItemEdit,
   onItemView,
   onItemDelete,
+  onResetExternalFilters,  // Callback to reset parent filters
   showActions = true,
   headerActions,
   layout = 'table',
@@ -88,7 +92,8 @@ export function UniversalInventoryGrid({
           page: currentPage.toString(),
           limit: pageSize.toString(),
           ...(searchTerm && { search: searchTerm }),
-          ...(effectiveCategory !== 'all' && { category: effectiveCategory })
+          ...(effectiveCategory !== 'all' && { category: effectiveCategory }),
+          ...(departmentFilter && { domainId: departmentFilter })
         })
 
         const response = await fetch(`/api/inventory/${businessId}/items?${params}`)
@@ -126,7 +131,7 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, searchTerm, selectedCategory, categoryFilter])
+  }, [businessId, currentPage, pageSize, searchTerm, selectedCategory, categoryFilter, departmentFilter])
 
   // Filter items by supplier and location
   const filteredItems = items.filter(item => {
@@ -264,6 +269,27 @@ export function UniversalInventoryGrid({
     return 'text-green-600'
   }
 
+  const handleResetAllFilters = () => {
+    // Reset internal filters
+    setSearchTerm('')
+    setSelectedCategory('all')
+    setSelectedSupplier('all')
+    setSelectedLocation('all')
+    setCurrentPage(1)
+
+    // Reset external filters if callback provided
+    if (onResetExternalFilters) {
+      onResetExternalFilters()
+    }
+  }
+
+  const hasActiveFilters = searchTerm !== '' ||
+                           selectedCategory !== 'all' ||
+                           selectedSupplier !== 'all' ||
+                           selectedLocation !== 'all' ||
+                           categoryFilter ||
+                           departmentFilter
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -298,17 +324,30 @@ export function UniversalInventoryGrid({
       {/* Search and Filters */}
       {(allowSearch || allowFiltering) && (
         <div className="space-y-4">
-          {allowSearch && (
-            <div className="w-full">
-              <input
-                type="text"
-                placeholder="🔍 Search items by name, SKU, or description..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input-field w-full"
-              />
-            </div>
-          )}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+            {allowSearch && (
+              <div className="flex-1 w-full sm:w-auto">
+                <input
+                  type="text"
+                  placeholder="🔍 Search items by name, SKU, or description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input-field w-full"
+                />
+              </div>
+            )}
+
+            {/* Reset Filters Button */}
+            {hasActiveFilters && (
+              <button
+                onClick={handleResetAllFilters}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors whitespace-nowrap"
+                title="Reset all filters"
+              >
+                🔄 Reset Filters
+              </button>
+            )}
+          </div>
 
           {allowFiltering && (
             <div className="flex flex-col sm:flex-row gap-3">

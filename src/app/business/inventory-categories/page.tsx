@@ -10,10 +10,10 @@ import { InventoryCategory, InventorySubcategory } from '@/types/inventory-categ
 import { InventoryCategoryEditor } from '@/components/inventory/inventory-category-editor';
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor';
 
-// For testing, use demo business IDs
+// For testing, use actual business IDs
 // In production, this would come from user's current business selection
 const DEMO_BUSINESS_MAP: Record<string, string> = {
-  clothing: 'clothing-demo-business',
+  clothing: '40544cfd-f742-4849-934d-04e79b2a0935', // HXI Bhero (clothing business)
   hardware: 'hardware-demo-business',
   grocery: 'grocery-demo-business',
   restaurant: 'restaurant-demo-business',
@@ -29,6 +29,8 @@ export default function InventoryCategoriesPage() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBusinessType, setSelectedBusinessType] = useState<string>('clothing');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [stats, setStats] = useState<any>(null);
 
   // Editor state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
@@ -49,11 +51,34 @@ export default function InventoryCategoriesPage() {
   const canEditSubcategories = hasUserPermission(session?.user, 'canEditInventorySubcategories');
   const canDeleteSubcategories = hasUserPermission(session?.user, 'canDeleteInventorySubcategories');
 
+  // Fetch department statistics for clothing business
+  useEffect(() => {
+    async function fetchStats() {
+      if (selectedBusinessType !== 'clothing') {
+        setStats(null);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/clothing/stats');
+        const data = await response.json();
+
+        if (data.success) {
+          setStats(data.data);
+        }
+      } catch (err) {
+        console.error('Error fetching stats:', err);
+      }
+    }
+
+    fetchStats();
+  }, [selectedBusinessType]);
+
   // Fetch categories
   useEffect(() => {
     async function fetchCategories() {
-      if (!currentBusinessId) {
-        setError('No business selected');
+      if (!currentBusinessType) {
+        setError('No business type selected');
         setLoading(false);
         return;
       }
@@ -61,7 +86,7 @@ export default function InventoryCategoriesPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`/api/inventory/categories?businessId=${currentBusinessId}&includeSubcategories=true`);
+        const response = await fetch(`/api/inventory/categories?businessType=${currentBusinessType}&includeSubcategories=true`);
         if (!response.ok) throw new Error('Failed to fetch categories');
 
         const data = await response.json();
@@ -74,7 +99,9 @@ export default function InventoryCategoriesPage() {
     }
 
     fetchCategories();
-  }, [currentBusinessId, selectedBusinessType]);
+    // Reset department filter when business type changes
+    setSelectedDepartment('');
+  }, [currentBusinessType, selectedBusinessType]);
 
   const toggleCategory = (categoryId: string) => {
     const newExpanded = new Set(expandedCategories);
@@ -168,7 +195,7 @@ export default function InventoryCategoriesPage() {
 
     // Refresh categories
     try {
-      const response = await fetch(`/api/inventory/categories?businessId=${currentBusinessId}&includeSubcategories=true`);
+      const response = await fetch(`/api/inventory/categories?businessType=${currentBusinessType}&includeSubcategories=true`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data.categories || []);
@@ -178,10 +205,23 @@ export default function InventoryCategoriesPage() {
     }
   };
 
-  const filteredCategories = categories.filter(cat =>
-    cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    cat.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCategories = categories.filter(cat => {
+    // Search filter
+    const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         cat.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Department filter (only for clothing)
+    const matchesDepartment = !selectedDepartment || cat.domainId === selectedDepartment;
+
+    return matchesSearch && matchesDepartment;
+  });
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedDepartment('');
+  };
+
+  const hasActiveFilters = searchQuery !== '' || selectedDepartment !== '';
 
   return (
     <ProtectedRoute>
@@ -236,16 +276,76 @@ export default function InventoryCategoriesPage() {
             />
           </div>
 
-          {/* Create Button */}
-          {canCreateCategories && (
-            <button
-              onClick={handleCreateCategory}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              ➕ Create Category
-            </button>
-          )}
+          <div className="flex gap-2">
+            {/* Reset Filters Button */}
+            {hasActiveFilters && (
+              <button
+                onClick={handleResetFilters}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors whitespace-nowrap"
+                title="Reset all filters"
+              >
+                🔄 Reset Filters
+              </button>
+            )}
+
+            {/* Create Button */}
+            {canCreateCategories && (
+              <button
+                onClick={handleCreateCategory}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                ➕ Create Category
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Active Department Filter Badge */}
+        {selectedDepartment && selectedBusinessType === 'clothing' && (
+          <div className="mb-6 flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
+            <span className="inline-flex items-center gap-2 rounded-md bg-green-100 dark:bg-green-900 px-3 py-1 text-sm font-medium text-green-800 dark:text-green-200">
+              Department: {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
+              <button
+                type="button"
+                onClick={() => setSelectedDepartment('')}
+                className="hover:text-green-600 dark:hover:text-green-400"
+                title="Clear department filter"
+              >
+                ×
+              </button>
+            </span>
+          </div>
+        )}
+
+        {/* Department Quick Navigation (Clothing Only) */}
+        {selectedBusinessType === 'clothing' && stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
+          <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Browse by Department</h3>
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {Object.keys(stats.byDepartment).length} departments • Click to filter categories
+              </span>
+            </div>
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+              {Object.entries(stats.byDepartment)
+                .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
+                .map(([id, dept]: [string, any]) => (
+                <button
+                  key={id}
+                  onClick={() => setSelectedDepartment(id)}
+                  className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 hover:border-blue-500 dark:hover:border-blue-400 transition-all text-center group"
+                >
+                  <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{dept.emoji}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{dept.name}</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                    {dept.count} product{dept.count !== 1 ? 's' : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Loading State */}
         {loading && (
@@ -293,16 +393,18 @@ export default function InventoryCategoriesPage() {
                           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                             {category.name}
                           </h3>
-                          <span
-                            className="px-2 py-1 rounded-full text-xs font-medium"
+                          <Link
+                            href={`/admin/products?businessType=${selectedBusinessType}&categoryId=${category.id}`}
+                            className="px-2 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer"
                             style={{
                               backgroundColor: category.color + '20',
                               color: category.color,
                               border: `1px solid ${category.color}40`
                             }}
+                            title="View products in this category"
                           >
                             {category._count?.business_products || 0} products
-                          </span>
+                          </Link>
                           {category.inventory_subcategories && category.inventory_subcategories.length > 0 && (
                             <span className="text-sm text-gray-500 dark:text-gray-400">
                               • {category.inventory_subcategories.length} subcategories
