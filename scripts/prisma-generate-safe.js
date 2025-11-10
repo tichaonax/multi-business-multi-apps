@@ -82,14 +82,14 @@ function sleep(ms) {
 }
 
 /**
- * Try nuclear cleanup (remove .prisma directory and kill all Node processes)
+ * Try nuclear cleanup (remove .prisma directory and kill other Node processes)
  */
 async function nuclearCleanup() {
   try {
     warning('\n💣 Attempting nuclear cleanup...')
-    log('   This will kill all Node.js processes and remove .prisma directory')
+    log('   This will kill other Node.js processes and remove .prisma directory')
 
-    // Kill all Node processes
+    // Kill all Node processes (except current script)
     killAllNodeProcesses()
 
     // Wait for processes to terminate

@@ -38,11 +38,13 @@ function error(message) {
 }
 
 /**
- * Kill all Node.js processes
+ * Kill all Node.js processes (except the current one)
  */
 function killAllNodeProcesses() {
   try {
-    log('\n🔪 Killing all Node.js processes...')
+    log('\n🔪 Killing all Node.js processes (except current script)...')
+
+    const currentPID = process.pid
 
     // Get list of Node processes first
     const output = execSync('tasklist /FI "IMAGENAME eq node.exe" /FO CSV /NH', {
@@ -58,11 +60,12 @@ function killAllNodeProcesses() {
     }
 
     log(`   Found ${lines.length} Node.js process(es)`)
+    log(`   Current script PID: ${currentPID} (will be excluded)`)
 
-    // Kill all Node processes
+    // Kill all Node processes EXCEPT the current one
     try {
-      execSync('taskkill /F /IM node.exe', { stdio: 'ignore' })
-      success(`   Killed ${lines.length} Node.js process(es)`)
+      execSync(`taskkill /F /IM node.exe /FI "PID ne ${currentPID}"`, { stdio: 'ignore' })
+      success(`   Killed other Node.js processes (excluded PID ${currentPID})`)
       return true
     } catch (err) {
       warning('   Some processes could not be killed (may require admin)')
@@ -124,7 +127,7 @@ async function confirm(message) {
  */
 async function main() {
   log('💣 Prisma Nuclear Cleanup\n')
-  warning('⚠️  WARNING: This will kill ALL Node.js processes and remove .prisma directory')
+  warning('⚠️  WARNING: This will kill other Node.js processes and remove .prisma directory')
   log('')
 
   // Check if .prisma directory exists
