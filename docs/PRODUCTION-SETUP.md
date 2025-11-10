@@ -23,11 +23,11 @@ Before running setup, stop all services that use Prisma:
 npm run sync-service:stop
 
 # Stop electricity-tokens service
-sc stop "electricity-tokens"
+sc.exe stop "electricity-tokens.exe"
 
 # Verify services are stopped
 npm run sync-service:status
-sc query "electricity-tokens"
+sc.exe query "electricity-tokens.exe"
 ```
 
 ### Step 2: Pull Latest Code
@@ -61,11 +61,11 @@ After setup completes successfully:
 npm run sync-service:start
 
 # Start electricity-tokens service
-sc start "electricity-tokens"
+sc.exe start "electricity-tokens.exe"
 
 # Verify services are running
 npm run sync-service:status
-sc query "electricity-tokens"
+sc.exe query "electricity-tokens.exe"
 ```
 
 ## Alternative: Manual Setup
@@ -75,14 +75,14 @@ If you prefer manual control:
 ```powershell
 # 1. Stop services
 npm run sync-service:stop
-sc stop "electricity-tokens"
+sc.exe stop "electricity-tokens.exe"
 
 # 2. Run regular setup
 node scripts/setup-fresh-install.js
 
 # 3. Start services
 npm run sync-service:start
-sc start "electricity-tokens"
+sc.exe start "electricity-tokens.exe"
 ```
 
 ## Troubleshooting
@@ -94,7 +94,7 @@ If you encounter `EPERM` errors even after stopping services:
 ```powershell
 # 1. Verify NO services are running
 npm run sync-service:status
-sc query "electricity-tokens"
+sc.exe query "electricity-tokens.exe"
 
 # 2. Check for any Node processes holding files
 tasklist /FI "IMAGENAME eq node.exe"
@@ -112,7 +112,7 @@ If a service won't stop normally:
 
 ```powershell
 # Force stop a service
-sc stop "service-name" /force
+sc.exe stop "service-name" /force
 
 # Or use Task Manager to end the process
 ```
@@ -188,21 +188,21 @@ const PRISMA_SERVICES = [
 
 ```powershell
 npm run sync-service:status
-sc query "electricity-tokens"
+sc.exe query "electricity-tokens.exe"
 ```
 
 ### Stop All Services
 
 ```powershell
 npm run sync-service:stop
-sc stop "electricity-tokens"
+sc.exe stop "electricity-tokens.exe"
 ```
 
 ### Start All Services
 
 ```powershell
 npm run sync-service:start
-sc start "electricity-tokens"
+sc.exe start "electricity-tokens.exe"
 ```
 
 ### Run Safe Setup

@@ -39,7 +39,7 @@ function error(message) {
  */
 function checkServiceStatus(serviceName) {
   try {
-    const output = execSync(`sc query "${serviceName}"`, {
+    const output = execSync(`sc.exe query "${serviceName}"`, {
       encoding: 'utf8',
       stdio: 'pipe'
     })
@@ -64,7 +64,7 @@ function checkServiceStatus(serviceName) {
 function checkAllServices() {
   const services = [
     { name: 'Multi-Business Sync Service', stopCommand: 'npm run sync-service:stop' },
-    { name: 'electricity-tokens', stopCommand: 'sc stop "electricity-tokens"' }
+    { name: 'electricity-tokens.exe', stopCommand: 'sc.exe stop "electricity-tokens.exe"' }
   ]
 
   const runningServices = []

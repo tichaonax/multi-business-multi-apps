@@ -25,7 +25,7 @@ const FORCE_MODE = process.argv.includes('--force')
 // Services that use Prisma - ADD YOUR SERVICES HERE
 const PRISMA_SERVICES = [
   'Multi-Business Sync Service',
-  'electricity-tokens'
+  'electricity-tokens.exe'
 ]
 
 function log(message, color = '\x1b[36m') {
@@ -49,7 +49,7 @@ function error(message) {
  */
 function checkServiceStatus(serviceName) {
   try {
-    const output = execSync(`sc query "${serviceName}"`, {
+    const output = execSync(`sc.exe query "${serviceName}"`, {
       encoding: 'utf8',
       stdio: 'pipe'
     })
@@ -149,11 +149,11 @@ async function main() {
       log('     npm run sync-service:stop')
       log('')
       log('   For electricity-tokens:')
-      log('     sc stop "electricity-tokens"')
+      log('     sc.exe stop "electricity-tokens.exe"')
       log('')
       log('   Or stop all services:')
       log('     npm run sync-service:stop')
-      log('     sc stop "electricity-tokens"')
+      log('     sc.exe stop "electricity-tokens.exe"')
       log('')
       log('After stopping services, run this script again:')
       log('   node scripts/production-safe-setup.js')
@@ -213,11 +213,11 @@ async function main() {
   log('     npm run sync-service:start')
   log('')
   log('   For electricity-tokens:')
-  log('     sc start "electricity-tokens"')
+  log('     sc.exe start "electricity-tokens.exe"')
   log('')
   log('📊 To verify services are running:')
   log('     npm run sync-service:status')
-  log('     sc query "electricity-tokens"')
+  log('     sc.exe query "electricity-tokens.exe"')
   log('')
 }
 
