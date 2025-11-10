@@ -8,14 +8,20 @@
  * Usage:
  *   node scripts/prisma-generate-safe.js
  *   node scripts/prisma-generate-safe.js --verbose
+ *   node scripts/prisma-generate-safe.js --nuclear  # Use nuclear cleanup on final attempt
  */
 
 const { execSync } = require('child_process')
 const { unlockPrismaFiles, cleanupTempFiles } = require('./cleanup-prisma-locks')
+const { killAllNodeProcesses, removeDirWithRetry } = require('./prisma-nuclear-cleanup')
+const path = require('path')
+const fs = require('fs')
 
 const VERBOSE = process.argv.includes('--verbose')
+const NUCLEAR = process.argv.includes('--nuclear')
 const MAX_RETRIES = 3
 const RETRY_DELAY = 3000 // 3 seconds
+const PRISMA_DIR = path.join(__dirname, '..', 'node_modules', '.prisma')
 
 function log(message, color = '\x1b[36m') {
   console.log(`${color}${message}\x1b[0m`)
@@ -76,6 +82,39 @@ function sleep(ms) {
 }
 
 /**
+ * Try nuclear cleanup (remove .prisma directory and kill all Node processes)
+ */
+async function nuclearCleanup() {
+  try {
+    warning('\n💣 Attempting nuclear cleanup...')
+    log('   This will kill all Node.js processes and remove .prisma directory')
+
+    // Kill all Node processes
+    killAllNodeProcesses()
+
+    // Wait for processes to terminate
+    await sleep(3000)
+
+    // Remove .prisma directory
+    if (fs.existsSync(PRISMA_DIR)) {
+      const removed = removeDirWithRetry(PRISMA_DIR)
+      if (removed) {
+        success('   Nuclear cleanup successful')
+        return true
+      } else {
+        error('   Could not remove .prisma directory')
+        return false
+      }
+    }
+
+    return true
+  } catch (err) {
+    error(`   Nuclear cleanup failed: ${err.message}`)
+    return false
+  }
+}
+
+/**
  * Main execution with retry logic
  */
 async function main() {
@@ -99,6 +138,16 @@ async function main() {
       if (attempt < MAX_RETRIES) {
         log(`\n🧹 Running cleanup and will retry in ${RETRY_DELAY / 1000} seconds...`)
 
+        // On last retry before final attempt, try nuclear cleanup if enabled
+        if (NUCLEAR && attempt === MAX_RETRIES - 1) {
+          const nuclearSuccess = await nuclearCleanup()
+          if (nuclearSuccess) {
+            log('\n⏳ Waiting for system to stabilize...')
+            await sleep(RETRY_DELAY)
+            continue
+          }
+        }
+
         // Cleanup temp files
         const tempCleaned = cleanupTempFiles()
         if (tempCleaned > 0 && VERBOSE) {
@@ -119,11 +168,11 @@ async function main() {
       } else {
         error('\n❌ Max retries reached. Prisma generate failed.\n')
         log('📋 Troubleshooting steps:')
-        log('   1. Run: node scripts/cleanup-prisma-locks.js --auto')
-        log('   2. Close all terminals and Node.js processes')
-        log('   3. Stop any development servers (npm run dev)')
-        log('   4. If running as a service, stop it first')
-        log('   5. As a last resort, restart Windows\n')
+        log('   1. Run: node scripts/prisma-nuclear-cleanup.js --force')
+        log('   2. Then run: npx prisma generate')
+        log('   3. Or restart Windows and try again\n')
+        log('💡 Alternative: Run this script with --nuclear flag next time:')
+        log('   node scripts/prisma-generate-safe.js --nuclear\n')
         return 1
       }
     }

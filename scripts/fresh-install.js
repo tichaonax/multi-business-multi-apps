@@ -156,8 +156,8 @@ async function performFreshInstall() {
     return false
   }
   
-  // Step 4: Generate Prisma client (with retry logic for Windows file locking)
-  await runCommand('node scripts/prisma-generate-safe.js', 'Generating Prisma client')
+  // Step 4: Generate Prisma client (with retry logic and nuclear cleanup for Windows file locking)
+  await runCommand('node scripts/prisma-generate-safe.js --nuclear', 'Generating Prisma client (with retry logic)')
   
   // Step 5: Run production setup
   log('\n🌱 Setting up production data...')
