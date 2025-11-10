@@ -578,6 +578,16 @@ class SyncServiceRunner {
       // Create build-info.json to track build state
       await this.createBuildInfo()
 
+      // Also run unified build marker to harmonize with other build workflows
+      try {
+        await execAsync('node scripts/mark-build-complete.js', {
+          cwd: process.cwd(),
+          env: { ...process.env }
+        })
+      } catch (err) {
+        console.warn('⚠️  Could not run unified build marker (non-critical):', err instanceof Error ? err.message : err)
+      }
+
     } catch (error) {
       console.error('❌ TypeScript build failed:', error instanceof Error ? error.message : error)
       throw new Error(`Build failed: ${error instanceof Error ? error.message : error}`)

@@ -193,5 +193,6 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/auth/signin',
     signOut: '/auth/signin',
+    error: '/auth/error', // Custom error page to avoid Next-Auth v4 Pages Router compatibility issues
   },
 }
