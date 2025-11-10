@@ -67,6 +67,7 @@
     "setup": "node scripts/setup-fresh-install.js",
     "setup:update": "node scripts/setup-after-pull.js",
     "setup:clean": "node scripts/cleanup-before-setup.js && npm install && node scripts/setup-fresh-install.js",
+    "setup:production-safe": "node scripts/production-safe-setup.js",
     "setup:fresh-db": "node scripts/setup-fresh-database.js",
     "check:db-state": "node scripts/check-database-state.js",
     "hooks:install": "node scripts/install-git-hooks.js",
