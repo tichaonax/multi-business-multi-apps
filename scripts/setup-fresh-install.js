@@ -192,8 +192,8 @@ async function main() {
       required: true
     },
     {
-      command: 'node scripts/prisma-generate-safe.js --nuclear',
-      description: 'Generating Prisma client (with retry & nuclear cleanup)',
+      command: 'node scripts/prisma-generate-safe.js',
+      description: 'Generating Prisma client (with retry logic)',
       required: true
     },
     {
