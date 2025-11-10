@@ -192,8 +192,8 @@ async function main() {
       required: true
     },
     {
-      command: 'npx prisma generate',
-      description: 'Generating Prisma client',
+      command: 'node scripts/prisma-generate-safe.js',
+      description: 'Generating Prisma client (with retry logic)',
       required: true
     },
     {
