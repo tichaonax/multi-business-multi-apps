@@ -2,7 +2,7 @@
 
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Package,
@@ -45,7 +45,7 @@ interface PaginationData {
   totalPages: number
 }
 
-export default function UniversalProductsPage() {
+function UniversalProductsPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [businessType, setBusinessType] = useState(() => {
@@ -533,5 +533,17 @@ export default function UniversalProductsPage() {
         </div>
       </ContentLayout>
     </ProtectedRoute>
+  )
+}
+
+export default function UniversalProductsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <UniversalProductsPageContent />
+    </Suspense>
   )
 }
