@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const person = await prisma.persons.findUnique({
       where: { id: personId },
       include: {
-        idFormatTemplate: true,
+        id_format_templates: true,
         _count: {
           select: {
             project_contractors: true,
@@ -149,7 +149,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         isActive: isActive !== undefined ? isActive : existingPerson.isActive
       },
       include: {
-        idFormatTemplate: true
+        id_format_templates: true
       }
     })
 
@@ -208,7 +208,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       where: { id: personId },
       data: data,
       include: {
-        idFormatTemplate: true
+        id_format_templates: true
       }
     })
 

@@ -46,7 +46,7 @@ interface ProjectType {
 interface Contractor {
   id: string
   name: string
-  projectId: string
+  projectId: string | null
   email?: string
   phone?: string
   nationalId?: string
@@ -611,12 +611,12 @@ export default function NewExpensePage() {
     if (formData.paymentType === 'contractor') {
       // Show all active contractors for direct contractor payments (person.id)
       return (Array.isArray(contractors) ? contractors : []).filter(c =>
-        c.persons?.isActive === true
+        c.person?.isActive === true
       )
     } else if (formData.paymentType === 'project') {
       // Show project-specific contractors for project payments (projectContractor.id)
       return (Array.isArray(projectContractors) ? projectContractors : []).filter(c =>
-        c.persons?.isActive === true
+        c.person?.isActive === true
       )
     }
     return []
@@ -636,11 +636,11 @@ export default function NewExpensePage() {
   return (
     <ProtectedRoute>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-primary">Add New Expense</h1>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary">Add New Expense</h1>
           <Link
             href={sourcePage === 'dashboard' ? '/dashboard' : '/personal'}
-            className="btn-secondary"
+            className="btn-secondary text-sm sm:text-base whitespace-nowrap"
           >
             {sourcePage === 'dashboard' ? '← Back to Dashboard' : '← Back to Personal'}
           </Link>
@@ -675,7 +675,7 @@ export default function NewExpensePage() {
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label className="block text-sm font-medium text-secondary mb-2">
                   Amount ($) *
@@ -758,7 +758,7 @@ export default function NewExpensePage() {
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Payment Type *
               </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
                   <input
                     type="radio"
@@ -766,11 +766,11 @@ export default function NewExpensePage() {
                     value="category"
                     checked={formData.paymentType === 'category'}
                     onChange={(e) => setFormData({...formData, paymentType: e.target.value})}
-                    className="mr-3"
+                    className="mr-3 flex-shrink-0"
                   />
                   <div>
-                    <div className="font-medium">💰 Category Expense</div>
-                    <div className="text-sm text-gray-500">Regular categorized expenses</div>
+                    <div className="font-medium text-sm sm:text-base">💰 Category Expense</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Regular categorized expenses</div>
                   </div>
                 </label>
                 <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
@@ -780,11 +780,11 @@ export default function NewExpensePage() {
                     value="project"
                     checked={formData.paymentType === 'project'}
                     onChange={(e) => setFormData({...formData, paymentType: e.target.value})}
-                    className="mr-3"
+                    className="mr-3 flex-shrink-0"
                   />
                   <div>
-                    <div className="font-medium">🏗️ Project Payment</div>
-                    <div className="text-sm text-gray-500">Materials, labor, or contractor payments for projects</div>
+                    <div className="font-medium text-sm sm:text-base">🏗️ Project Payment</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Materials, labor, or contractor payments for projects</div>
                   </div>
                 </label>
                 <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
@@ -794,11 +794,11 @@ export default function NewExpensePage() {
                     value="contractor"
                     checked={formData.paymentType === 'contractor'}
                     onChange={(e) => setFormData({...formData, paymentType: e.target.value})}
-                    className="mr-3"
+                    className="mr-3 flex-shrink-0"
                   />
                   <div>
-                    <div className="font-medium">👷 Individual Contractor</div>
-                    <div className="text-sm text-gray-500">Direct payment to contractor (not tied to a project)</div>
+                    <div className="font-medium text-sm sm:text-base">👷 Individual Contractor</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Direct payment to contractor (not tied to a project)</div>
                   </div>
                 </label>
                 <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
@@ -808,11 +808,11 @@ export default function NewExpensePage() {
                     value="loan"
                     checked={formData.paymentType === 'loan'}
                     onChange={(e) => setFormData({...formData, paymentType: e.target.value})}
-                    className="mr-3"
+                    className="mr-3 flex-shrink-0"
                   />
                   <div>
-                    <div className="font-medium">🏦 Business Loan</div>
-                    <div className="text-sm text-gray-500">Loan to or from businesses</div>
+                    <div className="font-medium text-sm sm:text-base">🏦 Business Loan</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Loan to or from businesses</div>
                   </div>
                 </label>
               </div>
@@ -945,7 +945,7 @@ export default function NewExpensePage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Payment Category *
                     </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
                         <input
                           type="radio"
@@ -953,11 +953,11 @@ export default function NewExpensePage() {
                           value="expense"
                           checked={formData.projectSubType === 'expense'}
                           onChange={(e) => setFormData({...formData, projectSubType: e.target.value, contractorId: ''})}
-                          className="mr-3"
+                          className="mr-3 flex-shrink-0"
                         />
                         <div>
-                          <div className="font-medium">🛒 General Project Expense</div>
-                          <div className="text-sm text-gray-500">Materials, supplies, fuel, equipment</div>
+                          <div className="font-medium text-sm sm:text-base">🛒 General Project Expense</div>
+                          <div className="text-xs sm:text-sm text-gray-500">Materials, supplies, fuel, equipment</div>
                         </div>
                       </label>
                       <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
@@ -967,11 +967,11 @@ export default function NewExpensePage() {
                           value="contractor"
                           checked={formData.projectSubType === 'contractor'}
                           onChange={(e) => setFormData({...formData, projectSubType: e.target.value})}
-                          className="mr-3"
+                          className="mr-3 flex-shrink-0"
                         />
                         <div>
-                          <div className="font-medium">👷 Contractor Payment</div>
-                          <div className="text-sm text-gray-500">Payment to specific project contractor</div>
+                          <div className="font-medium text-sm sm:text-base">👷 Contractor Payment</div>
+                          <div className="text-xs sm:text-sm text-gray-500">Payment to specific project contractor</div>
                         </div>
                       </label>
                     </div>
@@ -1006,7 +1006,7 @@ export default function NewExpensePage() {
                   <option value="">Select a contractor</option>
                   {filteredContractors.map(contractor => (
                     <option key={contractor.id} value={contractor.id}>
-                      👷 {contractor.persons?.fullName || contractor.name || 'Unnamed Contractor'}
+                      👷 {contractor.person?.fullName || contractor.name || 'Unnamed Contractor'}
                     </option>
                   ))}
                 </select>
@@ -1060,7 +1060,7 @@ export default function NewExpensePage() {
                   <label className="block text-sm font-medium text-gray-700 mb-3">
                     Loan Type *
                   </label>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <label className="flex items-center">
                       <input
                         type="radio"
@@ -1070,7 +1070,7 @@ export default function NewExpensePage() {
                         onChange={(e) => setFormData({...formData, loanType: e.target.value, loanId: ''})}
                         className="mr-2"
                       />
-                      Create New Loan (lend money)
+                      <span className="text-sm sm:text-base">Create New Loan (lend money)</span>
                     </label>
                     <label className="flex items-center">
                       <input
@@ -1081,7 +1081,7 @@ export default function NewExpensePage() {
                         onChange={(e) => setFormData({...formData, loanType: e.target.value})}
                         className="mr-2"
                       />
-                      Payment on Existing Loan
+                      <span className="text-sm sm:text-base">Payment on Existing Loan</span>
                     </label>
                   </div>
                 </div>
@@ -1105,7 +1105,7 @@ export default function NewExpensePage() {
                       <label className="block text-sm font-medium text-gray-700 mb-3">
                         Loan Recipient Type *
                       </label>
-                      <div className="flex gap-4 mb-4">
+                      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
                         <label className="flex items-center">
                           <input
                             type="radio"
@@ -1115,7 +1115,7 @@ export default function NewExpensePage() {
                             onChange={(e) => setFormData({...formData, recipientType: e.target.value as 'business' | 'person' | 'employee', loanId: ''})}
                             className="mr-2"
                           />
-                          🏢 Business
+                          <span className="text-sm sm:text-base">🏢 Business</span>
                         </label>
                         <label className="flex items-center">
                           <input
@@ -1126,7 +1126,7 @@ export default function NewExpensePage() {
                             onChange={(e) => setFormData({...formData, recipientType: e.target.value as 'business' | 'person' | 'employee', loanId: ''})}
                             className="mr-2"
                           />
-                          👤 Individual
+                          <span className="text-sm sm:text-base">👤 Individual</span>
                         </label>
                         <label className="flex items-center">
                           <input
@@ -1137,7 +1137,7 @@ export default function NewExpensePage() {
                             onChange={(e) => setFormData({...formData, recipientType: e.target.value as 'business' | 'person' | 'employee', loanId: ''})}
                             className="mr-2"
                           />
-                          👨‍💼 Employee
+                          <span className="text-sm sm:text-base">👨‍💼 Employee</span>
                         </label>
                       </div>
                     </div>
@@ -1193,7 +1193,7 @@ export default function NewExpensePage() {
                       </select>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-secondary mb-2">
                           Interest Rate (%)
@@ -1305,7 +1305,7 @@ export default function NewExpensePage() {
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 type="submit"
                 disabled={loading || hasInsufficientFunds()}
@@ -1326,7 +1326,7 @@ export default function NewExpensePage() {
               
               <Link
                 href={sourcePage === 'dashboard' ? '/dashboard' : '/personal'}
-                className="btn-secondary"
+                className="btn-secondary text-center"
               >
                 Cancel
               </Link>
@@ -1347,9 +1347,9 @@ export default function NewExpensePage() {
 
         {/* New Contractor Modal */}
         {showNewContractorForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="card p-6 w-full max-w-md">
-              <h2 className="text-xl font-semibold text-primary mb-4">Create New Contractor</h2>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="card p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <h2 className="text-lg sm:text-xl font-semibold text-primary mb-4">Create New Contractor</h2>
               <form onSubmit={handleCreateContractor} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
@@ -1421,7 +1421,7 @@ export default function NewExpensePage() {
                     rows={2}
                   />
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     type="submit"
                     className="btn-primary"
@@ -1472,9 +1472,9 @@ export default function NewExpensePage() {
 
         {/* Create Category Modal */}
         {showNewCategoryForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="card p-6 w-full max-w-md">
-              <h2 className="text-xl font-semibold text-primary mb-4">Create New Category</h2>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="card p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <h2 className="text-lg sm:text-xl font-semibold text-primary mb-4">Create New Category</h2>
               <form onSubmit={handleCreateCategory} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
@@ -1494,13 +1494,13 @@ export default function NewExpensePage() {
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Emoji
                   </label>
-                  <div className="flex gap-2 mb-2">
+                  <div className="grid grid-cols-6 gap-2 mb-2">
                     {['💰', '🍽️', '🚗', '💡', '🎬', '🛒', '🏥', '📚', '🏗️', '👕', '🎯', '💼'].map(emoji => (
                       <button
                         key={emoji}
                         type="button"
                         onClick={() => setNewCategory({...newCategory, emoji})}
-                        className={`p-2 text-2xl border rounded-md ${newCategory.emoji === emoji ? 'bg-blue-100 dark:bg-blue-800 border-blue-500' : 'border-gray-300 dark:border-gray-600'} dark:text-white`}
+                        className={`p-2 text-xl sm:text-2xl border rounded-md ${newCategory.emoji === emoji ? 'bg-blue-100 dark:bg-blue-800 border-blue-500' : 'border-gray-300 dark:border-gray-600'} dark:text-white`}
                       >
                         {emoji}
                       </button>
@@ -1527,7 +1527,7 @@ export default function NewExpensePage() {
                   />
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     type="submit"
                     className="btn-primary"

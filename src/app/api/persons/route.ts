@@ -91,7 +91,6 @@ export async function POST(req: NextRequest) {
       idFormatTemplateId,
       driverLicenseNumber,
       driverLicenseTemplateId,
-      dateOfBirth,
       address,
       notes
     } = data
@@ -102,25 +101,6 @@ export async function POST(req: NextRequest) {
         { error: 'Full name, phone, and national ID are required' },
         { status: 400 }
       )
-    }
-
-    // Age validation for loan recipients (18+ years required)
-    if (dateOfBirth) {
-      const birthDate = new Date(dateOfBirth)
-      const today = new Date()
-      const age = today.getFullYear() - birthDate.getFullYear()
-      const monthDiff = today.getMonth() - birthDate.getMonth()
-      const dayDiff = today.getDate() - birthDate.getDate()
-
-      // Adjust age if birthday hasn't occurred this year
-      const actualAge = (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) ? age - 1 : age
-
-      if (actualAge < 18) {
-        return NextResponse.json(
-          { error: 'Person must be at least 18 years old to receive loans.' },
-          { status: 400 }
-        )
-      }
     }
 
     // Validate national ID format if template is provided
@@ -176,13 +156,30 @@ export async function POST(req: NextRequest) {
       email: email || null,
       phone,
       nationalId,
-      idFormatTemplateId: idFormatTemplateId || null,
       driverLicenseNumber: driverLicenseNumber || null,
-      driverLicenseTemplateId: driverLicenseTemplateId || null,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       address: address || null,
       notes: notes || null,
-      createdBy: session.user.id,
+    }
+
+    // Add user relation for createdBy
+    if (session.user.id) {
+      createData.users = {
+        connect: { id: session.user.id }
+      }
+    }
+
+    // Add ID format template relation if provided
+    if (idFormatTemplateId) {
+      createData.id_format_templates = {
+        connect: { id: idFormatTemplateId }
+      }
+    }
+
+    // Add driver license template relation if provided
+    if (driverLicenseTemplateId) {
+      createData.driver_license_templates = {
+        connect: { id: driverLicenseTemplateId }
+      }
     }
 
     const newPerson = await prisma.persons.create({

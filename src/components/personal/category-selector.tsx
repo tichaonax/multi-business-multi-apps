@@ -10,6 +10,8 @@ import {
 
 interface CategorySelectorProps {
   onCategoryChange: (categoryId: string | null, subcategoryId: string | null) => void;
+  onDomainChange?: (domainId: string | null) => void;
+  initialDomainId?: string | null;
   initialCategoryId?: string | null;
   initialSubcategoryId?: string | null;
   onCreateSubcategory?: () => void;
@@ -20,6 +22,8 @@ interface CategorySelectorProps {
 
 export function CategorySelector({
   onCategoryChange,
+  onDomainChange,
+  initialDomainId = null,
   initialCategoryId = null,
   initialSubcategoryId = null,
   onCreateSubcategory,
@@ -29,7 +33,7 @@ export function CategorySelector({
 }: CategorySelectorProps) {
   const [loading, setLoading] = useState(true);
   const [hierarchy, setHierarchy] = useState<ExpenseCategoryHierarchy | null>(null);
-  const [selectedDomainId, setSelectedDomainId] = useState<string>('');
+  const [selectedDomainId, setSelectedDomainId] = useState<string>(initialDomainId || '');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(initialCategoryId || '');
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>(
     initialSubcategoryId || ''
@@ -82,6 +86,7 @@ export function CategorySelector({
     setSelectedCategoryId('');
     setSelectedSubcategoryId('');
     onCategoryChange(null, null);
+    onDomainChange?.(domainId || null);
   };
 
   // Handle category change

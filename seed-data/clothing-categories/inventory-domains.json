@@ -1,0 +1,74 @@
+[
+  {
+    "id": "domain_clothing_mens",
+    "name": "Men's",
+    "emoji": "👨",
+    "description": "Adult male clothing and fashion",
+    "businessType": "clothing",
+    "isActive": true,
+    "isSystemTemplate": true
+  },
+  {
+    "id": "domain_clothing_womens",
+    "name": "Women's",
+    "emoji": "👩",
+    "description": "Adult female clothing and fashion",
+    "businessType": "clothing",
+    "isActive": true,
+    "isSystemTemplate": true
+  },
+  {
+    "id": "domain_clothing_boys",
+    "name": "Boys",
+    "emoji": "👦",
+    "description": "Boys clothing and fashion",
+    "businessType": "clothing",
+    "isActive": true,
+    "isSystemTemplate": true
+  },
+  {
+    "id": "domain_clothing_girls",
+    "name": "Girls",
+    "emoji": "👧",
+    "description": "Girls clothing and fashion",
+    "businessType": "clothing",
+    "isActive": true,
+    "isSystemTemplate": true
+  },
+  {
+    "id": "domain_clothing_baby",
+    "name": "Baby",
+    "emoji": "👶",
+    "description": "Baby and infant clothing (0-24 months)",
+    "businessType": "clothing",
+    "isActive": true,
+    "isSystemTemplate": true
+  },
+  {
+    "id": "domain_clothing_accessories",
+    "name": "Fashion Accessories",
+    "emoji": "👔",
+    "description": "Fashion accessories, bags, and jewelry",
+    "businessType": "clothing",
+    "isActive": true,
+    "isSystemTemplate": true
+  },
+  {
+    "id": "domain_clothing_home_textiles",
+    "name": "Home & Textiles",
+    "emoji": "🏠",
+    "description": "Household soft goods and textiles",
+    "businessType": "clothing",
+    "isActive": true,
+    "isSystemTemplate": true
+  },
+  {
+    "id": "domain_clothing_general_merch",
+    "name": "General Merchandise",
+    "emoji": "🎯",
+    "description": "Non-clothing items",
+    "businessType": "clothing",
+    "isActive": true,
+    "isSystemTemplate": true
+  }
+]

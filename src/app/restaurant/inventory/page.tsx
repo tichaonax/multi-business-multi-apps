@@ -237,14 +237,17 @@ export default function RestaurantInventoryPage() {
         ]}
         headerActions={
           <div className="flex gap-3">
-            <button className="btn-secondary">
-              📊 Reports
+            <button 
+              onClick={() => router.push('/restaurant/inventory/receive')}
+              className="btn-secondary"
+            >
+              � Receive Stock
             </button>
             <button
-              onClick={() => setShowAddForm(true)}
+              onClick={() => router.push('/restaurant/inventory/add')}
               className="btn-primary"
             >
-              ➕ Add Ingredient
+              ➕ Add Item
             </button>
           </div>
         }
@@ -285,17 +288,17 @@ export default function RestaurantInventoryPage() {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h3 className="text-lg font-semibold text-primary">Ingredient Inventory</h3>
                     <div className="flex flex-wrap gap-2">
-                      <button className="btn-secondary text-sm">
-                        📱 Scan Barcode
-                      </button>
-                      <button className="btn-secondary text-sm">
-                        📥 Receive Order
+                      <button 
+                        onClick={() => router.push('/restaurant/inventory/receive')}
+                        className="btn-secondary text-sm"
+                      >
+                        📥 Receive Stock
                       </button>
                       <button
-                        onClick={() => setShowAddForm(true)}
+                        onClick={() => router.push('/restaurant/inventory/add')}
                         className="btn-primary text-sm"
                       >
-                        ➕ Add Ingredient
+                        ➕ Add Item
                       </button>
                     </div>
                   </div>

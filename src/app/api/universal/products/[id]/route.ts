@@ -29,8 +29,11 @@ const UpdateProductSchema = z.object({
   variants: z.array(z.object({
     id: z.string().optional(),
     name: z.string().optional(),
+    sku: z.string().optional(),
     price: z.number().min(0),
-    isAvailable: z.boolean().optional()
+    isAvailable: z.boolean().optional(),
+    stockQuantity: z.number().int().min(0).optional(),
+    reorderLevel: z.number().int().min(0).optional()
   })).optional()
 })
 
@@ -196,12 +199,87 @@ export async function PUT(
 
       // Handle variants updates if provided
       if (variants && Array.isArray(variants)) {
-        // For now, we'll skip complex variant updates
-        // This can be enhanced later if needed
-        console.log('Variant updates not yet implemented')
+        console.log(`[Variants Update] Product ${id}: Received ${variants.length} variants`)
+        variants.forEach(v => {
+          console.log(`  - ${v.name}: $${v.price} (id: ${v.id || 'new'})`)
+        })
+
+        // Get variant IDs from the request
+        const variantIds = variants.filter(v => v.id).map(v => v.id)
+
+        // Deactivate variants not in the list
+        if (variantIds.length > 0) {
+          await tx.productVariants.updateMany({
+            where: {
+              productId: id,
+              id: { notIn: variantIds }
+            },
+            data: { isActive: false }
+          })
+        } else {
+          // If no existing variants, deactivate all existing ones
+          await tx.productVariants.updateMany({
+            where: { productId: id },
+            data: { isActive: false }
+          })
+        }
+
+        // Update or create variants
+        for (const variant of variants) {
+          if (variant.id) {
+            // Update existing variant
+            console.log(`[Variants Update] Updating variant ${variant.id}: ${variant.name} = $${variant.price}`)
+            await tx.productVariants.update({
+              where: { id: variant.id },
+              data: {
+                name: variant.name,
+                price: variant.price,
+                isAvailable: variant.isAvailable ?? true,
+                isActive: true
+              }
+            })
+          } else {
+            // Create new variant - need SKU
+            console.log(`[Variants Update] Creating new variant: ${variant.name} = $${variant.price}`)
+            await tx.productVariants.create({
+              data: {
+                productId: id,
+                name: variant.name,
+                sku: `VAR-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                price: variant.price,
+                stockQuantity: 0,
+                reorderLevel: 0,
+                isAvailable: variant.isAvailable ?? true,
+                isActive: true
+              }
+            })
+          }
+        }
+
+        console.log(`[Variants Update] Successfully processed ${variants.length} variants`)
       }
 
-      return updatedProduct
+      // Fetch updated product with variants
+      const finalProduct = await tx.businessProducts.findUnique({
+        where: { id },
+        include: {
+          businesses: { select: { name: true, type: true } },
+          business_brands: { select: { id: true, name: true } },
+          business_categories: { select: { id: true, name: true } },
+          product_variants: {
+            where: { isActive: true },
+            orderBy: { name: 'asc' }
+          },
+          product_images: {
+            orderBy: [
+              { isPrimary: 'desc' },
+              { sortOrder: 'asc' }
+            ]
+          }
+        }
+      })
+
+      return finalProduct || updatedProduct
     })
 
     return NextResponse.json({

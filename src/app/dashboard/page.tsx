@@ -869,21 +869,21 @@ export default function Dashboard() {
               <h3 className="text-lg font-semibold text-primary">Quick Actions</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Link href="/projects/new" className="p-4 border-2 border-dashed border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-center">
+              <Link href="/projects/new" className="p-4 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-center">
                 <div className="text-2xl mb-2">🏗️</div>
-                <p className="text-sm font-medium text-gray-700">New Project</p>
+                <p className="text-sm font-medium text-primary">New Project</p>
               </Link>
-              <Link href="/personal/new" className="p-4 border-2 border-dashed border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors text-center">
+              <Link href="/personal/new" className="p-4 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg hover:border-green-300 dark:hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors text-center">
                 <div className="text-2xl mb-2">📝</div>
-                <p className="text-sm font-medium text-gray-700">Add Transaction</p>
+                <p className="text-sm font-medium text-primary">Add Transaction</p>
               </Link>
-              <Link href="/contractors" className="p-4 border-2 border-dashed border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-colors text-center">
+              <Link href="/contractors" className="p-4 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg hover:border-orange-300 dark:hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors text-center">
                 <div className="text-2xl mb-2">🔨</div>
-                <p className="text-sm font-medium text-gray-700">Manage Contractors</p>
+                <p className="text-sm font-medium text-primary">Manage Contractors</p>
               </Link>
-              <Link href="/reports" className="p-4 border-2 border-dashed border-gray-200 rounded-lg hover:border-yellow-300 hover:bg-yellow-50 transition-colors text-center">
+              <Link href="/reports" className="p-4 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg hover:border-yellow-300 dark:hover:border-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors text-center">
                 <div className="text-2xl mb-2">📊</div>
-                <p className="text-sm font-medium text-gray-700">View Reports</p>
+                <p className="text-sm font-medium text-primary">View Reports</p>
               </Link>
             </div>
           </div>

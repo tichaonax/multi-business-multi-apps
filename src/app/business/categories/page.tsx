@@ -4,7 +4,7 @@ import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { hasUserPermission } from '@/lib/permission-utils';
+import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { ExpenseCategoryHierarchy, ExpenseCategory, ExpenseSubcategory } from '@/types/expense-category';
 import { CategoryEditor } from '@/components/business/category-editor';
@@ -31,13 +31,14 @@ export default function BusinessCategoriesPage() {
     emoji: string;
   } | null>(null);
 
-  // Permissions
-  const canCreateCategories = hasUserPermission(session?.user, 'canCreateBusinessCategories');
-  const canEditCategories = hasUserPermission(session?.user, 'canEditBusinessCategories');
-  const canDeleteCategories = hasUserPermission(session?.user, 'canDeleteBusinessCategories');
-  const canCreateSubcategories = hasUserPermission(session?.user, 'canCreateBusinessSubcategories');
-  const canEditSubcategories = hasUserPermission(session?.user, 'canEditBusinessSubcategories');
-  const canDeleteSubcategories = hasUserPermission(session?.user, 'canDeleteBusinessSubcategories');
+  // Permissions - System admins have all permissions
+  const isAdmin = isSystemAdmin(session?.user);
+  const canCreateCategories = isAdmin || hasUserPermission(session?.user, 'canCreateBusinessCategories');
+  const canEditCategories = isAdmin || hasUserPermission(session?.user, 'canEditBusinessCategories');
+  const canDeleteCategories = isAdmin || hasUserPermission(session?.user, 'canDeleteBusinessCategories');
+  const canCreateSubcategories = isAdmin || hasUserPermission(session?.user, 'canCreateBusinessSubcategories');
+  const canEditSubcategories = isAdmin || hasUserPermission(session?.user, 'canEditBusinessSubcategories');
+  const canDeleteSubcategories = isAdmin || hasUserPermission(session?.user, 'canDeleteBusinessSubcategories');
 
   const customAlert = useAlert();
   const confirm = useConfirm();

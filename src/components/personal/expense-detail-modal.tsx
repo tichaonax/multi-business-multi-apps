@@ -8,6 +8,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { CategorySelector } from '@/components/personal/category-selector'
+import { ProjectCreationModal } from '@/components/projects/project-creation-modal'
 import type { Expense } from '@/types/expense'
 
 interface ExpenseDetailModalProps {
@@ -24,9 +25,11 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [projects, setProjects] = useState<any[]>([])
-  const [contractors, setContractors] = useState<any[]>([])
+  const [contractors, setContractors] = useState<any[]>([]) // For project-based contractors
+  const [allContractors, setAllContractors] = useState<any[]>([]) // For direct contractor payments
   const [editForm, setEditForm] = useState({
     description: '',
+    domainId: '',
     categoryId: '',
     subcategoryId: '',
     amount: '',
@@ -40,6 +43,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
   const [detailsData, setDetailsData] = useState<any>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsType, setDetailsType] = useState<'contractor' | 'project' | 'loan' | null>(null)
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false)
 
   const currentUser = session?.user as any
 
@@ -159,22 +163,43 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
 
   useEffect(() => {
     if (expense) {
-      const transaction = expense.project_transactions?.[0]
+      const transaction = expense.projectTransactions?.[0]
       const loanTransaction = expense.loanTransactions?.[0]
+      const contractorFromTags = parseContractorFromTags(expense.tags || '')
       let paymentType = 'category'
 
       if (loanTransaction) {
         paymentType = 'loan'
       } else if (transaction?.paymentType) {
         paymentType = transaction.paymentType
-      } else if (parseContractorFromTags(expense.tags || '') || expense.category === 'Contractor Payment') {
+      } else if (contractorFromTags || expense.category === 'Contractor Payment') {
         paymentType = 'contractor'
       } else if (expense.tags === 'project') {
         paymentType = 'project'
       }
 
+      // Determine contractor ID - could be from project_contractor, or from tags
+      let contractorId = ''
+      if (transaction?.projectContractor?.id) {
+        // Contractor payment via project
+        contractorId = transaction.projectContractor.id
+      } else if (contractorFromTags) {
+        // Direct contractor payment (no project)
+        contractorId = contractorFromTags.id
+      }
+
+      console.log('Expense loaded:', {
+        paymentType,
+        projectId: transaction?.projectId,
+        contractorId,
+        contractorFromTags,
+        projectContractor: transaction?.projectContractor,
+        tags: expense.tags
+      })
+
       setEditForm({
         description: expense.description || '',
+        domainId: (expense as any).domainId || '',
         categoryId: (expense as any).categoryId || '',
         subcategoryId: (expense as any).subcategoryId || '',
         amount: expense.amount?.toString() || '',
@@ -182,20 +207,65 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
         tags: shouldDisplayTags(expense.tags || null) ? expense.tags || '' : '',
         paymentType: paymentType,
         projectId: transaction?.projectId || '',
-        contractorId: transaction?.projectContractor?.id || ''
+        contractorId: contractorId
       })
+      
+      // Fetch projects when editing starts
+      if (paymentType === 'project' || paymentType === 'contractor') {
+        fetchProjects()
+        
+        if (transaction?.projectId) {
+          // Contractor payment via project
+          fetchContractors(transaction.projectId)
+        } else if (paymentType === 'contractor') {
+          // Direct contractor payment (no project)
+          fetchAllContractors()
+        }
+      }
     }
   }, [expense])
 
   const fetchProjects = async () => {
     try {
-      const response = await fetch('/api/construction/projects')
+      // Fetch all projects (not just construction)
+      const response = await fetch('/api/projects')
       if (response.ok) {
         const data = await response.json()
         setProjects(data)
+        console.log('Fetched projects:', data)
+      } else {
+        console.error('Failed to fetch projects:', response.status)
       }
     } catch (error) {
       console.error('Error fetching projects:', error)
+    }
+  }
+
+  const fetchAllContractors = async () => {
+    try {
+      console.log('Fetching all contractors from /api/persons?isActive=true')
+      // Fetch all active contractors for direct contractor payments
+      const response = await fetch('/api/persons?isActive=true')
+      if (response.ok) {
+        const data = await response.json()
+        console.log('All persons response:', data)
+        // Filter to only contractors - a person is a contractor if they have project_contractors
+        // OR if they were used in a contractor payment (we'll include all active persons for now)
+        const contractorData = data.filter((p: any) => 
+          p.isContractor === true || 
+          (p.project_contractors && p.project_contractors.length > 0) ||
+          (p._count && p._count.project_contractors > 0) ||
+          p.isActive === true // Include all active persons since anyone can be paid as a contractor
+        )
+        console.log('Filtered contractors:', contractorData)
+        console.log('Number of contractors found:', contractorData.length)
+        setAllContractors(contractorData)
+        console.log('Fetched all contractors:', contractorData)
+      } else {
+        console.error('Failed to fetch contractors:', response.status)
+      }
+    } catch (error) {
+      console.error('Error fetching contractors:', error)
     }
   }
 
@@ -206,10 +276,21 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
       return
     }
     try {
-      const response = await fetch(`/api/construction/projects/${projectId}/contractors`)
+      // Try generic projects API first
+      let response = await fetch(`/api/projects/${projectId}/contractors`)
+      
+      // If that fails, try construction-specific API
+      if (!response.ok) {
+        response = await fetch(`/api/construction/projects/${projectId}/contractors`)
+      }
+      
       if (response.ok) {
         const data = await response.json()
+        console.log('Fetched contractors:', data)
         setContractors(data)
+      } else {
+        console.error('Failed to fetch contractors:', response.status)
+        setContractors([])
       }
     } catch (error) {
       console.error('Error fetching contractors:', error)
@@ -247,7 +328,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
         setIsEditing(false)
         
         // Force the modal to re-render with updated data by updating form state
-        const transaction = updatedExpense.project_transactions?.[0]
+        const transaction = updatedExpense.projectTransactions?.[0]
         let paymentType = 'category'
         if (transaction?.paymentType) {
           paymentType = transaction.paymentType
@@ -259,7 +340,9 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
         
         setEditForm({
           description: updatedExpense.description || '',
-          category: updatedExpense.category || '',
+          domainId: (updatedExpense as any).domainId || '',
+          categoryId: (updatedExpense as any).categoryId || '',
+          subcategoryId: (updatedExpense as any).subcategoryId || '',
           amount: updatedExpense.amount?.toString() || '',
           date: updatedExpense.date ? new Date(updatedExpense.date).toISOString().split('T')[0] : '',
           tags: shouldDisplayTags(updatedExpense.tags || null) ? updatedExpense.tags || '' : '',
@@ -279,7 +362,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
 
   const handleCancel = () => {
     setIsEditing(false)
-    const transaction = expense.project_transactions?.[0]
+    const transaction = expense.projectTransactions?.[0]
     let paymentType = 'category'
     if (transaction?.paymentType) {
       paymentType = transaction.paymentType
@@ -291,7 +374,9 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
     
     setEditForm({
       description: expense.description || '',
-      category: expense.category || '',
+      domainId: (expense as any).domainId || '',
+      categoryId: (expense as any).categoryId || '',
+      subcategoryId: (expense as any).subcategoryId || '',
       amount: expense.amount?.toString() || '',
       date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : '',
       tags: shouldDisplayTags(expense.tags || null) ? expense.tags || '' : '',
@@ -301,7 +386,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
     })
   }
 
-  const transaction = expense.project_transactions?.[0]
+  const transaction = expense.projectTransactions?.[0]
   const loanTransaction = expense.loanTransactions?.[0]
   const contractorFromTags = parseContractorFromTags(expense.tags || '')
   const isProjectPayment = transaction?.paymentType === 'project' || expense.tags === 'project'
@@ -310,40 +395,60 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="card max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-primary">
-              {isEditing ? 'Edit Expense' : 'Expense Details'}
-            </h2>
-            <div className="flex gap-2">
-              {!isEditing && isEditAllowed && (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl my-auto">
+        <div className="max-h-[90vh] overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <style jsx>{`
+            div::-webkit-scrollbar {
+              display: none;
+            }
+          `}</style>
+          <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-10">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <h2 className="text-lg sm:text-xl font-semibold text-primary">
+                {isEditing ? 'Edit Expense' : 'Expense Details'}
+              </h2>
+              <div className="flex gap-2">
+                {!isEditing && isEditAllowed && (
+                  <button
+                    onClick={() => {
+                      const transaction = expense.projectTransactions?.[0]
+                      console.log('Edit clicked - Expense details:', {
+                        paymentType: editForm.paymentType,
+                        projectId: editForm.projectId,
+                        contractorId: editForm.contractorId,
+                        transaction: {
+                          projectContractorId: transaction?.projectContractor?.id,
+                          projectContractor: transaction?.projectContractor
+                        }
+                      })
+                      setIsEditing(true)
+                      fetchProjects()
+                      if (editForm.projectId) {
+                        console.log('Fetching contractors for project:', editForm.projectId)
+                        fetchContractors(editForm.projectId)
+                      } else if (editForm.paymentType === 'contractor') {
+                        console.log('Fetching all contractors for direct contractor payment')
+                        fetchAllContractors()
+                      }
+                    }}
+                    className="btn-primary bg-blue-600 hover:bg-blue-700"
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
-                  onClick={() => {
-                    setIsEditing(true)
-                    fetchProjects()
-                    if (editForm.projectId) {
-                      fetchContractors(editForm.projectId)
-                    }
-                  }}
-                  className="btn-primary bg-blue-600 hover:bg-blue-700"
+                  onClick={onClose}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl"
                 >
-                  Edit
+                  ✕
                 </button>
-              )}
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              >
-                ✕
-              </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="p-6 space-y-4">
-          {isEditing ? (
-            <div className="space-y-4">
+          <div className="p-4 sm:p-6 space-y-4 bg-white dark:bg-gray-800">
+            {isEditing ? (
+              <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-secondary mb-2">
                   Description
@@ -365,6 +470,15 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                     subcategoryId: subcategoryId || ''
                   })
                 }}
+                onDomainChange={(domainId) => {
+                  setEditForm({
+                    ...editForm,
+                    domainId: domainId || '',
+                    categoryId: '',
+                    subcategoryId: ''
+                  })
+                }}
+                initialDomainId={editForm.domainId}
                 initialCategoryId={editForm.categoryId}
                 initialSubcategoryId={editForm.subcategoryId}
                 required={true}
@@ -411,7 +525,10 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                       name="paymentType"
                       value="project"
                       checked={editForm.paymentType === 'project'}
-                      onChange={(e) => setEditForm({...editForm, paymentType: e.target.value})}
+                      onChange={(e) => {
+                        setEditForm({...editForm, paymentType: e.target.value})
+                        fetchProjects()
+                      }}
                       className="mr-2"
                     />
                     Project Payment
@@ -422,7 +539,10 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                       name="paymentType"
                       value="contractor"
                       checked={editForm.paymentType === 'contractor'}
-                      onChange={(e) => setEditForm({...editForm, paymentType: e.target.value})}
+                      onChange={(e) => {
+                        setEditForm({...editForm, paymentType: e.target.value})
+                        fetchProjects()
+                      }}
                       className="mr-2"
                     />
                     Contractor Payment
@@ -432,17 +552,31 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
 
               {(editForm.paymentType === 'project' || editForm.paymentType === 'contractor') && (
                 <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Project *
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-secondary">
+                      Project {editForm.paymentType === 'project' ? '*' : '(Optional)'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewProjectForm(true)}
+                      className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      + Create New Project
+                    </button>
+                  </div>
                   <select
                     value={editForm.projectId}
                     onChange={(e) => {
                       setEditForm({...editForm, projectId: e.target.value, contractorId: ''})
-                      fetchContractors(e.target.value)
+                      if (e.target.value) {
+                        fetchContractors(e.target.value)
+                      } else if (editForm.paymentType === 'contractor') {
+                        // Switched from project to no project - fetch all contractors
+                        fetchAllContractors()
+                      }
                     }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
+                    required={editForm.paymentType === 'project'}
                   >
                     <option value="">Select a project</option>
                     {projects.map(project => (
@@ -454,10 +588,13 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                 </div>
               )}
 
-              {editForm.paymentType === 'contractor' && editForm.projectId && (
+              {editForm.paymentType === 'contractor' && (
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Contractor *
+                    Contractor * {editForm.projectId 
+                      ? contractors.length > 0 && `(${contractors.length} project contractors)` 
+                      : allContractors.length > 0 && `(${allContractors.length} available)`
+                    }
                   </label>
                   <select
                     value={editForm.contractorId}
@@ -466,13 +603,30 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                     required
                   >
                     <option value="">Select a contractor</option>
-                    {contractors
-                      .filter(contractor => contractor.persons?.isActive !== false)
-                      .map(contractor => (
-                        <option key={contractor.id} value={contractor.id}>
-                          {contractor.persons?.fullName || contractor.name || 'Unnamed Contractor'}
-                        </option>
-                      ))}
+                    {editForm.projectId ? (
+                      // Show project contractors
+                      contractors.map(contractor => {
+                        const isActive = contractor.persons?.isActive !== false || contractor.person?.isActive !== false
+                        if (!isActive) return null
+                        
+                        return (
+                          <option key={contractor.id} value={contractor.id}>
+                            {contractor.persons?.fullName || contractor.person?.fullName || contractor.name || 'Unnamed Contractor'}
+                          </option>
+                        )
+                      })
+                    ) : (
+                      // Show all contractors
+                      allContractors.map(contractor => {
+                        if (contractor.isActive === false) return null
+                        
+                        return (
+                          <option key={contractor.id} value={contractor.id}>
+                            👷 {contractor.fullName || contractor.name || 'Unnamed Contractor'}
+                          </option>
+                        )
+                      })
+                    )}
                   </select>
                 </div>
               )}
@@ -493,18 +647,18 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <button
                   onClick={handleSave}
                   disabled={loading}
-                  className="btn-primary bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                  className="btn-primary bg-green-600 hover:bg-green-700 disabled:opacity-50 w-full sm:w-auto"
                 >
                   {loading ? 'Saving...' : 'Save Changes'}
                 </button>
                 <button
                   onClick={handleCancel}
                   disabled={loading}
-                  className="btn-secondary"
+                  className="btn-secondary w-full sm:w-auto"
                 >
                   Cancel
                 </button>
@@ -512,7 +666,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-secondary mb-1">Date</h3>
                   <p className="text-primary">{formatDate(expense.date)}</p>
@@ -596,12 +750,12 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-blue-900 dark:text-blue-100">
-                          {transaction.projectContractor.persons.fullName}
+                          {transaction.projectContractor.person.fullName}
                         </p>
                         <p className="text-sm text-blue-700 dark:text-blue-300">
                           Contractor
-                          {transaction.projectContractor.persons.phone && ` • ${formatPhoneNumberForDisplay(transaction.projectContractor.persons.phone)}`}
-                          {transaction.projectContractor.persons.email && ` • ${transaction.projectContractor.persons.email}`}
+                          {transaction.projectContractor.person.phone && ` • ${formatPhoneNumberForDisplay(transaction.projectContractor.person.phone)}`}
+                          {transaction.projectContractor.person.email && ` • ${transaction.projectContractor.person.email}`}
                         </p>
                       </div>
                     </div>
@@ -677,7 +831,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                     )}
                     {transaction?.projectContractor?.person ? (
                       <div className="flex items-center justify-between">
-                        <p className="text-primary">Contractor: {transaction.projectContractor.persons.fullName}</p>
+                        <p className="text-primary">Contractor: {transaction.projectContractor.person.fullName}</p>
                       </div>
                     ) : isContractorPayment && contractorFromTags ? (
                       <p className="text-primary">Contractor: {contractorFromTags.name}</p>
@@ -703,7 +857,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
               )}
 
               <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                <div className="grid grid-cols-2 gap-4 text-xs text-secondary">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-secondary">
                   <div>
                     <span className="block">Created</span>
                     <span>{formatDateTime(expense.createdAt)}</span>
@@ -760,28 +914,35 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
             </div>
           )}
         </div>
+        </div>
       </div>
 
       {/* Unified Details Modal */}
       {showDetailsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="card max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-primary">
-                  {detailsType === 'contractor' && 'Contractor Details'}
-                  {detailsType === 'project' && 'Project Details'}
-                  {detailsType === 'loan' && 'Loan Details'}
-                </h3>
-                <button
-                  onClick={() => setShowDetailsModal(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                >
-                  ✕
-                </button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg my-auto">
+            <div className="max-h-[80vh] overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base sm:text-lg font-semibold text-primary">
+                    {detailsType === 'contractor' && 'Contractor Details'}
+                    {detailsType === 'project' && 'Project Details'}
+                    {detailsType === 'loan' && 'Loan Details'}
+                  </h3>
+                  <button
+                    onClick={() => setShowDetailsModal(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="p-4">
+              <div className="p-4 sm:p-6 bg-white dark:bg-gray-800">
               {detailsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-secondary">Loading {detailsType} details...</div>
@@ -922,8 +1083,22 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                 </div>
               ) : null}
             </div>
+            </div>
           </div>
         </div>
+      )}
+      
+      {/* Project Creation Modal */}
+      {showNewProjectForm && (
+        <ProjectCreationModal
+          isOpen={showNewProjectForm}
+          onClose={() => setShowNewProjectForm(false)}
+          onSuccess={(project) => {
+            setProjects([...projects, project])
+            setEditForm({...editForm, projectId: project.id})
+            setShowNewProjectForm(false)
+          }}
+        />
       )}
     </div>
   )

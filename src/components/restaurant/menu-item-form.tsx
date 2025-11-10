@@ -108,7 +108,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
   })
 
   const [images, setImages] = useState<ImageUpload[]>([])
-  const [variants, setVariants] = useState<Array<{ id?: string; name: string; price: number; isAvailable: boolean }>>([])
+  const [variants, setVariants] = useState<Array<{ id?: string; name: string; price: number; isAvailable: boolean; sku?: string }>>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -118,6 +118,8 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
   // Category creation
   const [isCreatingCategory, setIsCreatingCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryEmoji, setNewCategoryEmoji] = useState('📦')
+  const [newCategoryColor, setNewCategoryColor] = useState('#4ECDC4')
 
   useEffect(() => {
     if (item) {
@@ -154,7 +156,8 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
           id: v.id,
           name: v.name,
           price: typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0,
-          isAvailable: v.isAvailable
+          isAvailable: v.isAvailable,
+          sku: (v as any).sku // Preserve existing SKU
         })))
       }
     }
@@ -283,9 +286,15 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
   }
 
   const updateVariant = (index: number, field: string, value: any) => {
-    setVariants(prev => prev.map((variant, i) =>
-      i === index ? { ...variant, [field]: value } : variant
-    ))
+    setVariants(prev => {
+      const updated = prev.map((variant, i) =>
+        i === index ? { ...variant, [field]: value } : variant
+      )
+      if (field === 'price') {
+        console.log(`[Variant Update] ${prev[index].name} price changed: ${prev[index].price} → ${value}`)
+      }
+      return updated
+    })
   }
 
   const removeVariant = (index: number) => {
@@ -306,6 +315,8 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
           businessId: 'restaurant-demo',
           businessType: 'restaurant',
           name: newCategoryName.trim(),
+          emoji: newCategoryEmoji,
+          color: newCategoryColor,
           displayOrder: 0
         })
       })
@@ -317,6 +328,8 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
         handleInputChange('categoryId', result.data.id)
         setIsCreatingCategory(false)
         setNewCategoryName('')
+        setNewCategoryEmoji('📦')
+        setNewCategoryColor('#4ECDC4')
         setError(null)
 
         // Reload page to refresh categories list
@@ -350,11 +363,19 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
         variants: variants
           .filter(v => v.name.trim())
           .map(v => ({
-            ...v,
-            price: typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0
+            id: v.id, // Preserve ID for updates
+            name: v.name,
+            price: typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0,
+            isAvailable: v.isAvailable ?? true,
+            // Use existing SKU if available, otherwise generate one
+            sku: v.sku || v.id || `VAR-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            stockQuantity: 0,
+            reorderLevel: 0
           })),
         businessType: 'restaurant'
       }
+
+      console.log('[Form Submit] Submitting variants:', submitData.variants.map(v => `${v.name}: $${v.price}`))
 
   // call onSubmit to create/update product first — expect it to return the saved product object
   const saved = await onSubmit(submitData)
@@ -486,49 +507,70 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
                     <option value="">Select a category</option>
                     {categories.map(category => (
                       <option key={category.id} value={category.id}>
-                        {category.name}
+                        {(category as any).emoji ? `${(category as any).emoji} ${category.name}` : category.name}
                       </option>
                     ))}
                     <option value="__create_new__">➕ Create New Category...</option>
                   </select>
                 </div>
               ) : (
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="Enter new category name"
-                    className="flex-1"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        createNewCategory()
-                      } else if (e.key === 'Escape') {
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      value={newCategoryEmoji}
+                      onChange={(e) => setNewCategoryEmoji(e.target.value)}
+                      placeholder="📦"
+                      className="w-16 text-center text-2xl"
+                      maxLength={2}
+                    />
+                    <Input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Category name"
+                      className="flex-1"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          createNewCategory()
+                        } else if (e.key === 'Escape') {
+                          setIsCreatingCategory(false)
+                          setNewCategoryName('')
+                          setNewCategoryEmoji('📦')
+                        }
+                      }}
+                    />
+                    <Input
+                      type="color"
+                      value={newCategoryColor}
+                      onChange={(e) => setNewCategoryColor(e.target.value)}
+                      className="w-16"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      onClick={createNewCategory}
+                      size="sm"
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      ✓ Create Category
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
                         setIsCreatingCategory(false)
                         setNewCategoryName('')
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    onClick={createNewCategory}
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    ✓
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setIsCreatingCategory(false)
-                      setNewCategoryName('')
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    ✕
-                  </Button>
+                        setNewCategoryEmoji('📦')
+                        setNewCategoryColor('#4ECDC4')
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      ✕ Cancel
+                    </Button>
+                  </div>
                 </div>
               )}
               {validationErrors.categoryId && (

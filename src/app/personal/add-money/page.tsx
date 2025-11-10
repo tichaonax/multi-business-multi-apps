@@ -160,7 +160,7 @@ export default function AddMoneyPage() {
     <ProtectedRoute module="personal">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">💰 Add Money</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">💰 Add Money</h1>
           <div className="flex gap-3">
             <Link
               href="/personal/fund-sources"
@@ -177,14 +177,14 @@ export default function AddMoneyPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                 Type of Money Addition *
               </label>
               <div className="flex gap-6">
-                <label className="flex items-center">
+                <label className="flex items-center text-gray-700 dark:text-gray-300">
                   <input
                     type="radio"
                     name="moneyType"
@@ -195,7 +195,7 @@ export default function AddMoneyPage() {
                   />
                   💰 Regular Income
                 </label>
-                <label className="flex items-center">
+                <label className="flex items-center text-gray-700 dark:text-gray-300">
                   <input
                     type="radio"
                     name="moneyType"
@@ -209,7 +209,7 @@ export default function AddMoneyPage() {
               </div>
             </div>
             <div>
-              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Amount ($)
               </label>
               <input
@@ -219,7 +219,7 @@ export default function AddMoneyPage() {
                 min="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="0.00"
                 required
               />
@@ -228,11 +228,11 @@ export default function AddMoneyPage() {
             {moneyType === 'loan-repayment' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                     Repayment From *
                   </label>
                   <div className="flex gap-6">
-                    <label className="flex items-center">
+                    <label className="flex items-center text-gray-700 dark:text-gray-300">
                       <input
                         type="radio"
                         name="loanRepaymentType"
@@ -246,7 +246,7 @@ export default function AddMoneyPage() {
                       />
                       🏢 Business
                     </label>
-                    <label className="flex items-center">
+                    <label className="flex items-center text-gray-700 dark:text-gray-300">
                       <input
                         type="radio"
                         name="loanRepaymentType"
@@ -264,14 +264,14 @@ export default function AddMoneyPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="loanSelect" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="loanSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Select Loan to Receive Payment *
                   </label>
                   <select
                     id="loanSelect"
                     value={selectedLoan}
                     onChange={(e) => setSelectedLoan(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   >
                     <option value="">Select a loan...</option>
@@ -291,14 +291,14 @@ export default function AddMoneyPage() {
 
             {moneyType === 'regular' && (
               <div>
-                <label htmlFor="source" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="source" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Source of Funds *
                 </label>
               <select
                 id="source"
                 value={selectedSource}
                 onChange={(e) => setSelectedSource(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
                 <option value="">Select source of funds</option>
@@ -322,7 +322,7 @@ export default function AddMoneyPage() {
               
               {selectedSource === 'custom' && (
                 <div className="mt-4">
-                  <label htmlFor="customDescription" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="customDescription" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Custom Description *
                   </label>
                   <input
@@ -330,7 +330,7 @@ export default function AddMoneyPage() {
                     id="customDescription"
                     value={customDescription}
                     onChange={(e) => setCustomDescription(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter custom description..."
                     required
                   />

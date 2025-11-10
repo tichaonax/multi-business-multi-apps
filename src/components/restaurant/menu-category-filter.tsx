@@ -3,6 +3,7 @@
 interface Category {
   id: string
   name: string
+  emoji?: string
 }
 
 interface MenuCategoryFilterProps {
@@ -29,7 +30,7 @@ export function MenuCategoryFilter({
         <option value="all">All Categories</option>
         {categories.map((category) => (
           <option key={category.id} value={category.id}>
-            {category.name}
+            {category.emoji ? `${category.emoji} ${category.name}` : category.name}
           </option>
         ))}
       </select>

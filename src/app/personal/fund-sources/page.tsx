@@ -99,18 +99,18 @@ export default function FundSourcesPage() {
   return (
     <ProtectedRoute module="personal">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Fund Sources Management</h1>
-          <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary">Fund Sources Management</h1>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <button
               onClick={() => setShowAddForm(!showAddForm)}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm sm:text-base whitespace-nowrap"
             >
               + Add New Source
             </button>
             <Link
               href="/personal/add-money"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-center text-sm sm:text-base whitespace-nowrap"
             >
               ← Back to Add Money
             </Link>
@@ -118,34 +118,34 @@ export default function FundSourcesPage() {
         </div>
 
         {showAddForm && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Add New Fund Source</h2>
+          <div className="card p-4 sm:p-6">
+            <h2 className="text-lg sm:text-xl font-semibold mb-4 text-primary">Add New Fund Source</h2>
             <form onSubmit={handleAddSource} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-secondary mb-2">
                   Fund Source Name *
                 </label>
                 <input
                   type="text"
                   value={newSource.name}
                   onChange={(e) => setNewSource({...newSource, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="input-field w-full"
                   placeholder="e.g., Part-time Job, Dividend, Commission"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-secondary mb-2">
                   Emoji
                 </label>
-                <div className="flex gap-2 mb-2">
+                <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-16 gap-2 mb-2">
                   {commonEmojis.map(emoji => (
                     <button
                       key={emoji}
                       type="button"
                       onClick={() => setNewSource({...newSource, emoji})}
-                      className={`p-2 text-2xl border rounded-md ${newSource.emoji === emoji ? 'bg-green-100 border-green-500' : 'border-gray-300'}`}
+                      className={`p-2 text-xl sm:text-2xl border rounded-md ${newSource.emoji === emoji ? 'bg-green-100 dark:bg-green-900/30 border-green-500' : 'border-gray-300 dark:border-gray-600'}`}
                     >
                       {emoji}
                     </button>
@@ -159,24 +159,24 @@ export default function FundSourcesPage() {
                     const cleanEmoji = e.target.value.match(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u)?.[0] || '💰'
                     setNewSource({...newSource, emoji: cleanEmoji})
                   }}
-                  className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="input-field w-24"
                   placeholder="💰"
                   maxLength={2}
                 />
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="submit"
                   disabled={loading || !newSource.name}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400"
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Adding...' : 'Add Source'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
@@ -185,51 +185,51 @@ export default function FundSourcesPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold">Your Fund Sources</h2>
-            <p className="text-sm text-gray-600 mt-1">
+        <div className="card">
+          <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg sm:text-xl font-semibold text-primary">Your Fund Sources</h2>
+            <p className="text-sm text-secondary mt-1">
               Manage your commonly used sources of funds. Usage count shows how often you've used each source.
             </p>
           </div>
           
           {loading ? (
-            <div className="p-6 text-center text-gray-500">
+            <div className="p-6 text-center text-secondary">
               Loading fund sources...
             </div>
           ) : (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {fundSources.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">
-                  <p className="text-lg mb-2">No custom fund sources yet</p>
+                <div className="text-center text-secondary py-8">
+                  <p className="text-base sm:text-lg mb-2">No custom fund sources yet</p>
                   <p className="text-sm">Add your first fund source to get started!</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {fundSources.map((source) => (
                     <div
                       key={source.id}
-                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-white dark:bg-gray-800"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-3">
-                          <span className="text-2xl">{source.emoji}</span>
-                          <span className="font-medium">{source.name}</span>
+                          <span className="text-xl sm:text-2xl">{source.emoji}</span>
+                          <span className="font-medium text-primary text-sm sm:text-base">{source.name}</span>
                         </div>
                         {!source.isDefault && (
                           <button
                             onClick={() => handleDeleteSource(source.id)}
-                            className="text-red-600 hover:text-red-800 text-sm"
+                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm flex-shrink-0"
                             title="Delete fund source"
                           >
                             🗑️
                           </button>
                         )}
                       </div>
-                      <div className="flex items-center justify-between text-sm text-gray-500">
+                      <div className="flex items-center justify-between text-xs sm:text-sm text-secondary">
                         <span>Used {source.usageCount} times</span>
                         {source.isDefault && (
-                          <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs">
+                          <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded text-xs">
                             Default
                           </span>
                         )}
@@ -242,9 +242,9 @@ export default function FundSourcesPage() {
           )}
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">💡 Tips</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2 text-sm sm:text-base">💡 Tips</h3>
+          <ul className="text-xs sm:text-sm text-blue-800 dark:text-blue-400 space-y-1">
             <li>• Fund sources are sorted by usage count - most used appear first in the Add Money form</li>
             <li>• You can't delete default fund sources, but you can add your own custom ones</li>
             <li>• Choose descriptive names and appropriate emojis to make selection easier</li>

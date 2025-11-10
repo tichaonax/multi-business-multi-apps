@@ -1,0 +1,2130 @@
+{
+  "summary": {
+    "totalDuplicates": 73,
+    "itemsFixed": 90,
+    "newSKUsGenerated": 90
+  },
+  "duplicateDetails": [
+    {
+      "originalSKU": "CND-4644",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "A-Line Skirts : Black Checkered Boucle Zip Front Mini Skirt",
+          "category": "Ladies > Footwear > Wide Fit Heels",
+          "keptOriginal": true,
+          "newSKU": "CND-4644"
+        },
+        {
+          "index": 1,
+          "product": "Animal Print Skirts : Plus Khaki Animal Printed Lettuce Hem Mesh Bodycon Skirt",
+          "category": "Ladies > Knitwear > Bodysuit",
+          "keptOriginal": false,
+          "newSKU": "CND-4645"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMO-3062",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "A-Line Skirts : Black Faux Leather Pleated Skater Skirt",
+          "category": "Ladies > Home & Beauty > Cushions",
+          "keptOriginal": true,
+          "newSKU": "CMO-3062"
+        },
+        {
+          "index": 1,
+          "product": "Animal Print Skirts : Leopard Print Twist Front Maxi Skirt",
+          "category": "Ladies > Knitwear > Vest",
+          "keptOriginal": false,
+          "newSKU": "CMO-3063"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNA-8240",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Iridescent Sun Pendant Layered Necklace",
+          "category": "Ladies > Home & Beauty > Eyeshadow",
+          "keptOriginal": true,
+          "newSKU": "CNA-8240"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Nude Straw Knott Grab Bag",
+          "category": "Ladies > Petite > Jumper Dress",
+          "keptOriginal": false,
+          "newSKU": "CNA-8241"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMY-6677",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Hard Smooth Curve Hand Bag",
+          "category": "Ladies > Home & Beauty > Face Paints",
+          "keptOriginal": true,
+          "newSKU": "CMY-6677"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Silver Hard Smooth Curve Hand Bag",
+          "category": "Ladies > Petite > Knitted Shorts",
+          "keptOriginal": false,
+          "newSKU": "CMY-6678"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMZ-7487",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Geometric Box Clutch",
+          "category": "Ladies > Home & Beauty > Foundation",
+          "keptOriginal": true,
+          "newSKU": "CMZ-7487"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Black PU Eyelet Buckle Shoulder Bag",
+          "category": "Ladies > Petite > Knitted Trousers",
+          "keptOriginal": false,
+          "newSKU": "CMZ-7488"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNH-6879",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Black Branded Oversized Square Sunglasses",
+          "category": "Ladies > Home & Beauty > Glassware",
+          "keptOriginal": true,
+          "newSKU": "CNH-6879"
+        },
+        {
+          "index": 1,
+          "product": "Bags : White Pearl Shoulder Bag",
+          "category": "Ladies > Petite > Jumpsuit",
+          "keptOriginal": false,
+          "newSKU": "CNH-6881"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMZ-7475",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Starfish Bangle Arm Cuff",
+          "category": "Ladies > Home & Beauty > Hair Bobbles",
+          "keptOriginal": true,
+          "newSKU": "CMZ-7475"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Gold Metallic Trapeze Shoulder Bag",
+          "category": "Ladies > Petite > Long Top",
+          "keptOriginal": false,
+          "newSKU": "CMZ-7476"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMS-9381",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Abstract Oval Hard Clutch Bag",
+          "category": "Ladies > Home & Beauty > Hair Brush",
+          "keptOriginal": true,
+          "newSKU": "CMS-9381"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Gold Geometric Box Clutch",
+          "category": "Ladies > Petite > Knitted Skirt",
+          "keptOriginal": false,
+          "newSKU": "CMS-9382"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-3707",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Knot Handle Mini Grab Bag",
+          "category": "Ladies > Home & Beauty > Hair Extensions",
+          "keptOriginal": true,
+          "newSKU": "CNJ-3707"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Natural Raffia Slouchy Clutch",
+          "category": "Ladies > Petite > Skater Dress",
+          "keptOriginal": false,
+          "newSKU": "CNJ-3708"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-4381",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Metallic Trapeze Shoulder Bag",
+          "category": "Ladies > Home & Beauty > Heat Protection Spray",
+          "keptOriginal": true,
+          "newSKU": "CNJ-4381"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Cherry Red Patent Slim Curved Shoulder Bag",
+          "category": "Ladies > Petite > Maxi Puffer Jacket",
+          "keptOriginal": false,
+          "newSKU": "CNJ-4382"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNC-1890",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Black Glossy Round Sunglasses",
+          "category": "Ladies > Home & Beauty > Leave In Treatments",
+          "keptOriginal": true,
+          "newSKU": "CNC-1890"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Black Linen Look Fringe Tote",
+          "category": "Ladies > Petite > Maxi Dress",
+          "keptOriginal": false,
+          "newSKU": "CNC-1891"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNG-7168",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Double Chain Layer Anklet",
+          "category": "Ladies > Home & Beauty > Lighting",
+          "keptOriginal": true,
+          "newSKU": "CNG-7168"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Black Quilted Oversized Tote Bag",
+          "category": "Ladies > Petite > Maxi Skirt",
+          "keptOriginal": false,
+          "newSKU": "CNG-7169"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNH-6585",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Ball Detail Simple Belly Chain",
+          "category": "Ladies > Home & Beauty > Lip Gloss",
+          "keptOriginal": true,
+          "newSKU": "CNH-6585"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Black PU Flap Over Baguette Shoulder Bag",
+          "category": "Ladies > Petite > Mini Skirt",
+          "keptOriginal": false,
+          "newSKU": "CNH-6586"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMM-9457",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Gold Double Layered Choker",
+          "category": "Ladies > Home & Beauty > Lip Kits",
+          "keptOriginal": true,
+          "newSKU": "CMM-9457"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Black Croc PU Strap Over Flat Sandals",
+          "category": "Women Clothing > Hoodies",
+          "keptOriginal": false,
+          "newSKU": "CMM-9458"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-3240",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : White The Bride Canvas Tote Bag",
+          "category": "Ladies > Home & Beauty > Makeup Brushes",
+          "keptOriginal": true,
+          "newSKU": "CNJ-3240"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Natural Curved Buckle Raffia Handbag",
+          "category": "Ladies > Petite > Wide Leg Trousers",
+          "keptOriginal": false,
+          "newSKU": "CNJ-3241"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNH-1253",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Black Chunky Brown Lens Square Frame Sunglasses",
+          "category": "Ladies > Home & Beauty > Makeup Headbands",
+          "keptOriginal": true,
+          "newSKU": "CNH-1253"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Red PU Eyelet Buckle Shoulder Bag",
+          "category": "Ladies > Plus Size > Beach Shirt",
+          "keptOriginal": false,
+          "newSKU": "CNH-1254"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-3529",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Black Small Bum Bag",
+          "category": "Ladies > Home & Beauty > Makeup Organiser",
+          "keptOriginal": true,
+          "newSKU": "CNJ-3529"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Black Gold Handle Crochet Clutch Bag",
+          "category": "Ladies > Petite > Puffer Jacket",
+          "keptOriginal": false,
+          "newSKU": "CNJ-3530"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CLX-0775",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Natural Raffia Slouchy Clutch",
+          "category": "Ladies > Home & Beauty > Primer",
+          "keptOriginal": true,
+          "newSKU": "CLX-0775"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Gold Metal Shell Clutch Bag",
+          "category": "Ladies > Plus Size > Bomber Jacket",
+          "keptOriginal": false,
+          "newSKU": "CLX-0776"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-1631",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Annake Faux Leather Bum Bag Plain",
+          "category": "Ladies > Home & Beauty > Serum",
+          "keptOriginal": true,
+          "newSKU": "CNI-1631"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Cream Frayed Oversized Tote Bag",
+          "category": "Ladies > Petite > Sweatshirt",
+          "keptOriginal": false,
+          "newSKU": "CNI-1632"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-5947",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Natural Raffia Palm Tree Detail Cross Body Bag",
+          "category": "Ladies > Home & Beauty > Setting Sprays and powders",
+          "keptOriginal": true,
+          "newSKU": "CNI-5947"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Cherry Red Mini Double Zip Circle Grab Bag",
+          "category": "Ladies > Petite > Split Hem Jeans",
+          "keptOriginal": false,
+          "newSKU": "CNI-5948"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CND-1838",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Accessories : Stone Linen Look Fringe Tote",
+          "category": "Ladies > Home & Beauty > Tanning Drops",
+          "keptOriginal": true,
+          "newSKU": "CND-1838"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Yellow Roman Horse Mosaic Print Flap Over Baguette Shoulder Bag",
+          "category": "Ladies > Petite > Skinny Jeans",
+          "keptOriginal": false,
+          "newSKU": "CND-1839"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNE-2424",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Animal Print Skirts : Cream Leopard Print Lace Trim Mini Skirt",
+          "category": "Ladies > Home & Beauty > Tanning Serums",
+          "keptOriginal": true,
+          "newSKU": "CNE-2424"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Nude Small Chain Bag",
+          "category": "Ladies > Plus Size > Beach Dress",
+          "keptOriginal": false,
+          "newSKU": "CNE-2426"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMO-4899",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Animal Print Skirts : Cherry Red Leopard Print Lace Trim Mini Skirt",
+          "category": "Ladies > Home & Beauty > Throws",
+          "keptOriginal": true,
+          "newSKU": "CMO-4899"
+        },
+        {
+          "index": 1,
+          "product": "Bags : Natural Linen Slim Curved Shoulder Bag",
+          "category": "Ladies > Petite > Playsuit",
+          "keptOriginal": false,
+          "newSKU": "CMO-4900"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNG-7627",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Backless : White Crochet Knit Backless Maxi Beach Dress",
+          "category": "Ladies > Outerwear > Maxi Puffer Jacket",
+          "keptOriginal": true,
+          "newSKU": "CNG-7627"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Orange Shell Knit Low Back Mini Dress",
+          "category": "Ladies > Tall > Bodycon Dress",
+          "keptOriginal": false,
+          "newSKU": "CNG-7628"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-8635",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Backless : Black Slinky Open Back Detail Crop Top",
+          "category": "Ladies > Outerwear > Ski Jackets",
+          "keptOriginal": true,
+          "newSKU": "CNI-8635"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Black Low Back Oversized Maxi Beach Dress",
+          "category": "Ladies > Tall > Denim Jumpsuits",
+          "keptOriginal": false,
+          "newSKU": "CNI-8636"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-3380",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Backless : Khaki Satin High Neck Open Back Maxi Dress",
+          "category": "Ladies > Outfit",
+          "keptOriginal": true,
+          "newSKU": "CNI-3380"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Petite Black Open Knit Tassel Detail Mini Dress",
+          "category": "Ladies > Tall > Boyfriend Jeans",
+          "keptOriginal": false,
+          "newSKU": "CNI-3381"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-4421",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Backless : Blue Striped Textured Rib Long Sleeve Backless Crop Top",
+          "category": "Ladies > Petite > Cargo Skirt",
+          "keptOriginal": true,
+          "newSKU": "CNJ-4421"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Cobalt Textured Crochet Backless Maxi Beach Dress",
+          "category": "Ladies > Tall > Maxi Dress",
+          "keptOriginal": false,
+          "newSKU": "CNJ-4423"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMS-9356",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Red Crochet Cut Out Bead Trim Mini Beach Dress",
+          "category": "Ladies > Shape > Straight Jeans",
+          "keptOriginal": true,
+          "newSKU": "CMS-9356"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Black Stripe Oversized Boxy Short Sleeve Shirt",
+          "category": "Ladies > Tops > Corset",
+          "keptOriginal": false,
+          "newSKU": "CMS-9357"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Red Crochet Cut Out Bead Trim Mini Beach Dress",
+          "category": "Women Accessories > Leather Handbag",
+          "keptOriginal": false,
+          "newSKU": "CMS-9358"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMV-7013",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Dark Chocolate Soft Crinkle Oversized Beach Shirt Dress",
+          "category": "Ladies > Shape > Straight Leg Trousers",
+          "keptOriginal": true,
+          "newSKU": "CMV-7013"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : Monochrome Print Oversized Crinkle Textured Beach Trousers",
+          "category": "Toddler Boy > Character Shop",
+          "keptOriginal": false,
+          "newSKU": "CMV-7014"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : White Croc PU Strap Over Flat Sandals",
+          "category": "Women Accessories > Necklace",
+          "keptOriginal": false,
+          "newSKU": "CMV-7015"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMH-1462",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : White Maxi Crochet Beach Skirt",
+          "category": "Ladies > Shape > Swimsuit",
+          "keptOriginal": true,
+          "newSKU": "CMH-1462"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Stone Linen Look Stripe Oversized Boxy Shirt",
+          "category": "Ladies > Tops > Crop Top",
+          "keptOriginal": false,
+          "newSKU": "CMH-1463"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Snake Alisa Large Studded Sliders",
+          "category": "Women Accessories > Purse",
+          "keptOriginal": false,
+          "newSKU": "CMH-1464"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-0915",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Stone Linen Look Palazzo Beach Trousers",
+          "category": "Ladies > Shape > T-Shirt",
+          "keptOriginal": true,
+          "newSKU": "CNJ-0915"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : White Maxi Crochet Beach Skirt",
+          "category": "Women Accessories > Scarf",
+          "keptOriginal": false,
+          "newSKU": "CNJ-0916"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNC-3611",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : White Textured Flower Trim Beach Sarong",
+          "category": "Ladies > Shape > Tailored Shorts",
+          "keptOriginal": true,
+          "newSKU": "CNC-3611"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Monochrome Crinkle Textured Oversized Beach Shirt",
+          "category": "Ladies > Tops > Vest",
+          "keptOriginal": false,
+          "newSKU": "CNC-3612"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Black Glossy Round Sunglasses",
+          "category": "Women Clothing > Coat",
+          "keptOriginal": false,
+          "newSKU": "CNC-3613"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-2680",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Black Crinkle Textured Short Beach Kimono",
+          "category": "Ladies > Shape > Unitard",
+          "keptOriginal": true,
+          "newSKU": "CNJ-2680"
+        },
+        {
+          "index": 1,
+          "product": "Beach Skirts : Brown Leopard Print Mesh Fishtail Maxi Beach Skirt",
+          "category": "Men Underwear > Android",
+          "keptOriginal": false,
+          "newSKU": "CNJ-2681"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Lime Textured Crochet Flute Sleeve Floaty Top",
+          "category": "Women Clothing",
+          "keptOriginal": false,
+          "newSKU": "CNJ-2682"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMV-7012",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Cream Crochet Wide Leg Dipped Hem Beach Trousers",
+          "category": "Ladies > Shape > Wide Leg Jeans",
+          "keptOriginal": true,
+          "newSKU": "CMV-7012"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : Blue Marl Crochet Beach Trousers",
+          "category": "Toddler Boy > Graphic Tees",
+          "keptOriginal": false,
+          "newSKU": "CMV-7016"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : White Crochet Plunge Beach Jumpsuit",
+          "category": "Women Clothing > Baster",
+          "keptOriginal": false,
+          "newSKU": "CMV-7017"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-3486",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : White Textured Flower Trim Tie Front Beach Top",
+          "category": "Ladies > Shape > Wide Leg Trousers",
+          "keptOriginal": true,
+          "newSKU": "CNI-3486"
+        },
+        {
+          "index": 1,
+          "product": "Beach Skirts : Cream Crochet Plain Knit Maxi Skirt",
+          "category": "Men Underwear > Boxer Briefs",
+          "keptOriginal": false,
+          "newSKU": "CNI-3487"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Brown Leopard Print Shirred Triangle Bikini Top",
+          "category": "Women Clothing > Bikini",
+          "keptOriginal": false,
+          "newSKU": "CNI-3488"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMD-5925",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : White Crochet Plunge Beach Jumpsuit",
+          "category": "Ladies > Shirts",
+          "keptOriginal": true,
+          "newSKU": "CMD-5925"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Black Shell Knit Low Back Mini Dress",
+          "category": "Ladies > Tall > Bodysuit",
+          "keptOriginal": false,
+          "newSKU": "CMD-5927"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Black & White Flip Flops 2 Pack",
+          "category": "Women Clothing > Tracksuit",
+          "keptOriginal": false,
+          "newSKU": "CMD-5928"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNE-1663",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Monochrome Print Oversized Crinkle Textured Beach Trousers",
+          "category": "Ladies > Shoes",
+          "keptOriginal": true,
+          "newSKU": "CNE-1663"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : Chocolate Abstract Print Mesh Wide Leg Trousers",
+          "category": "Toddler Boy > Jackets & Outerwear",
+          "keptOriginal": false,
+          "newSKU": "CNE-1664"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Stone Embossed Towel Beach Playsuit",
+          "category": "Women Clothing > Dress",
+          "keptOriginal": false,
+          "newSKU": "CNE-1665"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-3485",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Dark Chocolate Soft Crinkle Cotton Floaty Beach Shorts",
+          "category": "Ladies > Shorts",
+          "keptOriginal": true,
+          "newSKU": "CNI-3485"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Black PU Square Buckle Detail Sandals",
+          "category": "Women Clothing > Borello",
+          "keptOriginal": false,
+          "newSKU": "CNI-3489"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMW-4216",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Cream Textured Lightweight Beach Shirt",
+          "category": "Ladies > Skintights",
+          "keptOriginal": true,
+          "newSKU": "CMW-4216"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Tall Cream Long Sleeve Knitted Mini Dress",
+          "category": "Women Clothing > Blowse",
+          "keptOriginal": false,
+          "newSKU": "CMW-4217"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-5058",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Cream Laddered Plunge Maxi Beach Dress",
+          "category": "Ladies > Skirts",
+          "keptOriginal": true,
+          "newSKU": "CNI-5058"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : Chocolate Brown Linen Look Palazzo Beach Trousers",
+          "category": "Toddler Boy > Pajamas",
+          "keptOriginal": false,
+          "newSKU": "CNI-5060"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : White Chiffon Flower Detail Drape Mini Beach Skirt",
+          "category": "Women Clothing > Jeans",
+          "keptOriginal": false,
+          "newSKU": "CNI-5061"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNC-3610",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Brown Leopard Print Mesh Fishtail Maxi Beach Skirt",
+          "category": "Ladies > Slake",
+          "keptOriginal": true,
+          "newSKU": "CNC-3610"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shorts : Monochrome Wave Knit Mini Hot Pants",
+          "category": "Men Body Clothes > Hoodie",
+          "keptOriginal": false,
+          "newSKU": "CNC-3614"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Monochrome Stripe Soft Knit Mini Shorts",
+          "category": "Women Clothing > Sweater",
+          "keptOriginal": false,
+          "newSKU": "CNC-3615"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-0946",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : White Chiffon Dip Hem Beach Shirt",
+          "category": "Ladies > Sleepwear",
+          "keptOriginal": true,
+          "newSKU": "CNJ-0946"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Plus White Oversized Beach Shirt",
+          "category": "Ladies > Trousers",
+          "keptOriginal": false,
+          "newSKU": "CNJ-0948"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-2724",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Ivory Bubble Textured Long Sleeve Beach Top",
+          "category": "Ladies > Socks",
+          "keptOriginal": true,
+          "newSKU": "CNI-2724"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Black Crochet Cut Out Maxi Beach Dress",
+          "category": "Ladies > Tall > Floaty Shorts",
+          "keptOriginal": false,
+          "newSKU": "CNI-2725"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-2629",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Cream Metallic Netted Crochet Beach Flares",
+          "category": "Ladies > Suit",
+          "keptOriginal": true,
+          "newSKU": "CNJ-2629"
+        },
+        {
+          "index": 1,
+          "product": "Beach Skirts : Cream Vintage Floral Mesh Fishtail Beach Skirt",
+          "category": "Men Underwear > Boxers",
+          "keptOriginal": false,
+          "newSKU": "CNJ-2630"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Tall Cream Crochet Plunged Maxi Dress",
+          "category": "Women Clothing > Jumpsuit",
+          "keptOriginal": false,
+          "newSKU": "CNJ-2631"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMF-0832",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Blue Marl Crochet Beach Trousers",
+          "category": "Ladies > Suits",
+          "keptOriginal": true,
+          "newSKU": "CMF-0832"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Pink Abstract Print Oversized Beach Shirt",
+          "category": "Ladies > Tops > T-Shirt",
+          "keptOriginal": false,
+          "newSKU": "CMF-0833"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Blue Marl Crochet Beach Trousers",
+          "category": "Women Clothing > Pants",
+          "keptOriginal": false,
+          "newSKU": "CMF-0834"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMV-7026",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Cream Crochet Open Front Top And Shorts Beach Set",
+          "category": "Ladies > Sweatshirts",
+          "keptOriginal": true,
+          "newSKU": "CMV-7026"
+        },
+        {
+          "index": 1,
+          "product": "Beauty : Filter by Molly Mae Tanning Foam Extra Dark",
+          "category": "Women Clothing > Turkey",
+          "keptOriginal": false,
+          "newSKU": "CMV-7027"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-8953",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Chocolate Abstract Print Mesh Wide Leg Trousers",
+          "category": "Ladies > Swim",
+          "keptOriginal": true,
+          "newSKU": "CNI-8953"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : Cream Textured Jersey Drawstring Wide Leg Trousers",
+          "category": "Toddler Boy > Pants",
+          "keptOriginal": false,
+          "newSKU": "CNI-8954"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Brown Leopard Print Shirred Backless Swimsuit",
+          "category": "Women Clothing > Shoes",
+          "keptOriginal": false,
+          "newSKU": "CNI-8955"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMK-1598",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Stone Embossed Towel Beach Playsuit",
+          "category": "Ladies > Swimwear",
+          "keptOriginal": true,
+          "newSKU": "CMK-1598"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : White Wide Leg Texture Beach Trousers",
+          "category": "Toddler Boy > Tops",
+          "keptOriginal": false,
+          "newSKU": "CMK-1599"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-4365",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : White Crochet Crop Beach Top",
+          "category": "Ladies > Swimwear > Beach Dress",
+          "keptOriginal": true,
+          "newSKU": "CNJ-4365"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Green Ruched Tanga Bikini Bottoms",
+          "category": "Women Clothing > Peacoat",
+          "keptOriginal": false,
+          "newSKU": "CNJ-4366"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMS-1796",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : White Chiffon Flower Detail Drape Mini Beach Skirt",
+          "category": "Ladies > Swimwear > Beach Flares",
+          "keptOriginal": true,
+          "newSKU": "CMS-1796"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : Orange Abstract Beach Trousers",
+          "category": "Toddler Boy > Sandals",
+          "keptOriginal": false,
+          "newSKU": "CMS-1797"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Light Pink Textured Tie Side Bikini Bottoms",
+          "category": "Women Clothing > Skin Jeans",
+          "keptOriginal": false,
+          "newSKU": "CMS-1798"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMQ-2770",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Pink Blurred Print Frill Mesh Beach Top",
+          "category": "Ladies > Swimwear > Beach Jumpsuit",
+          "keptOriginal": true,
+          "newSKU": "CMQ-2770"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Brown Leopard Print Mesh Fishtail Maxi Beach Skirt",
+          "category": "Women Clothing > Jacket",
+          "keptOriginal": false,
+          "newSKU": "CMQ-2771"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CND-7816",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Plus White Oversized Beach Shirt",
+          "category": "Ladies > Swimwear > Beach Maxi Dress",
+          "keptOriginal": true,
+          "newSKU": "CND-7816"
+        },
+        {
+          "index": 1,
+          "product": "Beach Skirts : Black Ruched Mesh Midi Beach Skirt",
+          "category": "Men Underwear > G-string",
+          "keptOriginal": false,
+          "newSKU": "CND-7817"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : White Chiffon Dip Hem Beach Shirt",
+          "category": "Women Clothing > Kimono",
+          "keptOriginal": false,
+          "newSKU": "CND-7818"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-4095",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Cream Crochet Beach Shorts",
+          "category": "Ladies > Swimwear > Beach Maxi Skirt",
+          "keptOriginal": true,
+          "newSKU": "CNI-4095"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Chocolate Abstract Print Mesh Wide Leg Trousers",
+          "category": "Women Clothing > Sheath Dress",
+          "keptOriginal": false,
+          "newSKU": "CNI-4096"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMR-5295",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Blue Abstract Print Mesh Tie Front Beach Top",
+          "category": "Ladies > Swimwear > Beach Playsuit",
+          "keptOriginal": true,
+          "newSKU": "CMR-5295"
+        },
+        {
+          "index": 1,
+          "product": "Beach Skirts : Pink Swirl Mesh Maxi Beach Skirt",
+          "category": "Men Underwear > Thermal Underwear",
+          "keptOriginal": false,
+          "newSKU": "CMR-5296"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMK-1596",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Stone Soft Crinkle Cotton Floaty Beach Shorts",
+          "category": "Ladies > Swimwear > Beach Sarong",
+          "keptOriginal": true,
+          "newSKU": "CMK-1596"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Orange Marble Print Oversized Crinkle Textured Shirt",
+          "category": "Laptop Accessories",
+          "keptOriginal": false,
+          "newSKU": "CMK-1597"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-0023",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Cream Crochet Bandeau Split Hem Beach Top",
+          "category": "Ladies > Swimwear > Beach Set",
+          "keptOriginal": true,
+          "newSKU": "CNJ-0023"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shorts : Purple Zebra Print Satin Floaty Shorts",
+          "category": "Men Body Clothes > T-Shirt",
+          "keptOriginal": false,
+          "newSKU": "CNJ-0024"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-5841",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Black Beach Shirt",
+          "category": "Ladies > Swimwear > Beach Shirt",
+          "keptOriginal": true,
+          "newSKU": "CNI-5841"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Black Shell Knit Low Back Mini Dress",
+          "category": "Women Clothing > T-Shirt",
+          "keptOriginal": false,
+          "newSKU": "CNI-5842"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMY-3433",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Black Crinkle Tie Maxi Beach Dress",
+          "category": "Ladies > Swimwear > Beach Shorts",
+          "keptOriginal": true,
+          "newSKU": "CMY-3433"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shorts : Shape Black Knit High Waist Hot Pants",
+          "category": "Men Body Clothes > Rugby Shirt",
+          "keptOriginal": false,
+          "newSKU": "CMY-3434"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMF-0814",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Ecru Oversized Linen Look Beach Shirt Dress",
+          "category": "Ladies > Swimwear > Beach Top",
+          "keptOriginal": true,
+          "newSKU": "CMF-0814"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Ecru Oversized Linen Look Beach Shirt Dress",
+          "category": "Laptop Accessories > Bags",
+          "keptOriginal": false,
+          "newSKU": "CMF-0815"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMY-6880",
+      "occurrenceCount": 3,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Stone Textured Wrap Front Maxi Beach Dress",
+          "category": "Ladies > Swimwear > Beach Trousers",
+          "keptOriginal": true,
+          "newSKU": "CMY-6880"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Burnt Orange Crochet Tassel Halterneck Mini Dress",
+          "category": "Ladies > Tall > Cigarette Trouser",
+          "keptOriginal": false,
+          "newSKU": "CMY-6881"
+        },
+        {
+          "index": 2,
+          "product": "Beachwear : Black Crinkle Textured Short Beach Kimono",
+          "category": "Women Clothing > Swimsuit",
+          "keptOriginal": false,
+          "newSKU": "CMY-6882"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-2820",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Cream Crochet Flower Detail Halterneck Beach Top",
+          "category": "Ladies > Swimwear > Bikini Bottoms",
+          "keptOriginal": true,
+          "newSKU": "CNI-2820"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Multi Floral Underwire Detail Tie Strap Shift Dress",
+          "category": "Ladies > Tall > Denim Mini Skirt",
+          "keptOriginal": false,
+          "newSKU": "CNI-2821"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMF-2394",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Baby Blue Crochet Cut Out Maxi Beach Dress",
+          "category": "Ladies > Swimwear > Bikini Set",
+          "keptOriginal": true,
+          "newSKU": "CMF-2394"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Tall Stone Linen Look Short Sleeve Shirt",
+          "category": "Men > Clothing",
+          "keptOriginal": false,
+          "newSKU": "CMF-2395"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-4015",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Pink Abstract Print Oversized Beach Shirt",
+          "category": "Ladies > Swimwear > Bikini Top",
+          "keptOriginal": true,
+          "newSKU": "CNI-4015"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Sage Green Textured Bead Detail Cut Out Mini Beach Dress",
+          "category": "Ladies > Tall > Playsuit",
+          "keptOriginal": false,
+          "newSKU": "CNI-4016"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-2667",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Monochrome Crinkle Textured Oversized Beach Shirt",
+          "category": "Ladies > Swimwear > High Waist",
+          "keptOriginal": true,
+          "newSKU": "CNJ-2667"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Black Crinkle Tie Maxi Beach Dress",
+          "category": "Women Clothing > Suit",
+          "keptOriginal": false,
+          "newSKU": "CNJ-2668"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-0979",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Black Crochet Backless Beach Dress",
+          "category": "Ladies > Swimwear > Mix & Match",
+          "keptOriginal": true,
+          "newSKU": "CNJ-0979"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Black Beach Shirt",
+          "category": "Ladies > Two Piece Sets",
+          "keptOriginal": false,
+          "newSKU": "CNJ-0980"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-5059",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Cover Ups : Candy Pink Chiffon Drawstring Wide Leg Beach Trousers",
+          "category": "Ladies > Swimwear > Tanga",
+          "keptOriginal": true,
+          "newSKU": "CNI-5059"
+        },
+        {
+          "index": 1,
+          "product": "Beach Shirts : Cobalt Textured Lightweight Beach Shirt",
+          "category": "Ladies > Underwear",
+          "keptOriginal": false,
+          "newSKU": "CNI-5062"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNG-1980",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Dresses : Shape Lime Crochet Knit Halterneck Open Back Maxi Dress",
+          "category": "Ladies > Swimwear > Triangle",
+          "keptOriginal": true,
+          "newSKU": "CNG-1980"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : Plus Black Cheesecloth Textured Wide Leg Trousers",
+          "category": "Toddler Boy > Swim",
+          "keptOriginal": false,
+          "newSKU": "CNG-1982"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMD-5926",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Dresses : Stone Crochet Strappy Maxi Dress",
+          "category": "Ladies > Swimwear > Underwired",
+          "keptOriginal": true,
+          "newSKU": "CMD-5926"
+        },
+        {
+          "index": 1,
+          "product": "Beach Dresses : Black Double Gauze Frill Beach Dress",
+          "category": "Ladies > Tall > Denim Top",
+          "keptOriginal": false,
+          "newSKU": "CMD-5929"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNI-3382",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Dresses : Shape Burnt Orange Knit Sheer Panel Bandeau Maxi Dress",
+          "category": "Ladies > Tall > Cami",
+          "keptOriginal": true,
+          "newSKU": "CNI-3382"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Chocolate Brown Linen Look Palazzo Beach Trousers",
+          "category": "Women Clothing > Tunic",
+          "keptOriginal": false,
+          "newSKU": "CNI-3383"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNF-8204",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Shorts : Stone Linen Look Stripe Runner Shorts",
+          "category": "Men Accessories > Tie",
+          "keptOriginal": true,
+          "newSKU": "CNF-8204"
+        },
+        {
+          "index": 1,
+          "product": "Beach Trousers : Black Beach Trousers",
+          "category": "Toddler Girl > Pajamas",
+          "keptOriginal": false,
+          "newSKU": "CNF-8205"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNA-2622",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Shorts : Black Striped Textured Jersey Fold Over Shorts",
+          "category": "Men Accessories > Wallet",
+          "keptOriginal": true,
+          "newSKU": "CNA-2622"
+        },
+        {
+          "index": 1,
+          "product": "Beach Skirts : White Textured Flower Trim Beach Sarong",
+          "category": "Men Outerwear > Suit Jacket",
+          "keptOriginal": false,
+          "newSKU": "CNA-2623"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CNJ-4874",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Skirts : White Chiffon Flower Detail Drape Mini Beach Skirt",
+          "category": "Men Underwear > Boxer Pants",
+          "keptOriginal": true,
+          "newSKU": "CNJ-4874"
+        },
+        {
+          "index": 1,
+          "product": "Beachwear : Petite Cream Knit Halterneck Contrast Midaxi Dress",
+          "category": "Women Clothing > Bra",
+          "keptOriginal": false,
+          "newSKU": "CNJ-4875"
+        }
+      ]
+    },
+    {
+      "originalSKU": "CMZ-7997",
+      "occurrenceCount": 2,
+      "occurrences": [
+        {
+          "index": 0,
+          "product": "Beach Trousers : Candy Pink Chiffon Drawstring Wide Leg Beach Trousers",
+          "category": "Toddler Boy > Sets",
+          "keptOriginal": true,
+          "newSKU": "CMZ-7997"
+        },
+        {
+          "index": 1,
+          "product": "Beauty : Peaches & Cream Hold The Line 5 Pack Lip Liners",
+          "category": "Women Footwear > Booties",
+          "keptOriginal": false,
+          "newSKU": "CMZ-7998"
+        }
+      ]
+    }
+  ],
+  "fixedItems": [
+    {
+      "product": "Animal Print Skirts : Plus Khaki Animal Printed Lettuce Hem Mesh Bodycon Skirt",
+      "oldSKU": "CND-4644",
+      "newSKU": "CND-4645",
+      "category": "Ladies > Knitwear > Bodysuit"
+    },
+    {
+      "product": "Animal Print Skirts : Leopard Print Twist Front Maxi Skirt",
+      "oldSKU": "CMO-3062",
+      "newSKU": "CMO-3063",
+      "category": "Ladies > Knitwear > Vest"
+    },
+    {
+      "product": "Bags : Nude Straw Knott Grab Bag",
+      "oldSKU": "CNA-8240",
+      "newSKU": "CNA-8241",
+      "category": "Ladies > Petite > Jumper Dress"
+    },
+    {
+      "product": "Bags : Silver Hard Smooth Curve Hand Bag",
+      "oldSKU": "CMY-6677",
+      "newSKU": "CMY-6678",
+      "category": "Ladies > Petite > Knitted Shorts"
+    },
+    {
+      "product": "Bags : Black PU Eyelet Buckle Shoulder Bag",
+      "oldSKU": "CMZ-7487",
+      "newSKU": "CMZ-7488",
+      "category": "Ladies > Petite > Knitted Trousers"
+    },
+    {
+      "product": "Bags : White Pearl Shoulder Bag",
+      "oldSKU": "CNH-6879",
+      "newSKU": "CNH-6881",
+      "category": "Ladies > Petite > Jumpsuit"
+    },
+    {
+      "product": "Bags : Gold Metallic Trapeze Shoulder Bag",
+      "oldSKU": "CMZ-7475",
+      "newSKU": "CMZ-7476",
+      "category": "Ladies > Petite > Long Top"
+    },
+    {
+      "product": "Bags : Gold Geometric Box Clutch",
+      "oldSKU": "CMS-9381",
+      "newSKU": "CMS-9382",
+      "category": "Ladies > Petite > Knitted Skirt"
+    },
+    {
+      "product": "Bags : Natural Raffia Slouchy Clutch",
+      "oldSKU": "CNJ-3707",
+      "newSKU": "CNJ-3708",
+      "category": "Ladies > Petite > Skater Dress"
+    },
+    {
+      "product": "Bags : Cherry Red Patent Slim Curved Shoulder Bag",
+      "oldSKU": "CNJ-4381",
+      "newSKU": "CNJ-4382",
+      "category": "Ladies > Petite > Maxi Puffer Jacket"
+    },
+    {
+      "product": "Bags : Black Linen Look Fringe Tote",
+      "oldSKU": "CNC-1890",
+      "newSKU": "CNC-1891",
+      "category": "Ladies > Petite > Maxi Dress"
+    },
+    {
+      "product": "Bags : Black Quilted Oversized Tote Bag",
+      "oldSKU": "CNG-7168",
+      "newSKU": "CNG-7169",
+      "category": "Ladies > Petite > Maxi Skirt"
+    },
+    {
+      "product": "Bags : Black PU Flap Over Baguette Shoulder Bag",
+      "oldSKU": "CNH-6585",
+      "newSKU": "CNH-6586",
+      "category": "Ladies > Petite > Mini Skirt"
+    },
+    {
+      "product": "Beachwear : Black Croc PU Strap Over Flat Sandals",
+      "oldSKU": "CMM-9457",
+      "newSKU": "CMM-9458",
+      "category": "Women Clothing > Hoodies"
+    },
+    {
+      "product": "Bags : Natural Curved Buckle Raffia Handbag",
+      "oldSKU": "CNJ-3240",
+      "newSKU": "CNJ-3241",
+      "category": "Ladies > Petite > Wide Leg Trousers"
+    },
+    {
+      "product": "Bags : Red PU Eyelet Buckle Shoulder Bag",
+      "oldSKU": "CNH-1253",
+      "newSKU": "CNH-1254",
+      "category": "Ladies > Plus Size > Beach Shirt"
+    },
+    {
+      "product": "Bags : Black Gold Handle Crochet Clutch Bag",
+      "oldSKU": "CNJ-3529",
+      "newSKU": "CNJ-3530",
+      "category": "Ladies > Petite > Puffer Jacket"
+    },
+    {
+      "product": "Bags : Gold Metal Shell Clutch Bag",
+      "oldSKU": "CLX-0775",
+      "newSKU": "CLX-0776",
+      "category": "Ladies > Plus Size > Bomber Jacket"
+    },
+    {
+      "product": "Bags : Cream Frayed Oversized Tote Bag",
+      "oldSKU": "CNI-1631",
+      "newSKU": "CNI-1632",
+      "category": "Ladies > Petite > Sweatshirt"
+    },
+    {
+      "product": "Bags : Cherry Red Mini Double Zip Circle Grab Bag",
+      "oldSKU": "CNI-5947",
+      "newSKU": "CNI-5948",
+      "category": "Ladies > Petite > Split Hem Jeans"
+    },
+    {
+      "product": "Bags : Yellow Roman Horse Mosaic Print Flap Over Baguette Shoulder Bag",
+      "oldSKU": "CND-1838",
+      "newSKU": "CND-1839",
+      "category": "Ladies > Petite > Skinny Jeans"
+    },
+    {
+      "product": "Bags : Nude Small Chain Bag",
+      "oldSKU": "CNE-2424",
+      "newSKU": "CNE-2426",
+      "category": "Ladies > Plus Size > Beach Dress"
+    },
+    {
+      "product": "Bags : Natural Linen Slim Curved Shoulder Bag",
+      "oldSKU": "CMO-4899",
+      "newSKU": "CMO-4900",
+      "category": "Ladies > Petite > Playsuit"
+    },
+    {
+      "product": "Beach Dresses : Orange Shell Knit Low Back Mini Dress",
+      "oldSKU": "CNG-7627",
+      "newSKU": "CNG-7628",
+      "category": "Ladies > Tall > Bodycon Dress"
+    },
+    {
+      "product": "Beach Dresses : Black Low Back Oversized Maxi Beach Dress",
+      "oldSKU": "CNI-8635",
+      "newSKU": "CNI-8636",
+      "category": "Ladies > Tall > Denim Jumpsuits"
+    },
+    {
+      "product": "Beach Dresses : Petite Black Open Knit Tassel Detail Mini Dress",
+      "oldSKU": "CNI-3380",
+      "newSKU": "CNI-3381",
+      "category": "Ladies > Tall > Boyfriend Jeans"
+    },
+    {
+      "product": "Beach Dresses : Cobalt Textured Crochet Backless Maxi Beach Dress",
+      "oldSKU": "CNJ-4421",
+      "newSKU": "CNJ-4423",
+      "category": "Ladies > Tall > Maxi Dress"
+    },
+    {
+      "product": "Beach Shirts : Black Stripe Oversized Boxy Short Sleeve Shirt",
+      "oldSKU": "CMS-9356",
+      "newSKU": "CMS-9357",
+      "category": "Ladies > Tops > Corset"
+    },
+    {
+      "product": "Beachwear : Red Crochet Cut Out Bead Trim Mini Beach Dress",
+      "oldSKU": "CMS-9356",
+      "newSKU": "CMS-9358",
+      "category": "Women Accessories > Leather Handbag"
+    },
+    {
+      "product": "Beach Trousers : Monochrome Print Oversized Crinkle Textured Beach Trousers",
+      "oldSKU": "CMV-7013",
+      "newSKU": "CMV-7014",
+      "category": "Toddler Boy > Character Shop"
+    },
+    {
+      "product": "Beachwear : White Croc PU Strap Over Flat Sandals",
+      "oldSKU": "CMV-7013",
+      "newSKU": "CMV-7015",
+      "category": "Women Accessories > Necklace"
+    },
+    {
+      "product": "Beach Shirts : Stone Linen Look Stripe Oversized Boxy Shirt",
+      "oldSKU": "CMH-1462",
+      "newSKU": "CMH-1463",
+      "category": "Ladies > Tops > Crop Top"
+    },
+    {
+      "product": "Beachwear : Snake Alisa Large Studded Sliders",
+      "oldSKU": "CMH-1462",
+      "newSKU": "CMH-1464",
+      "category": "Women Accessories > Purse"
+    },
+    {
+      "product": "Beachwear : White Maxi Crochet Beach Skirt",
+      "oldSKU": "CNJ-0915",
+      "newSKU": "CNJ-0916",
+      "category": "Women Accessories > Scarf"
+    },
+    {
+      "product": "Beach Shirts : Monochrome Crinkle Textured Oversized Beach Shirt",
+      "oldSKU": "CNC-3611",
+      "newSKU": "CNC-3612",
+      "category": "Ladies > Tops > Vest"
+    },
+    {
+      "product": "Beachwear : Black Glossy Round Sunglasses",
+      "oldSKU": "CNC-3611",
+      "newSKU": "CNC-3613",
+      "category": "Women Clothing > Coat"
+    },
+    {
+      "product": "Beach Skirts : Brown Leopard Print Mesh Fishtail Maxi Beach Skirt",
+      "oldSKU": "CNJ-2680",
+      "newSKU": "CNJ-2681",
+      "category": "Men Underwear > Android"
+    },
+    {
+      "product": "Beachwear : Lime Textured Crochet Flute Sleeve Floaty Top",
+      "oldSKU": "CNJ-2680",
+      "newSKU": "CNJ-2682",
+      "category": "Women Clothing"
+    },
+    {
+      "product": "Beach Trousers : Blue Marl Crochet Beach Trousers",
+      "oldSKU": "CMV-7012",
+      "newSKU": "CMV-7016",
+      "category": "Toddler Boy > Graphic Tees"
+    },
+    {
+      "product": "Beachwear : White Crochet Plunge Beach Jumpsuit",
+      "oldSKU": "CMV-7012",
+      "newSKU": "CMV-7017",
+      "category": "Women Clothing > Baster"
+    },
+    {
+      "product": "Beach Skirts : Cream Crochet Plain Knit Maxi Skirt",
+      "oldSKU": "CNI-3486",
+      "newSKU": "CNI-3487",
+      "category": "Men Underwear > Boxer Briefs"
+    },
+    {
+      "product": "Beachwear : Brown Leopard Print Shirred Triangle Bikini Top",
+      "oldSKU": "CNI-3486",
+      "newSKU": "CNI-3488",
+      "category": "Women Clothing > Bikini"
+    },
+    {
+      "product": "Beach Dresses : Black Shell Knit Low Back Mini Dress",
+      "oldSKU": "CMD-5925",
+      "newSKU": "CMD-5927",
+      "category": "Ladies > Tall > Bodysuit"
+    },
+    {
+      "product": "Beachwear : Black & White Flip Flops 2 Pack",
+      "oldSKU": "CMD-5925",
+      "newSKU": "CMD-5928",
+      "category": "Women Clothing > Tracksuit"
+    },
+    {
+      "product": "Beach Trousers : Chocolate Abstract Print Mesh Wide Leg Trousers",
+      "oldSKU": "CNE-1663",
+      "newSKU": "CNE-1664",
+      "category": "Toddler Boy > Jackets & Outerwear"
+    },
+    {
+      "product": "Beachwear : Stone Embossed Towel Beach Playsuit",
+      "oldSKU": "CNE-1663",
+      "newSKU": "CNE-1665",
+      "category": "Women Clothing > Dress"
+    },
+    {
+      "product": "Beachwear : Black PU Square Buckle Detail Sandals",
+      "oldSKU": "CNI-3485",
+      "newSKU": "CNI-3489",
+      "category": "Women Clothing > Borello"
+    },
+    {
+      "product": "Beachwear : Tall Cream Long Sleeve Knitted Mini Dress",
+      "oldSKU": "CMW-4216",
+      "newSKU": "CMW-4217",
+      "category": "Women Clothing > Blowse"
+    },
+    {
+      "product": "Beach Trousers : Chocolate Brown Linen Look Palazzo Beach Trousers",
+      "oldSKU": "CNI-5058",
+      "newSKU": "CNI-5060",
+      "category": "Toddler Boy > Pajamas"
+    },
+    {
+      "product": "Beachwear : White Chiffon Flower Detail Drape Mini Beach Skirt",
+      "oldSKU": "CNI-5058",
+      "newSKU": "CNI-5061",
+      "category": "Women Clothing > Jeans"
+    },
+    {
+      "product": "Beach Shorts : Monochrome Wave Knit Mini Hot Pants",
+      "oldSKU": "CNC-3610",
+      "newSKU": "CNC-3614",
+      "category": "Men Body Clothes > Hoodie"
+    },
+    {
+      "product": "Beachwear : Monochrome Stripe Soft Knit Mini Shorts",
+      "oldSKU": "CNC-3610",
+      "newSKU": "CNC-3615",
+      "category": "Women Clothing > Sweater"
+    },
+    {
+      "product": "Beach Shirts : Plus White Oversized Beach Shirt",
+      "oldSKU": "CNJ-0946",
+      "newSKU": "CNJ-0948",
+      "category": "Ladies > Trousers"
+    },
+    {
+      "product": "Beach Dresses : Black Crochet Cut Out Maxi Beach Dress",
+      "oldSKU": "CNI-2724",
+      "newSKU": "CNI-2725",
+      "category": "Ladies > Tall > Floaty Shorts"
+    },
+    {
+      "product": "Beach Skirts : Cream Vintage Floral Mesh Fishtail Beach Skirt",
+      "oldSKU": "CNJ-2629",
+      "newSKU": "CNJ-2630",
+      "category": "Men Underwear > Boxers"
+    },
+    {
+      "product": "Beachwear : Tall Cream Crochet Plunged Maxi Dress",
+      "oldSKU": "CNJ-2629",
+      "newSKU": "CNJ-2631",
+      "category": "Women Clothing > Jumpsuit"
+    },
+    {
+      "product": "Beach Shirts : Pink Abstract Print Oversized Beach Shirt",
+      "oldSKU": "CMF-0832",
+      "newSKU": "CMF-0833",
+      "category": "Ladies > Tops > T-Shirt"
+    },
+    {
+      "product": "Beachwear : Blue Marl Crochet Beach Trousers",
+      "oldSKU": "CMF-0832",
+      "newSKU": "CMF-0834",
+      "category": "Women Clothing > Pants"
+    },
+    {
+      "product": "Beauty : Filter by Molly Mae Tanning Foam Extra Dark",
+      "oldSKU": "CMV-7026",
+      "newSKU": "CMV-7027",
+      "category": "Women Clothing > Turkey"
+    },
+    {
+      "product": "Beach Trousers : Cream Textured Jersey Drawstring Wide Leg Trousers",
+      "oldSKU": "CNI-8953",
+      "newSKU": "CNI-8954",
+      "category": "Toddler Boy > Pants"
+    },
+    {
+      "product": "Beachwear : Brown Leopard Print Shirred Backless Swimsuit",
+      "oldSKU": "CNI-8953",
+      "newSKU": "CNI-8955",
+      "category": "Women Clothing > Shoes"
+    },
+    {
+      "product": "Beach Trousers : White Wide Leg Texture Beach Trousers",
+      "oldSKU": "CMK-1598",
+      "newSKU": "CMK-1599",
+      "category": "Toddler Boy > Tops"
+    },
+    {
+      "product": "Beachwear : Green Ruched Tanga Bikini Bottoms",
+      "oldSKU": "CNJ-4365",
+      "newSKU": "CNJ-4366",
+      "category": "Women Clothing > Peacoat"
+    },
+    {
+      "product": "Beach Trousers : Orange Abstract Beach Trousers",
+      "oldSKU": "CMS-1796",
+      "newSKU": "CMS-1797",
+      "category": "Toddler Boy > Sandals"
+    },
+    {
+      "product": "Beachwear : Light Pink Textured Tie Side Bikini Bottoms",
+      "oldSKU": "CMS-1796",
+      "newSKU": "CMS-1798",
+      "category": "Women Clothing > Skin Jeans"
+    },
+    {
+      "product": "Beachwear : Brown Leopard Print Mesh Fishtail Maxi Beach Skirt",
+      "oldSKU": "CMQ-2770",
+      "newSKU": "CMQ-2771",
+      "category": "Women Clothing > Jacket"
+    },
+    {
+      "product": "Beach Skirts : Black Ruched Mesh Midi Beach Skirt",
+      "oldSKU": "CND-7816",
+      "newSKU": "CND-7817",
+      "category": "Men Underwear > G-string"
+    },
+    {
+      "product": "Beachwear : White Chiffon Dip Hem Beach Shirt",
+      "oldSKU": "CND-7816",
+      "newSKU": "CND-7818",
+      "category": "Women Clothing > Kimono"
+    },
+    {
+      "product": "Beachwear : Chocolate Abstract Print Mesh Wide Leg Trousers",
+      "oldSKU": "CNI-4095",
+      "newSKU": "CNI-4096",
+      "category": "Women Clothing > Sheath Dress"
+    },
+    {
+      "product": "Beach Skirts : Pink Swirl Mesh Maxi Beach Skirt",
+      "oldSKU": "CMR-5295",
+      "newSKU": "CMR-5296",
+      "category": "Men Underwear > Thermal Underwear"
+    },
+    {
+      "product": "Beach Shirts : Orange Marble Print Oversized Crinkle Textured Shirt",
+      "oldSKU": "CMK-1596",
+      "newSKU": "CMK-1597",
+      "category": "Laptop Accessories"
+    },
+    {
+      "product": "Beach Shorts : Purple Zebra Print Satin Floaty Shorts",
+      "oldSKU": "CNJ-0023",
+      "newSKU": "CNJ-0024",
+      "category": "Men Body Clothes > T-Shirt"
+    },
+    {
+      "product": "Beachwear : Black Shell Knit Low Back Mini Dress",
+      "oldSKU": "CNI-5841",
+      "newSKU": "CNI-5842",
+      "category": "Women Clothing > T-Shirt"
+    },
+    {
+      "product": "Beach Shorts : Shape Black Knit High Waist Hot Pants",
+      "oldSKU": "CMY-3433",
+      "newSKU": "CMY-3434",
+      "category": "Men Body Clothes > Rugby Shirt"
+    },
+    {
+      "product": "Beach Shirts : Ecru Oversized Linen Look Beach Shirt Dress",
+      "oldSKU": "CMF-0814",
+      "newSKU": "CMF-0815",
+      "category": "Laptop Accessories > Bags"
+    },
+    {
+      "product": "Beach Dresses : Burnt Orange Crochet Tassel Halterneck Mini Dress",
+      "oldSKU": "CMY-6880",
+      "newSKU": "CMY-6881",
+      "category": "Ladies > Tall > Cigarette Trouser"
+    },
+    {
+      "product": "Beachwear : Black Crinkle Textured Short Beach Kimono",
+      "oldSKU": "CMY-6880",
+      "newSKU": "CMY-6882",
+      "category": "Women Clothing > Swimsuit"
+    },
+    {
+      "product": "Beach Dresses : Multi Floral Underwire Detail Tie Strap Shift Dress",
+      "oldSKU": "CNI-2820",
+      "newSKU": "CNI-2821",
+      "category": "Ladies > Tall > Denim Mini Skirt"
+    },
+    {
+      "product": "Beach Shirts : Tall Stone Linen Look Short Sleeve Shirt",
+      "oldSKU": "CMF-2394",
+      "newSKU": "CMF-2395",
+      "category": "Men > Clothing"
+    },
+    {
+      "product": "Beach Dresses : Sage Green Textured Bead Detail Cut Out Mini Beach Dress",
+      "oldSKU": "CNI-4015",
+      "newSKU": "CNI-4016",
+      "category": "Ladies > Tall > Playsuit"
+    },
+    {
+      "product": "Beachwear : Black Crinkle Tie Maxi Beach Dress",
+      "oldSKU": "CNJ-2667",
+      "newSKU": "CNJ-2668",
+      "category": "Women Clothing > Suit"
+    },
+    {
+      "product": "Beach Shirts : Black Beach Shirt",
+      "oldSKU": "CNJ-0979",
+      "newSKU": "CNJ-0980",
+      "category": "Ladies > Two Piece Sets"
+    },
+    {
+      "product": "Beach Shirts : Cobalt Textured Lightweight Beach Shirt",
+      "oldSKU": "CNI-5059",
+      "newSKU": "CNI-5062",
+      "category": "Ladies > Underwear"
+    },
+    {
+      "product": "Beach Trousers : Plus Black Cheesecloth Textured Wide Leg Trousers",
+      "oldSKU": "CNG-1980",
+      "newSKU": "CNG-1982",
+      "category": "Toddler Boy > Swim"
+    },
+    {
+      "product": "Beach Dresses : Black Double Gauze Frill Beach Dress",
+      "oldSKU": "CMD-5926",
+      "newSKU": "CMD-5929",
+      "category": "Ladies > Tall > Denim Top"
+    },
+    {
+      "product": "Beachwear : Chocolate Brown Linen Look Palazzo Beach Trousers",
+      "oldSKU": "CNI-3382",
+      "newSKU": "CNI-3383",
+      "category": "Women Clothing > Tunic"
+    },
+    {
+      "product": "Beach Trousers : Black Beach Trousers",
+      "oldSKU": "CNF-8204",
+      "newSKU": "CNF-8205",
+      "category": "Toddler Girl > Pajamas"
+    },
+    {
+      "product": "Beach Skirts : White Textured Flower Trim Beach Sarong",
+      "oldSKU": "CNA-2622",
+      "newSKU": "CNA-2623",
+      "category": "Men Outerwear > Suit Jacket"
+    },
+    {
+      "product": "Beachwear : Petite Cream Knit Halterneck Contrast Midaxi Dress",
+      "oldSKU": "CNJ-4874",
+      "newSKU": "CNJ-4875",
+      "category": "Women Clothing > Bra"
+    },
+    {
+      "product": "Beauty : Peaches & Cream Hold The Line 5 Pack Lip Liners",
+      "oldSKU": "CMZ-7997",
+      "newSKU": "CMZ-7998",
+      "category": "Women Footwear > Booties"
+    }
+  ]
+}

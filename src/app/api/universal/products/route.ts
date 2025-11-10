@@ -19,13 +19,15 @@ const CreateProductSchema = z.object({
   businessType: z.string().min(1),
   attributes: z.record(z.string(), z.any()).optional(),
   variants: z.array(z.object({
+    id: z.string().optional(), // ID for existing variants
     name: z.string().optional(),
     sku: z.string().min(1),
     barcode: z.string().optional(),
     price: z.number().min(0).optional(),
     stockQuantity: z.number().int().min(0).default(0),
     reorderLevel: z.number().int().min(0).default(0),
-  attributes: z.record(z.string(), z.any()).optional()
+    isAvailable: z.boolean().optional(),
+    attributes: z.record(z.string(), z.any()).optional()
   })).optional()
 })
 
@@ -255,7 +257,7 @@ export async function POST(request: NextRequest) {
       if (variants && variants.length > 0) {
         // Check for duplicate variant SKUs
         const variantSkus = variants.map((v: any) => v.sku)
-        const existingVariants = await tx.product_variants.findMany({
+        const existingVariants = await tx.productVariants.findMany({
           where: {
             sku: { in: variantSkus }
           }
@@ -267,7 +269,7 @@ export async function POST(request: NextRequest) {
 
         const createdVariants = await Promise.all(
           variants.map((variant: any) =>
-            tx.product_variants.create({
+            tx.productVariants.create({
               data: {
                 ...variant,
                 productId: product.id
@@ -314,9 +316,24 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
+    console.log('[API PUT] Received body:', {
+      id: body.id,
+      name: body.name,
+      hasVariants: !!body.variants,
+      variantsCount: body.variants?.length || 0,
+      variants: body.variants?.map((v: any) => ({ id: v.id, name: v.name, price: v.price }))
+    })
+
     const validatedData = UpdateProductSchema.parse(body)
 
     const { id, variants, ...updateData } = validatedData
+
+    console.log('[API PUT] After validation:', {
+      id,
+      hasVariants: !!variants,
+      variantsCount: variants?.length || 0,
+      variants: variants?.map((v: any) => ({ id: v.id, name: v.name, price: v.price }))
+    })
 
     // Verify product exists
     const existingProduct = await prisma.businessProducts.findUnique({
@@ -349,25 +366,106 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update product
-    const product = await prisma.businessProducts.update({
-      where: { id },
-      // cast to any to keep incremental changes small; we'll tighten types later
-      data: updateData as any,
-      include: {
-        businesses: { select: { name: true, type: true } },
-        business_brands: { select: { id: true, name: true } },
-        business_categories: { select: { id: true, name: true } },
-        product_variants: {
-          where: { isActive: true },
-          orderBy: { name: 'asc' }
+    // Update product with variants in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the product
+      const product = await tx.businessProducts.update({
+        where: { id },
+        // cast to any to keep incremental changes small; we'll tighten types later
+        data: updateData as any,
+        include: {
+          businesses: { select: { name: true, type: true } },
+          business_brands: { select: { id: true, name: true } },
+          business_categories: { select: { id: true, name: true } }
         }
+      })
+
+      // Handle variants if provided
+      if (variants && Array.isArray(variants)) {
+        console.log(`[Variants Update] Product ${id}: Received ${variants.length} variants`)
+        variants.forEach(v => {
+          console.log(`  - ${v.name}: $${v.price} (id: ${v.id || 'new'})`)
+        })
+
+        // Get variant IDs from the request
+        const variantIds = variants.filter(v => v.id).map(v => v.id)
+
+        // Deactivate variants not in the list (only if we have variant IDs)
+        if (variantIds.length > 0) {
+          await tx.productVariants.updateMany({
+            where: {
+              productId: id,
+              id: { notIn: variantIds }
+            },
+            data: { isActive: false }
+          })
+        } else {
+          // If no existing variants, deactivate all existing ones
+          await tx.productVariants.updateMany({
+            where: { productId: id },
+            data: { isActive: false }
+          })
+        }
+
+        // Update or create variants
+        const updatedVariants = await Promise.all(
+          variants.map(async (variant: any) => {
+            if (variant.id) {
+              // Update existing variant
+              console.log(`[Variants Update] Updating variant ${variant.id}: ${variant.name} = $${variant.price}`)
+              return await tx.productVariants.update({
+                where: { id: variant.id },
+                data: {
+                  name: variant.name,
+                  price: variant.price,
+                  stockQuantity: variant.stockQuantity,
+                  reorderLevel: variant.reorderLevel,
+                  isAvailable: variant.isAvailable ?? true,
+                  isActive: true,
+                  attributes: variant.attributes
+                }
+              })
+            } else {
+              // Create new variant
+              console.log(`[Variants Update] Creating new variant: ${variant.name} = $${variant.price}`)
+              return await tx.productVariants.create({
+                data: {
+                  ...variant,
+                  productId: id
+                }
+              })
+            }
+          })
+        )
+
+        console.log(`[Variants Update] Successfully updated ${updatedVariants.length} variants`)
+
+        return {
+          ...product,
+          variants: updatedVariants
+        }
+      }
+
+      // Fetch variants if not updating them
+      const productWithVariants = await tx.businessProducts.findUnique({
+        where: { id },
+        include: {
+          product_variants: {
+            where: { isActive: true },
+            orderBy: { name: 'asc' }
+          }
+        }
+      })
+
+      return {
+        ...product,
+        variants: productWithVariants?.product_variants || []
       }
     })
 
     return NextResponse.json({
       success: true,
-      data: normalizeProduct(product as any),
+      data: normalizeProduct(result as any),
       message: 'Product updated successfully'
     })
 

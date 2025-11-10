@@ -1,0 +1,759 @@
+{
+  "stats": {
+    "totalSourceDepartments": 66,
+    "mappedDepartments": 66,
+    "unmappedDepartments": 0,
+    "targetDepartments": 10
+  },
+  "targetDepartments": {
+    "mens": {
+      "emoji": "👨",
+      "name": "Men's",
+      "description": "Adult male clothing and fashion",
+      "sourcePatterns": [
+        "Men",
+        "Men's",
+        "Men Clothing",
+        "Men Body Clothes",
+        "Men Legs Clothes",
+        "Men Outerwear",
+        "Men Underwear",
+        "Men Footwear",
+        "Men Accessories"
+      ]
+    },
+    "womens": {
+      "emoji": "👩",
+      "name": "Women's",
+      "description": "Adult female clothing and fashion",
+      "sourcePatterns": [
+        "Ladies",
+        "Women",
+        "Women Clothing",
+        "Women Footwear",
+        "Women Accessories",
+        "Women Underwear",
+        "Women Shoes"
+      ]
+    },
+    "boys": {
+      "emoji": "👦",
+      "name": "Boys",
+      "description": "Boys clothing and fashion",
+      "sourcePatterns": [
+        "Boys",
+        "Kid Boy",
+        "Toddler Boy",
+        "Boy"
+      ]
+    },
+    "girls": {
+      "emoji": "👧",
+      "name": "Girls",
+      "description": "Girls clothing and fashion",
+      "sourcePatterns": [
+        "Girls",
+        "Kid Girl",
+        "Toddler Girl"
+      ]
+    },
+    "baby": {
+      "emoji": "👶",
+      "name": "Baby",
+      "description": "Baby and infant clothing (0-24 months)",
+      "sourcePatterns": [
+        "Baby",
+        "Baby Boy",
+        "Baby Girl",
+        "Baby Uni Sex",
+        "Newborn",
+        "New Born",
+        "Toddler"
+      ]
+    },
+    "kids": {
+      "emoji": "👧",
+      "name": "Kids",
+      "description": "General kids clothing",
+      "sourcePatterns": [
+        "Kids",
+        "Kid"
+      ]
+    },
+    "accessories": {
+      "emoji": "👔",
+      "name": "Accessories",
+      "description": "Fashion accessories, bags, and jewelry",
+      "sourcePatterns": [
+        "Accessories",
+        "Carry Bags",
+        "Kids Accessories",
+        "Laptop Accessories"
+      ]
+    },
+    "home-textiles": {
+      "emoji": "🏠",
+      "name": "Home & Textiles",
+      "description": "Household soft goods and textiles",
+      "sourcePatterns": [
+        "Bath Towels",
+        "Bathing",
+        "Bathroom",
+        "Bedspread",
+        "Blankets",
+        "Comforter",
+        "Fleece",
+        "Quilts",
+        "Sheets",
+        "Sleeping Bag",
+        "Wrapper"
+      ]
+    },
+    "general-merch": {
+      "emoji": "🎯",
+      "name": "General Merchandise",
+      "description": "Non-clothing items",
+      "sourcePatterns": [
+        "Computer Accessories",
+        "Electronics",
+        "Furniture",
+        "General Merchandise",
+        "Kitchen",
+        "Mobile Phones",
+        "Toys",
+        "Travel"
+      ]
+    },
+    "uncategorized": {
+      "emoji": "📦",
+      "name": "Uncategorized",
+      "description": "Items that need manual categorization",
+      "sourcePatterns": [
+        "Clothing",
+        "Jumpsuit",
+        "Rompers",
+        "Mixed Clothes",
+        "Shorts",
+        "T-Shirts",
+        "Trousers",
+        "Adult",
+        "Raffles Clothes",
+        "Wool",
+        "Fur"
+      ]
+    }
+  },
+  "departmentMapping": {
+    "Accessories": {
+      "targetDepartment": "accessories",
+      "targetName": "Accessories",
+      "targetEmoji": "👔",
+      "itemCount": 3,
+      "categoryCount": 2
+    },
+    "Adult": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Baby": {
+      "targetDepartment": "baby",
+      "targetName": "Baby",
+      "targetEmoji": "👶",
+      "itemCount": 12,
+      "categoryCount": 12
+    },
+    "Baby Boy": {
+      "targetDepartment": "boys",
+      "targetName": "Boys",
+      "targetEmoji": "👦",
+      "itemCount": 10,
+      "categoryCount": 10
+    },
+    "Baby Girl": {
+      "targetDepartment": "baby",
+      "targetName": "Baby",
+      "targetEmoji": "👶",
+      "itemCount": 20,
+      "categoryCount": 20
+    },
+    "Baby Uni Sex": {
+      "targetDepartment": "baby",
+      "targetName": "Baby",
+      "targetEmoji": "👶",
+      "itemCount": 15,
+      "categoryCount": 15
+    },
+    "Bath Towels": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Bathing": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Bathroom": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 3,
+      "categoryCount": 3
+    },
+    "Bedspread": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 3,
+      "categoryCount": 2
+    },
+    "Blankets": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Boy": {
+      "targetDepartment": "boys",
+      "targetName": "Boys",
+      "targetEmoji": "👦",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Boys": {
+      "targetDepartment": "boys",
+      "targetName": "Boys",
+      "targetEmoji": "👦",
+      "itemCount": 29,
+      "categoryCount": 29
+    },
+    "Carry Bags": {
+      "targetDepartment": "accessories",
+      "targetName": "Accessories",
+      "targetEmoji": "👔",
+      "itemCount": 3,
+      "categoryCount": 2
+    },
+    "Clothing": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 6,
+      "categoryCount": 6
+    },
+    "Comforter": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Computer Accessories": {
+      "targetDepartment": "accessories",
+      "targetName": "Accessories",
+      "targetEmoji": "👔",
+      "itemCount": 2,
+      "categoryCount": 1
+    },
+    "Electronics": {
+      "targetDepartment": "general-merch",
+      "targetName": "General Merchandise",
+      "targetEmoji": "🎯",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Fleece": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Furniture": {
+      "targetDepartment": "general-merch",
+      "targetName": "General Merchandise",
+      "targetEmoji": "🎯",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "General Merchandise": {
+      "targetDepartment": "general-merch",
+      "targetName": "General Merchandise",
+      "targetEmoji": "🎯",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Girls": {
+      "targetDepartment": "girls",
+      "targetName": "Girls",
+      "targetEmoji": "👧",
+      "itemCount": 28,
+      "categoryCount": 28
+    },
+    "Jumpsuit": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 5,
+      "categoryCount": 5
+    },
+    "Kid": {
+      "targetDepartment": "kids",
+      "targetName": "Kids",
+      "targetEmoji": "👧",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Kid Boy": {
+      "targetDepartment": "boys",
+      "targetName": "Boys",
+      "targetEmoji": "👦",
+      "itemCount": 19,
+      "categoryCount": 19
+    },
+    "Kid Girl": {
+      "targetDepartment": "girls",
+      "targetName": "Girls",
+      "targetEmoji": "👧",
+      "itemCount": 18,
+      "categoryCount": 18
+    },
+    "Kids": {
+      "targetDepartment": "kids",
+      "targetName": "Kids",
+      "targetEmoji": "👧",
+      "itemCount": 35,
+      "categoryCount": 35
+    },
+    "Kids Accessories": {
+      "targetDepartment": "kids",
+      "targetName": "Kids",
+      "targetEmoji": "👧",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Kitchen": {
+      "targetDepartment": "general-merch",
+      "targetName": "General Merchandise",
+      "targetEmoji": "🎯",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Ladies": {
+      "targetDepartment": "womens",
+      "targetName": "Women's",
+      "targetEmoji": "👩",
+      "itemCount": 586,
+      "categoryCount": 68
+    },
+    "Laptop Accessories": {
+      "targetDepartment": "accessories",
+      "targetName": "Accessories",
+      "targetEmoji": "👔",
+      "itemCount": 2,
+      "categoryCount": 1
+    },
+    "Men": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 27,
+      "categoryCount": 27
+    },
+    "Men Accessories": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 11,
+      "categoryCount": 11
+    },
+    "Men Body Clothes": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 11,
+      "categoryCount": 11
+    },
+    "Men Clothing": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Men Footwear": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 17,
+      "categoryCount": 17
+    },
+    "Men Legs Clothes": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 9,
+      "categoryCount": 9
+    },
+    "Men Outerwear": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 10,
+      "categoryCount": 10
+    },
+    "Men Underwear": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 11,
+      "categoryCount": 11
+    },
+    "Men's": {
+      "targetDepartment": "mens",
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "itemCount": 2,
+      "categoryCount": 2
+    },
+    "Mixed Clothes": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Mobile Phones": {
+      "targetDepartment": "general-merch",
+      "targetName": "General Merchandise",
+      "targetEmoji": "🎯",
+      "itemCount": 2,
+      "categoryCount": 2
+    },
+    "New Born": {
+      "targetDepartment": "baby",
+      "targetName": "Baby",
+      "targetEmoji": "👶",
+      "itemCount": 7,
+      "categoryCount": 6
+    },
+    "Newborn": {
+      "targetDepartment": "baby",
+      "targetName": "Baby",
+      "targetEmoji": "👶",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Quilts": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Raffles Clothes": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Rompers": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 4,
+      "categoryCount": 3
+    },
+    "Sheets": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Shorts": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Sleeping Bag": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "T-Shirts": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Toddler": {
+      "targetDepartment": "baby",
+      "targetName": "Baby",
+      "targetEmoji": "👶",
+      "itemCount": 10,
+      "categoryCount": 10
+    },
+    "Toddler Boy": {
+      "targetDepartment": "boys",
+      "targetName": "Boys",
+      "targetEmoji": "👦",
+      "itemCount": 14,
+      "categoryCount": 14
+    },
+    "Toddler Girl": {
+      "targetDepartment": "girls",
+      "targetName": "Girls",
+      "targetEmoji": "👧",
+      "itemCount": 17,
+      "categoryCount": 17
+    },
+    "Toys": {
+      "targetDepartment": "general-merch",
+      "targetName": "General Merchandise",
+      "targetEmoji": "🎯",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Travel": {
+      "targetDepartment": "general-merch",
+      "targetName": "General Merchandise",
+      "targetEmoji": "🎯",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Trousers": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Women": {
+      "targetDepartment": "womens",
+      "targetName": "Women's",
+      "targetEmoji": "👩",
+      "itemCount": 7,
+      "categoryCount": 7
+    },
+    "Women Accessories": {
+      "targetDepartment": "womens",
+      "targetName": "Women's",
+      "targetEmoji": "👩",
+      "itemCount": 16,
+      "categoryCount": 16
+    },
+    "Women Clothing": {
+      "targetDepartment": "womens",
+      "targetName": "Women's",
+      "targetEmoji": "👩",
+      "itemCount": 40,
+      "categoryCount": 39
+    },
+    "Women Footwear": {
+      "targetDepartment": "womens",
+      "targetName": "Women's",
+      "targetEmoji": "👩",
+      "itemCount": 21,
+      "categoryCount": 21
+    },
+    "Women Shoes": {
+      "targetDepartment": "womens",
+      "targetName": "Women's",
+      "targetEmoji": "👩",
+      "itemCount": 2,
+      "categoryCount": 2
+    },
+    "Women Underwear": {
+      "targetDepartment": "womens",
+      "targetName": "Women's",
+      "targetEmoji": "👩",
+      "itemCount": 1,
+      "categoryCount": 1
+    },
+    "Wool": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 2,
+      "categoryCount": 2
+    },
+    "Wrapper": {
+      "targetDepartment": "home-textiles",
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "itemCount": 1,
+      "categoryCount": 0
+    },
+    "Fur": {
+      "targetDepartment": "uncategorized",
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "itemCount": 1,
+      "categoryCount": 1
+    }
+  },
+  "byTargetDept": {
+    "accessories": {
+      "targetName": "Accessories",
+      "targetEmoji": "👔",
+      "sourceDepartments": [
+        "Accessories",
+        "Carry Bags",
+        "Computer Accessories",
+        "Laptop Accessories"
+      ],
+      "totalItems": 10,
+      "totalCategories": 6
+    },
+    "uncategorized": {
+      "targetName": "Uncategorized",
+      "targetEmoji": "📦",
+      "sourceDepartments": [
+        "Adult",
+        "Clothing",
+        "Jumpsuit",
+        "Mixed Clothes",
+        "Raffles Clothes",
+        "Rompers",
+        "Shorts",
+        "T-Shirts",
+        "Trousers",
+        "Wool",
+        "Fur"
+      ],
+      "totalItems": 24,
+      "totalCategories": 18
+    },
+    "baby": {
+      "targetName": "Baby",
+      "targetEmoji": "👶",
+      "sourceDepartments": [
+        "Baby",
+        "Baby Girl",
+        "Baby Uni Sex",
+        "New Born",
+        "Newborn",
+        "Toddler"
+      ],
+      "totalItems": 65,
+      "totalCategories": 64
+    },
+    "boys": {
+      "targetName": "Boys",
+      "targetEmoji": "👦",
+      "sourceDepartments": [
+        "Baby Boy",
+        "Boy",
+        "Boys",
+        "Kid Boy",
+        "Toddler Boy"
+      ],
+      "totalItems": 73,
+      "totalCategories": 73
+    },
+    "home-textiles": {
+      "targetName": "Home & Textiles",
+      "targetEmoji": "🏠",
+      "sourceDepartments": [
+        "Bath Towels",
+        "Bathing",
+        "Bathroom",
+        "Bedspread",
+        "Blankets",
+        "Comforter",
+        "Fleece",
+        "Quilts",
+        "Sheets",
+        "Sleeping Bag",
+        "Wrapper"
+      ],
+      "totalItems": 15,
+      "totalCategories": 6
+    },
+    "general-merch": {
+      "targetName": "General Merchandise",
+      "targetEmoji": "🎯",
+      "sourceDepartments": [
+        "Electronics",
+        "Furniture",
+        "General Merchandise",
+        "Kitchen",
+        "Mobile Phones",
+        "Toys",
+        "Travel"
+      ],
+      "totalItems": 8,
+      "totalCategories": 5
+    },
+    "girls": {
+      "targetName": "Girls",
+      "targetEmoji": "👧",
+      "sourceDepartments": [
+        "Girls",
+        "Kid Girl",
+        "Toddler Girl"
+      ],
+      "totalItems": 63,
+      "totalCategories": 63
+    },
+    "kids": {
+      "targetName": "Kids",
+      "targetEmoji": "👧",
+      "sourceDepartments": [
+        "Kid",
+        "Kids",
+        "Kids Accessories"
+      ],
+      "totalItems": 37,
+      "totalCategories": 37
+    },
+    "womens": {
+      "targetName": "Women's",
+      "targetEmoji": "👩",
+      "sourceDepartments": [
+        "Ladies",
+        "Women",
+        "Women Accessories",
+        "Women Clothing",
+        "Women Footwear",
+        "Women Shoes",
+        "Women Underwear"
+      ],
+      "totalItems": 673,
+      "totalCategories": 154
+    },
+    "mens": {
+      "targetName": "Men's",
+      "targetEmoji": "👨",
+      "sourceDepartments": [
+        "Men",
+        "Men Accessories",
+        "Men Body Clothes",
+        "Men Clothing",
+        "Men Footwear",
+        "Men Legs Clothes",
+        "Men Outerwear",
+        "Men Underwear",
+        "Men's"
+      ],
+      "totalItems": 99,
+      "totalCategories": 98
+    }
+  },
+  "unmappedDepartments": []
+}

@@ -59,8 +59,8 @@ export default function MenuManagementPage() {
         }
       }
 
-      // Load menu items (products)
-      const menuResponse = await fetch('/api/universal/products?businessType=restaurant')
+      // Load menu items (products) - include variants and images
+      const menuResponse = await fetch('/api/universal/products?businessType=restaurant&includeVariants=true&includeImages=true')
       if (menuResponse.ok) {
         const menuData = await menuResponse.json()
         if (menuData.success) {
@@ -156,7 +156,21 @@ export default function MenuManagementPage() {
           sku: `MENU-${Date.now()}`, // Generate a unique SKU
           productType: 'PHYSICAL' as const
         }
+      } else {
+        // For updates, include the product ID
+        submitData = {
+          ...submitData,
+          id: editingItem.id
+        }
       }
+
+      console.log('[Menu Page] Submitting to:', method, url)
+      console.log('[Menu Page] Data:', {
+        id: submitData.id,
+        name: submitData.name,
+        variantsCount: submitData.variants?.length || 0,
+        variants: submitData.variants?.map((v: any) => ({ id: v.id, name: v.name, price: v.price, sku: v.sku }))
+      })
 
       const response = await fetch(url, {
         method,
@@ -166,11 +180,18 @@ export default function MenuManagementPage() {
 
       const result = await response.json()
 
+      console.log('[Menu Page] Response:', {
+        success: result.success,
+        error: result.error,
+        variantsInResponse: result.data?.variants?.length || 0
+      })
+
       if (response.ok && result.success) {
         // Return the created/updated product to the caller so the form can continue (e.g. upload images)
         return result.data
       } else {
         setError(result.error || 'Failed to save menu item')
+        console.error('[Menu Page] Save failed:', result)
         return null
       }
     } catch (err) {

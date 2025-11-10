@@ -1196,7 +1196,8 @@ model IdFormatTemplates {
   id          String      @id @default(uuid())
   name        String
   description String?
-  pattern     String
+  format      String?     // Display format for UI (e.g., ##-######?##)
+  pattern     String      // Regex pattern for validation
   example     String
   countryCode String?
   createdAt   DateTime    @default(now())

@@ -55,7 +55,8 @@ async function seedIdTemplates() {
       id: 'zw-national-id',
       name: 'Zimbabwe National ID',
       countryCode: 'ZW',
-      pattern: '##-######?##',
+      format: '##-######?##',
+      pattern: '^\\d{2}-\\d{6}[A-Z]\\d{2}$',
       example: '63-123456A78',
       description: 'Zimbabwe National Identity Card format',
       isActive: true
@@ -64,7 +65,8 @@ async function seedIdTemplates() {
       id: 'za-id-number',
       name: 'South Africa ID Number',
       countryCode: 'ZA',
-      pattern: '##########?#',
+      format: '#############',
+      pattern: '^\\d{13}$',
       example: '8001015009087',
       description: 'South African Identity Document number',
       isActive: true
@@ -73,7 +75,8 @@ async function seedIdTemplates() {
       id: 'bw-omang',
       name: 'Botswana Omang',
       countryCode: 'BW',
-      pattern: '#########',
+      format: '#########',
+      pattern: '^\\d{9}$',
       example: '123456789',
       description: 'Botswana National Identity Card (Omang)',
       isActive: true
@@ -82,7 +85,8 @@ async function seedIdTemplates() {
       id: 'ke-national-id',
       name: 'Kenya National ID',
       countryCode: 'KE',
-      pattern: '########',
+      format: '########',
+      pattern: '^\\d{8}$',
       example: '12345678',
       description: 'Kenya National Identity Card',
       isActive: true
@@ -91,7 +95,8 @@ async function seedIdTemplates() {
       id: 'zm-nrc',
       name: 'Zambia NRC',
       countryCode: 'ZM',
-      pattern: '######/##/#',
+      format: '######/##/#',
+      pattern: '^\\d{6}/\\d{2}/\\d$',
       example: '123456/78/1',
       description: 'Zambia National Registration Card',
       isActive: true
@@ -362,6 +367,32 @@ async function createAdminUser() {
 }
 
 /**
+ * Seed Expense Categories
+ */
+async function seedExpenseCategories() {
+  console.log('💰 Seeding expense categories...')
+
+  // Check if expense categories already exist
+  const existingDomains = await prisma.expenseDomains.count()
+
+  if (existingDomains > 0) {
+    console.log(`✅ Expense categories already seeded (${existingDomains} domains found)`)
+    return
+  }
+
+  try {
+    // Import and run the expense category seed
+    const { runExpenseCategorySeed } = require('../src/lib/seed-data/expense-categories-seed.ts')
+    await runExpenseCategorySeed()
+    console.log('✅ Expense categories seeded successfully')
+  } catch (error) {
+    console.error('⚠️  Failed to seed expense categories:', error.message)
+    console.log('   You can manually seed expense categories later with:')
+    console.log('   npx tsx src/lib/seed-data/expense-categories-seed.ts')
+  }
+}
+
+/**
  * Main seeding function
  */
 async function main() {
@@ -415,6 +446,9 @@ async function main() {
     await seedCompensationTypes()
     await seedBenefitTypes()
 
+    // Seed expense categories
+    await seedExpenseCategories()
+
     // Create admin user
     await createAdminUser()
 
@@ -428,6 +462,9 @@ async function main() {
     console.log('   • 29 Job titles')
     console.log('   • 15 Compensation types')
     console.log('   • 28 Benefit types')
+    console.log('   • 8 Expense domains')
+    console.log('   • 71 Expense categories')
+    console.log('   • 471 Expense subcategories')
     console.log('   • 1 Admin user (admin@business.local / admin123)')
     console.log('')
     console.log('✅ Database is now ready for production use!')
