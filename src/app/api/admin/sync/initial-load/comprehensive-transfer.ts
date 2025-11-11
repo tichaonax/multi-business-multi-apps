@@ -34,6 +34,13 @@ export async function transferAllBusinessData(
   try {
     // Get non-demo businesses
     const allBusinesses = await prisma.businesses.findMany()
+    console.log(`\n=== BUSINESS FILTERING ===`)
+    console.log(`Total businesses in database: ${allBusinesses.length}`)
+    allBusinesses.forEach(b => {
+      const isDemo = isDemoBusinessId(b.id)
+      console.log(`  ${isDemo ? '❌ FILTERED' : '✅ INCLUDED'}: ${b.name} (${b.id})`)
+    })
+
     const businesses = allBusinesses.filter(b => !isDemoBusinessId(b.id))
     const businessIds = businesses.map(b => b.id)
 
@@ -41,7 +48,8 @@ export async function transferAllBusinessData(
       throw new Error('No businesses to transfer')
     }
 
-    console.log(`📦 Starting transfer for ${businessIds.length} businesses`)
+    console.log(`\n📦 Starting transfer for ${businessIds.length} non-demo businesses`)
+    console.log(`Business IDs to transfer: ${businessIds.join(', ')}\n`)
 
     // Count all records first
     const counts = await countAllRecords(businessIds)
@@ -77,7 +85,15 @@ export async function transferAllBusinessData(
       completedAt: new Date()
     })
 
-    console.log(`✅ Transfer complete: ${stats.transferred} records, ${stats.bytes} bytes`)
+    console.log(`\n=== TRANSFER COMPLETE ===`)
+    console.log(`✅ Successfully transferred ${stats.transferred} records`)
+    console.log(`📊 Total data: ${stats.bytes} bytes`)
+    console.log(`📦 Businesses: ${businesses.length}`)
+    console.log(`\nTable counts:`)
+    for (const [table, count] of Object.entries(counts)) {
+      console.log(`  ${table}: ${count} records`)
+    }
+    console.log(`=========================\n`)
 
   } catch (error) {
     await updateSession(sessionId, {
@@ -305,11 +321,31 @@ async function transferProducts(
   regHash: string,
   stats: TransferStats
 ) {
+  console.log(`\n=== TRANSFERRING PRODUCTS ===`)
+  console.log(`Querying products for business IDs: ${businessIds.join(', ')}`)
+
   const products = await prisma.businessProducts.findMany({
     where: { businessId: { in: businessIds } }
   })
 
-  if (products.length === 0) return
+  console.log(`Found ${products.length} products to transfer`)
+
+  if (products.length === 0) {
+    console.log(`⚠️  WARNING: No products found for businesses!`)
+    return
+  }
+
+  // Log products by business
+  const productsByBusiness: Record<string, number> = {}
+  products.forEach(p => {
+    productsByBusiness[p.businessId] = (productsByBusiness[p.businessId] || 0) + 1
+  })
+
+  console.log(`\nProducts per business:`)
+  for (const [businessId, count] of Object.entries(productsByBusiness)) {
+    console.log(`  ${businessId}: ${count} products`)
+  }
+  console.log()
 
   await updateSession(sessionId, { currentStep: `Transferring ${products.length} products` })
 
@@ -646,9 +682,12 @@ async function transferRecord(
         transferredBytes: stats.bytes,
         progress
       })
+      console.log(`Progress: ${stats.transferred}/${stats.total} records (${progress}%)`)
     }
   } else {
     const errorText = await response.text()
+    console.error(`❌ TRANSFER FAILED: ${tableName} ${recordId}`)
+    console.error(`Error: ${errorText}`)
     throw new Error(`Failed to transfer ${tableName} ${recordId}: ${errorText}`)
   }
 
