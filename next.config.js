@@ -9,13 +9,9 @@ const nextConfig = {
     // Disable type checking during builds
     ignoreBuildErrors: true,
   },
-  // Skip prerendering error pages to avoid Next-Auth Pages Router / App Router conflicts
+  // Skip trailing slash and middleware URL normalization
   skipTrailingSlashRedirect: true,
   skipMiddlewareUrlNormalize: true,
-  experimental: {
-    // Disable automatic error page generation
-    skipPrerendering: false,
-  },
 }
 
 module.exports = nextConfig
