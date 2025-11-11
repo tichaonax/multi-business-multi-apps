@@ -175,7 +175,9 @@ async function performInitialLoad(targetPeer: any, options: any = {}): Promise<s
   })
 
   // Start async transfer (don't await - let it run in background)
-  transferDataInBackground(sessionId, thisNodeId, targetPeer, targetPort, regHash, options).catch(err => {
+  // Use comprehensive transfer that includes ALL business data
+  const { transferAllBusinessData } = await import('./comprehensive-transfer')
+  transferAllBusinessData(sessionId, thisNodeId, targetPeer, targetPort, regHash, options).catch(err => {
     console.error('Background transfer error:', err)
   })
 
