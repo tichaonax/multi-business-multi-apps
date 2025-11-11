@@ -80,7 +80,7 @@ function killAllNodeProcesses() {
 /**
  * Remove directory recursively with retry
  */
-function removeDirWithRetry(dirPath, maxAttempts = 3) {
+async function removeDirWithRetry(dirPath, maxAttempts = 3) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       if (!fs.existsSync(dirPath)) {
@@ -97,7 +97,7 @@ function removeDirWithRetry(dirPath, maxAttempts = 3) {
         return false
       }
       // Wait a bit before retry
-      execSync('timeout /t 2 /nobreak', { stdio: 'ignore' })
+      await sleep(2000)
     }
   }
   return false
@@ -120,6 +120,13 @@ async function confirm(message) {
       resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes')
     })
   })
+}
+
+/**
+ * Sleep helper function
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
@@ -151,11 +158,11 @@ async function main() {
 
   // Wait for processes to fully terminate
   log('\n⏳ Waiting for processes to terminate...')
-  execSync('timeout /t 3 /nobreak', { stdio: 'ignore' })
+  await sleep(3000)
 
   // Step 2: Remove .prisma directory
   log('\n🗑️  Removing .prisma directory...')
-  const removed = removeDirWithRetry(PRISMA_DIR)
+  const removed = await removeDirWithRetry(PRISMA_DIR)
 
   if (removed) {
     success('   Successfully removed .prisma directory')

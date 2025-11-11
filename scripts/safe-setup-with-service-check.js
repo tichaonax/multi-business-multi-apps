@@ -80,9 +80,16 @@ function checkAllServices() {
 }
 
 /**
+ * Sleep helper function
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/**
  * Stop a service
  */
-function stopService(service) {
+async function stopService(service) {
   try {
     log(`\n🛑 Stopping ${service.name}...`)
     execSync(service.stopCommand, {
@@ -93,7 +100,7 @@ function stopService(service) {
 
     // Wait a bit for service to fully stop
     log('⏳ Waiting for service to fully stop...')
-    execSync('timeout /t 3 /nobreak', { stdio: 'ignore' })
+    await sleep(3000)
 
     return true
   } catch (err) {
@@ -123,7 +130,7 @@ async function main() {
       log('')
 
       // Stop the service
-      const stopped = stopService()
+      const stopped = await stopService()
 
       if (!stopped) {
         error('\n❌ Could not stop the service.')
