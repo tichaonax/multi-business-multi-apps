@@ -367,11 +367,35 @@ class HybridServiceWrapper extends EventEmitter {
 
         console.log(`Executing: ${migrationCommand} ${migrationArgs.join(' ')}`);
 
-        // Migration lock to avoid duplicate concurrent migrations  
+        // Migration lock to avoid duplicate concurrent migrations
         const waitForLockRelease = async (timeoutMs = 2 * 60 * 1000) => {
           const start = Date.now()
+          const maxLockAge = 10 * 60 * 1000 // 10 minutes
+
           while (fs.existsSync(lockFile)) {
+            // Check if lock is stale (older than 10 minutes)
+            try {
+              const lockStats = fs.statSync(lockFile)
+              const lockAge = Date.now() - lockStats.mtimeMs
+
+              if (lockAge > maxLockAge) {
+                console.log(`🧹 Removing stale migration lock (${Math.round(lockAge / 1000 / 60)} minutes old)`)
+                fs.unlinkSync(lockFile)
+                break
+              }
+            } catch (e) {
+              // Lock file may have been removed by another process
+              break
+            }
+
             if (Date.now() - start > timeoutMs) {
+              console.log('⚠️ Migration lock timeout - attempting to clear stale lock')
+              try {
+                fs.unlinkSync(lockFile)
+                console.log('✅ Cleared stale migration lock')
+              } catch (e) {
+                console.error('❌ Failed to clear lock:', e.message)
+              }
               throw new Error('Timeout waiting for existing migration lock to clear')
             }
             console.log('🔒 Migration lock present, waiting 5s for existing migration to finish...')
