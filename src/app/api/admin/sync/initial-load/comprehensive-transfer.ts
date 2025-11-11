@@ -4,7 +4,7 @@
  */
 
 import { PrismaClient } from '@prisma/client'
-import crypto from 'crypto'
+import * as crypto from 'crypto'
 
 const prisma = new PrismaClient()
 
@@ -615,7 +615,7 @@ async function transferRecord(
     sourceNodeId,
     table: tableName,
     recordId,
-    operation: 'CREATE',
+    operation: 'UPSERT', // Use UPSERT to make initial load re-runnable
     data,
     checksum: crypto.createHash('md5').update(JSON.stringify(data)).digest('hex')
   }

@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import crypto from 'crypto'
+import * as crypto from 'crypto'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -68,13 +68,15 @@ async function applyChangeToDatabase(prisma: PrismaClient, event: any): Promise<
         }
         break
 
+      case 'UPSERT':
       case 'UPDATE':
+        // UPSERT: Create if doesn't exist, update if it does
         await model.upsert({
           where: { id: recordId },
           update: data,
           create: { ...data, id: recordId }
         })
-        console.log(`✅ Applied UPDATE for ${tableName}:${recordId}`)
+        console.log(`✅ Applied ${operation} for ${tableName}:${recordId}`)
         break
 
       case 'DELETE':

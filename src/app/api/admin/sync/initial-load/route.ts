@@ -9,7 +9,7 @@ import { PrismaClient } from '@prisma/client'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import crypto from 'crypto'
+import * as crypto from 'crypto'
 
 const prisma = new PrismaClient()
 
@@ -175,9 +175,9 @@ async function performInitialLoad(targetPeer: any, options: any = {}): Promise<s
   })
 
   // Start async transfer (don't await - let it run in background)
-  // Use comprehensive transfer that includes ALL business data
-  const { transferAllBusinessData } = await import('./comprehensive-transfer')
-  transferAllBusinessData(sessionId, thisNodeId, targetPeer, targetPort, regHash, options).catch(err => {
+  // Use complete transfer that includes ALL system data (users, employees, vehicles, etc.)
+  const { transferCompleteSystem } = await import('./complete-transfer')
+  transferCompleteSystem(sessionId, thisNodeId, targetPeer, targetPort, regHash, options).catch(err => {
     console.error('Background transfer error:', err)
   })
 
@@ -242,16 +242,14 @@ async function transferDataInBackground(
         sourceNodeId,
         table: 'businesses',
         recordId: business.id,
-        operation: 'CREATE',
+        operation: 'UPSERT', // Use UPSERT to make initial load re-runnable
         data: {
           id: business.id,
           name: business.name,
           type: business.type,
-          address: business.address,
-          phone: business.phone,
-          email: business.email,
-          website: business.website,
-          logo: business.logo,
+          description: business.description,
+          isActive: business.isActive,
+          shortName: business.shortName,
           createdAt: business.createdAt,
           updatedAt: business.updatedAt
         },
@@ -312,7 +310,7 @@ async function transferDataInBackground(
         sourceNodeId,
         table: 'ProductImages',
         recordId: image.id,
-        operation: 'CREATE',
+        operation: 'UPSERT', // Use UPSERT to make initial load re-runnable
         data: {
           id: image.id,
           productId: image.productId,
