@@ -30,7 +30,7 @@ import {
 } from 'lucide-react'
 import { SyncActivityLog } from '@/components/admin/sync-activity-log'
 import { PartitionMonitor } from '@/components/admin/partition-monitor'
-import { InitialLoadMonitor } from '@/components/admin/initial-load-monitor'
+import { FullSyncPanel } from '@/components/admin/FullSyncPanel'
 
 interface SyncStats {
   overview: {
@@ -379,7 +379,7 @@ export default function AdminSyncPage() {
               <TabsTrigger value="sessions">Recent Sessions</TabsTrigger>
               <TabsTrigger value="conflicts">Conflicts</TabsTrigger>
               <TabsTrigger value="partitions">Partitions</TabsTrigger>
-              <TabsTrigger value="initial-load">Initial Load</TabsTrigger>
+              <TabsTrigger value="full-sync">Full Sync</TabsTrigger>
               <TabsTrigger value="metrics">Metrics</TabsTrigger>
             </TabsList>
 
@@ -555,8 +555,8 @@ export default function AdminSyncPage() {
               <PartitionMonitor />
             </TabsContent>
 
-            <TabsContent value="initial-load" className="space-y-4">
-              <InitialLoadMonitor />
+            <TabsContent value="full-sync" className="space-y-4">
+              <FullSyncPanel />
             </TabsContent>
 
             <TabsContent value="metrics" className="space-y-4">

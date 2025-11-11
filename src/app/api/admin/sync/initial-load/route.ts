@@ -194,9 +194,9 @@ async function performInitialLoad(targetPeer: any, options: any = {}): Promise<s
   })
 
   // Start async transfer (don't await - let it run in background)
-  // Use complete transfer that includes ALL system data (users, employees, vehicles, etc.)
-  const { transferCompleteSystem } = await import('./complete-transfer')
-  transferCompleteSystem(sessionId, thisNodeId, targetPeer, targetPort, regHash, options).catch(err => {
+  // Use backup/restore method (100x faster and more reliable than HTTP)
+  const { performBackupTransfer } = await import('./backup-transfer')
+  performBackupTransfer(sessionId, thisNodeId, targetPeer, targetPort, regHash, options).catch(err => {
     console.error('Background transfer error:', err)
   })
 

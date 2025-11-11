@@ -16,7 +16,7 @@
     "db:deploy": "npx prisma migrate deploy",
     "db:reset": "npx prisma migrate reset",
     "db:clear-locks": "node scripts/clear-migration-locks.js",
-    "sync:clear-stuck": "node scripts/clear-stuck-initial-load.js",
+    "sync:clear-stuck": "node scripts/clear-stuck-sync.js",
     "db:backfill-shortname": "ts-node --transpile-only scripts/backfill-business-shortname.ts",
     "db:pull": "npx prisma db pull",
     "db:push": "npx prisma db push",

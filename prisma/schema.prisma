@@ -1209,7 +1209,7 @@ model IdFormatTemplates {
   @@map("id_format_templates")
 }
 
-model InitialLoadSessions {
+model FullSyncSessions {
   id                      String    @id @default(uuid())
   sessionId               String    @unique
   sourceNodeId            String
@@ -1230,8 +1230,13 @@ model InitialLoadSessions {
   currentBatch            Int       @default(0)
   metadata                Json?
   createdAt               DateTime  @default(now())
+  direction               String    @default("push") // 'push' or 'pull'
+  method                  String    @default("backup") // 'backup' or 'http'
+  phase                   String? // 'backup', 'transfer', 'convert', 'restore', 'verify'
+  transferSpeed           Float? // bytes per second
+  estimatedCompletion     DateTime?
 
-  @@map("initial_load_sessions")
+  @@map("full_sync_sessions")
 }
 
 model InterBusinessLoans {
