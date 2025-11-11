@@ -7,16 +7,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 
-const prisma = new PrismaClient()
+// Use singleton pattern for Prisma client
+const globalForPrisma = global as unknown as { prisma: PrismaClient }
+const prisma = globalForPrisma.prisma || new PrismaClient()
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 /**
  * POST /api/sync/request
  * Handle sync data requests from peer nodes
  */
 export async function POST(request: NextRequest) {
+  let nodeId: string | null = null
+  let body: any = null
+
   try {
     // Validate authentication headers
-    const nodeId = request.headers.get('X-Node-ID')
+    nodeId = request.headers.get('X-Node-ID')
     const registrationHash = request.headers.get('X-Registration-Hash')
 
     if (!nodeId || !registrationHash) {
@@ -38,7 +44,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    body = await request.json()
     const { sessionId, sourceNodeId, lastSyncTime, maxEvents = 50 } = body
 
     // Get sync events since lastSyncTime
@@ -81,9 +87,21 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Sync request error:', error)
+    console.error('❌ [SYNC REQUEST ERROR] Detailed error information:')
+    console.error('Error message:', error instanceof Error ? error.message : String(error))
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('Request details:', {
+      nodeId,
+      hasRegistrationKey: !!process.env.SYNC_REGISTRATION_KEY,
+      registrationKeyLength: process.env.SYNC_REGISTRATION_KEY?.length,
+      bodyKeys: Object.keys(body || {})
+    })
+
     return NextResponse.json(
-      { error: 'Internal server error' }, 
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     )
   }
