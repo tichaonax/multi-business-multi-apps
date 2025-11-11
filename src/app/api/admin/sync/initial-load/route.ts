@@ -148,11 +148,15 @@ async function performInitialLoad(targetPeer: any, options: any = {}): Promise<s
   const targetPort = 8080 // HTTP port for Next.js app
 
   // Create session record
+  const selectedTables = options.selectedTables || ['businesses']
+  const tableName = Array.isArray(selectedTables) ? selectedTables.join(',') : 'businesses'
+
   await prisma.initialLoadSessions.create({
     data: {
       sessionId,
       sourceNodeId: thisNodeId,
       targetNodeId: targetPeer.nodeId,
+      tableName,
       status: 'PREPARING',
       progress: 0,
       currentStep: 'Preparing data export',
@@ -162,7 +166,7 @@ async function performInitialLoad(targetPeer: any, options: any = {}): Promise<s
       estimatedTimeRemaining: 0,
       startedAt: new Date(),
       metadata: {
-        selectedTables: options.selectedTables || ['businesses'],
+        selectedTables,
         compressionEnabled: options.compressionEnabled ?? false,
         encryptionEnabled: options.encryptionEnabled ?? false,
         batchSize: options.batchSize || 100,

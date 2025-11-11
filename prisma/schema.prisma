@@ -1210,21 +1210,26 @@ model IdFormatTemplates {
 }
 
 model InitialLoadSessions {
-  id               String    @id @default(uuid())
-  sessionId        String    @unique
-  sourceNodeId     String
-  targetNodeId     String
-  tableName        String
-  totalRecords     Int       @default(0)
-  processedRecords Int       @default(0)
-  status           String    @default("PENDING")
-  startedAt        DateTime  @default(now())
-  completedAt      DateTime?
-  errorMessage     String?
-  batchSize        Int       @default(1000)
-  currentBatch     Int       @default(0)
-  metadata         Json?
-  createdAt        DateTime  @default(now())
+  id                      String    @id @default(uuid())
+  sessionId               String    @unique
+  sourceNodeId            String
+  targetNodeId            String
+  tableName               String    @default("businesses")
+  totalRecords            Int       @default(0)
+  processedRecords        Int       @default(0)
+  transferredRecords      Int       @default(0)
+  transferredBytes        BigInt    @default(0)
+  progress                Int       @default(0)
+  currentStep             String?
+  estimatedTimeRemaining  Int       @default(0)
+  status                  String    @default("PENDING")
+  startedAt               DateTime  @default(now())
+  completedAt             DateTime?
+  errorMessage            String?
+  batchSize               Int       @default(1000)
+  currentBatch            Int       @default(0)
+  metadata                Json?
+  createdAt               DateTime  @default(now())
 
   @@map("initial_load_sessions")
 }
