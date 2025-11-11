@@ -60,6 +60,7 @@ export async function transferAllBusinessData(
     await transferSuppliers(sessionId, businessIds, targetPeer, targetPort, sourceNodeId, regHash, stats)
     await transferCustomers(sessionId, businessIds, targetPeer, targetPort, sourceNodeId, regHash, stats)
     await transferProducts(sessionId, businessIds, targetPeer, targetPort, sourceNodeId, regHash, stats)
+    await transferProductVariants(sessionId, businessIds, targetPeer, targetPort, sourceNodeId, regHash, stats)
     await transferProductImages(sessionId, businessIds, targetPeer, targetPort, sourceNodeId, regHash, stats)
     await transferStockMovements(sessionId, businessIds, targetPeer, targetPort, sourceNodeId, regHash, stats)
     await transferOrders(sessionId, businessIds, targetPeer, targetPort, sourceNodeId, regHash, stats)
@@ -98,6 +99,7 @@ async function countAllRecords(businessIds: string[]) {
     suppliers,
     customers,
     products,
+    variants,
     images,
     stockMovements,
     orders,
@@ -111,10 +113,11 @@ async function countAllRecords(businessIds: string[]) {
     prisma.businessSuppliers.count({ where: { businessId: { in: businessIds } } }),
     prisma.businessCustomers.count({ where: { businessId: { in: businessIds } } }),
     prisma.businessProducts.count({ where: { businessId: { in: businessIds } } }),
+    prisma.productVariants.count({ where: { business_products: { businessId: { in: businessIds } } } }),
     prisma.productImages.count({ where: { business_products: { businessId: { in: businessIds } } } }),
     prisma.businessStockMovements.count({ where: { businessId: { in: businessIds } } }),
     prisma.businessOrders.count({ where: { businessId: { in: businessIds } } }),
-    prisma.businessOrderItems.count({ where: { order: { businessId: { in: businessIds } } } }),
+    prisma.businessOrderItems.count({ where: { business_orders: { businessId: { in: businessIds } } } }),
     prisma.businessTransactions.count({ where: { businessId: { in: businessIds } } }),
     prisma.businessAccounts.count({ where: { businessId: { in: businessIds } } }),
     prisma.businessLocations.count({ where: { businessId: { in: businessIds } } })
@@ -127,6 +130,7 @@ async function countAllRecords(businessIds: string[]) {
     suppliers,
     customers,
     products,
+    variants,
     images,
     stockMovements,
     orders,
@@ -324,6 +328,42 @@ async function transferProducts(
   }
 }
 
+async function transferProductVariants(
+  sessionId: string,
+  businessIds: string[],
+  targetPeer: any,
+  targetPort: number,
+  sourceNodeId: string,
+  regHash: string,
+  stats: TransferStats
+) {
+  const variants = await prisma.productVariants.findMany({
+    where: {
+      business_products: {
+        businessId: { in: businessIds }
+      }
+    }
+  })
+
+  if (variants.length === 0) return
+
+  await updateSession(sessionId, { currentStep: `Transferring ${variants.length} product variants` })
+
+  for (const variant of variants) {
+    await transferRecord(
+      'ProductVariants',
+      variant.id,
+      variant,
+      targetPeer,
+      targetPort,
+      sourceNodeId,
+      regHash,
+      sessionId,
+      stats
+    )
+  }
+}
+
 async function transferProductImages(
   sessionId: string,
   businessIds: string[],
@@ -435,7 +475,7 @@ async function transferOrderItems(
 ) {
   const items = await prisma.businessOrderItems.findMany({
     where: {
-      order: {
+      business_orders: {
         businessId: { in: businessIds }
       }
     }
