@@ -9,6 +9,7 @@ import { PrismaClient } from '@prisma/client'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import crypto from 'crypto'
 
 const prisma = new PrismaClient()
 
@@ -139,8 +140,6 @@ export async function POST(request: NextRequest) {
  * Perform initial load to target peer
  */
 async function performInitialLoad(targetPeer: any, options: any = {}): Promise<string> {
-  const crypto = require('crypto')
-
   const sessionId = crypto.randomUUID()
   const thisNodeId = process.env.SYNC_NODE_ID || 'unknown'
   const regKey = process.env.SYNC_REGISTRATION_KEY || ''
