@@ -276,7 +276,7 @@ async function transferBusinessData(
   const businessIds = businesses.map(b => b.id)
 
   // Use existing business transfer logic
-  const { transferAllBusinessData } = await import('./comprehensive-transfer')
+  const { transferAllBusinessData } = await import('../initial-load/comprehensive-transfer')
   await transferAllBusinessData(sessionId, sourceNodeId, targetPeer, targetPort, regHash, { ...options, internal: true })
 
   return businessIds
