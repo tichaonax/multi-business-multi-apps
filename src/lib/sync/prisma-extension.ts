@@ -6,20 +6,31 @@
 import { Prisma } from '@prisma/client'
 import { SyncHelper } from './sync-helper'
 
-// Tables to exclude from sync tracking
+// Tables to exclude from sync tracking (sync infrastructure only)
+// NOTE: Users and Accounts ARE synced for authentication across servers
 const EXCLUDED_TABLES = new Set([
-  'Account',
   'Session',
+  'Sessions',  // Ephemeral sessions - users re-login on new server
   'VerificationToken',
+  'VerificationTokens',  // Email verification tokens - server-specific
   'AuditLog',
-  'AuditLogs',  // Both singular and plural forms for safety
+  'AuditLogs',  // Audit logs - can be server-specific
   'SyncNode',
+  'SyncNodes',  // Sync infrastructure
   'SyncEvent',
+  'SyncEvents',  // Sync infrastructure
   'ConflictResolution',
+  'ConflictResolutions',  // Sync infrastructure
   'SyncSession',
+  'SyncSessions',  // Sync infrastructure
   'NetworkPartition',
+  'NetworkPartitions',  // Sync infrastructure
   'SyncMetric',
-  'SyncConfiguration'
+  'SyncMetrics',  // Sync infrastructure
+  'SyncConfiguration',
+  'SyncConfigurations',  // Sync infrastructure
+  'InitialLoadSession',
+  'InitialLoadSessions'  // Sync infrastructure
 ])
 
 /**

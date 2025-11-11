@@ -37,19 +37,20 @@ export class DatabaseChangeTracker {
   private registrationKey: string
   private isEnabled: boolean = true
 
-  // Tables to exclude from sync (system tables)
+  // Tables to exclude from sync (sync infrastructure only)
+  // NOTE: users and accounts ARE synced for authentication across servers
   private excludedTables = new Set([
-    'accounts',
-    'sessions',
-    'verification_tokens',
-    'audit_logs',
-    'sync_nodes',
-    'sync_events',
-    'conflict_resolutions',
-    'sync_sessions',
-    'network_partitions',
-    'sync_metrics',
-    'sync_configurations'
+    'sessions',  // Ephemeral sessions - users re-login on new server
+    'verification_tokens',  // Email verification tokens - server-specific
+    'audit_logs',  // Audit logs - can be server-specific
+    'sync_nodes',  // Sync infrastructure
+    'sync_events',  // Sync infrastructure
+    'conflict_resolutions',  // Sync infrastructure
+    'sync_sessions',  // Sync infrastructure
+    'network_partitions',  // Sync infrastructure
+    'sync_metrics',  // Sync infrastructure
+    'sync_configurations',  // Sync infrastructure
+    'initial_load_sessions'  // Sync infrastructure
   ])
 
   constructor(prisma: PrismaClient, nodeId: string, registrationKey: string) {
