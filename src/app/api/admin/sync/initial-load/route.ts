@@ -86,6 +86,25 @@ export async function POST(request: NextRequest) {
           )
         }
 
+        // Check if there's already a running initial load
+        const runningSession = await prisma.initialLoadSessions.findFirst({
+          where: {
+            status: {
+              in: ['PREPARING', 'TRANSFERRING']
+            }
+          },
+          orderBy: { startedAt: 'desc' }
+        })
+
+        if (runningSession) {
+          return NextResponse.json({
+            error: 'Initial load already in progress',
+            sessionId: runningSession.sessionId,
+            currentStep: runningSession.currentStep,
+            progress: runningSession.progress
+          }, { status: 409 })
+        }
+
         const sessionId = await performInitialLoad(targetPeer, options)
 
         return NextResponse.json({
