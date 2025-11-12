@@ -10,18 +10,18 @@ import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 
 export async function POST(request: NextRequest) {
-  console.log('🔄 RESTORE-BACKUP ENDPOINT: Request received!')
-  console.log('🔄 RESTORE-BACKUP ENDPOINT: Headers:', Object.fromEntries(request.headers.entries()))
+  console.log('🔄 [RESTORE-BACKUP ENDPOINT] Request received!')
+  console.log('🔄 [RESTORE-BACKUP ENDPOINT] Headers:', Object.fromEntries(request.headers.entries()))
 
   try {
     // Validate authentication
     const nodeId = request.headers.get('X-Node-ID')
     const registrationHash = request.headers.get('X-Registration-Hash')
 
-    console.log('🔄 RESTORE-BACKUP ENDPOINT: Auth headers - nodeId:', nodeId, 'registrationHash present:', !!registrationHash)
+    console.log('🔄 [RESTORE-BACKUP ENDPOINT] Auth headers - nodeId:', nodeId, 'registrationHash present:', !!registrationHash)
 
     if (!nodeId || !registrationHash) {
-      console.error('❌ RESTORE-BACKUP ENDPOINT: Missing authentication headers')
+      console.error('❌ [RESTORE-BACKUP ENDPOINT] Missing authentication headers')
       return NextResponse.json(
         { error: 'Missing authentication headers' },
         { status: 401 }
@@ -32,25 +32,25 @@ export async function POST(request: NextRequest) {
       .update(process.env.SYNC_REGISTRATION_KEY || '')
       .digest('hex')
 
-    console.log('🔄 RESTORE-BACKUP ENDPOINT: Hash validation - expected:', expectedHash.substring(0, 8) + '...', 'received:', registrationHash.substring(0, 8) + '...')
+    console.log('🔄 [RESTORE-BACKUP ENDPOINT] Hash validation - expected:', expectedHash.substring(0, 8) + '...', 'received:', registrationHash.substring(0, 8) + '...')
 
     if (registrationHash !== expectedHash) {
-      console.error('❌ RESTORE-BACKUP ENDPOINT: Invalid registration key')
+      console.error('❌ [RESTORE-BACKUP ENDPOINT] Invalid registration key')
       return NextResponse.json(
         { error: 'Invalid registration key' },
         { status: 403 }
       )
     }
 
-    console.log('✅ RESTORE-BACKUP ENDPOINT: Authentication successful')
+    console.log('✅ [RESTORE-BACKUP ENDPOINT] Authentication successful')
 
     const body = await request.json()
     const { sessionId, filename } = body
 
-    console.log('🔄 RESTORE-BACKUP ENDPOINT: Request body - sessionId:', sessionId, 'filename:', filename)
+    console.log('🔄 [RESTORE-BACKUP ENDPOINT] Request body - sessionId:', sessionId, 'filename:', filename)
 
     if (!sessionId) {
-      console.error('❌ RESTORE-BACKUP ENDPOINT: Missing sessionId')
+      console.error('❌ [RESTORE-BACKUP ENDPOINT] Missing sessionId')
       return NextResponse.json(
         { error: 'Missing sessionId' },
         { status: 400 }
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       console.error(`❌ RESTORE-BACKUP: Backup file not found: ${backupFile}`)
       console.error(`❌ RESTORE-BACKUP: File exists check: ${existsSync(backupFile)}`)
       return NextResponse.json(
-        { error: 'Backup file not found' },
+        { error: '[RESTORE-BACKUP ENDPOINT] Backup file not found' },
         { status: 404 }
       )
     }
