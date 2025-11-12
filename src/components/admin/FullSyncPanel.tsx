@@ -95,16 +95,23 @@ export function FullSyncPanel() {
       if (response.ok) {
         const data = await response.json()
         const newPeers = data.syncNodes || []
+        console.log('🔄 Fetched peers:', newPeers.map((p: SyncPeer) => ({ nodeId: p.nodeId, nodeName: p.nodeName })))
+        console.log('📊 Current selectedPeer:', selectedPeer ? { nodeId: selectedPeer.nodeId, nodeName: selectedPeer.nodeName } : 'none')
+        console.log('🎯 hasInitializedPeers:', hasInitializedPeers)
+        
         setPeers(newPeers)
         
         // Only auto-select first peer on initial load, not on every refresh
         if (newPeers.length > 0 && !selectedPeer && !hasInitializedPeers) {
+          console.log('🎯 Auto-selecting first peer:', newPeers[0].nodeName)
           setSelectedPeer(newPeers[0])
           setHasInitializedPeers(true)
         } else if (selectedPeer && newPeers.length > 0) {
           // Ensure selectedPeer is still valid, if not, keep current selection or clear it
           const stillExists = newPeers.some((peer: SyncPeer) => peer.nodeId === selectedPeer.nodeId)
+          console.log('🔍 Selected peer still exists:', stillExists)
           if (!stillExists) {
+            console.log('❌ Selected peer no longer available, clearing selection')
             // Selected peer is no longer available, clear selection
             setSelectedPeer(null)
           }

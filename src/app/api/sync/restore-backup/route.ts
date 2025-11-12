@@ -49,10 +49,26 @@ export async function POST(request: NextRequest) {
       : join(process.cwd(), 'backups', `initial-load-${sessionId}.sql`)
 
     console.log(`🔍 Looking for backup file: ${backupFile}`)
-    console.log(`📁 Backups directory contents:`, require('fs').readdirSync(join(process.cwd(), 'backups')))
+    console.log(`📁 Current working directory: ${process.cwd()}`)
+    
+    const backupsDir = join(process.cwd(), 'backups')
+    console.log(`📁 Backups directory: ${backupsDir}`)
+    
+    try {
+      const files = require('fs').readdirSync(backupsDir)
+      console.log(`📁 Backups directory contents (${files.length} files):`, files)
+    } catch (dirError) {
+      const errorMessage = dirError instanceof Error ? dirError.message : 'Unknown error'
+      console.error(`❌ Failed to read backups directory: ${errorMessage}`)
+      return NextResponse.json(
+        { error: `Failed to read backups directory: ${errorMessage}` },
+        { status: 500 }
+      )
+    }
 
     if (!existsSync(backupFile)) {
       console.error(`❌ Backup file not found: ${backupFile}`)
+      console.error(`❌ File exists check: ${existsSync(backupFile)}`)
       return NextResponse.json(
         { error: 'Backup file not found' },
         { status: 404 }
