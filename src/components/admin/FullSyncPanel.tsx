@@ -94,12 +94,20 @@ export function FullSyncPanel() {
       const response = await fetch('/api/sync/stats')
       if (response.ok) {
         const data = await response.json()
-        setPeers(data.syncNodes || [])
+        const newPeers = data.syncNodes || []
+        setPeers(newPeers)
         
         // Only auto-select first peer on initial load, not on every refresh
-        if (data.syncNodes && data.syncNodes.length > 0 && !selectedPeer && !hasInitializedPeers) {
-          setSelectedPeer(data.syncNodes[0])
+        if (newPeers.length > 0 && !selectedPeer && !hasInitializedPeers) {
+          setSelectedPeer(newPeers[0])
           setHasInitializedPeers(true)
+        } else if (selectedPeer && newPeers.length > 0) {
+          // Ensure selectedPeer is still valid, if not, keep current selection or clear it
+          const stillExists = newPeers.some((peer: SyncPeer) => peer.nodeId === selectedPeer.nodeId)
+          if (!stillExists) {
+            // Selected peer is no longer available, clear selection
+            setSelectedPeer(null)
+          }
         }
       }
     } catch (error) {

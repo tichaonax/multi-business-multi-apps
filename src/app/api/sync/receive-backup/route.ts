@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     await writeFile(backupPath, buffer)
 
     console.log(`✅ Received backup file: ${filename} (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`)
+    console.log(`📁 Saved to: ${backupPath}`)
 
     return NextResponse.json({
       success: true,

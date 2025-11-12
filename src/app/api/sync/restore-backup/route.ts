@@ -48,14 +48,18 @@ export async function POST(request: NextRequest) {
       ? join(process.cwd(), 'backups', filename)
       : join(process.cwd(), 'backups', `initial-load-${sessionId}.sql`)
 
+    console.log(`🔍 Looking for backup file: ${backupFile}`)
+    console.log(`📁 Backups directory contents:`, require('fs').readdirSync(join(process.cwd(), 'backups')))
+
     if (!existsSync(backupFile)) {
+      console.error(`❌ Backup file not found: ${backupFile}`)
       return NextResponse.json(
         { error: 'Backup file not found' },
         { status: 404 }
       )
     }
 
-    console.log(`📦 Restoring backup: ${backupFile}`)
+    console.log(`📦 Found backup file: ${backupFile}`)
 
     // Convert INSERT statements to UPSERT
     const upsertFile = await convertToUpsert(backupFile)

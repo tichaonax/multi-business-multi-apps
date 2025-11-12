@@ -428,9 +428,6 @@ async function restoreDatabase(sqlFile: string): Promise<void> {
   })
 }
 
-/**
- * Trigger restore on remote server
- */
 async function triggerRemoteRestore(
   sessionId: string,
   targetPeer: any,
@@ -439,6 +436,8 @@ async function triggerRemoteRestore(
   regHash: string,
   filename: string
 ): Promise<void> {
+  console.log(`🔄 Triggering remote restore for session ${sessionId} with filename: ${filename}`)
+  
   const response = await fetch(`http://${targetPeer.ipAddress}:${targetPort}/api/sync/restore-backup`, {
     method: 'POST',
     headers: {
@@ -454,11 +453,12 @@ async function triggerRemoteRestore(
 
   if (!response.ok) {
     const error = await response.text()
+    console.error(`❌ Remote restore failed: ${error}`)
     throw new Error(`Failed to restore backup on remote: ${error}`)
   }
 
   const result = await response.json()
-  console.log(`Restore result:`, result)
+  console.log(`✅ Remote restore result:`, result)
 }
 
 /**
