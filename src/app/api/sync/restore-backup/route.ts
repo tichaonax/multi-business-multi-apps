@@ -141,8 +141,11 @@ async function convertToUpsert(backupFile: string): Promise<string> {
   const sql = readFileSync(backupFile, 'utf-8')
   const upsertFile = backupFile.replace('.sql', '-upsert.sql')
 
+  // Get unique constraints for each table
+  const uniqueConstraints = await getUniqueConstraints()
+
   // Pattern to match: INSERT INTO table_name (columns) VALUES (values);
-  // Convert to: INSERT INTO table_name (columns) VALUES (values) ON CONFLICT (id) DO UPDATE SET ...
+  // Convert to: INSERT INTO table_name (columns) VALUES (values) ON CONFLICT (constraint_columns) DO UPDATE SET ...
 
   const lines = sql.split('\n')
   const upsertLines: string[] = []
@@ -160,14 +163,40 @@ async function convertToUpsert(backupFile: string): Promise<string> {
         const columns = tableMatch[2].split(',').map(c => c.trim())
         const values = tableMatch[3]
 
-        // Build UPDATE SET clause for all columns except id
+        // Get unique constraints for this table
+        const tableConstraints = uniqueConstraints[tableName] || []
+
+        // Find the best constraint to use for conflict resolution
+        // Prefer composite constraints over single-column id constraint
+        let conflictColumns: string[] = ['id'] // default fallback
+
+        if (tableConstraints.length > 0) {
+          // Use the first composite constraint, or single column if that's all we have
+          const compositeConstraints = tableConstraints.filter((constraint: string[]) => constraint.length > 1)
+          if (compositeConstraints.length > 0) {
+            conflictColumns = compositeConstraints[0]
+          } else {
+            // Use single column constraint if available
+            conflictColumns = tableConstraints[0]
+          }
+        }
+
+        console.log(`🔄 Converting ${tableName} INSERT to UPSERT using conflict columns: ${conflictColumns.join(', ')}`)
+
+        // Build UPDATE SET clause for all columns except those in the conflict target
         const updateColumns = columns
-          .filter(col => col !== 'id')
+          .filter(col => !conflictColumns.includes(col))
           .map(col => `${col} = EXCLUDED.${col}`)
           .join(', ')
 
-        // Construct UPSERT statement
-        const upsertStmt = `INSERT INTO ${tableName} (${tableMatch[2]}) VALUES (${values}) ON CONFLICT (id) DO UPDATE SET ${updateColumns};`
+        // Only add UPSERT if there are columns to update
+        let upsertStmt: string
+        if (updateColumns.length > 0) {
+          upsertStmt = `INSERT INTO ${tableName} (${tableMatch[2]}) VALUES (${values}) ON CONFLICT (${conflictColumns.join(', ')}) DO UPDATE SET ${updateColumns};`
+        } else {
+          // If no columns to update (all columns are in conflict target), use ON CONFLICT DO NOTHING
+          upsertStmt = `INSERT INTO ${tableName} (${tableMatch[2]}) VALUES (${values}) ON CONFLICT (${conflictColumns.join(', ')}) DO NOTHING;`
+        }
 
         upsertLines.push(upsertStmt)
       } else {
@@ -182,6 +211,7 @@ async function convertToUpsert(backupFile: string): Promise<string> {
 
   writeFileSync(upsertFile, upsertLines.join('\n'))
   console.log(`✅ Converted to UPSERT: ${upsertFile}`)
+  console.log(`📊 Found unique constraints for ${Object.keys(uniqueConstraints).length} tables`)
 
   return upsertFile
 }
@@ -284,7 +314,7 @@ async function restoreWithPrisma(sqlFile: string): Promise<void> {
       // For INSERT statements, try to convert to UPSERT if it fails due to conflicts
       if (statement.toUpperCase().startsWith('INSERT INTO') && error instanceof Error && error.message.includes('duplicate key')) {
         try {
-          const upsertStatement = convertInsertToUpsert(statement)
+          const upsertStatement = await convertInsertToUpsert(statement)
           console.log(`Retrying with UPSERT...`)
           await prisma.$queryRawUnsafe(upsertStatement)
           console.log(`UPSERT successful`)
@@ -300,9 +330,71 @@ async function restoreWithPrisma(sqlFile: string): Promise<void> {
 }
 
 /**
+ * Get unique constraints for each table from the Prisma schema
+ */
+async function getUniqueConstraints(): Promise<Record<string, string[][]>> {
+  const schemaPath = join(process.cwd(), 'prisma', 'schema.prisma')
+  const schema = readFileSync(schemaPath, 'utf-8')
+
+  const constraints: Record<string, string[][]> = {}
+  let currentModel = ''
+
+  const lines = schema.split('\n')
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    // Find model declarations
+    const modelMatch = trimmed.match(/^model (\w+) \{/)
+    if (modelMatch) {
+      currentModel = modelMatch[1]
+      constraints[currentModel] = []
+      continue
+    }
+
+    // Find unique constraints
+    if (trimmed.startsWith('@@unique')) {
+      const uniqueMatch = trimmed.match(/@@unique\(\[([^\]]+)\]\)/)
+      if (uniqueMatch && currentModel) {
+        const columns = uniqueMatch[1].split(',').map(col => col.trim())
+        constraints[currentModel].push(columns)
+      }
+    }
+
+    // Also check for @unique fields (single column)
+    const fieldUniqueMatch = trimmed.match(/^(\w+)\s+.*\s+@unique/)
+    if (fieldUniqueMatch && currentModel) {
+      const column = fieldUniqueMatch[1]
+      constraints[currentModel].push([column])
+    }
+  }
+
+  // Also create lowercase versions for table name matching
+  const tableConstraints: Record<string, string[][]> = {}
+  for (const [modelName, constraintList] of Object.entries(constraints)) {
+    // Convert PascalCase to snake_case (Prisma's default table naming)
+    const tableName = modelName
+      .split('')
+      .map((char, index) => {
+        if (index > 0 && char >= 'A' && char <= 'Z') {
+          return '_' + char.toLowerCase()
+        }
+        return char.toLowerCase()
+      })
+      .join('')
+    tableConstraints[tableName] = constraintList
+  }
+
+  return { ...constraints, ...tableConstraints }
+}
+
+/**
  * Convert INSERT statement to UPSERT for conflict resolution
  */
-function convertInsertToUpsert(insertStatement: string): string {
+async function convertInsertToUpsert(insertStatement: string): Promise<string> {
+  // Get unique constraints for dynamic conflict resolution
+  const uniqueConstraints = await getUniqueConstraints()
+
   // Simple conversion for basic INSERT statements
   // This is a fallback for when we can't parse the full statement
   const match = insertStatement.match(/INSERT INTO (\w+)\s*\((.*?)\)\s*VALUES\s*\((.*?)\)/i)
@@ -312,11 +404,34 @@ function convertInsertToUpsert(insertStatement: string): string {
   const columns = match[2].split(',').map(c => c.trim())
   const values = match[3]
 
-  // Build UPDATE SET clause for all columns except id
+  // Get unique constraints for this table
+  const tableConstraints = uniqueConstraints[tableName] || []
+
+  // Find the best constraint to use for conflict resolution
+  let conflictColumns: string[] = ['id'] // default fallback
+
+  if (tableConstraints.length > 0) {
+    // Use the first composite constraint, or single column if that's all we have
+    const compositeConstraints = tableConstraints.filter((constraint: string[]) => constraint.length > 1)
+    if (compositeConstraints.length > 0) {
+      conflictColumns = compositeConstraints[0]
+    } else {
+      // Use single column constraint if available
+      conflictColumns = tableConstraints[0]
+    }
+  }
+
+  // Build UPDATE SET clause for all columns except those in the conflict target
   const updateColumns = columns
-    .filter(col => col !== 'id')
+    .filter(col => !conflictColumns.includes(col))
     .map(col => `${col} = EXCLUDED.${col}`)
     .join(', ')
 
-  return `INSERT INTO ${tableName} (${match[2]}) VALUES (${values}) ON CONFLICT (id) DO UPDATE SET ${updateColumns}`
+  // Only add UPSERT if there are columns to update
+  if (updateColumns.length > 0) {
+    return `INSERT INTO ${tableName} (${match[2]}) VALUES (${values}) ON CONFLICT (${conflictColumns.join(', ')}) DO UPDATE SET ${updateColumns}`
+  } else {
+    // If no columns to update (all columns are in conflict target), use ON CONFLICT DO NOTHING
+    return `INSERT INTO ${tableName} (${match[2]}) VALUES (${values}) ON CONFLICT (${conflictColumns.join(', ')}) DO NOTHING`
+  }
 }
