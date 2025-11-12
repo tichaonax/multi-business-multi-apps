@@ -12,7 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Database,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  XCircle
 } from 'lucide-react'
 import { ServerSelector } from './ServerSelector'
 import { DirectionSelector } from './DirectionSelector'
@@ -58,6 +59,7 @@ export function FullSyncPanel() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isInitiating, setIsInitiating] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
 
   useEffect(() => {
     fetchFullSyncData()
@@ -146,6 +148,45 @@ export function FullSyncPanel() {
     }
   }
 
+  const cancelSync = async (sessionId: string) => {
+    if (!confirm('Are you sure you want to cancel this sync? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      setIsCancelling(true)
+      setError(null)
+
+      const response = await fetch('/api/admin/sync/full-sync/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to cancel sync')
+      }
+
+      const result = await response.json()
+      console.log('Sync cancelled:', result)
+
+      // Refresh data
+      setTimeout(() => {
+        fetchFullSyncData()
+      }, 1000)
+
+    } catch (error) {
+      console.error('Failed to cancel sync:', error)
+      setError(error instanceof Error ? error.message : 'Sync cancellation failed')
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
+  // Get active sync session if any
+  const activeSession = sessions.find(s => ['PREPARING', 'TRANSFERRING'].includes(s.status))
+
   if (isLoading && sessions.length === 0) {
     return (
       <div className="space-y-6">
@@ -168,6 +209,53 @@ export function FullSyncPanel() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
+      )}
+
+      {/* Active Sync Status */}
+      {activeSession && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center">
+                <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+                Sync In Progress
+              </span>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => cancelSync(activeSession.sessionId)}
+                disabled={isCancelling}
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                {isCancelling ? 'Cancelling...' : 'Cancel Sync'}
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span>{activeSession.currentStep}</span>
+                  <span>{activeSession.progress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${activeSession.progress}%` }}
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div>Session: {activeSession.sessionId}</div>
+                <div>Direction: {activeSession.direction.toUpperCase()}</div>
+                <div>Method: {activeSession.method}</div>
+                {activeSession.transferSpeed && (
+                  <div>Speed: {(activeSession.transferSpeed / 1024 / 1024).toFixed(2)} MB/s</div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Control Panel */}
@@ -256,9 +344,9 @@ export function FullSyncPanel() {
             <Button
               onClick={initiateFullSync}
               className="w-full"
-              disabled={!selectedPeer || !selectedPeer.isActive || isInitiating}
+              disabled={!selectedPeer || !selectedPeer.isActive || isInitiating || !!activeSession}
             >
-              {isInitiating ? 'Starting...' : `Start Full Sync`}
+              {isInitiating ? 'Starting...' : activeSession ? 'Sync In Progress...' : `Start Full Sync`}
             </Button>
 
             {!selectedPeer && (
@@ -274,7 +362,7 @@ export function FullSyncPanel() {
       </Card>
 
       {/* Sync History */}
-      <SyncHistory sessions={sessions} />
+      <SyncHistory sessions={sessions} onSessionUpdate={fetchFullSyncData} />
     </div>
   )
 }

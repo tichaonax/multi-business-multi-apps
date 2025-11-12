@@ -5,16 +5,19 @@
  * Shows recent syncs with direction arrows and status
  */
 
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Button } from '@/components/ui/button'
 import {
   CheckCircle,
   AlertTriangle,
   Clock,
   ArrowRight,
   ArrowLeft,
-  RefreshCw
+  RefreshCw,
+  XCircle
 } from 'lucide-react'
 
 interface FullSyncSession {
@@ -39,9 +42,44 @@ interface FullSyncSession {
 
 interface SyncHistoryProps {
   sessions: FullSyncSession[]
+  onSessionUpdate?: () => void
 }
 
-export function SyncHistory({ sessions }: SyncHistoryProps) {
+export function SyncHistory({ sessions, onSessionUpdate }: SyncHistoryProps) {
+  const [cancellingSessionId, setCancellingSessionId] = useState<string | null>(null)
+
+  const cancelSync = async (sessionId: string) => {
+    if (!confirm('Are you sure you want to cancel this sync? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      setCancellingSessionId(sessionId)
+
+      const response = await fetch('/api/admin/sync/full-sync/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to cancel sync')
+      }
+
+      // Refresh data
+      if (onSessionUpdate) {
+        onSessionUpdate()
+      }
+
+    } catch (error) {
+      console.error('Failed to cancel sync:', error)
+      alert(`Failed to cancel sync: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setCancellingSessionId(null)
+    }
+  }
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'PREPARING': return <Clock className="h-4 w-4 text-yellow-500" />
@@ -115,9 +153,22 @@ export function SyncHistory({ sessions }: SyncHistoryProps) {
                   </Badge>
                   <Badge variant="outline">{session.method.toUpperCase()}</Badge>
                 </div>
-                <span className="text-sm text-muted-foreground">
-                  {session.completedAt ? formatTimeAgo(session.completedAt) : formatTimeAgo(session.startedAt)}
-                </span>
+                <div className="flex items-center space-x-2">
+                  {(session.status === 'PREPARING' || session.status === 'TRANSFERRING') && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => cancelSync(session.sessionId)}
+                      disabled={cancellingSessionId === session.sessionId}
+                    >
+                      <XCircle className="h-3 w-3 mr-1" />
+                      {cancellingSessionId === session.sessionId ? 'Cancelling...' : 'Cancel'}
+                    </Button>
+                  )}
+                  <span className="text-sm text-muted-foreground">
+                    {session.completedAt ? formatTimeAgo(session.completedAt) : formatTimeAgo(session.startedAt)}
+                  </span>
+                </div>
               </div>
 
               {/* Direction */}
