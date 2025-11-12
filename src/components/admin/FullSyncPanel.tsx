@@ -103,8 +103,17 @@ export function FullSyncPanel() {
         
         // Only auto-select first peer on initial load, not on every refresh
         if (newPeers.length > 0 && !selectedPeer && !hasInitializedPeers) {
-          console.log('🎯 Auto-selecting first peer:', newPeers[0].nodeName)
-          setSelectedPeer(newPeers[0])
+          // Skip local server, select first remote peer
+          const thisNodeId = process.env.NEXT_PUBLIC_SYNC_NODE_ID || 'this-server'
+          const remotePeers = newPeers.filter((peer: SyncPeer) => peer.nodeId !== thisNodeId)
+          
+          if (remotePeers.length > 0) {
+            console.log('🎯 Auto-selecting first remote peer:', remotePeers[0].nodeName)
+            setSelectedPeer(remotePeers[0])
+          } else {
+            console.log('⚠️ No remote peers available for auto-selection')
+          }
+          
           setHasInitializedPeers(true)
         } else if (selectedPeer && newPeers.length > 0) {
           // Ensure selectedPeer is still valid, if not, keep current selection or clear it

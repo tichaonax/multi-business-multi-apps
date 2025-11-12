@@ -307,10 +307,15 @@ async function transferBackupFile(
     })
   })
 
+  console.log(`📤 Transfer response status: ${response.status}`)
+  const responseText = await response.text()
+  console.log(`📤 Transfer response body: ${responseText}`)
+
   if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Failed to transfer backup: ${error}`)
+    throw new Error(`Failed to transfer backup: ${responseText}`)
   }
+
+  console.log(`✅ Backup transfer completed successfully`)
 }
 
 /**

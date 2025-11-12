@@ -45,15 +45,30 @@ export async function POST(request: NextRequest) {
 
     // Ensure backups directory exists
     const backupsDir = join(process.cwd(), 'backups')
+    console.log(`📁 Checking backups directory: ${backupsDir}`)
+    console.log(`📂 Directory exists: ${existsSync(backupsDir)}`)
+    
     if (!existsSync(backupsDir)) {
+      console.log(`📁 Creating backups directory...`)
       await mkdir(backupsDir, { recursive: true })
+      console.log(`✅ Created backups directory`)
     }
 
     // Write backup file
     const backupPath = join(backupsDir, filename)
+    console.log(`💾 Writing backup file to: ${backupPath}`)
+    console.log(`📊 Backup content length: ${backupContent.length} characters`)
+    
     const buffer = Buffer.from(backupContent, 'base64')
+    console.log(`🔄 Decoded buffer size: ${(buffer.length / 1024 / 1024).toFixed(2)} MB`)
+    
     await writeFile(backupPath, buffer)
-
+    
+    // Verify file was written
+    const fs = require('fs')
+    const stats = fs.statSync(backupPath)
+    console.log(`✅ File written successfully: ${stats.size} bytes`)
+    
     console.log(`✅ Received backup file: ${filename} (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`)
     console.log(`📁 Saved to: ${backupPath}`)
 
@@ -61,7 +76,8 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Backup received successfully',
       filename,
-      size: buffer.length
+      size: buffer.length,
+      path: backupPath
     })
 
   } catch (error) {
