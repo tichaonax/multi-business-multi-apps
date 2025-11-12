@@ -33,6 +33,11 @@ interface BackupSession {
   errorMessage?: string
   sourceNodeId: string
   targetNodeId: string
+  totalRecords: number
+  processedRecords: number
+  transferredBytes: string | null
+  method: string
+  phase: string | null
 }
 
 interface ClearPreview {
@@ -160,6 +165,16 @@ export function BackupHistoryManager() {
     return new Date(dateString).toLocaleString()
   }
 
+  const formatBytes = (bytesString: string | null) => {
+    if (!bytesString) return '0 B'
+    const bytes = parseInt(bytesString)
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
   const failedCount = sessions.filter(s => s.status === 'FAILED').length
   const totalCount = sessions.length
 
@@ -255,7 +270,7 @@ export function BackupHistoryManager() {
             <Switch
               id="confirm"
               checked={confirmDelete}
-              onCheckedChange={setConfirmDelete}
+              onChange={(e) => setConfirmDelete(e.target.checked)}
             />
             <Label htmlFor="confirm" className="text-sm">
               I confirm that I want to permanently delete the selected backup history entries
@@ -395,6 +410,11 @@ export function BackupHistoryManager() {
                     </div>
                     <div className="text-xs text-muted-foreground mb-2">
                       {session.sourceNodeId} → {session.targetNodeId}
+                      {session.transferredBytes && (
+                        <span className="ml-2 text-blue-600">
+                          • {formatBytes(session.transferredBytes)} transferred
+                        </span>
+                      )}
                     </div>
                     {session.errorMessage && (
                       <Alert className="mt-2">
