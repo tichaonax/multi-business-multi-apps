@@ -59,6 +59,12 @@ export async function GET(request: NextRequest) {
       })
     ])
 
+    // Convert BigInt values to strings for JSON serialization
+    const serializedSessions = sessions.map(session => ({
+      ...session,
+      transferredBytes: session.transferredBytes ? session.transferredBytes.toString() : null
+    }))
+
     // Get summary statistics
     const stats = await prisma.fullSyncSessions.groupBy({
       by: ['status'],
@@ -74,7 +80,7 @@ export async function GET(request: NextRequest) {
     }, {} as Record<string, number>)
 
     return NextResponse.json({
-      sessions,
+      sessions: serializedSessions,
       totalCount,
       statusCounts,
       pagination: {
