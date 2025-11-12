@@ -688,8 +688,9 @@ export class InitialLoadManager extends EventEmitter {
       console.log('InitialLoadManager: initialLoadSessions type:', typeof this.prisma.initialLoadSessions)
 
       if (!this.prisma.initialLoadSessions) {
-        console.error('InitialLoadManager: initialLoadSessions property is missing!')
-        console.error('InitialLoadManager: Available properties:', Object.keys(this.prisma))
+        console.warn('InitialLoadManager: initialLoadSessions property is missing! This may indicate the database schema is outdated.')
+        console.warn('InitialLoadManager: Available properties:', Object.keys(this.prisma))
+        console.warn('InitialLoadManager: Continuing with empty sessions list. Please update the database schema.')
         return
       }
 
@@ -698,7 +699,7 @@ export class InitialLoadManager extends EventEmitter {
       console.log('InitialLoadManager: findMany exists:', typeof this.prisma.initialLoadSessions.findMany)
 
       if (typeof this.prisma.initialLoadSessions.findMany !== 'function') {
-        console.error('InitialLoadManager: findMany is not a function!')
+        console.warn('InitialLoadManager: findMany is not a function! Schema may be outdated.')
         return
       }
 
@@ -744,6 +745,18 @@ export class InitialLoadManager extends EventEmitter {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : 'No stack trace'
       })
+
+      // Check if this is a schema-related error
+      if (error instanceof Error && (
+        error.message.includes('does not exist') ||
+        error.message.includes('P2021') ||
+        error.message.includes('initial_load_sessions')
+      )) {
+        console.warn('InitialLoadManager: Database schema appears to be outdated. The initial_load_sessions table may not exist yet.')
+        console.warn('InitialLoadManager: Continuing with empty sessions list. Please update the database schema on this node.')
+        return
+      }
+
       console.error('InitialLoadManager: Prisma client state:', {
         exists: !!this.prisma,
         type: typeof this.prisma,
@@ -775,7 +788,8 @@ export class InitialLoadManager extends EventEmitter {
         } as any
       })
     } catch (error) {
-      console.error('Failed to create initial load session:', error)
+      console.warn('Failed to create initial load session (table may not exist yet):', error instanceof Error ? error.message : String(error))
+      // Don't throw - allow the session to continue in memory even if DB persistence fails
     }
   }
 
@@ -800,7 +814,8 @@ export class InitialLoadManager extends EventEmitter {
         } as any
       })
     } catch (error) {
-      console.error('Failed to update initial load session:', error)
+      console.warn('Failed to update initial load session (table may not exist yet):', error instanceof Error ? error.message : String(error))
+      // Don't throw - allow the session to continue even if DB updates fail
     }
   }
 }

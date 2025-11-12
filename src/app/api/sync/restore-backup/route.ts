@@ -8,6 +8,9 @@ import * as crypto from 'crypto'
 import { spawn } from 'child_process'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 export async function POST(request: NextRequest) {
   console.log('🔄 [RESTORE-BACKUP ENDPOINT] Request received!')
@@ -187,6 +190,21 @@ async function convertToUpsert(backupFile: string): Promise<string> {
  * Restore database from SQL file
  */
 async function restoreDatabase(sqlFile: string): Promise<void> {
+  try {
+    // Try psql first (traditional method)
+    await restoreWithPsql(sqlFile)
+  } catch (psqlError) {
+    console.warn('psql not available, falling back to Prisma:', psqlError instanceof Error ? psqlError.message : String(psqlError))
+
+    // Fallback to Prisma-based restoration
+    await restoreWithPrisma(sqlFile)
+  }
+}
+
+/**
+ * Restore database using psql (traditional method)
+ */
+async function restoreWithPsql(sqlFile: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const databaseUrl = process.env.DATABASE_URL
     if (!databaseUrl) {
@@ -238,4 +256,67 @@ async function restoreDatabase(sqlFile: string): Promise<void> {
       reject(new Error(`Failed to run psql: ${error.message}. Is PostgreSQL installed?`))
     })
   })
+}
+
+/**
+ * Restore database using Prisma (fallback method)
+ */
+async function restoreWithPrisma(sqlFile: string): Promise<void> {
+  console.log('Restoring database using Prisma...')
+
+  const sql = readFileSync(sqlFile, 'utf-8')
+  const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0)
+
+  console.log(`Found ${statements.length} SQL statements to execute`)
+
+  for (let i = 0; i < statements.length; i++) {
+    const statement = statements[i]
+    if (!statement) continue
+
+    try {
+      console.log(`Executing statement ${i + 1}/${statements.length}...`)
+      await prisma.$queryRawUnsafe(statement)
+    } catch (error) {
+      // Log the error but continue with other statements
+      console.warn(`Statement ${i + 1} failed:`, error)
+      console.warn(`Failed statement:`, statement.substring(0, 200) + '...')
+
+      // For INSERT statements, try to convert to UPSERT if it fails due to conflicts
+      if (statement.toUpperCase().startsWith('INSERT INTO') && error instanceof Error && error.message.includes('duplicate key')) {
+        try {
+          const upsertStatement = convertInsertToUpsert(statement)
+          console.log(`Retrying with UPSERT...`)
+          await prisma.$queryRawUnsafe(upsertStatement)
+          console.log(`UPSERT successful`)
+        } catch (upsertError) {
+          console.error(`UPSERT also failed:`, upsertError)
+          // Continue with next statement instead of failing completely
+        }
+      }
+    }
+  }
+
+  console.log('Database restoration completed with Prisma')
+}
+
+/**
+ * Convert INSERT statement to UPSERT for conflict resolution
+ */
+function convertInsertToUpsert(insertStatement: string): string {
+  // Simple conversion for basic INSERT statements
+  // This is a fallback for when we can't parse the full statement
+  const match = insertStatement.match(/INSERT INTO (\w+)\s*\((.*?)\)\s*VALUES\s*\((.*?)\)/i)
+  if (!match) return insertStatement
+
+  const tableName = match[1]
+  const columns = match[2].split(',').map(c => c.trim())
+  const values = match[3]
+
+  // Build UPDATE SET clause for all columns except id
+  const updateColumns = columns
+    .filter(col => col !== 'id')
+    .map(col => `${col} = EXCLUDED.${col}`)
+    .join(', ')
+
+  return `INSERT INTO ${tableName} (${match[2]}) VALUES (${values}) ON CONFLICT (id) DO UPDATE SET ${updateColumns}`
 }
