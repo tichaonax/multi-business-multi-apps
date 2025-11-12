@@ -10,12 +10,17 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 
 export async function POST(request: NextRequest) {
+  console.log(`🔄 Receive-backup endpoint called`)
+  
   try {
     // Validate authentication
     const nodeId = request.headers.get('X-Node-ID')
     const registrationHash = request.headers.get('X-Registration-Hash')
+    
+    console.log(`🔐 Auth headers - NodeId: ${nodeId}, Hash: ${registrationHash ? 'present' : 'missing'}`)
 
     if (!nodeId || !registrationHash) {
+      console.log(`❌ Missing authentication headers`)
       return NextResponse.json(
         { error: 'Missing authentication headers' },
         { status: 401 }
@@ -25,23 +30,33 @@ export async function POST(request: NextRequest) {
     const expectedHash = crypto.createHash('sha256')
       .update(process.env.SYNC_REGISTRATION_KEY || '')
       .digest('hex')
+    
+    console.log(`🔐 Expected hash: ${expectedHash.substring(0, 8)}..., Received: ${registrationHash.substring(0, 8)}...`)
 
     if (registrationHash !== expectedHash) {
+      console.log(`❌ Invalid registration key`)
       return NextResponse.json(
         { error: 'Invalid registration key' },
         { status: 403 }
       )
     }
 
+    console.log(`✅ Authentication passed`)
+
     const body = await request.json()
     const { sessionId, backupContent, filename } = body
+    
+    console.log(`📦 Request body - sessionId: ${sessionId}, filename: ${filename}, content length: ${backupContent?.length || 'missing'}`)
 
     if (!backupContent || !filename) {
+      console.log(`❌ Missing backup content or filename`)
       return NextResponse.json(
         { error: 'Missing backup content or filename' },
         { status: 400 }
       )
     }
+
+    console.log(`✅ Request validation passed`)
 
     // Ensure backups directory exists
     const backupsDir = join(process.cwd(), 'backups')

@@ -292,6 +292,11 @@ async function transferBackupFile(
 
   const fileContent = Buffer.concat(chunks).toString('base64')
 
+  console.log(`📤 Starting backup transfer to ${targetPeer.ipAddress}:${targetPort}`)
+  console.log(`📤 Target URL: http://${targetPeer.ipAddress}:${targetPort}/api/sync/receive-backup`)
+  console.log(`📤 Filename: ${path.basename(backupFile)}`)
+  console.log(`📤 File size: ${(fileContent.length / 1024 / 1024).toFixed(2)} MB`)
+
   const response = await fetch(`http://${targetPeer.ipAddress}:${targetPort}/api/sync/receive-backup`, {
     method: 'POST',
     headers: {
