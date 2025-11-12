@@ -673,13 +673,36 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async loadActiveSessions(): Promise<void> {
     try {
-      console.log('InitialLoadManager: Loading active sessions, prisma client:', !!this.prisma)
+      console.log('InitialLoadManager: Loading active sessions, prisma client exists:', !!this.prisma)
+      console.log('InitialLoadManager: Prisma client type:', typeof this.prisma)
+      console.log('InitialLoadManager: Prisma client keys:', this.prisma ? Object.keys(this.prisma).slice(0, 10) : 'N/A')
 
       if (!this.prisma) {
-        console.error('InitialLoadManager: Prisma client is undefined!')
+        console.error('InitialLoadManager: Prisma client is null/undefined!')
         return
       }
 
+      // Check if initialLoadSessions exists
+      console.log('InitialLoadManager: Checking initialLoadSessions property...')
+      console.log('InitialLoadManager: initialLoadSessions exists:', !!this.prisma.initialLoadSessions)
+      console.log('InitialLoadManager: initialLoadSessions type:', typeof this.prisma.initialLoadSessions)
+
+      if (!this.prisma.initialLoadSessions) {
+        console.error('InitialLoadManager: initialLoadSessions property is missing!')
+        console.error('InitialLoadManager: Available properties:', Object.keys(this.prisma))
+        return
+      }
+
+      // Check if findMany method exists
+      console.log('InitialLoadManager: Checking findMany method...')
+      console.log('InitialLoadManager: findMany exists:', typeof this.prisma.initialLoadSessions.findMany)
+
+      if (typeof this.prisma.initialLoadSessions.findMany !== 'function') {
+        console.error('InitialLoadManager: findMany is not a function!')
+        return
+      }
+
+      console.log('InitialLoadManager: Attempting to call findMany...')
       const sessions = await this.prisma.initialLoadSessions.findMany({
         where: {
           OR: [
@@ -692,7 +715,7 @@ export class InitialLoadManager extends EventEmitter {
         }
       })
 
-      console.log(`InitialLoadManager: Loaded ${sessions.length} active sessions`)
+      console.log(`InitialLoadManager: Successfully loaded ${sessions.length} active sessions`)
 
       for (const dbSession of sessions) {
         const s = dbSession as any
@@ -717,9 +740,15 @@ export class InitialLoadManager extends EventEmitter {
       }
     } catch (error) {
       console.error('InitialLoadManager: Failed to load active sessions:', error)
+      console.error('InitialLoadManager: Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      })
       console.error('InitialLoadManager: Prisma client state:', {
         exists: !!this.prisma,
-        connected: this.prisma ? 'unknown' : 'N/A'
+        type: typeof this.prisma,
+        hasInitialLoadSessions: this.prisma ? !!this.prisma.initialLoadSessions : false,
+        hasFindMany: this.prisma?.initialLoadSessions ? typeof this.prisma.initialLoadSessions.findMany : 'N/A'
       })
     }
   }

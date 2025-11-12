@@ -446,29 +446,51 @@ async function triggerRemoteRestore(
   regHash: string,
   filename: string
 ): Promise<void> {
-  console.log(`🔄 Triggering remote restore for session ${sessionId} with filename: ${filename}`)
-  
-  const response = await fetch(`http://${targetPeer.ipAddress}:${targetPort}/api/sync/restore-backup`, {
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Starting for session ${sessionId}`)
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Target: ${targetPeer.ipAddress}:${targetPort}`)
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Filename: ${filename}`)
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Source Node ID: ${sourceNodeId}`)
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Registration hash present: ${!!regHash}`)
+
+  const requestBody = {
+    sessionId,
+    filename
+  }
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Request body:`, requestBody)
+
+  const url = `http://${targetPeer.ipAddress}:${targetPort}/api/sync/restore-backup`
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Making request to: ${url}`)
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Node-ID': sourceNodeId,
       'X-Registration-Hash': regHash
     },
-    body: JSON.stringify({
-      sessionId,
-      filename
-    })
+    body: JSON.stringify(requestBody)
   })
 
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Response status: ${response.status}`)
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Response headers:`, Object.fromEntries(response.headers.entries()))
+
+  const responseText = await response.text()
+  console.log(`🔄 TRIGGER REMOTE RESTORE: Response body: ${responseText}`)
+
   if (!response.ok) {
-    const error = await response.text()
-    console.error(`❌ Remote restore failed: ${error}`)
-    throw new Error(`Failed to restore backup on remote: ${error}`)
+    console.error(`❌ TRIGGER REMOTE RESTORE: Request failed with status ${response.status}`)
+    throw new Error(`Failed to restore backup on remote: ${responseText}`)
   }
 
-  const result = await response.json()
-  console.log(`✅ Remote restore result:`, result)
+  let result
+  try {
+    result = JSON.parse(responseText)
+  } catch (e) {
+    console.error(`❌ TRIGGER REMOTE RESTORE: Failed to parse response as JSON:`, e)
+    throw new Error(`Invalid response from remote restore: ${responseText}`)
+  }
+
+  console.log(`✅ TRIGGER REMOTE RESTORE: Success result:`, result)
 }
 
 /**

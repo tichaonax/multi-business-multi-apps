@@ -10,12 +10,18 @@ import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 
 export async function POST(request: NextRequest) {
+  console.log('🔄 RESTORE-BACKUP ENDPOINT: Request received!')
+  console.log('🔄 RESTORE-BACKUP ENDPOINT: Headers:', Object.fromEntries(request.headers.entries()))
+
   try {
     // Validate authentication
     const nodeId = request.headers.get('X-Node-ID')
     const registrationHash = request.headers.get('X-Registration-Hash')
 
+    console.log('🔄 RESTORE-BACKUP ENDPOINT: Auth headers - nodeId:', nodeId, 'registrationHash present:', !!registrationHash)
+
     if (!nodeId || !registrationHash) {
+      console.error('❌ RESTORE-BACKUP ENDPOINT: Missing authentication headers')
       return NextResponse.json(
         { error: 'Missing authentication headers' },
         { status: 401 }
@@ -26,17 +32,25 @@ export async function POST(request: NextRequest) {
       .update(process.env.SYNC_REGISTRATION_KEY || '')
       .digest('hex')
 
+    console.log('🔄 RESTORE-BACKUP ENDPOINT: Hash validation - expected:', expectedHash.substring(0, 8) + '...', 'received:', registrationHash.substring(0, 8) + '...')
+
     if (registrationHash !== expectedHash) {
+      console.error('❌ RESTORE-BACKUP ENDPOINT: Invalid registration key')
       return NextResponse.json(
         { error: 'Invalid registration key' },
         { status: 403 }
       )
     }
 
+    console.log('✅ RESTORE-BACKUP ENDPOINT: Authentication successful')
+
     const body = await request.json()
     const { sessionId, filename } = body
 
+    console.log('🔄 RESTORE-BACKUP ENDPOINT: Request body - sessionId:', sessionId, 'filename:', filename)
+
     if (!sessionId) {
+      console.error('❌ RESTORE-BACKUP ENDPOINT: Missing sessionId')
       return NextResponse.json(
         { error: 'Missing sessionId' },
         { status: 400 }
@@ -48,18 +62,32 @@ export async function POST(request: NextRequest) {
       ? join(process.cwd(), 'backups', filename)
       : join(process.cwd(), 'backups', `initial-load-${sessionId}.sql`)
 
-    console.log(`🔍 Looking for backup file: ${backupFile}`)
-    console.log(`📁 Current working directory: ${process.cwd()}`)
+    console.log(`🔍 RESTORE-BACKUP: Looking for backup file: ${backupFile}`)
+    console.log(`� RESTORE-BACKUP: Provided filename: ${filename}`)
+    console.log(`🔍 RESTORE-BACKUP: Session ID: ${sessionId}`)
+    console.log(`🔍 RESTORE-BACKUP: Current working directory: ${process.cwd()}`)
     
     const backupsDir = join(process.cwd(), 'backups')
-    console.log(`📁 Backups directory: ${backupsDir}`)
+    console.log(`� RESTORE-BACKUP: Backups directory: ${backupsDir}`)
     
     try {
-      const files = require('fs').readdirSync(backupsDir)
-      console.log(`📁 Backups directory contents (${files.length} files):`, files)
+      const fs = require('fs')
+      const files = fs.readdirSync(backupsDir)
+      console.log(`� RESTORE-BACKUP: Backups directory contents (${files.length} files):`, files)
+      
+      // Check if the specific file exists
+      const fileExists = fs.existsSync(backupFile)
+      console.log(`🔍 RESTORE-BACKUP: Target file exists: ${fileExists}`)
+      
+      if (fileExists) {
+        const stats = fs.statSync(backupFile)
+        console.log(`🔍 RESTORE-BACKUP: File size: ${stats.size} bytes (${(stats.size / 1024 / 1024).toFixed(2)} MB)`)
+        console.log(`🔍 RESTORE-BACKUP: File modified: ${stats.mtime}`)
+      }
+      
     } catch (dirError) {
       const errorMessage = dirError instanceof Error ? dirError.message : 'Unknown error'
-      console.error(`❌ Failed to read backups directory: ${errorMessage}`)
+      console.error(`❌ RESTORE-BACKUP: Failed to read backups directory: ${errorMessage}`)
       return NextResponse.json(
         { error: `Failed to read backups directory: ${errorMessage}` },
         { status: 500 }
@@ -67,15 +95,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!existsSync(backupFile)) {
-      console.error(`❌ Backup file not found: ${backupFile}`)
-      console.error(`❌ File exists check: ${existsSync(backupFile)}`)
+      console.error(`❌ RESTORE-BACKUP: Backup file not found: ${backupFile}`)
+      console.error(`❌ RESTORE-BACKUP: File exists check: ${existsSync(backupFile)}`)
       return NextResponse.json(
         { error: 'Backup file not found' },
         { status: 404 }
       )
     }
 
-    console.log(`📦 Found backup file: ${backupFile}`)
+    console.log(`✅ RESTORE-BACKUP: Found backup file: ${backupFile}`)
 
     // Convert INSERT statements to UPSERT
     const upsertFile = await convertToUpsert(backupFile)
