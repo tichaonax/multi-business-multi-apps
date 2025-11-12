@@ -144,19 +144,40 @@ async function convertToUpsert(backupFile: string): Promise<string> {
   // Get unique constraints for each table
   const uniqueConstraints = await getUniqueConstraints()
 
-  // Pattern to match: INSERT INTO table_name (columns) VALUES (values);
-  // Convert to: INSERT INTO table_name (columns) VALUES (values) ON CONFLICT (constraint_columns) DO UPDATE SET ...
-
+  // Filter out PostgreSQL dump comments and metadata
   const lines = sql.split('\n')
-  const upsertLines: string[] = []
+  const filteredLines: string[] = []
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
 
+    // Skip PostgreSQL dump comments and metadata
+    if (line.startsWith('--') ||
+        line.includes('PostgreSQL database dump') ||
+        line.includes('Dump completed') ||
+        line.includes('Type: TABLE DATA') ||
+        line.includes('Schema: public') ||
+        line.includes('Owner:') ||
+        line === '' ||
+        line.startsWith('SET ') ||
+        line.startsWith('SELECT ')) {
+      continue
+    }
+
+    filteredLines.push(lines[i])
+  }
+
+  // Join back and split by semicolons to get complete statements
+  const filteredSql = filteredLines.join('\n')
+  const statements = filteredSql.split(';').map(s => s.trim()).filter(s => s.length > 0 && !s.startsWith('--'))
+
+  const upsertLines: string[] = []
+
+  for (const statement of statements) {
     // Check if this is an INSERT statement
-    if (line.startsWith('INSERT INTO ')) {
+    if (statement.toUpperCase().startsWith('INSERT INTO ')) {
       // Extract table name and columns
-      const tableMatch = line.match(/INSERT INTO (\w+)\s*\((.*?)\)\s*VALUES\s*\((.*?)\);/)
+      const tableMatch = statement.match(/INSERT INTO (\w+)\s*\((.*?)\)\s*VALUES\s*\((.*?)\)/i)
 
       if (tableMatch) {
         const tableName = tableMatch[1]
@@ -200,18 +221,19 @@ async function convertToUpsert(backupFile: string): Promise<string> {
 
         upsertLines.push(upsertStmt)
       } else {
-        // Keep line as-is if we can't parse it
-        upsertLines.push(line)
+        // Keep statement as-is if we can't parse it
+        upsertLines.push(statement + ';')
       }
-    } else {
-      // Keep non-INSERT lines as-is
-      upsertLines.push(line)
+    } else if (statement.length > 0) {
+      // Keep non-INSERT statements as-is (like CREATE, ALTER, etc.)
+      upsertLines.push(statement + ';')
     }
   }
 
   writeFileSync(upsertFile, upsertLines.join('\n'))
   console.log(`✅ Converted to UPSERT: ${upsertFile}`)
   console.log(`📊 Found unique constraints for ${Object.keys(uniqueConstraints).length} tables`)
+  console.log(`📝 Processed ${statements.length} SQL statements`)
 
   return upsertFile
 }
@@ -295,20 +317,31 @@ async function restoreWithPrisma(sqlFile: string): Promise<void> {
   console.log('Restoring database using Prisma...')
 
   const sql = readFileSync(sqlFile, 'utf-8')
-  const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0)
+
+  // Split by semicolons but be careful with semicolons inside VALUES clauses
+  const statements = sql
+    .split(';')
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && !s.startsWith('--'))
+    .map(s => s.endsWith(';') ? s : s + ';') // Ensure each statement ends with semicolon
 
   console.log(`Found ${statements.length} SQL statements to execute`)
 
+  let successCount = 0
+  let errorCount = 0
+
   for (let i = 0; i < statements.length; i++) {
     const statement = statements[i]
-    if (!statement) continue
+    if (!statement || statement.trim() === ';') continue
 
     try {
-      console.log(`Executing statement ${i + 1}/${statements.length}...`)
+      console.log(`Executing statement ${i + 1}/${statements.length}: ${statement.substring(0, 50)}...`)
       await prisma.$queryRawUnsafe(statement)
+      successCount++
     } catch (error) {
+      errorCount++
       // Log the error but continue with other statements
-      console.warn(`Statement ${i + 1} failed:`, error)
+      console.warn(`Statement ${i + 1} failed:`, error instanceof Error ? error.message : String(error))
       console.warn(`Failed statement:`, statement.substring(0, 200) + '...')
 
       // For INSERT statements, try to convert to UPSERT if it fails due to conflicts
@@ -318,15 +351,16 @@ async function restoreWithPrisma(sqlFile: string): Promise<void> {
           console.log(`Retrying with UPSERT...`)
           await prisma.$queryRawUnsafe(upsertStatement)
           console.log(`UPSERT successful`)
+          successCount++
+          errorCount--
         } catch (upsertError) {
-          console.error(`UPSERT also failed:`, upsertError)
-          // Continue with next statement instead of failing completely
+          console.error(`UPSERT also failed:`, upsertError instanceof Error ? upsertError.message : String(upsertError))
         }
       }
     }
   }
 
-  console.log('Database restoration completed with Prisma')
+  console.log(`Database restoration completed with Prisma: ${successCount} successful, ${errorCount} failed`)
 }
 
 /**
