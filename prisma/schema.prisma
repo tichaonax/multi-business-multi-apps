@@ -1196,8 +1196,8 @@ model IdFormatTemplates {
   id          String      @id @default(uuid())
   name        String
   description String?
-  format      String?     // Display format for UI (e.g., ##-######?##)
-  pattern     String      // Regex pattern for validation
+  format      String? // Display format for UI (e.g., ##-######?##)
+  pattern     String // Regex pattern for validation
   example     String
   countryCode String?
   createdAt   DateTime    @default(now())
@@ -1210,31 +1210,31 @@ model IdFormatTemplates {
 }
 
 model FullSyncSessions {
-  id                      String    @id @default(uuid())
-  sessionId               String    @unique
-  sourceNodeId            String
-  targetNodeId            String
-  tableName               String    @default("businesses")
-  totalRecords            Int       @default(0)
-  processedRecords        Int       @default(0)
-  transferredRecords      Int       @default(0)
-  transferredBytes        BigInt    @default(0)
-  progress                Int       @default(0)
-  currentStep             String?
-  estimatedTimeRemaining  Int       @default(0)
-  status                  String    @default("PENDING")
-  startedAt               DateTime  @default(now())
-  completedAt             DateTime?
-  errorMessage            String?
-  batchSize               Int       @default(1000)
-  currentBatch            Int       @default(0)
-  metadata                Json?
-  createdAt               DateTime  @default(now())
-  direction               String    @default("push") // 'push' or 'pull'
-  method                  String    @default("backup") // 'backup' or 'http'
-  phase                   String? // 'backup', 'transfer', 'convert', 'restore', 'verify'
-  transferSpeed           Float? // bytes per second
-  estimatedCompletion     DateTime?
+  id                     String    @id @default(uuid())
+  sessionId              String    @unique
+  sourceNodeId           String
+  targetNodeId           String
+  tableName              String    @default("businesses")
+  totalRecords           Int       @default(0)
+  processedRecords       Int       @default(0)
+  transferredRecords     Int       @default(0)
+  transferredBytes       BigInt    @default(0)
+  progress               Int       @default(0)
+  currentStep            String?
+  estimatedTimeRemaining Int       @default(0)
+  status                 String    @default("PENDING")
+  startedAt              DateTime  @default(now())
+  completedAt            DateTime?
+  errorMessage           String?
+  batchSize              Int       @default(1000)
+  currentBatch           Int       @default(0)
+  metadata               Json?
+  createdAt              DateTime  @default(now())
+  direction              String    @default("push") // 'push' or 'pull'
+  method                 String    @default("backup") // 'backup' or 'http'
+  phase                  String? // 'backup', 'transfer', 'convert', 'restore', 'verify'
+  transferSpeed          Float? // bytes per second
+  estimatedCompletion    DateTime?
 
   @@map("full_sync_sessions")
 }
@@ -2015,6 +2015,27 @@ model SyncSessions {
   createdAt    DateTime  @default(now())
 
   @@map("sync_sessions")
+}
+
+model InitialLoadSessions {
+  id                     String    @id @default(uuid())
+  sourceNodeId           String
+  targetNodeId           String
+  startedAt              DateTime  @default(now())
+  completedAt            DateTime?
+  status                 String    @default("PREPARING")
+  progress               Int       @default(0)
+  currentStep            String?
+  totalRecords           Int       @default(0)
+  transferredRecords     Int       @default(0)
+  transferredBytes       BigInt?
+  estimatedTimeRemaining Int       @default(0)
+  errorMessage           String?
+  metadata               Json?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@map("initial_load_sessions")
 }
 
 model Users {
