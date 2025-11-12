@@ -31,6 +31,7 @@ import {
 import { SyncActivityLog } from '@/components/admin/sync-activity-log'
 import { PartitionMonitor } from '@/components/admin/partition-monitor'
 import { FullSyncPanel } from '@/components/admin/FullSyncPanel'
+import { BackupHistoryManager } from '@/components/admin/BackupHistoryManager'
 
 interface SyncStats {
   overview: {
@@ -380,6 +381,7 @@ export default function AdminSyncPage() {
               <TabsTrigger value="conflicts">Conflicts</TabsTrigger>
               <TabsTrigger value="partitions">Partitions</TabsTrigger>
               <TabsTrigger value="full-sync">Full Sync</TabsTrigger>
+              <TabsTrigger value="backup-history">Backup History</TabsTrigger>
               <TabsTrigger value="metrics">Metrics</TabsTrigger>
             </TabsList>
 
@@ -557,6 +559,10 @@ export default function AdminSyncPage() {
 
             <TabsContent value="full-sync" className="space-y-4">
               <FullSyncPanel />
+            </TabsContent>
+
+            <TabsContent value="backup-history" className="space-y-4">
+              <BackupHistoryManager />
             </TabsContent>
 
             <TabsContent value="metrics" className="space-y-4">
