@@ -673,6 +673,13 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async loadActiveSessions(): Promise<void> {
     try {
+      console.log('InitialLoadManager: Loading active sessions, prisma client:', !!this.prisma)
+
+      if (!this.prisma) {
+        console.error('InitialLoadManager: Prisma client is undefined!')
+        return
+      }
+
       const sessions = await this.prisma.initialLoadSessions.findMany({
         where: {
           OR: [
@@ -684,6 +691,8 @@ export class InitialLoadManager extends EventEmitter {
           }
         }
       })
+
+      console.log(`InitialLoadManager: Loaded ${sessions.length} active sessions`)
 
       for (const dbSession of sessions) {
         const s = dbSession as any
@@ -707,7 +716,11 @@ export class InitialLoadManager extends EventEmitter {
         this.activeSessions.set(session.sessionId, session)
       }
     } catch (error) {
-      console.error('Failed to load active sessions:', error)
+      console.error('InitialLoadManager: Failed to load active sessions:', error)
+      console.error('InitialLoadManager: Prisma client state:', {
+        exists: !!this.prisma,
+        connected: this.prisma ? 'unknown' : 'N/A'
+      })
     }
   }
 

@@ -107,6 +107,11 @@ export class SyncService extends EventEmitter {
     this.nodeId = config.nodeId || generateNodeId()
     this.prisma = new PrismaClient()
 
+    // Connect to database
+    this.prisma.$connect().catch(error => {
+      console.error('Failed to connect to database:', error)
+    })
+
     this.status = {
       isRunning: false,
       nodeId: this.nodeId,
