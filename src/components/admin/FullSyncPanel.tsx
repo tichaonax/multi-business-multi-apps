@@ -60,6 +60,7 @@ export function FullSyncPanel() {
   const [error, setError] = useState<string | null>(null)
   const [isInitiating, setIsInitiating] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [hasInitializedPeers, setHasInitializedPeers] = useState(false)
 
   useEffect(() => {
     fetchFullSyncData()
@@ -94,8 +95,11 @@ export function FullSyncPanel() {
       if (response.ok) {
         const data = await response.json()
         setPeers(data.syncNodes || [])
-        if (data.syncNodes && data.syncNodes.length > 0 && !selectedPeer) {
+        
+        // Only auto-select first peer on initial load, not on every refresh
+        if (data.syncNodes && data.syncNodes.length > 0 && !selectedPeer && !hasInitializedPeers) {
           setSelectedPeer(data.syncNodes[0])
+          setHasInitializedPeers(true)
         }
       }
     } catch (error) {

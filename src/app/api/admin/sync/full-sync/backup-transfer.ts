@@ -124,7 +124,7 @@ async function performPushSync(
     transferSpeed: speed
   })
 
-  await triggerRemoteRestore(sessionId, targetPeer, targetPort, sourceNodeId, regHash)
+  await triggerRemoteRestore(sessionId, targetPeer, targetPort, sourceNodeId, regHash, path.basename(backupFile))
 
   console.log(`✅ Database restored on remote`)
 
@@ -381,9 +381,8 @@ async function receiveBackupFromRemote(
  * Restore database from SQL file
  */
 async function restoreDatabase(sqlFile: string): Promise<void> {
-  // Convert to UPSERT first
-  const { convertToUpsert } = await import('../../../sync/restore-backup/route')
-  // Note: We'd need to export this function or duplicate the logic here
+  // Note: For full sync, we use direct psql restore without UPSERT conversion
+  // since we're replacing all data anyway
 
   return new Promise((resolve, reject) => {
     const databaseUrl = process.env.DATABASE_URL
@@ -437,7 +436,8 @@ async function triggerRemoteRestore(
   targetPeer: any,
   targetPort: number,
   sourceNodeId: string,
-  regHash: string
+  regHash: string,
+  filename: string
 ): Promise<void> {
   const response = await fetch(`http://${targetPeer.ipAddress}:${targetPort}/api/sync/restore-backup`, {
     method: 'POST',
@@ -448,7 +448,7 @@ async function triggerRemoteRestore(
     },
     body: JSON.stringify({
       sessionId,
-      sourceNodeId
+      filename
     })
   })
 

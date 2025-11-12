@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { sessionId } = body
+    const { sessionId, filename } = body
 
     if (!sessionId) {
       return NextResponse.json(
@@ -43,8 +43,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find backup file
-    const backupFile = join(process.cwd(), 'backups', `initial-load-${sessionId}.sql`)
+    // Find backup file - use provided filename or fallback to old naming
+    const backupFile = filename 
+      ? join(process.cwd(), 'backups', filename)
+      : join(process.cwd(), 'backups', `initial-load-${sessionId}.sql`)
 
     if (!existsSync(backupFile)) {
       return NextResponse.json(
