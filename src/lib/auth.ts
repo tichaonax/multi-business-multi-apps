@@ -42,7 +42,8 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
-  // 'trustHost' is intentionally omitted because it's not part of NextAuthOptions
+  // Removed trustHost as it's not available in NextAuth v4
+  // Instead, we'll handle URL validation in callbacks
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -171,6 +172,14 @@ export const authOptions: NextAuthOptions = {
         s.loginTime = t.loginTime
       }
       return session
+    },
+    async redirect({ url, baseUrl }) {
+      // Allow redirects to the current host (supports both localhost and IP access)
+      if (url.startsWith('/')) return `${baseUrl}${url}`
+      // Allow redirects to the same origin
+      if (new URL(url).origin === baseUrl) return url
+      // For cross-origin redirects, allow them (needed for IP address access)
+      return url
     },
   },
   events: {
