@@ -6,7 +6,7 @@ import { randomBytes } from 'crypto';
 // Validation schemas
 const CreateOrderItemSchema = z.object({
   productVariantId: z.string().min(1),
-  quantity: z.number().int().min(1),
+  quantity: z.number().min(0.001),  // Changed from int to decimal to support weight-based items
   unitPrice: z.number().min(0),
   discountAmount: z.number().min(0).default(0),
   attributes: z.record(z.string(), z.any()).optional() // Business-specific order item data
@@ -238,9 +238,14 @@ export async function POST(request: NextRequest) {
       where: {
         id: { in: variantIds },
         isActive: true,
-        product: {
-          businessId: orderData.businessId,
-          isActive: true
+        productId: {
+          in: (await prisma.businessProducts.findMany({
+            where: {
+              businessId: orderData.businessId,
+              isActive: true
+            },
+            select: { id: true }
+          })).map(p => p.id)
         }
       },
       include: {
@@ -417,7 +422,7 @@ export async function PUT(request: NextRequest) {
     // Verify order exists
     const existingOrder = await prisma.businessOrders.findUnique({
       where: { id },
-      include: { items: true }
+      include: { business_order_items: true }
     })
 
     if (!existingOrder) {
@@ -446,7 +451,7 @@ export async function PUT(request: NextRequest) {
     if (updateData.status === 'CANCELLED' && existingOrder.status !== 'CANCELLED') {
       // Restore inventory for cancelled orders
       await prisma.$transaction(async (tx) => {
-        for (const item of existingOrder.items) {
+        for (const item of existingOrder.business_order_items) {
           await tx.product_variants.update({
             where: { id: item.productVariantId },
             data: {

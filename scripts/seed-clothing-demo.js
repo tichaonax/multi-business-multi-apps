@@ -26,34 +26,116 @@ async function ensureCategoriesExist() {
 
 async function seed() {
   try {
-    const businessId = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
-    console.log('Seeding clothing demo data for', businessId)
+    console.log('🔍 Checking for existing clothing demo businesses...')
+
+    const now = new Date()
 
     // STEP 1: Ensure categories exist (auto-seed if missing)
     await ensureCategoriesExist()
 
-    // STEP 2: Ensure business exists (reuse if found, otherwise create)
-    const now = new Date()
-    const business = await prisma.businesses.upsert({
-      where: { id: businessId },
-      update: { 
-        name: 'Clothing [Demo]',
-        description: 'Demo business for testing - safe to delete',
-        isDemo: true,
-        updatedAt: now 
+    // STEP 2: Check for existing demo businesses
+    const existingDemoBusinesses = await prisma.businesses.findMany({
+      where: {
+        type: 'clothing',
+        OR: [
+          { isDemo: true },
+          { name: { contains: '[Demo]' } },
+          { id: { contains: 'demo' } }
+        ]
       },
-      create: { 
-        id: businessId, 
-        name: 'Clothing [Demo]', 
-        type: 'clothing', 
-        description: 'Demo business for testing - safe to delete', 
-        isActive: true, 
-        isDemo: true,
-        createdAt: now, 
-        updatedAt: now 
-      }
+      orderBy: { createdAt: 'asc' }
     })
-    console.log('Using business for clothing demo:', businessId)
+
+    let business
+    const businessId = 'clothing-demo-business'
+
+    // First check if the correct ID already exists
+    const correctBusiness = await prisma.businesses.findUnique({
+      where: { id: businessId }
+    })
+
+    if (correctBusiness) {
+      // Perfect! Use the existing business with correct ID
+      console.log(`✅ Found demo business with correct ID: "${correctBusiness.name}" (${businessId})`)
+      console.log(`   Reusing this business for seeding (idempotent)`)
+
+      business = await prisma.businesses.update({
+        where: { id: businessId },
+        data: {
+          isDemo: true,
+          description: 'Demo business for testing - safe to delete',
+          updatedAt: now
+        }
+      })
+
+      // Clean up any other demo businesses with wrong IDs
+      const otherDemos = await prisma.businesses.findMany({
+        where: {
+          type: 'clothing',
+          isDemo: true,
+          id: { not: businessId }
+        }
+      })
+
+      if (otherDemos.length > 0) {
+        console.log(`   ⚠️  Found ${otherDemos.length} duplicate demo business(es), cleaning up...`)
+        for (const duplicate of otherDemos) {
+          console.log(`   Deleting duplicate: "${duplicate.name}" (${duplicate.id})`)
+          await prisma.businesses.delete({ where: { id: duplicate.id } }).catch(err => {
+            console.log(`   ⚠️  Could not delete ${duplicate.id}: ${err.message}`)
+          })
+        }
+      }
+    } else if (existingDemoBusinesses.length > 0) {
+      // Found old demo businesses with wrong IDs - clean them up and create new one
+      console.log(`⚠️  Found ${existingDemoBusinesses.length} demo business(es) with incorrect IDs`)
+
+      for (const oldBusiness of existingDemoBusinesses) {
+        console.log(`   Deleting old demo: "${oldBusiness.name}" (${oldBusiness.id})`)
+        await prisma.businesses.delete({ where: { id: oldBusiness.id } }).catch(err => {
+          console.log(`   ⚠️  Could not delete ${oldBusiness.id}: ${err.message}`)
+        })
+      }
+
+      // Create new business with correct ID
+      console.log(`📝 Creating demo business with correct ID...`)
+
+      business = await prisma.businesses.create({
+        data: {
+          id: businessId,
+          name: 'Clothing [Demo]',
+          type: 'clothing',
+          description: 'Demo business for testing - safe to delete',
+          isActive: true,
+          isDemo: true,
+          createdAt: now,
+          updatedAt: now
+        }
+      })
+
+      console.log(`✅ Created new demo business: "${business.name}" (${businessId})`)
+    } else {
+      // No demo business exists - create new one
+      console.log(`📝 No demo business found. Creating new one...`)
+
+      business = await prisma.businesses.create({
+        data: {
+          id: businessId,
+          name: 'Clothing [Demo]',
+          type: 'clothing',
+          description: 'Demo business for testing - safe to delete',
+          isActive: true,
+          isDemo: true,
+          createdAt: now,
+          updatedAt: now
+        }
+      })
+
+      console.log(`✅ Created new demo business: "${business.name}" (${businessId})`)
+    }
+
+    console.log(`\n📦 Seeding products for: ${business.name}`)
+    console.log(`   Business ID: ${businessId}\n`)
 
     // Get existing type-based categories (no need to create them - they're seeded by seed-type-categories.js)
     // We'll use the standard category IDs from the type-based seeding

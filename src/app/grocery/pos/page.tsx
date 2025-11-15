@@ -9,6 +9,11 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { printReceipt } from '@/lib/printing/print-receipt'
+import type { ReceiptData } from '@/components/printing/receipt-template'
+import { ReceiptPreviewModal } from '@/components/printing/receipt-preview-modal'
+import { usePrintPreferences } from '@/hooks/use-print-preferences'
+import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 
 interface POSItem {
   id: string
@@ -59,9 +64,16 @@ function GroceryPOSContent() {
   const [currentWeight, setCurrentWeight] = useState(0)
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
+  const [products, setProducts] = useState<POSItem[]>([])
+  const [productsLoading, setProductsLoading] = useState(false)
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
 
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const pluInputRef = useRef<HTMLInputElement>(null)
+
+  // Load print preferences
+  const { preferences: printPreferences } = usePrintPreferences()
 
   // Use the business permissions context for proper business management
   const {
@@ -79,75 +91,72 @@ function GroceryPOSContent() {
   // Check if current business is a grocery business
   const isGroceryBusiness = currentBusiness?.businessType === 'grocery'
 
-  // Sample product database
-  const productDatabase: POSItem[] = [
-    {
-      id: 'p1',
-      name: 'Organic Bananas',
-      pluCode: '94011',
-      category: 'Produce',
-      unitType: 'weight',
-      price: 1.29,
-      unit: 'lb',
-      taxable: false,
-      weightRequired: true,
-      snapEligible: true,
-      organicCertified: true,
-      loyaltyPoints: 2
-    },
-    {
-      id: 'p2',
-      name: 'Whole Milk 1 Gallon',
-      barcode: '071600006009',
-      category: 'Dairy',
-      unitType: 'each',
-      price: 4.99,
-      unit: 'gallon',
-      taxable: false,
-      weightRequired: false,
-      snapEligible: true,
-      loyaltyPoints: 5
-    },
-    {
-      id: 'p3',
-      name: 'Ground Beef 80/20',
-      barcode: '123456789012',
-      category: 'Meat',
-      unitType: 'weight',
-      price: 6.49,
-      unit: 'lb',
-      taxable: false,
-      weightRequired: true,
-      snapEligible: true,
-      loyaltyPoints: 8
-    },
-    {
-      id: 'p4',
-      name: 'Beer 6-Pack',
-      barcode: '012000123456',
-      category: 'Alcohol',
-      unitType: 'each',
-      price: 12.99,
-      unit: 'pack',
-      taxable: true,
-      weightRequired: false,
-      ageRestricted: true,
-      loyaltyPoints: 10
-    },
-    {
-      id: 'p5',
-      name: 'Tomatoes',
-      pluCode: '4664',
-      category: 'Produce',
-      unitType: 'weight',
-      price: 2.99,
-      unit: 'lb',
-      taxable: false,
-      weightRequired: true,
-      snapEligible: true,
-      loyaltyPoints: 3
+  // Fetch products when business changes
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (!currentBusinessId) return
+
+      setProductsLoading(true)
+      try {
+        const response = await fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true`)
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success) {
+            // Map API products to POSItem format
+            const posItems: POSItem[] = []
+            result.data.forEach((product: any) => {
+              if (product.variants && product.variants.length > 0) {
+                // Add each variant as a separate POS item
+                product.variants.forEach((variant: any) => {
+                  posItems.push({
+                    id: variant.id,
+                    name: variant.name || product.name,
+                    barcode: variant.barcode || product.barcode || product.sku,
+                    pluCode: variant.sku || product.sku,
+                    category: product.category?.name || 'General',
+                    unitType: product.attributes?.unitType === 'weight' ? 'weight' : 'each',
+                    price: parseFloat(variant.price || product.basePrice || 0),
+                    unit: product.attributes?.unit || (product.attributes?.unitType === 'weight' ? 'lb' : 'each'),
+                    taxable: product.attributes?.taxable || false,
+                    weightRequired: product.attributes?.unitType === 'weight',
+                    ageRestricted: product.attributes?.ageRestricted || false,
+                    snapEligible: product.attributes?.snapEligible || false,
+                    organicCertified: product.attributes?.organicCertified || false,
+                    loyaltyPoints: product.attributes?.loyaltyPoints || 0
+                  })
+                })
+              } else {
+                // Product without variants
+                posItems.push({
+                  id: product.id,
+                  name: product.name,
+                  barcode: product.barcode || product.sku,
+                  pluCode: product.sku,
+                  category: product.category?.name || 'General',
+                  unitType: product.attributes?.unitType === 'weight' ? 'weight' : 'each',
+                  price: parseFloat(product.basePrice || 0),
+                  unit: product.attributes?.unit || (product.attributes?.unitType === 'weight' ? 'lb' : 'each'),
+                  taxable: product.attributes?.taxable || false,
+                  weightRequired: product.attributes?.unitType === 'weight',
+                  ageRestricted: product.attributes?.ageRestricted || false,
+                  snapEligible: product.attributes?.snapEligible || false,
+                  organicCertified: product.attributes?.organicCertified || false,
+                  loyaltyPoints: product.attributes?.loyaltyPoints || 0
+                })
+              }
+            })
+            setProducts(posItems)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch products:', error)
+      } finally {
+        setProductsLoading(false)
+      }
     }
-  ]
+
+    fetchProducts()
+  }, [currentBusinessId])
 
   const sampleCustomer: Customer = {
     id: 'c1',
@@ -173,11 +182,11 @@ function GroceryPOSContent() {
   }, [isScaleConnected])
 
   const findProductByBarcode = (barcode: string) => {
-    return productDatabase.find(p => p.barcode === barcode)
+    return products.find(p => p.barcode === barcode)
   }
 
   const findProductByPLU = (plu: string) => {
-    return productDatabase.find(p => p.pluCode === plu)
+    return products.find(p => p.pluCode === plu)
   }
 
   const addToCart = (product: POSItem, quantity = 1, weight?: number) => {
@@ -337,6 +346,68 @@ function GroceryPOSContent() {
         // Payment processed successfully
         await customAlert({ title: 'Payment processed', description: `Payment processed: ${formatCurrency(totals.total)} via ${paymentMethod.toUpperCase()}\nOrder #: ${result.data.orderNumber}` })
 
+        // Build receipt data using universal builder
+        const receiptData = {
+          ...buildReceiptWithBusinessInfo(
+            {
+              id: result.data.id,
+              orderNumber: result.data.orderNumber,
+              orderDate: new Date().toISOString(),
+              orderType: 'SALE',
+              status: result.data.status,
+              subtotal: totals.subtotal,
+              taxAmount: totals.tax,
+              discountAmount: 0,
+              totalAmount: totals.total,
+              paymentMethod: paymentMethod.toUpperCase(),
+              paymentStatus: result.data.paymentStatus,
+              customerName: customer?.name,
+              customerInfo: customer ? {
+                name: customer.name,
+                loyaltyNumber: customer.loyaltyNumber,
+                tier: customer.loyaltyTier
+              } : undefined,
+              employeeName: sessionUser?.name || 'Unknown',
+              employeeId: employeeId,
+              items: Array.isArray(cart)
+                ? cart.map(item => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                    unitPrice: item.price,
+                    totalPrice: item.subtotal
+                  }))
+                : [],
+              attributes: {
+                snapUsed: paymentMethod === 'snap'
+              }
+            },
+            {
+              id: currentBusinessId || '',
+              name: (currentBusiness?.businessName && currentBusiness.businessName.trim()) || 'Grocery Store',
+              type: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery'
+            }
+          ),
+          businessId: currentBusinessId || '',
+          businessType: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery'
+        }
+
+        // Show receipt preview modal (or auto-print if enabled)
+        if (printPreferences.autoPrintReceipt) {
+          // Auto-print without preview
+          try {
+            await handlePrintReceipt(receiptData)
+          } catch (printError) {
+            console.error('Receipt printing error:', printError)
+            // Show preview as fallback if auto-print fails
+            setPendingReceiptData(receiptData)
+            setShowReceiptPreview(true)
+          }
+        } else {
+          // Show preview modal
+          setPendingReceiptData(receiptData)
+          setShowReceiptPreview(true)
+        }
+
         // Add loyalty points if customer is logged in
         if (customer) {
           await customAlert({ title: 'Loyalty Points', description: `${totals.loyaltyPoints} loyalty points added to your account!` })
@@ -354,10 +425,41 @@ function GroceryPOSContent() {
     }
   }
 
+  // Handle printing receipt to configured printer
+  const handlePrintReceipt = async (receiptData: ReceiptData, printerId?: string) => {
+    try {
+      const result = await printReceipt(receiptData, {
+        printerId,
+        autoPrint: true
+      })
+
+      if (!result.success) {
+        throw new Error(result.error || 'Print failed')
+      }
+
+      console.log('Receipt printed successfully, job ID:', result.jobId)
+    } catch (error) {
+      console.error('Print error:', error)
+      throw error
+    }
+  }
+
   const totals = calculateTotals()
 
   return (
-    <ContentLayout
+    <>
+      <ReceiptPreviewModal
+        isOpen={showReceiptPreview}
+        onClose={() => {
+          setShowReceiptPreview(false)
+          setPendingReceiptData(null)
+        }}
+        receiptData={pendingReceiptData}
+        onPrint={handlePrintReceipt}
+        businessType="grocery"
+      />
+
+      <ContentLayout
       title="Grocery Point of Sale"
       breadcrumb={[
         { label: 'Dashboard', href: '/dashboard' },
@@ -365,11 +467,11 @@ function GroceryPOSContent() {
         { label: 'Point of Sale', isActive: true }
       ]}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Main POS Area */}
         <div className="lg:col-span-2 space-y-4">
           {/* Product Entry */}
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Product Entry</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -379,18 +481,18 @@ function GroceryPOSContent() {
                   📷 Barcode Scanner
                 </label>
                     <div>
-                      <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
+                      <form onSubmit={handleBarcodeSubmit} className="flex flex-col sm:flex-row gap-2">
                         <input
                           ref={barcodeInputRef}
                           type="text"
                           value={barcodeInput}
                           onChange={(e) => setBarcodeInput(e.target.value)}
                           placeholder="Scan or enter barcode"
-                          className="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                          className="w-full sm:flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
                         />
                         <button
                           type="submit"
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                          className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                         >
                           Add
                         </button>
@@ -402,27 +504,29 @@ function GroceryPOSContent() {
                       <div className="mt-4">
                         <button
                           onClick={() => setShowScanner(!showScanner)}
-                          className="mb-2 px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm"
+                          className="mb-2 px-3 py-2 w-full sm:w-auto bg-blue-100 text-blue-800 rounded text-sm"
                         >
                           {showScanner ? 'Hide Scanner' : 'Show Scanner'}
                         </button>
 
                         {showScanner && (
-                          <div className="w-full md:w-80">
+                          <div className="w-full md:w-80 max-w-full">
                             <BarcodeScanner
                               onProductScanned={(product: any, variantId?: string) => {
                                 // Map UniversalProduct -> POSItem shape expected by addToCart
                                 const price = variantId && product?.variants?.length
-                                  ? (product.variants.find((v: any) => v.id === variantId)?.price ?? product.basePrice)
-                                  : (product.basePrice ?? 0)
+                                  ? parseFloat((product.variants.find((v: any) => v.id === variantId)?.price ?? product.basePrice) || 0)
+                                  : parseFloat(product.basePrice || 0)
                                 const posItem: POSItem = {
-                                  id: product.id,
+                                  id: variantId || product.id,
                                   name: product.name,
                                   barcode: product.sku ?? product.barcode ?? undefined,
                                   category: product.businessType || 'General',
                                   unitType: 'each',
                                   price,
-                                  unit: 'each'
+                                  unit: 'each',
+                                  taxable: false,
+                                  weightRequired: false
                                 }
                                 addToCart(posItem)
                               }}
@@ -442,18 +546,18 @@ function GroceryPOSContent() {
                 <label className="block text-sm font-medium text-secondary mb-2">
                   🏷️ PLU Code
                 </label>
-                <form onSubmit={handlePLUSubmit} className="flex gap-2">
+                <form onSubmit={handlePLUSubmit} className="flex flex-col sm:flex-row gap-2">
                   <input
                     ref={pluInputRef}
                     type="text"
                     value={pluInput}
                     onChange={(e) => setPluInput(e.target.value)}
                     placeholder="Enter PLU code"
-                    className="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500"
+                    className="w-full sm:flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500"
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                   >
                     Add
                   </button>
@@ -469,20 +573,20 @@ function GroceryPOSContent() {
                   <span className="font-medium">Digital Scale</span>
                   <span className={`inline-block w-2 h-2 rounded-full ${isScaleConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
                 </div>
-                <div className="text-2xl font-mono font-bold">
+                <div className="text-2xl font-mono font-bold min-w-[80px] text-right">
                   {currentWeight.toFixed(2)} lbs
                 </div>
               </div>
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex flex-col xs:flex-row gap-2">
                 <button
                   onClick={() => setCurrentWeight(0)}
-                  className="px-3 py-1 bg-gray-600 text-white rounded text-sm"
+                  className="w-full xs:w-auto px-3 py-2 bg-gray-600 text-white rounded text-sm"
                 >
                   Tare
                 </button>
                 <button
                   onClick={() => setCurrentWeight(Math.random() * 5 + 0.1)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
+                  className="w-full xs:w-auto px-3 py-2 bg-blue-600 text-white rounded text-sm"
                 >
                   Simulate Weight
                 </button>
@@ -490,31 +594,41 @@ function GroceryPOSContent() {
             </div>
 
             {/* Quick Add Buttons for Common Items */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {productDatabase.slice(0, 4).map((product) => (
-                <button
-                  key={product.id}
-                  onClick={() => product.weightRequired ?
-                    (currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })) :
-                    addToCart(product)
-                  }
-                  className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm text-primary"
-                >
-                  <div className="font-medium">{product.name}</div>
-                  <div className="text-secondary">
-                    {product.pluCode && `PLU: ${product.pluCode}`}
-                    {product.barcode && !product.pluCode && `Barcode`}
-                  </div>
-                  <div className="font-semibold text-green-600">
-                    {formatCurrency(product.price)}/{product.unit}
-                  </div>
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {productsLoading ? (
+                <div className="col-span-full text-center py-4 text-secondary">
+                  Loading products...
+                </div>
+              ) : products.length === 0 ? (
+                <div className="col-span-full text-center py-4 text-secondary">
+                  No products available
+                </div>
+              ) : (
+                products.slice(0, 4).map((product) => (
+                  <button
+                    key={product.id}
+                    onClick={() => product.weightRequired ?
+                      (currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })) :
+                      addToCart(product)
+                    }
+                    className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm text-primary min-w-0"
+                  >
+                    <div className="font-medium">{product.name}</div>
+                    <div className="text-secondary">
+                      {product.pluCode && `PLU: ${product.pluCode}`}
+                      {product.barcode && !product.pluCode && `Barcode`}
+                    </div>
+                    <div className="font-semibold text-green-600">
+                      {formatCurrency(product.price)}/{product.unit}
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
 
           {/* Shopping Cart */}
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Shopping Cart</h3>
 
             {cart.length === 0 ? (
@@ -524,7 +638,7 @@ function GroceryPOSContent() {
             ) : (
               <div className="space-y-2">
                 {cart.map((item, index) => (
-                  <div key={`${item.id}-${index}`} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div key={`${item.id}-${index}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg gap-2">
                     <div className="flex-1">
                       <div className="font-medium">{item.name}</div>
                       <div className="text-sm text-secondary flex gap-4">
@@ -534,7 +648,7 @@ function GroceryPOSContent() {
                         {item.snapEligible && <span className="text-blue-600">SNAP ✓</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
                       <div className="font-semibold">{formatCurrency(item.subtotal)}</div>
                       <button
                         onClick={() => removeFromCart(item.id)}
@@ -551,9 +665,9 @@ function GroceryPOSContent() {
         </div>
 
         {/* Sidebar - Customer & Payment */}
-        <div className="space-y-4">
+  <div className="space-y-4 mt-4 lg:mt-0">
           {/* Customer Info */}
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Customer</h3>
               <button
@@ -597,20 +711,21 @@ function GroceryPOSContent() {
                   type="text"
                   placeholder="Phone number or loyalty ID"
                   className="w-full border rounded-lg px-3 py-2"
+                  inputMode="tel"
                 />
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <button
                     onClick={() => {
                       setCustomer(sampleCustomer)
                       setShowCustomerLookup(false)
                     }}
-                    className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    className="w-full sm:flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                   >
                     Load Demo Customer
                   </button>
                   <button
                     onClick={() => setShowCustomerLookup(false)}
-                    className="px-3 py-2 bg-gray-300 text-secondary rounded-lg hover:bg-gray-400 text-sm"
+                    className="w-full sm:w-auto px-3 py-2 bg-gray-300 text-secondary rounded-lg hover:bg-gray-400 text-sm"
                   >
                     Cancel
                   </button>
@@ -622,7 +737,7 @@ function GroceryPOSContent() {
           </div>
 
           {/* Order Summary */}
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
 
             <div className="space-y-2">
@@ -655,7 +770,7 @@ function GroceryPOSContent() {
           </div>
 
           {/* Payment Methods */}
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Payment Method</h3>
 
             <div className="space-y-2 mb-4">
@@ -709,7 +824,7 @@ function GroceryPOSContent() {
             <button
               onClick={handlePayment}
               disabled={cart.length === 0}
-              className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold"
+              className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-base"
             >
               Process Payment - {formatCurrency(totals.total)}
             </button>
@@ -717,6 +832,7 @@ function GroceryPOSContent() {
         </div>
       </div>
     </ContentLayout>
+    </>
   )
 }
 

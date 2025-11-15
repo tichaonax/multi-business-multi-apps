@@ -70,21 +70,21 @@ async function createProductWithStock(businessId, categoryId, productData, initi
     }
   }
 
-  // Create default variant (idempotent by sku)
-  const variantSku = productData.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-DFT`
+  // Create default variant (idempotent by product ID, not SKU)
   const variantId = `${product.id}-variant-default`
   const variant = await prisma.productVariants.upsert({
-    where: { sku: variantSku },
-    update: { price: productData.basePrice, stockQuantity: initialStock || 0, isActive: true },
+    where: { id: variantId },
+    update: { price: productData.basePrice, stockQuantity: initialStock || 0, isActive: true, updatedAt: new Date() },
     create: {
       id: variantId,
       productId: product.id,
       name: 'Default',
-      sku: variantSku,
+      sku: `${product.id}-DFT`, // Always use product ID for variant SKU to ensure uniqueness
       barcode: productData.barcode || null,
       price: productData.basePrice,
       stockQuantity: initialStock || 0,
       isActive: true,
+      createdAt: new Date(),
       updatedAt: new Date()
     }
   })
@@ -125,35 +125,100 @@ async function createProductWithStock(businessId, categoryId, productData, initi
 
 async function seed() {
   try {
-    const businessId = 'grocery-demo-business'
+    console.log('🔍 Checking for existing grocery demo businesses...')
 
-    console.log('Seeding grocery demo data for', businessId)
+    const now = new Date()
+    const createNew = process.env.CREATE_NEW === 'true' || process.argv.includes('--new')
 
     // STEP 1: Ensure categories exist (auto-seed if missing)
     await ensureCategoriesExist()
 
-    // STEP 2: Ensure business exists
-    const now = new Date()
-    const business = await prisma.businesses.upsert({
-      where: { id: businessId },
-      update: { 
-        name: 'Grocery [Demo]',
-        description: 'Demo business for testing - safe to delete',
-        isDemo: true,
-        updatedAt: now 
-      },
-      create: {
-        id: businessId,
-        name: 'Grocery [Demo]',
+    // STEP 2: Check for existing demo businesses
+    const existingDemoBusinesses = await prisma.businesses.findMany({
+      where: {
         type: 'grocery',
-        description: 'Demo business for testing - safe to delete',
-        isActive: true,
+        isDemo: true
+      },
+      orderBy: { createdAt: 'asc' }
+    })
+
+    console.log(`   Found ${existingDemoBusinesses.length} existing grocery demo business(es)`)
+
+    let business
+    let businessId
+
+    // Check if a specific business ID is targeted (e.g., for reseeding)
+    const targetBusinessId = process.env.TARGET_BUSINESS_ID
+    if (targetBusinessId) {
+      business = existingDemoBusinesses.find(b => b.id === targetBusinessId)
+      if (!business) {
+        throw new Error(`Target business "${targetBusinessId}" not found`)
+      }
+      businessId = business.id
+      console.log(`🎯 Targeting specific business: "${business.name}" (${businessId})`)
+    } else if (createNew || existingDemoBusinesses.length === 0) {
+      // Create a new demo business with unique ID
+
+      // Find the next available number (including legacy business without number)
+      const demoNumbers = existingDemoBusinesses
+        .map(b => {
+          const match = b.id.match(/^grocery-demo-(\d+)$/)
+          if (match) return parseInt(match[1])
+          // Legacy business "grocery-demo-business" counts as #1
+          if (b.id === 'grocery-demo-business') return 1
+          return 0
+        })
+        .filter(n => n > 0)
+
+      const nextNumber = demoNumbers.length > 0 ? Math.max(...demoNumbers) + 1 : 1
+      businessId = `grocery-demo-${nextNumber}`
+      const businessName = `Grocery [Demo ${nextNumber}]`
+
+      console.log(`📝 Creating new demo business: ${businessName}`)
+
+      business = await prisma.businesses.create({
+        data: {
+          id: businessId,
+          name: businessName,
+          type: 'grocery',
+          description: `Demo business #${nextNumber} for testing - safe to delete`,
+          isActive: true,
+          isDemo: true,
+          createdAt: now,
+          updatedAt: now
+        }
+      })
+
+      console.log(`✅ Created new demo business: "${business.name}" (${businessId})`)
+    } else {
+      // Reuse the first existing demo business (default behavior for backwards compatibility)
+      business = existingDemoBusinesses[0]
+      businessId = business.id
+
+      console.log(`✅ Reusing existing demo business: "${business.name}" (${businessId})`)
+      console.log(`   💡 Tip: Run with --new flag to create an additional demo business`)
+
+      // Update to ensure isDemo flag is set and rename if it's the legacy ID
+      const updateData = {
         isDemo: true,
-        createdAt: now,
+        description: business.description || 'Demo business for testing - safe to delete',
         updatedAt: now
       }
-    })
-    console.log('Using business for grocery demo:', businessId)
+
+      // If this is the legacy "grocery-demo-business", rename it to "Grocery [Demo 1]"
+      if (business.id === 'grocery-demo-business' && !business.name.includes('[Demo 1]')) {
+        console.log(`   Updating legacy business name to include number...`)
+        updateData.name = 'Grocery [Demo 1]'
+      }
+
+      business = await prisma.businesses.update({
+        where: { id: businessId },
+        data: updateData
+      })
+    }
+
+    console.log(`\n📦 Seeding products for: ${business.name}`)
+    console.log(`   Business ID: ${businessId}\n`)
 
     // Categories - use existing type-based category names
     const categories = [
@@ -247,51 +312,51 @@ async function seed() {
     // Products with realistic cost prices (organized by available categories)
     const products = [
       // Fresh Produce
-      { name: 'Bananas', sku: 'PROD-BAN-001', category: 'Fresh Produce', basePrice: 0.69, costPrice: 0.25, attributes: { pluCode: '4011', temperatureZone: 'ambient', organicCertified: false }, initialStock: 120 },
-      { name: 'Roma Tomatoes', sku: 'PROD-TOM-001', category: 'Fresh Produce', basePrice: 1.29, costPrice: 0.50, attributes: { pluCode: '4087', temperatureZone: 'ambient' }, initialStock: 80 },
-      { name: 'Iceberg Lettuce', sku: 'PROD-LET-001', category: 'Fresh Produce', basePrice: 1.99, costPrice: 0.85, attributes: { temperatureZone: 'refrigerated' }, initialStock: 45 },
-      { name: 'Red Apples', sku: 'PROD-APP-001', category: 'Fresh Produce', basePrice: 0.89, costPrice: 0.35, attributes: { pluCode: '4016' }, initialStock: 95 },
-      { name: 'Carrots 1kg', sku: 'PROD-CAR-001', category: 'Fresh Produce', basePrice: 1.49, costPrice: 0.60, attributes: { pluCode: '4562' }, initialStock: 70 },
-      { name: 'Onions 1kg', sku: 'PROD-ONI-001', category: 'Fresh Produce', basePrice: 1.29, costPrice: 0.50, attributes: { pluCode: '4093' }, initialStock: 85 },
+      { name: 'Bananas', sku: 'PROD-BAN-001', category: 'Fresh Produce', basePrice: 0.69, costPrice: 0.25, attributes: { pluCode: '4011', temperatureZone: 'ambient', organicCertified: false, unitType: 'weight', unit: 'lb', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 2 }, initialStock: 120 },
+      { name: 'Roma Tomatoes', sku: 'PROD-TOM-001', category: 'Fresh Produce', basePrice: 1.29, costPrice: 0.50, attributes: { pluCode: '4087', temperatureZone: 'ambient', unitType: 'weight', unit: 'lb', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 2 }, initialStock: 80 },
+      { name: 'Iceberg Lettuce', sku: 'PROD-LET-001', category: 'Fresh Produce', basePrice: 1.99, costPrice: 0.85, attributes: { temperatureZone: 'refrigerated', unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 2 }, initialStock: 45 },
+      { name: 'Red Apples', sku: 'PROD-APP-001', category: 'Fresh Produce', basePrice: 0.89, costPrice: 0.35, attributes: { pluCode: '4016', unitType: 'weight', unit: 'lb', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 3 }, initialStock: 95 },
+      { name: 'Carrots 1kg', sku: 'PROD-CAR-001', category: 'Fresh Produce', basePrice: 1.49, costPrice: 0.60, attributes: { pluCode: '4562', unitType: 'weight', unit: 'kg', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 2 }, initialStock: 70 },
+      { name: 'Onions 1kg', sku: 'PROD-ONI-001', category: 'Fresh Produce', basePrice: 1.29, costPrice: 0.50, attributes: { pluCode: '4093', unitType: 'weight', unit: 'kg', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 2 }, initialStock: 85 },
       
       // Dairy Products (includes eggs, cheese, milk, yogurt)
-      { name: 'Whole Milk 1L', sku: 'PROD-MLK-001', category: 'Dairy Products', basePrice: 2.49, costPrice: 1.20, attributes: { storageTemp: 'refrigerated', expirationDays: 7 }, initialStock: 40 },
-      { name: 'Large Eggs (Dozen)', sku: 'PROD-EGG-001', category: 'Dairy Products', basePrice: 3.99, costPrice: 2.10, attributes: { storageTemp: 'refrigerated', expirationDays: 21 }, initialStock: 60 },
-      { name: 'Cheddar Cheese 500g', sku: 'PROD-CHE-001', category: 'Dairy Products', basePrice: 6.99, costPrice: 3.80, attributes: { storageTemp: 'refrigerated' }, initialStock: 35 },
-      { name: 'Greek Yogurt 500g', sku: 'PROD-YOG-001', category: 'Dairy Products', basePrice: 4.49, costPrice: 2.40, attributes: { storageTemp: 'refrigerated', expirationDays: 14 }, initialStock: 50 },
-      { name: 'Butter 250g', sku: 'PROD-BUT-001', category: 'Dairy Products', basePrice: 3.99, costPrice: 2.00, attributes: { storageTemp: 'refrigerated' }, initialStock: 55 },
-      { name: 'Cream Cheese 200g', sku: 'PROD-CRM-001', category: 'Dairy Products', basePrice: 2.99, costPrice: 1.50, attributes: { storageTemp: 'refrigerated' }, initialStock: 40 },
+      { name: 'Whole Milk 1L', sku: 'PROD-MLK-001', category: 'Dairy Products', basePrice: 2.49, costPrice: 1.20, attributes: { storageTemp: 'refrigerated', expirationDays: 7, unitType: 'each', unit: 'liter', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 3 }, initialStock: 40 },
+      { name: 'Large Eggs (Dozen)', sku: 'PROD-EGG-001', category: 'Dairy Products', basePrice: 3.99, costPrice: 2.10, attributes: { storageTemp: 'refrigerated', expirationDays: 21, unitType: 'each', unit: 'dozen', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 60 },
+      { name: 'Cheddar Cheese 500g', sku: 'PROD-CHE-001', category: 'Dairy Products', basePrice: 6.99, costPrice: 3.80, attributes: { storageTemp: 'refrigerated', unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 5 }, initialStock: 35 },
+      { name: 'Greek Yogurt 500g', sku: 'PROD-YOG-001', category: 'Dairy Products', basePrice: 4.49, costPrice: 2.40, attributes: { storageTemp: 'refrigerated', expirationDays: 14, unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 50 },
+      { name: 'Butter 250g', sku: 'PROD-BUT-001', category: 'Dairy Products', basePrice: 3.99, costPrice: 2.00, attributes: { storageTemp: 'refrigerated', unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 55 },
+      { name: 'Cream Cheese 200g', sku: 'PROD-CRM-001', category: 'Dairy Products', basePrice: 2.99, costPrice: 1.50, attributes: { storageTemp: 'refrigerated', unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 3 }, initialStock: 40 },
       
       // Meat & Seafood
-      { name: 'Ground Beef 80/20 1lb', sku: 'PROD-BEEF-001', category: 'Meat & Seafood', basePrice: 5.99, costPrice: 3.50, attributes: { storageTemp: 'refrigerated', expirationDays: 3 }, initialStock: 30 },
-      { name: 'Chicken Breast 1lb', sku: 'PROD-CHK-001', category: 'Meat & Seafood', basePrice: 7.99, costPrice: 4.80, attributes: { storageTemp: 'refrigerated', expirationDays: 3 }, initialStock: 25 },
-      { name: 'Salmon Fillet 1lb', sku: 'PROD-SAL-001', category: 'Meat & Seafood', basePrice: 12.99, costPrice: 8.50, attributes: { storageTemp: 'refrigerated', expirationDays: 2 }, initialStock: 18 },
-      { name: 'Pork Chops 1lb', sku: 'PROD-PORK-001', category: 'Meat & Seafood', basePrice: 6.49, costPrice: 3.80, attributes: { storageTemp: 'refrigerated', expirationDays: 3 }, initialStock: 22 },
+      { name: 'Ground Beef 80/20 1lb', sku: 'PROD-BEEF-001', category: 'Meat & Seafood', basePrice: 5.99, costPrice: 3.50, attributes: { storageTemp: 'refrigerated', expirationDays: 3, unitType: 'weight', unit: 'lb', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 5 }, initialStock: 30 },
+      { name: 'Chicken Breast 1lb', sku: 'PROD-CHK-001', category: 'Meat & Seafood', basePrice: 7.99, costPrice: 4.80, attributes: { storageTemp: 'refrigerated', expirationDays: 3, unitType: 'weight', unit: 'lb', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 6 }, initialStock: 25 },
+      { name: 'Salmon Fillet 1lb', sku: 'PROD-SAL-001', category: 'Meat & Seafood', basePrice: 12.99, costPrice: 8.50, attributes: { storageTemp: 'refrigerated', expirationDays: 2, unitType: 'weight', unit: 'lb', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 8 }, initialStock: 18 },
+      { name: 'Pork Chops 1lb', sku: 'PROD-PORK-001', category: 'Meat & Seafood', basePrice: 6.49, costPrice: 3.80, attributes: { storageTemp: 'refrigerated', expirationDays: 3, unitType: 'weight', unit: 'lb', taxable: false, weightRequired: true, snapEligible: true, loyaltyPoints: 5 }, initialStock: 22 },
       
       // Bakery
-      { name: 'Sourdough Loaf', sku: 'PROD-BREAD-001', category: 'Bakery', basePrice: 3.50, costPrice: 1.50, attributes: { expirationDays: 2 }, initialStock: 25 },
-      { name: 'Croissants (6 pack)', sku: 'PROD-CRO-001', category: 'Bakery', basePrice: 5.99, costPrice: 2.80, attributes: { expirationDays: 2 }, initialStock: 20 },
-      { name: 'Bagels (6 pack)', sku: 'PROD-BAG-001', category: 'Bakery', basePrice: 4.49, costPrice: 2.00, attributes: { expirationDays: 3 }, initialStock: 30 },
-      { name: 'Donuts (6 pack)', sku: 'PROD-DON-001', category: 'Bakery', basePrice: 4.99, costPrice: 2.20, attributes: { expirationDays: 1 }, initialStock: 18 },
+      { name: 'Sourdough Loaf', sku: 'PROD-BREAD-001', category: 'Bakery', basePrice: 3.50, costPrice: 1.50, attributes: { expirationDays: 2, unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 3 }, initialStock: 25 },
+      { name: 'Croissants (6 pack)', sku: 'PROD-CRO-001', category: 'Bakery', basePrice: 5.99, costPrice: 2.80, attributes: { expirationDays: 2, unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 20 },
+      { name: 'Bagels (6 pack)', sku: 'PROD-BAG-001', category: 'Bakery', basePrice: 4.49, costPrice: 2.00, attributes: { expirationDays: 3, unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 30 },
+      { name: 'Donuts (6 pack)', sku: 'PROD-DON-001', category: 'Bakery', basePrice: 4.99, costPrice: 2.20, attributes: { expirationDays: 1, unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 18 },
       
       // Pantry & Canned Goods (includes frozen, pantry staples, snacks)
-      { name: 'Olive Oil Extra Virgin 1L', sku: 'PROD-OIL-001', category: 'Pantry & Canned Goods', basePrice: 12.99, costPrice: 8.00, attributes: {}, initialStock: 15 },
-      { name: 'Spaghetti 500g', sku: 'PROD-PAS-001', category: 'Pantry & Canned Goods', basePrice: 1.99, costPrice: 0.85, attributes: {}, initialStock: 80 },
-      { name: 'Rice 2kg', sku: 'PROD-RIC-001', category: 'Pantry & Canned Goods', basePrice: 4.99, costPrice: 2.50, attributes: {}, initialStock: 50 },
-      { name: 'Canned Tomatoes 400g', sku: 'PROD-CAN-TOM-001', category: 'Pantry & Canned Goods', basePrice: 1.49, costPrice: 0.70, attributes: {}, initialStock: 100 },
-      { name: 'Frozen Peas 1kg', sku: 'PROD-FZN-PEAS-001', category: 'Pantry & Canned Goods', basePrice: 2.99, costPrice: 1.00, attributes: { storageTemp: 'frozen' }, initialStock: 60 },
-      { name: 'Frozen Pizza', sku: 'PROD-FZN-PIZ-001', category: 'Pantry & Canned Goods', basePrice: 6.99, costPrice: 3.20, attributes: { storageTemp: 'frozen' }, initialStock: 40 },
-      { name: 'Ice Cream 1L', sku: 'PROD-FZN-ICE-001', category: 'Pantry & Canned Goods', basePrice: 5.49, costPrice: 2.80, attributes: { storageTemp: 'frozen' }, initialStock: 35 },
-      { name: 'Potato Chips 150g', sku: 'PROD-CHIP-001', category: 'Pantry & Canned Goods', basePrice: 1.79, costPrice: 0.70, attributes: {}, initialStock: 90 },
-      { name: 'Chocolate Bar 100g', sku: 'PROD-CHOC-001', category: 'Pantry & Canned Goods', basePrice: 2.49, costPrice: 1.10, attributes: {}, initialStock: 120 },
-      { name: 'Mixed Nuts 200g', sku: 'PROD-NUT-001', category: 'Pantry & Canned Goods', basePrice: 5.99, costPrice: 3.20, attributes: {}, initialStock: 40 },
+      { name: 'Olive Oil Extra Virgin 1L', sku: 'PROD-OIL-001', category: 'Pantry & Canned Goods', basePrice: 12.99, costPrice: 8.00, attributes: { unitType: 'each', unit: 'liter', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 8 }, initialStock: 15 },
+      { name: 'Spaghetti 500g', sku: 'PROD-PAS-001', category: 'Pantry & Canned Goods', basePrice: 1.99, costPrice: 0.85, attributes: { unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 2 }, initialStock: 80 },
+      { name: 'Rice 2kg', sku: 'PROD-RIC-001', category: 'Pantry & Canned Goods', basePrice: 4.99, costPrice: 2.50, attributes: { unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 50 },
+      { name: 'Canned Tomatoes 400g', sku: 'PROD-CAN-TOM-001', category: 'Pantry & Canned Goods', basePrice: 1.49, costPrice: 0.70, attributes: { unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 2 }, initialStock: 100 },
+      { name: 'Frozen Peas 1kg', sku: 'PROD-FZN-PEAS-001', category: 'Pantry & Canned Goods', basePrice: 2.99, costPrice: 1.00, attributes: { storageTemp: 'frozen', unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 3 }, initialStock: 60 },
+      { name: 'Frozen Pizza', sku: 'PROD-FZN-PIZ-001', category: 'Pantry & Canned Goods', basePrice: 6.99, costPrice: 3.20, attributes: { storageTemp: 'frozen', unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 5 }, initialStock: 40 },
+      { name: 'Ice Cream 1L', sku: 'PROD-FZN-ICE-001', category: 'Pantry & Canned Goods', basePrice: 5.49, costPrice: 2.80, attributes: { storageTemp: 'frozen', unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 35 },
+      { name: 'Potato Chips 150g', sku: 'PROD-CHIP-001', category: 'Pantry & Canned Goods', basePrice: 1.79, costPrice: 0.70, attributes: { unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 2 }, initialStock: 90 },
+      { name: 'Chocolate Bar 100g', sku: 'PROD-CHOC-001', category: 'Pantry & Canned Goods', basePrice: 2.49, costPrice: 1.10, attributes: { unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 2 }, initialStock: 120 },
+      { name: 'Mixed Nuts 200g', sku: 'PROD-NUT-001', category: 'Pantry & Canned Goods', basePrice: 5.99, costPrice: 3.20, attributes: { unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 5 }, initialStock: 40 },
       
       // Beverages
-      { name: 'Cola 330ml', sku: 'PROD-COLA-001', category: 'Beverages', basePrice: 1.25, costPrice: 0.50, attributes: {}, initialStock: 200 },
-      { name: 'Orange Juice 1L', sku: 'PROD-OJ-001', category: 'Beverages', basePrice: 3.99, costPrice: 2.00, attributes: { storageTemp: 'refrigerated' }, initialStock: 45 },
-      { name: 'Bottled Water 1.5L', sku: 'PROD-WAT-001', category: 'Beverages', basePrice: 0.99, costPrice: 0.40, attributes: {}, initialStock: 150 },
-      { name: 'Coffee Beans 500g', sku: 'PROD-COF-001', category: 'Beverages', basePrice: 14.99, costPrice: 8.50, attributes: {}, initialStock: 25 },
-      { name: 'Green Tea Bags 100pk', sku: 'PROD-TEA-001', category: 'Beverages', basePrice: 5.99, costPrice: 3.00, attributes: {}, initialStock: 35 }
+      { name: 'Cola 330ml', sku: 'PROD-COLA-001', category: 'Beverages', basePrice: 1.25, costPrice: 0.50, attributes: { unitType: 'each', unit: 'each', taxable: true, weightRequired: false, snapEligible: true, loyaltyPoints: 1 }, initialStock: 200 },
+      { name: 'Orange Juice 1L', sku: 'PROD-OJ-001', category: 'Beverages', basePrice: 3.99, costPrice: 2.00, attributes: { storageTemp: 'refrigerated', unitType: 'each', unit: 'liter', taxable: true, weightRequired: false, snapEligible: true, loyaltyPoints: 3 }, initialStock: 45 },
+      { name: 'Bottled Water 1.5L', sku: 'PROD-WAT-001', category: 'Beverages', basePrice: 0.99, costPrice: 0.40, attributes: { unitType: 'each', unit: 'each', taxable: true, weightRequired: false, snapEligible: true, loyaltyPoints: 1 }, initialStock: 150 },
+      { name: 'Coffee Beans 500g', sku: 'PROD-COF-001', category: 'Beverages', basePrice: 14.99, costPrice: 8.50, attributes: { unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 10 }, initialStock: 25 },
+      { name: 'Green Tea Bags 100pk', sku: 'PROD-TEA-001', category: 'Beverages', basePrice: 5.99, costPrice: 3.00, attributes: { unitType: 'each', unit: 'each', taxable: false, weightRequired: false, snapEligible: true, loyaltyPoints: 4 }, initialStock: 35 }
     ]
 
     console.log(`\n📦 Creating ${products.length} grocery products...`)

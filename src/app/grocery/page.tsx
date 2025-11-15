@@ -43,6 +43,14 @@ export default function GroceryStorePage() {
       features: ['Barcode scanning', 'Scale integration', 'Loyalty rewards', 'EBT/SNAP']
     },
     {
+      title: 'Orders',
+      description: 'View sales, reprint receipts, manage order status',
+      href: '/grocery/orders',
+      icon: '📋',
+      color: 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100',
+      features: ['View daily sales', 'Reprint receipts', 'Order tracking', 'Payment status']
+    },
+    {
       title: 'Customer Analytics',
       description: 'Shopping patterns, loyalty programs, promotional targeting',
       href: '/grocery/customers',

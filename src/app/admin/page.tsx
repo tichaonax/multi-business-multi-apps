@@ -17,14 +17,18 @@ import {
   HardDrive,
   CheckCircle,
   AlertTriangle,
-  Zap
+  Zap,
+  Printer
 } from 'lucide-react'
 import { useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import AdminSeedPromptModal from '@/components/admin/admin-seed-prompt-modal'
 import { useToastContext } from '@/components/ui/toast'
+import { isSystemAdmin } from '@/lib/permission-utils'
 
 export default function AdminPage() {
+  const { data: session } = useSession()
   const [seedingData, setSeedingData] = useState(false)
   const [seedResult, setSeedResult] = useState<any>(null)
   const [seedError, setSeedError] = useState('')
@@ -43,6 +47,8 @@ export default function AdminPage() {
   const [modalBusinessId, setModalBusinessId] = useState<string | null>(null)
   const [modalAction, setModalAction] = useState<null | { endpoint: string; label: string; method?: string; body?: any }>(null)
   const toast = useToastContext()
+
+  const isSysAdmin = isSystemAdmin(session?.user as any)
 
   const handleSeedTestData = async () => {
     if (seedTestConfirmText !== 'CREATE TEST DATA') {
@@ -190,6 +196,33 @@ export default function AdminPage() {
               Manage Sync
             </a>
           </div>
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <Printer className="h-6 w-6 mr-2 text-cyan-500" />
+                  <h3 className="text-lg font-semibold text-primary">Printer Management</h3>
+                </div>
+              </div>
+              <p className="text-secondary mb-4">Configure network printers and print jobs</p>
+              <div className="text-sm text-secondary mb-4">
+                • Register receipt and label printers
+                <br />
+                • Network printer discovery
+                <br />
+                • Configure printer capabilities
+                <br />
+                • Monitor print queue and jobs
+              </div>
+              <a
+                href="/admin/printers"
+                className="btn-primary inline-block"
+              >
+                Manage Printers
+              </a>
+            </div>
+          )}
 
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">

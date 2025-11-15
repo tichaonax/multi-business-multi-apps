@@ -158,16 +158,16 @@ export function UserDetailModal({ isOpen, onClose, userId }: UserDetailModalProp
 
             {/* Business Memberships */}
             {user.businessMemberships && user.businessMemberships.length > 0 && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Memberships</h3>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Business Memberships</h3>
                 <div className="space-y-3">
                   {user.businessMemberships.map((membership, index) => (
-                    <div key={index} className="bg-white rounded-md p-3 border border-gray-200">
+                    <div key={index} className="bg-white dark:bg-gray-700 rounded-md p-3 border border-gray-200 dark:border-gray-600">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium text-gray-900">{membership.businesses.name}</h4>
-                          <p className="text-sm text-gray-600">
-                            {membership.businesses.type} • Role: {membership.role}
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100">{membership.businesses?.name || 'Unknown Business'}</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {membership.businesses?.type || 'Unknown'} • Role: {membership.role}
                           </p>
                         </div>
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

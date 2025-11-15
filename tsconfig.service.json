@@ -5,6 +5,10 @@
     "moduleResolution": "node",
     "outDir": "./dist",
     "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "declaration": false,
     "sourceMap": false,
     "removeComments": true,
@@ -21,7 +25,10 @@
   },
   "include": [
     "src/service/**/*.ts",
-    "src/lib/sync/**/*.ts"
+    "src/lib/sync/**/*.ts",
+    "src/lib/printing/printer-service.ts",
+    "src/lib/printing/audit-logger.ts",
+    "src/types/**/*.ts"
   ],
   "exclude": [
     "src/app/**/*",

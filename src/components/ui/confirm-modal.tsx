@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 
 type ConfirmOptions = {
   title?: string
-  description?: string
+  description?: string | React.ReactNode
   confirmText?: string
   cancelText?: string
   alertMode?: boolean // When true, shows only OK button
@@ -97,7 +97,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           <div className="relative w-full max-w-lg rounded bg-white dark:bg-gray-800 p-6 shadow-lg mx-4" onClick={(e) => e.stopPropagation()}>
             <h3 id="confirm-modal-title" className="text-lg font-semibold text-primary">{state.options.title || 'Confirm'}</h3>
             {state.options.description && (
-              <p className="mt-3 text-sm text-secondary">{state.options.description}</p>
+              <div className="mt-3 text-sm text-secondary">{state.options.description}</div>
             )}
             <div className="mt-6 flex justify-end gap-3">
               {!state.options.alertMode && (

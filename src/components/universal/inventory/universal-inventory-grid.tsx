@@ -1,6 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { LabelPreview } from '@/components/printing/label-preview'
+import { PrinterSelector } from '@/components/printing/printer-selector'
+import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
+import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
+import type { LabelData, NetworkPrinter } from '@/types/printing'
 
 interface UniversalInventoryItem {
   id: string
@@ -77,7 +82,15 @@ export function UniversalInventoryGrid({
   const [categories, setCategories] = useState<string[]>([])
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [locations, setLocations] = useState<string[]>([])
-  
+  const [showLabelPreview, setShowLabelPreview] = useState(false)
+  const [selectedItemForLabel, setSelectedItemForLabel] = useState<UniversalInventoryItem | null>(null)
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const [showBulkLabelPreview, setShowBulkLabelPreview] = useState(false)
+
+  // Printing hooks
+  const { canPrintInventoryLabels } = usePrinterPermissions()
+  const { monitorJob, notifyJobQueued } = usePrintJobMonitor()
+
   // Use external categoryFilter if provided, otherwise use internal state
   const effectiveCategory = categoryFilter || selectedCategory
 
@@ -290,6 +303,141 @@ export function UniversalInventoryGrid({
                            categoryFilter ||
                            departmentFilter
 
+  // Handle print label button click
+  const handlePrintLabel = (item: UniversalInventoryItem) => {
+    setSelectedItemForLabel(item)
+    setShowLabelPreview(true)
+  }
+
+  // Handle item selection for bulk operations
+  const handleSelectItem = (itemId: string) => {
+    setSelectedItems(prev => {
+      const next = new Set(prev)
+      if (next.has(itemId)) {
+        next.delete(itemId)
+      } else {
+        next.add(itemId)
+      }
+      return next
+    })
+  }
+
+  // Handle select all / deselect all
+  const handleSelectAll = () => {
+    if (selectedItems.size === sortedItems.length) {
+      setSelectedItems(new Set())
+    } else {
+      setSelectedItems(new Set(sortedItems.map(item => item.id)))
+    }
+  }
+
+  // Handle bulk print labels
+  const handleBulkPrintLabels = () => {
+    if (selectedItems.size === 0) return
+    setShowBulkLabelPreview(true)
+  }
+
+  // Get selected items data
+  const getSelectedItemsData = (): UniversalInventoryItem[] => {
+    return sortedItems.filter(item => selectedItems.has(item.id))
+  }
+
+  // Convert inventory item to label data
+  const getLabelDataFromItem = (
+    item: UniversalInventoryItem,
+    format: 'standard' | 'with-price' | 'compact' | 'business-specific' = 'with-price'
+  ): LabelData => {
+    return {
+      sku: item.sku,
+      itemName: item.name,
+      price: format === 'with-price' || format === 'business-specific' ? item.sellPrice : undefined,
+      businessType: businessType as any,
+      labelFormat: format,
+      barcode: {
+        data: item.sku,
+        format: 'code128'
+      },
+      businessSpecificData: item.attributes
+    }
+  }
+
+  // Handle printing the label
+  const handlePrint = async (printer: NetworkPrinter, copies: number) => {
+    if (!selectedItemForLabel) return
+
+    try {
+      const labelData = getLabelDataFromItem(selectedItemForLabel)
+
+      const response = await fetch('/api/print/label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          printerId: printer.id,
+          businessId: businessId,
+          ...labelData,
+          copies
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to queue print job')
+      }
+
+      const data = await response.json()
+      notifyJobQueued(data.printJob.id, printer.printerName)
+      monitorJob({ jobId: data.printJob.id })
+
+      setShowLabelPreview(false)
+      setSelectedItemForLabel(null)
+    } catch (error) {
+      console.error('Error printing label:', error)
+    }
+  }
+
+  // Handle bulk printing labels
+  const handleBulkPrint = async (
+    printer: NetworkPrinter,
+    copies: number,
+    format: 'standard' | 'with-price' | 'compact' | 'business-specific' = 'with-price'
+  ) => {
+    const items = getSelectedItemsData()
+    if (items.length === 0) return
+
+    try {
+      // Queue print jobs for each selected item
+      const printPromises = items.map(item => {
+        const labelData = getLabelDataFromItem(item, format)
+        return fetch('/api/print/label', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            printerId: printer.id,
+            businessId: businessId,
+            ...labelData,
+            copies
+          })
+        })
+      })
+
+      const responses = await Promise.all(printPromises)
+      const results = await Promise.all(responses.map(r => r.json()))
+
+      // Monitor all jobs
+      results.forEach(data => {
+        if (data.printJob) {
+          monitorJob({ jobId: data.printJob.id })
+        }
+      })
+
+      notifyJobQueued('bulk', printer.printerName)
+
+      setShowBulkLabelPreview(false)
+      setSelectedItems(new Set())
+    } catch (error) {
+      console.error('Error printing bulk labels:', error)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -321,6 +469,29 @@ export function UniversalInventoryGrid({
 
   return (
     <div className="space-y-4">
+      {/* Bulk Actions Bar */}
+      {canPrintInventoryLabels && selectedItems.size > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-between">
+          <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+            {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''} selected
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleBulkPrintLabels}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm font-medium"
+            >
+              🏷️ Print Labels ({selectedItems.size})
+            </button>
+            <button
+              onClick={() => setSelectedItems(new Set())}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Search and Filters */}
       {(allowSearch || allowFiltering) && (
         <div className="space-y-4">
@@ -435,6 +606,17 @@ export function UniversalInventoryGrid({
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
+                  {canPrintInventoryLabels && (
+                    <th className="w-12 p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.size === sortedItems.length && sortedItems.length > 0}
+                        onChange={handleSelectAll}
+                        className="rounded"
+                        title="Select all"
+                      />
+                    </th>
+                  )}
                   <th
                     className={`text-left p-3 font-medium text-secondary ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('name')}
@@ -477,6 +659,16 @@ export function UniversalInventoryGrid({
                     className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                     onClick={() => onItemView?.(item)}
                   >
+                    {canPrintInventoryLabels && (
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.has(item.id)}
+                          onChange={() => handleSelectItem(item.id)}
+                          className="rounded"
+                        />
+                      </td>
+                    )}
                     <td className="p-3">
                       <div>
                         <div className="font-medium text-primary">{item.name}</div>
@@ -549,6 +741,18 @@ export function UniversalInventoryGrid({
                           >
                             ✏️
                           </button>
+                          {canPrintInventoryLabels && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handlePrintLabel(item)
+                              }}
+                              className="text-purple-600 hover:text-purple-800 text-xs w-8 h-8 flex items-center justify-center rounded"
+                              title="Print label"
+                            >
+                              🏷️
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -662,6 +866,17 @@ export function UniversalInventoryGrid({
                         >
                           Edit
                         </button>
+                        {canPrintInventoryLabels && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handlePrintLabel(item)
+                            }}
+                            className="px-3 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-md hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                          >
+                            Print
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -724,6 +939,157 @@ export function UniversalInventoryGrid({
           </div>
         </div>
       )}
+
+      {/* Label Preview Modal */}
+      {selectedItemForLabel && (
+        <LabelPreview
+          isOpen={showLabelPreview}
+          onClose={() => {
+            setShowLabelPreview(false)
+            setSelectedItemForLabel(null)
+          }}
+          labelData={getLabelDataFromItem(selectedItemForLabel)}
+          onPrint={handlePrint}
+        />
+      )}
+
+      {/* Bulk Label Preview Modal */}
+      {showBulkLabelPreview && (
+        <BulkLabelPreview
+          isOpen={showBulkLabelPreview}
+          onClose={() => {
+            setShowBulkLabelPreview(false)
+          }}
+          items={getSelectedItemsData()}
+          onPrint={handleBulkPrint}
+        />
+      )}
     </div>
+  )
+}
+
+// Simple bulk label preview component
+interface BulkLabelPreviewProps {
+  isOpen: boolean
+  onClose: () => void
+  items: UniversalInventoryItem[]
+  onPrint: (printer: NetworkPrinter, copies: number, format: 'standard' | 'with-price' | 'compact' | 'business-specific') => Promise<void>
+}
+
+function BulkLabelPreview({ isOpen, onClose, items, onPrint }: BulkLabelPreviewProps) {
+  const [showPrinterSelector, setShowPrinterSelector] = useState(false)
+  const [copies, setCopies] = useState(1)
+  const [printing, setPrinting] = useState(false)
+  const [labelFormat, setLabelFormat] = useState<'standard' | 'with-price' | 'compact' | 'business-specific'>('with-price')
+
+  if (!isOpen) return null
+
+  const handleSelectPrinter = async (printer: NetworkPrinter) => {
+    setPrinting(true)
+    await onPrint(printer, copies, labelFormat)
+    setPrinting(false)
+    setShowPrinterSelector(false)
+    onClose()
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              🏷️ Print Labels ({items.length} items)
+            </h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-2">
+              {items.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg"
+                >
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      SKU: {item.sku} • ${item.sellPrice.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {index + 1} of {items.length}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                Label format
+              </label>
+              <select
+                value={labelFormat}
+                onChange={(e) => setLabelFormat(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                <option value="standard">Standard (SKU + Name)</option>
+                <option value="with-price">With Price (SKU + Name + Price)</option>
+                <option value="compact">Compact (SKU only)</option>
+                <option value="business-specific">Business-Specific</option>
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                Copies per label
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={copies}
+                onChange={(e) => setCopies(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={onClose}
+                disabled={printing}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowPrinterSelector(true)}
+                disabled={printing}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+              >
+                {printing ? 'Printing...' : 'Select Printer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showPrinterSelector && (
+        <PrinterSelector
+          isOpen={showPrinterSelector}
+          onClose={() => setShowPrinterSelector(false)}
+          onSelect={handleSelectPrinter}
+          printerType="label"
+          title="Select Label Printer"
+          description="Choose a printer for bulk label printing"
+        />
+      )}
+    </>
   )
 }

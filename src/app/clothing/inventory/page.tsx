@@ -23,6 +23,7 @@ export default function ClothingInventoryPage() {
   const [showViewModal, setShowViewModal] = useState(false)
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [stats, setStats] = useState<any>(null)
+  const [isSeeding, setIsSeeding] = useState(false)
   const customAlert = useAlert()
   const confirm = useConfirm()
 
@@ -166,6 +167,73 @@ export default function ClothingInventoryPage() {
     setSelectedDepartment('')
   }
 
+  const handleSeedProducts = async () => {
+    // Get business name from businesses array
+    const businessName = businesses.find((b: any) => b.businessId === currentBusinessId)?.businessName || 'this business'
+
+    const confirmed = await confirm({
+      title: 'Seed Common Clothing Products',
+      description: (
+        <div>
+          <p className="mb-3">
+            This will import <strong>1067 common clothing products</strong> with zero quantities for{' '}
+            <span className="font-semibold text-purple-600 dark:text-purple-400">{businessName}</span>.
+          </p>
+          <p className="mb-3">Products with existing SKUs will be skipped.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">This is safe to run multiple times.</p>
+        </div>
+      ),
+      confirmText: 'Seed Products',
+      cancelText: 'Cancel'
+    })
+
+    if (!confirmed) return
+
+    try {
+      setIsSeeding(true)
+
+      const response = await fetch('/api/admin/clothing/seed-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId })
+      })
+
+      const data = await response.json()
+
+      setIsSeeding(false)
+
+      if (data.success) {
+        const { imported, skipped, errors } = data.data
+        let message = `Successfully seeded products!\n\n`
+        message += `• Imported: ${imported} products\n`
+        message += `• Skipped: ${skipped} products (already existed)\n`
+        if (errors > 0) {
+          message += `• Errors: ${errors}\n`
+        }
+
+        await customAlert({
+          title: '✅ Products Seeded Successfully',
+          description: message
+        })
+
+        // Refresh the page to show new products
+        router.refresh()
+        fetchStats()
+      } else {
+        await customAlert({
+          title: 'Seeding Failed',
+          description: data.error || 'Failed to seed products. Please try again.'
+        })
+      }
+    } catch (error: any) {
+      setIsSeeding(false)
+      await customAlert({
+        title: 'Error',
+        description: `Failed to seed products: ${error.message}`
+      })
+    }
+  }
+
   const handleFormSubmit = async (formData: any) => {
     try {
       const url = selectedItem
@@ -215,6 +283,29 @@ export default function ClothingInventoryPage() {
   }
 
   return (
+    <>
+      {/* Loading Spinner Modal */}
+      {isSeeding && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-xl max-w-md mx-4">
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600"></div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  Seeding Products...
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Importing 1067 clothing products
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                  This may take 30-60 seconds. Please wait.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
   <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="clothing">
         <ContentLayout
@@ -293,15 +384,25 @@ export default function ClothingInventoryPage() {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                       <h3 className="text-lg font-semibold">Clothing Inventory</h3>
-                      <button
-                        onClick={() => {
-                          setSelectedItem(null)
-                          setShowAddForm(true)
-                        }}
-                        className="btn-primary bg-purple-600 hover:bg-purple-700"
-                      >
-                        ➕ Add Clothing Item
-                      </button>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={handleSeedProducts}
+                          disabled={isSeeding}
+                          className="btn-secondary border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Import 1067 common clothing products with zero quantities"
+                        >
+                          {isSeeding ? '⏳ Seeding...' : '🌱 Seed Products'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedItem(null)
+                            setShowAddForm(true)
+                          }}
+                          className="btn-primary bg-purple-600 hover:bg-purple-700"
+                        >
+                          ➕ Add Item
+                        </button>
+                      </div>
                     </div>
 
                     {/* Active Department Filter Badge */}
@@ -660,5 +761,6 @@ export default function ClothingInventoryPage() {
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>
+    </>
   )
 }

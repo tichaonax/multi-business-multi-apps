@@ -37,6 +37,12 @@ export interface SyncServiceConfig {
   dataDirectory: string
   maxLogSize: number // bytes
   maxLogFiles: number
+  printWorkerHealthCheck?: {
+    enabled?: boolean // Enable print worker health monitoring
+    url?: string // URL to check (e.g., http://localhost:8080/api/health/print-worker)
+    interval?: number // Check interval in milliseconds (default: 60000 = 1 minute)
+    autoRestart?: boolean // Automatically restart worker if not running
+  }
   security?: {
     enableEncryption?: boolean
     enableSignatures?: boolean
@@ -89,6 +95,7 @@ export class SyncService extends EventEmitter {
   private nodeId: string
   private logger: DailyRotatingLogger | null = null
   private healthCheckTimer: NodeJS.Timeout | null = null
+  private printWorkerHealthTimer: NodeJS.Timeout | null = null
   private status: ServiceStatus
 
   constructor(config: SyncServiceConfig) {
@@ -246,6 +253,9 @@ export class SyncService extends EventEmitter {
         clearInterval(this.healthCheckTimer)
         this.healthCheckTimer = null
       }
+
+      // Stop print worker health monitoring
+      this.stopPrintWorkerHealthMonitoring()
 
       // Stop sync engine
       if (this.syncEngine) {
@@ -988,6 +998,75 @@ export class SyncService extends EventEmitter {
         this.log('error', 'Health check failed:', error)
       }
     }, 60000) // Every minute
+
+    // Start print worker health monitoring if enabled
+    this.startPrintWorkerHealthMonitoring()
+  }
+
+  /**
+   * Start print worker health monitoring
+   */
+  private startPrintWorkerHealthMonitoring(): void {
+    const config = this.config.printWorkerHealthCheck
+
+    if (!config?.enabled) {
+      return
+    }
+
+    const url = config.url || 'http://localhost:8080/api/health/print-worker'
+    const interval = config.interval || 60000 // Default: 1 minute
+    const autoRestart = config.autoRestart !== false // Default: true
+
+    this.log('info', `Starting print worker health monitoring (${url}, interval: ${interval}ms)`)
+
+    this.printWorkerHealthTimer = setInterval(async () => {
+      try {
+        const checkUrl = autoRestart ? `${url}?autoRestart=true` : url
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
+        const response = await fetch(checkUrl, {
+          method: 'GET',
+          signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          this.log('warn', `Print worker health check failed: HTTP ${response.status}`)
+          return
+        }
+
+        const data = await response.json()
+
+        if (data.worker?.wasRestarted) {
+          this.log('warn', '⚠️  Print worker was not running and has been restarted')
+          this.emit('print_worker_restarted', data)
+        } else if (!data.worker?.isRunning) {
+          this.log('error', '❌ Print worker is not running')
+          this.emit('print_worker_down', data)
+        } else if (this.config.logLevel === 'debug') {
+          this.log('debug', '✅ Print worker health check passed')
+        }
+      } catch (error) {
+        if ((error as any).name === 'AbortError') {
+          this.log('warn', 'Print worker health check timed out')
+        } else {
+          this.log('error', 'Print worker health check error:', error)
+        }
+      }
+    }, interval)
+  }
+
+  /**
+   * Stop print worker health monitoring
+   */
+  private stopPrintWorkerHealthMonitoring(): void {
+    if (this.printWorkerHealthTimer) {
+      clearInterval(this.printWorkerHealthTimer)
+      this.printWorkerHealthTimer = null
+      this.log('info', 'Print worker health monitoring stopped')
+    }
   }
 
   /**

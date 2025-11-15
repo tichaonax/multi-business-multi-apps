@@ -697,3 +697,73 @@ export function canDeletePayroll(user: SessionUser | null | undefined, businessI
   // Check business-level permission
   return hasPermission(user, 'canDeletePayroll', businessId)
 }
+
+// ============================================================================
+// Printing Module Permissions
+// ============================================================================
+
+/**
+ * Check if user can manage network printers (admin only)
+ */
+export function canManageNetworkPrinters(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canManageNetworkPrinters')
+}
+
+/**
+ * Check if user can use label printers
+ */
+export function canUseLabelPrinters(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canUseLabelPrinters')
+}
+
+/**
+ * Check if user can print receipts
+ */
+export function canPrintReceipts(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canPrintReceipts')
+}
+
+/**
+ * Check if user can print inventory labels
+ */
+export function canPrintInventoryLabels(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canPrintInventoryLabels')
+}
+
+/**
+ * Check if user can view print queue (admin only)
+ */
+export function canViewPrintQueue(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canViewPrintQueue')
+}
+
+/**
+ * Check if user can print (any printing permission)
+ */
+export function canPrint(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+
+  return (
+    hasUserPermission(user, 'canPrintReceipts') ||
+    hasUserPermission(user, 'canUseLabelPrinters') ||
+    hasUserPermission(user, 'canPrintInventoryLabels')
+  )
+}
+
+/**
+ * Check if user can access printer management UI (admins only)
+ */
+export function canAccessPrinterManagement(user: SessionUser | null | undefined): boolean {
+  return canManageNetworkPrinters(user) || canViewPrintQueue(user)
+}

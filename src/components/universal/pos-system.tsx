@@ -5,6 +5,10 @@ import { useBusinessContext, useBusinessFeatures } from './business-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { UniversalProduct } from './product-card'
 import { BarcodeScanner } from './barcode-scanner'
+import { ReceiptPreview } from '@/components/printing/receipt-preview'
+import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
+import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
+import type { ReceiptData, NetworkPrinter } from '@/types/printing'
 
 interface CartItem {
   productId: string
@@ -40,6 +44,13 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
   const [error, setError] = useState<string | null>(null)
 
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false)
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [completedOrderReceipt, setCompletedOrderReceipt] = useState<ReceiptData | null>(null)
+
+  // Printing hooks
+  const { canPrintReceipts } = usePrinterPermissions()
+  const { monitorJob, notifyJobQueued } = usePrintJobMonitor()
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0)
   const taxRate = config?.general?.taxEnabled ? (config?.general?.taxRate || 0) / 100 : 0
@@ -110,6 +121,40 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
     setCustomerInfo({ name: '' })
     setDiscountAmount(0)
     setError(null)
+  }
+
+  // Handle receipt printing
+  const handlePrintReceipt = async (printer: NetworkPrinter) => {
+    if (!completedOrderReceipt) return
+
+    try {
+      const response = await fetch('/api/print/receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          printerId: printer.id,
+          businessId,
+          ...completedOrderReceipt
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to queue print job')
+      }
+
+      const data = await response.json()
+      notifyJobQueued(data.printJob.id, printer.printerName)
+      monitorJob({ jobId: data.printJob.id })
+
+      setShowReceiptPreview(false)
+      setCompletedOrderReceipt(null)
+
+      // Show success message
+      await customAlert({ title: 'Order completed', description: `Order ${completedOrderReceipt.receiptNumber} completed successfully!` })
+    } catch (error) {
+      console.error('Error printing receipt:', error)
+      await customAlert({ title: 'Print error', description: 'Failed to print receipt. Order was still completed successfully.' })
+    }
   }
 
   const processOrder = async () => {
@@ -188,11 +233,46 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
       }
 
       if (result.success) {
+        // Create receipt data
+        const receiptData: ReceiptData = {
+          receiptNumber: result.data.orderNumber || 'N/A',
+          globalId: result.data.id,
+          businessName: config?.businessName || 'Business',
+          businessType: config?.businessType as any || 'retail',
+          businessAddress: config?.general?.address,
+          businessPhone: config?.general?.phone,
+          businessTaxId: config?.general?.taxId,
+          items: cart.map(item => ({
+            name: item.product?.name || 'Item',
+            quantity: item.quantity,
+            price: item.unitPrice,
+            total: item.totalPrice
+          })),
+          subtotal,
+          tax: taxAmount,
+          discount: discountAmount,
+          total: totalAmount,
+          paymentMethod,
+          customerName: customerInfo.name,
+          customerPhone: customerInfo.phone,
+          date: new Date(),
+          cashierName: employeeId ? 'Employee' : undefined,
+          businessSpecificData: {
+            orderType: orderData.orderType
+          }
+        }
+
         clearCart()
         onOrderComplete?.(result.data.id)
 
-  // Show success message
-  await customAlert({ title: 'Order completed', description: `Order ${result.data.orderNumber} completed successfully!` })
+        // Show receipt preview if auto-print or if user has print permission
+        if (canPrintReceipts && autoPrintReceipt) {
+          setCompletedOrderReceipt(receiptData)
+          setShowReceiptPreview(true)
+        } else {
+          // Show success message
+          await customAlert({ title: 'Order completed', description: `Order ${result.data.orderNumber} completed successfully!` })
+        }
       } else {
         throw new Error(result.error || 'Order processing failed')
       }
@@ -375,21 +455,39 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
 
           {/* Payment Method */}
           {cart.length > 0 && (
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-primary mb-2">
-                Payment Method
-              </label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="input-field w-full"
-              >
-                <option value="CASH">Cash</option>
-                <option value="CARD">Card</option>
-                <option value="MOBILE_MONEY">Mobile Money</option>
-                <option value="BANK_TRANSFER">Bank Transfer</option>
-                {businessFeatures.isConsulting() && <option value="NET_30">Net 30</option>}
-              </select>
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-primary mb-2">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
+                  <option value="MOBILE_MONEY">Mobile Money</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  {businessFeatures.isConsulting() && <option value="NET_30">Net 30</option>}
+                </select>
+              </div>
+
+              {/* Auto-print receipt option */}
+              {canPrintReceipts && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="autoPrintReceipt"
+                    checked={autoPrintReceipt}
+                    onChange={(e) => setAutoPrintReceipt(e.target.checked)}
+                    className="rounded"
+                  />
+                  <label htmlFor="autoPrintReceipt" className="text-sm font-medium text-primary">
+                    🧾 Print receipt after checkout
+                  </label>
+                </div>
+              )}
             </div>
           )}
 
@@ -412,6 +510,21 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           )}
         </div>
       </div>
+
+      {/* Receipt Preview Modal */}
+      {completedOrderReceipt && (
+        <ReceiptPreview
+          isOpen={showReceiptPreview}
+          onClose={() => {
+            setShowReceiptPreview(false)
+            setCompletedOrderReceipt(null)
+            // Show success message when user closes without printing
+            customAlert({ title: 'Order completed', description: `Order ${completedOrderReceipt.receiptNumber} completed successfully!` })
+          }}
+          receiptData={completedOrderReceipt}
+          onPrint={handlePrintReceipt}
+        />
+      )}
     </div>
   )
 }

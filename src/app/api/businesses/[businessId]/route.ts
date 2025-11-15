@@ -20,16 +20,16 @@ export async function GET(req: NextRequest, { params }: Context) {
 
     // System admins can view any business
     if (isSystemAdmin(user)) {
-      const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true, name: true, isActive: true, type: true } })
+      const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true, name: true, isActive: true, type: true, settings: true } })
       if (!business || !business.isActive) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      return NextResponse.json({ success: true, business })
+      return NextResponse.json({ success: true, data: business })
     }
 
     // Non-admins must be a member of the business
-    const membership = await prisma.businessMemberships.findFirst({ where: { userId: session.user.id, businessId, isActive: true }, include: { businesses: { select: { id: true, name: true, isActive: true, type: true } } } })
+    const membership = await prisma.businessMemberships.findFirst({ where: { userId: session.user.id, businessId, isActive: true }, include: { businesses: { select: { id: true, name: true, isActive: true, type: true, settings: true } } } })
     if (!membership || !membership.businesses || !membership.businesses.isActive) return NextResponse.json({ error: 'Not found or access denied' }, { status: 404 })
 
-    return NextResponse.json({ success: true, business: membership.businesses })
+    return NextResponse.json({ success: true, data: membership.businesses })
   } catch (error) {
     console.error('Error fetching business by id:', error)
     return NextResponse.json({ error: 'Failed to fetch business' }, { status: 500 })

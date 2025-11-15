@@ -6,6 +6,10 @@ import { LocationSelector } from '@/components/locations/location-selector'
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor'
 import { useSession } from 'next-auth/react'
 import { hasUserPermission } from '@/lib/permission-utils'
+import { LabelPreview } from '@/components/printing/label-preview'
+import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
+import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
+import type { LabelData, NetworkPrinter } from '@/types/printing'
 
 interface InventorySubcategory {
   id: string
@@ -99,8 +103,15 @@ export function UniversalInventoryForm({
   const [showSkuScanner, setShowSkuScanner] = useState(false)
   const [skuScanInput, setSkuScanInput] = useState('')
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
-  
+  const [printOnSave, setPrintOnSave] = useState(false)
+  const [showLabelPreview, setShowLabelPreview] = useState(false)
+  const [savedItemForLabel, setSavedItemForLabel] = useState<UniversalInventoryItem | null>(null)
+
   const { data: session } = useSession()
+
+  // Printing hooks
+  const { canPrintInventoryLabels } = usePrinterPermissions()
+  const { monitorJob, notifyJobQueued } = usePrintJobMonitor()
 
   // Initialize form data when item prop changes
   useEffect(() => {
@@ -296,6 +307,11 @@ export function UniversalInventoryForm({
       // If onSubmit is provided, let the parent handle the submission
       if (onSubmit) {
         await onSubmit(formData)
+        // If printOnSave is checked, show label preview
+        if (printOnSave && canPrintInventoryLabels) {
+          setSavedItemForLabel(formData)
+          setShowLabelPreview(true)
+        }
         setLoading(false)
         return
       }
@@ -316,6 +332,11 @@ export function UniversalInventoryForm({
 
       if (response.ok) {
         const data = await response.json()
+        // If printOnSave is checked, show label preview
+        if (printOnSave && canPrintInventoryLabels) {
+          setSavedItemForLabel(data.item)
+          setShowLabelPreview(true)
+        }
         if (onSave) {
           onSave(data.item)
         }
@@ -327,6 +348,55 @@ export function UniversalInventoryForm({
       setErrors({ general: 'Network error occurred' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Convert inventory item to label data
+  const getLabelDataFromItem = (item: UniversalInventoryItem): LabelData => {
+    return {
+      sku: item.sku,
+      itemName: item.name,
+      price: item.sellPrice,
+      businessType: businessType as any,
+      labelFormat: 'with-price',
+      barcode: {
+        data: item.sku,
+        format: 'code128'
+      },
+      businessSpecificData: item.attributes
+    }
+  }
+
+  // Handle printing the label
+  const handlePrint = async (printer: NetworkPrinter, copies: number) => {
+    if (!savedItemForLabel) return
+
+    try {
+      const labelData = getLabelDataFromItem(savedItemForLabel)
+
+      const response = await fetch('/api/print/label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          printerId: printer.id,
+          businessId: businessId,
+          ...labelData,
+          copies
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to queue print job')
+      }
+
+      const data = await response.json()
+      notifyJobQueued(data.printJob.id, printer.printerName)
+      monitorJob({ jobId: data.printJob.id })
+
+      setShowLabelPreview(false)
+      setSavedItemForLabel(null)
+    } catch (error) {
+      console.error('Error printing label:', error)
     }
   }
 
@@ -880,17 +950,34 @@ export function UniversalInventoryForm({
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="isActive"
-              checked={formData.isActive}
-              onChange={(e) => handleInputChange('isActive', e.target.checked)}
-              className="rounded"
-            />
-            <label htmlFor="isActive" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              Active Item
-            </label>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => handleInputChange('isActive', e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="isActive" className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Active Item
+              </label>
+            </div>
+
+            {canPrintInventoryLabels && (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="printOnSave"
+                  checked={printOnSave}
+                  onChange={(e) => setPrintOnSave(e.target.checked)}
+                  className="rounded"
+                />
+                <label htmlFor="printOnSave" className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1">
+                  🏷️ Print label after saving
+                </label>
+              </div>
+            )}
           </div>
         </div>
 
@@ -993,6 +1080,19 @@ export function UniversalInventoryForm({
             isOpen={showSubcategoryEditor}
           />
         )}
+
+        {/* Label Preview Modal */}
+        {savedItemForLabel && (
+          <LabelPreview
+            isOpen={showLabelPreview}
+            onClose={() => {
+              setShowLabelPreview(false)
+              setSavedItemForLabel(null)
+            }}
+            labelData={getLabelDataFromItem(savedItemForLabel)}
+            onPrint={handlePrint}
+          />
+        )}
       </>
     )
   }
@@ -1001,7 +1101,7 @@ export function UniversalInventoryForm({
   return (
     <>
       {panel}
-      
+
       {/* Subcategory Editor Modal */}
       {showSubcategoryEditor && selectedCategoryData && (
         <InventorySubcategoryEditor
@@ -1015,6 +1115,19 @@ export function UniversalInventoryForm({
           onSuccess={handleSubcategoryCreated}
           onCancel={() => setShowSubcategoryEditor(false)}
           isOpen={showSubcategoryEditor}
+        />
+      )}
+
+      {/* Label Preview Modal */}
+      {savedItemForLabel && (
+        <LabelPreview
+          isOpen={showLabelPreview}
+          onClose={() => {
+            setShowLabelPreview(false)
+            setSavedItemForLabel(null)
+          }}
+          labelData={getLabelDataFromItem(savedItemForLabel)}
+          onPrint={handlePrint}
         />
       )}
     </>

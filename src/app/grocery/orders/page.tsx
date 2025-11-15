@@ -6,8 +6,14 @@ import { useState, useEffect } from 'react'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
+import { printReceipt } from '@/lib/printing/print-receipt'
+import type { ReceiptData } from '@/types/printing'
+import { ReceiptPreviewModal } from '@/components/printing/receipt-preview-modal'
+import { Printer } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { SessionUser } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 
 interface Order {
   id: string
@@ -47,23 +53,37 @@ const PAYMENT_STATUSES = [
 
 export default function GroceryOrdersPage() {
   const customAlert = useAlert()
+  const { data: session } = useSession()
+  const sessionUser = session?.user as SessionUser
+  const {
+    currentBusiness,
+    currentBusinessId,
+    isAuthenticated,
+    loading: businessLoading
+  } = useBusinessPermissionsContext()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [paymentFilter, setPaymentFilter] = useState<string>('all')
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
 
   useEffect(() => {
-    loadOrders()
-  }, [])
+    if (currentBusinessId) {
+      loadOrders()
+    }
+  }, [currentBusinessId, statusFilter, paymentFilter])
 
   const loadOrders = async () => {
+    if (!currentBusinessId) return
+
     try {
       setLoading(true)
       setError(null)
 
       const params = new URLSearchParams({
-        businessId: BUSINESS_ID,
+        businessId: currentBusinessId,
         includeItems: 'true'
       })
 
@@ -79,7 +99,12 @@ export default function GroceryOrdersPage() {
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          setOrders(data.data)
+          // Ensure each order has an items array
+          const ordersWithItems = data.data.map((order: any) => ({
+            ...order,
+            items: order.items || order.business_order_items || []
+          }))
+          setOrders(ordersWithItems)
         } else {
           setError(data.error || 'Failed to load orders')
         }
@@ -149,24 +174,108 @@ export default function GroceryOrdersPage() {
            'Walk-in Customer'
   }
 
+  const handlePrintReceipt = (order: Order) => {
+    // Build receipt data using universal builder
+    const receiptData = {
+      ...buildReceiptWithBusinessInfo(
+        {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          orderDate: order.createdAt,
+          orderType: order.orderType,
+          status: order.status,
+          subtotal: Number(order.subtotal),
+          taxAmount: Number(order.taxAmount),
+          discountAmount: Number(order.attributes?.discountAmount || 0),
+          totalAmount: Number(order.totalAmount),
+          paymentMethod: order.paymentMethod || 'CASH',
+          paymentStatus: order.paymentStatus,
+          customerName: getCustomerName(order),
+          customerInfo: order.customerInfo || order.attributes?.customerInfo,
+          employeeName: sessionUser?.name || 'Unknown',
+          notes: order.notes,
+          items: order.items.map(item => ({
+            name: item.productVariant?.product?.name || item.name || 'Unknown Item',
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice),
+            totalPrice: Number(item.totalPrice),
+            productVariant: item.productVariant
+          })),
+          attributes: order.attributes
+        },
+        {
+          id: currentBusinessId || '',
+          name: (currentBusiness?.businessName && currentBusiness.businessName.trim()) || 'Grocery Store',
+          type: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery',
+        }
+      ),
+      businessId: currentBusinessId || '',
+      businessType: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery'
+    }
+
+    // Show receipt preview modal
+    setPendingReceiptData(receiptData)
+    setShowReceiptPreview(true)
+  }
+
+  const handlePrintReceiptToPrinter = async (receiptData: ReceiptData, printerId?: string) => {
+    try {
+      const result = await printReceipt(receiptData, {
+        printerId,
+        autoPrint: true
+      })
+
+      if (!result.success) {
+        throw new Error(result.error || 'Print failed')
+      }
+
+      console.log('Receipt printed successfully, job ID:', result.jobId)
+    } catch (error) {
+      console.error('Print error:', error)
+      throw error
+    }
+  }
+
   return (
     <BusinessTypeRoute requiredBusinessType="grocery">
+      <ReceiptPreviewModal
+        isOpen={showReceiptPreview}
+        onClose={() => {
+          setShowReceiptPreview(false)
+          setPendingReceiptData(null)
+        }}
+        receiptData={pendingReceiptData}
+        onPrint={handlePrintReceiptToPrinter}
+        businessType="grocery"
+      />
+
       <ContentLayout
-        title="Grocery Store Orders"
+        title={currentBusiness ? `${currentBusiness.businessName} - Orders` : "Grocery Store Orders"}
         breadcrumb={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Grocery', href: '/grocery' },
           { label: 'Orders', isActive: true }
         ]}
       >
+        {businessLoading && (
+          <div className="text-center py-8">Loading business information...</div>
+        )}
+
+        {!businessLoading && !currentBusinessId && (
+          <div className="text-center py-8 text-red-600">
+            No business selected. Please select a business from the dashboard.
+          </div>
+        )}
+
+        {!businessLoading && currentBusinessId && (
         <div className="space-y-6">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="card p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Orders</p>
-                  <p className="text-2xl font-bold text-green-600">{orders.length}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Orders</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">{orders.length}</p>
                 </div>
                 <div className="text-2xl">🛒</div>
               </div>
@@ -175,8 +284,8 @@ export default function GroceryOrdersPage() {
             <div className="card p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Today's Revenue</p>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Today's Revenue</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {formatCurrency(
                       orders
                         .filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString())
@@ -191,8 +300,8 @@ export default function GroceryOrdersPage() {
             <div className="card p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Pending Orders</p>
-                  <p className="text-2xl font-bold text-orange-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Pending Orders</p>
+                  <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                     {orders.filter(o => o.status === 'PENDING').length}
                   </p>
                 </div>
@@ -203,8 +312,8 @@ export default function GroceryOrdersPage() {
             <div className="card p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Completed Today</p>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Completed Today</p>
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                     {orders.filter(o =>
                       o.status === 'COMPLETED' &&
                       new Date(o.createdAt).toDateString() === new Date().toDateString()
@@ -220,7 +329,7 @@ export default function GroceryOrdersPage() {
           <div className="card p-4">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Order Status
                 </label>
                 <select
@@ -236,7 +345,7 @@ export default function GroceryOrdersPage() {
               </div>
 
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Payment Status
                 </label>
                 <select
@@ -271,13 +380,13 @@ export default function GroceryOrdersPage() {
               ) : orders.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="text-4xl mb-4">🛒</div>
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">No orders found</h4>
-                  <p className="text-gray-600">Orders will appear here when customers make purchases</p>
+                  <h4 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No orders found</h4>
+                  <p className="text-gray-600 dark:text-gray-400">Orders will appear here when customers make purchases</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {orders.map((order) => (
-                    <div key={order.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                    <div key={order.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <div className="flex items-center gap-3 mb-1">
@@ -285,7 +394,7 @@ export default function GroceryOrdersPage() {
                             {getStatusBadge(order.status)}
                             {getPaymentBadge(order.paymentStatus)}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
                             Customer: {getCustomerName(order)} •
                             Created: {new Date(order.createdAt).toLocaleString()}
                           </div>
@@ -296,10 +405,10 @@ export default function GroceryOrdersPage() {
                           )}
                         </div>
                         <div className="text-right">
-                          <div className="text-lg font-bold text-green-600">
+                          <div className="text-lg font-bold text-green-600 dark:text-green-400">
                             {formatCurrency(order.totalAmount)}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
                             {order.paymentMethod}
                           </div>
                         </div>
@@ -307,14 +416,14 @@ export default function GroceryOrdersPage() {
 
                       {/* Order Items */}
                       <div className="mb-3">
-                        <div className="text-sm font-medium text-gray-700 mb-2">Items:</div>
+                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Items:</div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {order.items.map((item, index) => (
-                            <div key={index} className="bg-gray-50 p-2 rounded text-sm">
+                          {order.items && order.items.length > 0 ? order.items.map((item, index) => (
+                            <div key={index} className="bg-gray-50 dark:bg-gray-700 p-2 rounded text-sm">
                               <div className="font-medium">
                                 {item.productVariant?.product?.name || `Item ${item.productVariantId}`}
                               </div>
-                              <div className="text-gray-600">
+                              <div className="text-gray-600 dark:text-gray-400">
                                 Qty: {item.quantity} × {formatCurrency(item.unitPrice)} = {formatCurrency(item.totalPrice)}
                               </div>
                               {item.attributes?.organicCertified && (
@@ -324,41 +433,58 @@ export default function GroceryOrdersPage() {
                                 <div className="text-blue-600 text-xs">🎫 SNAP Eligible</div>
                               )}
                             </div>
-                          ))}
+                          )) : (
+                            <div className="col-span-full text-center text-gray-500 dark:text-gray-400 py-4">
+                              No items found for this order
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Actions */}
-                      <div className="flex justify-end gap-2 pt-3 border-t">
-                        {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateOrderStatus(order.id, 'PROCESSING')}
-                              disabled={order.status === 'PROCESSING'}
-                            >
-                              Process
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => updateOrderStatus(order.id, 'COMPLETED')}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              Complete
-                            </Button>
-                          </>
-                        )}
-                        {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+                      <div className="flex justify-between items-center pt-3 border-t">
+                        <div>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => updateOrderStatus(order.id, 'CANCELLED')}
-                            className="text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={() => handlePrintReceipt(order)}
+                            className="gap-2"
                           >
-                            Cancel
+                            <Printer className="h-4 w-4" />
+                            Print Receipt
                           </Button>
-                        )}
+                        </div>
+                        <div className="flex gap-2">
+                          {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateOrderStatus(order.id, 'PROCESSING')}
+                                disabled={order.status === 'PROCESSING'}
+                              >
+                                Process
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => updateOrderStatus(order.id, 'COMPLETED')}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                Complete
+                              </Button>
+                            </>
+                          )}
+                          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateOrderStatus(order.id, 'CANCELLED')}
+                              className="text-red-600 border-red-300 hover:bg-red-50"
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -367,6 +493,7 @@ export default function GroceryOrdersPage() {
             </div>
           </div>
         </div>
+        )}
       </ContentLayout>
     </BusinessTypeRoute>
   )

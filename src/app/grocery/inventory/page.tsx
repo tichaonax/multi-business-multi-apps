@@ -21,6 +21,7 @@ export default function GroceryInventoryPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [showViewModal, setShowViewModal] = useState(false)
 
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -101,8 +102,7 @@ export default function GroceryInventoryPage() {
 
   const handleItemView = (item: any) => {
     setSelectedItem(item)
-    // Could open a detailed view modal
-    console.log('Viewing item:', item)
+    setShowViewModal(true)
   }
 
   const handleItemDelete = async (item: any) => {
@@ -500,6 +500,147 @@ export default function GroceryInventoryPage() {
                       }
                     ]}
                   />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* View Item Modal */}
+          {showViewModal && selectedItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setShowViewModal(false)} />
+              <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-semibold text-primary">Product Details</h3>
+                    <button
+                      onClick={() => setShowViewModal(false)}
+                      className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-6">
+                    {/* Basic Info */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Basic Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Product Name</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.name}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">SKU</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.sku || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Barcode</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.barcode || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Category</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.categoryName || 'Uncategorized'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pricing */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Pricing</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Base Price</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">${selectedItem.basePrice?.toFixed(2) || '0.00'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Cost Price</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">${selectedItem.costPrice?.toFixed(2) || 'N/A'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Grocery-Specific Attributes */}
+                    {selectedItem.attributes && Object.keys(selectedItem.attributes).length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Grocery Details</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          {selectedItem.attributes.pluCode && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">PLU Code</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.pluCode}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.department && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Department</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.department}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.temperatureZone && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Temperature Zone</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.temperatureZone}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.organicCertified !== undefined && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Organic Certified</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.organicCertified ? '✓ Yes' : '✗ No'}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.allergens && selectedItem.attributes.allergens.length > 0 && (
+                            <div className="col-span-2">
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Allergens</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.allergens.join(', ')}</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.expirationDays && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Shelf Life</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.expirationDays} days</div>
+                            </div>
+                          )}
+                          {selectedItem.attributes.batchTracking !== undefined && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Batch Tracking</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.batchTracking ? '✓ Required' : '✗ Not Required'}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    {selectedItem.description && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Description</h3>
+                        <div className="text-gray-900 dark:text-gray-100">{selectedItem.description}</div>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false)
+                          handleItemEdit(selectedItem)
+                        }}
+                        className="flex-1 btn-primary"
+                      >
+                        ✏️ Edit Item
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false)
+                          setSelectedItem(null)
+                        }}
+                        className="flex-1 btn-secondary"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

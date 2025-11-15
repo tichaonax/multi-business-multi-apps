@@ -63,7 +63,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "create-admin": "node scripts/create-admin.js",
+    "print-worker": "node simple-print-worker.js",
     "init-business-balances": "node scripts/initialize-business-balances.js",
     "test:seed-clothing": "node tests/seed-clothing.test.js",
     "setup": "node scripts/setup-fresh-install.js",

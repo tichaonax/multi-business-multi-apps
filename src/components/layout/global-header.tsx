@@ -47,7 +47,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
             {session?.user && isAuthenticated && currentBusiness && (
               <Link
                 href={`/${currentBusiness.businessType}`}
-                className="hidden sm:flex items-center space-x-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
+                className="hidden sm:flex items-center space-x-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer ml-4"
                 title={`Go to ${currentBusiness.businessName} ${currentBusiness.businessType} business`}
               >
                 <span className="text-blue-600 dark:text-blue-400">🏢</span>
@@ -345,16 +345,28 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
               </Link>
 
               {isSystemAdmin(user) && (
-                <Link
-                  href="/admin/users"
-                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => setShowMenu(false)}
-                >
-                  <div className="flex items-center space-x-2">
-                    <span>👥</span>
-                    <span>User Management</span>
-                  </div>
-                </Link>
+                <>
+                  <Link
+                    href="/admin"
+                    className="block px-4 py-2 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-semibold"
+                    onClick={() => setShowMenu(false)}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>🛠️</span>
+                      <span>System Admin</span>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/admin/users"
+                    className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => setShowMenu(false)}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>👥</span>
+                      <span>User Management</span>
+                    </div>
+                  </Link>
+                </>
               )}
 
               <div className="border-t border-gray-200 dark:border-gray-700 my-1" />

@@ -54,6 +54,13 @@ export interface UserLevelPermissions {
   canCreateInventorySubcategories: boolean;
   canEditInventorySubcategories: boolean;
   canDeleteInventorySubcategories: boolean;
+
+  // Universal Printing Module (User-level - cross-business capability)
+  canManageNetworkPrinters: boolean;  // Admin only - register, configure, delete printers
+  canUseLabelPrinters: boolean;       // Print labels from inventory
+  canPrintReceipts: boolean;          // Print sales receipts
+  canPrintInventoryLabels: boolean;   // Print SKU labels for inventory items
+  canViewPrintQueue: boolean;         // Admin only - view print job queue and history
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -591,6 +598,17 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canCreateInventorySubcategories', label: 'Create Inventory Subcategories' },
       { key: 'canEditInventorySubcategories', label: 'Edit Inventory Subcategories' },
       { key: 'canDeleteInventorySubcategories', label: 'Delete Inventory Subcategories' },
+    ]
+  },
+  universalPrinting: {
+    title: 'Universal Printing Module',
+    description: 'Manage network printers and print receipts/labels across all businesses',
+    permissions: [
+      { key: 'canManageNetworkPrinters', label: 'Manage Network Printers' },
+      { key: 'canUseLabelPrinters', label: 'Use Label Printers' },
+      { key: 'canPrintReceipts', label: 'Print Receipts' },
+      { key: 'canPrintInventoryLabels', label: 'Print Inventory Labels' },
+      { key: 'canViewPrintQueue', label: 'View Print Queue' },
     ]
   },
   projectManagement: {
@@ -1272,6 +1290,13 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canCreateInventorySubcategories: false,
   canEditInventorySubcategories: false,
   canDeleteInventorySubcategories: false,
+
+  // Universal Printing Module - Limited access by default
+  canManageNetworkPrinters: false,      // Admin only
+  canUseLabelPrinters: false,           // Must be granted
+  canPrintReceipts: false,              // Must be granted
+  canPrintInventoryLabels: false,       // Must be granted
+  canViewPrintQueue: false,             // Admin only
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
@@ -1327,6 +1352,13 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canCreateInventorySubcategories: true,
   canEditInventorySubcategories: true,
   canDeleteInventorySubcategories: true,
+
+  // Universal Printing Module - Full access
+  canManageNetworkPrinters: true,       // Admins can manage printers
+  canUseLabelPrinters: true,           // Admins can use label printers
+  canPrintReceipts: true,              // Admins can print receipts
+  canPrintInventoryLabels: true,       // Admins can print inventory labels
+  canViewPrintQueue: true,             // Admins can view print queue
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
@@ -1375,6 +1407,21 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canExportPayrollAcrossBusinesses: false,
   canResetPayrollAcrossBusinesses: false,
   canDeletePayrollAcrossBusinesses: false,
+
+  // Inventory Categories - No access
+  canCreateInventoryCategories: false,
+  canEditInventoryCategories: false,
+  canDeleteInventoryCategories: false,
+  canCreateInventorySubcategories: false,
+  canEditInventorySubcategories: false,
+  canDeleteInventorySubcategories: false,
+
+  // Universal Printing Module - No access
+  canManageNetworkPrinters: false,
+  canUseLabelPrinters: false,
+  canPrintReceipts: false,
+  canPrintInventoryLabels: false,
+  canViewPrintQueue: false,
 };
 
 // Permission presets for easy management

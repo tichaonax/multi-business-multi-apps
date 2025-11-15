@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typedRoutes: false,
+  // Enable instrumentation hook for background services
+  experimental: {
+    // instrumentationHook is now enabled by default
+  },
   eslint: {
     // Disable ESLint during builds
     ignoreDuringBuilds: true,

@@ -175,7 +175,7 @@ model BusinessOrderItems {
   id               String          @id @default(uuid())
   orderId          String
   productVariantId String
-  quantity         Int
+  quantity         Decimal         @db.Decimal(10, 3) // Changed from Int to Decimal for weight support
   unitPrice        Decimal         @db.Decimal(10, 2)
   discountAmount   Decimal         @default(0) @db.Decimal(10, 2)
   totalPrice       Decimal         @db.Decimal(10, 2)
@@ -409,6 +409,8 @@ model Businesses {
   vehicle_reimbursements                                                   VehicleReimbursements[]
   vehicle_trips                                                            VehicleTrips[]
   vehicles                                                                 Vehicles[]
+  print_jobs                                                               PrintJobs[]
+  receipt_sequences                                                        ReceiptSequences[]
 
   @@map("businesses")
 }
@@ -2038,6 +2040,67 @@ model InitialLoadSessions {
   @@map("initial_load_sessions")
 }
 
+model NetworkPrinters {
+  id           String      @id @default(uuid())
+  printerId    String      @unique
+  printerName  String
+  printerType  String // label, receipt, document
+  nodeId       String // Which sync node owns this printer
+  ipAddress    String?
+  port         Int?
+  capabilities Json? // Array of capabilities: ['esc-pos', 'zebra-zpl']
+  isShareable  Boolean     @default(false)
+  isOnline     Boolean     @default(true)
+  lastSeen     DateTime    @default(now())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  print_jobs   PrintJobs[]
+
+  @@index([nodeId])
+  @@index([printerType])
+  @@map("network_printers")
+}
+
+model PrintJobs {
+  id               String          @id @default(uuid())
+  printerId        String
+  businessId       String
+  businessType     String // restaurant, clothing, grocery, etc.
+  userId           String
+  jobType          String // receipt, label
+  jobData          Json // Receipt or label data
+  status           String          @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  retryCount       Int             @default(0)
+  errorMessage     String?
+  createdAt        DateTime        @default(now())
+  processedAt      DateTime?
+  network_printers NetworkPrinters @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  businesses       Businesses      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users            Users           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([printerId])
+  @@index([businessId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("print_jobs")
+}
+
+model ReceiptSequences {
+  id           String     @id @default(uuid())
+  businessId   String
+  date         String // YYYY-MM-DD format
+  lastSequence Int        @default(0) // Incremental counter that resets daily
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  businesses   Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, date])
+  @@index([businessId])
+  @@index([date])
+  @@map("receipt_sequences")
+}
+
 model Users {
   id                                                              String                      @id @default(uuid())
   email                                                           String                      @unique
@@ -2103,6 +2166,7 @@ model Users {
   vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursements[]     @relation("vehicle_reimbursements_approvedByTousers")
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicles[]
+  print_jobs                                                      PrintJobs[]
 
   @@map("users")
 }
