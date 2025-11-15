@@ -28,6 +28,16 @@ interface UniversalInventoryItem {
   createdAt: string
   updatedAt: string
   attributes?: Record<string, any>
+  barcodes?: Array<{
+    id: string
+    code: string
+    type: string
+    isPrimary: boolean
+    isUniversal: boolean
+    isActive: boolean
+    label?: string
+    notes?: string
+  }>
 }
 
 interface UniversalInventoryGridProps {
@@ -351,6 +361,7 @@ export function UniversalInventoryGrid({
       sku: item.sku,
       itemName: item.name,
       price: format === 'with-price' || format === 'business-specific' ? item.sellPrice : undefined,
+      businessId: businessId,
       businessType: businessType as any,
       labelFormat: format,
       barcode: {
@@ -643,6 +654,7 @@ export function UniversalInventoryGrid({
                   </th>
                   <th className="text-left p-3 font-medium text-secondary">Supplier</th>
                   <th className="text-left p-3 font-medium text-secondary">Location</th>
+                  <th className="text-left p-3 font-medium text-secondary">Barcodes</th>
                   {showBusinessSpecificFields && (
                     <th className="text-left p-3 font-medium text-secondary">Details</th>
                   )}
@@ -705,6 +717,35 @@ export function UniversalInventoryGrid({
                     </td>
                     <td className="p-3 text-secondary">
                       {item.location || 'Not specified'}
+                    </td>
+                    <td className="p-3">
+                      {item.barcodes && item.barcodes.length > 0 ? (
+                        <div className="space-y-1">
+                          {item.barcodes.slice(0, 2).map((barcode, index) => (
+                            <div key={barcode.id} className="flex items-center gap-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                barcode.type === 'CUSTOM' ? 'bg-purple-100 text-purple-800' :
+                                barcode.type === 'SKU_BARCODE' ? 'bg-blue-100 text-blue-800' :
+                                barcode.type === 'UPC_A' || barcode.type === 'EAN_13' ? 'bg-green-100 text-green-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {barcode.type}
+                              </span>
+                              <span className="font-mono text-xs text-gray-600">{barcode.code}</span>
+                              {barcode.isPrimary && (
+                                <span className="text-xs text-blue-600 font-medium">Primary</span>
+                              )}
+                            </div>
+                          ))}
+                          {item.barcodes.length > 2 && (
+                            <div className="text-xs text-gray-500">
+                              +{item.barcodes.length - 2} more
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">No barcodes</span>
+                      )}
                     </td>
                     {showBusinessSpecificFields && (
                       <td className="p-3">
@@ -835,6 +876,36 @@ export function UniversalInventoryGrid({
                       <div className="truncate">{item.location || 'Not specified'}</div>
                     </div>
                   </div>
+
+                  {/* Barcodes */}
+                  {item.barcodes && item.barcodes.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                      <div className="text-xs text-secondary mb-2">Barcodes</div>
+                      <div className="space-y-1">
+                        {item.barcodes.slice(0, 2).map((barcode) => (
+                          <div key={barcode.id} className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              barcode.type === 'CUSTOM' ? 'bg-purple-100 text-purple-800' :
+                              barcode.type === 'SKU_BARCODE' ? 'bg-blue-100 text-blue-800' :
+                              barcode.type === 'UPC_A' || barcode.type === 'EAN_13' ? 'bg-green-100 text-green-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {barcode.type}
+                            </span>
+                            <span className="font-mono text-xs">{barcode.code}</span>
+                            {barcode.isPrimary && (
+                              <span className="text-xs text-blue-600 font-medium">Primary</span>
+                            )}
+                          </div>
+                        ))}
+                        {item.barcodes.length > 2 && (
+                          <div className="text-xs text-gray-500">
+                            +{item.barcodes.length - 2} more barcodes
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Business Specific Details */}
                   {showBusinessSpecificFields && (

@@ -87,7 +87,8 @@ export async function convertLaybyToOrder(
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       totalPrice: item.totalPrice,
-      sortOrder: index
+      sortOrder: index,
+      attributes: item.attributes || {} // Preserve attributes including scanned barcode info
     }))
 
     // Calculate order totals

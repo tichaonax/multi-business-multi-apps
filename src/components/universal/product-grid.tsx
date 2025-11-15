@@ -23,6 +23,7 @@ interface ProductFilters {
   productType?: string
   condition?: string
   search?: string
+  barcode?: string
   minPrice?: number
   maxPrice?: number
   inStockOnly?: boolean
@@ -78,6 +79,7 @@ export function UniversalProductGrid({
       if (filters.productType) params.set('productType', filters.productType)
       if (filters.condition) params.set('condition', filters.condition)
       if (filters.search) params.set('search', filters.search)
+      if (filters.barcode) params.set('barcode', filters.barcode)
 
       const response = await fetch(`/api/universal/products?${params}`)
       const data = await response.json()
@@ -206,6 +208,19 @@ export function UniversalProductGrid({
                   placeholder={`Search ${businessFeatures.isRestaurant() ? 'menu items' : 'products'}...`}
                   value={filters.search || ''}
                   onChange={(e) => updateFilter('search', e.target.value)}
+                  className="input-field w-full"
+                />
+              </div>
+            )}
+
+            {/* Barcode Filter */}
+            {showFilters && (
+              <div className="flex-1 max-w-xs">
+                <input
+                  type="text"
+                  placeholder="Filter by barcode..."
+                  value={filters.barcode || ''}
+                  onChange={(e) => updateFilter('barcode', e.target.value)}
                   className="input-field w-full"
                 />
               </div>

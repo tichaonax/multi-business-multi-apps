@@ -2,6 +2,99 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 /**
+ * Generate realistic barcodes for grocery products
+ * @param {string} productName - Product name
+ * @param {string} sku - Product SKU
+ * @returns {Object} - Barcode data
+ */
+function generateGroceryBarcode(productName, sku) {
+  // Common UPC-A prefixes for different product categories
+  const categoryPrefixes = {
+    'Fresh Produce': '4', // 4xxxxxx for produce
+    'Dairy Products': '0', // 0xxxxxx for dairy
+    'Meat & Seafood': '2', // 2xxxxxx for meat
+    'Bakery': '8', // 8xxxxxx for bakery
+    'Pantry & Canned Goods': '0', // 0xxxxxx for pantry
+    'Beverages': '0' // 0xxxxxx for beverages
+  }
+
+  // Extract category from product name or use default
+  let category = 'Pantry & Canned Goods' // default
+  for (const [cat, prefix] of Object.entries(categoryPrefixes)) {
+    if (productName.toLowerCase().includes(cat.toLowerCase().split(' ')[0])) {
+      category = cat
+      break
+    }
+  }
+
+  const prefix = categoryPrefixes[category] || '0'
+
+  // Generate a unique 11-digit number (UPC-A needs 12 digits total, last is check digit)
+  const uniqueId = sku.split('-').pop().padStart(5, '0').slice(-5)
+  const randomPart = Math.floor(Math.random() * 100000).toString().padStart(5, '0')
+  const baseCode = prefix + uniqueId + randomPart // 1 + 5 + 5 = 11 digits
+
+  // Calculate UPC-A check digit
+  function calculateUPCCheckDigit(code) {
+    let sum = 0
+    for (let i = 0; i < 11; i++) {
+      const digit = parseInt(code[i])
+      sum += digit * (i % 2 === 0 ? 1 : 3)
+    }
+    const remainder = sum % 10
+    return remainder === 0 ? 0 : 10 - remainder
+  }
+
+  const checkDigit = calculateUPCCheckDigit(baseCode)
+  const upcCode = baseCode + checkDigit
+
+  return {
+    code: upcCode,
+    type: 'UPC_A',
+    isUniversal: true,
+    isPrimary: true,
+    label: 'Retail UPC'
+  }
+}
+
+/**
+ * Create barcode entries in the new ProductBarcodes table
+ * @param {string} productId - Product ID
+ * @param {string} variantId - Variant ID (optional)
+ * @param {Object} barcodeData - Barcode data
+ * @param {string} businessId - Business ID (optional, null for universal)
+ */
+async function createProductBarcode(productId, variantId, barcodeData, businessId = null) {
+  const barcodeId = `${productId}-${variantId || 'default'}-${barcodeData.type}`
+
+  await prisma.productBarcodes.upsert({
+    where: { id: barcodeId },
+    update: {
+      code: barcodeData.code,
+      type: barcodeData.type,
+      isUniversal: barcodeData.isUniversal,
+      isPrimary: barcodeData.isPrimary,
+      label: barcodeData.label,
+      updatedAt: new Date()
+    },
+    create: {
+      id: barcodeId,
+      productId: productId,
+      variantId: variantId,
+      code: barcodeData.code,
+      type: barcodeData.type,
+      isUniversal: barcodeData.isUniversal,
+      isPrimary: barcodeData.isPrimary,
+      label: barcodeData.label,
+      businessId: businessId,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  })
+}
+
+/**
  * Ensure type-based categories exist before seeding demo data
  */
 async function ensureCategoriesExist() {
@@ -48,7 +141,6 @@ async function createProductWithStock(businessId, categoryId, productData, initi
         name: productData.name,
         description: productData.description || '',
         sku: productData.sku,
-        barcode: productData.barcode || null,
         categoryId: categoryId || undefined,
         basePrice: productData.basePrice,
         costPrice: productData.costPrice || null,
@@ -66,7 +158,7 @@ async function createProductWithStock(businessId, categoryId, productData, initi
     if (existing) {
       product = await prisma.businessProducts.update({ where: { id: existing.id }, data: { description: productData.description || '', basePrice: productData.basePrice, costPrice: productData.costPrice || null, attributes: productData.attributes || {}, updatedAt: new Date() } })
     } else {
-      product = await prisma.businessProducts.create({ data: { businessId, name: productData.name, description: productData.description || '', sku: null, barcode: productData.barcode || null, categoryId: categoryId || undefined, basePrice: productData.basePrice, costPrice: productData.costPrice || null, businessType: 'grocery', isActive: true, attributes: productData.attributes || {}, createdAt: new Date(), updatedAt: new Date() } })
+      product = await prisma.businessProducts.create({ data: { businessId, name: productData.name, description: productData.description || '', sku: null, categoryId: categoryId || undefined, basePrice: productData.basePrice, costPrice: productData.costPrice || null, businessType: 'grocery', isActive: true, attributes: productData.attributes || {}, createdAt: new Date(), updatedAt: new Date() } })
     }
   }
 
@@ -80,7 +172,6 @@ async function createProductWithStock(businessId, categoryId, productData, initi
       productId: product.id,
       name: 'Default',
       sku: `${product.id}-DFT`, // Always use product ID for variant SKU to ensure uniqueness
-      barcode: productData.barcode || null,
       price: productData.basePrice,
       stockQuantity: initialStock || 0,
       isActive: true,
@@ -118,6 +209,19 @@ async function createProductWithStock(businessId, categoryId, productData, initi
     // Upsert naive: delete existing attributes for this product and recreate for idempotence
     await prisma.productAttributes.deleteMany({ where: { productId: product.id } }).catch(() => {})
     if (attrData.length > 0) await prisma.productAttributes.createMany({ data: attrData, skipDuplicates: true })
+  }
+
+  // Create barcode entries in the new ProductBarcodes table
+  if (productData.sku) {
+    const barcodeData = generateGroceryBarcode(productData.name, productData.sku)
+    
+    // Create barcode for the product
+    await createProductBarcode(product.id, null, barcodeData)
+    
+    // Create barcode for the variant (same barcode for now)
+    await createProductBarcode(product.id, variant.id, barcodeData)
+    
+    console.log(`   📱 Added barcode: ${barcodeData.code} (${barcodeData.type})`)
   }
 
   return { product, variant }

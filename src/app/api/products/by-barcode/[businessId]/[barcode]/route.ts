@@ -28,17 +28,27 @@ export async function GET(
 
       if (dbg === '2') {
         // Run the queries used below but return raw results for debugging (dev only)
+        // NEW: Check ProductBarcodes table
+        const barcodeCandidates = await prisma.productBarcodes.findMany({
+          where: {
+            code: barcode,
+            isActive: true,
+            OR: [
+              { businessId: businessId },
+              { isUniversal: true }
+            ]
+          },
+          include: {
+            product_variant: { include: { business_products: true } },
+            business_product: { include: { product_variants: true } }
+          }
+        })
+
+        // SKU-based lookups (fallback)
         const variantCandidates = await prisma.productVariants.findMany({
           where: {
-            AND: [
-              {
-                OR: [
-                  { sku: barcode },
-                  { barcode: barcode }
-                ]
-              },
-              { business_products: { businessId } }
-            ]
+            sku: barcode,
+            business_products: { businessId }
           },
           include: {
             business_products: true
@@ -48,10 +58,7 @@ export async function GET(
         const parentCandidates = await prisma.businessProducts.findMany({
           where: {
             businessId,
-            OR: [
-              { sku: barcode },
-              { barcode: barcode }
-            ]
+            sku: barcode
           },
           include: {
             product_variants: true,
@@ -85,6 +92,7 @@ export async function GET(
           dbg: true,
           businessId,
           barcode,
+          barcodeCandidates,
           variantCandidates,
           parentCandidates,
           inventoryRecords
@@ -139,45 +147,110 @@ export async function GET(
       }
     }
 
-    // First try an exact variant-level match constrained to the requested business
-    const variantWhere: any = {
-      AND: [
-        {
-          OR: [
-            { sku: barcode },
-            { barcode: barcode }
-          ]
-        },
-        { business_products: { businessId } }
-      ]
-    }
-
-    let productVariant = await prisma.productVariants.findFirst({
-      where: variantWhere,
+    // NEW APPROACH: First try barcode lookup in ProductBarcodes table
+    // This supports both universal barcodes (UPC/EAN) and business-specific barcodes
+    let barcodeMatch = await prisma.productBarcodes.findFirst({
+      where: {
+        code: barcode,
+        isActive: true,
+        OR: [
+          { businessId: businessId },  // Business-specific barcode
+          { isUniversal: true }        // Universal barcode (UPC/EAN)
+        ]
+      },
       include: {
-        business_products: {
+        product_variant: {
+          include: {
+            business_products: {
+              include: {
+                business_categories: true,
+                product_images: true,
+                product_variants: true
+              }
+            }
+          }
+        },
+        business_product: {
           include: {
             business_categories: true,
             product_images: true,
             product_variants: true
           }
         }
-      }
+      },
+      orderBy: [
+        { isPrimary: 'desc' },       // Prefer primary barcodes
+        { isUniversal: 'desc' }      // Then universal codes
+      ]
     })
 
-    // If no variant-level match within the business, try matching the parent product record
-    // strictly within the same business. Instead of always returning the first variant
-    // (which can have a different SKU), return the parent product details when the
-    // parent SKU/barcode matches. For stock we aggregate across all variants.
+    // Fallback: Try SKU match on variants (SKU is internal, not a barcode)
+    let productVariant = barcodeMatch?.product_variant || null
+    let matchType: string = barcodeMatch ? 'variant_barcode' : null
+    let matchedBarcode = barcodeMatch || null
+
+    if (!productVariant && !barcodeMatch) {
+      // SKU fallback: Try matching variant SKU
+      productVariant = await prisma.productVariants.findFirst({
+        where: {
+          sku: barcode,
+          business_products: { businessId }
+        },
+        include: {
+          business_products: {
+            include: {
+              business_categories: true,
+              product_images: true,
+              product_variants: true
+            }
+          }
+        }
+      })
+      matchType = productVariant ? 'sku_fallback' : null
+    }
+
+    // If no variant-level match, try matching parent product via barcode or SKU
     let parentMatched: any = null
-    if (!productVariant) {
+    if (!productVariant && !barcodeMatch) {
+      // Check if barcode belongs to a parent product
+      const parentBarcodeMatch = await prisma.productBarcodes.findFirst({
+        where: {
+          code: barcode,
+          isActive: true,
+          productId: { not: null },  // Must belong to a product
+          OR: [
+            { businessId: businessId },
+            { isUniversal: true }
+          ]
+        },
+        include: {
+          business_product: {
+            include: {
+              business_categories: true,
+              product_images: true,
+              product_variants: true
+            }
+          }
+        },
+        orderBy: [
+          { isPrimary: 'desc' },
+          { isUniversal: 'desc' }
+        ]
+      })
+
+      if (parentBarcodeMatch?.business_product) {
+        parentMatched = parentBarcodeMatch.business_product
+        matchedBarcode = parentBarcodeMatch
+        matchType = 'product_barcode'
+      }
+    }
+
+    // Final SKU fallback: Try matching parent product SKU
+    if (!productVariant && !parentMatched) {
       const parent = await prisma.businessProducts.findFirst({
         where: {
           businessId,
-          OR: [
-            { sku: barcode },
-            { barcode: barcode }
-          ]
+          sku: barcode
         },
         include: {
           business_categories: true,
@@ -215,7 +288,6 @@ export async function GET(
           name: parent.name,
           description: parent.description || null,
           sku: parent.sku || null,
-          barcode: parent.barcode || null,
           productType: parent.productType || 'PHYSICAL',
           condition: parent.condition || 'NEW',
           basePrice: parseFloat((parent.basePrice ?? 0).toString()),
@@ -234,12 +306,26 @@ export async function GET(
           }))
         }
 
-        // Return parent-shaped UniversalProduct. Since the barcode matched the
-        // parent product record (not a variant), do NOT return a variantId so
-        // calling clients will use the parent SKU and basePrice. If callers
-        // still want to attach a variant, they can pick one from
-        // product.variants on the client side.
-        return NextResponse.json({ success: true, data: { product: productFromParent, variantId: null, matchedByParent: true } })
+        // Build barcode metadata
+        const barcodeInfo = matchedBarcode ? {
+          code: matchedBarcode.code,
+          type: matchedBarcode.type,
+          isPrimary: matchedBarcode.isPrimary,
+          isUniversal: matchedBarcode.isUniversal,
+          label: matchedBarcode.label || null
+        } : null
+
+        // Return parent-shaped UniversalProduct with barcode metadata
+        return NextResponse.json({
+          success: true,
+          data: {
+            product: productFromParent,
+            variantId: null,
+            matchedByParent: true,
+            matchType: matchType || 'sku_fallback',
+            barcode: barcodeInfo
+          }
+        })
       }
     }
 
@@ -275,7 +361,6 @@ export async function GET(
       name: parent.name,
       description: parent.description || null,
       sku: parent.sku || null,
-      barcode: parent.barcode || null,
       productType: parent.productType || 'PHYSICAL',
       condition: parent.condition || 'NEW',
       basePrice: parseFloat((parent.basePrice ?? 0).toString()),
@@ -294,7 +379,24 @@ export async function GET(
       }))
     }
 
-    return NextResponse.json({ success: true, data: { product, variantId: productVariant.id } })
+    // Build barcode metadata
+    const barcodeInfo = matchedBarcode ? {
+      code: matchedBarcode.code,
+      type: matchedBarcode.type,
+      isPrimary: matchedBarcode.isPrimary,
+      isUniversal: matchedBarcode.isUniversal,
+      label: matchedBarcode.label || null
+    } : null
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        product,
+        variantId: productVariant.id,
+        matchType: matchType || 'variant_barcode',
+        barcode: barcodeInfo
+      }
+    })
 
   } catch (error) {
     console.error('Error looking up product by barcode (scoped):', error)

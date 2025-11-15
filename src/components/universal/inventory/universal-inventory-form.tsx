@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react'
 import { SupplierSelector } from '@/components/suppliers/supplier-selector'
 import { LocationSelector } from '@/components/locations/location-selector'
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor'
+import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
 import { useSession } from 'next-auth/react'
 import { hasUserPermission } from '@/lib/permission-utils'
 import { LabelPreview } from '@/components/printing/label-preview'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
-import type { LabelData, NetworkPrinter } from '@/types/printing'
+import type { LabelData, NetworkPrinter, BarcodeFormat, LabelFormat } from '@/types/printing'
 
 interface InventorySubcategory {
   id: string
@@ -37,6 +38,7 @@ interface UniversalInventoryItem {
   location?: string // Legacy - for display only
   locationId?: string
   isActive: boolean
+  barcodes?: ProductBarcode[]
   attributes?: Record<string, any>
 }
 
@@ -100,12 +102,11 @@ export function UniversalInventoryForm({
   const [availableSubcategories, setAvailableSubcategories] = useState<InventorySubcategory[]>([])
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [showSkuScanner, setShowSkuScanner] = useState(false)
-  const [skuScanInput, setSkuScanInput] = useState('')
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
   const [printOnSave, setPrintOnSave] = useState(false)
   const [showLabelPreview, setShowLabelPreview] = useState(false)
   const [savedItemForLabel, setSavedItemForLabel] = useState<UniversalInventoryItem | null>(null)
+  const [barcodes, setBarcodes] = useState<ProductBarcode[]>([])
 
   const { data: session } = useSession()
 
@@ -117,6 +118,7 @@ export function UniversalInventoryForm({
   useEffect(() => {
     if (item) {
       setFormData(item)
+      setBarcodes(item.barcodes || [])
       // Set selected category immediately when editing
       if (item.categoryId) {
         setSelectedCategory(item.categoryId)
@@ -141,6 +143,7 @@ export function UniversalInventoryForm({
         isActive: true,
         attributes: {}
       })
+      setBarcodes([])
       setSelectedCategory('')
       setAvailableSubcategories([])
     }
@@ -261,21 +264,6 @@ export function UniversalInventoryForm({
     setShowSubcategoryEditor(false)
   }
 
-  const handleSkuScan = (scannedValue: string) => {
-    handleInputChange('sku', scannedValue)
-    setSkuScanInput('')
-    setShowSkuScanner(false)
-  }
-
-  const handleSkuScanKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (skuScanInput.trim()) {
-        handleSkuScan(skuScanInput.trim())
-      }
-    }
-  }
-
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
@@ -353,15 +341,52 @@ export function UniversalInventoryForm({
 
   // Convert inventory item to label data
   const getLabelDataFromItem = (item: UniversalInventoryItem): LabelData => {
+    // Helper function to convert barcode type to format
+    const getBarcodeFormat = (type: string): BarcodeFormat => {
+      switch (type) {
+        case 'UPC_A': return 'upca'
+        case 'EAN_13': return 'ean13'
+        case 'EAN_8': return 'ean13' // Close enough for printing
+        case 'CODE128': return 'code128'
+        case 'CODE39': return 'code39'
+        case 'QR_CODE': return 'qr'
+        case 'CUSTOM': return 'code128' // Custom barcodes use code128 format
+        case 'SKU_BARCODE': return 'code128' // SKU barcodes use code128 format
+        default: return 'code128'
+      }
+    }
+
+    // Get primary barcode using new multi-barcode logic
+    const getPrimaryBarcode = () => {
+      // First try new barcodes array
+      if (item.barcodes && item.barcodes.length > 0) {
+        const primary = item.barcodes.find(b => b.isPrimary)
+        if (primary) return primary
+
+        // If no primary marked, use first universal UPC, or first barcode
+        const universalUPC = item.barcodes.find(b => b.isUniversal && (b.type === 'UPC_A' || b.type === 'EAN_13'))
+        if (universalUPC) return universalUPC
+
+        return item.barcodes[0]
+      }
+
+      // Fallback to old barcode field for backward compatibility
+      return null
+    }
+
+    const primaryBarcode = getPrimaryBarcode()
+
     return {
       sku: item.sku,
       itemName: item.name,
       price: item.sellPrice,
+      businessId,
       businessType: businessType as any,
-      labelFormat: 'with-price',
+      businessName: undefined, // TODO: Get business name from context or props
+      labelFormat: 'with-price' as LabelFormat,
       barcode: {
-        data: item.sku,
-        format: 'code128'
+        data: primaryBarcode?.code || item.sku, // Fallback to SKU if no barcode
+        format: primaryBarcode ? getBarcodeFormat(primaryBarcode.type) : 'code128'
       },
       businessSpecificData: item.attributes
     }
@@ -379,7 +404,6 @@ export function UniversalInventoryForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           printerId: printer.id,
-          businessId: businessId,
           ...labelData,
           copies
         })
@@ -788,24 +812,17 @@ export function UniversalInventoryForm({
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                 SKU *
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={formData.sku}
-                  onChange={(e) => handleInputChange('sku', e.target.value)}
-                  className={`flex-1 input-field ${errors.sku ? 'border-red-300' : ''}`}
-                  placeholder="Enter SKU code"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSkuScanner(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
-                  title="Scan SKU"
-                >
-                  📱 Scan
-                </button>
-              </div>
+              <input
+                type="text"
+                value={formData.sku}
+                onChange={(e) => handleInputChange('sku', e.target.value)}
+                className={`input-field ${errors.sku ? 'border-red-300' : ''}`}
+                placeholder="Enter business SKU code"
+              />
               {errors.sku && <p className="text-red-600 text-sm mt-1">{errors.sku}</p>}
+              <p className="text-xs text-gray-500 mt-1">
+                Business-internal identifier (separate from scannable barcodes below)
+              </p>
             </div>
 
             <div>
@@ -981,6 +998,14 @@ export function UniversalInventoryForm({
           </div>
         </div>
 
+        {/* Barcode Management */}
+        <BarcodeManager
+          productId={item?.id}
+          businessId={businessId}
+          barcodes={barcodes}
+          onBarcodesChange={setBarcodes}
+        />
+
         {/* Business-Specific Fields */}
         {getBusinessSpecificFields()}
 
@@ -1002,52 +1027,6 @@ export function UniversalInventoryForm({
         </div>
       </form>
 
-      {/* SKU Scanner Modal */}
-      {showSkuScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">📱 Scan SKU</h3>
-              <button
-                onClick={() => {
-                  setShowSkuScanner(false)
-                  setSkuScanInput('')
-                }}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Focus the input below and scan or type the SKU code
-            </p>
-
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                value={skuScanInput}
-                onChange={(e) => setSkuScanInput(e.target.value)}
-                onKeyPress={handleSkuScanKeyPress}
-                placeholder="Scan or enter SKU..."
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                autoFocus
-              />
-              <button
-                onClick={() => skuScanInput.trim() && handleSkuScan(skuScanInput.trim())}
-                disabled={!skuScanInput.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Apply
-              </button>
-            </div>
-
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              Tip: Use a barcode scanner to quickly enter the SKU
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 

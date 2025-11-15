@@ -2,6 +2,112 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 /**
+ * Generate realistic barcodes for hardware products
+ * @param {string} productName - Product name
+ * @param {string} sku - Product SKU
+ * @returns {Object} - Barcode data
+ */
+function generateHardwareBarcode(productName, sku) {
+  // Hardware products often use various barcode types
+  const barcodeTypes = ['UPC_A', 'EAN_13', 'CODE128']
+  const type = barcodeTypes[Math.floor(Math.random() * barcodeTypes.length)]
+
+  let code, isUniversal
+
+  if (type === 'UPC_A') {
+    // Generate UPC-A (12 digits)
+    const prefix = '6' // Hardware/tools often use 6xxxxxx
+    const uniqueId = sku.replace(/[^0-9]/g, '').slice(-5).padStart(5, '0')
+    const randomPart = Math.floor(Math.random() * 100000).toString().padStart(5, '0')
+    const baseCode = prefix + uniqueId + randomPart // 1 + 5 + 5 = 11 digits
+
+    // Calculate UPC-A check digit
+    function calculateUPCCheckDigit(code) {
+      let sum = 0
+      for (let i = 0; i < 11; i++) {
+        const digit = parseInt(code[i])
+        sum += digit * (i % 2 === 0 ? 1 : 3)
+      }
+      const remainder = sum % 10
+      return remainder === 0 ? 0 : 10 - remainder
+    }
+
+    const checkDigit = calculateUPCCheckDigit(baseCode)
+    code = baseCode + checkDigit
+    isUniversal = true
+  } else if (type === 'EAN_13') {
+    // Generate EAN-13 (13 digits)
+    const prefix = '590' // European hardware prefix
+    const uniqueId = sku.replace(/[^0-9]/g, '').slice(-9).padStart(9, '0')
+    const baseCode = prefix + uniqueId
+
+    // Calculate EAN-13 check digit
+    function calculateEAN13CheckDigit(code) {
+      let sum = 0
+      for (let i = 0; i < 12; i++) {
+        const digit = parseInt(code[i])
+        sum += digit * (i % 2 === 0 ? 1 : 3)
+      }
+      const remainder = sum % 10
+      return remainder === 0 ? 0 : 10 - remainder
+    }
+
+    const checkDigit = calculateEAN13CheckDigit(baseCode)
+    code = baseCode + checkDigit
+    isUniversal = true
+  } else if (type === 'CODE128') {
+    // Generate Code 128 (alphanumeric)
+    code = 'HW' + sku.replace(/[^A-Z0-9]/g, '').slice(-8).padStart(8, '0')
+    isUniversal = false
+  }
+
+  return {
+    code: code,
+    type: type,
+    isUniversal: isUniversal,
+    isPrimary: true,
+    label: type === 'CODE128' ? 'Internal Code' : 'Retail Barcode'
+  }
+}
+
+/**
+ * Create barcode entries in the new ProductBarcodes table
+ * @param {string} productId - Product ID
+ * @param {string} variantId - Variant ID (optional)
+ * @param {Object} barcodeData - Barcode data
+ * @param {string} businessId - Business ID (optional, null for universal)
+ */
+async function createProductBarcode(productId, variantId, barcodeData, businessId = null) {
+  const barcodeId = `${productId}-${variantId || 'default'}-${barcodeData.type}`
+
+  await prisma.productBarcodes.upsert({
+    where: { id: barcodeId },
+    update: {
+      code: barcodeData.code,
+      type: barcodeData.type,
+      isUniversal: barcodeData.isUniversal,
+      isPrimary: barcodeData.isPrimary,
+      label: barcodeData.label,
+      updatedAt: new Date()
+    },
+    create: {
+      id: barcodeId,
+      productId: productId,
+      variantId: variantId,
+      code: barcodeData.code,
+      type: barcodeData.type,
+      isUniversal: barcodeData.isUniversal,
+      isPrimary: barcodeData.isPrimary,
+      label: barcodeData.label,
+      businessId: businessId,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  })
+}
+
+/**
  * Create a product with stock and stock movement
  */
 async function createProductWithStock(businessId, categoryId, supplierId, productData, initialStock = 0) {
@@ -32,15 +138,13 @@ async function createProductWithStock(businessId, categoryId, supplierId, produc
   })
 
   // Create variant with stock
-  const variantSku = `${productData.sku}-STD`
-  const variant = await prisma.productVariants.upsert({
-    where: { sku: variantSku },
-    update: { 
-      stockQuantity: initialStock, 
-      price: productData.basePrice, 
-      updatedAt: now 
-    },
-    create: { 
+  const timestamp = Date.now()
+  const variantId = `${product.id}-variant-default-${timestamp}`
+  const variantSku = `${productData.sku}-STD-${timestamp}`
+  
+  const variant = await prisma.productVariants.create({
+    data: { 
+      id: variantId,
       productId: product.id, 
       sku: variantSku, 
       price: productData.basePrice, 
@@ -70,6 +174,15 @@ async function createProductWithStock(businessId, categoryId, supplierId, produc
       skipDuplicates: true
     })
   }
+
+  // Create barcode entries in the new ProductBarcodes table
+  const barcodeData = generateHardwareBarcode(productData.name, productData.sku)
+  
+  // Create barcode for the product
+  await createProductBarcode(product.id, null, barcodeData)
+  
+  // Create barcode for the variant (same barcode for now)
+  await createProductBarcode(product.id, variant.id, barcodeData)
 
   return { product, variant }
 }

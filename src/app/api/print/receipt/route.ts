@@ -10,7 +10,7 @@ import { canPrintReceipts } from '@/lib/permission-utils';
 import { generateReceiptNumber } from '@/lib/printing/receipt-numbering';
 import { generateReceipt } from '@/lib/printing/receipt-templates';
 import { queuePrintJob } from '@/lib/printing/print-job-queue';
-import type { ReceiptData, BusinessType, PrintJobFormData } from '@/types/printing';
+import type { ReceiptData, PrintJobFormData } from '@/types/printing';
 
 /**
  * POST /api/print/receipt
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     const receiptData: ReceiptData = {
       receiptNumber: receiptNumber, // This should be the full ReceiptNumbering object
       businessId: data.businessId,
-      businessType: data.businessType as BusinessType,
+      businessType: data.businessType as string,
       businessName: data.businessName || data.metadata?.businessName || 'Business',
       businessAddress: data.businessAddress,
       businessPhone: data.businessPhone,
@@ -105,7 +105,11 @@ export async function POST(request: NextRequest) {
         quantity: item.quantity,
         unitPrice: item.unitPrice || item.price || 0,
         totalPrice: item.totalPrice || (item.quantity * (item.unitPrice || item.price || 0)),
-        notes: item.notes
+        notes: item.notes,
+        barcode: item.barcode ? {
+          type: item.barcode.type,
+          code: item.barcode.code
+        } : undefined
       })),
       subtotal: data.subtotal,
       tax: data.tax || data.taxAmount || 0,

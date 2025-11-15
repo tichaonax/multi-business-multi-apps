@@ -11,6 +11,7 @@ import {
   markJobAsCompleted,
   markJobAsFailed,
 } from './print-job-queue';
+import type { LabelData } from '@/types/printing';
 
 const prisma = new PrismaClient();
 
@@ -185,7 +186,16 @@ async function processQueue(): Promise<void> {
         ? Buffer.from(receiptText, 'base64').toString('binary')
         : receiptText;
     } else if (job.jobType === 'label') {
-      printContent = jobData.labelText || jobData.formattedLabel || '';
+      // For label jobs, check if we have pre-formatted content or need to generate it
+      if (jobData.labelText || jobData.formattedLabel) {
+        // Legacy format with pre-formatted content
+        printContent = jobData.labelText || jobData.formattedLabel || '';
+      } else {
+        // New format: generate label text from LabelData
+        const { generateLabel } = await import('./label-generator');
+        const labelData = jobData as LabelData;
+        printContent = generateLabel(labelData);
+      }
     }
 
     if (!printContent) {

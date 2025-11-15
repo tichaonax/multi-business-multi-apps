@@ -147,6 +147,10 @@ export interface ReceiptItem {
   unitPrice: number;
   totalPrice: number;
   notes?: string;
+  barcode?: {
+    type: string; // UPC_A, EAN_13, CODE128, etc.
+    code: string; // The actual barcode value
+  };
 }
 
 // Business-Specific Receipt Data

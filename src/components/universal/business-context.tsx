@@ -235,9 +235,11 @@ export function BusinessProvider({ businessId, children }: BusinessProviderProps
     }
   }
 
-  const formatCurrency = (amount: number | undefined | null): string => {
-    // Handle invalid amounts
-    const validAmount = typeof amount === 'number' && !isNaN(amount) ? amount : 0
+  const formatCurrency = (amount: number | string | undefined | null): string => {
+    // Handle Prisma Decimal (returned as string) and regular numbers
+    // Parse string to number if needed, otherwise use as-is
+    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount
+    const validAmount = typeof numericAmount === 'number' && !isNaN(numericAmount) ? numericAmount : 0
 
     if (!config?.general?.currency) return `$${validAmount.toFixed(2)}`
 

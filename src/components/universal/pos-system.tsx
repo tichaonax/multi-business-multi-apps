@@ -19,6 +19,13 @@ interface CartItem {
   unitPrice: number
   discountAmount: number
   totalPrice: number
+  scannedBarcode?: {
+    code: string
+    type: string
+    isPrimary: boolean
+    isUniversal: boolean
+    label?: string
+  }
 }
 
 interface UniversalPOSProps {
@@ -57,7 +64,7 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
   const taxAmount = subtotal * taxRate
   const totalAmount = subtotal + taxAmount - discountAmount
 
-  const addToCart = (product: UniversalProduct, variantId?: string, quantity = 1) => {
+  const addToCart = (product: UniversalProduct, variantId?: string, quantity = 1, scannedBarcode?: { code: string; type: string; isPrimary: boolean; isUniversal: boolean; label?: string }) => {
     const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined
     const unitPrice = variant?.price ?? product.basePrice
 
@@ -89,7 +96,8 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           quantity,
           unitPrice,
           discountAmount: 0,
-          totalPrice: unitPrice * quantity
+          totalPrice: unitPrice * quantity,
+          scannedBarcode
         }
 
         return [...currentCart, newItem]
@@ -215,7 +223,8 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           discountAmount: item.discountAmount,
           attributes: {
             productName: (item as any).productName || item.product?.name || (item as any).name || 'Item',
-            variantName: item.variant?.name
+            variantName: item.variant?.name,
+            ...(item.scannedBarcode && { scannedBarcode: item.scannedBarcode })
           }
         }))
       }
@@ -358,7 +367,7 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
             </div>
           </div>
 
-          {/* Barcode Scanner */}          <BarcodeScanner            onProductScanned={(product, variantId) => addToCart(product, variantId)}            businessId={businessId}            showScanner={showBarcodeScanner}            onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}          />
+          {/* Barcode Scanner */}          <BarcodeScanner            onProductScanned={(product, variantId, scannedBarcode) => addToCart(product, variantId, 1, scannedBarcode)}            businessId={businessId}            showScanner={showBarcodeScanner}            onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}          />
           {/* Cart Items */}
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">

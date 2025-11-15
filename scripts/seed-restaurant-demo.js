@@ -2,6 +2,112 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 /**
+ * Generate realistic barcodes for restaurant products
+ * @param {string} productName - Product name
+ * @param {string} sku - Product SKU
+ * @returns {Object} - Barcode data
+ */
+function generateRestaurantBarcode(productName, sku) {
+  // Restaurant products often use various barcode types
+  const barcodeTypes = ['UPC_A', 'EAN_13', 'CODE128']
+  const type = barcodeTypes[Math.floor(Math.random() * barcodeTypes.length)]
+
+  let code, isUniversal
+
+  if (type === 'UPC_A') {
+    // Generate UPC-A (12 digits) - common for beverages and packaged foods
+    const prefix = '0' // General merchandise
+    const uniqueId = sku.replace(/[^0-9]/g, '').slice(-5).padStart(5, '0')
+    const randomPart = Math.floor(Math.random() * 100000).toString().padStart(5, '0')
+    const baseCode = prefix + uniqueId + randomPart // 1 + 5 + 5 = 11 digits
+
+    // Calculate UPC-A check digit
+    function calculateUPCCheckDigit(code) {
+      let sum = 0
+      for (let i = 0; i < 11; i++) {
+        const digit = parseInt(code[i])
+        sum += digit * (i % 2 === 0 ? 1 : 3)
+      }
+      const remainder = sum % 10
+      return remainder === 0 ? 0 : 10 - remainder
+    }
+
+    const checkDigit = calculateUPCCheckDigit(baseCode)
+    code = baseCode + checkDigit
+    isUniversal = true
+  } else if (type === 'EAN_13') {
+    // Generate EAN-13 (13 digits) - common for international products
+    const prefix = '590' // European prefix
+    const uniqueId = sku.replace(/[^0-9]/g, '').slice(-9).padStart(9, '0')
+    const baseCode = prefix + uniqueId
+
+    // Calculate EAN-13 check digit
+    function calculateEAN13CheckDigit(code) {
+      let sum = 0
+      for (let i = 0; i < 12; i++) {
+        const digit = parseInt(code[i])
+        sum += digit * (i % 2 === 0 ? 1 : 3)
+      }
+      const remainder = sum % 10
+      return remainder === 0 ? 0 : 10 - remainder
+    }
+
+    const checkDigit = calculateEAN13CheckDigit(baseCode)
+    code = baseCode + checkDigit
+    isUniversal = true
+  } else if (type === 'CODE128') {
+    // Generate Code 128 (alphanumeric) - for custom restaurant items
+    code = 'RST' + sku.replace(/[^A-Z0-9]/g, '').slice(-8).padStart(8, '0')
+    isUniversal = false
+  }
+
+  return {
+    code: code,
+    type: type,
+    isUniversal: isUniversal,
+    isPrimary: true,
+    label: type === 'CODE128' ? 'Internal Code' : 'Retail Barcode'
+  }
+}
+
+/**
+ * Create barcode entries in the new ProductBarcodes table
+ * @param {string} productId - Product ID
+ * @param {string} variantId - Variant ID (optional)
+ * @param {Object} barcodeData - Barcode data
+ * @param {string} businessId - Business ID (optional, null for universal)
+ */
+async function createProductBarcode(productId, variantId, barcodeData, businessId = null) {
+  const barcodeId = `${productId}-${variantId || 'default'}-${barcodeData.type}`
+
+  await prisma.productBarcodes.upsert({
+    where: { id: barcodeId },
+    update: {
+      code: barcodeData.code,
+      type: barcodeData.type,
+      isUniversal: barcodeData.isUniversal,
+      isPrimary: barcodeData.isPrimary,
+      label: barcodeData.label,
+      updatedAt: new Date()
+    },
+    create: {
+      id: barcodeId,
+      productId: productId,
+      variantId: variantId,
+      code: barcodeData.code,
+      type: barcodeData.type,
+      isUniversal: barcodeData.isUniversal,
+      isPrimary: barcodeData.isPrimary,
+      label: barcodeData.label,
+      businessId: businessId,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  })
+}
+
+/**
  * Ensure type-based categories exist before seeding demo data
  */
 async function ensureCategoriesExist() {
@@ -47,7 +153,6 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
         name: itemData.name,
         description: itemData.description || '',
         sku: itemData.sku,
-        barcode: itemData.barcode || null,
         categoryId: categoryId || undefined,
         basePrice: itemData.basePrice,
         costPrice: itemData.costPrice || null,
@@ -63,26 +168,25 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
     if (existing) {
       product = await prisma.businessProducts.update({ where: { id: existing.id }, data: { description: itemData.description || '', basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, attributes: itemData.attributes || {}, updatedAt: new Date() } })
     } else {
-      product = await prisma.businessProducts.create({ data: { businessId, name: itemData.name, description: itemData.description || '', sku: null, barcode: itemData.barcode || null, categoryId: categoryId || undefined, basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, businessType: 'restaurant', isActive: true, attributes: itemData.attributes || {}, createdAt: new Date(), updatedAt: new Date() } })
+      product = await prisma.businessProducts.create({ data: { businessId, name: itemData.name, description: itemData.description || '', sku: null, categoryId: categoryId || undefined, basePrice: itemData.basePrice, costPrice: itemData.costPrice || null, businessType: 'restaurant', isActive: true, attributes: itemData.attributes || {}, createdAt: new Date(), updatedAt: new Date() } })
     }
   }
 
   // Create default variant
+  const timestamp = Date.now()
   const variantSku = itemData.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-DFT`
-  const variant = await prisma.productVariants.upsert({
-    where: { sku: variantSku },
-    update: { price: itemData.basePrice, stockQuantity: initialStock || 0, isActive: true, updatedAt: new Date() },
-    create: {
-      id: `${product.id}-variant-${variantSku}`,
-      productId: product.id,
-      name: 'Default',
-      sku: variantSku,
-      barcode: itemData.barcode || null,
-      price: itemData.basePrice,
-      stockQuantity: initialStock || 0,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
+  const variantId = `${product.id}-variant-default-${timestamp}`
+  
+  const variant = await prisma.productVariants.create({
+    data: { 
+      id: variantId,
+      productId: product.id, 
+      sku: `${variantSku}-${timestamp}`, 
+      price: itemData.basePrice, 
+      stockQuantity: initialStock || 0, 
+      isActive: true, 
+      createdAt: new Date(), 
+      updatedAt: new Date() 
     }
   })
 
@@ -96,12 +200,14 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
     ]
 
     for (const s of sizes) {
-      const sku = `${product.name.replace(/\s+/g, '-').toUpperCase()}-${s.name.toUpperCase().slice(0,3)}`.replace(/[^A-Z0-9-]/g, '')
+      const timestamp = Date.now()
+      const sku = `${product.name.replace(/\s+/g, '-').toUpperCase()}-${s.name.toUpperCase().slice(0,3)}-${timestamp}`.replace(/[^A-Z0-9-]/g, '')
+      const variantId = `${product.id}-variant-${sku}`
       const price = Math.round((itemData.basePrice * s.factor + Number.EPSILON) * 100) / 100
       await prisma.productVariants.upsert({
-        where: { sku },
+        where: { id: variantId },
         update: { price, stockQuantity: initialStock || 0, isActive: true, name: s.name, updatedAt: new Date() },
-        create: { id: `${product.id}-variant-${sku}`, productId: product.id, name: s.name, sku, barcode: itemData.barcode || null, price, stockQuantity: initialStock || 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }
+        create: { id: variantId, productId: product.id, name: s.name, sku, price, stockQuantity: initialStock || 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }
       })
     }
   }
@@ -139,6 +245,30 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   const isDrink = (itemData.category || '').toLowerCase().includes('drink') || (itemData.attributes && itemData.attributes.chilled)
   posAttrs.printToKitchen = typeof posAttrs.printToKitchen === 'boolean' ? posAttrs.printToKitchen : !isDrink
   await prisma.businessProducts.update({ where: { id: product.id }, data: { attributes: posAttrs } })
+
+  // Create barcode entries in the new ProductBarcodes table
+  if (itemData.sku) {
+    const barcodeData = generateRestaurantBarcode(itemData.name, itemData.sku)
+    
+    // Create barcode for the product
+    await createProductBarcode(product.id, null, barcodeData)
+    
+    // Create barcode for the default variant
+    await createProductBarcode(product.id, variant.id, barcodeData)
+    
+    // Create barcodes for size variants if they exist
+    if (itemData.sizes !== false) {
+      const sizes = ['Small', 'Regular', 'Large']
+      for (const sizeName of sizes) {
+        const timestamp = Date.now()
+        const sku = `${itemData.name.replace(/\s+/g, '-').toUpperCase()}-${sizeName.toUpperCase().slice(0,3)}-${timestamp}`.replace(/[^A-Z0-9-]/g, '')
+        const sizeVariant = await prisma.productVariants.findFirst({ where: { sku } })
+        if (sizeVariant) {
+          await createProductBarcode(product.id, sizeVariant.id, barcodeData)
+        }
+      }
+    }
+  }
 
   return { product, variant }
 }

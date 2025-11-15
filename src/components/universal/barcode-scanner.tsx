@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { UniversalProduct } from './product-card'
+import { UniversalProduct, BarcodeType } from './product-card'
 
 interface BarcodeScannerProps {
-  onProductScanned: (product: UniversalProduct, variantId?: string) => void
+  onProductScanned: (product: UniversalProduct, variantId?: string, matchedBarcode?: any) => void
   businessId: string
   showScanner?: boolean
   onToggleScanner?: () => void
@@ -31,6 +31,7 @@ export function BarcodeScanner({
 }: BarcodeScannerProps) {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null)
+  const [matchedBarcodeInfo, setMatchedBarcodeInfo] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanBuffer, setScanBuffer] = useState('')
@@ -274,10 +275,12 @@ export function BarcodeScanner({
           // Support either legacy { success: true, data: { product }} or direct { product: {...} }
           const product = data?.data?.product ?? data?.product
           const variantId = data?.data?.variantId ?? data?.variantId ?? (product ? product.id : undefined)
+          const matchedBarcode = data?.data?.matchedBarcode
 
           if (product) {
-            onProductScanned(product as UniversalProduct, variantId)
+            onProductScanned(product as UniversalProduct, variantId, matchedBarcode)
             setLastScannedBarcode(toLookup)
+            setMatchedBarcodeInfo(matchedBarcode)
             setBarcodeInput('')
             clearLastScanned()
             return
@@ -307,11 +310,37 @@ export function BarcodeScanner({
               name: 'Demo Category'
             },
             sku: `SKU-${productMapping.productId}`,
+            barcode: toLookup, // Keep for backward compatibility
+            barcodes: [{
+              id: `demo-barcode-${toLookup}`,
+              code: toLookup,
+              type: getDemoBarcodeType(toLookup),
+              isPrimary: true,
+              isUniversal: isDemoUniversalBarcode(toLookup),
+              isActive: true,
+              label: getDemoBarcodeLabel(toLookup),
+              businessId: isDemoUniversalBarcode(toLookup) ? undefined : businessId,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }],
             isActive: true,
             variants: productMapping.variantId ? [{
               id: productMapping.variantId,
               name: getDemoVariantName(productMapping.variantId),
               sku: `SKU-${productMapping.variantId}`,
+              barcode: toLookup, // Keep for backward compatibility
+              barcodes: [{
+                id: `demo-variant-barcode-${toLookup}`,
+                code: toLookup,
+                type: getDemoBarcodeType(toLookup),
+                isPrimary: true,
+                isUniversal: isDemoUniversalBarcode(toLookup),
+                isActive: true,
+                label: getDemoBarcodeLabel(toLookup),
+                businessId: isDemoUniversalBarcode(toLookup) ? undefined : businessId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }],
               price: getDemoPrice(productMapping.productId),
               stockQuantity: 100,
               attributes: getDemoAttributes(productMapping.variantId)
@@ -372,7 +401,10 @@ export function BarcodeScanner({
   }
 
   const clearLastScanned = () => {
-    setTimeout(() => setLastScannedBarcode(null), 3000)
+    setTimeout(() => {
+      setLastScannedBarcode(null)
+      setMatchedBarcodeInfo(null)
+    }, 3000)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -474,6 +506,27 @@ export function BarcodeScanner({
       if (path.includes('/hardware')) return 'hardware'
     }
     return 'general'
+  }
+
+  const getDemoBarcodeType = (barcode: string): BarcodeType => {
+    if (/^\d{12}$/.test(barcode)) return 'UPC_A'
+    if (/^\d{13}$/.test(barcode)) return 'EAN_13'
+    if (/^\d{8}$/.test(barcode)) return 'EAN_8'
+    return 'CUSTOM'
+  }
+
+  const isDemoUniversalBarcode = (barcode: string): boolean => {
+    return getDemoBarcodeType(barcode) !== 'CUSTOM'
+  }
+
+  const getDemoBarcodeLabel = (barcode: string): string => {
+    const type = getDemoBarcodeType(barcode)
+    switch (type) {
+      case 'UPC_A': return 'Retail UPC'
+      case 'EAN_13': return 'European Article Number'
+      case 'EAN_8': return 'Short EAN'
+      default: return 'Custom Barcode'
+    }
   }
 
   const getBusinessSpecificDemoBarcodes = () => {
@@ -607,12 +660,37 @@ export function BarcodeScanner({
 
         {lastScannedBarcode && (
           <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-2">
               <span className="text-green-600">✅</span>
               <span className="text-sm text-green-800">
                 Successfully scanned: <code className="bg-green-100 px-2 py-1 rounded">{lastScannedBarcode}</code>
               </span>
             </div>
+            {matchedBarcodeInfo && (
+              <div className="text-xs text-green-700 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                    matchedBarcodeInfo.isUniversal
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {matchedBarcodeInfo.type}
+                    {matchedBarcodeInfo.isUniversal && ' 🌍'}
+                  </span>
+                  {matchedBarcodeInfo.isPrimary && (
+                    <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-medium">
+                      ⭐ Primary
+                    </span>
+                  )}
+                </div>
+                {matchedBarcodeInfo.label && (
+                  <div>Label: {matchedBarcodeInfo.label}</div>
+                )}
+                <div className="text-gray-600">
+                  {matchedBarcodeInfo.isUniversal ? 'Universal barcode (shared across businesses)' : 'Business-specific barcode'}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

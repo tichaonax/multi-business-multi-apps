@@ -23,6 +23,16 @@ interface UniversalInventoryItem {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  barcodes?: Array<{
+    id: string
+    code: string
+    type: string
+    isPrimary: boolean
+    isUniversal: boolean
+    isActive: boolean
+    label?: string
+    notes?: string
+  }>
   // Business-specific attributes stored as flexible JSON
   attributes?: {
     // Restaurant-specific
@@ -113,6 +123,10 @@ export async function GET(
           include: {
             business_stock_movements: true
           }
+        },
+        product_barcodes: {
+          where: { isActive: true },
+          orderBy: { isPrimary: 'desc' }
         }
       },
       orderBy: { name: 'asc' },
@@ -153,6 +167,16 @@ export async function GET(
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
+        barcodes: product.product_barcodes.map(b => ({
+          id: b.id,
+          code: b.code,
+          type: b.type,
+          isPrimary: b.isPrimary,
+          isUniversal: b.isUniversal,
+          isActive: b.isActive,
+          label: b.label || undefined,
+          notes: b.notes || undefined
+        })),
         attributes: product.attributes || {}
       }
     })

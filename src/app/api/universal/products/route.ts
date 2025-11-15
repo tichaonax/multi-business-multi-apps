@@ -42,6 +42,7 @@ function normalizeProduct(product: any) {
   product.category = product.category || (product.business_categories ? { id: product.business_categories.id, name: product.business_categories.name } : null)
   product.variants = product.variants || product.product_variants || []
   product.images = product.images || product.product_images || []
+  product.barcodes = product.product_barcodes || []
   product.business = product.business || null
 
   // remove internal/plural fields so responses match previous shape
@@ -49,6 +50,7 @@ function normalizeProduct(product: any) {
   delete product.business_categories
   delete product.product_variants
   delete product.ProductImages
+  delete product.product_barcodes
 
   return product
 }
@@ -64,6 +66,9 @@ export async function GET(request: NextRequest) {
     const productType = searchParams.get('productType')
     const condition = searchParams.get('condition')
     const search = searchParams.get('search')
+    const barcodeType = searchParams.get('barcodeType')
+    const hasUpc = searchParams.get('hasUpc')
+    const sortBy = searchParams.get('sortBy') // 'upc-first', 'no-upc-first', 'name', 'sku'
     const isAvailable = searchParams.get('isAvailable')
     const isActive = searchParams.get('isActive')
     const includeVariants = searchParams.get('includeVariants') === 'true'
@@ -101,12 +106,52 @@ export async function GET(request: NextRequest) {
     if (productType) where.productType = productType as any
     if (condition) where.condition = condition as any
 
+    // Filter by barcode type and UPC presence
+    if (barcodeType || hasUpc !== null) {
+      const barcodeFilter: any = {}
+
+      if (barcodeType) {
+        barcodeFilter.type = barcodeType
+      }
+
+      if (hasUpc !== null) {
+        const hasUpcBool = hasUpc === 'true'
+        barcodeFilter.type = hasUpcBool
+          ? { in: ['UPC_A', 'EAN_13', 'EAN_8'] }
+          : { notIn: ['UPC_A', 'EAN_13', 'EAN_8'] }
+      }
+
+      where.product_barcodes = {
+        some: barcodeFilter
+      }
+    }
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
-        { barcode: { contains: search, mode: 'insensitive' } }
+        { barcode: { contains: search, mode: 'insensitive' } },
+        // Search in ProductBarcodes table
+        {
+          product_barcodes: {
+            some: {
+              code: { contains: search, mode: 'insensitive' }
+            }
+          }
+        },
+        // Also search in variant barcodes
+        {
+          product_variants: {
+            some: {
+              product_barcodes: {
+                some: {
+                  code: { contains: search, mode: 'insensitive' }
+                }
+              }
+            }
+          }
+        }
       ]
     }
 
@@ -123,10 +168,32 @@ export async function GET(request: NextRequest) {
           business_categories: {
             select: { id: true, name: true }
           },
+          product_barcodes: {
+            select: {
+              id: true,
+              code: true,
+              type: true,
+              isPrimary: true,
+              isUniversal: true,
+              label: true
+            }
+          },
           ...(includeVariants && {
             product_variants: {
               where: { isActive: true },
-              orderBy: { name: 'asc' }
+              orderBy: { name: 'asc' },
+              include: {
+                product_barcodes: {
+                  select: {
+                    id: true,
+                    code: true,
+                    type: true,
+                    isPrimary: true,
+                    isUniversal: true,
+                    label: true
+                  }
+                }
+              }
             }
           }),
           ...(includeImages && {
@@ -138,17 +205,34 @@ export async function GET(request: NextRequest) {
             }
           })
         },
-        orderBy: [
-          { name: 'asc' }
-        ],
+        orderBy: sortBy === 'sku' ? [{ sku: 'asc' }] : [{ name: 'asc' }],
         skip,
         take: limit
       }),
       prisma.businessProducts.count({ where })
     ])
 
+    // Sort products by UPC presence if requested
+    let sortedProducts = products
+    if (sortBy === 'upc-first' || sortBy === 'no-upc-first') {
+      sortedProducts = products.sort((a, b) => {
+        const aHasUpc = a.product_barcodes.some(bc => ['UPC_A', 'EAN_13', 'EAN_8'].includes(bc.type))
+        const bHasUpc = b.product_barcodes.some(bc => ['UPC_A', 'EAN_13', 'EAN_8'].includes(bc.type))
+
+        if (sortBy === 'upc-first') {
+          if (aHasUpc && !bHasUpc) return -1
+          if (!aHasUpc && bHasUpc) return 1
+          return a.name.localeCompare(b.name)
+        } else { // no-upc-first
+          if (!aHasUpc && bHasUpc) return -1
+          if (aHasUpc && !bHasUpc) return 1
+          return a.name.localeCompare(b.name)
+        }
+      })
+    }
+
     // normalize products to legacy API shape
-    const normalizedProducts = products.map(normalizeProduct)
+    const normalizedProducts = sortedProducts.map(normalizeProduct)
 
     return NextResponse.json({
       success: true,

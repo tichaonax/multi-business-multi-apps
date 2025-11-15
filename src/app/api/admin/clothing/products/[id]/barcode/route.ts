@@ -4,7 +4,11 @@ import { z } from 'zod'
 
 // Validation schema for barcode assignment
 const BarcodeUpdateSchema = z.object({
-  barcode: z.string().min(1).max(100)
+  code: z.string().min(1).max(100),
+  type: z.enum(['UPC_A', 'UPC_E', 'EAN_13', 'EAN_8', 'CODE128', 'CODE39', 'ITF', 'CODABAR', 'QR_CODE', 'DATA_MATRIX', 'PDF417', 'CUSTOM', 'SKU_BARCODE']).optional().default('CUSTOM'),
+  label: z.string().optional(),
+  isPrimary: z.boolean().optional().default(true),
+  isUniversal: z.boolean().optional().default(false)
 })
 
 // PUT - Assign barcode to product
@@ -17,7 +21,7 @@ export async function PUT(
     const body = await request.json()
 
     // Validate input
-    const { barcode } = BarcodeUpdateSchema.parse(body)
+    const { code, type, label, isPrimary, isUniversal } = BarcodeUpdateSchema.parse(body)
 
     // Check if product exists and is clothing type
     const product = await prisma.businessProducts.findUnique({
@@ -39,48 +43,89 @@ export async function PUT(
       )
     }
 
-    // Check if barcode already exists for this business
-    const existingBarcode = await prisma.businessProducts.findFirst({
+    // Check if barcode already exists for this product
+    const existingBarcode = await prisma.productBarcodes.findFirst({
       where: {
-        businessId: product.businessId,
-        barcode,
-        id: { not: id } // Exclude current product
-      },
-      select: { id: true, sku: true, name: true }
+        code,
+        type,
+        productId: id
+      }
     })
 
     if (existingBarcode) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Barcode already assigned to another product',
-          existingProduct: existingBarcode
+          error: 'This barcode is already assigned to this product'
         },
         { status: 409 }
       )
     }
 
-    // Update product barcode
-    const updatedProduct = await prisma.businessProducts.update({
-      where: { id },
-      data: {
-        barcode,
-        updatedAt: new Date()
+    // Check if barcode exists for another product in same business
+    const existingBarcodeOtherProduct = await prisma.productBarcodes.findFirst({
+      where: {
+        code,
+        type,
+        OR: [
+          { businessId: product.businessId },
+          { isUniversal: true }
+        ],
+        productId: { not: id }
       },
+      include: {
+        business_product: {
+          select: { id: true, sku: true, name: true }
+        }
+      }
+    })
+
+    if (existingBarcodeOtherProduct) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Barcode already assigned to another product',
+          existingProduct: existingBarcodeOtherProduct.business_product
+        },
+        { status: 409 }
+      )
+    }
+
+    // Create barcode entry
+    const newBarcode = await prisma.productBarcodes.create({
+      data: {
+        code,
+        type,
+        label: label || 'Product Barcode',
+        isPrimary,
+        isUniversal,
+        isActive: true,
+        productId: id,
+        businessId: isUniversal ? null : product.businessId
+      }
+    })
+
+    // Fetch updated product
+    const updatedProduct = await prisma.businessProducts.findUnique({
+      where: { id },
       include: {
         businesses: {
           select: { id: true, name: true }
         },
         business_categories: {
           select: { id: true, name: true, emoji: true }
-        }
+        },
+        product_barcodes: true
       }
     })
 
     return NextResponse.json({
       success: true,
-      data: updatedProduct,
-      message: `Barcode ${barcode} assigned to ${product.sku} - ${product.name}`
+      data: {
+        product: updatedProduct,
+        barcode: newBarcode
+      },
+      message: `Barcode ${code} (${type}) assigned to ${product.sku} - ${product.name}`
     })
   } catch (error: any) {
     console.error('Error assigning barcode:', error)
@@ -106,18 +151,47 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const barcodeId = searchParams.get('barcodeId')
 
-    const updatedProduct = await prisma.businessProducts.update({
+    if (!barcodeId) {
+      return NextResponse.json(
+        { success: false, error: 'Barcode ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Verify barcode belongs to this product
+    const barcode = await prisma.productBarcodes.findFirst({
+      where: {
+        id: barcodeId,
+        productId: id
+      }
+    })
+
+    if (!barcode) {
+      return NextResponse.json(
+        { success: false, error: 'Barcode not found for this product' },
+        { status: 404 }
+      )
+    }
+
+    // Delete the barcode
+    await prisma.productBarcodes.delete({
+      where: { id: barcodeId }
+    })
+
+    // Fetch updated product
+    const updatedProduct = await prisma.businessProducts.findUnique({
       where: { id },
-      data: {
-        barcode: null,
-        updatedAt: new Date()
+      include: {
+        product_barcodes: true
       },
       select: {
         id: true,
         sku: true,
         name: true,
-        barcode: true
+        product_barcodes: true
       }
     })
 

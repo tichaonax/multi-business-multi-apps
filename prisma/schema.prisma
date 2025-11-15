@@ -222,7 +222,6 @@ model BusinessProducts {
   name                     String
   description              String?
   sku                      String?
-  barcode                  String?
   brandId                  String?
   categoryId               String
   subcategoryId            String?
@@ -263,6 +262,7 @@ model BusinessProducts {
   product_images           ProductImages[]
   product_variants         ProductVariants[]
   supplier_products        SupplierProducts[]
+  product_barcodes         ProductBarcodes[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -411,6 +411,7 @@ model Businesses {
   vehicles                                                                 Vehicles[]
   print_jobs                                                               PrintJobs[]
   receipt_sequences                                                        ReceiptSequences[]
+  product_barcodes                                                         ProductBarcodes[]
 
   @@map("businesses")
 }
@@ -1727,8 +1728,7 @@ model ProductVariants {
   id                       String                   @id @default(uuid())
   productId                String
   name                     String?
-  sku                      String                   @unique
-  barcode                  String?
+  sku                      String
   price                    Decimal?                 @db.Decimal(10, 2)
   stockQuantity            Int                      @default(0)
   reorderLevel             Int                      @default(0)
@@ -1744,8 +1744,53 @@ model ProductVariants {
   business_stock_movements BusinessStockMovements[]
   menu_combo_items         MenuComboItems[]
   business_products        BusinessProducts         @relation(fields: [productId], references: [id])
+  product_barcodes         ProductBarcodes[]
 
+  @@unique([productId, sku])
   @@map("product_variants")
+}
+
+model ProductBarcodes {
+  id               String             @id @default(uuid())
+
+  // Ownership - one barcode belongs to EITHER product OR variant
+  productId        String?
+  variantId        String?
+
+  // Barcode data
+  code             String             // The actual barcode value (UPC, EAN, etc.)
+  type             BarcodeType        // Type of barcode
+
+  // Classification metadata
+  isPrimary        Boolean            @default(false)  // Main barcode for this product/variant
+  isUniversal      Boolean            @default(false)  // True for UPC/EAN (shared across businesses)
+  isActive         Boolean            @default(true)
+
+  // Descriptive information
+  label            String?            // e.g., "Retail UPC", "Case Barcode", "Warehouse Location"
+  notes            String?
+
+  // Business association (only for business-specific custom barcodes)
+  businessId       String?            // NULL for universal codes (UPC/EAN)
+
+  // Audit timestamps
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  // Relations
+  business_product BusinessProducts?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product_variant  ProductVariants?   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  business         Businesses?        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  // Indexes for fast barcode lookup
+  @@index([code, type])                    // Fast barcode lookup by code and type
+  @@index([code, type, businessId])        // Business-scoped barcode search
+  @@index([productId])                     // All barcodes for a product
+  @@index([variantId])                     // All barcodes for a variant
+  @@index([isUniversal, type])             // Universal barcode search
+  @@unique([code, type, variantId])        // Prevent duplicate barcodes on same variant
+
+  @@map("product_barcodes")
 }
 
 model ProjectContractors {
@@ -2603,4 +2648,20 @@ enum InstallmentFrequency {
   FORTNIGHTLY
   MONTHLY
   CUSTOM
+}
+
+enum BarcodeType {
+  UPC_A           // 12-digit Universal Product Code (North America)
+  UPC_E           // 6-digit UPC (compressed)
+  EAN_13          // 13-digit European Article Number
+  EAN_8           // 8-digit EAN (compressed)
+  CODE128         // Variable length, high density
+  CODE39          // Alphanumeric
+  ITF             // Interleaved 2 of 5 (cases/cartons)
+  CODABAR         // Libraries, blood banks
+  QR_CODE         // 2D matrix barcode
+  DATA_MATRIX     // 2D barcode
+  PDF417          // 2D stacked barcode
+  CUSTOM          // Business-specific format
+  SKU_BARCODE     // Barcode representation of internal SKU
 }

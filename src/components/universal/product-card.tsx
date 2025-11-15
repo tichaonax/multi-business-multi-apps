@@ -1,14 +1,33 @@
-'use client'
-
 import { useState } from 'react'
 import { useBusinessContext, useBusinessFeatures } from './business-context'
+
+export type BarcodeType =
+  | 'UPC_A' | 'UPC_E' | 'EAN_13' | 'EAN_8'
+  | 'CODE128' | 'CODE39' | 'ITF' | 'CODABAR'
+  | 'QR_CODE' | 'DATA_MATRIX' | 'PDF417'
+  | 'CUSTOM' | 'SKU_BARCODE'
+
+export interface ProductBarcode {
+  id: string
+  code: string
+  type: BarcodeType
+  isPrimary: boolean
+  isUniversal: boolean
+  isActive: boolean
+  label?: string
+  notes?: string
+  businessId?: string
+  createdAt: string
+  updatedAt: string
+}
 
 export interface UniversalProduct {
   id: string
   name: string
   description?: string
   sku: string
-  barcode?: string
+  barcode?: string // DEPRECATED: Keep for backward compatibility during transition
+  barcodes?: ProductBarcode[] // NEW: Multiple barcodes support
   productType: 'PHYSICAL' | 'DIGITAL' | 'SERVICE' | 'COMBO'
   condition: 'NEW' | 'USED' | 'REFURBISHED' | 'DAMAGED' | 'EXPIRED'
   basePrice: number
@@ -28,6 +47,8 @@ export interface UniversalProduct {
     id: string
     name?: string
     sku: string
+    barcode?: string // DEPRECATED: Keep for backward compatibility
+    barcodes?: ProductBarcode[] // NEW: Multiple barcodes support
     price?: number
     stockQuantity: number
     attributes?: Record<string, any>
@@ -62,6 +83,7 @@ export function UniversalProductCard({
   const [selectedVariant, setSelectedVariant] = useState<string | null>(
     product.variants?.[0]?.id || null
   )
+  const [showAllBarcodes, setShowAllBarcodes] = useState(false)
 
   const currentVariant = product.variants?.find(v => v.id === selectedVariant)
   const currentPrice = currentVariant?.price ?? product.basePrice
@@ -154,6 +176,35 @@ export function UniversalProductCard({
 
     return { label: `In Stock (${stockQuantity})`, color: 'text-green-600', canOrder: true }
   }
+
+  const getPrimaryBarcode = () => {
+    // First try new barcodes array
+    if (product.barcodes && product.barcodes.length > 0) {
+      const primary = product.barcodes.find(b => b.isPrimary)
+      if (primary) return primary
+
+      // If no primary marked, use first universal UPC, or first barcode
+      const universalUPC = product.barcodes.find(b => b.isUniversal && (b.type === 'UPC_A' || b.type === 'EAN_13'))
+      if (universalUPC) return universalUPC
+
+      return product.barcodes[0]
+    }
+
+    // Fallback to old barcode field for backward compatibility
+    if (product.barcode) {
+      return {
+        code: product.barcode,
+        type: 'CUSTOM' as BarcodeType,
+        isPrimary: true,
+        isUniversal: false,
+        label: 'Legacy Barcode'
+      }
+    }
+
+    return null
+  }
+
+  const primaryBarcode = getPrimaryBarcode()
 
   const stockStatus = getStockStatus()
   const badges = getBusinessSpecificBadges()
@@ -317,12 +368,62 @@ export function UniversalProductCard({
           </div>
         )}
 
-        {/* SKU */}
+        {/* SKU and Barcode */}
         {!compact && (
           <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
             <p className="text-xs text-secondary">
               SKU: {currentVariant?.sku || product.sku}
             </p>
+            {primaryBarcode && (
+              <div className="mt-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-secondary">
+                    Barcode: {primaryBarcode.code}
+                  </p>
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                    primaryBarcode.isUniversal
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                  }`}>
+                    {primaryBarcode.type}
+                    {primaryBarcode.isUniversal && ' 🌍'}
+                  </span>
+                  {primaryBarcode.label && (
+                    <span className="text-xs text-secondary">
+                      ({primaryBarcode.label})
+                    </span>
+                  )}
+                  {product.barcodes && product.barcodes.length > 1 && (
+                    <button
+                      onClick={() => setShowAllBarcodes(!showAllBarcodes)}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      {showAllBarcodes ? 'Hide' : `+${product.barcodes.length - 1} more`}
+                    </button>
+                  )}
+                </div>
+                {showAllBarcodes && product.barcodes && product.barcodes.length > 1 && (
+                  <div className="mt-2 space-y-1">
+                    {product.barcodes.filter(b => !b.isPrimary).map((barcode, index) => (
+                      <div key={barcode.id || index} className="flex items-center gap-2 text-xs">
+                        <span className="text-secondary">{barcode.code}</span>
+                        <span className={`inline-flex items-center px-1 py-0.5 rounded text-xs font-medium ${
+                          barcode.isUniversal
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                        }`}>
+                          {barcode.type}
+                          {barcode.isUniversal && ' 🌍'}
+                        </span>
+                        {barcode.label && (
+                          <span className="text-secondary">({barcode.label})</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

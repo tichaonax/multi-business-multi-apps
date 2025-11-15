@@ -11,7 +11,7 @@ import { generateLabel } from '@/lib/printing/label-generator';
 import { queuePrintJob } from '@/lib/printing/print-job-queue';
 import { convertToZPL } from '@/lib/printing/formats/zpl';
 import { convertToESCPOS } from '@/lib/printing/formats/esc-pos';
-import type { LabelData, LabelFormat, BusinessType, BarcodeFormat } from '@/types/printing';
+import type { LabelData, LabelFormat, BarcodeFormat } from '@/types/printing';
 
 /**
  * POST /api/print/label
@@ -34,69 +34,66 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json();
 
-    // Validate required fields
-    if (!data.printerId) {
-      return NextResponse.json(
-        { error: 'Missing required field: printerId' },
-        { status: 400 }
-      );
-    }
+    // Validate required fields - handle both old flat format and new LabelData format
+    let labelData: LabelData;
 
-    if (!data.businessId) {
-      return NextResponse.json(
-        { error: 'Missing required field: businessId' },
-        { status: 400 }
-      );
-    }
+    if (data.barcode && typeof data.barcode === 'object') {
+      // New format: LabelData object with barcode as nested object
+      labelData = {
+        sku: data.sku,
+        itemName: data.itemName,
+        price: data.price,
+        businessId: data.businessId,
+        businessType: data.businessType as string || 'other',
+        businessName: data.businessName,
+        labelFormat: data.labelFormat as LabelFormat || 'with-price',
+        barcode: data.barcode,
+        businessSpecificData: data.businessSpecificData,
+      };
+    } else {
+      // Legacy format: flat structure
+      if (!data.barcodeData && !data.sku) {
+        return NextResponse.json(
+          { error: 'Missing required field: barcodeData or sku' },
+          { status: 400 }
+        );
+      }
 
-    if (!data.sku) {
-      return NextResponse.json(
-        { error: 'Missing required field: sku' },
-        { status: 400 }
-      );
-    }
+      // Validate label format
+      const validLabelFormats: LabelFormat[] = ['standard', 'with-price', 'compact', 'business-specific'];
+      const labelFormat = (data.labelFormat as LabelFormat) || 'standard';
+      if (!validLabelFormats.includes(labelFormat)) {
+        return NextResponse.json(
+          { error: `Invalid label format. Must be one of: ${validLabelFormats.join(', ')}` },
+          { status: 400 }
+        );
+      }
 
-    if (!data.itemName) {
-      return NextResponse.json(
-        { error: 'Missing required field: itemName' },
-        { status: 400 }
-      );
-    }
+      // Validate barcode format
+      const validBarcodeFormats: BarcodeFormat[] = ['code128', 'code39', 'ean13', 'upca', 'qr'];
+      const barcodeFormat = (data.barcodeFormat as BarcodeFormat) || 'code128';
+      if (!validBarcodeFormats.includes(barcodeFormat)) {
+        return NextResponse.json(
+          { error: `Invalid barcode format. Must be one of: ${validBarcodeFormats.join(', ')}` },
+          { status: 400 }
+        );
+      }
 
-    // Validate label format
-    const validLabelFormats: LabelFormat[] = ['standard', 'with-price', 'compact', 'business-specific'];
-    const labelFormat = (data.labelFormat as LabelFormat) || 'standard';
-    if (!validLabelFormats.includes(labelFormat)) {
-      return NextResponse.json(
-        { error: `Invalid label format. Must be one of: ${validLabelFormats.join(', ')}` },
-        { status: 400 }
-      );
+      labelData = {
+        sku: data.sku,
+        itemName: data.itemName,
+        price: data.price,
+        businessId: data.businessId,
+        businessType: data.businessType as string || 'other',
+        businessName: data.businessName,
+        labelFormat,
+        barcode: {
+          data: data.barcodeData || data.sku,
+          format: barcodeFormat,
+        },
+        businessSpecificData: data.businessSpecificData,
+      };
     }
-
-    // Validate barcode format
-    const validBarcodeFormats: BarcodeFormat[] = ['code128', 'code39', 'ean13', 'upca', 'qr'];
-    const barcodeFormat = (data.barcodeFormat as BarcodeFormat) || 'code128';
-    if (!validBarcodeFormats.includes(barcodeFormat)) {
-      return NextResponse.json(
-        { error: `Invalid barcode format. Must be one of: ${validBarcodeFormats.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
-    // Prepare label data
-    const labelData: LabelData = {
-      sku: data.sku,
-      itemName: data.itemName,
-      price: data.price,
-      businessName: data.businessName,
-      businessType: data.businessType as BusinessType || 'other',
-      labelFormat,
-      barcode: {
-        data: data.barcodeData || data.sku,
-        format: barcodeFormat,
-      },
-      businessSpecificData: data.businessSpecificData,
-    };
 
     // Generate label text
     const labelText = generateLabel(labelData);
@@ -130,13 +127,8 @@ export async function POST(request: NextRequest) {
     const printJobData = {
       printerId: data.printerId,
       jobType: 'label' as const,
-      jobData: {
-        labelData,
-        labelText,
-        formattedLabel: typeof formattedLabel === 'string' ? formattedLabel : formattedLabel.toString('base64'),
-        format: printerFormat,
-        copies: data.copies || 1,
-      },
+      jobData: labelData, // Pass LabelData directly
+      copies: data.copies || 1,
     };
 
     // Queue the print job

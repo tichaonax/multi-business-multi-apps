@@ -13,6 +13,7 @@ interface OrderItem {
   quantity: number
   unitPrice: number
   total: number
+  attributes?: any
   product?: {
     name: string
     sku?: string
@@ -356,6 +357,27 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
                             {item.product?.sku && <span>SKU: {item.product.sku}</span>}
                             {item.product?.category && <span>Category: {item.product.category}</span>}
                           </div>
+                          {item.attributes?.scannedBarcode && (
+                            <div className="mt-1 flex items-center gap-2 text-xs">
+                              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                📱 Scanned: {item.attributes.scannedBarcode.code}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                item.attributes.scannedBarcode.isUniversal
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {item.attributes.scannedBarcode.type}
+                                {item.attributes.scannedBarcode.isPrimary && ' ⭐'}
+                                {item.attributes.scannedBarcode.isUniversal && ' 🌍'}
+                              </span>
+                              {item.attributes.scannedBarcode.label && (
+                                <span className="text-gray-600">
+                                  {item.attributes.scannedBarcode.label}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <p className="font-medium text-primary">${item.total.toFixed(2)}</p>
                       </div>

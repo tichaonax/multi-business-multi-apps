@@ -129,6 +129,11 @@ function generateRestaurantReceipt(data: ReceiptData): string {
     // Customer receipt with prices
     data.items.forEach(item => {
       receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
+      if (item.barcode) {
+        receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+      } else if (item.sku) {
+        receipt += `  SKU: ${item.sku}\n`;
+      }
       if (item.notes) {
         receipt += `  Note: ${item.notes}` + LF;
       }
@@ -203,6 +208,11 @@ function generateClothingReceipt(data: ReceiptData): string {
     }
 
     receipt += formatLineItem(itemLine, 1, item.totalPrice, item.totalPrice);
+    if (item.barcode) {
+      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+    } else if (item.sku) {
+      receipt += `  SKU: ${item.sku}\n`;
+    }
     if (clothingItem?.brand) {
       receipt += `  Brand: ${clothingItem.brand}\n`;
     }
@@ -266,6 +276,11 @@ function generateGroceryReceipt(data: ReceiptData): string {
     }
 
     receipt += formatLineItem(itemLine, item.quantity, item.unitPrice, item.totalPrice);
+    if (item.barcode) {
+      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+    } else if (item.sku) {
+      receipt += `  SKU: ${item.sku}\n`;
+    }
 
     if (groceryItem?.expirationDate) {
       receipt += `  Exp: ${formatDate(groceryItem.expirationDate)}\n`;
@@ -335,6 +350,11 @@ function generateHardwareReceipt(data: ReceiptData): string {
     }
 
     receipt += formatLineItem(itemLine, item.quantity, item.unitPrice, item.totalPrice);
+    if (item.barcode) {
+      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+    } else if (item.sku) {
+      receipt += `  SKU: ${item.sku}\n`;
+    }
 
     if (hardwareItem?.manufacturer) {
       receipt += `  Mfg: ${hardwareItem.manufacturer}\n`;
@@ -415,6 +435,11 @@ function generateConstructionReceipt(data: ReceiptData): string {
   // Line items
   data.items.forEach(item => {
     receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
+    if (item.barcode) {
+      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+    } else if (item.sku) {
+      receipt += `  SKU: ${item.sku}\n`;
+    }
   });
 
   receipt += line() + '\n';
@@ -594,6 +619,11 @@ function generateConsultingReceipt(data: ReceiptData): string {
   // Line items
   data.items.forEach(item => {
     receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
+    if (item.barcode) {
+      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+    } else if (item.sku) {
+      receipt += `  SKU: ${item.sku}\n`;
+    }
   });
 
   receipt += line() + '\n';
@@ -641,6 +671,11 @@ function generateRetailReceipt(data: ReceiptData): string {
   // Items
   data.items.forEach(item => {
     receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
+    if (item.barcode) {
+      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+    } else if (item.sku) {
+      receipt += `  SKU: ${item.sku}\n`;
+    }
   });
 
   receipt += line() + '\n';
@@ -800,6 +835,11 @@ function generateGenericReceipt(data: ReceiptData): string {
   // Items
   data.items.forEach(item => {
     receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
+    if (item.barcode) {
+      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+    } else if (item.sku) {
+      receipt += `  SKU: ${item.sku}\n`;
+    }
     if (item.notes) {
       receipt += `  ${item.notes}` + LF;
     }

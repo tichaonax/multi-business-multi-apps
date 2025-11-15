@@ -517,10 +517,14 @@ function GroceryPOSContent() {
                                 const price = variantId && product?.variants?.length
                                   ? parseFloat((product.variants.find((v: any) => v.id === variantId)?.price ?? product.basePrice) || 0)
                                   : parseFloat(product.basePrice || 0)
+
+                                // Get primary barcode from barcodes array, not SKU
+                                const primaryBarcode = product.barcodes?.find((b: any) => b.isPrimary)?.code
+
                                 const posItem: POSItem = {
                                   id: variantId || product.id,
                                   name: product.name,
-                                  barcode: product.sku ?? product.barcode ?? undefined,
+                                  barcode: primaryBarcode, // Use primary barcode, not SKU
                                   category: product.businessType || 'General',
                                   unitType: 'each',
                                   price,
