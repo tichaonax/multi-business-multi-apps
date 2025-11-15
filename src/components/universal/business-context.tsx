@@ -235,16 +235,19 @@ export function BusinessProvider({ businessId, children }: BusinessProviderProps
     }
   }
 
-  const formatCurrency = (amount: number): string => {
-    if (!config?.general?.currency) return `$${amount.toFixed(2)}`
+  const formatCurrency = (amount: number | undefined | null): string => {
+    // Handle invalid amounts
+    const validAmount = typeof amount === 'number' && !isNaN(amount) ? amount : 0
+
+    if (!config?.general?.currency) return `$${validAmount.toFixed(2)}`
 
     try {
       return new Intl.NumberFormat(config.general.language || 'en-US', {
         style: 'currency',
         currency: config.general.currency,
-      }).format(amount)
+      }).format(validAmount)
     } catch {
-      return `$${amount.toFixed(2)}`
+      return `$${validAmount.toFixed(2)}`
     }
   }
 
