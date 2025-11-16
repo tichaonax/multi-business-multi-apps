@@ -261,7 +261,7 @@ export async function updatePrinterHeartbeat(printerId: string): Promise<void> {
  * Mark printers as offline if not seen recently
  * @param timeoutMinutes - Minutes since last seen before marking offline
  */
-export async function markStaleprintersOffline(timeoutMinutes: number = 5): Promise<number> {
+export async function markStalePrintersOffline(timeoutMinutes: number = 5): Promise<number> {
   const cutoffTime = new Date(Date.now() - timeoutMinutes * 60 * 1000);
 
   const result = await prisma.networkPrinters.updateMany({

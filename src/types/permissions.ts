@@ -61,6 +61,11 @@ export interface UserLevelPermissions {
   canPrintReceipts: boolean;          // Print sales receipts
   canPrintInventoryLabels: boolean;   // Print SKU labels for inventory items
   canViewPrintQueue: boolean;         // Admin only - view print job queue and history
+
+  // Global Barcode Scanning (User-level - cross-business capability)
+  canAccessGlobalBarcodeScanning: boolean;        // Access global barcode scanning within accessible businesses
+  canViewGlobalInventoryAcrossBusinesses: boolean; // View inventory from businesses user doesn't have access to (informational only)
+  canStockInventoryFromModal: boolean;            // Add inventory to businesses via global barcode modal
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -609,6 +614,15 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canPrintReceipts', label: 'Print Receipts' },
       { key: 'canPrintInventoryLabels', label: 'Print Inventory Labels' },
       { key: 'canViewPrintQueue', label: 'View Print Queue' },
+    ]
+  },
+  globalBarcodeScanning: {
+    title: 'Global Barcode Scanning',
+    description: 'Access global barcode scanning functionality across accessible businesses',
+    permissions: [
+      { key: 'canAccessGlobalBarcodeScanning', label: 'Access Global Barcode Scanning' },
+      { key: 'canViewGlobalInventoryAcrossBusinesses', label: 'View Inventory Across All Businesses (Informational)' },
+      { key: 'canStockInventoryFromModal', label: 'Add Inventory from Barcode Modal' },
     ]
   },
   projectManagement: {
@@ -1297,6 +1311,11 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canPrintReceipts: false,              // Must be granted
   canPrintInventoryLabels: false,       // Must be granted
   canViewPrintQueue: false,             // Admin only
+
+  // Global Barcode Scanning - Disabled by default for security
+  canAccessGlobalBarcodeScanning: false,        // Must be explicitly granted
+  canViewGlobalInventoryAcrossBusinesses: false, // Must be explicitly granted
+  canStockInventoryFromModal: false,            // Must be explicitly granted
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
@@ -1359,6 +1378,11 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canPrintReceipts: true,              // Admins can print receipts
   canPrintInventoryLabels: true,       // Admins can print inventory labels
   canViewPrintQueue: true,             // Admins can view print queue
+
+  // Global Barcode Scanning - Full access for admins
+  canAccessGlobalBarcodeScanning: true,        // Admins can access global barcode scanning
+  canViewGlobalInventoryAcrossBusinesses: true, // Admins can view inventory across all businesses
+  canStockInventoryFromModal: true,            // Admins can add inventory from modal
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
@@ -1422,6 +1446,11 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canPrintReceipts: false,
   canPrintInventoryLabels: false,
   canViewPrintQueue: false,
+
+  // Global Barcode Scanning - No access for drivers
+  canAccessGlobalBarcodeScanning: false,
+  canViewGlobalInventoryAcrossBusinesses: false,
+  canStockInventoryFromModal: false,
 };
 
 // Permission presets for easy management

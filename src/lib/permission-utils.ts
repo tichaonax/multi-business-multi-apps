@@ -762,8 +762,91 @@ export function canPrint(user: SessionUser | null | undefined): boolean {
 }
 
 /**
- * Check if user can access printer management UI (admins only)
+ * Check if user can access global barcode scanning
  */
-export function canAccessPrinterManagement(user: SessionUser | null | undefined): boolean {
-  return canManageNetworkPrinters(user) || canViewPrintQueue(user)
+export function canAccessGlobalBarcodeScanning(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canAccessGlobalBarcodeScanning')
+}
+
+/**
+ * Check if user can add inventory from the global barcode modal
+ */
+export function canStockInventoryFromModal(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canStockInventoryFromModal')
+}
+
+/**
+ * Check if user can add inventory from modal for a specific business
+ * Requires both the user-level permission and business-level inventory management permission
+ */
+export function canAddInventoryFromModal(user: SessionUser | null | undefined, businessId: string): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+
+  // Must have the user-level permission
+  if (!canStockInventoryFromModal(user)) return false
+
+  // Get the business membership to check business type
+  const membership = user.businessMemberships?.find(m => m.businessId === businessId && m.isActive)
+  if (!membership) return false
+
+  const businessType = membership.businessType
+
+  // Check business-type-specific inventory management permission
+  switch (businessType) {
+    case 'clothing':
+      return hasCustomPermission(user, 'clothing.canManageInventory', businessId)
+    case 'grocery':
+      return hasCustomPermission(user, 'grocery.canManageInventory', businessId)
+    case 'restaurant':
+      return hasCustomPermission(user, 'restaurant.canManageKitchenInventory', businessId)
+    case 'construction':
+      // Construction businesses don't have inventory management
+      return false
+    case 'consulting':
+      // Consulting businesses don't have inventory management
+      return false
+    default:
+      // For other business types, check if they have any inventory permissions
+      return hasCustomPermission(user, `${businessType}.canManageInventory`, businessId)
+  }
+}
+
+/**
+ * Check if user can view global inventory across all businesses
+ */
+export function canViewGlobalInventoryAcrossBusinesses(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canViewGlobalInventoryAcrossBusinesses')
+}
+
+/**
+ * Check if user can use global barcode scanning features
+ * This combines both permissions to determine overall access level
+ */
+export function getGlobalBarcodeScanningAccess(user: SessionUser | null | undefined): {
+  canScan: boolean
+  canViewAcrossBusinesses: boolean
+  accessLevel: 'none' | 'restricted' | 'full'
+} {
+  const canScan = canAccessGlobalBarcodeScanning(user)
+  const canViewAcross = canViewGlobalInventoryAcrossBusinesses(user)
+
+  let accessLevel: 'none' | 'restricted' | 'full' = 'none'
+  if (canScan && canViewAcross) {
+    accessLevel = 'full'
+  } else if (canScan) {
+    accessLevel = 'restricted'
+  }
+
+  return {
+    canScan,
+    canViewAcrossBusinesses: canViewAcross,
+    accessLevel
+  }
 }

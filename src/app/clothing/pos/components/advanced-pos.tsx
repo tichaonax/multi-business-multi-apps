@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessContext } from '@/components/universal'
 import { BarcodeScanner, UniversalProduct } from '@/components/universal'
@@ -49,6 +50,8 @@ interface ClothingAdvancedPOSProps {
 export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }: ClothingAdvancedPOSProps) {
   const { formatCurrency } = useBusinessContext()
   const customAlert = useAlert()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [cart, setCart] = useState<CartItem[]>([])
   const [mode, setMode] = useState<'sale' | 'return' | 'exchange'>('sale')
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -66,6 +69,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
   const [showSupervisorModal, setShowSupervisorModal] = useState(false)
   const [printReceipt, setPrintReceipt] = useState(true)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const [autoAddProcessed, setAutoAddProcessed] = useState(false)
 
   // Sample product data for quick add
   const [quickAddProducts] = useState([
@@ -183,6 +187,46 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
       item.id === itemId ? { ...item, discount: discountAmount } : item
     ))
   }
+
+  // Auto-add product from query parameters (from barcode scanner navigation)
+  useEffect(() => {
+    const addProductId = searchParams?.get('addProduct')
+    const variantId = searchParams?.get('variantId')
+    const queryBusinessId = searchParams?.get('businessId')
+
+    if (addProductId && !autoAddProcessed) {
+      setAutoAddProcessed(true)
+
+      // Fetch the product and add it to cart
+      const fetchAndAddProduct = async () => {
+        try {
+          // Use businessId from query params (the business where product was found)
+          // Fall back to current businessId if not in query
+          const targetBusinessId = queryBusinessId || businessId
+
+          const response = await fetch(`/api/admin/products/${addProductId}?businessId=${targetBusinessId}`)
+          if (!response.ok) {
+            console.error('Failed to fetch product for auto-add')
+            return
+          }
+
+          const data = await response.json()
+          if (data.success && data.product) {
+            // Add to cart with variant if specified
+            addToCartFromScanner(data.product, variantId || undefined, 1)
+
+            // Clean up the URL
+            const currentPath = window.location.pathname
+            router.replace(currentPath)
+          }
+        } catch (err) {
+          console.error('Error auto-adding product:', err)
+        }
+      }
+
+      fetchAndAddProduct()
+    }
+  }, [searchParams, autoAddProcessed, businessId, router])
 
   const handleReturn = (originalOrderId: string, reason: string) => {
     // In a real implementation, this would fetch the original order

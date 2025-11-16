@@ -8,9 +8,11 @@ import ToastProvider from '@/components/ui/toast'
 import PromptProvider from '@/components/ui/input-modal'
 import { NavigationProvider } from '@/contexts/navigation-context'
 import { GlobalHeader } from '@/components/layout/global-header'
-import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
+import { GlobalBarcodeModalManager } from '@/components/global/global-barcode-modal-manager'
+import { GlobalBarcodeProvider } from '@/contexts/global-barcode-context'
 import ConfirmProvider from '@/components/ui/confirm-modal'
 import HealthIndicator from '@/components/ui/health-indicator'
+import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -36,19 +38,22 @@ export default function RootLayout({
             <ThemeProvider>
               <ToastProvider>
                 <PromptProvider>
-                <BusinessPermissionsProvider>
-                  <NavigationProvider>
-                  <div className="min-h-screen">
-                    <GlobalHeader />
-                    <ConfirmProvider>
-                      <main>
-                        {children}
-                      </main>
-                    </ConfirmProvider>
-                    <GlobalLoadingSpinner />
-                  </div>
-                </NavigationProvider>
-                </BusinessPermissionsProvider>
+                  <BusinessPermissionsProvider>
+                    <NavigationProvider>
+                      <GlobalBarcodeProvider>
+                        <div className="min-h-screen">
+                          <GlobalHeader />
+                          <ConfirmProvider>
+                            <main>
+                              {children}
+                            </main>
+                          </ConfirmProvider>
+                          <GlobalLoadingSpinner />
+                        </div>
+                        <GlobalBarcodeModalManager />
+                      </GlobalBarcodeProvider>
+                    </NavigationProvider>
+                  </BusinessPermissionsProvider>
                 </PromptProvider>
               </ToastProvider>
             </ThemeProvider>

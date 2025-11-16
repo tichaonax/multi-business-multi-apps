@@ -36,7 +36,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {mounted && typeof document !== 'undefined' && createPortal(
         <div style={{ position: 'fixed', top: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 10000, pointerEvents: 'none' }}>
           {toasts.map((t) => (
-            <div key={t.id} style={{ pointerEvents: 'auto' }} className="px-4 py-2 bg-black text-white rounded shadow">
+            <div key={t.id} style={{ pointerEvents: 'auto' }} className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg shadow-lg border border-green-500 dark:border-green-600">
               {t.message}
             </div>
           ))}

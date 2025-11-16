@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -9,15 +9,18 @@ import { ClothingVariantManager } from './components/variant-manager'
 import { ClothingSeasonalManager } from './components/seasonal-manager'
 import { ClothingBulkImport } from './components/bulk-import'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
-export default function ClothingProductsPage() {
+function ClothingProductsContent() {
   const [activeTab, setActiveTab] = useState<'products' | 'variants' | 'seasonal' | 'import'>('products')
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
 
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const {
     currentBusiness,
@@ -27,10 +30,25 @@ export default function ClothingProductsPage() {
     businesses
   } = useBusinessPermissionsContext()
 
+  const businessId = currentBusinessId!
+
   useEffect(() => {
     if (status === 'loading') return
     if (!session) router.push('/auth/signin')
   }, [session, status, router])
+
+  // Handle edit query parameter
+  useEffect(() => {
+    if (!searchParams) return
+    const editProductId = searchParams.get('edit')
+    if (editProductId && businessId) {
+      setEditingProductId(editProductId)
+      setEditModalOpen(true)
+      setActiveTab('products')
+      // Clean up the URL
+      router.replace('/clothing/products', undefined)
+    }
+  }, [searchParams, businessId, router])
 
   if (status === 'loading' || businessLoading) {
     return (
@@ -76,8 +94,6 @@ export default function ClothingProductsPage() {
     )
   }
 
-  const businessId = currentBusinessId!
-
   const tabs = [
     {
       id: 'products',
@@ -110,7 +126,8 @@ export default function ClothingProductsPage() {
   }
 
   const handleProductEdit = (productId: string) => {
-    window.location.href = `/clothing/products/${productId}/edit`
+    setEditingProductId(productId)
+    setEditModalOpen(true)
   }
 
   const handleProductCreate = () => {
@@ -280,8 +297,90 @@ export default function ClothingProductsPage() {
               </div>
             </div>
           </div>
+
+          {/* Product Edit Modal */}
+          {editModalOpen && editingProductId && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="flex items-center justify-between p-6 border-b">
+                  <h2 className="text-xl font-semibold">Edit Product</h2>
+                  <button
+                    onClick={() => {
+                      setEditModalOpen(false)
+                      setEditingProductId(null)
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Product Name</label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter product name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Description</label>
+                      <textarea
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={3}
+                        placeholder="Enter product description"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-6">
+                    <button
+                      onClick={() => {
+                        setEditModalOpen(false)
+                        setEditingProductId(null)
+                      }}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        // TODO: Implement save logic
+                        setEditModalOpen(false)
+                        setEditingProductId(null)
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>
+  )
+}
+
+export default function ClothingProductsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    }>
+      <ClothingProductsContent />
+    </Suspense>
   )
 }
