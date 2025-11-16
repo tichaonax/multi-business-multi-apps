@@ -52,18 +52,18 @@ function ClothingProductsContent() {
 
   if (status === 'loading' || businessLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 dark:border-gray-100"></div>
       </div>
     )
   }
 
   if (!session || !isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You need to be logged in to access products.</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Access Denied</h2>
+          <p className="text-gray-600 dark:text-gray-400">You need to be logged in to access products.</p>
         </div>
       </div>
     )
@@ -74,10 +74,10 @@ function ClothingProductsContent() {
 
   if (!currentBusiness && hasClothingBusinesses) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Select a Clothing Business</h2>
-          <p className="text-gray-600 mb-4">You have access to {clothingBusinesses.length} clothing business{clothingBusinesses.length > 1 ? 'es' : ''}. Please select one from the sidebar.</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Select a Clothing Business</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">You have access to {clothingBusinesses.length} clothing business{clothingBusinesses.length > 1 ? 'es' : ''}. Please select one from the sidebar.</p>
         </div>
       </div>
     )
@@ -85,10 +85,10 @@ function ClothingProductsContent() {
 
   if (currentBusiness && currentBusiness.businessType !== 'clothing') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600">The Clothing Products page is only for clothing businesses. Please select a clothing business.</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Wrong Business Type</h2>
+          <p className="text-gray-600 dark:text-gray-400">The Clothing Products page is only for clothing businesses. Please select a clothing business.</p>
         </div>
       </div>
     )
@@ -179,8 +179,8 @@ function ClothingProductsContent() {
             </div>
 
             {/* Tab Navigation */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="border-b border-gray-200">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="border-b border-gray-200 dark:border-gray-700">
                 <nav className="flex space-x-8 px-6" aria-label="Tabs">
                   {tabs.map((tab) => (
                     <button
@@ -189,15 +189,15 @@ function ClothingProductsContent() {
                       className={`
                         py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
                         ${activeTab === tab.id
-                          ? 'border-primary text-primary'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-primary text-primary dark:text-primary'
+                          : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                         }
                       `}
                     >
                       <span className="text-lg">{tab.icon}</span>
                       <div className="text-left">
                         <div>{tab.label}</div>
-                        <div className="text-xs text-gray-400 font-normal">{tab.description}</div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 font-normal">{tab.description}</div>
                       </div>
                     </button>
                   ))}
@@ -233,64 +233,64 @@ function ClothingProductsContent() {
             </div>
 
             {/* Clothing-specific Product Features */}
-            <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-orange-900 mb-4">
+            <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-orange-900 dark:text-orange-100 mb-4">
                 👔 Advanced Clothing Product Management
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                  <h3 className="font-semibold text-orange-900 mb-2">📐 Smart Variants</h3>
-                  <p className="text-sm text-orange-700">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">📐 Smart Variants</h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     Automatically generate size/color combinations with stock tracking and pricing per variant.
                   </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                  <h3 className="font-semibold text-orange-900 mb-2">🔄 Condition Management</h3>
-                  <p className="text-sm text-orange-700">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">🔄 Condition Management</h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     Track NEW, USED, and REFURBISHED items with different pricing and inventory rules.
                   </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                  <h3 className="font-semibold text-orange-900 mb-2">🌟 Seasonal Collections</h3>
-                  <p className="text-sm text-orange-700">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">🌟 Seasonal Collections</h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     Organize products into Spring, Summer, Fall, Winter collections with automatic promotion.
                   </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                  <h3 className="font-semibold text-orange-900 mb-2">🏷️ Smart Attributes</h3>
-                  <p className="text-sm text-orange-700">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">🏷️ Smart Attributes</h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     Gender categories, material composition, care instructions, and fit information.
                   </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                  <h3 className="font-semibold text-orange-900 mb-2">📊 Bulk Operations</h3>
-                  <p className="text-sm text-orange-700">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">📊 Bulk Operations</h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     Import thousands of products with variants from CSV, update prices in bulk, generate barcodes.
                   </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                  <h3 className="font-semibold text-orange-900 mb-2">📷 Image Management</h3>
-                  <p className="text-sm text-orange-700">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">📷 Image Management</h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     Multiple product images, variant-specific photos, and automatic image optimization.
                   </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                  <h3 className="font-semibold text-orange-900 mb-2">🎯 Smart Suggestions</h3>
-                  <p className="text-sm text-orange-700">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">🎯 Smart Suggestions</h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     AI-powered recommendations for pricing, categories, and cross-selling opportunities.
                   </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                  <h3 className="font-semibold text-orange-900 mb-2">⚙️ Advanced Rules</h3>
-                  <p className="text-sm text-orange-700">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">⚙️ Advanced Rules</h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     Custom pricing rules, automatic discounting, and inventory reorder point calculations.
                   </p>
                 </div>
@@ -301,15 +301,15 @@ function ClothingProductsContent() {
           {/* Product Edit Modal */}
           {editModalOpen && editingProductId && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-                <div className="flex items-center justify-between p-6 border-b">
-                  <h2 className="text-xl font-semibold">Edit Product</h2>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit Product</h2>
                   <button
                     onClick={() => {
                       setEditModalOpen(false)
                       setEditingProductId(null)
                     }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                   >
                     ✕
                   </button>
@@ -317,27 +317,27 @@ function ClothingProductsContent() {
                 <div className="p-6">
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Product Name</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
                       <input
                         type="text"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                         placeholder="Enter product name"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Description</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                       <textarea
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                         rows={3}
                         placeholder="Enter product description"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Price</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price</label>
                       <input
                         type="number"
                         step="0.01"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                         placeholder="0.00"
                       />
                     </div>
@@ -348,7 +348,7 @@ function ClothingProductsContent() {
                         setEditModalOpen(false)
                         setEditingProductId(null)
                       }}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+                      className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                     >
                       Cancel
                     </button>
@@ -376,8 +376,8 @@ function ClothingProductsContent() {
 export default function ClothingProductsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 dark:border-gray-100"></div>
       </div>
     }>
       <ClothingProductsContent />

@@ -159,14 +159,14 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
       {activeTab === 'upload' && (
         <div className="space-y-6">
           {/* File Upload */}
-          <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Product Data</h3>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Upload Product Data</h3>
 
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                 dragOver
-                  ? 'border-primary bg-primary/5'
-                  : 'border-gray-300 hover:border-gray-400'
+                  ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
               }`}
               onDragOver={(e) => {
                 e.preventDefault()
@@ -176,10 +176,10 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
               onDrop={handleDrop}
             >
               <div className="text-6xl mb-4">📁</div>
-              <div className="text-lg font-medium text-gray-900 mb-2">
+              <div className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
                 Drop your file here or click to browse
               </div>
-              <div className="text-sm text-gray-600 mb-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Supports CSV and Excel files up to 10MB
               </div>
 
@@ -199,18 +199,18 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
             </div>
 
             {selectedFile && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-medium text-green-900">{selectedFile.name}</div>
-                    <div className="text-sm text-green-700">
+                    <div className="font-medium text-green-900 dark:text-green-100">{selectedFile.name}</div>
+                    <div className="text-sm text-green-700 dark:text-green-300">
                       {(selectedFile.size / 1024).toFixed(1)} KB • Ready to import
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelectedFile(null)}
-                      className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900"
+                      className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                     >
                       Remove
                     </button>
@@ -228,9 +228,9 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
 
           {/* Template and Instructions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Download Template</h3>
-              <p className="text-sm text-gray-600 mb-4">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Download Template</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Use our template to ensure your data is formatted correctly for import.
               </p>
               <button
@@ -241,9 +241,9 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
               </button>
             </div>
 
-            <div className="bg-white border rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Import Guidelines</h3>
-              <ul className="text-sm text-gray-600 space-y-2">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Import Guidelines</h3>
+              <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
                 <li>• Each row can create a product or variant</li>
                 <li>• Required fields: Product Name, SKU, Base Price</li>
                 <li>• Variants need Size/Color and Variant SKU</li>
@@ -257,13 +257,13 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
 
       {activeTab === 'jobs' && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Import History</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Import History</h3>
 
           {importJobs.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📋</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Import Jobs</h3>
-              <p className="text-gray-600">Your import history will appear here.</p>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No Import Jobs</h3>
+              <p className="text-gray-600 dark:text-gray-400">Your import history will appear here.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -272,11 +272,11 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
                 const progressPercent = job.totalRows > 0 ? (job.processedRows / job.totalRows) * 100 : 0
 
                 return (
-                  <div key={job.id} className="bg-white border rounded-lg p-6">
+                  <div key={job.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h4 className="font-semibold text-gray-900">{job.filename}</h4>
-                        <p className="text-sm text-gray-600">
+                        <h4 className="font-semibold text-gray-900 dark:text-gray-100">{job.filename}</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
                           Started {formatDate(new Date(job.createdAt))}
                         </p>
                       </div>
@@ -291,7 +291,7 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
                           <span>Progress</span>
                           <span>{job.processedRows} / {job.totalRows}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                           <div
                             className="bg-blue-600 h-2 rounded-full transition-all duration-500"
                             style={{ width: `${progressPercent}%` }}
@@ -302,28 +302,28 @@ export function ClothingBulkImport({ businessId }: ClothingBulkImportProps) {
 
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
-                        <div className="font-medium text-green-600">{job.successRows}</div>
-                        <div className="text-gray-600">Success</div>
+                        <div className="font-medium text-green-600 dark:text-green-400">{job.successRows}</div>
+                        <div className="text-gray-600 dark:text-gray-400">Success</div>
                       </div>
                       <div>
-                        <div className="font-medium text-red-600">{job.errorRows}</div>
-                        <div className="text-gray-600">Errors</div>
+                        <div className="font-medium text-red-600 dark:text-red-400">{job.errorRows}</div>
+                        <div className="text-gray-600 dark:text-gray-400">Errors</div>
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">{job.totalRows}</div>
-                        <div className="text-gray-600">Total Rows</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{job.totalRows}</div>
+                        <div className="text-gray-600 dark:text-gray-400">Total Rows</div>
                       </div>
                     </div>
 
                     {job.errors.length > 0 && (
                       <details className="mt-4">
-                        <summary className="cursor-pointer text-sm font-medium text-red-600 hover:text-red-700">
+                        <summary className="cursor-pointer text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
                           View Errors ({job.errors.length})
                         </summary>
-                        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded text-sm">
+                        <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm">
                           <ul className="space-y-1">
                             {job.errors.map((error, index) => (
-                              <li key={index} className="text-red-700">{error}</li>
+                              <li key={index} className="text-red-700 dark:text-red-300">{error}</li>
                             ))}
                           </ul>
                         </div>

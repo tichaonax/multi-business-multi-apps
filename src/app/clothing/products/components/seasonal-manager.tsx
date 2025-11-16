@@ -85,7 +85,7 @@ export function ClothingSeasonalManager({ businessId }: ClothingSeasonalManagerP
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Seasonal Collections</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Seasonal Collections</h2>
           <p className="text-sm text-gray-600 mt-1">Organize products by seasons and collections</p>
         </div>
         <button className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90">
@@ -95,11 +95,11 @@ export function ClothingSeasonalManager({ businessId }: ClothingSeasonalManagerP
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {collections.map((collection) => (
-          <div key={collection.id} className="bg-white border rounded-lg p-6">
+          <div key={collection.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{collection.name}</h3>
-                <p className="text-sm text-gray-600 mt-1">{collection.description}</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{collection.name}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{collection.description}</p>
               </div>
               <div className="flex gap-2">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSeasonColor(collection.season)}`}>
@@ -113,16 +113,16 @@ export function ClothingSeasonalManager({ businessId }: ClothingSeasonalManagerP
 
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <div className="text-2xl font-bold text-gray-900">{collection.productCount}</div>
-                <div className="text-sm text-gray-600">Products</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{collection.productCount}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Products</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-green-600">{formatCurrency(collection.totalValue)}</div>
-                <div className="text-sm text-gray-600">Total Value</div>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(collection.totalValue)}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Total Value</div>
               </div>
             </div>
 
-            <div className="text-sm text-gray-600 mb-4">
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               <div>Start: {formatDate(new Date(collection.startDate))}</div>
               <div>End: {formatDate(new Date(collection.endDate))}</div>
             </div>
@@ -131,7 +131,7 @@ export function ClothingSeasonalManager({ businessId }: ClothingSeasonalManagerP
               <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
                 Manage Products
               </button>
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
+              <button className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                 View Details
               </button>
             </div>

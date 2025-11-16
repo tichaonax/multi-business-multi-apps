@@ -282,7 +282,7 @@ export function ClothingVariantManager({
       {/* Product Selector */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Variant Manager</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Variant Manager</h2>
           <p className="text-sm text-gray-600 mt-1">Manage product variants in bulk</p>
         </div>
 
@@ -303,17 +303,17 @@ export function ClothingVariantManager({
       {selectedProductData && variantMatrix && (
         <div className="space-y-6">
           {/* Product Info */}
-          <div className="bg-white p-4 rounded-lg border">
-            <h3 className="text-lg font-medium text-gray-900">{selectedProductData.name}</h3>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{selectedProductData.name}</h3>
             <p className="text-sm text-gray-600">
               SKU: {selectedProductData.sku} • Base Price: {formatCurrency(selectedProductData.basePrice)}
             </p>
           </div>
 
           {/* Bulk Actions */}
-          <div className="bg-white p-4 rounded-lg border">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Bulk Actions</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Bulk Actions</h3>
               <div className="flex gap-2">
                 <button
                   onClick={generateMissingVariants}
@@ -333,24 +333,24 @@ export function ClothingVariantManager({
             {bulkEditMode && (
               <div className="flex gap-4 items-end">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bulk Update Price</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bulk Update Price</label>
                   <input
                     type="number"
                     step="0.01"
                     placeholder="New price"
                     value={bulkPrice}
                     onChange={(e) => setBulkPrice(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bulk Update Stock</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bulk Update Stock</label>
                   <input
                     type="number"
                     placeholder="New stock quantity"
                     value={bulkStock}
                     onChange={(e) => setBulkStock(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   />
                 </div>
                 <button
@@ -365,10 +365,10 @@ export function ClothingVariantManager({
           </div>
 
           {/* Variant Matrix */}
-          <div className="bg-white rounded-lg border overflow-hidden">
-            <div className="p-4 border-b bg-gray-50">
-              <h3 className="text-lg font-medium text-gray-900">Variant Matrix</h3>
-              <p className="text-sm text-gray-600">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Variant Matrix</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Click cells to edit variants inline, or select multiple for bulk operations
               </p>
             </div>
@@ -376,8 +376,8 @@ export function ClothingVariantManager({
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <tr className="bg-gray-50 dark:bg-gray-700">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       {bulkEditMode && (
                         <input
                           type="checkbox"
@@ -389,13 +389,13 @@ export function ClothingVariantManager({
                               setSelectedVariants(new Set())
                             }
                           }}
-                          className="rounded border-gray-300"
+                          className="rounded border-gray-300 dark:border-gray-600"
                         />
                       )}
                       {!bulkEditMode && 'Size / Color'}
                     </th>
                     {variantMatrix.colors.map(color => (
-                      <th key={color} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th key={color} className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         <div className="flex items-center justify-center gap-2">
                           <div
                             className="w-4 h-4 rounded-full border border-gray-300"
@@ -417,11 +417,11 @@ export function ClothingVariantManager({
                     ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {variantMatrix.sizes.map(size => (
-                    <tr key={size} className="hover:bg-gray-50">
+                    <tr key={size} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{size}</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{size}</div>
                       </td>
                       {variantMatrix.colors.map(color => {
                         const variant = variantMatrix.matrix[size]?.[color]
@@ -499,27 +499,27 @@ export function ClothingVariantManager({
 
           {/* Summary Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-lg border">
-              <div className="text-2xl font-bold text-blue-600">{selectedProductData.variants.length}</div>
-              <div className="text-sm text-gray-600">Total Variants</div>
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{selectedProductData.variants.length}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Total Variants</div>
             </div>
-            <div className="bg-white p-4 rounded-lg border">
-              <div className="text-2xl font-bold text-green-600">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {selectedProductData.variants.reduce((sum, v) => sum + v.stockQuantity, 0)}
               </div>
-              <div className="text-sm text-gray-600">Total Stock</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Total Stock</div>
             </div>
-            <div className="bg-white p-4 rounded-lg border">
-              <div className="text-2xl font-bold text-orange-600">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                 {selectedProductData.variants.filter(v => v.stockQuantity <= v.reorderLevel).length}
               </div>
-              <div className="text-sm text-gray-600">Low Stock</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Low Stock</div>
             </div>
-            <div className="bg-white p-4 rounded-lg border">
-              <div className="text-2xl font-bold text-red-600">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                 {selectedProductData.variants.filter(v => v.stockQuantity === 0).length}
               </div>
-              <div className="text-sm text-gray-600">Out of Stock</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Out of Stock</div>
             </div>
           </div>
         </div>
@@ -528,8 +528,8 @@ export function ClothingVariantManager({
       {!selectedProductData && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🔧</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Product</h3>
-          <p className="text-gray-600">Choose a product from the dropdown to manage its variants.</p>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Select a Product</h3>
+          <p className="text-gray-600 dark:text-gray-400">Choose a product from the dropdown to manage its variants.</p>
         </div>
       )}
     </div>
