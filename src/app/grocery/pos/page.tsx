@@ -14,6 +14,9 @@ import type { ReceiptData } from '@/components/printing/receipt-template'
 import { ReceiptPreviewModal } from '@/components/printing/receipt-preview-modal'
 import { usePrintPreferences } from '@/hooks/use-print-preferences'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
+import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { AddCustomerModal } from '@/components/customers/add-customer-modal'
+import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 
 interface POSItem {
   id: string
@@ -68,9 +71,22 @@ function GroceryPOSContent() {
   const [productsLoading, setProductsLoading] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
+  const [showCashTenderModal, setShowCashTenderModal] = useState(false)
+  const [cashTendered, setCashTendered] = useState('')
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
+  const [dailySales, setDailySales] = useState<any>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    id: string
+    customerNumber: string
+    name: string
+    email?: string
+    phone?: string
+    customerType: string
+  } | null>(null)
 
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const pluInputRef = useRef<HTMLInputElement>(null)
+  const cashTenderInputRef = useRef<HTMLInputElement>(null)
 
   // Load print preferences
   const { preferences: printPreferences } = usePrintPreferences()
@@ -181,6 +197,28 @@ function GroceryPOSContent() {
     return () => clearInterval(interval)
   }, [isScaleConnected])
 
+  // Load daily sales
+  const loadDailySales = async () => {
+    if (!currentBusinessId) return
+
+    try {
+      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=grocery`)
+      if (response.ok) {
+        const data = await response.json()
+        setDailySales(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to load daily sales:', error)
+    }
+  }
+
+  // Load daily sales on mount
+  useEffect(() => {
+    if (currentBusinessId) {
+      loadDailySales()
+    }
+  }, [currentBusinessId])
+
   const findProductByBarcode = (barcode: string) => {
     return products.find(p => p.barcode === barcode)
   }
@@ -281,19 +319,35 @@ function GroceryPOSContent() {
       return
     }
 
-      if (paymentMethod === 'snap' && customer?.snapBalance) {
+    if (paymentMethod === 'snap' && customer?.snapBalance) {
       if (customer.snapBalance < totals.snapEligibleAmount) {
         void customAlert({ title: 'Insufficient SNAP', description: 'Insufficient SNAP balance. Please use another payment method for remaining amount.' })
         return
       }
     }
 
+    // For cash payments, show tender modal
+    if (paymentMethod === 'cash') {
+      setCashTendered('')
+      setShowCashTenderModal(true)
+      // Focus on cash input after modal opens
+      setTimeout(() => cashTenderInputRef.current?.focus(), 100)
+      return
+    }
+
+    // For non-cash payments, process immediately
+    await processPayment()
+  }
+
+  const processPayment = async () => {
+    const totals = calculateTotals()
+
     try {
       // Create order using universal orders API
       const orderData = {
         businessId: currentBusinessId,
         businessType: 'grocery',
-        customerId: customer?.id,
+        customerId: selectedCustomer?.id || null,
         orderType: 'SALE',
         paymentMethod: paymentMethod.toUpperCase(),
         discountAmount: 0,
@@ -302,14 +356,17 @@ function GroceryPOSContent() {
           paymentMethod: paymentMethod,
           loyaltyPointsEarned: totals.loyaltyPoints,
           snapEligibleAmount: totals.snapEligibleAmount,
-          customerInfo: customer ? {
+          customerInfo: selectedCustomer ? {
+            name: selectedCustomer.name,
+            phone: selectedCustomer.phone
+          } : customer ? {
             name: customer.name,
             phone: customer.phone,
             loyaltyNumber: customer.loyaltyNumber,
             tier: customer.loyaltyTier
           } : null
         },
-        notes: customer ? `Loyalty member: ${customer.loyaltyNumber}` : 'Walk-in customer',
+        notes: selectedCustomer ? `Customer: ${selectedCustomer.name}` : customer ? `Loyalty member: ${customer.loyaltyNumber}` : 'Walk-in customer',
         items: cart.map(item => ({
           productVariantId: item.id, // Using item ID as variant ID for now
           quantity: item.quantity,
@@ -361,8 +418,11 @@ function GroceryPOSContent() {
               totalAmount: totals.total,
               paymentMethod: paymentMethod.toUpperCase(),
               paymentStatus: result.data.paymentStatus,
-              customerName: customer?.name,
-              customerInfo: customer ? {
+              customerName: selectedCustomer?.name || customer?.name,
+              customerInfo: selectedCustomer ? {
+                name: selectedCustomer.name,
+                phone: selectedCustomer.phone
+              } : customer ? {
                 name: customer.name,
                 loyaltyNumber: customer.loyaltyNumber,
                 tier: customer.loyaltyTier
@@ -416,6 +476,8 @@ function GroceryPOSContent() {
         // Clear cart after successful payment
         setCart([])
         setCustomer(null)
+        // Reload daily sales after order completion
+        setTimeout(() => loadDailySales(), 500)
       } else {
         throw new Error(result.error || 'Failed to process order')
       }
@@ -445,9 +507,111 @@ function GroceryPOSContent() {
   }
 
   const totals = calculateTotals()
+  const tenderedAmount = parseFloat(cashTendered) || 0
+  const changeAmount = tenderedAmount - totals.total
 
   return (
     <>
+      {/* Cash Tender Modal */}
+      {showCashTenderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold text-primary mb-4">Cash Payment</h2>
+
+            <div className="space-y-4">
+              {/* Total Due */}
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                <div className="text-sm text-secondary mb-1">Total Due:</div>
+                <div className="text-3xl font-bold text-primary">{formatCurrency(totals.total)}</div>
+              </div>
+
+              {/* Cash Tendered Input */}
+              <div>
+                <label className="block text-sm font-medium text-primary mb-2">
+                  Amount Tendered:
+                </label>
+                <input
+                  ref={cashTenderInputRef}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={cashTendered}
+                  onChange={(e) => setCashTendered(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && tenderedAmount >= totals.total) {
+                      setShowCashTenderModal(false)
+                      processPayment()
+                    }
+                  }}
+                  placeholder="0.00"
+                  className="w-full text-2xl font-bold border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {/* Quick Amount Buttons */}
+              <div className="grid grid-cols-4 gap-2">
+                {[5, 10, 20, 50].map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => setCashTendered(amount.toString())}
+                    className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600"
+                  >
+                    ${amount}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setCashTendered(Math.ceil(totals.total).toString())}
+                className="w-full px-3 py-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-800"
+              >
+                Exact Amount
+              </button>
+
+              {/* Change Display */}
+              {tenderedAmount > 0 && (
+                <div className={`rounded-lg p-4 ${
+                  changeAmount >= 0
+                    ? 'bg-green-50 dark:bg-green-900/20 border-2 border-green-500'
+                    : 'bg-red-50 dark:bg-red-900/20 border-2 border-red-500'
+                }`}>
+                  <div className="text-sm font-medium mb-1">
+                    {changeAmount >= 0 ? 'Change Due:' : 'Insufficient:'}
+                  </div>
+                  <div className={`text-3xl font-bold ${
+                    changeAmount >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatCurrency(Math.abs(changeAmount))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowCashTenderModal(false)
+                    setCashTendered('')
+                  }}
+                  className="flex-1 px-4 py-3 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCashTenderModal(false)
+                    processPayment()
+                  }}
+                  disabled={tenderedAmount < totals.total}
+                  className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold"
+                >
+                  Complete Sale
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ReceiptPreviewModal
         isOpen={showReceiptPreview}
         onClose={() => {
@@ -459,6 +623,17 @@ function GroceryPOSContent() {
         businessType="grocery"
       />
 
+      {/* Add Customer Modal */}
+      {showAddCustomerModal && (
+        <AddCustomerModal
+          onClose={() => setShowAddCustomerModal(false)}
+          onCustomerCreated={() => {
+            setShowAddCustomerModal(false)
+            customAlert({ title: 'Success', description: 'Customer created successfully! You can now search for them.' })
+          }}
+        />
+      )}
+
       <ContentLayout
       title="Grocery Point of Sale"
       breadcrumb={[
@@ -467,6 +642,15 @@ function GroceryPOSContent() {
         { label: 'Point of Sale', isActive: true }
       ]}
     >
+      {/* Daily Sales Widget */}
+      <div className="mb-6">
+        <DailySalesWidget
+          dailySales={dailySales}
+          businessType="grocery"
+          onRefresh={loadDailySales}
+        />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Main POS Area */}
         <div className="lg:col-span-2 space-y-4">
@@ -672,23 +856,17 @@ function GroceryPOSContent() {
   <div className="space-y-4 mt-4 lg:mt-0">
           {/* Customer Info */}
           <div className="card p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Customer</h3>
-              <button
-                onClick={() => setShowCustomerLookup(!showCustomerLookup)}
-                className="text-blue-600 hover:text-blue-700 text-sm"
-              >
-                {customer ? 'Change' : 'Add Customer'}
-              </button>
-            </div>
+            <CustomerLookup
+              businessId={currentBusinessId || ''}
+              selectedCustomer={selectedCustomer}
+              onSelectCustomer={setSelectedCustomer}
+              onCreateCustomer={() => setShowAddCustomerModal(true)}
+              allowWalkIn={true}
+            />
 
-            {customer ? (
-              <div className="space-y-3">
-                <div>
-                  <div className="font-medium">{customer.name}</div>
-                  <div className="text-sm text-secondary">{customer.phone}</div>
-                  <div className="text-sm text-secondary">Loyalty: {customer.loyaltyNumber}</div>
-                </div>
+            {/* Show additional loyalty/SNAP info if available from full customer data */}
+            {customer && selectedCustomer && customer.id === selectedCustomer.id && (
+              <div className="mt-4 space-y-3 border-t pt-3">
                 <div className="flex items-center justify-between">
                   <span className={`px-2 py-1 rounded text-xs ${
                     customer.loyaltyTier === 'Platinum' ? 'bg-gray-100 text-gray-800' :
@@ -709,34 +887,6 @@ function GroceryPOSContent() {
                   </div>
                 )}
               </div>
-            ) : showCustomerLookup ? (
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Phone number or loyalty ID"
-                  className="w-full border rounded-lg px-3 py-2"
-                  inputMode="tel"
-                />
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    onClick={() => {
-                      setCustomer(sampleCustomer)
-                      setShowCustomerLookup(false)
-                    }}
-                    className="w-full sm:flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    Load Demo Customer
-                  </button>
-                  <button
-                    onClick={() => setShowCustomerLookup(false)}
-                    className="w-full sm:w-auto px-3 py-2 bg-gray-300 text-secondary rounded-lg hover:bg-gray-400 text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-secondary text-sm">No customer selected</div>
             )}
           </div>
 

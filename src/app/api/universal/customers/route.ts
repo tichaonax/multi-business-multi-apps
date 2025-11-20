@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
           }),
           _count: {
             select: {
-              businessOrders: true
+              business_orders: true
             }
           }
         },
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
         },
         _count: {
           select: {
-            businessOrders: true
+            business_orders: true
           }
         }
       }
@@ -280,7 +280,7 @@ export async function PUT(request: NextRequest) {
         },
         _count: {
           select: {
-            businessOrders: true
+            business_orders: true
           }
         }
       }

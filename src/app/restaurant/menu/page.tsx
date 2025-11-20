@@ -12,17 +12,24 @@ import { ComboBuilder } from '@/components/restaurant/combo-builder'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 type MenuItem = MenuItemType
 
 export default function MenuManagementPage() {
   const customAlert = useAlert()
   const confirm = useConfirm()
+  const router = useRouter()
+  const { currentBusinessId, currentBusiness, businesses } = useBusinessPermissionsContext()
+
   // NOTE: we will import hooks properly below via patch to avoid accidental lint issues
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isSeeding, setIsSeeding] = useState(false)
 
   // Filters and search
   const [searchTerm, setSearchTerm] = useState('')
@@ -47,11 +54,8 @@ export default function MenuManagementPage() {
       setLoading(true)
       setError(null)
 
-      // Use consistent restaurant demo business ID
-      const businessId = 'restaurant-demo'
-
-      // Load categories first (independent of products)
-      const categoriesResponse = await fetch(`/api/universal/categories?businessId=${businessId}&businessType=restaurant`)
+      // Load categories by business type (works for all restaurant businesses)
+      const categoriesResponse = await fetch(`/api/universal/categories?businessType=restaurant`)
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json()
         if (categoriesData.success) {
@@ -60,7 +64,20 @@ export default function MenuManagementPage() {
       }
 
       // Load menu items (products) - include variants and images
-      const menuResponse = await fetch('/api/universal/products?businessType=restaurant&includeVariants=true&includeImages=true')
+      // If a business is selected, load only that business's products; otherwise load all restaurant products
+      const queryParams = new URLSearchParams({
+        businessType: 'restaurant',
+        includeVariants: 'true',
+        includeImages: 'true',
+        limit: '500' // High limit to get all products
+      })
+
+      // If specific business selected, filter by that business
+      if (currentBusinessId) {
+        queryParams.set('businessId', currentBusinessId)
+      }
+
+      const menuResponse = await fetch(`/api/universal/products?${queryParams.toString()}`)
       if (menuResponse.ok) {
         const menuData = await menuResponse.json()
         if (menuData.success) {
@@ -100,6 +117,86 @@ export default function MenuManagementPage() {
       console.error('Menu loading error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSeedProducts = async () => {
+    // Get business name from businesses array or current business
+    const businessName = currentBusiness?.businessName ||
+                        businesses.find((b: any) => b.businessId === currentBusinessId)?.businessName ||
+                        'this business'
+
+    // Use currentBusinessId or default to restaurant-demo-business for testing
+    const businessId = currentBusinessId || 'restaurant-demo-business'
+
+    const confirmed = await confirm({
+      title: 'Seed Restaurant Menu Items',
+      description: (
+        <div>
+          <p className="mb-3">
+            This will import <strong>111 default menu items</strong> with zero pricing for{' '}
+            <span className="font-semibold text-green-600 dark:text-green-400">{businessName}</span>.
+          </p>
+          <p className="mb-3">Includes:</p>
+          <ul className="list-disc list-inside mb-3 text-sm space-y-1">
+            <li>28 single products (Tea, Bread, Sadza, Beef, etc.)</li>
+            <li>27 combo items (Tea & Bread, Sadza & Beef, etc.)</li>
+            <li>Service products (WIFI)</li>
+            <li>Revenue items (Loan, Transfer In)</li>
+          </ul>
+          <p className="mb-3">Products with existing names will be skipped.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">This is safe to run multiple times. You can set your own prices after seeding.</p>
+        </div>
+      ),
+      confirmText: 'Seed Menu Items',
+      cancelText: 'Cancel'
+    })
+
+    if (!confirmed) return
+
+    try {
+      setIsSeeding(true)
+
+      const response = await fetch('/api/admin/restaurant/seed-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId })
+      })
+
+      const data = await response.json()
+
+      setIsSeeding(false)
+
+      if (data.success) {
+        const { imported, skipped, errors } = data.data
+        let message = `Successfully seeded menu items!\n\n`
+        message += `• Imported: ${imported} products\n`
+        message += `• Skipped: ${skipped} products (already existed)\n`
+        if (errors > 0) {
+          message += `• Errors: ${errors}\n`
+        }
+        message += `\n💡 Tip: All products have $0 pricing. Click on each item to set your prices!`
+
+        await customAlert({
+          title: '✅ Menu Items Seeded Successfully',
+          description: message
+        })
+
+        // Refresh the menu data
+        await loadMenuData()
+        router.refresh()
+      } else {
+        await customAlert({
+          title: 'Seeding Failed',
+          description: data.error || 'Failed to seed menu items. Please try again.'
+        })
+      }
+    } catch (error: any) {
+      setIsSeeding(false)
+      await customAlert({
+        title: 'Error',
+        description: `Failed to seed menu items: ${error.message}`
+      })
     }
   }
 
@@ -147,8 +244,8 @@ export default function MenuManagementPage() {
 
       // Add required fields for new items
       if (!editingItem) {
-        // Use the consistent restaurant demo business ID
-        const businessId = 'restaurant-demo'
+        // Use the restaurant demo business ID
+        const businessId = 'restaurant-demo-business'
 
         submitData = {
           ...submitData,
@@ -277,6 +374,22 @@ export default function MenuManagementPage() {
           { label: 'Restaurant', href: '/restaurant' },
           { label: 'Menu Management', isActive: true }
         ]}
+        headerActions={
+          <div className="flex gap-2">
+            <Link
+              href="/restaurant/pos"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              💳 POS
+            </Link>
+            <Link
+              href="/restaurant/orders"
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+            >
+              📦 Orders
+            </Link>
+          </div>
+        }
       >
   {/* Navigation Tabs */}
   <div className="flex items-center gap-4 mb-6 border-b border-primary">
@@ -326,6 +439,14 @@ export default function MenuManagementPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleSeedProducts}
+                  disabled={isSeeding}
+                  className="bg-green-600 hover:bg-green-700 text-white dark:bg-green-600 dark:hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Import 111 default menu items with zero pricing"
+                >
+                  {isSeeding ? '⏳ Seeding...' : '🌱 Seed Menu Items'}
+                </Button>
                 <Button onClick={handleCreateItem} className="bg-primary hover:bg-primary/90 dark:bg-blue-600 dark:hover:bg-blue-500">
                   ➕ Add Menu Item
                 </Button>

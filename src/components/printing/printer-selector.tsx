@@ -137,17 +137,17 @@ export function PrinterSelector({
         {/* Loading State */}
         {loading && (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            <span className="ml-3 text-gray-600">Loading printers...</span>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
+            <span className="ml-3 text-gray-600 dark:text-gray-400">Loading printers...</span>
           </div>
         )}
 
         {/* Empty State */}
         {!loading && filteredPrinters.length === 0 && (
           <div className="text-center py-8">
-            <Printer className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-medium mb-2">No printers found</h3>
-            <p className="text-sm text-gray-600">
+            <Printer className="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-600" />
+            <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">No printers found</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               {searchQuery
                 ? 'Try adjusting your search'
                 : 'No printers are currently available'}
@@ -168,8 +168,8 @@ export function PrinterSelector({
                   onClick={() => setSelectedPrinter(printer)}
                   className={`w-full text-left p-4 border rounded-lg transition-all ${
                     isSelected
-                      ? 'border-blue-500 bg-blue-50 shadow-md'
-                      : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'
                   } ${!isOnline ? 'opacity-50' : ''}`}
                   disabled={!isOnline}
                 >
@@ -184,7 +184,7 @@ export function PrinterSelector({
                         )}
 
                         {/* Printer Name */}
-                        <span className="font-medium">{printer.printerName}</span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">{printer.printerName}</span>
 
                         {/* Selected Checkmark */}
                         {isSelected && (
@@ -192,7 +192,7 @@ export function PrinterSelector({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 mt-1 text-sm text-gray-600 dark:text-gray-400">
                         {/* Printer Type */}
                         <Badge variant="secondary" className="text-xs">
                           {printer.printerType.charAt(0).toUpperCase() + printer.printerType.slice(1)}
@@ -222,7 +222,7 @@ export function PrinterSelector({
 
                       {/* Capabilities */}
                       {printer.capabilities && printer.capabilities.length > 0 && (
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-500">
                           {printer.capabilities.join(', ')}
                         </div>
                       )}

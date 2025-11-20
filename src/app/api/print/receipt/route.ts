@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       copies: data.copies || 1,
     };
 
-    // Queue the print job
+    // Queue the print job (for audit trail)
     const printJob = await queuePrintJob(
       printJobData,
       data.businessId,
@@ -159,21 +159,95 @@ export async function POST(request: NextRequest) {
       session.user.id
     );
 
-    return NextResponse.json(
-      {
-        success: true,
-        jobId: printJob.id,
-        printJob: {
-          id: printJob.id,
-          status: printJob.status,
-          receiptNumber: receiptNumber.formattedNumber,
-          globalId: receiptNumber.globalId,
-          dailySequence: receiptNumber.dailySequence,
+    // IMMEDIATELY print the receipt (don't wait for queue worker)
+    try {
+      const { sendToPrinter, isPrinterAvailable } = await import('@/lib/printing/printer-service-usb');
+      const { markJobAsProcessing, markJobAsCompleted, markJobAsFailed } = await import('@/lib/printing/print-job-queue');
+      const { prisma } = await import('@/lib/prisma');
+
+      console.log('🖨️ Attempting immediate print for job:', printJob.id);
+
+      // Get printer details
+      const printer = await prisma.networkPrinters.findUnique({
+        where: { id: data.printerId },
+      });
+
+      if (!printer) {
+        console.error('❌ Printer not found:', data.printerId);
+        throw new Error(`Printer not found: ${data.printerId}`);
+      }
+
+      console.log(`📄 Printing to: ${printer.printerName}`);
+
+      // Check if printer is available
+      const available = await isPrinterAvailable(printer.printerName);
+      if (!available) {
+        console.error(`❌ Printer offline: ${printer.printerName}`);
+        throw new Error(`Printer "${printer.printerName}" is offline or not found`);
+      }
+
+      // Mark job as processing
+      await markJobAsProcessing(printJob.id);
+
+      // Decode receipt text from base64
+      const receiptText = printJobData.jobData.receiptText as string;
+      const printContent = Buffer.from(receiptText, 'base64').toString('binary');
+
+      console.log(`📊 Print content size: ${printContent.length} bytes`);
+
+      // Send to printer immediately
+      await sendToPrinter(printContent, {
+        printerName: printer.printerName,
+        copies: printJobData.copies || 1,
+      });
+
+      // Mark job as completed
+      await markJobAsCompleted(printJob.id);
+
+      console.log('✅ Print job completed successfully');
+
+      return NextResponse.json(
+        {
+          success: true,
+          jobId: printJob.id,
+          printJob: {
+            id: printJob.id,
+            status: 'completed',
+            receiptNumber: receiptNumber.formattedNumber,
+            globalId: receiptNumber.globalId,
+            dailySequence: receiptNumber.dailySequence,
+          },
+          message: 'Receipt printed successfully',
         },
-        message: 'Receipt queued for printing',
-      },
-      { status: 201 }
-    );
+        { status: 201 }
+      );
+
+    } catch (printError) {
+      // If immediate printing fails, let the queue worker handle it
+      const errorMsg = printError instanceof Error ? printError.message : 'Unknown error';
+      console.error('Immediate printing failed, will be retried by queue worker:', errorMsg);
+
+      // Update job with error details
+      const { markJobAsFailed } = await import('@/lib/printing/print-job-queue');
+      await markJobAsFailed(printJob.id, `Immediate print failed: ${errorMsg}. Will retry via queue.`);
+
+      return NextResponse.json(
+        {
+          success: true,
+          jobId: printJob.id,
+          printJob: {
+            id: printJob.id,
+            status: 'failed',
+            receiptNumber: receiptNumber.formattedNumber,
+            globalId: receiptNumber.globalId,
+            dailySequence: receiptNumber.dailySequence,
+          },
+          message: 'Receipt queued (printer temporarily unavailable)',
+          warning: errorMsg,
+        },
+        { status: 201 }
+      );
+    }
   } catch (error) {
     console.error('Error queuing receipt print job:', error);
 

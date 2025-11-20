@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { SessionUser } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
 // Validation schemas
@@ -14,9 +18,9 @@ const CreateOrderItemSchema = z.object({
 
 const CreateOrderSchema = z.object({
   businessId: z.string().min(1),
-  customerId: z.string().optional(), // Legacy: BusinessCustomer ID
-  divisionAccountId: z.string().optional(), // New: CustomerDivisionAccount ID
-  employeeId: z.string().optional(),
+  customerId: z.string().nullable().optional(), // Legacy: BusinessCustomer ID - nullable for walk-in customers
+  divisionAccountId: z.string().nullable().optional(), // New: CustomerDivisionAccount ID - nullable for walk-in customers
+  employeeId: z.string().nullable().optional(),
   orderType: z.enum(['SALE', 'RETURN', 'EXCHANGE', 'SERVICE', 'RENTAL', 'SUBSCRIPTION']).default('SALE'),
   paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK']).optional(),
   discountAmount: z.number().min(0).default(0),
@@ -54,6 +58,13 @@ function generateOrderNumber(businessType: string, orderCount: number): string {
 // GET - Fetch orders for a business
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = session.user as SessionUser
+
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const customerId = searchParams.get('customerId')
@@ -73,6 +84,28 @@ export async function GET(request: NextRequest) {
         { error: 'businessId is required' },
         { status: 400 }
       )
+    }
+
+    // Check if user has permission to access financial data for this business
+    const isAdmin = isSystemAdmin(user)
+    console.log('User permissions check:', {
+      userId: user.id,
+      userRole: user.role,
+      isSystemAdmin: isAdmin,
+      businessId,
+      businessMemberships: user.businessMemberships?.map(m => ({
+        businessId: m.businessId,
+        role: m.role,
+        permissions: m.permissions
+      }))
+    })
+
+    if (!isAdmin) {
+      const hasFinancialAccess = await hasUserPermission(user, 'canAccessFinancialData', businessId)
+      console.log('Non-admin user financial access check:', { businessId, hasFinancialAccess })
+      if (!hasFinancialAccess) {
+        return NextResponse.json({ error: 'Insufficient permissions to access financial data' }, { status: 403 })
+      }
     }
 
     const where: any = { businessId }
@@ -135,9 +168,56 @@ export async function GET(request: NextRequest) {
       _count: true
     })
 
+    // Calculate completed and pending revenue for all orders matching filters
+    const completedRevenueResult = await prisma.businessOrders.aggregate({
+      where: {
+        ...where,
+        status: 'COMPLETED'
+      },
+      _sum: {
+        totalAmount: true
+      }
+    })
+
+    const pendingRevenueResult = await prisma.businessOrders.aggregate({
+      where: {
+        ...where,
+        status: {
+          not: 'COMPLETED'
+        }
+      },
+      _sum: {
+        totalAmount: true
+      }
+    })
+
+    // Count pending orders
+    const pendingOrdersCount = await prisma.businessOrders.count({
+      where: {
+        ...where,
+        status: 'PENDING'
+      }
+    })
+
+    // Transform orders to match expected frontend structure
+    const transformedOrders = orders.map(order => ({
+      ...order,
+      items: order.business_order_items?.map(item => ({
+        id: item.id,
+        productVariantId: item.productVariantId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discountAmount: item.discountAmount,
+        totalPrice: item.totalPrice,
+        productName: item.product_variants?.business_products?.name || 'Unknown Product',
+        variantName: item.product_variants?.name || '',
+        attributes: item.attributes
+      })) || []
+    }))
+
     return NextResponse.json({
       success: true,
-      data: orders,
+      data: transformedOrders,
       meta: {
         total: totalCount,
         page,
@@ -149,7 +229,10 @@ export async function GET(request: NextRequest) {
           totalAmount: summary._sum.totalAmount || 0,
           totalSubtotal: summary._sum.subtotal || 0,
           totalTax: summary._sum.taxAmount || 0,
-          totalDiscount: summary._sum.discountAmount || 0
+          totalDiscount: summary._sum.discountAmount || 0,
+          completedRevenue: completedRevenueResult._sum.totalAmount || 0,
+          pendingRevenue: pendingRevenueResult._sum.totalAmount || 0,
+          pendingOrders: pendingOrdersCount
         }
       }
     })
@@ -218,17 +301,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify employee exists if specified
+    // Verify employee exists if specified (but don't fail if not found - might be admin/user ID)
     if (orderData.employeeId) {
       const employee = await prisma.employees.findUnique({
         where: { id: orderData.employeeId }
       })
 
       if (!employee) {
-        return NextResponse.json(
-          { error: 'Employee not found' },
-          { status: 404 }
-        )
+        console.warn(`Employee ID ${orderData.employeeId} not found in employees table - might be admin/user. Order will proceed without employee link.`)
+        // Remove employeeId if not found so order creation doesn't fail
+        orderData.employeeId = undefined
       }
     }
 
@@ -414,6 +496,12 @@ export async function POST(request: NextRequest) {
 // PUT - Update order
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = session.user as SessionUser
     const body = await request.json()
     const validatedData = UpdateOrderSchema.parse(body)
 
@@ -430,6 +518,18 @@ export async function PUT(request: NextRequest) {
         { error: 'Order not found' },
         { status: 404 }
       )
+    }
+
+    // Check if user has permission to manage orders in this business
+    const isAdmin = isSystemAdmin(user)
+    if (!isAdmin) {
+      const userRole = getUserRoleInBusiness(user, existingOrder.businessId)
+      if (!userRole || !['business-owner', 'business-manager'].includes(userRole)) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions to manage orders' },
+          { status: 403 }
+        )
+      }
     }
 
     // Check if order can be updated based on current status
@@ -503,9 +603,25 @@ export async function PUT(request: NextRequest) {
       }
     })
 
+    // Transform the updated order to match expected frontend structure
+    const transformedOrder = {
+      ...order,
+      items: order.business_order_items?.map(item => ({
+        id: item.id,
+        productVariantId: item.productVariantId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discountAmount: item.discountAmount,
+        totalPrice: item.totalPrice,
+        productName: item.product_variants?.business_products?.name || 'Unknown Product',
+        variantName: item.product_variants?.name || '',
+        attributes: item.attributes
+      })) || []
+    }
+
     return NextResponse.json({
       success: true,
-      data: order,
+      data: transformedOrder,
       message: 'Order updated successfully'
     })
 

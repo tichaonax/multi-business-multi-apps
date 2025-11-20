@@ -242,6 +242,7 @@ model BusinessProducts {
   calories                 Int?
   isCombo                  Boolean                  @default(false)
   comboItemsData           Json?
+  requiresCompanionItem    Boolean                  @default(false)
   originalPrice            Decimal?                 @db.Decimal(10, 2)
   discountPercent          Decimal?                 @db.Decimal(5, 2)
   discountAmount           Decimal?                 @db.Decimal(10, 2)

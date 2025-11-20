@@ -7,6 +7,7 @@ import {
   UniversalProductGrid,
   UniversalPOS
 } from '@/components/universal'
+import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -15,6 +16,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 
 export default function HardwarePOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
+  const [dailySales, setDailySales] = useState<any>(null)
   const { data: session, status } = useSession()
   const router = useRouter()
 
@@ -128,12 +130,43 @@ export default function HardwarePOSPage() {
   const businessId = currentBusinessId!
 
   const handleAddToCart = (productId: string, variantId?: string, quantity = 1) => {
-    console.log('Add to cart:', { productId, variantId, quantity })
+    // Use URL parameters to trigger UniversalPOS auto-add feature
+    const params = new URLSearchParams()
+    params.set('addProduct', productId)
+    if (variantId) params.set('variantId', variantId)
+    params.set('businessId', businessId)
+
+    // Navigate with query parameters to trigger auto-add
+    router.push(`/hardware/pos?${params.toString()}`)
   }
 
   const handleOrderComplete = (orderId: string) => {
     console.log('Order completed:', orderId)
+    // Reload daily sales after order completion
+    setTimeout(() => loadDailySales(), 500)
   }
+
+  // Load daily sales
+  const loadDailySales = async () => {
+    if (!currentBusinessId) return
+
+    try {
+      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=hardware`)
+      if (response.ok) {
+        const data = await response.json()
+        setDailySales(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to load daily sales:', error)
+    }
+  }
+
+  // Load daily sales on mount
+  useEffect(() => {
+    if (currentBusinessId && isHardwareBusiness) {
+      loadDailySales()
+    }
+  }, [currentBusinessId, isHardwareBusiness])
 
   return (
     <BusinessProvider businessId={businessId}>
@@ -196,6 +229,13 @@ export default function HardwarePOSPage() {
                 </div>
               )}
             </div>
+
+            {/* Daily Sales Widget */}
+            <DailySalesWidget
+              dailySales={dailySales}
+              businessType="hardware"
+              onRefresh={loadDailySales}
+            />
 
             {/* Hardware-Specific Features */}
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">

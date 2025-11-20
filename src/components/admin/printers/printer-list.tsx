@@ -24,6 +24,7 @@ interface PrinterListProps {
 
 export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: PrinterListProps) {
   const [testingPrinter, setTestingPrinter] = useState<string | null>(null)
+  const [directTestingPrinter, setDirectTestingPrinter] = useState<string | null>(null)
   const { push } = useToast()
   const confirm = useConfirm()
 
@@ -66,19 +67,50 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
         businessId: testBusiness.id,
         businessType: testBusiness.businessType || 'other',
         businessName: testBusiness.businessName || 'Test Business',
+        businessAddress: '123 Main Street, City, ST 12345',
+        businessPhone: '(555) 123-4567',
+        businessEmail: 'test@example.com',
+        transactionId: `TEST-${Date.now()}`,
+        transactionDate: new Date().toISOString(),
+        salespersonName: 'Test User',
+        salespersonId: 'test-user-id',
         items: [
           {
-            name: 'Test Item',
-            quantity: 1,
+            name: 'Test Item 1 - ESC/POS Receipt',
+            sku: 'TEST-001',
+            quantity: 2,
             unitPrice: 10.00,
-            totalPrice: 10.00
+            totalPrice: 20.00,
+            barcode: {
+              type: 'CODE128',
+              code: 'TEST001'
+            }
+          },
+          {
+            name: 'Test Item 2 - Thermal Print',
+            sku: 'TEST-002',
+            quantity: 1,
+            unitPrice: 15.50,
+            totalPrice: 15.50
+          },
+          {
+            name: 'Test Item 3 - Auto Cut Test',
+            sku: 'TEST-003',
+            quantity: 3,
+            unitPrice: 5.00,
+            totalPrice: 15.00
           }
         ],
-        subtotal: 10.00,
-        tax: 0.00,
-        total: 10.00,
+        subtotal: 50.50,
+        tax: 4.04,
+        discount: 0.00,
+        total: 54.54,
         paymentMethod: 'cash',
-        notes: 'This is a test print',
+        amountPaid: 60.00,
+        changeDue: 5.46,
+        footerMessage: 'TEST PRINT - ESC/POS Commands',
+        returnPolicy: 'This is a test receipt to verify ESC/POS formatting, emphasized mode, text alignment, and automatic paper cutting.',
+        copies: 1,
       }
 
       const response = await fetch(endpoint, {
@@ -98,6 +130,32 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
       push(`❌ Test failed - ${error instanceof Error ? error.message : 'Failed to send test print'}`)
     } finally {
       setTestingPrinter(null)
+    }
+  }
+
+  async function handleDirectTest(printer: NetworkPrinter) {
+    setDirectTestingPrinter(printer.id)
+
+    try {
+      push(`Sending direct ESC/POS test to ${printer.printerName}...`)
+
+      const response = await fetch('/api/printers/test-direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printerId: printer.id }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || errorData.error || 'Direct test failed')
+      }
+
+      push('✅ Direct test sent - check printer (bypassed queue)')
+    } catch (error) {
+      console.error('Direct test error:', error)
+      push(`❌ Direct test failed - ${error instanceof Error ? error.message : 'Failed to send direct test'}`)
+    } finally {
+      setDirectTestingPrinter(null)
     }
   }
 
@@ -249,11 +307,23 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleTestPrint(printer)}
-                  disabled={!isOnline || testingPrinter === printer.id}
+                  onClick={() => handleDirectTest(printer)}
+                  disabled={!isOnline || directTestingPrinter === printer.id}
+                  title="Direct ESC/POS test (bypasses queue)"
                 >
                   <TestTube className="w-4 h-4 mr-1" />
-                  Test
+                  {directTestingPrinter === printer.id ? 'Testing...' : 'Direct Test'}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleTestPrint(printer)}
+                  disabled={!isOnline || testingPrinter === printer.id}
+                  title="Test via queue (full receipt)"
+                >
+                  <Printer className="w-4 h-4 mr-1" />
+                  {testingPrinter === printer.id ? 'Queued...' : 'Queue Test'}
                 </Button>
 
                 <Button

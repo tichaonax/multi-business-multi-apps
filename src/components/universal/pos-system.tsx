@@ -7,6 +7,8 @@ import { useAlert } from '@/components/ui/confirm-modal'
 import { UniversalProduct } from './product-card'
 import { BarcodeScanner } from './barcode-scanner'
 import { ReceiptPreview } from '@/components/printing/receipt-preview'
+import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import type { ReceiptData, NetworkPrinter } from '@/types/printing'
@@ -42,14 +44,24 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
   const searchParams = useSearchParams()
   const router = useRouter()
   const [cart, setCart] = useState<CartItem[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    id: string
+    customerNumber: string
+    name: string
+    email?: string
+    phone?: string
+    customerType: string
+  } | null>(null)
   const [customerInfo, setCustomerInfo] = useState<{
     id?: string
     name: string
     phone?: string
     email?: string
   }>({ name: '' })
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [discountAmount, setDiscountAmount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
+  const [cashTendered, setCashTendered] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autoAddProcessed, setAutoAddProcessed] = useState(false)
@@ -130,6 +142,7 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
 
   const clearCart = () => {
     setCart([])
+    setSelectedCustomer(null)
     setCustomerInfo({ name: '' })
     setDiscountAmount(0)
     setError(null)
@@ -215,36 +228,14 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
       return
     }
 
-    if (!customerInfo.name.trim()) {
-      setError('Customer name is required')
-      return
-    }
+    // Customer is optional (walk-in customers allowed)
 
     setIsProcessing(true)
     setError(null)
 
     try {
-      // Create customer if needed
-      let customerId = customerInfo.id
-      if (!customerId && customerInfo.name.trim()) {
-        const customerResponse = await fetch('/api/universal/customers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            businessId,
-            name: customerInfo.name.trim(),
-            phone: customerInfo.phone,
-            email: customerInfo.email,
-            customerType: 'INDIVIDUAL',
-            businessType: config?.businessType || 'retail'
-          })
-        })
-
-        const customerData = await customerResponse.json()
-        if (customerResponse.ok && customerData.success) {
-          customerId = customerData.data.id
-        }
-      }
+      // Use selected customer ID if available (walk-in customers have null ID)
+      const customerId = selectedCustomer?.id || null
 
       // Create order
       const orderData = {
@@ -258,7 +249,9 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
         businessType: config?.businessType || 'retail',
         attributes: {
           posOrder: true,
-          customerInfo: customerInfo.name
+          customerInfo: selectedCustomer?.name || 'Walk-in Customer',
+          cashTendered: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
+          change: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totalAmount : undefined
         },
         items: cart.map(item => ({
           productVariantId: item.variantId || item.product.variants?.[0]?.id,
@@ -306,7 +299,9 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           discount: discountAmount,
           total: totalAmount,
           paymentMethod,
-          customerName: customerInfo.name,
+          cashTendered: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
+          change: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totalAmount : undefined,
+          customerName: selectedCustomer?.name || 'Walk-in Customer',
           customerPhone: customerInfo.phone,
           date: new Date(),
           cashierName: employeeId ? 'Employee' : undefined,
@@ -316,16 +311,12 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
         }
 
         clearCart()
+        setCashTendered('')
         onOrderComplete?.(result.data.id)
 
-        // Show receipt preview if auto-print or if user has print permission
-        if (canPrintReceipts && autoPrintReceipt) {
-          setCompletedOrderReceipt(receiptData)
-          setShowReceiptPreview(true)
-        } else {
-          // Show success message
-          await customAlert({ title: 'Order completed', description: `Order ${result.data.orderNumber} completed successfully!` })
-        }
+        // Always show receipt preview with print option
+        setCompletedOrderReceipt(receiptData)
+        setShowReceiptPreview(true)
       } else {
         throw new Error(result.error || 'Order processing failed')
       }
@@ -382,33 +373,15 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
       <div className="flex">
         {/* Left Panel - Cart */}
         <div className="flex-1 p-4">
-          {/* Customer Info */}
+          {/* Customer Lookup */}
           <div className="mb-4">
-            <h3 className="font-semibold text-primary mb-2">{labels.customer} Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input
-                type="text"
-                placeholder="Customer Name *"
-                value={customerInfo.name}
-                onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
-                className="input-field"
-                required
-              />
-              <input
-                type="tel"
-                placeholder="Phone"
-                value={customerInfo.phone || ''}
-                onChange={(e) => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
-                className="input-field"
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={customerInfo.email || ''}
-                onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
-                className="input-field"
-              />
-            </div>
+            <CustomerLookup
+              businessId={businessId}
+              selectedCustomer={selectedCustomer}
+              onSelectCustomer={(customer) => setSelectedCustomer(customer)}
+              onCreateCustomer={() => setShowAddCustomerModal(true)}
+              allowWalkIn={true}
+            />
           </div>
 
           {/* Barcode Scanner */}          <BarcodeScanner            onProductScanned={(product, variantId, scannedBarcode) => addToCart(product, variantId, 1, scannedBarcode)}            businessId={businessId}            showScanner={showBarcodeScanner}            onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}          />
@@ -526,6 +499,38 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
                 </select>
               </div>
 
+              {/* Cash Tender Input */}
+              {paymentMethod === 'CASH' && (
+                <div>
+                  <label className="block text-sm font-medium text-primary mb-2">
+                    Cash Tendered
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Enter amount received"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    className="input-field w-full text-lg font-semibold"
+                    autoFocus
+                  />
+                  {cashTendered && parseFloat(cashTendered) >= totalAmount && (
+                    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded">
+                      <div className="flex justify-between text-green-800 dark:text-green-200 font-semibold">
+                        <span>Change:</span>
+                        <span>{formatCurrency(parseFloat(cashTendered) - totalAmount)}</span>
+                      </div>
+                    </div>
+                  )}
+                  {cashTendered && parseFloat(cashTendered) < totalAmount && (
+                    <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
+                      ⚠️ Amount tendered is less than total
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Auto-print receipt option */}
               {canPrintReceipts && (
                 <div className="flex items-center space-x-2">
@@ -555,7 +560,7 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           {cart.length > 0 && (
             <button
               onClick={processOrder}
-              disabled={isProcessing || !customerInfo.name.trim()}
+              disabled={isProcessing || (paymentMethod === 'CASH' && (!cashTendered || parseFloat(cashTendered) < totalAmount))}
               className="w-full mt-4 bg-primary text-white px-4 py-3 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isProcessing ? 'Processing...' : labels.processButton}
@@ -576,6 +581,18 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           }}
           receiptData={completedOrderReceipt}
           onPrint={handlePrintReceipt}
+        />
+      )}
+
+      {/* Add Customer Modal */}
+      {showAddCustomerModal && (
+        <AddCustomerModal
+          onClose={() => setShowAddCustomerModal(false)}
+          onCustomerCreated={() => {
+            setShowAddCustomerModal(false)
+            // Optionally refresh customer list or show success message
+            customAlert({ title: 'Success', description: 'Customer created successfully! You can now search for them.' })
+          }}
         />
       )}
     </div>

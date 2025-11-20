@@ -1,0 +1,2210 @@
+[
+  {
+    "name": "☕ Tea",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "☕",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "☕🍞 Tea & Bread",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Tea",
+          "quantity": 1,
+          "productId": "db270c26-e1d2-4b2c-805a-491a74e58424"
+        },
+        {
+          "name": "Bread",
+          "quantity": 1,
+          "productId": "3cdcd1bd-8ce2-4b9e-88b6-206852bdecaf"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "☕🍞"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Tea",
+        "Bread"
+      ]
+    }
+  },
+  {
+    "name": "Beef Burger & Fries",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "posCategory": "Main Courses",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Bell Peppers",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 7,
+      "posCategory": "Vegetables",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Vegetables",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Bottled Water",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Beverages",
+      "storageTemp": "room",
+      "ingredientType": "Beverages",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Bruschetta",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "vegetarian": true,
+      "posCategory": "Appetizers",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Butter",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 30,
+      "posCategory": "Dairy",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Dairy",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Caesar Salad",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "glutenFree": false,
+      "posCategory": "Appetizers",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Carrots",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 14,
+      "posCategory": "Vegetables",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Vegetables",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Cheesecake",
+    "description": "",
+    "categoryName": "Desserts",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "posCategory": "Desserts",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Chicken Breast",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 7,
+      "posCategory": "Proteins",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Proteins",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Chicken Wings (8pc)",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "spicy": true,
+      "posCategory": "Appetizers",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Chocolate Brownie",
+    "description": "",
+    "categoryName": "Desserts",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "posCategory": "Desserts",
+      "containsNuts": false,
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Coca-Cola 330ml",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "posCategory": "Beverages",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Coca-Cola Syrup",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 90,
+      "posCategory": "Beverages",
+      "storageTemp": "room",
+      "ingredientType": "Beverages",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Coffee",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "hot": true,
+      "posCategory": "Beverages",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Coffee Beans",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 90,
+      "posCategory": "Beverages",
+      "storageTemp": "room",
+      "ingredientType": "Beverages",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Disposable Cups",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Supplies",
+      "storageTemp": "room",
+      "ingredientType": "Supplies",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Eggs",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 21,
+      "posCategory": "Dairy",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Dairy",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Flour (All-Purpose)",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 180,
+      "posCategory": "Pantry",
+      "storageTemp": "room",
+      "ingredientType": "Pantry",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Garlic",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 60,
+      "posCategory": "Pantry",
+      "storageTemp": "room",
+      "ingredientType": "Pantry",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Garlic Bread",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "vegetarian": true,
+      "posCategory": "Appetizers",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Grilled Chicken Breast",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "glutenFree": true,
+      "posCategory": "Main Courses",
+      "printToKitchen": true,
+      "temperatureZone": "hot"
+    }
+  },
+  {
+    "name": "Grilled Salmon",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "glutenFree": true,
+      "posCategory": "Main Courses",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Ground Beef",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 5,
+      "posCategory": "Proteins",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Proteins",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Heavy Cream",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 14,
+      "posCategory": "Dairy",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Dairy",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Ice Cream Sundae",
+    "description": "",
+    "categoryName": "Desserts",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "posCategory": "Desserts",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Lettuce",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 5,
+      "posCategory": "Vegetables",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Vegetables",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Margherita Pizza",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "vegetarian": true,
+      "posCategory": "Main Courses",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Mozzarella Cheese",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 21,
+      "posCategory": "Dairy",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Dairy",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Mushrooms",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 5,
+      "posCategory": "Vegetables",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Vegetables",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Olive Oil",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 180,
+      "posCategory": "Pantry",
+      "storageTemp": "room",
+      "ingredientType": "Pantry",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Onions",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 30,
+      "posCategory": "Vegetables",
+      "storageTemp": "room",
+      "ingredientType": "Vegetables",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Orange Juice (Fresh)",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 7,
+      "posCategory": "Beverages",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Beverages",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Orange Juice 250ml",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "chilled": true,
+      "posCategory": "Beverages",
+      "printToKitchen": false
+    }
+  },
+  {
+    "name": "Paper Napkins",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Supplies",
+      "storageTemp": "room",
+      "ingredientType": "Supplies",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Paper Plates",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Supplies",
+      "storageTemp": "room",
+      "ingredientType": "Supplies",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Parmesan Cheese",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 60,
+      "posCategory": "Dairy",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Dairy",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Pasta (Spaghetti)",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Pantry",
+      "storageTemp": "room",
+      "ingredientType": "Pantry",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Plastic Utensils",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Supplies",
+      "storageTemp": "room",
+      "ingredientType": "Supplies",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Pork Chops",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 5,
+      "posCategory": "Proteins",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Proteins",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Ribeye Steak 10oz",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "glutenFree": true,
+      "posCategory": "Main Courses",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Rice",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Pantry",
+      "storageTemp": "room",
+      "ingredientType": "Pantry",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Salmon Fillet",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 3,
+      "posCategory": "Proteins",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Proteins",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Salt",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Pantry",
+      "storageTemp": "room",
+      "ingredientType": "Pantry",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Shrimp",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 90,
+      "posCategory": "Proteins",
+      "storageTemp": "frozen",
+      "ingredientType": "Proteins",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Soup of the Day",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "vegetarian": true,
+      "posCategory": "Appetizers",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Spaghetti Bolognese",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "vegetarian": false,
+      "posCategory": "Main Courses",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Sparkling Water 500ml",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "posCategory": "Beverages",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Spinach",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 5,
+      "posCategory": "Vegetables",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Vegetables",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Sugar",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Pantry",
+      "storageTemp": "room",
+      "ingredientType": "Pantry",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Tea Bags",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Beverages",
+      "storageTemp": "room",
+      "ingredientType": "Beverages",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Tiramisu",
+    "description": "",
+    "categoryName": "Desserts",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "posCategory": "Desserts",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "To-Go Containers",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Supplies",
+      "storageTemp": "room",
+      "ingredientType": "Supplies",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Tomato Sauce",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 365,
+      "posCategory": "Pantry",
+      "storageTemp": "room",
+      "ingredientType": "Pantry",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Tomatoes",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 7,
+      "posCategory": "Vegetables",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Vegetables",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Vegetable Stir Fry",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "vegan": true,
+      "vegetarian": true,
+      "posCategory": "Main Courses",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "Whole Milk",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "shelfLife": 7,
+      "posCategory": "Dairy",
+      "storageTemp": "refrigerated",
+      "ingredientType": "Dairy",
+      "printToKitchen": true
+    }
+  },
+  {
+    "name": "🌭 Russian",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🌭",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🌭🍟 Russian & Chips",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Russian",
+          "quantity": 1,
+          "productId": "f838bd4c-cfde-48b8-8266-3a892dd38966"
+        },
+        {
+          "name": "Chips",
+          "quantity": 1,
+          "productId": "318f1e4d-4896-448f-96b5-cf60ddc0c925"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🌭🍟"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Russian",
+        "Chips"
+      ]
+    }
+  },
+  {
+    "name": "🍚 Rice",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍚",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍚🐐 Rice & Goat",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Rice",
+          "quantity": 1,
+          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
+        },
+        {
+          "name": "Goat",
+          "quantity": 1,
+          "productId": "c44c1158-8c8e-4157-9280-b5730cec5176"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍚🐐"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Rice",
+        "Goat"
+      ]
+    }
+  },
+  {
+    "name": "🍚🐓 Rice & Road Runner",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Rice",
+          "quantity": 1,
+          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
+        },
+        {
+          "name": "Road Runner",
+          "quantity": 1,
+          "productId": "a8e5546a-71a0-4522-8c1a-79a2f698b24f"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍚🐓"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Rice",
+        "Road Runner"
+      ]
+    }
+  },
+  {
+    "name": "🍚🐔 Rice & Chicken",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Rice",
+          "quantity": 1,
+          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
+        },
+        {
+          "name": "Chicken",
+          "quantity": 1,
+          "productId": "1f3d47a3-aee2-4b78-a1ca-fa86fd6edea5"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍚🐔"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Rice",
+        "Chicken"
+      ]
+    }
+  },
+  {
+    "name": "🍚🐟 Rice & Fish",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Rice",
+          "quantity": 1,
+          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
+        },
+        {
+          "name": "Fish",
+          "quantity": 1,
+          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍚🐟"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Rice",
+        "Fish"
+      ]
+    }
+  },
+  {
+    "name": "🍚🐟 Rice & Fish (L)",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Rice",
+          "quantity": 1,
+          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
+        },
+        {
+          "name": "Fish",
+          "quantity": 1,
+          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍚🐟"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Rice",
+        "Fish"
+      ]
+    }
+  },
+  {
+    "name": "🍚🥩 Rice & Beef",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Rice",
+          "quantity": 1,
+          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
+        },
+        {
+          "name": "Beef",
+          "quantity": 1,
+          "productId": "ea92cb3d-3d36-43ea-9418-ea4a11880d7f"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍚🥩"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Rice",
+        "Beef"
+      ]
+    }
+  },
+  {
+    "name": "🍚🥩 Rice & Liver",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Rice",
+          "quantity": 1,
+          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
+        },
+        {
+          "name": "Liver",
+          "quantity": 1,
+          "productId": "949b4281-ed87-4079-9c13-2ff736d5b187"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍚🥩"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Rice",
+        "Liver"
+      ]
+    }
+  },
+  {
+    "name": "🍚🫘 Rice & Beans",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Rice",
+          "quantity": 1,
+          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
+        },
+        {
+          "name": "Beans",
+          "quantity": 1,
+          "productId": "e0281648-1489-483d-a9c3-fdbd10f5acbb"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍚🫘"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Rice",
+        "Beans"
+      ]
+    }
+  },
+  {
+    "name": "🍛 Curry Rice",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍛",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍝 Spaghetti",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍝",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍝🐐 Spaghetti & Goat",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Spaghetti",
+          "quantity": 1,
+          "productId": "6bbf1304-2282-4c75-acad-a2db033453e2"
+        },
+        {
+          "name": "Goat",
+          "quantity": 1,
+          "productId": "c44c1158-8c8e-4157-9280-b5730cec5176"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍝🐐"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Spaghetti",
+        "Goat"
+      ]
+    }
+  },
+  {
+    "name": "🍝🐔 Spaghetti & Chicken",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Spaghetti",
+          "quantity": 1,
+          "productId": "6bbf1304-2282-4c75-acad-a2db033453e2"
+        },
+        {
+          "name": "Chicken",
+          "quantity": 1,
+          "productId": "1f3d47a3-aee2-4b78-a1ca-fa86fd6edea5"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍝🐔"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Spaghetti",
+        "Chicken"
+      ]
+    }
+  },
+  {
+    "name": "🍝🥩 Spaghetti & Beef",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Spaghetti",
+          "quantity": 1,
+          "productId": "6bbf1304-2282-4c75-acad-a2db033453e2"
+        },
+        {
+          "name": "Beef",
+          "quantity": 1,
+          "productId": "ea92cb3d-3d36-43ea-9418-ea4a11880d7f"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍝🥩"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Spaghetti",
+        "Beef"
+      ]
+    }
+  },
+  {
+    "name": "🍞 Bread",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍞",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍟 Chips",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍟",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍪 Cookies",
+    "description": "",
+    "categoryName": "Desserts",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍪",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍲 Gango",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍲",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍹 Beverages",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍹",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍽️ Sadza",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🍽",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🍽️🍲 Sadza & Gango",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Gango",
+          "quantity": 1,
+          "productId": "7b259863-b1d2-4d0a-827a-7d405fe22b4b"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🍲"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Gango"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🐐 Sadza & Goat",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Goat",
+          "quantity": 1,
+          "productId": "c44c1158-8c8e-4157-9280-b5730cec5176"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🐐"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Goat"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🐓 Sadza & Road Runner",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Road Runner",
+          "quantity": 1,
+          "productId": "a8e5546a-71a0-4522-8c1a-79a2f698b24f"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🐓"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Road Runner"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🐔 Sadza & Chicken",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Chicken",
+          "quantity": 1,
+          "productId": "1f3d47a3-aee2-4b78-a1ca-fa86fd6edea5"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🐔"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Chicken"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🐟 Sadza & Fish",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Fish",
+          "quantity": 1,
+          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🐟"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Fish"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🐟 Sadza & Fish (L)",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Fish",
+          "quantity": 1,
+          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🐟"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Fish"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🥛 Sadza & Milk",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Milk",
+          "quantity": 1,
+          "productId": "fd78c799-87c4-4de6-ad1a-df2b2d29f998"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🥛"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Milk"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🥩 Sadza & Beef",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Beef",
+          "quantity": 1,
+          "productId": "ea92cb3d-3d36-43ea-9418-ea4a11880d7f"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🥩"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Beef"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🥩 Sadza & Liver",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Liver",
+          "quantity": 1,
+          "productId": "949b4281-ed87-4079-9c13-2ff736d5b187"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🥩"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Liver"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🧭 Sadza & Guru",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Guru",
+          "quantity": 1,
+          "productId": "17ed8caf-da93-4b60-b6b2-4fcd701c0685"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🧭"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Guru"
+      ]
+    }
+  },
+  {
+    "name": "🍽️🫘 Sadza & Beans",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "️ Sadza",
+          "quantity": 1,
+          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
+        },
+        {
+          "name": "Beans",
+          "quantity": 1,
+          "productId": "e0281648-1489-483d-a9c3-fdbd10f5acbb"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🍽",
+        "🫘"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "️ Sadza",
+        "Beans"
+      ]
+    }
+  },
+  {
+    "name": "🐂 Beef Restock",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🐂",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🐐 Goat",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🐐",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🐓 Road Runner",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🐓",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🐔 Chicken",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🐔",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🐔🍟 Chicken & Chips",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Chicken",
+          "quantity": 1,
+          "productId": "1f3d47a3-aee2-4b78-a1ca-fa86fd6edea5"
+        },
+        {
+          "name": "Chips",
+          "quantity": 1,
+          "productId": "318f1e4d-4896-448f-96b5-cf60ddc0c925"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🐔🍟"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Chicken",
+        "Chips"
+      ]
+    }
+  },
+  {
+    "name": "🐟 Fish",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🐟",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🐟🍟 Fish & Chips",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Fish",
+          "quantity": 1,
+          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
+        },
+        {
+          "name": "Chips",
+          "quantity": 1,
+          "productId": "318f1e4d-4896-448f-96b5-cf60ddc0c925"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🐟🍟"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Fish",
+        "Chips"
+      ]
+    }
+  },
+  {
+    "name": "💰 Loan",
+    "description": "",
+    "categoryName": "Revenue",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "💰",
+      "itemType": "revenue",
+      "transactionType": "loan",
+      "isFinancialTransaction": true
+    }
+  },
+  {
+    "name": "🚰 Bottled Water",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🚰",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🛜 WIFI",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "SERVICE",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🛜",
+      "itemType": "single",
+      "serviceType": "wifi",
+      "requiresCodeGeneration": false
+    }
+  },
+  {
+    "name": "🥗 Salad",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🥗",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🥛 Milk",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🥛",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🥩 Beef",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🥩",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🥩 Liver",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🥩",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🥩🍟 Beef & Chips",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": {
+      "items": [
+        {
+          "name": "Beef",
+          "quantity": 1,
+          "productId": "ea92cb3d-3d36-43ea-9418-ea4a11880d7f"
+        },
+        {
+          "name": "Chips",
+          "quantity": 1,
+          "productId": "318f1e4d-4896-448f-96b5-cf60ddc0c925"
+        }
+      ]
+    },
+    "attributes": {
+      "emojis": [
+        "🥩🍟"
+      ],
+      "itemType": "combo",
+      "comboComponents": [
+        "Beef",
+        "Chips"
+      ]
+    }
+  },
+  {
+    "name": "🥬 Vegetables",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🥬",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🦚 Transfer In",
+    "description": "",
+    "categoryName": "Revenue",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🦚",
+      "itemType": "revenue",
+      "transactionType": "transfer_in",
+      "isFinancialTransaction": true
+    }
+  },
+  {
+    "name": "🧃 Revive",
+    "description": "",
+    "categoryName": "Beverages",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🧃",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🧭 Guru",
+    "description": "",
+    "categoryName": "Main Courses",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🧭",
+      "itemType": "single"
+    }
+  },
+  {
+    "name": "🫘 Beans",
+    "description": "",
+    "categoryName": "Appetizers",
+    "basePrice": 0,
+    "costPrice": 0,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": {
+      "emoji": "🫘",
+      "itemType": "single"
+    }
+  }
+]

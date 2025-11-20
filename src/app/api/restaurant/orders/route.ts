@@ -275,13 +275,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userPermissions = session.user.permissions || {}
-  if (!hasPermission(userPermissions, 'restaurant', 'pos')) {
-    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+  // Admin users have all permissions by default
+  const isAdmin = session.user.role === 'admin'
+
+  if (!isAdmin) {
+    // Non-admin users need specific permissions
+    const userPermissions = session.user.permissions || {}
+    if (!hasPermission(userPermissions, 'restaurant', 'pos')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
   }
 
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', idempotencyKey } = await req.json()
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey } = await req.json()
 
     // If client provided an idempotencyKey, and we've already processed it, return stored result
     if (idempotencyKey && typeof idempotencyKey === 'string') {
@@ -292,16 +298,67 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const orderNumber = `ORD-${Date.now()}`
+    // Generate order number in standard format: RST-YYYYMMDD-0001
+    const todayOrderCount = await prisma.businessOrders.count({
+      where: {
+        businessId,
+        createdAt: {
+          gte: new Date(new Date().setHours(0, 0, 0, 0))
+        }
+      }
+    })
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const counter = String(todayOrderCount + 1).padStart(4, '0')
+    const orderNumber = `RST-${date}-${counter}`
 
-    // Create the order first
-    const newOrder = await prisma.orders.create({
+    // Find employee record for the current user (if exists)
+    let employeeId = null
+    let employeeName = session.user.name || 'Unknown'
+    try {
+      const employee = await prisma.employees.findFirst({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true
+        }
+      })
+      if (employee) {
+        employeeId = employee.id
+        employeeName = employee.fullName || session.user.name || 'Unknown'
+      }
+    } catch (err) {
+      console.warn('Could not find employee record for user:', session.user.id)
+    }
+
+    // Determine payment status based on payment received
+    let paymentStatus = 'PENDING'
+    if (amountReceived && amountReceived >= total) {
+      paymentStatus = 'PAID'
+    }
+
+    // Create the order first using business_orders table
+    const newOrder = await prisma.businessOrders.create({
       data: {
+        businessId: businessId,
         orderNumber,
-        status: 'pending',
-        total: total,
-        tableNumber: tableNumber || null,
-        createdBy: session.user.id,
+        employeeId: employeeId, // Can be null if user is not an employee
+        orderType: 'SALE',
+        status: 'COMPLETED',
+        subtotal: total,
+        taxAmount: 0,
+        discountAmount: 0,
+        totalAmount: total,
+        paymentStatus: paymentStatus,
+        paymentMethod: paymentMethod,
+        businessType: 'restaurant',
+        attributes: {
+          ...(tableNumber ? { tableNumber } : {}),
+          employeeName: employeeName,
+          amountReceived: amountReceived || total,
+          changeDue: amountReceived ? amountReceived - total : 0
+        },
+        notes: null,
+        updatedAt: new Date()
       }
     })
 
@@ -310,50 +367,51 @@ export async function POST(req: NextRequest) {
 
     for (const item of items) {
       const itemPrice = Number(item.price);
+      const itemQuantity = Number(item.quantity);
+      const itemTotal = itemPrice * itemQuantity;
 
-      // Resolve menuItemId. The frontend should ideally send MenuItem IDs, but sometimes
-      // product/variant IDs are sent. Try to find a MenuItem first; if missing, create one
-      // from BusinessProduct or ProductVariant information.
-      let menuItemId = item.id
-      const existingMenuItem = await prisma.menuItems.findUnique({ where: { id: item.id } })
-      if (!existingMenuItem) {
-        const bp = await prisma.businessProducts.findUnique({ where: { id: item.id } }).catch(() => null)
-        let variant = null
-        if (!bp) {
-          variant = await prisma.productVariants.findUnique({ where: { id: item.id } }).catch(() => null)
-        }
+      // Find the product variant for this item
+      // First check if it's a product ID and get its default variant
+      let variantId = item.id;
 
-        if (bp || variant) {
-          try {
-            // If variant exists, fetch its parent business product for richer data
-            let sourceProduct = bp
-            if (variant && !bp) {
-              sourceProduct = await prisma.businessProducts.findUnique({ where: { id: variant.productId } }).catch(() => null)
-            }
-
-            const created = await prisma.menuItems.create({
-              data: {
-                name: sourceProduct?.name || variant?.name || item.name || 'Menu Item',
-                description: sourceProduct?.description || null,
-                price: Number(sourceProduct?.basePrice ?? variant?.price ?? item.price ?? 0),
-                category: item.category || 'Unassigned',
-                barcode: sourceProduct?.barcode ?? variant?.barcode ?? null,
-                isAvailable: sourceProduct ? !!sourceProduct.isActive : true
-              }
-            })
-            menuItemId = created.id
-          } catch (err) {
-            console.warn('Failed to auto-create MenuItem for order item', item.id, err)
+      // Try to find as a product first
+      const product = await prisma.businessProducts.findUnique({
+        where: { id: item.id },
+        include: {
+          product_variants: {
+            where: { isActive: true },
+            take: 1
           }
+        }
+      }).catch(() => null)
+
+      if (product && product.product_variants && product.product_variants.length > 0) {
+        variantId = product.product_variants[0].id
+      } else {
+        // Check if the ID is already a variant ID
+        const existingVariant = await prisma.productVariants.findUnique({
+          where: { id: item.id }
+        }).catch(() => null)
+
+        if (!existingVariant) {
+          console.warn('Could not find variant for item:', item.id, item.name)
+          continue // Skip this item if we can't find a variant
         }
       }
 
-      await prisma.orderItems.create({
+      // Create order item using business_order_items table
+      await prisma.businessOrderItems.create({
         data: {
           orderId: newOrder.id,
-          menuItemId: menuItemId,
-          quantity: item.quantity,
-          price: itemPrice,
+          productVariantId: variantId,
+          quantity: itemQuantity,
+          unitPrice: itemPrice,
+          discountAmount: 0,
+          totalPrice: itemTotal,
+          attributes: {
+            productName: item.name,
+            category: item.category
+          }
         }
       })
 
@@ -452,10 +510,14 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(responsePayload)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Order processing error:', error)
     return NextResponse.json(
-      { error: 'Failed to process order' },
+      {
+        error: 'Failed to process order',
+        message: error.message || 'Unknown error',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     )
   }

@@ -9,6 +9,14 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { ContentLayout } from '@/components/layout/content-layout'
 
+// Helper to check if a string is a valid emoji character (not text)
+function isValidEmoji(str: string | null | undefined): boolean {
+  if (!str || str.trim().length === 0) return false;
+  // Check if the string contains actual emoji characters
+  const emojiRegex = /[\p{Emoji}\p{Emoji_Presentation}]/u;
+  return emojiRegex.test(str);
+}
+
 interface Supplier {
   id: string
   businessId: string
@@ -224,7 +232,9 @@ export default function SuppliersPage() {
               {/* Header */}
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl">{supplier.emoji || '📦'}</span>
+                  <span className="text-2xl" title={!isValidEmoji(supplier.emoji) && supplier.emoji ? `Invalid emoji: ${supplier.emoji}` : undefined}>
+                    {isValidEmoji(supplier.emoji) ? supplier.emoji : '📦'}
+                  </span>
                   <div>
                     <h3 className="font-semibold text-gray-900 dark:text-gray-100">{supplier.name}</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{supplier.supplierNumber}</p>

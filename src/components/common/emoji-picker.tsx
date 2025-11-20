@@ -21,6 +21,15 @@ interface EmojiPickerProps {
   context?: string;               // Usage context (supplier, location, etc.)
 }
 
+// Helper to check if a string is a valid emoji character (not text)
+function isValidEmoji(str: string | undefined): boolean {
+  if (!str || str.trim().length === 0) return false;
+  // Check if the string contains actual emoji characters
+  // Emojis are typically in these Unicode ranges
+  const emojiRegex = /[\p{Emoji}\p{Emoji_Presentation}]/u;
+  return emojiRegex.test(str);
+}
+
 export function EmojiPicker({
   onSelect,
   selectedEmoji,
@@ -37,6 +46,10 @@ export function EmojiPicker({
   const [githubLoading, setGithubLoading] = useState(false);
   const [showGithubButton, setShowGithubButton] = useState(false);
   const [githubError, setGithubError] = useState<string | null>(null);
+  const [selectedEmojiResult, setSelectedEmojiResult] = useState<EmojiResult | null>(null);
+
+  // Check if the selected emoji is valid
+  const isSelectedEmojiValid = isValidEmoji(selectedEmoji);
 
   // Search local emoji database
   const searchLocalEmojis = useCallback(async (query: string) => {
@@ -125,6 +138,21 @@ export function EmojiPicker({
     }
   };
 
+  // Initialize selected emoji display
+  useEffect(() => {
+    if (selectedEmoji && !searchQuery && isSelectedEmojiValid) {
+      // Create a result for the selected emoji to display in the grid
+      setSelectedEmojiResult({
+        emoji: selectedEmoji,
+        name: selectedEmoji,
+        source: 'local',
+        usageCount: 0,
+      });
+    } else {
+      setSelectedEmojiResult(null);
+    }
+  }, [selectedEmoji, searchQuery, isSelectedEmojiValid]);
+
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -166,7 +194,12 @@ export function EmojiPicker({
   // Sort results by usage count (most used first)
   const sortedLocalResults = [...localResults].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
 
-  const allResults = [...sortedLocalResults, ...githubResults];
+  // Include selected emoji in results if no search query
+  const resultsWithSelected = selectedEmojiResult && !searchQuery
+    ? [selectedEmojiResult, ...sortedLocalResults]
+    : sortedLocalResults;
+
+  const allResults = [...resultsWithSelected, ...githubResults];
 
   // Helper function to get source indicator badge
   const getSourceBadge = (result: EmojiResult) => {
@@ -221,10 +254,25 @@ export function EmojiPicker({
       </div>
 
       {/* Selected Emoji Display */}
-      {selectedEmoji && (
+      {selectedEmoji && isSelectedEmojiValid && (
         <div className={`flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded ${compact ? 'text-sm' : ''}`}>
           <span className={compact ? 'text-xl' : 'text-2xl'}>{selectedEmoji}</span>
           <span className={`font-medium text-blue-800 dark:text-blue-300 ${compact ? 'text-xs' : 'text-sm'}`}>Selected</span>
+        </div>
+      )}
+
+      {/* Invalid Emoji Warning */}
+      {selectedEmoji && !isSelectedEmojiValid && (
+        <div className={`flex items-start gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded ${compact ? 'text-sm' : ''}`}>
+          <span className="text-yellow-600 dark:text-yellow-400">⚠️</span>
+          <div className="flex-1">
+            <p className={`font-medium text-yellow-800 dark:text-yellow-300 ${compact ? 'text-xs' : 'text-sm'}`}>
+              Invalid Emoji: "{selectedEmoji}"
+            </p>
+            <p className={`text-yellow-700 dark:text-yellow-400 mt-1 ${compact ? 'text-xs' : 'text-sm'}`}>
+              This appears to be text instead of an emoji. Please search and select a new emoji below.
+            </p>
+          </div>
         </div>
       )}
 
@@ -270,23 +318,34 @@ export function EmojiPicker({
                 `}
               >
                 {result.source === 'github' && result.url ? (
-                  <img
-                    src={result.url}
-                    alt={result.name || result.emoji}
-                    className={compact ? 'w-5 h-5 object-contain' : 'w-6 h-6 object-contain'}
-                    loading="lazy"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      const parent = target.parentElement;
-                      if (parent) {
-                        const span = document.createElement('span');
-                        span.className = `${compact ? 'text-lg' : 'text-xl'} text-gray-800 dark:text-gray-200`;
-                        span.textContent = result.name || '❓';
-                        parent.appendChild(span);
-                      }
-                    }}
-                  />
+                  <div className="relative">
+                    {/* Show emoji character as primary display */}
+                    <span className={`${compact ? 'text-lg' : 'text-xl'} text-gray-800 dark:text-gray-200 select-none`}>
+                      {result.emoji && result.emoji !== result.name ? result.emoji : '❓'}
+                    </span>
+                    {/* Image as overlay for visual consistency */}
+                    <img
+                      src={result.url}
+                      alt={result.name || result.emoji}
+                      className={`${compact ? 'w-5 h-5' : 'w-6 h-6'} absolute inset-0 object-contain opacity-0`}
+                      loading="lazy"
+                      onLoad={(e) => {
+                        // If image loads successfully, hide text and show image
+                        const target = e.target as HTMLImageElement;
+                        const parent = target.parentElement;
+                        if (parent) {
+                          const span = parent.querySelector('span');
+                          if (span) span.style.display = 'none';
+                          target.style.opacity = '1';
+                        }
+                      }}
+                      onError={(e) => {
+                        // Keep the emoji character visible if image fails
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
+                  </div>
                 ) : (
                   <span className={`${compact ? 'text-lg' : 'text-xl'} text-gray-800 dark:text-gray-200 select-none`}>{result.emoji}</span>
                 )}

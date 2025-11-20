@@ -23,6 +23,9 @@ export function convertToESCPOS(text: string, options: ESCPOSOptions = {}): Buff
   // Initialize printer
   commands.push(Buffer.from(ESC + '@')); // Initialize/reset printer
 
+  // Enable emphasized mode for darker printing
+  commands.push(Buffer.from(ESC + 'G' + '\x01')); // Double-strike ON (makes text darker)
+
   // Set character set (optional)
   if (encoding === 'utf8') {
     commands.push(Buffer.from(ESC + 't' + '\x10')); // UTF-8 character set
@@ -34,7 +37,7 @@ export function convertToESCPOS(text: string, options: ESCPOSOptions = {}): Buff
   for (const line of lines) {
     // Check for special formatting markers
     if (line.includes('***') || line.includes('TOTAL')) {
-      // Bold text
+      // Bold text (in addition to emphasized mode)
       commands.push(Buffer.from(ESC + 'E' + '\x01')); // Bold ON
       commands.push(Buffer.from(line + LF, encoding));
       commands.push(Buffer.from(ESC + 'E' + '\x00')); // Bold OFF
@@ -42,7 +45,7 @@ export function convertToESCPOS(text: string, options: ESCPOSOptions = {}): Buff
       // Separator line - no special formatting needed
       commands.push(Buffer.from(line + LF, encoding));
     } else {
-      // Regular text
+      // Regular text (emphasized mode already enabled)
       commands.push(Buffer.from(line + LF, encoding));
     }
   }

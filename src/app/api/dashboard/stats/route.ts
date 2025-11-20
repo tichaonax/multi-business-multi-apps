@@ -13,11 +13,13 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as SessionUser
-    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
 
     let stats = {
       activeProjects: 0,
       totalRevenue: 0,
+      completedRevenue: 0,
+      pendingRevenue: 0,
       teamMembers: 1, // At least the current user
       pendingTasks: 0
     }
@@ -57,45 +59,52 @@ export async function GET(req: NextRequest) {
     // 2. Calculate Total Revenue (from multiple sources)
     try {
       let totalRevenue = 0
+      let completedRevenue = 0
+      let pendingRevenue = 0
 
-      // Revenue from Restaurant Orders (completed orders)
-      if (hasUserPermission(user, 'canViewOrders') || isSystemAdmin(user)) {
-        try {
-          const restaurantRevenue = await prisma.businessOrders.aggregate({
-            where: {
-              status: 'COMPLETED'
-            },
-            _sum: {
-              totalAmount: true
-            }
-          })
-          totalRevenue += Number(restaurantRevenue._sum.totalAmount || 0)
-        } catch (error) {
-          console.warn('Failed to calculate restaurant revenue:', error)
-        }
-      }
-
-      // Revenue from Business Orders (completed sales across all business types)
-      if (hasUserPermission(user, 'canViewOrders') ||
-          hasUserPermission(user, 'canViewBusinessOrders') ||
+      // Revenue from Business Orders (all business types) - include both COMPLETED and PENDING
+      if ((hasUserPermission(user, 'canViewOrders') ||
+          hasUserPermission(user, 'canViewBusinessOrders')) &&
+          hasUserPermission(user, 'canAccessFinancialData') ||
           isSystemAdmin(user)) {
         try {
-          const businessWhereClause: any = {
+          // Calculate completed revenue
+          const completedWhereClause: any = {
             status: 'COMPLETED'
           }
 
           // Filter by user's business access if not system admin
           if (!isSystemAdmin(user) && userBusinessIds.length > 0) {
-            businessWhereClause.businessId = { in: userBusinessIds }
+            completedWhereClause.businessId = { in: userBusinessIds }
           }
 
-          const businessRevenue = await prisma.businessOrders.aggregate({
-            where: businessWhereClause,
+          const completedBusinessRevenue = await prisma.businessOrders.aggregate({
+            where: completedWhereClause,
             _sum: {
-              subtotal: true
+              totalAmount: true
             }
           })
-          totalRevenue += Number(businessRevenue._sum.subtotal || 0)
+          completedRevenue += Number(completedBusinessRevenue._sum.totalAmount || 0)
+
+          // Calculate pending revenue
+          const pendingWhereClause: any = {
+            status: 'PENDING'
+          }
+
+          // Filter by user's business access if not system admin
+          if (!isSystemAdmin(user) && userBusinessIds.length > 0) {
+            pendingWhereClause.businessId = { in: userBusinessIds }
+          }
+
+          const pendingBusinessRevenue = await prisma.businessOrders.aggregate({
+            where: pendingWhereClause,
+            _sum: {
+              totalAmount: true
+            }
+          })
+          pendingRevenue += Number(pendingBusinessRevenue._sum.totalAmount || 0)
+
+          totalRevenue = completedRevenue + pendingRevenue
         } catch (error) {
           console.warn('Failed to calculate business revenue:', error)
         }
@@ -172,6 +181,8 @@ export async function GET(req: NextRequest) {
       }
 
       stats.totalRevenue = totalRevenue
+      stats.completedRevenue = completedRevenue
+      stats.pendingRevenue = pendingRevenue
     } catch (error) {
       console.warn('Failed to calculate total revenue:', error)
     }

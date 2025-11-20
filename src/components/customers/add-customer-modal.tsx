@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface AddCustomerModalProps {
   onClose: () => void
@@ -17,6 +18,10 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
   const [error, setError] = useState('')
   const [businesses, setBusinesses] = useState([])
   const [idTemplates, setIdTemplates] = useState([])
+
+  // Get current business from context
+  const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
+
   const [formData, setFormData] = useState({
     type: 'INDIVIDUAL',
     firstName: '',
@@ -37,7 +42,7 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
     nationalIdTemplateId: '',
     passportNumber: '',
     taxNumber: '',
-    businessId: '',
+    businessId: currentBusinessId || '', // Use current business by default
     allowLayby: true,
     allowCredit: false
   })
@@ -46,6 +51,13 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
     fetchBusinesses()
     fetchIdTemplates()
   }, [])
+
+  // Update businessId when current business changes
+  useEffect(() => {
+    if (currentBusinessId && !formData.businessId) {
+      setFormData(prev => ({ ...prev, businessId: currentBusinessId }))
+    }
+  }, [currentBusinessId])
 
   const fetchBusinesses = async () => {
     try {
@@ -74,6 +86,13 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // Validate businessId is set
+    if (!formData.businessId) {
+      setError('Please select a business from the sidebar before creating a customer.')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -264,20 +283,39 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
           {/* Business Assignment */}
           <div>
             <label className="block text-sm font-medium text-primary mb-2">
-              Assign to Business (Optional)
+              Business *
             </label>
-            <select
-              value={formData.businessId}
-              onChange={(e) => setFormData({ ...formData, businessId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
-            >
-              <option value="">No business assignment</option>
-              {businesses.map((business: any) => (
-                <option key={business.id} value={business.id}>
-                  {business.name} ({business.type})
-                </option>
-              ))}
-            </select>
+            {currentBusiness ? (
+              <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-900 text-primary flex items-center justify-between">
+                <span>
+                  {currentBusiness.businessName} ({currentBusiness.businessType})
+                </span>
+                <span className="text-xs text-green-600 dark:text-green-400">✓ Currently Selected</span>
+              </div>
+            ) : (
+              <div className="w-full px-3 py-2 border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 rounded-md text-red-800 dark:text-red-300 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm">No business selected. Please select a business from the sidebar.</span>
+              </div>
+            )}
+            {businesses.length > 1 && (
+              <div className="mt-2">
+                <label className="text-xs text-secondary">
+                  Change business assignment (optional):
+                </label>
+                <select
+                  value={formData.businessId}
+                  onChange={(e) => setFormData({ ...formData, businessId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary text-sm mt-1"
+                >
+                  {businesses.map((business: any) => (
+                    <option key={business.id} value={business.id}>
+                      {business.name} ({business.type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Account Options */}

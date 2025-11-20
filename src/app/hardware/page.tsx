@@ -45,6 +45,7 @@ function HardwareContent({ session, businessId }: { session: any; businessId: st
 
   const actions = [
     { label: 'Point of Sale', href: '/hardware/pos', icon: '🛒', description: 'Process customer sales with barcode scanner' },
+    { label: 'Orders', href: '/hardware/orders', icon: '📋', description: 'Manage customer orders and project fulfillment' },
     { label: 'Inventory', href: '/hardware/inventory', icon: '📦', description: 'Manage stock levels and bulk orders' },
     { label: 'Cut-to-Size', href: '/hardware/cut-to-size', icon: '✂️', description: 'Custom cutting and measurement orders' },
     { label: 'Suppliers', href: '/business/suppliers', icon: '🚛', description: 'Manage vendor relationships and supplier contacts' },

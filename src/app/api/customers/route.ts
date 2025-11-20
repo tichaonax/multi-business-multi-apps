@@ -6,6 +6,12 @@ import { hasPermission } from '@/lib/permission-utils'
 import { z } from 'zod'
 
 import { randomBytes } from 'crypto';
+// Helper to convert empty strings to undefined for optional fields
+const emptyStringToUndefined = (val: unknown) => (val === '' ? undefined : val)
+
+// Phone number validation regex - supports international formats
+const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/
+
 // Customer creation schema
 const CreateCustomerSchema = z.object({
   type: z.enum(['INDIVIDUAL', 'BUSINESS', 'EMPLOYEE', 'USER', 'GOVERNMENT', 'NGO']).default('INDIVIDUAL'),
@@ -13,28 +19,34 @@ const CreateCustomerSchema = z.object({
   lastName: z.string().optional(),
   fullName: z.string().min(1, 'Full name is required'),
   companyName: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  gender: z.string().optional(),
-  primaryEmail: z.string().email().optional(),
-  // allow creating customers without a phone number; empty string is accepted
-  primaryPhone: z.string().optional(),
-  alternatePhone: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
+  dateOfBirth: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  gender: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  primaryEmail: z.preprocess(emptyStringToUndefined, z.string().email('Invalid email format').optional()),
+  // Phone validation only applies if value is provided (not empty)
+  primaryPhone: z.preprocess(
+    emptyStringToUndefined,
+    z.string().regex(phoneRegex, 'Invalid phone number format').optional()
+  ),
+  alternatePhone: z.preprocess(
+    emptyStringToUndefined,
+    z.string().regex(phoneRegex, 'Invalid phone number format').optional()
+  ),
+  address: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  city: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  state: z.preprocess(emptyStringToUndefined, z.string().optional()),
   country: z.string().default('Zimbabwe'),
-  postalCode: z.string().optional(),
-  nationalId: z.string().optional(),
-  passportNumber: z.string().optional(),
-  taxNumber: z.string().optional(),
-  linkedUserId: z.string().optional(),
-  linkedEmployeeId: z.string().optional(),
+  postalCode: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  nationalId: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  passportNumber: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  taxNumber: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  linkedUserId: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  linkedEmployeeId: z.preprocess(emptyStringToUndefined, z.string().optional()),
   tags: z.array(z.string()).optional(),
   // Division account details
-  businessId: z.string().optional(),
-  divisionCustomerNumber: z.string().optional(),
-  accountType: z.string().optional(),
-  segment: z.string().optional(),
+  businessId: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  divisionCustomerNumber: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  accountType: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  segment: z.preprocess(emptyStringToUndefined, z.string().optional()),
   allowLayby: z.boolean().default(true),
   allowCredit: z.boolean().default(false)
 })

@@ -67,6 +67,27 @@ function convertGithubEmojiToChar(name: string): string | null {
   return emojiMap[name] || null;
 }
 
+// Helper function to extract Unicode character from GitHub emoji URL
+function extractUnicodeFromUrl(url: string): string | null {
+  // GitHub emoji URLs are like: https://github.githubassets.com/images/icons/emoji/unicode/1faa6.png?v8
+  // For multi-codepoint emojis: https://github.githubassets.com/images/icons/emoji/unicode/1f6d2-fe0f.png
+  // The hex part represents one or more Unicode codepoints separated by hyphens
+  const match = url.match(/unicode\/([0-9a-f-]+)\.png/i);
+  if (match) {
+    try {
+      const codepointStr = match[1];
+      // Split by hyphen to handle multi-codepoint emojis (e.g., skin tones, ZWJ sequences)
+      const codepoints = codepointStr.split('-').map(hex => parseInt(hex, 16));
+      // Convert all codepoints to a single string
+      return String.fromCodePoint(...codepoints);
+    } catch (error) {
+      console.error('Error converting codepoint:', error);
+      return null;
+    }
+  }
+  return null;
+}
+
 /**
  * GET /api/business/emoji-github
  * Fetch emojis from GitHub's gemoji API
@@ -177,15 +198,19 @@ export async function GET(request: NextRequest) {
       }
 
       // Try to convert emoji name to actual emoji character
-      // GitHub uses shortcodes like :smile: -> 😊
-      const emojiChar = convertGithubEmojiToChar(name);
-      
-      matchingEmojis.push({
-        emoji: emojiChar || name, // Use character if available, fallback to name (will be displayed as image)
-        name,
-        url,
-        relevance,
-      });
+      // First try the hardcoded mapping, then extract from URL
+      const emojiChar = convertGithubEmojiToChar(name) || extractUnicodeFromUrl(url);
+
+      // Only include emojis where we successfully got a Unicode character
+      // Skip emojis that we can't convert (to avoid saving text names like "package")
+      if (emojiChar) {
+        matchingEmojis.push({
+          emoji: emojiChar,
+          name,
+          url,
+          relevance,
+        });
+      }
     }
 
     // Sort by relevance and take top results
@@ -199,7 +224,7 @@ export async function GET(request: NextRequest) {
         await prisma.emojiLookup.upsert({
           where: {
             emoji_description: {
-              emoji: emojiData.emoji, // Using the actual emoji character
+              emoji: emojiData.emoji, // Using the actual emoji character or extracted Unicode
               description: query.trim(),
             },
           },

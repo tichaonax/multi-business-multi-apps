@@ -21,6 +21,7 @@ interface MenuItem {
   isActive: boolean
   isAvailable: boolean
   isCombo: boolean
+  requiresCompanionItem?: boolean
   preparationTime?: number
   spiceLevel?: number
   dietaryRestrictions: string[]
@@ -104,7 +105,8 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
     allergens: [] as string[],
     isActive: true,
     isAvailable: true,
-    isCombo: false
+    isCombo: false,
+    requiresCompanionItem: false
   })
 
   const [images, setImages] = useState<ImageUpload[]>([])
@@ -137,7 +139,8 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
         allergens: item.allergens,
         isActive: item.isActive,
         isAvailable: item.isAvailable,
-        isCombo: item.isCombo
+        isCombo: item.isCombo,
+        requiresCompanionItem: item.requiresCompanionItem || false
       })
 
       // Set existing images
@@ -731,6 +734,19 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
               />
               <label htmlFor="isCombo" className="text-sm font-medium text-primary">
                 Combo Item
+              </label>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="requiresCompanionItem"
+                checked={formData.requiresCompanionItem}
+                onChange={(e) => handleInputChange('requiresCompanionItem', e.target.checked)}
+                className="mr-2"
+              />
+              <label htmlFor="requiresCompanionItem" className="text-sm font-medium text-primary" title="Item cannot be sold alone, requires a main item from the same category">
+                Requires Companion Item 🔗
               </label>
             </div>
           </div>

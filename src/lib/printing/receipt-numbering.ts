@@ -23,17 +23,19 @@ export async function generateReceiptNumber(
   // Generate global UUID
   const globalId = uuidv4();
 
-  // Get current date in the specified timezone
+  // Get current business day (considering 5AM cutoff)
   const today = getTodayInTimezone(timezone);
 
   // Get or create daily sequence for this business and date
   const sequence = await getNextDailySequence(businessId, today);
 
-  // Format the daily sequence as 001, 002, 003, etc.
-  const dailySequence = sequence.toString().padStart(3, '0');
+  // Format the daily sequence as 0001, 0002, 0003, etc. (4 digits)
+  const dailySequence = sequence.toString().padStart(4, '0');
 
-  // Create formatted number: YYYY-MM-DD-NNN
-  const formattedNumber = `${today}-${dailySequence}`;
+  // Create formatted number: YYYYMMDD-0001 (e.g., 20251102-0010)
+  // Remove dashes from date
+  const dateWithoutDashes = today.replace(/-/g, '');
+  const formattedNumber = `${dateWithoutDashes}-${dailySequence}`;
 
   return {
     globalId,
@@ -89,10 +91,29 @@ async function getNextDailySequence(businessId: string, date: string): Promise<n
 }
 
 /**
- * Get current date in specified timezone as YYYY-MM-DD string
+ * Get current business day in specified timezone as YYYY-MM-DD string
+ * Business day resets at 5AM instead of midnight
+ * - Before 5AM: uses previous calendar date
+ * - 5AM and after: uses current calendar date
  */
 function getTodayInTimezone(timezone: string): string {
   const now = new Date();
+
+  // Get current hour in the specified timezone
+  const hourFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit',
+    hour12: false,
+  });
+  const hourStr = hourFormatter.format(now);
+  const currentHour = parseInt(hourStr, 10);
+
+  // If before 5AM, use previous day's date
+  let dateToUse = now;
+  if (currentHour < 5) {
+    // Subtract one day
+    dateToUse = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  }
 
   // Use Intl.DateTimeFormat to get date in specified timezone
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -103,7 +124,7 @@ function getTodayInTimezone(timezone: string): string {
   });
 
   // en-CA format is YYYY-MM-DD
-  return formatter.format(now);
+  return formatter.format(dateToUse);
 }
 
 /**
@@ -246,8 +267,8 @@ export async function getReceiptsPrintedToday(
  * Validate receipt number format
  */
 export function validateReceiptNumberFormat(formattedNumber: string): boolean {
-  // Format: YYYY-MM-DD-NNN (e.g., 2025-11-13-001)
-  const pattern = /^\d{4}-\d{2}-\d{2}-\d{3}$/;
+  // Format: YYYYMMDD-0001 (e.g., 20251102-0010)
+  const pattern = /^\d{8}-\d{4}$/;
   return pattern.test(formattedNumber);
 }
 
@@ -263,9 +284,11 @@ export function parseReceiptNumber(formattedNumber: string): {
   }
 
   const parts = formattedNumber.split('-');
+  const dateStr = parts[0]; // YYYYMMDD
+
   return {
-    date: `${parts[0]}-${parts[1]}-${parts[2]}`, // YYYY-MM-DD
-    sequence: parts[3], // NNN
+    date: `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`, // Convert to YYYY-MM-DD
+    sequence: parts[1], // 0001
   };
 }
 

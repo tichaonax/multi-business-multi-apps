@@ -8,6 +8,7 @@ import {
   UniversalPOS
 } from '@/components/universal'
 import { ClothingAdvancedPOS } from './components/advanced-pos'
+import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -21,7 +22,8 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 export default function ClothingPOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
   const [useAdvancedPOS, setUseAdvancedPOS] = useState(true)
-  const { data: session, status } = useSession()
+  const [dailySales, setDailySales] = useState<any>(null)
+  const { data: session, status} = useSession()
   const router = useRouter()
 
   // Use the business permissions context for proper business management
@@ -134,12 +136,43 @@ export default function ClothingPOSPage() {
   const businessId = currentBusinessId!
 
   const handleAddToCart = (productId: string, variantId?: string, quantity = 1) => {
-    // This would integrate with the POS system
+    // Use URL parameters to trigger UniversalPOS/AdvancedPOS auto-add feature
+    const params = new URLSearchParams()
+    params.set('addProduct', productId)
+    if (variantId) params.set('variantId', variantId)
+    params.set('businessId', businessId)
+
+    // Navigate with query parameters to trigger auto-add
+    router.push(`/clothing/pos?${params.toString()}`)
   }
 
   const handleOrderComplete = (orderId: string) => {
     // Could redirect to receipt or show success message
+    // Reload daily sales after order completion
+    setTimeout(() => loadDailySales(), 500)
   }
+
+  // Load daily sales
+  const loadDailySales = async () => {
+    if (!currentBusinessId) return
+
+    try {
+      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=clothing`)
+      if (response.ok) {
+        const data = await response.json()
+        setDailySales(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to load daily sales:', error)
+    }
+  }
+
+  // Load daily sales on mount
+  useEffect(() => {
+    if (currentBusinessId && isClothingBusiness) {
+      loadDailySales()
+    }
+  }, [currentBusinessId, isClothingBusiness])
 
   return (
     <BusinessProvider businessId={businessId}>
@@ -225,6 +258,13 @@ export default function ClothingPOSPage() {
                 )}
               </div>
             )}
+
+            {/* Daily Sales Widget */}
+            <DailySalesWidget
+              dailySales={dailySales}
+              businessType="clothing"
+              onRefresh={loadDailySales}
+            />
 
             {/* Features Showcase */}
             <div className={`border border-gray-200 dark:border-gray-700 rounded-lg p-6 ${

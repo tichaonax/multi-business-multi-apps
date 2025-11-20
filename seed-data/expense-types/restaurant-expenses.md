@@ -1,39 +1,106 @@
-# 🍽️ Restaurant & Dining Expense Types
+# 🍽️ Restaurant Operations Expense Types
 
-## 🍴 Food Service & Dining
+## 🥘 Ingredients & Food Supplies
 
-### 🥘 Meals & Dining
-- 🍽️ Restaurant Meals
-- 🥘 Business Meals
-- 📞 Client Entertainment
-- 🍱 Lunch
-- 🍝 Dinner
-- 🥞 Breakfast
+### 🥬 Fresh Produce & Vegetables
+- 🫑 Greens
+- 🥬 Cabbage
+- 🥬 Vegetables
+- 🥕 Carrots
+- 🧅 Onions
+- 🧄 Garlic
+- 🫚 Ginger
+- 🥦 Broccoli
+- 🍅 Tomatoes
+- 🥗 Salad
 
-### ☕ Beverages
-- ☕ Coffee & Tea
-- 🍷 Alcoholic Beverages
-- 🧃 Beverages
+### 🥩 Proteins & Meat
+- 🥩 Beef
+- 🐔 Chicken
+- 🐟 Fish
+- 🐓 Road Runner
+- 🐐 Goat Meat
+- 🐥 Broiler
+- 🥚 Eggs
 
-### 🍕 Food Types
-- 🥗 Salads
-- 🍜 Soups
-- 🧁 Desserts
-- 🍕 Pizza
-- 🥡 Takeout
-- 🍔 Fast Food
-- 🍕 Catering
-- 🍱 Prepared Meals
+### 🌾 Grains & Staples
+- 🌾 Rice
+- 🌽 Roller Meal
+- 🥘 Flour
+- 🍞 Bread
+- 🫘 Peas & Beans
+- 🍝 Spaghetti
+- 🍟 Potatoes
+
+### 🧂 Seasonings & Condiments
+- 🧂 Salt
+- 🫚 Spices
+- 😋 Royco
+- 🛞 Mayonnaise
+
+### 🥛 Dairy & Beverages
+- 🥛 Milk
+- 🍳 Cooking Oil
+- 🧈 Butter
+- 🧃 Revive
+- 🍹 Beverages
+
+## ⚡ Utilities & Services
+
+### 💡 Utilities
+- 🛜 Internet
+- 🔌 Electricity
+- ⚡ Utilities
+- ⛽ Cooking Gas
+- 🚰 Portable Water
+
+## 💼 Operating Expenses
+
+### 🏢 General Operating
+- 🏠 Rent
+- 🤑 Salaries & Compensation
+- 👮 Security Services
+- 🐧 Licenses & Permits
+- ⛽ Fuel & Vehicle Expenses
+- 💵 Bills & Subscriptions
+
+### 💰 Financial Transactions
+- 💰 Loan Repayment
+- 💸 Boss Hwandaza Loan
+- 🦜 Transfer Out
+
+## 🍴 Supplies & Equipment
+
+### 🥄 Kitchen Supplies
+- 🥢 Utensils
+- 🥄 Spoons
+- 🍴 Cutlery
+
+### 📦 Packaging & Cleaning
+- 🥡 Takeout Box
+- 🧻 Food Wrap Paper
+- 🟩 Green Bar Soap
+- 🔥 Match Lighter
+- 🧼 Dish Washer
+- 🧢 Shower Hat
+
+## 🔋 Other Expenses
+
+### 💊 Miscellaneous
+- 🙉 Other Expenses
+- 🔋 Miscellaneous
+- 💊 Medicine
 
 ## Usage Context
 These expense types are used for:
-- Business meals and client entertainment
-- Personal dining out
-- Restaurant visits
-- Catering services
-- Food delivery and takeout
+- Restaurant operational costs and inventory
+- Food ingredients and supplies
+- Utilities and services for restaurant operations
+- Staff salaries and compensation
+- Equipment and supplies for food service
+- Packaging and takeout materials
 
 ## Related Categories
-- Business (for business meals and client entertainment)
-- Personal (for personal dining)
-- Groceries (for prepared meals and takeout)
+- Business (for general business expenses)
+- Groceries (for ingredient purchases)
+- Personal (for personal use of restaurant funds)

@@ -6,6 +6,13 @@ import { useSession } from 'next-auth/react'
 import { hasPermission } from '@/lib/permission-utils'
 import { SupplierEditor } from './supplier-editor'
 
+// Helper to check if a string is a valid emoji character (not text)
+function isValidEmoji(str: string | null | undefined): boolean {
+  if (!str || str.trim().length === 0) return false;
+  const emojiRegex = /[\p{Emoji}\p{Emoji_Presentation}]/u;
+  return emojiRegex.test(str);
+}
+
 interface Supplier {
   id: string
   name: string
@@ -111,7 +118,7 @@ export function SupplierSelector({
             <span className="flex items-center gap-2">
               {selectedSupplier ? (
                 <>
-                  {selectedSupplier.emoji && <span>{selectedSupplier.emoji}</span>}
+                  {isValidEmoji(selectedSupplier.emoji) && <span>{selectedSupplier.emoji}</span>}
                   <span>{selectedSupplier.name}</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
                     ({selectedSupplier.supplierNumber})
@@ -187,7 +194,7 @@ export function SupplierSelector({
                             value === supplier.id ? 'bg-blue-100 dark:bg-blue-900/40' : ''
                           }`}
                         >
-                          {supplier.emoji && <span className="text-lg">{supplier.emoji}</span>}
+                          {isValidEmoji(supplier.emoji) && <span className="text-lg">{supplier.emoji}</span>}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-gray-900 dark:text-gray-100">

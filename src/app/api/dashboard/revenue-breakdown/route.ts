@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as SessionUser
-    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
 
     let breakdown = {
       restaurant: { amount: 0, count: 0 },
@@ -26,29 +26,39 @@ export async function GET(req: NextRequest) {
     // 1. Restaurant Orders Revenue
     if (hasUserPermission(user, 'canViewOrders') || isSystemAdmin(user)) {
       try {
-        const restaurantData = await prisma.orders.aggregate({
-          where: {
-            status: 'completed'
-          },
+        const restaurantWhereClause: any = {
+          status: 'COMPLETED',
+          businessType: 'restaurant'
+        }
+
+        if (!isSystemAdmin(user) && userBusinessIds.length > 0) {
+          restaurantWhereClause.businessId = { in: userBusinessIds }
+        }
+
+        const restaurantData = await prisma.businessOrders.aggregate({
+          where: restaurantWhereClause,
           _sum: {
-            total: true
+            totalAmount: true
           },
           _count: true
         })
-        breakdown.restaurant.amount = Number(restaurantData._sum.total || 0)
+        breakdown.restaurant.amount = Number(restaurantData._sum.totalAmount || 0)
         breakdown.restaurant.count = restaurantData._count
       } catch (error) {
         console.warn('Failed to calculate restaurant revenue breakdown:', error)
       }
     }
 
-    // 2. Business Orders Revenue
+    // 2. Business Orders Revenue (non-restaurant)
     if (hasUserPermission(user, 'canViewOrders') ||
         hasUserPermission(user, 'canViewBusinessOrders') ||
         isSystemAdmin(user)) {
       try {
         const businessWhereClause: any = {
-          status: 'COMPLETED'
+          status: 'COMPLETED',
+          businessType: {
+            not: 'restaurant'
+          }
         }
 
         if (!isSystemAdmin(user) && userBusinessIds.length > 0) {
@@ -58,11 +68,11 @@ export async function GET(req: NextRequest) {
         const businessData = await prisma.businessOrders.aggregate({
           where: businessWhereClause,
           _sum: {
-            subtotal: true
+            totalAmount: true
           },
           _count: true
         })
-        breakdown.businesses.amount = Number(businessData._sum.subtotal || 0)
+        breakdown.businesses.amount = Number(businessData._sum.totalAmount || 0)
         breakdown.businesses.count = businessData._count
       } catch (error) {
         console.warn('Failed to calculate business revenue breakdown:', error)

@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { canAccessModule, hasPermission, hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useNavigation } from '@/contexts/navigation-context'
+import { BusinessRevenueBreakdownModal } from '@/components/dashboard/business-revenue-breakdown-modal'
 
 interface Business {
   id: string
@@ -49,6 +50,7 @@ export function Sidebar() {
   const [businessGroups, setBusinessGroups] = useState<BusinessGroup[]>([])
   const [expandedBusinessTypes, setExpandedBusinessTypes] = useState<Set<string>>(new Set())
   const [loadingBusinesses, setLoadingBusinesses] = useState(false)
+  const [showRevenueModal, setShowRevenueModal] = useState(false)
 
   // Get business context
   const {
@@ -256,6 +258,14 @@ export function Sidebar() {
           <span className="text-lg">📊</span>
           <span>Dashboard</span>
         </Link>
+        
+        <button
+          onClick={() => setShowRevenueModal(true)}
+          className="sidebar-link flex items-center space-x-3 w-full text-left"
+        >
+          <span className="text-lg">💰</span>
+          <span>Business Revenue Breakdown</span>
+        </button>
         
         {/* Universal Hierarchical Business Navigation - Only for managers and admins, NOT promoted drivers */}
         {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canManageEmployees') || hasPermission(currentUser, 'canEditEmployees') || hasPermission(currentUser, 'canAccessFinancialData')) && (
@@ -674,6 +684,11 @@ export function Sidebar() {
           🚪 Sign Out
         </button>
       </div>
+      
+      <BusinessRevenueBreakdownModal
+        isOpen={showRevenueModal}
+        onClose={() => setShowRevenueModal(false)}
+      />
     </div>
   )
 }

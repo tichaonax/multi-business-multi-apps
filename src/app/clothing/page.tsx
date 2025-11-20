@@ -30,6 +30,14 @@ export default function ClothingPage() {
             </div>
           </Link>
           
+          <Link href="/clothing/orders" className="block">
+            <div className="card p-6 hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-4">📋</div>
+              <h3 className="text-lg font-semibold mb-2 text-primary">Orders</h3>
+              <p className="text-secondary">Manage customer orders and fulfillment</p>
+            </div>
+          </Link>
+          
           <Link href="/clothing/inventory" className="block">
             <div className="card p-6 hover:shadow-lg transition-shadow">
               <div className="text-4xl mb-4">👗</div>

@@ -5,7 +5,7 @@
  * Shows a preview of the receipt before printing
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Printer, X } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -29,15 +29,38 @@ export function ReceiptPreview({
 }: ReceiptPreviewProps) {
   const [showPrinterSelector, setShowPrinterSelector] = useState(false)
   const [printing, setPrinting] = useState(false)
-  const { toast } = useToast()
+  const [availablePrinters, setAvailablePrinters] = useState<NetworkPrinter[]>([])
+  const [autoSelectedPrinter, setAutoSelectedPrinter] = useState<NetworkPrinter | null>(null)
+  const { push: showToast } = useToast()
+
+  // Fetch available receipt printers when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchAvailablePrinters()
+    }
+  }, [isOpen])
+
+  async function fetchAvailablePrinters() {
+    try {
+      const response = await fetch('/api/printers?printerType=receipt&isOnline=true')
+      if (response.ok) {
+        const data = await response.json()
+        const printers = data.printers || []
+        setAvailablePrinters(printers)
+
+        // If there's only one printer, auto-select it
+        if (printers.length === 1) {
+          setAutoSelectedPrinter(printers[0])
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching printers:', error)
+    }
+  }
 
   async function handleSelectPrinter(printer: NetworkPrinter) {
     if (!onPrint) {
-      toast({
-        title: 'Error',
-        description: 'Print handler not configured',
-        variant: 'destructive',
-      })
+      showToast('Error: Print handler not configured')
       return
     }
 
@@ -45,21 +68,24 @@ export function ReceiptPreview({
       setPrinting(true)
       await onPrint(printer)
 
-      toast({
-        title: 'Print job queued',
-        description: `Receipt sent to ${printer.printerName}`,
-      })
+      showToast(`✅ Receipt sent to ${printer.printerName}`)
 
       onClose()
     } catch (error) {
       console.error('Print error:', error)
-      toast({
-        title: 'Print failed',
-        description: error instanceof Error ? error.message : 'Failed to print receipt',
-        variant: 'destructive',
-      })
+      showToast(`❌ Print failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setPrinting(false)
+    }
+  }
+
+  function handlePrintClick() {
+    if (autoSelectedPrinter) {
+      // Auto-print with the single available printer
+      handleSelectPrinter(autoSelectedPrinter)
+    } else {
+      // Show printer selector
+      setShowPrinterSelector(true)
     }
   }
 
@@ -73,11 +99,13 @@ export function ReceiptPreview({
         isOpen={isOpen}
         onClose={onClose}
         title="Receipt Preview"
+        size="lg"
       >
-        <div className="space-y-4">
-          {/* Receipt Preview Card */}
-          <Card className="p-6 bg-white dark:bg-gray-800">
-            <div className="font-mono text-sm space-y-2 max-w-md mx-auto">
+        <div className="flex flex-col h-full space-y-4">
+          {/* Receipt Preview Card - Scrollable */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <Card className="p-6 bg-white dark:bg-gray-800 h-full">
+              <div className="font-mono text-sm space-y-2 max-w-md mx-auto">
               {/* Business Header */}
               <div className="text-center border-b-2 border-dashed border-gray-300 dark:border-gray-600 pb-3">
                 <h2 className="font-bold text-lg text-gray-900 dark:text-gray-100">{receiptData.businessName}</h2>
@@ -195,19 +223,20 @@ export function ReceiptPreview({
               </div>
             </div>
           </Card>
+          </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-2 justify-end">
+          {/* Action Buttons - Always visible */}
+          <div className="flex gap-2 justify-end flex-shrink-0 border-t border-gray-200 dark:border-gray-700 pt-4">
             <Button variant="outline" onClick={onClose} disabled={printing}>
               <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
             <Button
-              onClick={() => setShowPrinterSelector(true)}
+              onClick={handlePrintClick}
               disabled={printing}
             >
               <Printer className="w-4 h-4 mr-2" />
-              {printing ? 'Printing...' : 'Print'}
+              {printing ? 'Printing...' : autoSelectedPrinter ? `Print to ${autoSelectedPrinter.printerName}` : 'Print'}
             </Button>
           </div>
         </div>

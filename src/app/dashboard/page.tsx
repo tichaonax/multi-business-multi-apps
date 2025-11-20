@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { ExpenseDetailModal } from '@/components/personal/expense-detail-modal'
 import { OrderDetailModal } from '@/components/restaurant/order-detail-modal'
 import { ProjectDetailModal } from '@/components/construction/project-detail-modal'
@@ -17,16 +17,29 @@ import HealthIndicator from '@/components/ui/health-indicator'
 import { LaybyAlertsWidget } from '@/components/laybys/layby-alerts-widget'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function Dashboard() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DashboardContent />
+    </Suspense>
+  )
+}
+
+function DashboardContent() {
   const { data: session } = useSession()
   const customAlert = useAlert()
-  const { currentBusiness } = useBusinessPermissionsContext()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { currentBusiness, switchBusiness } = useBusinessPermissionsContext()
   const currentUser = session?.user as any
   const businessId = currentBusiness?.businessId
   const [stats, setStats] = useState({
     activeProjects: 0,
     totalRevenue: 0,
+    completedRevenue: 0,
+    pendingRevenue: 0,
     teamMembers: 1,
     pendingTasks: 0
   })
@@ -35,6 +48,7 @@ export default function Dashboard() {
   const [pendingTasks, setPendingTasks] = useState<any[]>([])
   const [showRevenueBreakdown, setShowRevenueBreakdown] = useState<boolean>(false)
   const [revenueBreakdown, setRevenueBreakdown] = useState<any>(null)
+  const [revenueBreakdownFilter, setRevenueBreakdownFilter] = useState<string | null>(null)
   const [recentActivity, setRecentActivity] = useState<any[]>([])
   const [activityLoading, setActivityLoading] = useState<boolean>(true)
   const [activitySearchTerm, setActivitySearchTerm] = useState<string>('')
@@ -120,13 +134,26 @@ export default function Dashboard() {
       }
     }
 
+    const fetchRevenueBreakdown = async () => {
+      try {
+        const response = await fetch('/api/dashboard/revenue-breakdown-detailed')
+        if (response.ok) {
+          const data = await response.json()
+          setRevenueBreakdown(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch revenue breakdown:', error)
+      }
+    }
+
     if (currentUser) {
       fetchStats()
+      fetchRevenueBreakdown()
       fetchRecentActivity()
       fetchAvailableUsers()
       fetchAvailableBusinesses()
     }
-  }, [session])
+  }, [session, currentBusiness])
 
   // Auto-apply filter when scope changes
   useEffect(() => {
@@ -135,7 +162,7 @@ export default function Dashboard() {
       setActivityDisplayLimit(8) // Reset display limit when filter changes
       fetchRecentActivity()
     }
-  }, [activityFilterScope, activityFilterUserId, activityFilterBusinessId])
+  }, [activityFilterScope, activityFilterUserId, activityFilterBusinessId, currentBusiness])
 
   // Fetch detailed pending tasks when modal is opened
   const fetchPendingTasksDetails = async () => {
@@ -153,7 +180,7 @@ export default function Dashboard() {
   // Fetch detailed revenue breakdown when modal is opened
   const fetchRevenueBreakdown = async () => {
     try {
-      const response = await fetch('/api/dashboard/revenue-breakdown')
+      const response = await fetch('/api/dashboard/revenue-breakdown-detailed')
       if (response.ok) {
         const data = await response.json()
         setRevenueBreakdown(data)
@@ -368,10 +395,40 @@ export default function Dashboard() {
       } catch (error) {
         console.error('Failed to refresh stats:', error)
       }
+
+      // Also refresh revenue breakdown
+      try {
+        const response = await fetch('/api/dashboard/revenue-breakdown-detailed')
+        if (response.ok) {
+          const data = await response.json()
+          setRevenueBreakdown(data)
+        }
+      } catch (error) {
+        console.error('Failed to refresh revenue breakdown:', error)
+      }
     }, 60000) // 60 seconds
 
     return () => clearInterval(interval)
   }, [session])
+
+  // Check for URL parameters to auto-open modals
+  useEffect(() => {
+    const showRevenueBreakdownParam = searchParams.get('showRevenueBreakdown')
+    const businessTypeFilterParam = searchParams.get('businessType')
+    if (showRevenueBreakdownParam === 'true' && !showRevenueBreakdown) {
+      if (businessTypeFilterParam) {
+        setRevenueBreakdownFilter(businessTypeFilterParam)
+      }
+      setShowRevenueBreakdown(true)
+      fetchRevenueBreakdown()
+      // Clean up the URL parameters
+      const newSearchParams = new URLSearchParams(searchParams)
+      newSearchParams.delete('showRevenueBreakdown')
+      newSearchParams.delete('businessType')
+      const newUrl = newSearchParams.toString()
+      router.replace(newUrl ? `?${newUrl}` : window.location.pathname)
+    }
+  }, [searchParams, showRevenueBreakdown, router])
 
   // Check if user is a driver (only has driver trip/maintenance permissions)
   const isDriver = currentUser &&
@@ -473,31 +530,81 @@ export default function Dashboard() {
             )}
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          <div
-            className="card p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => {
-              setShowRevenueBreakdown(true)
-              fetchRevenueBreakdown()
-            }}
-          >
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <span className="text-2xl">📊</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
+          {/* Business Type Revenue Cards */}
+          {revenueBreakdown ? Object.entries(revenueBreakdown.byType).map(([businessType, typeData]: [string, any]) => (
+            <div
+              key={businessType}
+              className="card p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => {
+                setRevenueBreakdownFilter(businessType)
+                setShowRevenueBreakdown(true)
+                fetchRevenueBreakdown()
+              }}
+            >
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <span className="text-2xl">
+                    {businessType === 'restaurant' ? '🍽️' :
+                     businessType === 'grocery' ? '🛒' :
+                     businessType === 'clothing' ? '👕' :
+                     businessType === 'hardware' ? '🔧' :
+                     '🏪'}
+                  </span>
+                </div>
+                <div className="ml-4 flex-1">
+                  <p className="text-sm font-medium text-secondary capitalize">{businessType}</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {typeData.totalRevenue > 0 ? `$${typeData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00'}
+                  </p>
+                  {typeData.totalRevenue > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center space-x-1 text-sm">
+                        <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                        <span className="text-green-600 dark:text-green-400 font-medium">
+                          ${typeData.completedRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} completed
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1 text-sm">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                        <span className="text-orange-600 dark:text-orange-400 font-medium">
+                          ${typeData.pendingRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pending
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-secondary">Total Revenue</p>
-                <p className="text-2xl font-bold text-primary">
-                  {statsLoading ? '...' : `$${stats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                </p>
-              </div>
+              {typeData.totalRevenue > 0 && (
+                <div className="mt-2 text-xs text-blue-600">
+                  {typeData.totalOrders} orders • Click for details
+                </div>
+              )}
             </div>
-            {stats.totalRevenue > 0 && (
-              <div className="mt-2 text-xs text-blue-600">
-                Click to view breakdown
-              </div>
-            )}
-          </div>
+          )) : (
+            // Loading state for revenue cards
+            <>
+              {['clothing', 'grocery', 'restaurant', 'hardware'].map((businessType) => (
+                <div key={businessType} className="card p-4 sm:p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <span className="text-2xl">
+                        {businessType === 'restaurant' ? '🍽️' :
+                         businessType === 'grocery' ? '🛒' :
+                         businessType === 'clothing' ? '👕' :
+                         businessType === 'hardware' ? '🔧' :
+                         '🏪'}
+                      </span>
+                    </div>
+                    <div className="ml-4 flex-1">
+                      <p className="text-sm font-medium text-secondary capitalize">{businessType}</p>
+                      <p className="text-2xl font-bold text-primary">...</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
 
           <div
             onClick={() => {
@@ -993,10 +1100,33 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                Revenue Breakdown - ${stats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {revenueBreakdownFilter ? (
+                  <>
+                    {revenueBreakdownFilter.charAt(0).toUpperCase() + revenueBreakdownFilter.slice(1)} Revenue Breakdown - ${revenueBreakdown.byType[revenueBreakdownFilter]?.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {revenueBreakdown.byType[revenueBreakdownFilter] && (
+                      <span className="text-sm font-normal text-gray-600 dark:text-gray-400 ml-2">
+                        (<span className="text-green-600 dark:text-green-400">${revenueBreakdown.byType[revenueBreakdownFilter].completedRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> completed,
+                        <span className="text-orange-600 dark:text-orange-400">${revenueBreakdown.byType[revenueBreakdownFilter].pendingRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> pending)
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    Business Revenue Breakdown - ${stats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {revenueBreakdown && (
+                      <span className="text-sm font-normal text-gray-600 dark:text-gray-400 ml-2">
+                        (<span className="text-green-600 dark:text-green-400">${revenueBreakdown.summary.completedRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> completed,
+                        <span className="text-orange-600 dark:text-orange-400">${revenueBreakdown.summary.pendingRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> pending)
+                      </span>
+                    )}
+                  </>
+                )}
               </h2>
               <button
-                onClick={() => setShowRevenueBreakdown(false)}
+                onClick={() => {
+                  setShowRevenueBreakdown(false)
+                  setRevenueBreakdownFilter(null)
+                }}
                 className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 text-2xl"
               >
                 ×
@@ -1006,171 +1136,270 @@ export default function Dashboard() {
               {!revenueBreakdown ? (
                 <div className="text-center py-8">
                   <div className="text-4xl mb-4">📊</div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Loading revenue breakdown...</h3>
-                  <p className="text-gray-500 dark:text-gray-400">Please wait while we analyze your revenue sources.</p>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Loading business breakdown...</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Please wait while we analyze your business revenue sources.</p>
                 </div>
               ) : revenueBreakdown.total === 0 ? (
                 <div className="text-center py-8">
                   <div className="text-6xl mb-4">💰</div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No revenue yet</h3>
-                  <p className="text-gray-500 dark:text-gray-400">Start generating revenue by completing orders, projects, or adding income transactions.</p>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No business revenue yet</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Start generating revenue by creating and managing orders in your businesses.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Restaurant Revenue */}
-                    {revenueBreakdown.restaurant && (
-                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-2xl">🍽️</span>
-                            <h4 className="font-medium text-gray-900 dark:text-gray-100">Restaurant Orders</h4>
-                          </div>
-                          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                            {revenueBreakdown.restaurant.percentage?.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Revenue:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">${revenueBreakdown.restaurant.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Orders:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{revenueBreakdown.restaurant.count}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                            <div
-                              className="bg-orange-500 h-2 rounded-full"
-                              style={{ width: `${revenueBreakdown.restaurant.percentage || 0}%` }}
-                            ></div>
-                          </div>
-                        </div>
+                  {/* Legend */}
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center justify-center space-x-6">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Completed Orders</span>
                       </div>
-                    )}
-
-                    {/* Business Revenue */}
-                    {revenueBreakdown.business && (
-                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-2xl">🏪</span>
-                            <h4 className="font-medium text-gray-900 dark:text-gray-100">Business Sales</h4>
-                          </div>
-                          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                            {revenueBreakdown.businesses.percentage?.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Revenue:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">${revenueBreakdown.businesses.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Orders:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{revenueBreakdown.businesses.count}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                            <div
-                              className="bg-green-500 h-2 rounded-full"
-                              style={{ width: `${revenueBreakdown.businesses.percentage || 0}%` }}
-                            ></div>
-                          </div>
-                        </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Pending Orders</span>
                       </div>
-                    )}
-
-                    {/* Project Revenue */}
-                    {revenueBreakdown.projects && (
-                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-2xl">🏗️</span>
-                            <h4 className="font-medium text-gray-900 dark:text-gray-100">Project Income</h4>
-                          </div>
-                          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                            {revenueBreakdown.projects.percentage?.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Revenue:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">${revenueBreakdown.projects.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Transactions:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{revenueBreakdown.projects.count}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                            <div
-                              className="bg-blue-500 h-2 rounded-full"
-                              style={{ width: `${revenueBreakdown.projects.percentage || 0}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Personal Revenue */}
-                    {revenueBreakdown.personal && (
-                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-2xl">👤</span>
-                            <h4 className="font-medium text-gray-900 dark:text-gray-100">Personal Income</h4>
-                          </div>
-                          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                            {revenueBreakdown.personal.percentage?.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Revenue:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">${revenueBreakdown.personal.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Transactions:</span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{revenueBreakdown.personal.count}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                            <div
-                              className="bg-purple-500 h-2 rounded-full"
-                              style={{ width: `${revenueBreakdown.personal.percentage || 0}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
+
+                  {/* Business Type Breakdown */}
+                  {Object.entries(revenueBreakdown.byType)
+                    .filter(([businessType]) => !revenueBreakdownFilter || businessType === revenueBreakdownFilter)
+                    .map(([businessType, typeData]: [string, any]) => (
+                    <div key={businessType} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-2xl">
+                            {businessType === 'restaurant' ? '🍽️' :
+                             businessType === 'grocery' ? '🛒' :
+                             businessType === 'clothing' ? '👕' :
+                             businessType === 'hardware' ? '🔧' :
+                             '🏪'}
+                          </span>
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100 capitalize">
+                            {businessType} Businesses
+                          </h4>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                            ${typeData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {typeData.totalOrders} orders • {typeData.percentage.toFixed(1)}%
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <div className="flex items-center space-x-1">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-xs text-green-600 dark:text-green-400">
+                                ${typeData.completedRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                              <span className="text-xs text-orange-600 dark:text-orange-400">
+                                ${typeData.pendingRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Individual Businesses */}
+                      <div className="space-y-3">
+                        {typeData.businesses.map((business: any) => (
+                          <div
+                            key={business.id}
+                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                            onClick={async () => {
+                              try {
+                                await switchBusiness(business.id)
+                                setShowRevenueBreakdown(false)
+                                // Show success message
+                                await customAlert({
+                                  title: 'Business Switched',
+                                  description: `Successfully switched to ${business.name}. The dashboard will now show data for this business.`
+                                })
+                                // Refresh stats after switching
+                                setStatsLoading(true)
+                                const response = await fetch('/api/dashboard/stats')
+                                if (response.ok) {
+                                  const data = await response.json()
+                                  setStats(data)
+                                }
+                                setStatsLoading(false)
+                                // Navigate to the business orders page
+                                router.push(`/${business.type}/orders`)
+                              } catch (error) {
+                                console.error('Failed to switch business:', error)
+                                await customAlert({
+                                  title: 'Error',
+                                  description: 'Failed to switch business. Please try again.'
+                                })
+                              }
+                            }}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                              <div>
+                                <div className="font-medium text-gray-900 dark:text-gray-100">
+                                  {business.name}
+                                </div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  {business.orderCount} orders ({business.completedOrders} completed, {business.pendingOrders} pending)
+                                </div>
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span className="text-xs text-green-600 dark:text-green-400">
+                                      ${business.completedRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                    <span className="text-xs text-orange-600 dark:text-orange-400">
+                                      ${business.pendingRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-gray-900 dark:text-gray-100">
+                                ${business.revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                Click to switch
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Progress bar for business type */}
+                      <div className="mt-4">
+                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${
+                              businessType === 'restaurant' ? 'bg-orange-500' :
+                              businessType === 'grocery' ? 'bg-green-500' :
+                              businessType === 'clothing' ? 'bg-blue-500' :
+                              businessType === 'hardware' ? 'bg-yellow-500' :
+                              'bg-purple-500'
+                            }`}
+                            style={{ width: `${typeData.percentage}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
 
                   {/* Summary Section */}
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-6">
-                    <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Revenue Summary</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                      <div>
-                        <div className="text-2xl font-bold text-orange-600">
-                          ${revenueBreakdown.restaurant?.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Restaurant</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-green-600">
-                          ${revenueBreakdown.businesses?.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Business</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-blue-600">
-                          ${revenueBreakdown.projects?.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Projects</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-purple-600">
-                          ${revenueBreakdown.personal?.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Personal</div>
-                      </div>
+                    <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">
+                      {revenueBreakdownFilter ? `${revenueBreakdownFilter.charAt(0).toUpperCase() + revenueBreakdownFilter.slice(1)} Summary` : 'Revenue Summary'}
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
+                      {revenueBreakdownFilter ? (() => {
+                        const filteredData = revenueBreakdown.byType[revenueBreakdownFilter]
+                        return (
+                          <>
+                            <div>
+                              <div className="text-2xl font-bold text-orange-600">
+                                ${filteredData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Total Revenue</div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-blue-600">
+                                {filteredData.totalOrders}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Total Orders</div>
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-center space-x-1">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-green-600">
+                                    ${filteredData.completedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">Completed</div>
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-center space-x-1">
+                                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-orange-600">
+                                    ${filteredData.pendingRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">Pending</div>
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-green-600">
+                                {filteredData.businesses.length}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Businesses</div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-purple-600">
+                                1
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Business Type</div>
+                            </div>
+                          </>
+                        )
+                      })() : (
+                        <>
+                          <div>
+                            <div className="text-2xl font-bold text-orange-600">
+                              ${revenueBreakdown.summary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Total Revenue</div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-blue-600">
+                              {revenueBreakdown.summary.totalOrders}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Total Orders</div>
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-center space-x-1">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-green-600">
+                                  ${revenueBreakdown.summary.completedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Completed</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-center space-x-1">
+                              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-orange-600">
+                                  ${revenueBreakdown.summary.pendingRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Pending</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-green-600">
+                              {revenueBreakdown.summary.businesses}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Businesses</div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-purple-600">
+                              {revenueBreakdown.summary.businessTypes}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Business Types</div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -5,6 +5,9 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessContext } from '@/components/universal'
 import { BarcodeScanner, UniversalProduct } from '@/components/universal'
+import { ReceiptPreview } from '@/components/printing/receipt-preview'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import type { ReceiptData } from '@/types/printing'
 
 interface CartItem {
   id: string
@@ -49,6 +52,7 @@ interface ClothingAdvancedPOSProps {
 
 export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }: ClothingAdvancedPOSProps) {
   const { formatCurrency } = useBusinessContext()
+  const { currentBusiness } = useBusinessPermissionsContext()
   const customAlert = useAlert()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -70,27 +74,85 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
   const [printReceipt, setPrintReceipt] = useState(true)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [autoAddProcessed, setAutoAddProcessed] = useState(false)
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [completedOrderReceipt, setCompletedOrderReceipt] = useState<ReceiptData | null>(null)
+  const [defaultPrinter, setDefaultPrinter] = useState<{ id: string; name: string } | null>(null)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'GIFT_CARD'>('CASH')
+  const [cashTendered, setCashTendered] = useState('')
 
-  // Sample product data for quick add
-  const [quickAddProducts] = useState([
-    {
-      id: 'prod1',
-      name: "Men's T-Shirt",
-      variants: [
-        { id: 'var1', sku: 'MTS-001-M-BLK', price: 24.99, attributes: { size: 'M', color: 'Black' }, stock: 15 },
-        { id: 'var2', sku: 'MTS-001-L-BLK', price: 24.99, attributes: { size: 'L', color: 'Black' }, stock: 8 },
-        { id: 'var3', sku: 'MTS-001-M-WHT', price: 24.99, attributes: { size: 'M', color: 'White' }, stock: 12 }
-      ]
-    },
-    {
-      id: 'prod2',
-      name: "Women's Dress",
-      variants: [
-        { id: 'var4', sku: 'WDR-002-8-FLR', price: 49.99, attributes: { size: '8', color: 'Floral' }, stock: 5 },
-        { id: 'var5', sku: 'WDR-002-10-FLR', price: 49.99, attributes: { size: '10', color: 'Floral' }, stock: 3 }
-      ]
+  // Product data loaded from database
+  const [quickAddProducts, setQuickAddProducts] = useState<any[]>([])
+  const [productsLoading, setProductsLoading] = useState(false)
+
+  // Fetch default printer on component mount
+  useEffect(() => {
+    async function fetchDefaultPrinter() {
+      try {
+        const response = await fetch('/api/printers?printerType=receipt&isOnline=true')
+        if (response.ok) {
+          const data = await response.json()
+          const printers = data.printers || []
+
+          // Use first available online receipt printer as default
+          if (printers.length > 0) {
+            setDefaultPrinter({
+              id: printers[0].id,
+              name: printers[0].printerName
+            })
+            console.log('✅ Default printer set:', printers[0].printerName)
+          } else {
+            console.log('⚠️ No printers configured')
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch default printer:', error)
+      }
     }
-  ])
+
+    fetchDefaultPrinter()
+  }, [])
+
+  // Load products from database
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (!currentBusiness?.businessId) return
+
+      setProductsLoading(true)
+      try {
+        const response = await fetch(
+          `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&limit=50`
+        )
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            // Map API products to QuickAddProduct format
+            const products = result.data
+              .filter((p: any) => p.variants && p.variants.length > 0)
+              .map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                variants: p.variants.map((v: any) => ({
+                  id: v.id,
+                  sku: v.sku,
+                  price: parseFloat(v.price),
+                  attributes: v.attributes || {},
+                  stock: v.stockQuantity || 0
+                }))
+              }))
+
+            setQuickAddProducts(products.slice(0, 4)) // Show first 4 products
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load products:', error)
+      } finally {
+        setProductsLoading(false)
+      }
+    }
+
+    loadProducts()
+  }, [currentBusiness?.businessId])
 
   const addToCart = (productId: string, variantId: string, quantity?: number) => {
     const product = quickAddProducts.find(p => p.id === productId)
@@ -202,7 +264,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
         try {
           // Use businessId from query params (the business where product was found)
           // Fall back to current businessId if not in query
-          const targetBusinessId = queryBusinessId || businessId
+          const targetBusinessId = queryBusinessId || currentBusiness?.businessId
+
+          if (!targetBusinessId) return
 
           const response = await fetch(`/api/admin/products/${addProductId}?businessId=${targetBusinessId}`)
           if (!response.ok) {
@@ -226,7 +290,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
 
       fetchAndAddProduct()
     }
-  }, [searchParams, autoAddProcessed, businessId, router])
+  }, [searchParams, autoAddProcessed, currentBusiness?.businessId, router])
 
   const handleReturn = (originalOrderId: string, reason: string) => {
     // In a real implementation, this would fetch the original order
@@ -283,27 +347,187 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
 
     setLoading(true)
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Calculate totals
+      const subtotal = calculateSubtotal()
+      const tax = calculateTax()
+      const total = calculateTotal()
+      const discount = cart.reduce((sum, item) => sum + (item.discount || 0) * item.quantity, 0)
 
-      const orderId = `ORD-${Date.now()}`
+      const totals = {
+        subtotal,
+        tax,
+        discount,
+        total
+      }
+
+      // Prepare order data
+      const orderData = {
+        businessId: currentBusiness?.businessId,
+        customerId: customerInfo?.id || null,
+        employeeId,
+        orderType: mode === 'return' ? 'RETURN' : mode === 'exchange' ? 'EXCHANGE' : 'SALE',
+        paymentMethod: selectedPaymentMethod,
+        discountAmount: totals.discount,
+        taxAmount: totals.tax,
+        businessType: 'clothing',
+        attributes: {
+          posOrder: true,
+          mode,
+          supervisorOverride: supervisorOverride || undefined,
+          customerInfo: customerInfo || undefined,
+          cashTendered: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
+          change: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined
+        },
+        items: cart.map(item => ({
+          productVariantId: item.variantId || item.id,
+          quantity: item.isReturn ? -item.quantity : item.quantity,
+          unitPrice: item.price,
+          discountAmount: item.discount || 0,
+          attributes: {
+            productName: item.name,
+            variantName: item.attributes?.size || item.attributes?.color ?
+              `${item.attributes.size || ''} ${item.attributes.color || ''}`.trim() : null,
+            sku: item.sku,
+            isReturn: item.isReturn || false,
+            returnReason: item.returnReason || null,
+            ...item.attributes
+          }
+        }))
+      }
+
+      // Create order via API
+      const response = await fetch('/api/universal/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(orderData)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to process order')
+      }
+
+      // Create receipt data
+      const receiptData: ReceiptData = {
+        receiptNumber: result.data.orderNumber || 'N/A',
+        globalId: result.data.id,
+        businessId: currentBusiness?.businessId || '',
+        businessName: currentBusiness?.businessName || 'Clothing Store',
+        businessType: 'clothing',
+        items: cart.map(item => ({
+          name: `${item.name}${item.attributes?.size ? ` (${item.attributes.size})` : ''}${item.attributes?.color ? ` - ${item.attributes.color}` : ''}`,
+          quantity: item.quantity,
+          unitPrice: item.price,
+          totalPrice: item.price * item.quantity - (item.discount || 0)
+        })),
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        discount: totals.discount,
+        total: totals.total,
+        paymentMethod: selectedPaymentMethod,
+        cashTendered: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
+        change: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined,
+        customerName: customerInfo?.email || 'Walk-in Customer',
+        date: new Date(),
+        cashierName: employeeId ? 'Employee' : undefined,
+        businessSpecificData: {
+          supervisorOverride: supervisorOverride?.supervisorId ? 'Yes' : 'No'
+        }
+      }
 
       // Clear cart and reset state
       setCart([])
       setPaymentMethods([])
       setSupervisorOverride(null)
       setCustomerInfo(null)
+      setShowPaymentModal(false)
+      setCashTendered('')
+      setSelectedPaymentMethod('CASH')
 
-      if (printReceipt) {
-        // In real implementation, would trigger receipt printing
+      // Auto-print to default printer if configured, otherwise show preview
+      if (defaultPrinter) {
+        console.log(`🖨️ Auto-printing to ${defaultPrinter.name}...`)
+        try {
+          await handlePrintReceipt(receiptData, defaultPrinter.id)
+          console.log('✅ Receipt printed successfully')
+        } catch (printError) {
+          console.error('Auto-print failed, showing manual selection:', printError)
+          // Fall back to manual selection if auto-print fails
+          setCompletedOrderReceipt(receiptData)
+          setShowReceiptPreview(true)
+        }
+      } else {
+        // No default printer - show manual selection
+        setCompletedOrderReceipt(receiptData)
+        setShowReceiptPreview(true)
       }
 
-      onOrderComplete?.(orderId)
-      setShowPaymentModal(false)
+      onOrderComplete?.(result.data.id)
     } catch (error) {
       console.error('Payment failed:', error)
+      await customAlert({
+        title: 'Payment Failed',
+        description: error instanceof Error ? error.message : 'Unknown error occurred'
+      })
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Handle printing receipt to configured printer
+  const handlePrintReceipt = async (receiptData: ReceiptData, printerId?: string) => {
+    try {
+      if (!printerId) {
+        throw new Error('No printer selected')
+      }
+
+      const response = await fetch('/api/print/receipt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          printerId,
+          businessId: receiptData.businessId,
+          businessType: receiptData.businessType,
+          receiptNumber: receiptData.receiptNumber,
+          transactionId: receiptData.transactionId,
+          transactionDate: receiptData.transactionDate,
+          salespersonName: receiptData.salespersonName,
+          salespersonId: receiptData.salespersonId,
+          businessName: receiptData.businessName,
+          businessAddress: receiptData.businessAddress,
+          businessPhone: receiptData.businessPhone,
+          businessEmail: receiptData.businessEmail,
+          items: receiptData.items,
+          subtotal: receiptData.subtotal,
+          tax: receiptData.tax,
+          discount: receiptData.discount,
+          total: receiptData.total,
+          paymentMethod: receiptData.paymentMethod,
+          amountPaid: receiptData.amountPaid,
+          changeDue: receiptData.changeDue,
+          businessSpecificData: receiptData.businessSpecificData,
+          footerMessage: receiptData.footerMessage,
+          returnPolicy: receiptData.returnPolicy,
+          copies: 1,
+          autoPrint: true
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Print request failed' }))
+        throw new Error(errorData.error || `Print failed with status ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log('Receipt printed successfully, job ID:', result.jobId)
+    } catch (error) {
+      console.error('Print error:', error)
+      throw error
     }
   }
 
@@ -367,42 +591,52 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
         {/* Quick Add Products */}
         <div className="card p-4">
           <h3 className="font-semibold text-primary mb-4">Quick Add Products</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {quickAddProducts.map((product) => (
-              <div key={product.id} className="border rounded-lg p-3">
-                <h4 className="font-medium text-primary mb-2">{product.name}</h4>
-                <div className="space-y-2">
-                  {product.variants.map((variant) => (
-                    <div key={variant.id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">
-                          {variant.attributes.size && `${variant.attributes.size} `}
-                          {variant.attributes.color}
-                        </span>
-                        <span className="text-sm text-secondary">({variant.stock} left)</span>
+          {productsLoading ? (
+            <div className="text-center py-8 text-secondary">
+              Loading products...
+            </div>
+          ) : quickAddProducts.length === 0 ? (
+            <div className="text-center py-8 text-secondary">
+              No products available. Add products in the Products page.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {quickAddProducts.map((product) => (
+                <div key={product.id} className="border rounded-lg p-3">
+                  <h4 className="font-medium text-primary mb-2">{product.name}</h4>
+                  <div className="space-y-2">
+                    {product.variants.map((variant: any) => (
+                      <div key={variant.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">
+                            {variant.attributes?.size && `${variant.attributes.size} `}
+                            {variant.attributes?.color}
+                          </span>
+                          <span className="text-sm text-secondary">({variant.stock} left)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
+                          <button
+                            onClick={() => addToCart(product.id, variant.id)}
+                            disabled={variant.stock === 0}
+                            className="px-2 py-1 bg-primary text-white text-xs rounded hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            Add
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
-                        <button
-                          onClick={() => addToCart(product.id, variant.id)}
-                          disabled={variant.stock === 0}
-                          className="px-2 py-1 bg-primary text-white text-xs rounded hover:bg-primary/90 disabled:opacity-50"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Barcode Scanner */}
         <BarcodeScanner
           onProductScanned={(product, variantId) => addToCartFromScanner(product, variantId)}
-          businessId={businessId}
+          businessId={currentBusiness?.businessId || ''}
           showScanner={showBarcodeScanner}
           onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
         />
@@ -564,11 +798,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="card p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Payment Processing</h3>
+            <h3 className="text-lg font-semibold text-primary mb-4">Payment Processing</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Payment Method</label>
-                <select className="w-full px-3 py-2 border rounded-lg">
+                <select
+                  className="w-full px-3 py-2 border rounded-lg"
+                  value={selectedPaymentMethod}
+                  onChange={(e) => setSelectedPaymentMethod(e.target.value as any)}
+                >
                   <option value="CASH">Cash</option>
                   <option value="CARD">Credit/Debit Card</option>
                   <option value="STORE_CREDIT">Store Credit</option>
@@ -579,21 +817,54 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
               <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
                 <div className="flex justify-between">
                   <span>Total Amount:</span>
-                  <span className="font-bold">{formatCurrency(calculateTotal())}</span>
+                  <span className="font-bold text-green-600">{formatCurrency(calculateTotal())}</span>
                 </div>
               </div>
 
+              {/* Cash Tender Input */}
+              {selectedPaymentMethod === 'CASH' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Cash Tendered</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Enter amount received"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg text-lg font-semibold"
+                    autoFocus
+                  />
+                  {cashTendered && parseFloat(cashTendered) >= calculateTotal() && (
+                    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded">
+                      <div className="flex justify-between text-green-800 dark:text-green-200 font-semibold">
+                        <span>Change:</span>
+                        <span>{formatCurrency(parseFloat(cashTendered) - calculateTotal())}</span>
+                      </div>
+                    </div>
+                  )}
+                  {cashTendered && parseFloat(cashTendered) < calculateTotal() && (
+                    <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
+                      ⚠️ Amount tendered is less than total
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 py-2 px-4 border rounded-lg hover:bg-gray-50 dark:bg-gray-800"
+                  onClick={() => {
+                    setShowPaymentModal(false)
+                    setCashTendered('')
+                  }}
+                  className="flex-1 py-2 px-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={processPayment}
-                  disabled={loading}
-                  className="flex-1 py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                  disabled={loading || (selectedPaymentMethod === 'CASH' && (!cashTendered || parseFloat(cashTendered) < calculateTotal()))}
+                  className="flex-1 py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Processing...' : 'Complete Payment'}
                 </button>
@@ -631,7 +902,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       const pin = (e.target as HTMLInputElement).value
-                      const supervisorId = ((e.target as HTMLInputElement).parentNode?.previousElementSibling?.querySelector('input') as HTMLInputElement)?.value
+                      const supervisorId = ((e.target as HTMLInputElement).parentNode?.previousSibling?.querySelector('input') as HTMLInputElement)?.value
                       if (supervisorId && pin) {
                         handleSupervisorAuth(supervisorId, pin)
                       }
@@ -663,6 +934,19 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
             </div>
           </div>
         </div>
+      )}
+
+      {/* Receipt Preview Modal */}
+      {showReceiptPreview && completedOrderReceipt && (
+        <ReceiptPreview
+          isOpen={showReceiptPreview}
+          onClose={() => {
+            setShowReceiptPreview(false)
+            setCompletedOrderReceipt(null)
+          }}
+          receiptData={completedOrderReceipt}
+          onPrint={(printer) => handlePrintReceipt(completedOrderReceipt, printer.id)}
+        />
       )}
     </div>
   )
