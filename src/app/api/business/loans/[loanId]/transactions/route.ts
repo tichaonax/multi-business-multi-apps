@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { validateBusinessBalance, processBusinessTransaction } from '@/lib/business-balance-utils'
+import { isSystemAdmin } from '@/lib/permission-utils'
+import { SessionUser } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
 interface RouteParams {
@@ -16,6 +18,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const user = session.user as SessionUser
     const { loanId } = await params
     const {
       transactionType, // 'payment' or 'advance'
@@ -40,25 +43,40 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Verify the loan exists and user has access to it
+    // Get user's business memberships
     const userBusinesses = await prisma.businessMemberships.findMany({
       where: {
         userId: session.user.id,
         isActive: true
       },
-      select: { businessId: true }
+      select: {
+        businessId: true,
+        role: true
+      }
     })
 
     const businessIds = userBusinesses.map(membership => membership.businessId)
 
+    // Fetch the loan with all relations
     const loan = await prisma.interBusinessLoans.findFirst({
       where: {
         id: loanId,
         status: 'active',
         OR: [
           { borrowerBusinessId: { in: businessIds } }, // User's business is borrower
-          { lenderBusinessId: { in: businessIds } }    // User's business is lender
+          { lenderBusinessId: { in: businessIds } },   // User's business is lender
+          // For person borrower/lender loans, check if user has any admin/manager/owner role
+          ...(businessIds.length > 0 ? [
+            { borrowerType: 'person' },
+            { lenderType: 'person' }
+          ] : [])
         ]
+      },
+      include: {
+        businesses_inter_business_loans_borrowerBusinessIdTobusinesses: true,
+        businesses_inter_business_loans_lenderBusinessIdTobusinesses: true,
+        persons_lender: true,
+        persons_borrower: true
       }
     })
 
@@ -66,60 +84,106 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Loan not found or access denied' }, { status: 404 })
     }
 
-    // Determine which business is making the transaction and validate balance for payments
+    // Permission check: User must have admin/manager/owner role
+    let hasPermission = false
+    if (isSystemAdmin(user)) {
+      hasPermission = true
+    } else {
+      // Check if user has required role in the business involved in the loan
+      const relevantBusinessId = transactionType === 'payment'
+        ? loan.borrowerBusinessId
+        : loan.lenderBusinessId
+
+      if (relevantBusinessId) {
+        const membership = userBusinesses.find(m => m.businessId === relevantBusinessId)
+        if (membership && ['admin', 'manager', 'owner'].includes(membership.role)) {
+          hasPermission = true
+        }
+      }
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions. Only admins, managers, and owners can process loan transactions.' },
+        { status: 403 }
+      )
+    }
+
+    // Determine which business (if any) is making the transaction and validate balance
     let payingBusinessId: string | null = null
+    let requiresBalanceValidation = false
 
     if (transactionType === 'payment') {
-      // For payments, the borrower business pays the lender business
-      if (loan.borrowerBusinessId && businessIds.includes(loan.borrowerBusinessId)) {
-        payingBusinessId = loan.borrowerBusinessId
-      } else {
-        return NextResponse.json(
-          { error: 'Only the borrower business can make loan payments' },
-          { status: 403 }
-        )
+      // For payments, the borrower pays the lender
+      if (loan.borrowerType === 'business' && loan.borrowerBusinessId) {
+        // Business borrower making payment
+        if (businessIds.includes(loan.borrowerBusinessId)) {
+          payingBusinessId = loan.borrowerBusinessId
+          requiresBalanceValidation = true
+        } else {
+          return NextResponse.json(
+            { error: 'Only the borrower business can make loan payments' },
+            { status: 403 }
+          )
+        }
+      } else if (loan.borrowerType === 'person') {
+        // Person borrower making payment - no balance validation needed
+        // External persons manage their own funds
+        requiresBalanceValidation = false
       }
 
-      // Validate borrower business has sufficient balance for payment
-      const balanceValidation = await validateBusinessBalance(payingBusinessId, Number(amount))
+      // Validate borrower business has sufficient balance for payment (if business)
+      if (requiresBalanceValidation && payingBusinessId) {
+        const balanceValidation = await validateBusinessBalance(payingBusinessId, Number(amount))
 
-      if (!balanceValidation.isValid) {
-        return NextResponse.json(
-          {
-            error: 'Insufficient funds to make loan payment',
-            details: balanceValidation.message,
-            currentBalance: balanceValidation.currentBalance,
-            requiredAmount: balanceValidation.requiredAmount,
-            shortfall: balanceValidation.shortfall
-          },
-          { status: 400 }
-        )
+        if (!balanceValidation.isValid) {
+          return NextResponse.json(
+            {
+              error: 'Insufficient funds to make loan payment',
+              details: balanceValidation.message,
+              currentBalance: balanceValidation.currentBalance,
+              requiredAmount: balanceValidation.requiredAmount,
+              shortfall: balanceValidation.shortfall
+            },
+            { status: 400 }
+          )
+        }
       }
     } else if (transactionType === 'advance') {
-      // For advances, the lender business provides additional funds
-      if (loan.lenderBusinessId && businessIds.includes(loan.lenderBusinessId)) {
-        payingBusinessId = loan.lenderBusinessId
-      } else {
-        return NextResponse.json(
-          { error: 'Only the lender business can provide loan advances' },
-          { status: 403 }
-        )
+      // For advances, the lender provides additional funds
+      if (loan.lenderType === 'business' && loan.lenderBusinessId) {
+        // Business lender providing advance
+        if (businessIds.includes(loan.lenderBusinessId)) {
+          payingBusinessId = loan.lenderBusinessId
+          requiresBalanceValidation = true
+        } else {
+          return NextResponse.json(
+            { error: 'Only the lender business can provide loan advances' },
+            { status: 403 }
+          )
+        }
+      } else if (loan.lenderType === 'person') {
+        // Person lender providing advance - no balance validation needed
+        // External lenders manage their own funds
+        requiresBalanceValidation = false
       }
 
-      // Validate lender business has sufficient balance for advance
-      const balanceValidation = await validateBusinessBalance(payingBusinessId, Number(amount))
+      // Validate lender business has sufficient balance for advance (if business)
+      if (requiresBalanceValidation && payingBusinessId) {
+        const balanceValidation = await validateBusinessBalance(payingBusinessId, Number(amount))
 
-      if (!balanceValidation.isValid) {
-        return NextResponse.json(
-          {
-            error: 'Insufficient funds to provide loan advance',
-            details: balanceValidation.message,
-            currentBalance: balanceValidation.currentBalance,
-            requiredAmount: balanceValidation.requiredAmount,
-            shortfall: balanceValidation.shortfall
-          },
-          { status: 400 }
-        )
+        if (!balanceValidation.isValid) {
+          return NextResponse.json(
+            {
+              error: 'Insufficient funds to provide loan advance',
+              details: balanceValidation.message,
+              currentBalance: balanceValidation.currentBalance,
+              requiredAmount: balanceValidation.requiredAmount,
+              shortfall: balanceValidation.shortfall
+            },
+            { status: 400 }
+          )
+        }
       }
     }
 
@@ -170,8 +234,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       })
     }
 
-    // Process business balance transaction for the paying business
-    if (payingBusinessId) {
+    // Process business balance transaction for the paying business (only if it's a business)
+    if (payingBusinessId && requiresBalanceValidation) {
       const transactionResult = await processBusinessTransaction({
         businessId: payingBusinessId,
         amount: Number(amount),

@@ -19,7 +19,7 @@ export interface BalanceValidationResult {
 export interface BusinessTransactionData {
   businessId: string
   amount: number
-  type: 'deposit' | 'withdrawal' | 'loan_disbursement' | 'loan_payment' | 'transfer'
+  type: 'deposit' | 'withdrawal' | 'loan_disbursement' | 'loan_payment' | 'loan_received' | 'transfer'
   description: string
   referenceId?: string
   referenceType?: string
@@ -206,9 +206,11 @@ export async function processBusinessTransaction(
     const currentBalance = balanceInfo.balance
     let newBalance: number
 
-    if (['deposit', 'transfer'].includes(type)) {
+    if (['deposit', 'transfer', 'loan_received'].includes(type)) {
+      // Credit transactions - add to balance
       newBalance = currentBalance + amount
     } else if (['withdrawal', 'loan_disbursement', 'loan_payment'].includes(type)) {
+      // Debit transactions - subtract from balance
       newBalance = Math.max(0, currentBalance - amount)
     } else {
       throw new Error(`Unknown transaction type: ${type}`)
@@ -217,13 +219,13 @@ export async function processBusinessTransaction(
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       // Update account balance
-      await tx.businessAccount.update({
+      await tx.businessAccounts.update({
         where: { businessId },
         data: { balance: newBalance }
       })
 
       // Create transaction record
-      const transaction = await tx.businessTransaction.create({
+      const transaction = await tx.businessTransactions.create({
         data: {
           businessId,
           amount,

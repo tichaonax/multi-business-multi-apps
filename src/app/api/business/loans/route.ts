@@ -103,8 +103,12 @@ export async function POST(request: NextRequest) {
 
     const user = session.user as SessionUser
     const {
+      lenderType,
       lenderBusinessId,
+      lenderPersonId,
+      borrowerType,
       borrowerBusinessId,
+      borrowerPersonId,
       principalAmount,
       interestRate = 0,
       terms,
@@ -115,72 +119,128 @@ export async function POST(request: NextRequest) {
     } = await request.json()
 
     // Validation
-    if (!lenderBusinessId || !borrowerBusinessId || !principalAmount || principalAmount <= 0) {
+    if (!principalAmount || principalAmount <= 0) {
       return NextResponse.json(
-        { error: 'Lender business, borrower business, and principal amount are required' },
+        { error: 'Principal amount is required and must be greater than 0' },
         { status: 400 }
       )
     }
 
-    // Prevent self-loans
-    if (lenderBusinessId === borrowerBusinessId) {
+    // Validate lender
+    if (!lenderType || (lenderType === 'business' && !lenderBusinessId) || (lenderType === 'person' && !lenderPersonId)) {
+      return NextResponse.json(
+        { error: 'Valid lender information is required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate borrower
+    if (!borrowerType || (borrowerType === 'business' && !borrowerBusinessId) || (borrowerType === 'person' && !borrowerPersonId)) {
+      return NextResponse.json(
+        { error: 'Valid borrower information is required' },
+        { status: 400 }
+      )
+    }
+
+    // Prevent self-loans (business lending to itself)
+    if (lenderType === 'business' && borrowerType === 'business' && lenderBusinessId === borrowerBusinessId) {
       return NextResponse.json(
         { error: 'A business cannot loan money to itself' },
         { status: 400 }
       )
     }
 
-    // Verify user has access to the lender business
-    let hasLenderAccess = false
+    // Permission check: User must have admin/manager/owner role
+    let hasPermission = false
     if (isSystemAdmin(user)) {
-      hasLenderAccess = true
+      hasPermission = true
     } else {
-      // Check if user is a member of the lender business
-      const lenderMembership = await prisma.businessMemberships.findFirst({
-        where: {
-          userId: session.user.id,
-          businessId: lenderBusinessId,
-          isActive: true
-        }
-      })
-      hasLenderAccess = !!lenderMembership
+      // For business-related loans, check if user has required role in the business
+      const businessIdToCheck = lenderType === 'business' ? lenderBusinessId : borrowerBusinessId
+
+      if (businessIdToCheck) {
+        const membership = await prisma.businessMemberships.findFirst({
+          where: {
+            userId: session.user.id,
+            businessId: businessIdToCheck,
+            isActive: true,
+            role: { in: ['admin', 'manager', 'owner'] }
+          }
+        })
+        hasPermission = !!membership
+      }
     }
 
-    if (!hasLenderAccess) {
+    if (!hasPermission) {
       return NextResponse.json(
-        { error: 'You do not have permission to create loans for the selected lender business' },
+        { error: 'Insufficient permissions. Only admins, managers, and owners can create loans.' },
         { status: 403 }
       )
     }
 
-    // Verify borrower business exists
-    const borrowerBusiness = await prisma.businesses.findUnique({
-      where: { id: borrowerBusinessId },
-      select: { name: true }
-    })
-
-    if (!borrowerBusiness) {
-      return NextResponse.json(
-        { error: 'Borrower business not found' },
-        { status: 404 }
-      )
+    // Get lender name
+    let lenderName = 'External Lender'
+    if (lenderType === 'business' && lenderBusinessId) {
+      const lenderBusiness = await prisma.businesses.findUnique({
+        where: { id: lenderBusinessId },
+        select: { name: true }
+      })
+      if (!lenderBusiness) {
+        return NextResponse.json({ error: 'Lender business not found' }, { status: 404 })
+      }
+      lenderName = lenderBusiness.name
+    } else if (lenderType === 'person' && lenderPersonId) {
+      const lenderPerson = await prisma.persons.findUnique({
+        where: { id: lenderPersonId },
+        select: { fullName: true }
+      })
+      if (!lenderPerson) {
+        return NextResponse.json({ error: 'Lender not found' }, { status: 404 })
+      }
+      lenderName = lenderPerson.fullName
     }
 
-    // Validate lender business has sufficient balance for the loan
-    const principal = parseFloat(principalAmount)
-    const balanceValidation = await validateBusinessBalance(lenderBusinessId, principal)
+    // Get borrower name
+    let borrowerName = 'External Borrower'
+    if (borrowerType === 'business' && borrowerBusinessId) {
+      const borrowerBusiness = await prisma.businesses.findUnique({
+        where: { id: borrowerBusinessId },
+        select: { name: true }
+      })
+      if (!borrowerBusiness) {
+        return NextResponse.json({ error: 'Borrower business not found' }, { status: 404 })
+      }
+      borrowerName = borrowerBusiness.name
+    } else if (borrowerType === 'person' && borrowerPersonId) {
+      const borrowerPerson = await prisma.persons.findUnique({
+        where: { id: borrowerPersonId },
+        select: { fullName: true }
+      })
+      if (!borrowerPerson) {
+        return NextResponse.json({ error: 'Borrower not found' }, { status: 404 })
+      }
+      borrowerName = borrowerPerson.fullName
+    }
 
-    if (!balanceValidation.isValid) {
-      return NextResponse.json(
-        {
-          error: 'Insufficient funds to create loan',
-          details: balanceValidation.message,
-          currentBalance: balanceValidation.currentBalance,
-          requiredAmount: balanceValidation.requiredAmount,
-          shortfall: balanceValidation.shortfall
-        },
-        { status: 400 }
-      )
+    const principal = parseFloat(principalAmount)
+
+    // Only validate balance if lender is a business
+    // External lenders (persons/banks) manage their own funds
+    if (lenderType === 'business' && lenderBusinessId) {
+      const balanceValidation = await validateBusinessBalance(lenderBusinessId, principal)
+
+      if (!balanceValidation.isValid) {
+        return NextResponse.json(
+          {
+            error: 'Insufficient funds to create loan',
+            details: balanceValidation.message,
+            currentBalance: balanceValidation.currentBalance,
+            requiredAmount: balanceValidation.requiredAmount,
+            shortfall: balanceValidation.shortfall
+          },
+          { status: 400 }
+        )
+      }
     }
 
     // Generate loan number
@@ -205,51 +265,85 @@ export async function POST(request: NextRequest) {
         interestRate: finalInterestRate,
         totalAmount: finalInterestRate > 0 ? principal * (1 + finalInterestRate / 100) : principal,
         remainingBalance: finalInterestRate > 0 ? principal * (1 + finalInterestRate / 100) : principal,
-        lenderType: 'business',
-        borrowerType: 'business',
-        lenderBusinessId: lenderBusinessId,
-        borrowerBusinessId,
+        lenderType: lenderType,
+        borrowerType: borrowerType,
+        lenderBusinessId: lenderType === 'business' ? lenderBusinessId : null,
+        lenderPersonId: lenderType === 'person' ? lenderPersonId : null,
+        borrowerBusinessId: borrowerType === 'business' ? borrowerBusinessId : null,
+        borrowerPersonId: borrowerType === 'person' ? borrowerPersonId : null,
         loanDate: new Date(loanDate || new Date()),
         dueDate: dueDate ? new Date(dueDate) : null,
         terms: finalTerms || null,
         notes: notes || null,
-        createdBy: session.user.id
+        createdBy: session.user.id,
+        createdAt: new Date(),
+        updatedAt: new Date()
       },
       include: {
-        borrowerBusiness: {
+        businesses_inter_business_loans_borrowerBusinessIdTobusinesses: {
           select: { name: true }
         },
-        lenderBusiness: {
+        businesses_inter_business_loans_lenderBusinessIdTobusinesses: {
           select: { name: true }
+        },
+        persons_lender: {
+          select: { fullName: true }
+        },
+        persons_borrower: {
+          select: { fullName: true }
         }
       }
     })
 
-    // Deduct loan amount from lender business balance
-    const transactionResult = await processBusinessTransaction({
-      businessId: lenderBusinessId,
-      amount: principal,
-      type: 'loan_disbursement',
-      description: `Loan disbursement to ${borrowerBusiness.name} - ${loanNumber}`,
-      referenceId: loan.id,
-      referenceType: 'loan',
-      notes: `${transferType === 'profit_transfer' ? 'Profit transfer' : 'Business loan'} disbursement`,
-      createdBy: session.user.id
-    })
-
-    if (!transactionResult.success) {
-      // Rollback the loan creation if balance deduction fails
-      await prisma.interBusinessLoans.delete({
-        where: { id: loan.id }
+    // Only deduct balance if lender is a business
+    // External lenders (persons/banks) manage their own funds
+    if (lenderType === 'business' && lenderBusinessId) {
+      const transactionResult = await processBusinessTransaction({
+        businessId: lenderBusinessId,
+        amount: principal,
+        type: 'loan_disbursement',
+        description: `Loan disbursement to ${borrowerName} - ${loanNumber}`,
+        referenceId: loan.id,
+        referenceType: 'loan',
+        notes: `${transferType === 'profit_transfer' ? 'Profit transfer' : 'Business loan'} disbursement`,
+        createdBy: session.user.id
       })
 
-      return NextResponse.json(
-        {
-          error: 'Failed to process loan disbursement',
-          details: transactionResult.error
-        },
-        { status: 500 }
-      )
+      if (!transactionResult.success) {
+        // Rollback the loan creation if balance deduction fails
+        await prisma.interBusinessLoans.delete({
+          where: { id: loan.id }
+        })
+
+        return NextResponse.json(
+          {
+            error: 'Failed to process loan disbursement',
+            details: transactionResult.error
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    // ADD balance to borrower if borrower is a business
+    // This credits the loan proceeds to the borrower's account
+    if (borrowerType === 'business' && borrowerBusinessId) {
+      const creditResult = await processBusinessTransaction({
+        businessId: borrowerBusinessId,
+        amount: principal,
+        type: 'loan_received',
+        description: `Loan received from ${lenderName} - ${loanNumber}`,
+        referenceId: loan.id,
+        referenceType: 'loan',
+        notes: `Loan proceeds received - Principal: $${principal}`,
+        createdBy: session.user.id
+      })
+
+      if (!creditResult.success) {
+        console.error('Failed to credit borrower balance:', creditResult.error)
+        // Don't fail the loan - just log the error
+        // The loan is still valid, balance tracking can be fixed later
+      }
     }
 
     // Convert Decimal amounts to numbers for response

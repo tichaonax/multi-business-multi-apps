@@ -15,6 +15,8 @@ import { UserEditModal } from '@/components/user-management/user-edit-modal'
 import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import HealthIndicator from '@/components/ui/health-indicator'
 import { LaybyAlertsWidget } from '@/components/laybys/layby-alerts-widget'
+import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
+import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -686,6 +688,19 @@ function DashboardContent() {
         <div className="mt-6">
           <LaybyAlertsWidget businessId={businessId} />
         </div>
+
+        {/* Business Balance & Loans Section */}
+        {businessId && (
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <BusinessBalanceDisplay
+              businessId={businessId}
+              businessName={currentBusiness?.businessName || 'Current Business'}
+              showRefreshButton={true}
+              variant="full"
+            />
+            <LoanBreakdownCard businessId={businessId} />
+          </div>
+        )}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8 mt-6">

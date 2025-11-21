@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
+import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
 
 import { randomBytes } from 'crypto';
 // Validation schemas
@@ -602,6 +603,56 @@ export async function PUT(request: NextRequest) {
         }
       }
     })
+
+    // Credit business account when order is COMPLETED with PAID status
+    // This tracks revenue in the business account for loan payments etc.
+    const wasNotCompleted = existingOrder.status !== 'COMPLETED'
+    const isNowCompleted = order.status === 'COMPLETED'
+    const isPaid = order.paymentStatus === 'PAID'
+
+    if (wasNotCompleted && isNowCompleted && isPaid) {
+      try {
+        // Ensure business account exists
+        await initializeBusinessAccount(existingOrder.businessId, 0, session.user.id)
+
+        // Credit the order amount to business account
+        const orderTotal = Number(order.totalAmount)
+        await processBusinessTransaction({
+          businessId: existingOrder.businessId,
+          amount: orderTotal,
+          type: 'deposit',
+          description: `Order revenue - ${order.orderNumber}`,
+          referenceId: order.id,
+          referenceType: 'order',
+          notes: `Completed order payment received`,
+          createdBy: session.user.id
+        })
+        console.log(`Credited $${orderTotal} to business ${existingOrder.businessId} for order ${order.orderNumber}`)
+      } catch (balanceError) {
+        console.error('Failed to credit business balance for order:', balanceError)
+        // Don't fail the order update - balance can be fixed later
+      }
+    }
+
+    // Handle refunds - debit the business account
+    if (updateData.status === 'REFUNDED' && existingOrder.status === 'COMPLETED') {
+      try {
+        const refundAmount = Number(existingOrder.totalAmount)
+        await processBusinessTransaction({
+          businessId: existingOrder.businessId,
+          amount: refundAmount,
+          type: 'withdrawal',
+          description: `Order refund - ${existingOrder.orderNumber}`,
+          referenceId: existingOrder.id,
+          referenceType: 'order',
+          notes: `Refund for completed order`,
+          createdBy: session.user.id
+        })
+        console.log(`Debited $${refundAmount} from business ${existingOrder.businessId} for refund`)
+      } catch (balanceError) {
+        console.error('Failed to debit business balance for refund:', balanceError)
+      }
+    }
 
     // Transform the updated order to match expected frontend structure
     const transformedOrder = {

@@ -2,12 +2,14 @@
 
 import { BusinessProtectedRoute } from '@/components/auth/business-protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
+import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { BalanceValidationWarning } from '@/components/business/balance-validation-warning'
 import { useBusinessBalance } from '@/hooks/useBusinessBalance'
 import Link from 'next/link'
@@ -29,13 +31,18 @@ interface Loan {
   totalAmount: number
   interestRate: number
   lenderType: string
+  borrowerType: string
   status: string
   loanDate: string
   dueDate?: string
   terms?: string
   notes?: string
-  borrowerBusiness: { name: string }
+  borrowerBusinessId?: string
+  lenderBusinessId?: string
+  borrowerBusiness?: { name: string }
   lenderBusiness?: { name: string }
+  persons_lender?: { fullName: string }
+  persons_borrower?: { fullName: string }
   loanTransactions: Array<{
     id: string
     transactionType: string
@@ -46,21 +53,52 @@ interface Loan {
   }>
 }
 
+interface Lender {
+  id: string
+  name: string
+  displayName: string
+  lenderType: 'individual' | 'bank'
+}
+
 export default function BusinessLoansPage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const globalDateFormat = useDateFormat()
   const customAlert = useAlert()
   const [loans, setLoans] = useState<Loan[]>([])
   const [businesses, setBusinesses] = useState<Business[]>([])
+  const [lenders, setLenders] = useState<Lender[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateLoanModal, setShowCreateLoanModal] = useState(false)
   const [showLoanDetailsModal, setShowLoanDetailsModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
+  const [loanFilter, setLoanFilter] = useState<'all' | 'business' | 'external_lender' | 'business_to_person'>('all')
+  const [selectedBreakdownBusinessId, setSelectedBreakdownBusinessId] = useState<string>('')
+
+  // Handle viewLoan query parameter to auto-open loan details
+  const viewLoanId = searchParams.get('viewLoan')
+
+  useEffect(() => {
+    if (viewLoanId && loans.length > 0 && !showLoanDetailsModal) {
+      const loanToView = loans.find(l => l.id === viewLoanId)
+      if (loanToView) {
+        setSelectedLoan(loanToView)
+        setShowLoanDetailsModal(true)
+        // Clear the query param
+        router.replace('/business/manage/loans', { scroll: false })
+      }
+    }
+  }, [viewLoanId, loans, showLoanDetailsModal, router])
 
   const [newLoan, setNewLoan] = useState({
+    lenderType: 'business' as 'business' | 'person',
     lenderBusinessId: '',
+    lenderPersonId: '',
+    borrowerType: 'business' as 'business' | 'person',
     borrowerBusinessId: '',
+    borrowerPersonId: '',
     principalAmount: '',
     interestRate: '0',
     terms: '',
@@ -78,31 +116,49 @@ export default function BusinessLoansPage() {
     notes: ''
   })
 
-  // Balance tracking for loan creation
-  const lenderBalance = useBusinessBalance(newLoan.lenderBusinessId || null)
+  // Filter loans based on selected filter
+  const filteredLoans = useMemo(() => {
+    if (loanFilter === 'all') return loans
+    if (loanFilter === 'business') {
+      return loans.filter(loan => loan.lenderType === 'business' && loan.borrowerType === 'business')
+    }
+    if (loanFilter === 'external_lender') {
+      return loans.filter(loan => loan.lenderType === 'person')
+    }
+    if (loanFilter === 'business_to_person') {
+      return loans.filter(loan => loan.lenderType === 'business' && loan.borrowerType === 'person')
+    }
+    return loans
+  }, [loans, loanFilter])
+
+  // Balance tracking for loan creation (only for business lenders)
+  const lenderBalance = useBusinessBalance(
+    newLoan.lenderType === 'business' ? (newLoan.lenderBusinessId || null) : null
+  )
 
   // For payments: borrower business pays, for advances: lender business pays
   const getPaymentBusinessId = () => {
     if (!selectedLoan) return null
 
     if (newPayment.transactionType === 'payment') {
-      // Payment: borrower business is paying
-      return selectedLoan.borrowerBusiness?.id || null
+      // Payment: borrower business is paying - use borrowerBusinessId from loan
+      return selectedLoan.borrowerBusinessId || null
     } else {
-      // Advance: lender business is paying
-      return selectedLoan.lenderBusiness?.id || null
+      // Advance: lender business is paying - use lenderBusinessId from loan
+      return selectedLoan.lenderBusinessId || null
     }
   }
 
   const paymentBusinessBalance = useBusinessBalance(getPaymentBusinessId())
 
-  // Validation for loan creation
+  // Validation for loan creation (only validate balance for business lenders)
   const loanValidation = useMemo(() => {
+    if (newLoan.lenderType === 'person') return null // External lenders don't need validation
     if (!newLoan.lenderBusinessId || !newLoan.principalAmount) return null
     const amount = parseFloat(newLoan.principalAmount)
     if (isNaN(amount) || amount <= 0) return null
     return lenderBalance.validateAmount(amount)
-  }, [newLoan.lenderBusinessId, newLoan.principalAmount, lenderBalance])
+  }, [newLoan.lenderType, newLoan.lenderBusinessId, newLoan.principalAmount, lenderBalance])
 
   // Validation for payments
   const paymentValidation = useMemo(() => {
@@ -121,6 +177,7 @@ export default function BusinessLoansPage() {
   useEffect(() => {
     fetchLoans()
     fetchBusinesses()
+    fetchLenders()
   }, [])
 
   const fetchLoans = async () => {
@@ -151,16 +208,50 @@ export default function BusinessLoansPage() {
     }
   }
 
+  const fetchLenders = async () => {
+    try {
+      const response = await fetch('/api/business/available-lenders', { credentials: 'include' })
+      if (response.ok) {
+        const data = await response.json()
+        setLenders(Array.isArray(data) ? data : [])
+      }
+    } catch (error) {
+      console.error('Failed to fetch lenders:', error)
+      setLenders([])
+    }
+  }
+
   const handleCreateLoan = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!newLoan.lenderBusinessId || !newLoan.borrowerBusinessId || !newLoan.principalAmount) {
-      await customAlert({ title: 'Validation', description: 'Please fill in all required fields' })
+    // Validate lender
+    if (newLoan.lenderType === 'business' && !newLoan.lenderBusinessId) {
+      await customAlert({ title: 'Validation', description: 'Please select a lender business' })
+      return
+    }
+    if (newLoan.lenderType === 'person' && !newLoan.lenderPersonId) {
+      await customAlert({ title: 'Validation', description: 'Please select a lender' })
+      return
+    }
+
+    // Validate borrower
+    if (newLoan.borrowerType === 'business' && !newLoan.borrowerBusinessId) {
+      await customAlert({ title: 'Validation', description: 'Please select a borrower business' })
+      return
+    }
+    if (newLoan.borrowerType === 'person' && !newLoan.borrowerPersonId) {
+      await customAlert({ title: 'Validation', description: 'Please select a borrower' })
+      return
+    }
+
+    if (!newLoan.principalAmount) {
+      await customAlert({ title: 'Validation', description: 'Please enter a principal amount' })
       return
     }
 
     // Prevent self-loans (business lending to itself)
-    if (newLoan.lenderBusinessId === newLoan.borrowerBusinessId) {
+    if (newLoan.lenderType === 'business' && newLoan.borrowerType === 'business' &&
+        newLoan.lenderBusinessId === newLoan.borrowerBusinessId) {
       await customAlert({ title: 'Invalid selection', description: 'A business cannot loan money to itself. Please select different lender and borrower businesses.' })
       return
     }
@@ -171,8 +262,12 @@ export default function BusinessLoansPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          lenderBusinessId: newLoan.lenderBusinessId,
-          borrowerBusinessId: newLoan.borrowerBusinessId,
+          lenderType: newLoan.lenderType,
+          lenderBusinessId: newLoan.lenderType === 'business' ? newLoan.lenderBusinessId : null,
+          lenderPersonId: newLoan.lenderType === 'person' ? newLoan.lenderPersonId : null,
+          borrowerType: newLoan.borrowerType,
+          borrowerBusinessId: newLoan.borrowerType === 'business' ? newLoan.borrowerBusinessId : null,
+          borrowerPersonId: newLoan.borrowerType === 'person' ? newLoan.borrowerPersonId : null,
           principalAmount: parseFloat(newLoan.principalAmount),
           interestRate: parseFloat(newLoan.interestRate) || 0,
           terms: newLoan.terms,
@@ -187,8 +282,12 @@ export default function BusinessLoansPage() {
         await fetchLoans()
         setShowCreateLoanModal(false)
         setNewLoan({
+          lenderType: 'business',
           lenderBusinessId: '',
+          lenderPersonId: '',
+          borrowerType: 'business',
           borrowerBusinessId: '',
+          borrowerPersonId: '',
           principalAmount: '',
           interestRate: '0',
           terms: '',
@@ -273,6 +372,12 @@ export default function BusinessLoansPage() {
         headerActions={
           <div className="flex gap-3">
             <Link
+              href="/business/manage/lenders"
+              className="btn-secondary"
+            >
+              👥 Manage Lenders
+            </Link>
+            <Link
               href="/business/manage/loans/analytics"
               className="btn-secondary"
             >
@@ -314,10 +419,92 @@ export default function BusinessLoansPage() {
             </div>
           </div>
 
+          {/* Lender Type Breakdown */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="card p-6 bg-blue-50 dark:bg-blue-900/20">
+              <h3 className="text-sm font-semibold text-primary mb-2">🏢 Business-to-Business</h3>
+              <p className="text-2xl font-bold text-blue-600">
+                {loans.filter(loan => loan.lenderType === 'business' && loan.borrowerType === 'business').length}
+              </p>
+              <p className="text-xs text-secondary mt-1">
+                ${loans.filter(loan => loan.lenderType === 'business' && loan.borrowerType === 'business' && loan.status === 'active')
+                  .reduce((sum, loan) => sum + loan.remainingBalance, 0).toFixed(2)} outstanding
+              </p>
+            </div>
+            <div className="card p-6 bg-purple-50 dark:bg-purple-900/20">
+              <h3 className="text-sm font-semibold text-primary mb-2">👤 External Lender Loans</h3>
+              <p className="text-2xl font-bold text-purple-600">
+                {loans.filter(loan => loan.lenderType === 'person').length}
+              </p>
+              <p className="text-xs text-secondary mt-1">
+                ${loans.filter(loan => loan.lenderType === 'person' && loan.status === 'active')
+                  .reduce((sum, loan) => sum + loan.remainingBalance, 0).toFixed(2)} outstanding
+              </p>
+            </div>
+            <div className="card p-6 bg-green-50 dark:bg-green-900/20">
+              <h3 className="text-sm font-semibold text-primary mb-2">🏢 Business-to-Person Loans</h3>
+              <p className="text-2xl font-bold text-green-600">
+                {loans.filter(loan => loan.lenderType === 'business' && loan.borrowerType === 'person').length}
+              </p>
+              <p className="text-xs text-secondary mt-1">
+                ${loans.filter(loan => loan.lenderType === 'business' && loan.borrowerType === 'person' && loan.status === 'active')
+                  .reduce((sum, loan) => sum + loan.remainingBalance, 0).toFixed(2)} outstanding
+              </p>
+            </div>
+          </div>
+
+          {/* Per-Business Loan Breakdown */}
+          {businesses.filter(b => b.isUserBusiness).length > 0 && (
+            <div className="card p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <h3 className="text-lg font-semibold text-primary">Business Loan Breakdown</h3>
+                <select
+                  value={selectedBreakdownBusinessId}
+                  onChange={(e) => setSelectedBreakdownBusinessId(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a business...</option>
+                  {businesses.filter(b => b.isUserBusiness).map(business => (
+                    <option key={business.id} value={business.id}>
+                      {business.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedBreakdownBusinessId && (
+                <LoanBreakdownCard
+                  businessId={selectedBreakdownBusinessId}
+                  className="mt-4"
+                />
+              )}
+              {!selectedBreakdownBusinessId && (
+                <p className="text-sm text-secondary">
+                  Select a business to view its loan breakdown (loans received as borrower).
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Loans Table */}
           <div className="card">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-primary">Loan Management</h2>
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-primary">Loan Management</h2>
+                {/* Loan Type Filter */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-secondary">Filter:</label>
+                  <select
+                    value={loanFilter}
+                    onChange={(e) => setLoanFilter(e.target.value as any)}
+                    className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Loans ({loans.length})</option>
+                    <option value="business">🏢 Business-to-Business ({loans.filter(l => l.lenderType === 'business' && l.borrowerType === 'business').length})</option>
+                    <option value="external_lender">👤 From External Lenders ({loans.filter(l => l.lenderType === 'person').length})</option>
+                    <option value="business_to_person">🏢 Business-to-Person ({loans.filter(l => l.lenderType === 'business' && l.borrowerType === 'person').length})</option>
+                  </select>
+                </div>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -340,14 +527,16 @@ export default function BusinessLoansPage() {
                         Loading loans...
                       </td>
                     </tr>
-                  ) : loans.length === 0 ? (
+                  ) : filteredLoans.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-6 py-8 text-center text-secondary">
-                        No loans found. Create your first loan to get started!
+                        {loans.length === 0
+                          ? 'No loans found. Create your first loan to get started!'
+                          : 'No loans match the selected filter.'}
                       </td>
                     </tr>
                   ) : (
-                    loans.map(loan => (
+                    filteredLoans.map(loan => (
                       <tr 
                         key={loan.id}
                         className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
@@ -366,7 +555,13 @@ export default function BusinessLoansPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-primary">
-                          {loan.lenderType === 'personal' ? 'Personal' : loan.lenderBusiness?.name || 'Your Business'} → {loan.borrowerBusiness.name}
+                          {loan.lenderType === 'person'
+                            ? (loan.persons_lender?.fullName || 'External Lender')
+                            : (loan.lenderBusiness?.name || 'Your Business')}
+                          {' → '}
+                          {loan.borrowerType === 'person'
+                            ? (loan.persons_borrower?.fullName || 'Individual')
+                            : (loan.borrowerBusiness?.name || 'Unknown')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-primary">
                           ${loan.principalAmount.toFixed(2)}
@@ -469,59 +664,203 @@ export default function BusinessLoansPage() {
                   </div>
                 </div>
 
+                {/* Lender Type Selection */}
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Lender Business *
+                    Lender Type *
                   </label>
-                  <select
-                    value={newLoan.lenderBusinessId}
-                    onChange={(e) => setNewLoan({...newLoan, lenderBusinessId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">Select lender business</option>
-                    {businesses.filter(business => business.isUserBusiness).map(business => (
-                      <option key={business.id} value={business.id}>
-                        {business.name} ({business.type}){business.isUmbrellaBusiness ? ' - Umbrella' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="lenderType"
+                        value="business"
+                        checked={newLoan.lenderType === 'business'}
+                        onChange={(e) => setNewLoan({
+                          ...newLoan,
+                          lenderType: 'business',
+                          lenderPersonId: '',
+                          lenderBusinessId: ''
+                        })}
+                        className="mr-2"
+                      />
+                      🏢 Business
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="lenderType"
+                        value="person"
+                        checked={newLoan.lenderType === 'person'}
+                        onChange={(e) => setNewLoan({
+                          ...newLoan,
+                          lenderType: 'person',
+                          lenderBusinessId: '',
+                          lenderPersonId: ''
+                        })}
+                        className="mr-2"
+                      />
+                      👤 Individual/Bank
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                    💡 <strong>Business:</strong> Loan from one of your businesses (requires balance validation).
+                    <strong className="ml-2">Individual/Bank:</strong> Loan from external person or financial institution (no balance validation required).
+                  </p>
                 </div>
 
-                {/* Lender Business Balance Display */}
-                {newLoan.lenderBusinessId && (
-                  <BusinessBalanceDisplay
-                    businessId={newLoan.lenderBusinessId}
-                    businessName={businesses.find(b => b.id === newLoan.lenderBusinessId)?.name || 'Selected Business'}
-                    showRefreshButton={true}
-                    variant="compact"
-                  />
+                {/* Lender Selection */}
+                {newLoan.lenderType === 'business' ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Lender Business *
+                      </label>
+                      <select
+                        value={newLoan.lenderBusinessId}
+                        onChange={(e) => setNewLoan({...newLoan, lenderBusinessId: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Select lender business</option>
+                        {businesses.filter(business => business.isUserBusiness).map(business => (
+                          <option key={business.id} value={business.id}>
+                            {business.name} ({business.type}){business.isUmbrellaBusiness ? ' - Umbrella' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Lender Business Balance Display */}
+                    {newLoan.lenderBusinessId && (
+                      <BusinessBalanceDisplay
+                        businessId={newLoan.lenderBusinessId}
+                        businessName={businesses.find(b => b.id === newLoan.lenderBusinessId)?.name || 'Selected Business'}
+                        showRefreshButton={true}
+                        variant="compact"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      External Lender *
+                    </label>
+                    <select
+                      value={newLoan.lenderPersonId}
+                      onChange={(e) => setNewLoan({...newLoan, lenderPersonId: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Select lender</option>
+                      {lenders.map(lender => (
+                        <option key={lender.id} value={lender.id}>
+                          {lender.displayName}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        💡 External lenders (individuals/banks) manage their own funds. No balance validation required.
+                      </p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400">
+                        Don&apos;t see your lender? <Link href="/business/manage/lenders" className="underline font-medium hover:text-blue-800 dark:hover:text-blue-300">Create a new lender</Link>
+                      </p>
+                    </div>
+                  </div>
                 )}
 
+                {/* Borrower Type Selection */}
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Borrower Business *
+                    Borrower Type *
                   </label>
-                  <select
-                    value={newLoan.borrowerBusinessId}
-                    onChange={(e) => setNewLoan({...newLoan, borrowerBusinessId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">Select borrower business</option>
-                    {businesses.map(business => (
-                      <option
-                        key={business.id}
-                        value={business.id}
-                        disabled={business.id === newLoan.lenderBusinessId}
-                      >
-                        {business.name} ({business.type})
-                        {business.isUserBusiness ? ' - Your Business' : ' - External'}
-                        {business.isUmbrellaBusiness ? ' - Umbrella' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="borrowerType"
+                        value="business"
+                        checked={newLoan.borrowerType === 'business'}
+                        onChange={(e) => setNewLoan({
+                          ...newLoan,
+                          borrowerType: 'business',
+                          borrowerPersonId: '',
+                          borrowerBusinessId: ''
+                        })}
+                        className="mr-2"
+                      />
+                      🏢 Business
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="borrowerType"
+                        value="person"
+                        checked={newLoan.borrowerType === 'person'}
+                        onChange={(e) => setNewLoan({
+                          ...newLoan,
+                          borrowerType: 'person',
+                          borrowerBusinessId: '',
+                          borrowerPersonId: ''
+                        })}
+                        className="mr-2"
+                      />
+                      👤 Individual
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                    💡 <strong>Business borrower:</strong> Loan repayments will deduct from business balance.
+                    <strong className="ml-2">Individual borrower:</strong> Repayments tracked separately (no business balance impact).
+                  </p>
                 </div>
+
+                {/* Borrower Selection */}
+                {newLoan.borrowerType === 'business' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Borrower Business *
+                    </label>
+                    <select
+                      value={newLoan.borrowerBusinessId}
+                      onChange={(e) => setNewLoan({...newLoan, borrowerBusinessId: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Select borrower business</option>
+                      {businesses.map(business => (
+                        <option
+                          key={business.id}
+                          value={business.id}
+                          disabled={newLoan.lenderType === 'business' && business.id === newLoan.lenderBusinessId}
+                        >
+                          {business.name} ({business.type})
+                          {business.isUserBusiness ? ' - Your Business' : ' - External'}
+                          {business.isUmbrellaBusiness ? ' - Umbrella' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Borrower (Individual) *
+                    </label>
+                    <select
+                      value={newLoan.borrowerPersonId}
+                      onChange={(e) => setNewLoan({...newLoan, borrowerPersonId: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Select borrower</option>
+                      {lenders.map(lender => (
+                        <option key={lender.id} value={lender.id}>
+                          {lender.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -667,7 +1006,13 @@ export default function BusinessLoansPage() {
                   <div>
                     <label className="block text-sm font-medium text-secondary">Lender → Borrower</label>
                     <p className="text-primary">
-                      {selectedLoan.lenderType === 'personal' ? 'Personal' : selectedLoan.lenderBusiness?.name || 'Your Business'} → {selectedLoan.borrowerBusiness.name}
+                      {selectedLoan.lenderType === 'person'
+                        ? (selectedLoan.persons_lender?.fullName || 'External Lender')
+                        : (selectedLoan.lenderBusiness?.name || 'Your Business')}
+                      {' → '}
+                      {selectedLoan.borrowerType === 'person'
+                        ? (selectedLoan.persons_borrower?.fullName || 'Individual')
+                        : (selectedLoan.borrowerBusiness?.name || 'Unknown')}
                     </p>
                   </div>
                 </div>
@@ -759,7 +1104,16 @@ export default function BusinessLoansPage() {
 
               <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <div className="text-sm text-secondary space-y-1">
-                  <div><strong>Lender → Borrower:</strong> {selectedLoan.lenderType === 'personal' ? 'Personal' : selectedLoan.lenderBusiness?.name || 'Your Business'} → {selectedLoan.borrowerBusiness.name}</div>
+                  <div>
+                    <strong>Lender → Borrower:</strong>{' '}
+                    {selectedLoan.lenderType === 'person'
+                      ? (selectedLoan.persons_lender?.fullName || 'External Lender')
+                      : (selectedLoan.lenderBusiness?.name || 'Your Business')}
+                    {' → '}
+                    {selectedLoan.borrowerType === 'person'
+                      ? (selectedLoan.persons_borrower?.fullName || 'Individual')
+                      : (selectedLoan.borrowerBusiness?.name || 'Unknown')}
+                  </div>
                   <div><strong>Current Balance:</strong> ${selectedLoan.remainingBalance.toFixed(2)}</div>
                   <div><strong>Interest Rate:</strong> {selectedLoan.interestRate}%</div>
                 </div>

@@ -1253,7 +1253,10 @@ model InterBusinessLoans {
   lenderType                                                     String
   lenderUserId                                                   String?
   lenderBusinessId                                               String?
+  lenderPersonId                                                 String?
   borrowerBusinessId                                             String?
+  borrowerPersonId                                               String?
+  borrowerType                                                   String
   loanDate                                                       DateTime
   dueDate                                                        DateTime?
   status                                                         String             @default("active")
@@ -1262,10 +1265,9 @@ model InterBusinessLoans {
   createdAt                                                      DateTime           @default(now())
   updatedAt                                                      DateTime
   createdBy                                                      String
-  borrowerPersonId                                               String?
-  borrowerType                                                   String
   businesses_inter_business_loans_borrowerBusinessIdTobusinesses Businesses?        @relation("inter_business_loans_borrowerBusinessIdTobusinesses", fields: [borrowerBusinessId], references: [id])
-  persons                                                        Persons?           @relation(fields: [borrowerPersonId], references: [id])
+  persons_borrower                                               Persons?           @relation("loans_as_borrower", fields: [borrowerPersonId], references: [id])
+  persons_lender                                                 Persons?           @relation("loans_as_lender", fields: [lenderPersonId], references: [id])
   users_inter_business_loans_createdByTousers                    Users              @relation("inter_business_loans_createdByTousers", fields: [createdBy], references: [id])
   businesses_inter_business_loans_lenderBusinessIdTobusinesses   Businesses?        @relation("inter_business_loans_lenderBusinessIdTobusinesses", fields: [lenderBusinessId], references: [id])
   users_inter_business_loans_lenderUserIdTousers                 Users?             @relation("inter_business_loans_lenderUserIdTousers", fields: [lenderUserId], references: [id])
@@ -1680,11 +1682,22 @@ model Persons {
   fullName                 String
   idFormatTemplateId       String?
   isActive                 Boolean                 @default(true)
-  nationalId               String                  @unique
+  nationalId               String?                 @unique
   updatedAt                DateTime                @default(now())
   driverLicenseNumber      String?
   driverLicenseTemplateId  String?
-  inter_business_loans     InterBusinessLoans[]
+
+  // Bank-specific fields (nullable, only used for bank lenders)
+  swiftCode                String?                 // Full 11-char SWIFT code (e.g., ZBCOZWHXXXX)
+  swiftCodeShort           String?                 // 8-char SWIFT code (e.g., ZBCOZWHX)
+  bankRegistrationNo       String?                 // Bank registration number
+  branchCode               String?                 // Branch code
+  city                     String?                 // City
+  country                  String?                 // Country
+  alternatePhones          String[]                // Additional phone numbers
+
+  loans_as_borrower        InterBusinessLoans[]    @relation("loans_as_borrower")
+  loans_as_lender          InterBusinessLoans[]    @relation("loans_as_lender")
   users                    Users?                  @relation(fields: [createdBy], references: [id])
   driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
   id_format_templates      IdFormatTemplates?      @relation(fields: [idFormatTemplateId], references: [id])
