@@ -5,6 +5,8 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { useAlert } from '@/components/ui/confirm-modal'
 import Link from 'next/link'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { NationalIdInput } from '@/components/ui/national-id-input'
 
 interface Lender {
   id: string
@@ -45,6 +47,7 @@ export default function LendersManagementPage() {
     email: '',
     phone: '',
     nationalId: '',
+    nationalIdTemplateId: '',
     address: '',
     lenderType: 'individual' as 'individual' | 'bank',
     notes: '',
@@ -137,6 +140,7 @@ export default function LendersManagementPage() {
           email: '',
           phone: '',
           nationalId: '',
+          nationalIdTemplateId: '',
           address: '',
           lenderType: 'individual',
           notes: '',
@@ -507,35 +511,22 @@ export default function LendersManagementPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Phone *
-                  </label>
-                  <input
-                    type="tel"
-                    value={newLender.phone}
-                    onChange={(e) => setNewLender({...newLender, phone: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="+1234567890"
-                    required
-                  />
-                </div>
+                <PhoneNumberInput
+                  value={newLender.phone}
+                  onChange={(fullPhone) => setNewLender({...newLender, phone: fullPhone})}
+                  label="Phone"
+                  required
+                />
 
                 {/* Conditional fields based on lender type */}
                 {newLender.lenderType === 'individual' ? (
-                  <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">
-                      National ID *
-                    </label>
-                    <input
-                      type="text"
-                      value={newLender.nationalId}
-                      onChange={(e) => setNewLender({...newLender, nationalId: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="63-123456A78"
-                      required
-                    />
-                  </div>
+                  <NationalIdInput
+                    value={newLender.nationalId}
+                    templateId={newLender.nationalIdTemplateId}
+                    onChange={(nationalId, templateId) => setNewLender({...newLender, nationalId, nationalIdTemplateId: templateId || ''})}
+                    label="National ID"
+                    required
+                  />
                 ) : (
                   <>
                     <div>
@@ -721,33 +712,21 @@ export default function LendersManagementPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Phone *
-                  </label>
-                  <input
-                    type="tel"
-                    value={selectedLender.phone}
-                    onChange={(e) => setSelectedLender({...selectedLender, phone: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
+                <PhoneNumberInput
+                  value={selectedLender.phone}
+                  onChange={(fullPhone) => setSelectedLender({...selectedLender, phone: fullPhone})}
+                  label="Phone"
+                  required
+                />
 
                 {/* Conditional fields based on lender type */}
                 {selectedLender.lenderType === 'individual' ? (
-                  <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">
-                      National ID *
-                    </label>
-                    <input
-                      type="text"
-                      value={selectedLender.nationalId || ''}
-                      onChange={(e) => setSelectedLender({...selectedLender, nationalId: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
+                  <NationalIdInput
+                    value={selectedLender.nationalId || ''}
+                    onChange={(nationalId) => setSelectedLender({...selectedLender, nationalId})}
+                    label="National ID"
+                    required
+                  />
                 ) : (
                   <>
                     <div>

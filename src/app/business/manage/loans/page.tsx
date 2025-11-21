@@ -12,6 +12,8 @@ import { BusinessBalanceDisplay } from '@/components/business/business-balance-d
 import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { BalanceValidationWarning } from '@/components/business/balance-validation-warning'
 import { useBusinessBalance } from '@/hooks/useBusinessBalance'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { NationalIdInput } from '@/components/ui/national-id-input'
 import Link from 'next/link'
 
 interface Business {
@@ -76,6 +78,24 @@ export default function BusinessLoansPage() {
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
   const [loanFilter, setLoanFilter] = useState<'all' | 'business' | 'external_lender' | 'business_to_person'>('all')
   const [selectedBreakdownBusinessId, setSelectedBreakdownBusinessId] = useState<string>('')
+
+  // Quick lender creation modal
+  const [showQuickLenderModal, setShowQuickLenderModal] = useState(false)
+  const [quickLender, setQuickLender] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    nationalId: '',
+    nationalIdTemplateId: '',
+    address: '',
+    lenderType: 'individual' as 'individual' | 'bank',
+    notes: '',
+    bankRegistrationNo: '',
+    swiftCode: '',
+    branchCode: '',
+    city: '',
+    country: ''
+  })
 
   // Handle viewLoan query parameter to auto-open loan details
   const viewLoanId = searchParams.get('viewLoan')
@@ -218,6 +238,64 @@ export default function BusinessLoansPage() {
     } catch (error) {
       console.error('Failed to fetch lenders:', error)
       setLenders([])
+    }
+  }
+
+  const handleQuickLenderCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Validation based on lender type
+    if (quickLender.lenderType === 'bank') {
+      if (!quickLender.fullName || !quickLender.phone || !quickLender.bankRegistrationNo || !quickLender.address || !quickLender.city || !quickLender.country) {
+        await customAlert({ title: 'Validation', description: 'Bank name, phone, registration number, address, city, and country are required for banks' })
+        return
+      }
+    } else {
+      if (!quickLender.fullName || !quickLender.phone || !quickLender.nationalId) {
+        await customAlert({ title: 'Validation', description: 'Full name, phone, and national ID are required for individuals' })
+        return
+      }
+    }
+
+    try {
+      const response = await fetch('/api/business/lenders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(quickLender)
+      })
+
+      if (response.ok) {
+        const newLenderData = await response.json()
+        await fetchLenders()
+        // Auto-select the newly created lender
+        if (newLenderData.id) {
+          setNewLoan(prev => ({ ...prev, lenderPersonId: newLenderData.id }))
+        }
+        setShowQuickLenderModal(false)
+        setQuickLender({
+          fullName: '',
+          email: '',
+          phone: '',
+          nationalId: '',
+          nationalIdTemplateId: '',
+          address: '',
+          lenderType: 'individual',
+          notes: '',
+          bankRegistrationNo: '',
+          swiftCode: '',
+          branchCode: '',
+          city: '',
+          country: ''
+        })
+        await customAlert({ title: 'Success', description: 'Lender created! You can now select them from the dropdown.' })
+      } else {
+        const error = await response.json()
+        await customAlert({ title: 'Error', description: error.error || 'Failed to create lender' })
+      }
+    } catch (error) {
+      console.error('Error creating lender:', error)
+      await customAlert({ title: 'Error', description: 'Error creating lender' })
     }
   }
 
@@ -764,7 +842,14 @@ export default function BusinessLoansPage() {
                         💡 External lenders (individuals/banks) manage their own funds. No balance validation required.
                       </p>
                       <p className="text-xs text-blue-600 dark:text-blue-400">
-                        Don&apos;t see your lender? <Link href="/business/manage/lenders" className="underline font-medium hover:text-blue-800 dark:hover:text-blue-300">Create a new lender</Link>
+                        Don&apos;t see your lender?{' '}
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickLenderModal(true)}
+                          className="underline font-medium hover:text-blue-800 dark:hover:text-blue-300"
+                        >
+                          Create a new lender
+                        </button>
                       </p>
                     </div>
                   </div>
@@ -1257,6 +1342,152 @@ export default function BusinessLoansPage() {
                     {paymentValidation && !paymentValidation.isValid
                       ? 'Insufficient Funds'
                       : `Process ${newPayment.transactionType === 'payment' ? 'Payment' : 'Advance'}`}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Lender Creation Modal */}
+        {showQuickLenderModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-semibold text-primary">Quick Add Lender</h2>
+                <button
+                  onClick={() => setShowQuickLenderModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleQuickLenderCreate} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">Lender Type *</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="quickLenderType"
+                        value="individual"
+                        checked={quickLender.lenderType === 'individual'}
+                        onChange={() => setQuickLender({...quickLender, lenderType: 'individual'})}
+                        className="mr-2"
+                      />
+                      👤 Individual
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="quickLenderType"
+                        value="bank"
+                        checked={quickLender.lenderType === 'bank'}
+                        onChange={() => setQuickLender({...quickLender, lenderType: 'bank'})}
+                        className="mr-2"
+                      />
+                      🏦 Bank
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    {quickLender.lenderType === 'bank' ? 'Bank Name' : 'Full Name'} *
+                  </label>
+                  <input
+                    type="text"
+                    value={quickLender.fullName}
+                    onChange={(e) => setQuickLender({...quickLender, fullName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={quickLender.lenderType === 'bank' ? 'ZB Bank' : 'John Doe'}
+                    required
+                  />
+                </div>
+
+                <PhoneNumberInput
+                  value={quickLender.phone}
+                  onChange={(fullPhone) => setQuickLender({...quickLender, phone: fullPhone})}
+                  label="Phone"
+                  required
+                />
+
+                {quickLender.lenderType === 'individual' ? (
+                  <NationalIdInput
+                    value={quickLender.nationalId}
+                    templateId={quickLender.nationalIdTemplateId}
+                    onChange={(nationalId, templateId) => setQuickLender({...quickLender, nationalId, nationalIdTemplateId: templateId || ''})}
+                    label="National ID"
+                    required
+                  />
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">Bank Registration No *</label>
+                      <input
+                        type="text"
+                        value={quickLender.bankRegistrationNo}
+                        onChange={(e) => setQuickLender({...quickLender, bankRegistrationNo: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="REG123456"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-2">City *</label>
+                        <input
+                          type="text"
+                          value={quickLender.city}
+                          onChange={(e) => setQuickLender({...quickLender, city: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Harare"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-2">Country *</label>
+                        <input
+                          type="text"
+                          value={quickLender.country}
+                          onChange={(e) => setQuickLender({...quickLender, country: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Zimbabwe"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Address {quickLender.lenderType === 'bank' ? '*' : ''}
+                  </label>
+                  <input
+                    type="text"
+                    value={quickLender.address}
+                    onChange={(e) => setQuickLender({...quickLender, address: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="123 Main St"
+                    required={quickLender.lenderType === 'bank'}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickLenderModal(false)}
+                    className="px-4 py-2 text-sm font-medium text-secondary bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+                  >
+                    Create & Select
                   </button>
                 </div>
               </form>
