@@ -61,6 +61,9 @@ export async function GET(request: NextRequest) {
     const businessType = searchParams.get('businessType')
     const timezone = searchParams.get('timezone') || 'America/New_York'
     const requestedDate = searchParams.get('date') // Optional: specific date for historical reports
+    const startDate = searchParams.get('startDate') // Optional: start date for date range
+    const endDate = searchParams.get('endDate') // Optional: end date for date range
+    const employeeId = searchParams.get('employeeId') // Optional: filter by sales person
 
     if (!businessId) {
       return NextResponse.json({ error: 'businessId required' }, { status: 400 })
@@ -73,10 +76,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions to access financial data' }, { status: 403 })
     }
 
-    // Get business day (either requested date or today)
+    // Get business day (date range, requested date, or today)
     let start: Date, end: Date, dateStr: string
 
-    if (requestedDate) {
+    if (startDate && endDate) {
+      // Date range query: use provided start and end dates
+      const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
+      const [endYear, endMonth, endDay] = endDate.split('-').map(Number)
+      start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0)
+      end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59)
+      dateStr = `${startDate} to ${endDate}`
+    } else if (requestedDate) {
       // Historical report: use the requested date
       const [year, month, day] = requestedDate.split('-').map(Number)
       start = new Date(year, month - 1, day, 5, 0, 0)
@@ -102,6 +112,11 @@ export async function GET(request: NextRequest) {
     // Add business type filter if specified
     if (businessType) {
       whereClause.businessType = businessType
+    }
+
+    // Add employee filter if specified (for commission reports)
+    if (employeeId) {
+      whereClause.employeeId = employeeId
     }
 
     // Get all orders for today
@@ -181,23 +196,44 @@ export async function GET(request: NextRequest) {
     > = {}
 
     orders.forEach(order => {
-      order.business_order_items.forEach(item => {
-        const product = item.product_variants?.business_products
-        const category = product?.business_categories
-        const categoryId = category?.id || 'uncategorized'
-        const categoryName = category?.name || 'Uncategorized'
+      // Check if order has category data in attributes (from seed data)
+      const orderAttributes = order.attributes as any
+      if (orderAttributes?.categories && Array.isArray(orderAttributes.categories)) {
+        orderAttributes.categories.forEach((cat: any) => {
+          const categoryName = cat.name || 'Uncategorized'
+          const categoryId = categoryName.toLowerCase().replace(/\s+/g, '-')
 
-        if (!categoryBreakdown[categoryId]) {
-          categoryBreakdown[categoryId] = {
-            name: categoryName,
-            itemCount: 0,
-            totalSales: 0,
+          if (!categoryBreakdown[categoryId]) {
+            categoryBreakdown[categoryId] = {
+              name: categoryName,
+              itemCount: 0,
+              totalSales: 0,
+            }
           }
-        }
 
-        categoryBreakdown[categoryId].itemCount += item.quantity
-        categoryBreakdown[categoryId].totalSales += Number(item.totalPrice || 0)
-      })
+          categoryBreakdown[categoryId].itemCount += cat.quantity || 0
+          categoryBreakdown[categoryId].totalSales += Number(cat.total || 0)
+        })
+      } else {
+        // Fallback to product-based category lookup
+        order.business_order_items.forEach(item => {
+          const product = item.product_variants?.business_products
+          const category = product?.business_categories
+          const categoryId = category?.id || item.notes?.toLowerCase().replace(/\s+/g, '-') || 'uncategorized'
+          const categoryName = category?.name || item.notes || 'Uncategorized'
+
+          if (!categoryBreakdown[categoryId]) {
+            categoryBreakdown[categoryId] = {
+              name: categoryName,
+              itemCount: 0,
+              totalSales: 0,
+            }
+          }
+
+          categoryBreakdown[categoryId].itemCount += item.quantity
+          categoryBreakdown[categoryId].totalSales += Number(item.totalPrice || 0)
+        })
+      }
     })
 
     // Group by order status

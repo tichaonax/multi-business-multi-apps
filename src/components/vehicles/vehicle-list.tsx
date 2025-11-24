@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
-import { Vehicle, VehicleApiResponse } from '@/types/vehicle'
+import { Vehicle, VehicleApiResponse, VehicleLicense } from '@/types/vehicle'
 import { LicenseStatusIndicator } from './license-status-indicator'
+import { LicenseDetailModal } from './license-detail-modal'
+import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
 interface VehicleListProps {
   onVehicleSelect?: (vehicle: Vehicle) => void
@@ -15,13 +18,29 @@ interface VehicleListProps {
 }
 
 export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, updatedVehicleId, updateSeq }: VehicleListProps) {
+  const { data: session } = useSession()
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [viewingLicense, setViewingLicense] = useState<VehicleLicense | null>(null)
   // Keep a ref to the current in-flight request so we can cancel it
   const controllerRef = useRef<AbortController | null>(null)
+
+  // Check if user has permission to delete vehicles
+  const canDeleteVehicles = session?.user && isSystemAdmin(session.user as SessionUser)
+
+  // Check if vehicle can be deleted (has no related data)
+  const canDeleteVehicle = (vehicle: Vehicle): boolean => {
+    const hasTrips = vehicle.trips && vehicle.trips.length > 0
+    const hasLicenses = vehicle.vehicleLicenses && vehicle.vehicleLicenses.length > 0
+    const hasMaintenance = vehicle.maintenanceRecords && vehicle.maintenanceRecords.length > 0
+    const hasExpenses = vehicle.expenseRecords && vehicle.expenseRecords.length > 0
+    const hasAuthorizations = vehicle.driverAuthorizations && vehicle.driverAuthorizations.length > 0
+
+    return !hasTrips && !hasLicenses && !hasMaintenance && !hasExpenses && !hasAuthorizations
+  }
 
   const fetchVehicles = async () => {
     // Abort any previous in-flight request
@@ -101,10 +120,23 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
     // Trigger when the sequence increments (so same id repeated will still refetch)
   }, [updatedVehicleId, updateSeq])
 
-  const handleDelete = async (vehicleId: string) => {
+  const handleDelete = async (vehicle: Vehicle) => {
+    // Check if vehicle has related data
+    const relatedData = []
+    if (vehicle.trips && vehicle.trips.length > 0) relatedData.push('trips')
+    if (vehicle.vehicleLicenses && vehicle.vehicleLicenses.length > 0) relatedData.push('licenses')
+    if (vehicle.maintenanceRecords && vehicle.maintenanceRecords.length > 0) relatedData.push('maintenance records')
+    if (vehicle.expenseRecords && vehicle.expenseRecords.length > 0) relatedData.push('expenses')
+    if (vehicle.driverAuthorizations && vehicle.driverAuthorizations.length > 0) relatedData.push('driver authorizations')
+
+    if (relatedData.length > 0) {
+      toast.push(`Cannot delete vehicle: It has ${relatedData.join(', ')}. Please remove these first.`)
+      return
+    }
+
     const ok = await confirm({
       title: 'Delete vehicle',
-      description: 'Are you sure you want to delete this vehicle? This action cannot be undone.',
+      description: `Are you sure you want to delete ${vehicle.make} ${vehicle.model} (${vehicle.licensePlate})? This action cannot be undone.`,
       confirmText: 'Delete',
       cancelText: 'Cancel'
     })
@@ -112,7 +144,7 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
     if (!ok) return
 
     try {
-      const response = await fetch(`/api/vehicles?id=${vehicleId}`, {
+      const response = await fetch(`/api/vehicles?id=${vehicle.id}`, {
         method: 'DELETE',
       })
 
@@ -122,10 +154,11 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
         throw new Error(result.error || 'Failed to delete vehicle')
       }
 
+      toast.push('Vehicle deleted successfully')
       // Refresh the list
       fetchVehicles()
     } catch (err) {
-  toast.push(err instanceof Error ? err.message : 'Failed to delete vehicle')
+      toast.push(err instanceof Error ? err.message : 'Failed to delete vehicle')
     }
   }
 
@@ -253,6 +286,7 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
                           <LicenseStatusIndicator
                             licenses={vehicle.vehicleLicenses}
                             compact={true}
+                            onLicenseClick={(license) => setViewingLicense(license)}
                           />
                         </div>
                       )}
@@ -279,9 +313,17 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          handleDelete(vehicle.id)
+                          handleDelete(vehicle)
                         }}
-                        className="w-full sm:w-auto px-3 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-center cursor-pointer"
+                        disabled={!canDeleteVehicles || !canDeleteVehicle(vehicle)}
+                        title={
+                          !canDeleteVehicles
+                            ? 'You do not have permission to delete vehicles'
+                            : !canDeleteVehicle(vehicle)
+                            ? 'Cannot delete vehicle with existing trips, licenses, maintenance, expenses, or driver authorizations'
+                            : 'Delete vehicle'
+                        }
+                        className="w-full sm:w-auto px-3 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Delete
                       </button>
@@ -318,6 +360,15 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
           </>
         )}
       </div>
+
+      {/* License Detail Modal */}
+      {viewingLicense && (
+        <LicenseDetailModal
+          license={viewingLicense}
+          onClose={() => setViewingLicense(null)}
+          canEdit={false}
+        />
+      )}
     </div>
   )
 }

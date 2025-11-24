@@ -140,7 +140,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const supervisor = supervisorId ? await prisma.employees.findUnique({
       where: { id: supervisorId },
-      include: { jobTitles: true }
+      include: { job_titles: true }
     }) : null
 
     // Use transaction to create the new contract. When called via seed API key
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         primaryBusinessId,
         supervisorId: supervisorId || null,
         supervisorName: supervisor?.fullName || null,
-        supervisorTitle: supervisor?.jobTitles?.title || null,
+        supervisorTitle: supervisor?.job_titles?.title || null,
         previousContractId: previousContractId || null,
         isCommissionBased: false,
         isSalaryBased: true,

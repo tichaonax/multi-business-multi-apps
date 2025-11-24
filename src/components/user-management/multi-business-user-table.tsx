@@ -43,14 +43,16 @@ interface MultiBusinessUserTableProps {
   onEditUser?: (user: User) => void
   onManagePermissions?: (user: User, businessId: string) => void
   onDeactivateUser?: (user: User) => void
+  onCreateEmployee?: (userId: string) => void
 }
 
-export function MultiBusinessUserTable({ 
-  users, 
-  currentUser, 
-  onEditUser, 
+export function MultiBusinessUserTable({
+  users,
+  currentUser,
+  onEditUser,
   onManagePermissions,
-  onDeactivateUser
+  onDeactivateUser,
+  onCreateEmployee
 }: MultiBusinessUserTableProps) {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'current' | 'all'>('current')
@@ -143,6 +145,7 @@ export function MultiBusinessUserTable({
                     onEdit={onEditUser}
                     onManagePermissions={onManagePermissions}
                     onDeactivateUser={onDeactivateUser}
+                    onCreateEmployee={onCreateEmployee}
                     currentUserBusinessIds={currentUserBusinessIds}
                   />
                 ))
@@ -163,6 +166,7 @@ interface UserRowProps {
   onEdit?: (user: User) => void
   onManagePermissions?: (user: User, businessId: string) => void
   onDeactivateUser?: (user: User) => void
+  onCreateEmployee?: (userId: string) => void
   currentUserBusinessIds: string[]
 }
 
@@ -174,6 +178,7 @@ function UserRow({
   onEdit,
   onManagePermissions,
   onDeactivateUser,
+  onCreateEmployee,
   currentUserBusinessIds
 }: UserRowProps) {
   const activeMemberships = user.businessMemberships?.filter(m => m.isActive) || []
@@ -226,13 +231,22 @@ function UserRow({
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <div className="font-medium text-gray-900 dark:text-white">{user.name}</div>
-                {user.employee && (
+                {user.employee ? (
                   <Link href={`/employees/${user.employee.id}`}>
                     <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded border border-blue-300 hover:bg-blue-200 dark:hover:bg-blue-700 cursor-pointer transition-colors">
                       <span className="mr-1">👷</span>
                       Employee
                     </span>
                   </Link>
+                ) : onCreateEmployee && (
+                  <button
+                    onClick={() => onCreateEmployee(user.id)}
+                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded border border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
+                    title="Create employee record for this user"
+                  >
+                    <span className="mr-1">➕</span>
+                    Create Employee
+                  </button>
                 )}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">{user.email}</div>

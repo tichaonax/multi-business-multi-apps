@@ -651,6 +651,16 @@ function GroceryPOSContent() {
         />
       </div>
 
+      {/* Reports Link */}
+      <div className="mb-4">
+        <a
+          href="/grocery/reports"
+          className="inline-block px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md hover:shadow-lg font-medium"
+        >
+          📊 View Sales Reports & Analytics
+        </a>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Main POS Area */}
         <div className="lg:col-span-2 space-y-4">

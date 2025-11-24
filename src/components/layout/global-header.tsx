@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
@@ -18,12 +18,143 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const pathname = usePathname()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showThemeMenu, setShowThemeMenu] = useState(false)
+  const [showBusinessMenu, setShowBusinessMenu] = useState(false)
+  const businessMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Business permissions context
   const {
     currentBusiness,
     isAuthenticated
   } = useBusinessPermissionsContext()
+
+  // Business menu hover handlers
+  const handleBusinessMenuEnter = () => {
+    if (businessMenuTimeoutRef.current) {
+      clearTimeout(businessMenuTimeoutRef.current)
+    }
+    businessMenuTimeoutRef.current = setTimeout(() => {
+      setShowBusinessMenu(true)
+    }, 300) // 300ms delay
+  }
+
+  const handleBusinessMenuLeave = () => {
+    if (businessMenuTimeoutRef.current) {
+      clearTimeout(businessMenuTimeoutRef.current)
+    }
+    businessMenuTimeoutRef.current = setTimeout(() => {
+      setShowBusinessMenu(false)
+    }, 150) // 150ms delay to hide
+  }
+
+  // Get business-specific menu links
+  const getBusinessMenuLinks = (businessType: string, currentPathname: string) => {
+    const baseLinks = [
+      {
+        href: `/${businessType}`,
+        icon: '🏠',
+        label: `${businessType.charAt(0).toUpperCase() + businessType.slice(1)} Home`
+      }
+    ]
+
+    const businessSpecificLinks = {
+      restaurant: [
+        { href: `/${businessType}/pos`, icon: '🍽️', label: 'POS System' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports' },
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/menu`, icon: '📋', label: 'Menu Management' },
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+      ],
+      grocery: [
+        { href: `/${businessType}/pos`, icon: '🛒', label: 'POS System' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports' },
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/products`, icon: '📦', label: 'Products' },
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+      ],
+      clothing: [
+        { href: `/${businessType}/pos`, icon: '👕', label: 'POS System' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports' },
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/products`, icon: '👗', label: 'Products' },
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+      ],
+      hardware: [
+        { href: `/${businessType}/pos`, icon: '🔧', label: 'POS System' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports' },
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/products`, icon: '🛠️', label: 'Products' },
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+      ]
+    }
+
+    const allLinks = [
+      ...baseLinks,
+      ...(businessSpecificLinks[businessType as keyof typeof businessSpecificLinks] || [])
+    ]
+
+    // Filter out the current page from the menu
+    return allLinks.filter(link => {
+      // If we're on the exact business home page, exclude the home link
+      if (currentPathname === `/${businessType}` && link.href === `/${businessType}`) {
+        return false
+      }
+
+      // If we're on a specific module page, exclude that module from the menu
+      const pathSegments = currentPathname.split('/').filter(Boolean)
+      if (pathSegments.length >= 2 && pathSegments[0] === businessType) {
+        const currentModule = pathSegments[1]
+        // Check if this link matches the current module
+        if (link.href === `/${businessType}/${currentModule}`) {
+          return false
+        }
+        // Special case for reports - exclude if we're on any reports page
+        if (currentModule === 'reports' && link.href.startsWith(`/${businessType}/reports`)) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }
+
+  // Function to get navigation path that preserves current module when switching businesses
+  const getBusinessNavigationPath = (targetBusinessType: string): string => {
+    const currentPath = pathname
+    let targetPath = `/${targetBusinessType}` // Default to business homepage
+
+    // Check if we're currently on a business-specific module page
+    const businessModules = ['pos', 'reports', 'inventory', 'products', 'menu', 'orders', 'employees', 'suppliers', 'customers']
+    const pathSegments = currentPath.split('/').filter(Boolean)
+
+    if (pathSegments.length >= 2) {
+      const currentBusinessType = pathSegments[0]
+      const currentModule = pathSegments[1]
+
+      // If we're on a business module page, preserve the module for the new business
+      if (businessModules.includes(currentModule) && ['restaurant', 'grocery', 'clothing', 'hardware'].includes(currentBusinessType)) {
+        // Special handling for reports - they all use the same universal component
+        if (currentModule === 'reports') {
+          // Preserve the full reports sub-path (e.g., sales-analytics, dashboard, etc.)
+          const reportsSubPath = pathSegments.slice(2).join('/') // Get everything after /businessType/reports/
+          targetPath = reportsSubPath ? `/${targetBusinessType}/reports/${reportsSubPath}` : `/${targetBusinessType}/reports`
+        } else {
+          // For other modules, check if the target business supports this module
+          const supportedModules = {
+            restaurant: ['pos', 'reports', 'inventory', 'menu', 'orders', 'employees', 'suppliers', 'customers'],
+            grocery: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
+            clothing: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
+            hardware: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers']
+          }
+
+          if (supportedModules[targetBusinessType as keyof typeof supportedModules]?.includes(currentModule)) {
+            targetPath = `/${targetBusinessType}/${currentModule}`
+          }
+        }
+      }
+    }
+
+    return targetPath
+  }
 
   return (
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
@@ -45,26 +176,65 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
           <div className="flex items-center space-x-2 sm:space-x-4">
             {/* Business context indicator for all users */}
             {session?.user && isAuthenticated && currentBusiness && (
-              <Link
-                href={`/${currentBusiness.businessType}`}
-                className="hidden sm:flex items-center space-x-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer ml-4"
-                title={`Go to ${currentBusiness.businessName} ${currentBusiness.businessType} business`}
-              >
-                <span className="text-blue-600 dark:text-blue-400">🏢</span>
-                <div className="text-sm">
-                  <div className="font-medium text-blue-900 dark:text-blue-100 max-w-32 lg:max-w-48 truncate">
-                    {currentBusiness.businessName}
+              <div className="relative">
+                <Link
+                  href={`/${currentBusiness.businessType}`}
+                  className="hidden sm:flex items-center space-x-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer ml-4"
+                  title={`Go to ${currentBusiness.businessName} ${currentBusiness.businessType} business`}
+                  onMouseEnter={handleBusinessMenuEnter}
+                  onMouseLeave={handleBusinessMenuLeave}
+                >
+                  <span className="text-blue-600 dark:text-blue-400">🏢</span>
+                  <div className="text-sm">
+                    <div className="font-medium text-blue-900 dark:text-blue-100 max-w-32 lg:max-w-48 truncate">
+                      {currentBusiness.businessName}
+                    </div>
+                    <div className="text-xs text-blue-600 dark:text-blue-400 capitalize">
+                      {currentBusiness.businessType}
+                    </div>
                   </div>
-                  <div className="text-xs text-blue-600 dark:text-blue-400 capitalize">
-                    {currentBusiness.businessType}
-                  </div>
-                </div>
-                {isSystemAdmin(session.user as SessionUser) && (
-                  <div className="hidden lg:block text-xs text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded">
-                    Admin
+                  {isSystemAdmin(session.user as SessionUser) && (
+                    <div className="hidden lg:block text-xs text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded">
+                      Admin
+                    </div>
+                  )}
+                </Link>
+
+                {/* Business hover menu */}
+                {showBusinessMenu && (
+                  <div 
+                    className="absolute top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+                    onMouseEnter={handleBusinessMenuEnter}
+                    onMouseLeave={handleBusinessMenuLeave}
+                  >
+                    <div className="py-2">
+                      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {currentBusiness.businessName}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          {currentBusiness.businessType} Business
+                        </p>
+                      </div>
+                      
+                      <div className="py-1">
+                        {/* Business-specific links */}
+                        {getBusinessMenuLinks(currentBusiness.businessType, pathname).map((link, index) => (
+                          <Link
+                            key={index}
+                            href={link.href}
+                            className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            onClick={() => setShowBusinessMenu(false)}
+                          >
+                            <span>{link.icon}</span>
+                            <span>{link.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
-              </Link>
+              </div>
             )}
             {session?.user && (
               <>

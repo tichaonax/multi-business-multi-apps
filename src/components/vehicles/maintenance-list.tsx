@@ -12,9 +12,10 @@ interface MaintenanceListProps {
   onMaintenanceSelect?: (maintenance: VehicleMaintenanceRecord) => void
   onAddMaintenance?: () => void
   vehicleId?: string
+  refreshSignal?: number
 }
 
-export function MaintenanceList({ onMaintenanceSelect, onAddMaintenance, vehicleId }: MaintenanceListProps) {
+export function MaintenanceList({ onMaintenanceSelect, onAddMaintenance, vehicleId, refreshSignal }: MaintenanceListProps) {
   const [maintenanceRecords, setMaintenanceRecords] = useState<VehicleMaintenanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -84,7 +85,7 @@ export function MaintenanceList({ onMaintenanceSelect, onAddMaintenance, vehicle
     return () => {
       controllerRef.current?.abort()
     }
-  }, [page, debouncedFilter])
+  }, [page, debouncedFilter, refreshSignal])
 
   // Debounce the filter updates so we don't refetch while the user is typing
   useEffect(() => {

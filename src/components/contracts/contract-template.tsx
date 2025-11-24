@@ -183,7 +183,7 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             </>
           )}
           <h1 className={`${contractData.umbrellaBusinessName ? 'text-xl' : 'text-2xl'} font-bold mb-2`}>
-            {contractData.businesses.name}
+            {contractData.business.name}
           </h1>
           <h2 className="text-xl mb-4">CONTRACT OF EMPLOYMENT</h2>
           <div className="text-sm">
@@ -196,15 +196,15 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
         {/* Parties */}
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-3">PARTIES TO THE CONTRACT</h3>
-          
+
           <div className="mb-4">
             <h4 className="font-semibold mb-2">EMPLOYER:</h4>
-            <p className="mb-1"><strong>{contractData.businesses.name}</strong></p>
-            <p className="mb-1">Business Type: {contractData.businesses.type.charAt(0).toUpperCase() + contractData.businesses.type.slice(1)}</p>
-            {contractData.businesses.address && <p className="mb-1">Address: {contractData.businesses.address}</p>}
-            {contractData.businesses.phone && <p className="mb-1">Phone: {contractData.businesses.phone}</p>}
-            {contractData.businesses.email && <p className="mb-1">Email: {contractData.businesses.email}</p>}
-            {contractData.businesses.registrationNumber && <p>Registration Number: {contractData.businesses.registrationNumber}</p>}
+            <p className="mb-1"><strong>{contractData.business.name}</strong></p>
+            <p className="mb-1">Business Type: {contractData.business.type.charAt(0).toUpperCase() + contractData.business.type.slice(1)}</p>
+            {contractData.business.address && <p className="mb-1">Address: {contractData.business.address}</p>}
+            {contractData.business.phone && <p className="mb-1">Phone: {contractData.business.phone}</p>}
+            {contractData.business.email && <p className="mb-1">Email: {contractData.business.email}</p>}
+            {contractData.business.registrationNumber && <p>Registration Number: {contractData.business.registrationNumber}</p>}
           </div>
 
           <div className="mb-4">
@@ -239,7 +239,7 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p className="font-semibold mb-2">1. JOB TITLE</p>
               <p className="ml-4">
-                Your position will be {contractData.jobTitle.title} at {contractData.businesses.name}. You will report to the manager or any delegated official, whom you will be under direct supervision and answerable to.
+                Your position will be {contractData.jobTitle.title} at {contractData.business.name}. You will report to the manager or any delegated official, whom you will be under direct supervision and answerable to.
               </p>
             </div>
             
@@ -256,7 +256,7 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
                 2.2 You shall perform such duties as defined in the job description and in accordance with the standards of performance set out and agreed to with your immediate supervisor. This will be signed separately.
               </p>
               <p className="ml-4 mb-3">
-                2.3 Nothing contained in this clause shall preclude {contractData.businesses.name} from assigning you and/or transferring you from time to time to such other duties and responsibilities appropriate to your qualifications and experience without changing the essential character of this contract.
+                2.3 Nothing contained in this clause shall preclude {contractData.business.name} from assigning you and/or transferring you from time to time to such other duties and responsibilities appropriate to your qualifications and experience without changing the essential character of this contract.
               </p>
               
               <div className="ml-4">
@@ -392,7 +392,7 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p className="font-semibold">3. DURATION OF THE CONTRACT</p>
               <p className="ml-4 mb-2">
-                3.1 You shall serve {contractData.businesses.name} on a {contractData.endDate ? 
+                3.1 You shall serve {contractData.business.name} on a {contractData.endDate ? 
                   (() => {
                     const startDate = new Date(contractData.startDate);
                     const endDate = new Date(contractData.endDate);
@@ -402,7 +402,7 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
                 } months renewable contract commencing {formatDate(contractData.startDate)}
               </p>
               <p className="ml-4">
-                3.2 {contractData.businesses.name} uses the Balanced Scorecard Performance Management System which is the basis upon which terms of employment contract are determined. However, NEC relevant to our industry rates take precedence.
+                3.2 {contractData.business.name} uses the Balanced Scorecard Performance Management System which is the basis upon which terms of employment contract are determined. However, NEC relevant to our industry rates take precedence.
               </p>
             </div>
 
@@ -433,33 +433,33 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p className="font-semibold">7. DUTY OF CARE AND CONFIDENTIALITY</p>
               <p className="ml-4 mb-2">
-                7.1 All work conducted by {contractData.businesses.name} is confidential. Under no circumstances may information be divulged to persons inside or outside the organization concerning office matters, business issues, salaries or conditions of service, or customer (guest or punter) information. Any breach of confidentiality will result in disciplinary action being taken against you.
+                7.1 All work conducted by {contractData.business.name} is confidential. Under no circumstances may information be divulged to persons inside or outside the organization concerning office matters, business issues, salaries or conditions of service, or customer (guest or punter) information. Any breach of confidentiality will result in disciplinary action being taken against you.
               </p>
               <p className="ml-4 mb-2">
-                7.2 You shall exercise all reasonable care and diligence in the performance of your duties in accordance with the {contractData.businesses.name} Human Resources procedures, policies and regulations and Code of Conduct that is, Statutory Instrument 15 of 2006 or it's any subsequent amendments thereof which l have read and understood.
+                7.2 You shall exercise all reasonable care and diligence in the performance of your duties in accordance with the {contractData.business.name} Human Resources procedures, policies and regulations and Code of Conduct that is, Statutory Instrument 15 of 2006 or it's any subsequent amendments thereof which l have read and understood.
               </p>
               <p className="ml-4">
-                7.3 You shall not, during the term of this contract or thereafter, without consent of the {contractData.businesses.name}, disclose any matter concerning the {contractData.businesses.name} business which came to your knowledge in the course of or incidental to your being employed by the {contractData.businesses.name} except so far as may be necessary and proper for the conduct of {contractData.businesses.name} business and in accordance with the Human Resources procedures, regulations and policies Code of Conduct that is Statutory Instrument 15 of 2006 or its subsequent amendments thereof.
+                7.3 You shall not, during the term of this contract or thereafter, without consent of the {contractData.business.name}, disclose any matter concerning the {contractData.business.name} business which came to your knowledge in the course of or incidental to your being employed by the {contractData.business.name} except so far as may be necessary and proper for the conduct of {contractData.business.name} business and in accordance with the Human Resources procedures, regulations and policies Code of Conduct that is Statutory Instrument 15 of 2006 or its subsequent amendments thereof.
               </p>
             </div>
 
             <div>
               <p className="font-semibold">8. COMMUNICATION, TEAMWORK AND PERFORMANCE</p>
               <p className="ml-4">
-                8.1 It is essential that you develop an understanding of {contractData.businesses.name} issues. {contractData.businesses.name} expects a high standard of commitment from you. Communication and teamwork are very important, and {contractData.businesses.name} expects you to make your contribution and play your part in ensuring the success of the organisation. It is essential for you to take ownership of assignments, to achieve quality standards and to meet deadlines. There is a formal performance management system which you are required to implement for your team.
+                8.1 It is essential that you develop an understanding of {contractData.business.name} issues. {contractData.business.name} expects a high standard of commitment from you. Communication and teamwork are very important, and {contractData.business.name} expects you to make your contribution and play your part in ensuring the success of the organisation. It is essential for you to take ownership of assignments, to achieve quality standards and to meet deadlines. There is a formal performance management system which you are required to implement for your team.
               </p>
             </div>
 
             <div>
               <p className="font-semibold">9. INTEGRITY, EFFICIENCY, PASSION AND EXCELLENCE</p>
               <p className="ml-4 mb-2">
-                9.1 You shall conform to the highest standards as set out in the {contractData.businesses.name} Human Resources regulations and procedures, Code of Conduct and Policies.
+                9.1 You shall conform to the highest standards as set out in the {contractData.business.name} Human Resources regulations and procedures, Code of Conduct and Policies.
               </p>
               <p className="ml-4 mb-2">
-                9.2 {contractData.businesses.name} expects that the conduct of its entire staff with customers (guests and punters), business contacts, and members of the public and with superiors, colleagues and subordinates, will foster its image as one that has a commitment to its core values and integrity.
+                9.2 {contractData.business.name} expects that the conduct of its entire staff with customers (guests and punters), business contacts, and members of the public and with superiors, colleagues and subordinates, will foster its image as one that has a commitment to its core values and integrity.
               </p>
               <p className="ml-4 mb-2">
-                9.3 {contractData.businesses.name} expects you to adhere to and uphold the organisation's core values, and you may be subjected to security vetting during the subsistence of your contract. Your contract will be terminated in the event of you failing the vetting process and {contractData.businesses.name} shall not be under any obligation to give reasons for your failure.
+                9.3 {contractData.business.name} expects you to adhere to and uphold the organisation's core values, and you may be subjected to security vetting during the subsistence of your contract. Your contract will be terminated in the event of you failing the vetting process and {contractData.business.name} shall not be under any obligation to give reasons for your failure.
               </p>
               <p className="ml-4">
                 9.4 All disciplinary and grievance issues will be dealt with in terms of the Employment Code of Conduct and Grievance Procedures that apply to every employee that is Statutory Instrument 15 of 2006 or its subsequent amendments.
@@ -469,20 +469,20 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p className="font-semibold">10. CONFLICT OF INTEREST</p>
               <p className="ml-4 mb-2">
-                10.1 You are required to devote your attention at work to the affairs of {contractData.businesses.name}. You shall not be involved, either directly or indirectly, during or outside business hours in any business interests and/or private work that is adverse to, prejudicial to or competing with the interests of {contractData.businesses.name}.
+                10.1 You are required to devote your attention at work to the affairs of {contractData.business.name}. You shall not be involved, either directly or indirectly, during or outside business hours in any business interests and/or private work that is adverse to, prejudicial to or competing with the interests of {contractData.business.name}.
               </p>
               <p className="ml-4 mb-2">
-                10.2 Any business interests and/or private work must be declared at commencement of this appointment, and approval for any subsequent outside business interests and/or private work must be obtained from {contractData.businesses.name} through your superior.
+                10.2 Any business interests and/or private work must be declared at commencement of this appointment, and approval for any subsequent outside business interests and/or private work must be obtained from {contractData.business.name} through your superior.
               </p>
               <p className="ml-4">
-                10.3 Reasonable requests to carryout private work will not be refused, provided that there is no conflict of interest with {contractData.businesses.name}' work and use of {contractData.businesses.name} resources and facilities is not acceptable. The private work and outside interests must not have a negative effect on the {contractData.businesses.name}'s image and reputation and your ability to perform your duties.
+                10.3 Reasonable requests to carryout private work will not be refused, provided that there is no conflict of interest with {contractData.business.name}' work and use of {contractData.business.name} resources and facilities is not acceptable. The private work and outside interests must not have a negative effect on the {contractData.business.name}'s image and reputation and your ability to perform your duties.
               </p>
             </div>
 
             <div>
               <p className="font-semibold">11. CUSTOMER SERVICE</p>
               <p className="ml-4 mb-2">
-                11.1 This is a significant focus for {contractData.businesses.name}, and it is important that all staff demonstrate commitment to customer service. This includes providing high quality service, being responsive to customer queries, requests, complaints and problems. It also includes promoting the image of {contractData.businesses.name}.
+                11.1 This is a significant focus for {contractData.business.name}, and it is important that all staff demonstrate commitment to customer service. This includes providing high quality service, being responsive to customer queries, requests, complaints and problems. It also includes promoting the image of {contractData.business.name}.
               </p>
               <p className="ml-4">
                 11.2 It is important to ensure that you establish a culture with internal staff which is based on a commitment to performance, and which demonstrates responsiveness, willingness to help, compliance with procedures, a sense of urgency, attention to detail and maintaining effective relationships.
@@ -492,7 +492,7 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p className="font-semibold">12. TERMINATION OF THE CONTRACT</p>
               <p className="ml-4 mb-2">
-                12.1 {contractData.businesses.name} may at any time during the period of contract terminate your contract for misconduct, misbehaviour, non-performance in terms of your scorecard, inability to perform the functions of your office or any other reasonable cause determined by {contractData.businesses.name}.
+                12.1 {contractData.business.name} may at any time during the period of contract terminate your contract for misconduct, misbehaviour, non-performance in terms of your scorecard, inability to perform the functions of your office or any other reasonable cause determined by {contractData.business.name}.
               </p>
               <p className="ml-4">
                 12.2 Either party may terminate the contract by giving one month's notice in writing or paying to either party one month's salary in lieu of notices.
@@ -502,14 +502,14 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p className="font-semibold">13. CANCELLATION FOR MISREPRESENTATION/NON-DISCLOSURE</p>
               <p className="ml-4">
-                13.1 {contractData.businesses.name} shall summarily terminate this contract for misrepresentation or non-disclosure in the event of your failure to disclose material facts which you had an obligation to disclose prior to the signing of this contract, which material facts have a bearing on the subsistence of the contract.
+                13.1 {contractData.business.name} shall summarily terminate this contract for misrepresentation or non-disclosure in the event of your failure to disclose material facts which you had an obligation to disclose prior to the signing of this contract, which material facts have a bearing on the subsistence of the contract.
               </p>
             </div>
 
             <div>
               <p className="font-semibold">14. GENERAL CONDUCT</p>
               <p className="ml-4">
-                14.1 You shall conduct yourself in a manner which is not detrimental to {contractData.businesses.name} and shall have an acceptable behaviour which does not tarnish the
+                14.1 You shall conduct yourself in a manner which is not detrimental to {contractData.business.name} and shall have an acceptable behaviour which does not tarnish the
               </p>
             </div>
 

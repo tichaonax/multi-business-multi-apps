@@ -2,7 +2,7 @@
 
 import { BusinessProtectedRoute } from '@/components/auth/business-protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { formatDateByFormat } from '@/lib/country-codes'
@@ -62,7 +62,7 @@ interface Lender {
   lenderType: 'individual' | 'bank'
 }
 
-export default function BusinessLoansPage() {
+function BusinessLoansPageContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -1496,5 +1496,13 @@ export default function BusinessLoansPage() {
         )}
       </ContentLayout>
     </BusinessProtectedRoute>
+  )
+}
+
+export default function BusinessLoansPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
+      <BusinessLoansPageContent />
+    </Suspense>
   )
 }

@@ -14,6 +14,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import Link from 'next/link'
 
 // This would typically come from session/auth
 // const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
@@ -258,6 +259,16 @@ export default function ClothingPOSPage() {
                 )}
               </div>
             )}
+
+            {/* Reports Link */}
+            <div className="mb-4">
+              <Link
+                href="/clothing/reports/dashboard"
+                className="inline-block px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md hover:shadow-lg font-medium"
+              >
+                📊 View Sales Reports & Analytics
+              </Link>
+            </div>
 
             {/* Daily Sales Widget */}
             <DailySalesWidget

@@ -48,16 +48,19 @@ interface AddEmployeeModalProps {
   onClose: () => void
   onSuccess: (payload: OnSuccessArg) => void
   onError: (error: string) => void
+  userId?: string // Optional userId for pre-population
 }
 
-export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmployeeModalProps) {
+export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError, userId }: AddEmployeeModalProps) {
   const [loading, setLoading] = useState(false)
+  const [loadingUserData, setLoadingUserData] = useState(false)
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [jobTitles, setJobTitles] = useState<JobTitle[]>([])
   const [compensationTypes, setCompensationTypes] = useState<CompensationType[]>([])
   const [supervisors, setSupervisors] = useState<Employee[]>([])
   const [showAddCompensationTypeModal, setShowAddCompensationTypeModal] = useState(false)
   const [showAddJobTitleModal, setShowAddJobTitleModal] = useState(false)
+  const [linkedUser, setLinkedUser] = useState<{ id: string; name: string; email: string } | null>(null)
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -91,6 +94,47 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
     }
   }, [isOpen])
 
+  // Load user data if userId provided
+  useEffect(() => {
+    if (isOpen && userId) {
+      loadUserData(userId)
+    }
+  }, [isOpen, userId])
+
+  const loadUserData = async (userId: string) => {
+    setLoadingUserData(true)
+    try {
+      const response = await fetch(`/api/admin/users?userId=${userId}`)
+      if (response.ok) {
+        const users = await response.json()
+        const user = users.find((u: any) => u.id === userId)
+
+        if (user) {
+          setLinkedUser({ id: user.id, name: user.name, email: user.email })
+
+          // Parse name into firstName and lastName
+          const nameParts = user.name.split(' ')
+          const firstName = nameParts[0] || ''
+          const lastName = nameParts.slice(1).join(' ') || nameParts[0] || ''
+
+          // Pre-populate form
+          setFormData(prev => ({
+            ...prev,
+            firstName,
+            lastName,
+            email: user.email || '',
+            phone: user.phone || '' // If available
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error)
+      onError('Failed to load user data')
+    } finally {
+      setLoadingUserData(false)
+    }
+  }
+
   const loadFormData = async () => {
     try {
       // Load all businesses (admin endpoint)
@@ -115,11 +159,11 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
       }
 
 
-      // Load potential supervisors
-      const supervisorsResponse = await fetch('/api/employees?status=active&role=supervisor')
+      // Load potential supervisors (all active employees can be supervisors)
+      const supervisorsResponse = await fetch('/api/employees?status=active&limit=100')
       if (supervisorsResponse.ok) {
         const supervisorsData = await supervisorsResponse.json()
-        setSupervisors(supervisorsData.employees || supervisorsData)
+        setSupervisors(supervisorsData.employees || [])
       }
     } catch (error) {
       console.error('Error loading form data:', error)
@@ -146,7 +190,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
         businessAssignments: businessAssignments.map(assignment => ({
           ...assignment,
           isPrimary: assignment.businessId === formData.primaryBusinessId
-        }))
+        })),
+        userId: linkedUser?.id // Include userId if linked to user
       }
 
       const response = await fetch('/api/employees', {
@@ -156,7 +201,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
       })
 
       if (response.ok) {
-        const newEmployee = await response.json()
+        const result = await response.json()
+        const newEmployee = result.employee || result
         onSuccess(`Employee ${newEmployee.fullName} (${newEmployee.employeeNumber}) created successfully`)
         handleClose()
       } else {
@@ -193,6 +239,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
     setBusinessAssignments([])
     setShowAddAssignment(false)
     setNewAssignment({ businessId: '', role: '' })
+    setLinkedUser(null)
+    setLoadingUserData(false)
     onClose()
   }
 
@@ -256,7 +304,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
     setFormData({...formData, compensationTypeId: newCompensationType.id})
     // Close the modal
     setShowAddCompensationTypeModal(false)
-  onSuccess({ message: 'Compensation type created successfully', refresh: false })
+    // Don't call parent onSuccess - just stay in employee creation flow
   }
 
   const handleNewJobTitleSuccess = (newJobTitle: any) => {
@@ -266,7 +314,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
     setFormData({...formData, jobTitleId: newJobTitle.id})
     // Close the modal
     setShowAddJobTitleModal(false)
-  onSuccess({ message: 'Job title created successfully', refresh: false })
+    // Don't call parent onSuccess - just stay in employee creation flow
   }
 
   if (!isOpen) return null
@@ -287,7 +335,40 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
         </div>
 
         <div className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Loading User Data Spinner */}
+          {loadingUserData && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400"></div>
+              <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading user data...</p>
+            </div>
+          )}
+
+          {/* Form Content - only show when not loading */}
+          {!loadingUserData && (
+            <>
+              {/* Linked User Indicator */}
+              {linkedUser && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    <div>
+                      <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        Linked to User Account
+                      </div>
+                      <div className="text-xs text-blue-700 dark:text-blue-300">
+                        {linkedUser.name} ({linkedUser.email})
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                    This employee will be automatically linked to the user account. Pre-populated fields can be edited if needed.
+                  </p>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-6">
             {/* Personal Information */}
             <div>
               <h3 className="text-lg font-medium text-primary mb-4">Personal Information</h3>
@@ -384,7 +465,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
                     required
                   >
                     <option value="">Select Job Title</option>
-                    {jobTitles.map((jobTitle) => (
+                    {[...jobTitles].sort((a, b) => a.title.localeCompare(b.title)).map((jobTitle) => (
                       <option key={jobTitle.id} value={jobTitle.id}>
                         {jobTitle.title}
                         {jobTitle.department && ` - ${jobTitle.department}`}
@@ -395,7 +476,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
                   </select>
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Compensation Type *
                   </label>
@@ -407,7 +488,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
                       required
                     >
                       <option value="">Select Compensation Type</option>
-                      {compensationTypes.map((type) => (
+                      {[...compensationTypes].sort((a, b) => a.name.localeCompare(b.name)).map((type) => (
                         <option key={type.id} value={type.id}>
                           {type.name} ({type.type})
                           {type.baseAmount && ` - $${type.baseAmount}`}
@@ -429,7 +510,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">No Supervisor</option>
-                    {supervisors.map((supervisor) => (
+                    {[...supervisors].sort((a, b) => a.fullName.localeCompare(b.fullName)).map((supervisor) => (
                       <option key={supervisor.id} value={supervisor.id}>
                         {supervisor.fullName} ({supervisor.employeeNumber})
                       </option>
@@ -471,7 +552,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
                   required
                 >
                   <option value="">Select Primary Business</option>
-                  {businesses.map((business) => (
+                  {[...businesses].sort((a, b) => a.name.localeCompare(b.name)).map((business) => (
                     <option key={business.id} value={business.id}>
                       {business.name} ({business.type})
                     </option>
@@ -533,6 +614,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
                           <option value="">Select Business</option>
                           {businesses
                             .filter(b => b.id !== formData.primaryBusinessId && !businessAssignments.some(a => a.businessId === b.id))
+                            .sort((a, b) => a.name.localeCompare(b.name))
                             .map((business) => (
                             <option key={business.id} value={business.id}>
                               {business.name} ({business.type})
@@ -613,6 +695,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError }: AddEmp
               </button>
             </div>
           </form>
+            </>
+          )}
         </div>
       </div>
 

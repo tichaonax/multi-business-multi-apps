@@ -1,10 +1,13 @@
 'use client'
 
-import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-format'
+import { getCategoryEmoji, getPaymentMethodEmoji } from '@/lib/category-emojis'
+import { PercentageBar } from '@/components/reports/percentage-bar'
+import { PaymentMethodsPieChart } from '@/components/reports/payment-methods-pie-chart'
+import { CategoryPerformanceBarChart } from '@/components/reports/category-performance-bar-chart'
 
 export default function EndOfDayReport() {
   const [dailySales, setDailySales] = useState<any>(null)
@@ -18,6 +21,10 @@ export default function EndOfDayReport() {
     currentBusinessId,
     isAuthenticated,
   } = useBusinessPermissionsContext()
+
+  // Determine POS link based on business type
+  const businessType = currentBusiness?.businessType || 'restaurant'
+  const posLink = `/${businessType}/pos`
 
   // Load daily sales data
   useEffect(() => {
@@ -74,18 +81,47 @@ export default function EndOfDayReport() {
 
   if (!dailySales) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No Data Available</h2>
-          <p className="text-gray-600 dark:text-gray-400">Unable to load sales data for today.</p>
+      <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
+        <div className="max-w-2xl mx-auto">
+          {/* Navigation */}
+          <div className="mb-6 flex gap-3">
+            <Link
+              href={posLink}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              ← Back to POS
+            </Link>
+            <Link
+              href="/restaurant/reports"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              ← Back to Reports
+            </Link>
+          </div>
+
+          {/* Error Message */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+            <div className="mb-4">
+              <span className="text-6xl">📭</span>
+            </div>
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No Data Available</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Unable to load sales data for today.</p>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              <p>This could mean:</p>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>No orders have been placed today</li>
+                <li>No business is currently selected</li>
+                <li>There was an error loading the data</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <BusinessTypeRoute requiredBusinessType="restaurant">
-      <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
         {/* Print Styles */}
         <style jsx global>{`
           @media print {
@@ -110,12 +146,20 @@ export default function EndOfDayReport() {
 
         {/* Navigation (No Print) */}
         <div className="no-print mb-6 flex items-center justify-between">
-          <Link
-            href="/restaurant/pos"
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            ← Back to POS
-          </Link>
+          <div className="flex gap-3">
+            <Link
+              href={posLink}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              ← Back to POS
+            </Link>
+            <Link
+              href="/restaurant/reports/history"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              📅 Historical Reports
+            </Link>
+          </div>
           <button
             onClick={() => window.print()}
             className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold"
@@ -131,7 +175,9 @@ export default function EndOfDayReport() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2 print:text-gray-900">END OF DAY REPORT</h1>
             <h2 className="text-xl text-gray-700 dark:text-gray-300 print:text-gray-700">{currentBusiness?.businessName || 'Restaurant'}</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 print:text-gray-600">Business Day: {formatDateRange()}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Report Generated: {new Date().toLocaleString()}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600" suppressHydrationWarning>
+              Report Generated: {new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+            </p>
           </div>
 
           {/* Summary Section */}
@@ -173,30 +219,81 @@ export default function EndOfDayReport() {
             </div>
           </div>
 
+          {/* Visual Charts Section */}
+          <div className="mb-8 space-y-8 no-print">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b-2 border-gray-300 dark:border-gray-600">
+              📊 VISUAL ANALYTICS
+            </h3>
+
+            {/* Payment Methods Pie Chart */}
+            {Object.keys(dailySales.paymentMethods).length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 overflow-visible">
+                <PaymentMethodsPieChart
+                  data={Object.entries(dailySales.paymentMethods).map(([method, data]: [string, any]) => ({
+                    method: method,
+                    value: data.total,
+                    percentage: (data.total / dailySales.summary.totalSales) * 100,
+                  }))}
+                  totalAmount={dailySales.summary.totalSales}
+                />
+              </div>
+            )}
+
+            {/* Category Performance Bar Chart */}
+            {dailySales.categoryBreakdown && dailySales.categoryBreakdown.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 overflow-visible">
+                <CategoryPerformanceBarChart
+                  data={dailySales.categoryBreakdown.map((cat: any) => ({
+                    name: cat.name,
+                    sales: cat.totalSales,
+                    orders: cat.itemCount,
+                  }))}
+                  topN={10}
+                />
+              </div>
+            )}
+          </div>
+
           {/* Payment Methods Breakdown */}
           <div className="mb-8">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
-              PAYMENT METHODS
+              💰 PAYMENT METHODS
             </h3>
             <table className="w-full">
               <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                 <tr>
                   <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Method</th>
                   <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Orders</th>
+                  <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">% of Total</th>
                   <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(dailySales.paymentMethods).map(([method, data]: [string, any]) => (
-                  <tr key={method} className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
-                    <td className="p-3 font-medium text-gray-900 dark:text-gray-100 print:text-gray-900">{method}</td>
-                    <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{data.count}</td>
-                    <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(data.total)}</td>
-                  </tr>
-                ))}
+                {Object.entries(dailySales.paymentMethods)
+                  .sort(([, a]: [string, any], [, b]: [string, any]) => b.total - a.total)
+                  .map(([method, data]: [string, any], index) => {
+                    const percentage = (data.total / dailySales.summary.totalSales) * 100
+                    return (
+                      <tr key={method} className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <td className="p-3 font-medium text-gray-900 dark:text-gray-100 print:text-gray-900">
+                          <span className="mr-2">{getPaymentMethodEmoji(method)}</span>
+                          {method}
+                        </td>
+                        <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{data.count}</td>
+                        <td className="p-3 print:hidden">
+                          <PercentageBar percentage={percentage} color="blue" />
+                        </td>
+                        <td className="hidden print:table-cell p-3 text-left text-gray-900">
+                          {percentage.toFixed(1)}%
+                        </td>
+                        <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(data.total)}</td>
+                      </tr>
+                    )
+                  })}
                 <tr className="bg-gray-100 dark:bg-gray-700 font-bold print:bg-gray-100">
                   <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">TOTAL</td>
                   <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{dailySales.summary.totalOrders}</td>
+                  <td className="p-3 text-left text-gray-900 dark:text-gray-100 print:text-gray-900">100%</td>
                   <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(dailySales.summary.totalSales)}</td>
                 </tr>
               </tbody>
@@ -207,66 +304,140 @@ export default function EndOfDayReport() {
           {dailySales.employeeSales && dailySales.employeeSales.length > 0 && (
             <div className="mb-8">
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
-                SALES BY EMPLOYEE
+                👥 SALES BY EMPLOYEE
               </h3>
               <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
+                    <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900 w-12">#</th>
                     <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Employee</th>
                     <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Orders</th>
-                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Sales</th>
-                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Avg per Order</th>
+                    <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Sales Performance</th>
+                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Avg/Order</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dailySales.employeeSales.map((emp: any) => (
-                    <tr key={emp.name} className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
-                      <td className="p-3 font-medium text-gray-900 dark:text-gray-100 print:text-gray-900">{emp.name}</td>
-                      <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{emp.orders}</td>
-                      <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(emp.sales)}</td>
-                      <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
-                        {formatCurrency(emp.sales / emp.orders)}
-                      </td>
-                    </tr>
-                  ))}
+                  {dailySales.employeeSales
+                    .sort((a: any, b: any) => b.sales - a.sales)
+                    .map((emp: any, index: number) => {
+                      const percentage = (emp.sales / dailySales.summary.totalSales) * 100
+                      const isTopThree = index < 3
+                      return (
+                        <tr
+                          key={emp.name}
+                          className={`border-b border-gray-200 dark:border-gray-600 print:border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                            isTopThree ? 'bg-green-50 dark:bg-green-900/20 print:bg-green-50' : ''
+                          }`}
+                        >
+                          <td className="p-3 text-center">
+                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
+                              index === 0 ? 'bg-yellow-400 text-yellow-900' :
+                              index === 1 ? 'bg-gray-300 text-gray-900' :
+                              index === 2 ? 'bg-orange-400 text-orange-900' :
+                              'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                            }`}>
+                              {index + 1}
+                            </span>
+                          </td>
+                          <td className="p-3 font-medium text-gray-900 dark:text-gray-100 print:text-gray-900">
+                            {emp.name}
+                          </td>
+                          <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{emp.orders}</td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div className="print:hidden flex-1">
+                                <PercentageBar percentage={percentage} color="purple" />
+                              </div>
+                              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900 min-w-[6rem] text-right">
+                                {formatCurrency(emp.sales)}
+                              </span>
+                              <span className="hidden print:inline text-sm text-gray-600 ml-2">
+                                ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
+                            {formatCurrency(emp.sales / emp.orders)}
+                          </td>
+                        </tr>
+                      )
+                    })}
                 </tbody>
               </table>
             </div>
           )}
 
-          {/* Category Breakdown */}
+          {/* Category Breakdown - Income Sources */}
           {dailySales.categoryBreakdown && dailySales.categoryBreakdown.length > 0 && (
             <div className="mb-8">
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
-                SALES BY CATEGORY
+                📊 TOP INCOME SOURCES
               </h3>
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4 print:bg-blue-50">
+                <div className="text-sm font-semibold text-blue-900 dark:text-blue-100 print:text-blue-900">
+                  Total Income: <span className="text-2xl ml-2">{formatCurrency(dailySales.summary.totalSales)}</span>
+                </div>
+              </div>
               <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
-                    <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Category</th>
-                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Items Sold</th>
-                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Sales</th>
-                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">% of Total</th>
+                    <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900 w-12">#</th>
+                    <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Income Source</th>
+                    <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">% and Total Amount</th>
+                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Items</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dailySales.categoryBreakdown.map((cat: any) => (
-                    <tr key={cat.name} className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
-                      <td className="p-3 font-medium text-gray-900 dark:text-gray-100 print:text-gray-900">{cat.name}</td>
-                      <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{cat.itemCount}</td>
-                      <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(cat.totalSales)}</td>
-                      <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
-                        {((cat.totalSales / dailySales.summary.totalSales) * 100).toFixed(1)}%
-                      </td>
-                    </tr>
-                  ))}
+                  {dailySales.categoryBreakdown
+                    .sort((a: any, b: any) => b.totalSales - a.totalSales)
+                    .map((cat: any, index: number) => {
+                      const percentage = (cat.totalSales / dailySales.summary.totalSales) * 100
+                      const isTopThree = index < 3
+                      return (
+                        <tr
+                          key={cat.name}
+                          className={`border-b border-gray-200 dark:border-gray-600 print:border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                            isTopThree ? 'bg-yellow-50 dark:bg-yellow-900/20 print:bg-yellow-50' : ''
+                          }`}
+                        >
+                          <td className="p-3 text-center">
+                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold ${
+                              index === 0 ? 'bg-yellow-400 text-yellow-900' :
+                              index === 1 ? 'bg-gray-300 text-gray-900' :
+                              index === 2 ? 'bg-orange-400 text-orange-900' :
+                              'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                            }`}>
+                              {index + 1}
+                            </span>
+                          </td>
+                          <td className="p-3 font-medium text-gray-900 dark:text-gray-100 print:text-gray-900">
+                            <span className="mr-2">{getCategoryEmoji(cat.name)}</span>
+                            {cat.name}
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div className="print:hidden flex-1">
+                                <PercentageBar percentage={percentage} color="green" />
+                              </div>
+                              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900 min-w-[6rem] text-right">
+                                {formatCurrency(cat.totalSales)}
+                              </span>
+                              <span className="hidden print:inline text-sm text-gray-600 ml-2">
+                                ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{cat.itemCount}</td>
+                        </tr>
+                      )
+                    })}
                   <tr className="bg-gray-100 dark:bg-gray-700 font-bold print:bg-gray-100">
+                    <td className="p-3 text-center text-gray-900 dark:text-gray-100 print:text-gray-900"></td>
                     <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">TOTAL</td>
+                    <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(dailySales.summary.totalSales)}</td>
                     <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
                       {dailySales.categoryBreakdown.reduce((sum: number, cat: any) => sum + cat.itemCount, 0)}
                     </td>
-                    <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(dailySales.summary.totalSales)}</td>
-                    <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">100%</td>
                   </tr>
                 </tbody>
               </table>
@@ -341,8 +512,8 @@ export default function EndOfDayReport() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 print:text-gray-700">Date & Time:</label>
-                <div className="border-b-2 border-gray-400 dark:border-gray-500 pb-1 mb-2 font-semibold text-gray-900 dark:text-gray-100 print:border-gray-400 print:text-gray-900">
-                  {new Date().toLocaleString()}
+                <div className="border-b-2 border-gray-400 dark:border-gray-500 pb-1 mb-2 font-semibold text-gray-900 dark:text-gray-100 print:border-gray-400 print:text-gray-900" suppressHydrationWarning>
+                  {new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 print:text-gray-500">Report Completed</p>
               </div>
@@ -356,6 +527,5 @@ export default function EndOfDayReport() {
           </div>
         </div>
       </div>
-    </BusinessTypeRoute>
   )
 }

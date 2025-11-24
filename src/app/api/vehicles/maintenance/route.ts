@@ -8,7 +8,7 @@ import { z } from 'zod'
 
 const CreateMaintenanceSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
-  serviceType: z.enum(['ROUTINE', 'REPAIR', 'INSPECTION', 'EMERGENCY', 'WARRANTY', 'UPGRADE']),
+  serviceType: z.enum(['OIL_CHANGE', 'TIRE_REPLACEMENT', 'BRAKE_SERVICE', 'INSPECTION', 'REPAIR', 'OTHER']),
   serviceName: z.string().min(1, 'Service name is required'),
   serviceProvider: z.string().optional(),
   serviceDate: z.string().min(1, 'Service date is required'),
@@ -25,7 +25,7 @@ const CreateMaintenanceSchema = z.object({
 
 const UpdateMaintenanceSchema = z.object({
   id: z.string().min(1),
-  serviceType: z.enum(['ROUTINE', 'REPAIR', 'INSPECTION', 'EMERGENCY', 'WARRANTY', 'UPGRADE']).optional(),
+  serviceType: z.enum(['OIL_CHANGE', 'TIRE_REPLACEMENT', 'BRAKE_SERVICE', 'INSPECTION', 'REPAIR', 'OTHER']).optional(),
   serviceName: z.string().min(1).optional(),
   serviceProvider: z.string().optional(),
   serviceDate: z.string().optional(),
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     }
     const isCompletedParam = searchParams.get('isCompleted')
     if (isCompletedParam !== null && isCompletedParam !== '') {
-      where.isCompleted = isCompletedParam === 'true'
+      where.isScheduledService = isCompletedParam === 'true'
     }
     if (serviceProvider) {
       where.serviceProvider = {
@@ -164,6 +164,9 @@ export async function GET(request: NextRequest) {
     // Remap Prisma relation field names back to the API shape expected by callers
     const mapped = maintenanceRecords.map((r: any) => ({
       ...r,
+      cost: r.serviceCost ?? 0, // Map database field serviceCost to API field cost
+      currency: r.currency ?? 'USD', // Ensure currency is present
+      isCompleted: r.isScheduledService ?? false, // Map database field isScheduledService to API field isCompleted
       vehicle: r.vehicles ?? null,
       creator: r.users ?? null
     }))
@@ -302,6 +305,9 @@ export async function POST(request: NextRequest) {
     // remap to legacy API field names
     const created = {
       ...maintenanceRecord,
+      cost: (maintenanceRecord as any).serviceCost ?? 0, // Map database field serviceCost to API field cost
+      currency: (maintenanceRecord as any).currency ?? 'USD',
+      isCompleted: (maintenanceRecord as any).isScheduledService ?? false, // Map database field isScheduledService to API field isCompleted
       vehicle: (maintenanceRecord as any).vehicles ?? null,
       creator: (maintenanceRecord as any).users ?? null
     }
@@ -438,6 +444,9 @@ export async function PUT(request: NextRequest) {
 
     const updated = {
       ...maintenanceRecord,
+      cost: (maintenanceRecord as any).serviceCost ?? 0, // Map database field serviceCost to API field cost
+      currency: (maintenanceRecord as any).currency ?? 'USD',
+      isCompleted: (maintenanceRecord as any).isScheduledService ?? false, // Map database field isScheduledService to API field isCompleted
       vehicle: (maintenanceRecord as any).vehicles ?? null,
       creator: (maintenanceRecord as any).users ?? null
     }

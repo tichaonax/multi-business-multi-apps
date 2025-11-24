@@ -189,6 +189,27 @@ import { Car, Calendar, Shield } from 'lucide-react'
                 <div>{driver.emergencyContact} {driver.emergencyPhone ? `(${formatPhoneNumberForDisplay(driver.emergencyPhone)})` : ''}</div>
               </div>
             )}
+
+            {/* User Login Information */}
+            {driver.user && (
+              <div className="sm:col-span-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="font-medium mb-2 text-green-700 dark:text-green-400">✓ User Login Access</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="font-medium">Username:</span> {driver.user.name}
+                  </div>
+                  <div>
+                    <span className="font-medium">Email:</span> {driver.user.email}
+                  </div>
+                  <div>
+                    <span className="font-medium">Status:</span>{' '}
+                    <span className={driver.user.isActive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                      {driver.user.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
            </div>
          ) : (
            <div className="space-y-3">

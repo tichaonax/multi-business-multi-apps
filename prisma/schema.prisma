@@ -152,6 +152,32 @@ model BusinessCustomers {
   @@map("business_customers")
 }
 
+model BusinessExpenses {
+  id                    String                 @id @default(uuid())
+  businessId            String
+  categoryId            String
+  subcategoryId         String?
+  employeeId            String?
+  amount                Decimal                @db.Decimal(10, 2)
+  description           String
+  expenseDate           DateTime
+  receiptUrl            String?
+  notes                 String?
+  createdAt             DateTime               @default(now())
+  createdBy             String?
+
+  businesses            Businesses             @relation(fields: [businessId], references: [id])
+  expense_categories    ExpenseCategories      @relation(fields: [categoryId], references: [id])
+  expense_subcategories ExpenseSubcategories?  @relation(fields: [subcategoryId], references: [id])
+  employees             Employees?             @relation(fields: [employeeId], references: [id])
+  users                 Users?                 @relation(fields: [createdBy], references: [id])
+
+  @@map("business_expenses")
+  @@index([businessId, expenseDate])
+  @@index([categoryId])
+  @@index([employeeId])
+}
+
 model BusinessMemberships {
   id                   String               @id @default(uuid())
   userId               String
@@ -172,17 +198,17 @@ model BusinessMemberships {
 }
 
 model BusinessOrderItems {
-  id               String          @id @default(uuid())
+  id               String           @id @default(uuid())
   orderId          String
-  productVariantId String
-  quantity         Decimal         @db.Decimal(10, 3) // Changed from Int to Decimal for weight support
-  unitPrice        Decimal         @db.Decimal(10, 2)
-  discountAmount   Decimal         @default(0) @db.Decimal(10, 2)
-  totalPrice       Decimal         @db.Decimal(10, 2)
+  productVariantId String?
+  quantity         Decimal          @db.Decimal(10, 3) // Changed from Int to Decimal for weight support
+  unitPrice        Decimal          @db.Decimal(10, 2)
+  discountAmount   Decimal          @default(0) @db.Decimal(10, 2)
+  totalPrice       Decimal          @db.Decimal(10, 2)
   attributes       Json?
-  createdAt        DateTime        @default(now())
-  business_orders  BusinessOrders  @relation(fields: [orderId], references: [id])
-  product_variants ProductVariants @relation(fields: [productVariantId], references: [id])
+  createdAt        DateTime         @default(now())
+  business_orders  BusinessOrders   @relation(fields: [orderId], references: [id])
+  product_variants ProductVariants? @relation(fields: [productVariantId], references: [id])
 
   @@map("business_order_items")
 }
@@ -385,6 +411,7 @@ model Businesses {
   business_brands                                                          BusinessBrands[]
   business_categories                                                      BusinessCategories[]
   business_customers                                                       BusinessCustomers[]
+  business_expenses                                                        BusinessExpenses[]
   business_memberships                                                     BusinessMemberships[]
   customer_laybys                                                          CustomerLayby[]
   business_orders                                                          BusinessOrders[]
@@ -732,9 +759,10 @@ model DriverLicenseTemplates {
   countryCode String?
   createdAt   DateTime    @default(now())
   isActive    Boolean     @default(true)
-  updatedAt   DateTime    @default(now())
-  employees   Employees[]
-  persons     Persons[]
+  updatedAt      DateTime         @default(now())
+  employees      Employees[]
+  persons        Persons[]
+  vehicleDrivers VehicleDrivers[]
 
   @@map("driver_license_templates")
 }
@@ -1046,6 +1074,7 @@ model Employees {
   userId                                                                    String?                       @unique
   driverLicenseNumber                                                       String?
   driverLicenseTemplateId                                                   String?
+  business_expenses                                                         BusinessExpenses[]
   business_orders                                                           BusinessOrders[]
   business_stock_movements                                                  BusinessStockMovements[]
   contract_renewals                                                         ContractRenewals[]
@@ -1112,6 +1141,7 @@ model ExpenseCategories {
   users                 Users?                 @relation(fields: [createdBy], references: [id])
   expense_subcategories ExpenseSubcategories[]
   personal_expenses     PersonalExpenses[]
+  business_expenses     BusinessExpenses[]
 
   @@unique([domainId, name])
   @@map("expense_categories")
@@ -1130,6 +1160,7 @@ model ExpenseSubcategories {
   category          ExpenseCategories  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   users             Users?             @relation(fields: [createdBy], references: [id])
   personal_expenses PersonalExpenses[]
+  business_expenses BusinessExpenses[]
 
   @@unique([categoryId, name])
   @@map("expense_subcategories")
@@ -2185,6 +2216,7 @@ model Users {
   accounts                                                        Accounts[]
   audit_logs                                                      AuditLogs[]
   business_accounts                                               BusinessAccounts[]
+  business_expenses                                               BusinessExpenses[]
   business_memberships                                            BusinessMemberships[]
   business_transactions                                           BusinessTransactions[]
   chat_messages                                                   ChatMessages[]
@@ -2231,11 +2263,13 @@ model Users {
 }
 
 model VehicleDrivers {
-  id                    String                 @id @default(uuid())
-  fullName              String
-  licenseNumber         String                 @unique
-  licenseExpiry         DateTime
-  phoneNumber           String?
+  id                       String                 @id @default(uuid())
+  fullName                 String
+  licenseNumber            String                 @unique
+  licenseCountryOfIssuance String
+  licenseExpiry            DateTime?
+  driverLicenseTemplateId  String?
+  phoneNumber              String?
   emailAddress          String?
   emergencyContact      String?
   emergencyPhone        String?
@@ -2245,9 +2279,10 @@ model VehicleDrivers {
   address               String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime
-  driver_authorizations DriverAuthorizations[]
-  users                 Users?                 @relation(fields: [userId], references: [id])
-  vehicle_trips         VehicleTrips[]
+  driver_authorizations    DriverAuthorizations[]
+  users                    Users?                  @relation(fields: [userId], references: [id])
+  driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
+  vehicle_trips            VehicleTrips[]
 
   @@map("vehicle_drivers")
 }
@@ -2289,6 +2324,7 @@ model VehicleLicenses {
   issueDate        DateTime
   expiryDate       DateTime
   renewalCost      Decimal?    @db.Decimal(10, 2)
+  lateFee          Decimal?    @db.Decimal(10, 2)
   isActive         Boolean     @default(true)
   documentUrl      String?
   reminderDays     Int         @default(30)
@@ -2342,6 +2378,17 @@ model VehicleMaintenanceServiceExpenses {
   vehicle_maintenance_services VehicleMaintenanceServices @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@map("vehicle_maintenance_service_expenses")
+}
+
+model IssuingAuthorities {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  country   String?
+  type      String?  // e.g., 'GOVERNMENT', 'PRIVATE', 'REGULATORY'
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  @@map("issuing_authorities")
 }
 
 model VehicleMaintenanceServices {
@@ -2493,7 +2540,10 @@ enum ExpenseType {
   FUEL
   TOLL
   PARKING
+  FOOD
   MAINTENANCE
+  TIRE
+  OIL
   INSURANCE
   OTHER
 }

@@ -80,11 +80,21 @@ export async function GET(request: NextRequest) {
       dateStr = today.dateStr
     }
 
-    // Get all orders for today
+    // Get business to determine type
+    const business = await prisma.businesses.findUnique({
+      where: { id: businessId },
+      select: { type: true }
+    })
+
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+
+    // Get all orders for today (support all business types)
     const orders = await prisma.businessOrders.findMany({
       where: {
         businessId: businessId,
-        businessType: 'restaurant',
+        businessType: business.type,
         createdAt: {
           gte: start,
           lt: end,

@@ -9,9 +9,10 @@ interface LicenseStatusIndicatorProps {
   licenses: VehicleLicense[]
   showDetails?: boolean
   compact?: boolean
+  onLicenseClick?: (license: VehicleLicense) => void
 }
 
-export function LicenseStatusIndicator({ licenses, showDetails = false, compact = false }: LicenseStatusIndicatorProps) {
+export function LicenseStatusIndicator({ licenses, showDetails = false, compact = false, onLicenseClick }: LicenseStatusIndicatorProps) {
   const { format: globalDateFormat } = useDateFormat()
 
   if (!licenses || licenses.length === 0) {
@@ -150,12 +151,19 @@ export function LicenseStatusIndicator({ licenses, showDetails = false, compact 
 
     return (
       <div className="flex flex-wrap gap-1">
-        {uniqueLicenseStatuses.map(({ license, status }) => (
-          <div key={license.id} className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full border text-xs ${getStatusStyle(status)}`}>
-            {getStatusIcon(status)}
-            <span>{license.licenseType.replace('_', ' ')}</span>
-          </div>
-        ))}
+        {uniqueLicenseStatuses.map(({ license, status }) => {
+          const Component = onLicenseClick ? 'button' : 'div'
+          return (
+            <Component
+              key={license.id}
+              onClick={onLicenseClick ? () => onLicenseClick(license) : undefined}
+              className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full border text-xs ${getStatusStyle(status)} ${onLicenseClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+            >
+              {getStatusIcon(status)}
+              <span>{license.licenseType.replace('_', ' ')}</span>
+            </Component>
+          )
+        })}
       </div>
     )
   }

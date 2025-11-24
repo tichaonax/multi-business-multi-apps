@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { normalizePhoneInput } from '@/lib/country-codes'
+import * as bcrypt from 'bcrypt'
 
 import { randomBytes } from 'crypto';
 import * as crypto from 'crypto';
@@ -11,21 +12,27 @@ import * as crypto from 'crypto';
 const CreateDriverSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   licenseNumber: z.string().min(1, 'License number is required'),
-  licenseExpiry: z.string().min(1, 'License expiry is required'),
+  licenseCountryOfIssuance: z.string().min(1, 'Country of issuance is required'),
+  licenseExpiry: z.string().optional(),
+  driverLicenseTemplateId: z.string().optional(),
   phoneNumber: z.string().optional(),
   emailAddress: z.string().email().optional().or(z.literal('')),
   emergencyContact: z.string().optional(),
   emergencyPhone: z.string().optional(),
   userId: z.string().optional(),
   dateOfBirth: z.string().nullable().optional(),
-  address: z.string().optional()
+  address: z.string().optional(),
+  upgradeEmployeeToUser: z.boolean().optional(),
+  employeeId: z.string().optional()
 })
 
 const UpdateDriverSchema = z.object({
   id: z.string().min(1),
   fullName: z.string().min(1).optional(),
   licenseNumber: z.string().min(1).optional(),
+  licenseCountryOfIssuance: z.string().min(1).optional(),
   licenseExpiry: z.string().min(1).optional(),
+  driverLicenseTemplateId: z.string().optional(),
   phoneNumber: z.string().optional(),
   emailAddress: z.string().email().optional().or(z.literal('')),
   emergencyContact: z.string().optional(),
@@ -168,10 +175,83 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    let finalUserId = validatedData.userId
+
+    // Handle employee-to-user upgrade if requested
+    if (validatedData.upgradeEmployeeToUser && validatedData.employeeId) {
+      // Fetch employee
+      const employee = await prisma.employees.findUnique({
+        where: { id: validatedData.employeeId }
+      })
+
+      if (!employee) {
+        return NextResponse.json(
+          { error: 'Employee not found' },
+          { status: 404 }
+        )
+      }
+
+      // Check if employee already has a user account
+      if (employee.userId) {
+        return NextResponse.json(
+          { error: 'Employee already has a user account' },
+          { status: 409 }
+        )
+      }
+
+      // Check if email exists
+      if (!employee.email) {
+        return NextResponse.json(
+          { error: 'Employee must have an email address to create a user account' },
+          { status: 400 }
+        )
+      }
+
+      // Check if email is already used by another user
+      const existingUser = await prisma.users.findUnique({
+        where: { email: employee.email }
+      })
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: 'Email address is already associated with another user account' },
+          { status: 409 }
+        )
+      }
+
+      // Generate secure temporary password
+      const tempPassword = crypto.randomBytes(16).toString('hex')
+      const passwordHash = await bcrypt.hash(tempPassword, 10)
+
+      // Create user account
+      const newUser = await prisma.users.create({
+        data: {
+          email: employee.email,
+          name: employee.fullName,
+          passwordHash,
+          role: 'user',
+          isActive: true,
+          passwordResetRequired: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      })
+
+      // Link employee to user
+      await prisma.employees.update({
+        where: { id: employee.id },
+        data: { userId: newUser.id }
+      })
+
+      finalUserId = newUser.id
+
+      console.log(`Created user account for employee ${employee.fullName} (${employee.email})`)
+    }
+
     // Verify user exists if userId is provided
-    if (validatedData.userId) {
+    if (finalUserId) {
       const user = await prisma.users.findUnique({
-        where: { id: validatedData.userId }
+        where: { id: finalUserId }
       })
 
       if (!user) {
@@ -182,34 +262,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create driver
-      // Create driver: build explicit payload so optional userId is handled correctly
-      const now = new Date()
-      const createPayload: any = {
-        id: crypto.randomUUID(),
-        fullName: validatedData.fullName,
-        licenseNumber: validatedData.licenseNumber,
-        licenseExpiry: new Date(validatedData.licenseExpiry),
-        phoneNumber: normalizePhoneInput(validatedData.phoneNumber || ''),
-        emergencyPhone: normalizePhoneInput(validatedData.emergencyPhone || ''),
-        emailAddress: validatedData.emailAddress || undefined,
-        emergencyContact: validatedData.emergencyContact || undefined,
-        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : undefined,
-        address: validatedData.address || undefined,
-        createdAt: now,
-        updatedAt: now
-      }
+    // Create driver: build explicit payload so optional userId is handled correctly
+    const now = new Date()
+    const createPayload: any = {
+      id: crypto.randomUUID(),
+      fullName: validatedData.fullName,
+      licenseNumber: validatedData.licenseNumber,
+      licenseCountryOfIssuance: validatedData.licenseCountryOfIssuance,
+      licenseExpiry: validatedData.licenseExpiry ? new Date(validatedData.licenseExpiry) : undefined,
+      driverLicenseTemplateId: validatedData.driverLicenseTemplateId || undefined,
+      phoneNumber: normalizePhoneInput(validatedData.phoneNumber || ''),
+      emergencyPhone: normalizePhoneInput(validatedData.emergencyPhone || ''),
+      emailAddress: validatedData.emailAddress || undefined,
+      emergencyContact: validatedData.emergencyContact || undefined,
+      dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : undefined,
+      address: validatedData.address || undefined,
+      createdAt: now,
+      updatedAt: now
+    }
 
-      if (validatedData.userId) createPayload.userId = validatedData.userId
+    if (finalUserId) createPayload.userId = finalUserId
 
-      const driver = await prisma.vehicleDrivers.create({
-        data: createPayload,
-        include: {
-          users: {
-            select: { id: true, name: true, email: true }
-          }
+    const driver = await prisma.vehicleDrivers.create({
+      data: createPayload,
+      include: {
+        users: {
+          select: { id: true, name: true, email: true }
         }
-      })
+      }
+    })
 
     return NextResponse.json({
       success: true,

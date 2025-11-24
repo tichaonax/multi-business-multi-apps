@@ -56,7 +56,17 @@ export async function GET() {
     
     console.log('🏥 Health check response:', response)
     
-    return NextResponse.json(response)
+    // Return response with headers that might help avoid extension blocking
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Health-Check': 'true', // Custom header to identify health checks
+      }
+    })
   } catch (error) {
     console.error('❌ Health check failed:', error)
     
@@ -68,6 +78,15 @@ export async function GET() {
       environment: process.env.NODE_ENV
     }
     
-    return NextResponse.json(errorResponse, { status: 500 })
+    return new Response(JSON.stringify(errorResponse), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Health-Check': 'true',
+      }
+    })
   }
 }

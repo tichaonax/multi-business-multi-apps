@@ -10,6 +10,7 @@ import { UserEditModal } from '@/components/user-management/user-edit-modal'
 import { UserDeactivationModal } from '@/components/user-management/user-deactivation-modal'
 import { BusinessCreationModal } from '@/components/user-management/business-creation-modal'
 import { BusinessPermissionModal } from '@/components/user-management/business-permission-modal'
+import { AddEmployeeModal } from '@/components/employees/add-employee-modal'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { SessionUser } from '@/lib/permission-utils'
 
@@ -53,6 +54,7 @@ export default function AdminUsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [deactivatingUser, setDeactivatingUser] = useState<User | null>(null)
   const [managingPermissions, setManagingPermissions] = useState<{ user: User; businessId: string } | null>(null)
+  const [creatingEmployeeForUser, setCreatingEmployeeForUser] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -115,6 +117,21 @@ export default function AdminUsersPage() {
   }
 
   const handleDeactivationError = (errorMessage: string) => {
+    setError(errorMessage)
+  }
+
+  const handleCreateEmployee = (userId: string) => {
+    setCreatingEmployeeForUser(userId)
+  }
+
+  const handleEmployeeCreationSuccess = (result: any) => {
+    const message = typeof result === 'string' ? result : result.message || 'Employee created successfully'
+    setSuccess(message)
+    setCreatingEmployeeForUser(null)
+    loadUsers() // Reload to show new employee status
+  }
+
+  const handleEmployeeCreationError = (errorMessage: string) => {
     setError(errorMessage)
   }
 
@@ -263,8 +280,20 @@ export default function AdminUsersPage() {
             onEditUser={handleEditUser}
             onManagePermissions={handleManagePermissions}
             onDeactivateUser={handleDeactivateUser}
+            onCreateEmployee={handleCreateEmployee}
           />
         ) : null}
+
+        {/* Employee Creation Modal */}
+        {creatingEmployeeForUser && (
+          <AddEmployeeModal
+            isOpen={true}
+            userId={creatingEmployeeForUser}
+            onClose={() => setCreatingEmployeeForUser(null)}
+            onSuccess={handleEmployeeCreationSuccess}
+            onError={handleEmployeeCreationError}
+          />
+        )}
       </ContentLayout>
     </SystemAdminRoute>
   )

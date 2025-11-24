@@ -33,6 +33,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'businessId required' }, { status: 400 })
     }
 
+    // Get business to determine type
+    const business = await prisma.businesses.findUnique({
+      where: { id: businessId },
+      select: { type: true }
+    })
+
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+
     // Get all receipt sequences for the past N days
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - days)
@@ -55,11 +65,11 @@ export async function GET(request: NextRequest) {
       receiptSequences.map(async (sequence) => {
         const { start, end } = getBusinessDayBoundaries(sequence.date, timezone)
 
-        // Get orders for this business day
+        // Get orders for this business day (support all business types)
         const orders = await prisma.businessOrders.findMany({
           where: {
             businessId: businessId,
-            businessType: 'restaurant',
+            businessType: business.type,
             createdAt: {
               gte: start,
               lt: end,

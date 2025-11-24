@@ -13,6 +13,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import Link from 'next/link'
 
 export default function HardwarePOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
@@ -228,6 +229,16 @@ export default function HardwarePOSPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Reports Link */}
+            <div className="mb-4">
+              <Link
+                href="/hardware/reports/dashboard"
+                className="inline-block px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all shadow-md hover:shadow-lg font-medium"
+              >
+                📊 View Sales Reports & Analytics
+              </Link>
             </div>
 
             {/* Daily Sales Widget */}

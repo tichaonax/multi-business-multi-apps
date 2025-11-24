@@ -54,6 +54,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           startDate: true,
           endDate: true,
           employeeSignedAt: true,
+          managerSignedAt: true,
+          isCommissionBased: true,
+          isSalaryBased: true,
+          notes: true,
           createdAt: true,
           pdfGenerationData: true,
           businesses_employee_contracts_primaryBusinessIdTobusinesses: {
@@ -117,17 +121,20 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       jobTitle: (sub.job_titles && Array.isArray(sub.job_titles)) ? sub.job_titles[0] : (sub.job_titles || null)
     }))
 
+    // Extract compensation type first for use in contracts mapping
+    const employeeCompensationType = Array.isArray(e.compensation_types) ? e.compensation_types[0] : (e.compensation_types || null)
+
     const formattedEmployee = {
       ...e,
       user: e.users,
-      jobTitle: Array.isArray(e.job_titles) ? e.job_titles[0] : e.job_titles,
-      compensationType: Array.isArray(e.compensationTypes) ? e.compensationTypes[0] : e.compensationTypes,
+      jobTitle: Array.isArray(e.job_titles) ? e.job_titles[0] : (e.job_titles || null),
+      compensationType: employeeCompensationType,
       primaryBusiness: e.businesses || e.primaryBusiness || null,
       supervisor: supervisorObj,
       subordinates,
       contracts: (e.employee_contracts_employee_contracts_employeeIdToemployees || e.employeeContracts || []).map((contract: any) => {
         // Determine salary frequency for this contract (contract notes override employee compensation type)
-        let contractFrequency = e.compensationTypes?.frequency || 'monthly'
+        let contractFrequency = employeeCompensationType?.frequency || 'monthly'
         if (contract.notes) {
           const frequencyMatch = contract.notes.match(/\[SALARY_FREQUENCY:(monthly|annual)\]/)
           if (frequencyMatch) {
@@ -166,6 +173,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           version: contract.version,
           status: contract.status,
           employeeSignedAt: contract.employeeSignedAt,
+          managerSignedAt: contract.managerSignedAt,
           // Include stored PDF generation payload so clients that use the employee endpoint
           // (instead of fetching the separate contracts endpoint) receive the JSON used
           // by the PDF generator.
@@ -177,6 +185,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           isSalaryBased: contract.isSalaryBased,
           notes: contract.notes,
           createdAt: contract.createdAt,
+          // Add job title and business for approval modal
+          jobTitle: contract.job_titles || null,
+          job_titles: contract.job_titles || null,
+          business: contract.businesses_employee_contracts_primaryBusinessIdTobusinesses || null,
+          businesses_employee_contracts_primaryBusinessIdTobusinesses: contract.businesses_employee_contracts_primaryBusinessIdTobusinesses || null,
+          // Add employee info for approval modal
+          employee: {
+            fullName: e.fullName,
+            employeeNumber: e.employeeNumber
+          },
           // Normalized benefits list (if using pdfGenerationData the shape may be different)
           benefits: (benefitsSource || []).map((benefit: any) => ({
             id: benefit.id || null,
@@ -203,7 +221,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       businessAssignments: (e.employee_business_assignments || []).map((assignment: any) => ({
         role: assignment.role,
         isActive: assignment.isActive,
-        assignedAt: assignment.assignedAt
+        assignedAt: assignment.assignedAt,
+        businesses: assignment.businesses
       })) || [],
       disciplinaryActions: (e.disciplinary_actions_disciplinary_actions_employeeIdToemployees || e.disciplinaryActionsReceived || []).map((action: any) => ({
         id: action.id,
@@ -517,7 +536,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       ...ue,
       user: ue.users,
       jobTitle: ue.job_titles || null,
-      compensationType: ue.compensationTypes || null,
+      compensationType: ue.compensation_types || null,
       primaryBusiness: ue.businesses || ue.primaryBusiness || null,
       supervisor: null,
       subordinates: []

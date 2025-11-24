@@ -51,6 +51,14 @@ export default function GroceryStorePage() {
       features: ['View daily sales', 'Reprint receipts', 'Order tracking', 'Payment status']
     },
     {
+      title: 'Reports',
+      description: 'Sales analytics, trends, and financial reports',
+      href: '/grocery/reports',
+      icon: '📊',
+      color: 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100',
+      features: ['Visual analytics', 'End-of-day reports', 'Sales trends', 'Performance metrics']
+    },
+    {
       title: 'Customer Analytics',
       description: 'Shopping patterns, loyalty programs, promotional targeting',
       href: '/grocery/customers',

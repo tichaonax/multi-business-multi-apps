@@ -1,6 +1,5 @@
 'use client'
 
-import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
@@ -17,8 +16,12 @@ interface HistoricalReport {
 export default function ReportHistory() {
   const [reports, setReports] = useState<HistoricalReport[]>([])
   const [loading, setLoading] = useState(true)
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
   const router = useRouter()
+
+  // Determine POS link based on business type
+  const businessType = currentBusiness?.businessType || 'restaurant'
+  const posLink = `/${businessType}/pos`
 
   useEffect(() => {
     loadHistoricalReports()
@@ -58,13 +61,12 @@ export default function ReportHistory() {
   }
 
   return (
-    <BusinessTypeRoute requiredBusinessType="restaurant">
-      <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
         {/* Navigation */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex gap-3">
             <Link
-              href="/restaurant/pos"
+              href={posLink}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
               ← Back to POS
@@ -126,6 +128,5 @@ export default function ReportHistory() {
           )}
         </div>
       </div>
-    </BusinessTypeRoute>
   )
 }

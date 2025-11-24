@@ -53,6 +53,8 @@ export default function VehiclesPage() {
   const [selectedDriver, setSelectedDriver] = useState<VehicleDriver | null>(null)
   const [selectedTrip, setSelectedTrip] = useState<VehicleTrip | null>(null)
   const [selectedMaintenance, setSelectedMaintenance] = useState<VehicleMaintenanceRecord | null>(null)
+  const [tripToEdit, setTripToEdit] = useState<VehicleTrip | null>(null)
+  const [maintenanceToEdit, setMaintenanceToEdit] = useState<VehicleMaintenanceRecord | null>(null)
   // simple refresh counter to signal children to re-fetch
   const [refreshCounter, setRefreshCounter] = useState(0)
   // For narrow single-vehicle refreshes: id + sequence to allow same id updates
@@ -167,7 +169,7 @@ export default function VehiclesPage() {
       tripsControllerRef.current = controller
       const signal = controller.signal
 
-      const res = await fetch('/api/vehicles/trips?limit=5', { signal })
+      const res = await fetch('/api/vehicles/trips?limit=5&includeExpenses=true', { signal })
       if (!res.ok) {
         setRecentTrips([])
         return
@@ -540,7 +542,11 @@ export default function VehiclesPage() {
                           ))
                         ) : (
                           (recentTrips || []).map((trip: any) => (
-                            <div key={trip.id} className="card p-3 border">
+                            <div
+                              key={trip.id}
+                              className="card p-3 border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                              onClick={() => setSelectedTrip(trip)}
+                            >
                               <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
                                 <div className="min-w-0 flex-1">
                                   <div className="font-medium text-sm break-words">{trip.vehicle?.make} {trip.vehicle?.model} ({trip.vehicle?.licensePlate})</div>
@@ -735,12 +741,17 @@ export default function VehiclesPage() {
                 <div className="space-y-6 p-6">
                   {showTripForm ? (
                     <TripForm
+                      trip={tripToEdit}
                       onSuccess={() => {
                         setShowTripForm(false)
+                        setTripToEdit(null)
                         refreshAll()
-                        showToast('Trip created — overview refreshed')
+                        showToast(tripToEdit ? 'Trip updated — overview refreshed' : 'Trip created — overview refreshed')
                       }}
-                      onCancel={() => setShowTripForm(false)}
+                      onCancel={() => {
+                        setShowTripForm(false)
+                        setTripToEdit(null)
+                      }}
                     />
                   ) : (
                     <TripList
@@ -756,25 +767,41 @@ export default function VehiclesPage() {
                 <TripDetailModal
                   trip={selectedTrip}
                   onClose={() => setSelectedTrip(null)}
+                  onUpdate={(trip) => {
+                    setTripToEdit(trip)
+                    setSelectedTrip(null)
+                    setShowTripForm(true)
+                    setActiveTab('trips')
+                  }}
+                  onTripStatusChanged={() => {
+                    refreshAll()
+                    showToast('Trip status updated — overview refreshed')
+                  }}
                 />
               )}
 
               {/* Maintenance Tab */}
               {activeTab === 'maintenance' && (
                 <div className="space-y-6 p-6">
-                  {showMaintenanceForm ? (
+                  {showMaintenanceForm || maintenanceToEdit ? (
                     <MaintenanceForm
+                      maintenance={maintenanceToEdit || undefined}
                       onSuccess={() => {
                         setShowMaintenanceForm(false)
+                        setMaintenanceToEdit(null)
                         refreshAll()
-                        showToast('Maintenance record created — overview refreshed')
+                        showToast(maintenanceToEdit ? 'Maintenance record updated' : 'Maintenance record created — overview refreshed')
                       }}
-                      onCancel={() => setShowMaintenanceForm(false)}
+                      onCancel={() => {
+                        setShowMaintenanceForm(false)
+                        setMaintenanceToEdit(null)
+                      }}
                     />
                   ) : (
                     <MaintenanceList
                       onMaintenanceSelect={(maintenance) => setSelectedMaintenance(maintenance)}
                       onAddMaintenance={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageVehicleMaintenance')) ? () => setShowMaintenanceForm(true) : undefined}
+                      refreshSignal={refreshCounter}
                     />
                   )}
                 </div>
@@ -785,6 +812,16 @@ export default function VehiclesPage() {
                 <MaintenanceDetailModal
                   maintenance={selectedMaintenance}
                   onClose={() => setSelectedMaintenance(null)}
+                  onStatusChanged={() => {
+                    setRefreshCounter(c => c + 1)
+                    refreshAll()
+                    showToast('Maintenance status updated')
+                  }}
+                  onEdit={(maintenance) => {
+                    setMaintenanceToEdit(maintenance)
+                    setSelectedMaintenance(null)
+                    setActiveTab('maintenance')
+                  }}
                 />
               )}
 

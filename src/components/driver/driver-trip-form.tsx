@@ -227,7 +227,9 @@ export function DriverTripForm({ onSuccess, onCancel }: DriverTripFormProps) {
               disabled={vehicles.length === 0}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select your authorized vehicle" />
+                <SelectValue placeholder="Select your authorized vehicle">
+                  {formData.vehicleId && vehicles.find(v => v.id === formData.vehicleId)?.displayName}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {vehicles.map((vehicle) => (
@@ -288,7 +290,11 @@ export function DriverTripForm({ onSuccess, onCancel }: DriverTripFormProps) {
               onValueChange={(value) => handleInputChange('tripType', value)}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>
+                  {formData.tripType === 'BUSINESS' && 'Business'}
+                  {formData.tripType === 'PERSONAL' && 'Personal'}
+                  {formData.tripType === 'MIXED' && 'Mixed'}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="BUSINESS">Business</SelectItem>
@@ -361,6 +367,33 @@ export function DriverTripForm({ onSuccess, onCancel }: DriverTripFormProps) {
                 value={formData.endDate}
                 onChange={(isoDate) => handleInputChange('endDate', isoDate)}
               />
+              {/* Quick date selection buttons */}
+              {formData.startDate && (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleInputChange('endDate', formData.startDate)}
+                    className="flex-1 text-xs"
+                  >
+                    Same Day
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const nextDay = new Date(formData.startDate)
+                      nextDay.setDate(nextDay.getDate() + 1)
+                      handleInputChange('endDate', nextDay.toISOString().split('T')[0])
+                    }}
+                    className="flex-1 text-xs"
+                  >
+                    Next Day
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="endTime">End Time (optional)</Label>

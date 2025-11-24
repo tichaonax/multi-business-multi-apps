@@ -1,6 +1,5 @@
 'use client'
 
-import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useState, useEffect, Suspense } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useSearchParams } from 'next/navigation'
@@ -10,9 +9,13 @@ import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-forma
 function HistoricalReportViewContent() {
   const [dailySales, setDailySales] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
   const searchParams = useSearchParams()
   const reportDate = searchParams.get('date')
+
+  // Determine POS link based on business type
+  const businessType = currentBusiness?.businessType || 'restaurant'
+  const posLink = `/${businessType}/pos`
 
   useEffect(() => {
     if (reportDate && currentBusinessId) {
@@ -57,15 +60,41 @@ function HistoricalReportViewContent() {
 
   if (!dailySales) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-xl text-gray-600 dark:text-gray-400">No report found for this date</p>
-          <Link
-            href="/restaurant/reports/history"
-            className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Back to History
-          </Link>
+      <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
+        <div className="max-w-2xl mx-auto">
+          {/* Navigation */}
+          <div className="mb-6 flex gap-3">
+            <Link
+              href={posLink}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              ← Back to POS
+            </Link>
+            <Link
+              href="/restaurant/reports/history"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              ← Back to History
+            </Link>
+          </div>
+
+          {/* Error Message */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+            <div className="mb-4">
+              <span className="text-6xl">📭</span>
+            </div>
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No Report Found</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">No sales data available for the selected date.</p>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              <p>Date requested: <span className="font-mono font-semibold">{reportDate}</span></p>
+              <p className="mt-4">This could mean:</p>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>No orders were placed on this date</li>
+                <li>The report data hasn't been generated yet</li>
+                <li>The date may be invalid</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -74,8 +103,7 @@ function HistoricalReportViewContent() {
   const expectedCash = dailySales.paymentMethods?.CASH?.total || 0
 
   return (
-    <BusinessTypeRoute requiredBusinessType="restaurant">
-      <div className="min-h-screen bg-white dark:bg-gray-900 p-4 print:p-0">
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-4 print:p-0">
         {/* Print Button - Hidden when printing */}
         <div className="mb-6 flex gap-3 print:hidden">
           <Link
@@ -308,7 +336,6 @@ function HistoricalReportViewContent() {
           </div>
         </div>
       </div>
-    </BusinessTypeRoute>
   )
 }
 

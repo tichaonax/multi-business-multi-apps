@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import { usePrompt } from '@/components/ui/input-modal'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { VehicleTrip, TripApiResponse } from '@/types/vehicle'
+import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
 interface TripListProps {
   onTripSelect?: (trip: VehicleTrip) => void
@@ -14,11 +16,13 @@ interface TripListProps {
 }
 
 export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
+  const { data: session } = useSession()
   const [trips, setTrips] = useState<VehicleTrip[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [completingTripId, setCompletingTripId] = useState<string | null>(null)
   const [filter, setFilter] = useState({
     tripType: '',
     isCompleted: '',
@@ -30,6 +34,9 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
   const confirm = useConfirm()
   const toast = useToastContext()
   const prompt = usePrompt()
+
+  // Check if user has permission to delete trips (only system admins)
+  const canDeleteTrips = session?.user && isSystemAdmin(session.user as SessionUser)
 
   const fetchTrips = async () => {
     if (controllerRef.current) controllerRef.current.abort()
@@ -80,37 +87,55 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
   }, [page, filter])
 
   const handleCompleteTrip = async (tripId: string, endMileage: number) => {
+    setCompletingTripId(tripId)
     try {
+      console.log('Completing trip:', { tripId, endMileage })
+
+      const payload = {
+        id: tripId,
+        endMileage,
+        endTime: new Date().toISOString(),
+        isCompleted: true
+      }
+
+      console.log('Payload:', payload)
+
       const response = await fetch(`/api/vehicles/trips`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          id: tripId,
-          endMileage,
-          endTime: new Date().toISOString(),
-          isCompleted: true
-        }),
+        body: JSON.stringify(payload),
       })
 
       const result = await response.json()
+      console.log('Response:', { status: response.status, result })
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to complete trip')
       }
 
+      toast.push('Trip completed successfully')
       // Refresh the list
-      fetchTrips()
+      await fetchTrips()
     } catch (err) {
+      console.error('Error completing trip:', err)
       toast.push(err instanceof Error ? err.message : 'Failed to complete trip')
+    } finally {
+      setCompletingTripId(null)
     }
   }
 
-  const handleDelete = async (tripId: string) => {
+  const handleDelete = async (trip: VehicleTrip) => {
+    // Prevent deletion of completed trips
+    if (trip.isCompleted) {
+      toast.push('Cannot delete completed trip. You can reopen it first if you need to make changes.')
+      return
+    }
+
     const ok = await confirm({
       title: 'Delete trip',
-      description: 'Are you sure you want to delete this trip? This action cannot be undone.',
+      description: `Are you sure you want to delete this trip?\n\nPurpose: ${trip.tripPurpose}\nDistance: ${trip.tripMileage ?? 0} miles\n\nThis action cannot be undone.`,
       confirmText: 'Delete',
       cancelText: 'Cancel'
     })
@@ -118,7 +143,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
     if (!ok) return
 
     try {
-      const response = await fetch(`/api/vehicles/trips?id=${tripId}`, {
+      const response = await fetch(`/api/vehicles/trips?id=${trip.id}`, {
         method: 'DELETE',
       })
 
@@ -128,6 +153,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
         throw new Error(result.error || 'Failed to delete trip')
       }
 
+      toast.push('Trip deleted successfully')
       // Refresh the list
       fetchTrips()
     } catch (err) {
@@ -305,7 +331,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
 
                       {trip.expenses && trip.expenses.length > 0 && (
                         <div className="mt-2 text-sm text-secondary">
-                          <span className="font-medium">Expenses:</span> {trip.expenses.length} recorded
+                          <span className="font-medium">Expenses:</span> {trip.expenses.length} recorded - Total: ${trip.expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0).toFixed(2)}
                         </div>
                       )}
                     </div>
@@ -314,6 +340,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
                       {!trip.isCompleted && (
                         <button
                           type="button"
+                          disabled={completingTripId === trip.id}
                           onClick={async (e) => {
                             e.stopPropagation()
                             const input = await prompt({
@@ -325,14 +352,14 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
                               cancelText: 'Cancel'
                             })
                             if (input && Number(input) > trip.startMileage) {
-                              handleCompleteTrip(trip.id, Number(input))
+                              await handleCompleteTrip(trip.id, Number(input))
                             } else if (input !== null) {
                               toast.push('Invalid mileage entered')
                             }
                           }}
-                          className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors relative z-[9999] pointer-events-auto"
+                          className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors relative z-[9999] pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Complete
+                          {completingTripId === trip.id ? 'Completing...' : 'Complete'}
                         </button>
                       )}
                       <button
@@ -349,9 +376,17 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleDelete(trip.id)
+                          handleDelete(trip)
                         }}
-                        className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors relative z-[9999] pointer-events-auto"
+                        disabled={!canDeleteTrips || trip.isCompleted}
+                        title={
+                          !canDeleteTrips
+                            ? 'You do not have permission to delete trips'
+                            : trip.isCompleted
+                            ? 'Cannot delete completed trip. Reopen it first if you need to make changes.'
+                            : 'Delete trip'
+                        }
+                        className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors relative z-[9999] pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Delete
                       </button>

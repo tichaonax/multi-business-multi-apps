@@ -23,15 +23,26 @@ const CreateTripSchema = z.object({
 
 const UpdateTripSchema = z.object({
   id: z.string().min(1),
-  endMileage: z.number().int().min(0).optional(),
+  endMileage: z.number().int().min(0).optional().nullable(),
   tripPurpose: z.string().min(1).optional(),
   tripType: z.enum(['BUSINESS', 'PERSONAL', 'MIXED']).optional(),
   startLocation: z.string().optional(),
   endLocation: z.string().optional(),
-  endTime: z.string().optional(),
+  endTime: z.string().optional().nullable(),
   notes: z.string().optional(),
   gpsTrackingData: z.any().optional(),
-  isCompleted: z.boolean().optional()
+  isCompleted: z.boolean().optional(),
+  expenses: z.array(z.object({
+    expenseType: z.string(),
+    amount: z.number(),
+    currency: z.string(),
+    isBusinessDeductible: z.boolean(),
+    description: z.string().optional(),
+    vendorName: z.string().optional(),
+    fuelQuantity: z.number().optional().nullable(),
+    fuelType: z.string().optional().nullable(),
+    receiptUrl: z.string().optional()
+  })).optional()
 })
 
 // GET - Fetch vehicle trips
@@ -101,11 +112,15 @@ export async function GET(request: NextRequest) {
       },
       // relation field for driver is `vehicle_drivers`
       vehicle_drivers: {
-        select: {
-          id: true,
-          fullName: true,
-          licenseNumber: true,
-          phoneNumber: true
+        include: {
+          users: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              isActive: true
+            }
+          }
         }
       },
       // relation field for business is `businesses`
@@ -270,7 +285,11 @@ export async function POST(request: NextRequest) {
       data: createData as any,
       include: {
         vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
-        vehicle_drivers: { select: { id: true, fullName: true, licenseNumber: true, phoneNumber: true } },
+        vehicle_drivers: {
+          include: {
+            users: { select: { id: true, name: true, email: true, isActive: true } }
+          }
+        },
         businesses: { select: { id: true, name: true, type: true } }
       }
     })
@@ -328,8 +347,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Validate end mileage if provided
-    if (updateData.endMileage && updateData.endMileage <= existingTrip.startMileage) {
+    // Validate end mileage if provided (but allow null for reopening)
+    if (updateData.endMileage !== null && updateData.endMileage !== undefined && updateData.endMileage <= existingTrip.startMileage) {
       return NextResponse.json(
         { error: 'End mileage must be greater than start mileage' },
         { status: 400 }
@@ -337,22 +356,85 @@ export async function PUT(request: NextRequest) {
     }
 
     // Calculate trip mileage and completion status
-    const endMileage = updateData.endMileage || existingTrip.endMileage
-    const endTime = updateData.endTime || existingTrip.endTime
-    const tripMileage = endMileage ? endMileage - existingTrip.startMileage : existingTrip.tripMileage
+    // Handle explicit null values when reopening
+    const endMileage = updateData.endMileage === null ? null : (updateData.endMileage ?? existingTrip.endMileage)
+    const endTime = updateData.endTime === null ? null : (updateData.endTime ?? existingTrip.endTime)
+    const tripMileage = endMileage ? endMileage - existingTrip.startMileage : 0
     const isCompleted = updateData.isCompleted !== undefined
       ? updateData.isCompleted
       : !!(endMileage && endTime)
 
-    // Update trip
-    const trip = await prisma.vehicleTrips.update({
-      where: { id },
-      data: { ...updateData, endTime: updateData.endTime ? new Date(updateData.endTime) : undefined, tripMileage, isCompleted } as any,
-      include: {
-        vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
-        vehicle_drivers: { select: { id: true, fullName: true, licenseNumber: true, phoneNumber: true } },
-        businesses: { select: { id: true, name: true, type: true } }
+    // Prepare update data
+    const updatePayload: any = {
+      ...updateData,
+      tripMileage,
+      isCompleted
+    }
+
+    // Handle endTime - convert to Date, set to null, or remove if empty string
+    if (updateData.endTime === null) {
+      updatePayload.endTime = null
+    } else if (updateData.endTime === '' || updateData.endTime === undefined) {
+      // Remove endTime from payload if empty string or undefined
+      delete updatePayload.endTime
+    } else if (updateData.endTime) {
+      updatePayload.endTime = new Date(updateData.endTime)
+    }
+
+    // Remove expenses from updatePayload as it's handled separately
+    delete updatePayload.expenses
+
+    // Update trip and handle expenses in a transaction
+    const trip = await prisma.$transaction(async (tx: any) => {
+      // Update the trip
+      const updatedTrip = await tx.vehicleTrips.update({
+        where: { id },
+        data: updatePayload,
+        include: {
+          vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
+          vehicle_drivers: {
+            include: {
+              users: { select: { id: true, name: true, email: true, isActive: true } }
+            }
+          },
+          businesses: { select: { id: true, name: true, type: true } },
+          vehicle_expenses: { orderBy: { expenseDate: 'desc' } }
+        }
+      })
+
+      // Handle expense updates if provided
+      if (updateData.expenses !== undefined) {
+        // Delete existing expenses
+        await tx.vehicleExpenses.deleteMany({
+          where: { tripId: id }
+        })
+
+        // Create new expenses if any
+        if (updateData.expenses && updateData.expenses.length > 0) {
+          const now = new Date()
+          await tx.vehicleExpenses.createMany({
+            data: updateData.expenses.map((expense: any) => ({
+              vehicleId: existingTrip.vehicleId,
+              tripId: id,
+              businessId: existingTrip.businessId,
+              expenseType: expense.expenseType,
+              amount: expense.amount,
+              currency: expense.currency,
+              expenseDate: now,
+              isBusinessDeductible: expense.isBusinessDeductible,
+              description: expense.description || '',
+              vendorName: expense.vendorName || '',
+              fuelQuantity: expense.fuelQuantity || null,
+              fuelType: expense.fuelType || null,
+              receiptUrl: expense.receiptUrl || '',
+              createdBy: session.user.id,
+              updatedAt: now
+            }))
+          })
+        }
       }
+
+      return updatedTrip
     })
 
     // Update vehicle mileage if trip is completed and end mileage is provided
@@ -363,7 +445,13 @@ export async function PUT(request: NextRequest) {
       })
     }
 
-    const normalizedTrip = { ...trip, vehicle: (trip as any).vehicles || null, driver: (trip as any).vehicle_drivers || null, business: (trip as any).businesses || null }
+    const normalizedTrip = {
+      ...trip,
+      vehicle: (trip as any).vehicles || null,
+      driver: (trip as any).vehicle_drivers || null,
+      business: (trip as any).businesses || null,
+      expenses: (trip as any).vehicle_expenses || []
+    }
 
     return NextResponse.json({ success: true, data: normalizedTrip, message: 'Vehicle trip updated successfully' })
 

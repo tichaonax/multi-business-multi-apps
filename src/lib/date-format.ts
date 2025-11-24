@@ -4,7 +4,8 @@
  */
 
 // Default locale for the application
-export const DEFAULT_LOCALE = 'en-ZW' // Zimbabwe
+// Using en-GB to ensure dd/mm/yyyy format (Zimbabwe follows British date format standards)
+export const DEFAULT_LOCALE = 'en-GB' // British English for dd/mm/yyyy format
 export const DEFAULT_TIMEZONE = 'Africa/Harare' // Zimbabwe timezone
 
 /**

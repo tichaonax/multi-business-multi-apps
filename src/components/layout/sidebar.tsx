@@ -183,10 +183,43 @@ export function Sidebar() {
           // console.warn('Error tracking last accessed business:', trackError)
         }
 
-        // Navigate to the business module page
-        const businessModulePath = `/${business.type}`
-        // console.log(`🔗 Navigating to: ${businessModulePath}`)
-        router.push(businessModulePath)
+        // Determine navigation path - preserve current module if applicable
+        const currentPath = pathname
+        let targetPath = `/${business.type}` // Default to business homepage
+
+        // Check if we're currently on a business-specific module page
+        const businessModules = ['pos', 'reports', 'inventory', 'products', 'menu', 'orders', 'employees', 'suppliers', 'customers']
+        const pathSegments = currentPath.split('/').filter(Boolean)
+
+        if (pathSegments.length >= 2) {
+          const currentBusinessType = pathSegments[0]
+          const currentModule = pathSegments[1]
+
+          // If we're on a business module page, preserve the module for the new business
+          if (businessModules.includes(currentModule) && ['restaurant', 'grocery', 'clothing', 'hardware'].includes(currentBusinessType)) {
+            // Special handling for reports - they all use the same universal component
+            if (currentModule === 'reports') {
+              // Preserve the full reports sub-path (e.g., sales-analytics, dashboard, etc.)
+              const reportsSubPath = pathSegments.slice(2).join('/') // Get everything after /businessType/reports/
+              targetPath = reportsSubPath ? `/${business.type}/reports/${reportsSubPath}` : `/${business.type}/reports`
+            } else {
+              // For other modules, check if the target business supports this module
+              const supportedModules = {
+                restaurant: ['pos', 'reports', 'inventory', 'menu', 'orders', 'employees', 'suppliers', 'customers'],
+                grocery: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
+                clothing: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
+                hardware: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers']
+              }
+
+              if (supportedModules[business.type as keyof typeof supportedModules]?.includes(currentModule)) {
+                targetPath = `/${business.type}/${currentModule}`
+              }
+            }
+          }
+        }
+
+        // console.log(`🔗 Navigating from ${currentPath} to: ${targetPath}`)
+        router.push(targetPath)
       } catch (error) {
         console.error('Failed to switch business:', error)
       }
@@ -251,22 +284,25 @@ export function Sidebar() {
       </div>
       
   <nav className="flex-1 p-4 space-y-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent pr-2 max-h-[calc(100vh-4rem)]">
-        <Link 
-          href="/dashboard" 
+        <Link
+          href="/dashboard"
           className="sidebar-link flex items-center space-x-3"
         >
           <span className="text-lg">📊</span>
           <span>Dashboard</span>
         </Link>
-        
-        <button
-          onClick={() => setShowRevenueModal(true)}
-          className="sidebar-link flex items-center space-x-3 w-full text-left"
-        >
-          <span className="text-lg">💰</span>
-          <span>Business Revenue Breakdown</span>
-        </button>
-        
+
+        {/* Business Revenue Breakdown - Only for users with financial data access */}
+        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canAccessFinancialData')) && (
+          <button
+            onClick={() => setShowRevenueModal(true)}
+            className="sidebar-link flex items-center space-x-3 w-full text-left"
+          >
+            <span className="text-lg">💰</span>
+            <span>Business Revenue Breakdown</span>
+          </button>
+        )}
+
         {/* Universal Hierarchical Business Navigation - Only for managers and admins, NOT promoted drivers */}
         {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canManageEmployees') || hasPermission(currentUser, 'canEditEmployees') || hasPermission(currentUser, 'canAccessFinancialData')) && (
           <>
@@ -323,6 +359,89 @@ export function Sidebar() {
           <div className="text-gray-400 text-sm px-3 py-2">
             Loading businesses...
           </div>
+        )}
+
+        {/* Business-Type-Specific Features */}
+        {currentBusiness && (
+          <>
+            <div className="pt-4 pb-2">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {currentBusiness.businessName}
+              </h3>
+            </div>
+
+            {/* Restaurant Features */}
+            {currentBusiness.businessType === 'restaurant' && (
+              <>
+                <Link href="/restaurant/pos" className={getLinkClasses('/restaurant/pos')}>
+                  <span className="text-lg">🍽️</span>
+                  <span>POS System</span>
+                </Link>
+                <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
+                  <span className="text-lg">📊</span>
+                  <span>Sales Reports</span>
+                </Link>
+                <Link href="/restaurant/menu" className={getLinkClasses('/restaurant/menu')}>
+                  <span className="text-lg">📋</span>
+                  <span>Menu Management</span>
+                </Link>
+              </>
+            )}
+
+            {/* Grocery Features */}
+            {currentBusiness.businessType === 'grocery' && (
+              <>
+                <Link href="/grocery/pos" className={getLinkClasses('/grocery/pos')}>
+                  <span className="text-lg">🛒</span>
+                  <span>POS System</span>
+                </Link>
+                <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
+                  <span className="text-lg">📊</span>
+                  <span>Sales Reports</span>
+                </Link>
+                <Link href="/grocery/products" className={getLinkClasses('/grocery/products')}>
+                  <span className="text-lg">📦</span>
+                  <span>Products</span>
+                </Link>
+              </>
+            )}
+
+            {/* Clothing Features */}
+            {currentBusiness.businessType === 'clothing' && (
+              <>
+                <Link href="/clothing/pos" className={getLinkClasses('/clothing/pos')}>
+                  <span className="text-lg">👕</span>
+                  <span>POS System</span>
+                </Link>
+                <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
+                  <span className="text-lg">📊</span>
+                  <span>Sales Reports</span>
+                </Link>
+                <Link href="/clothing/products" className={getLinkClasses('/clothing/products')}>
+                  <span className="text-lg">👗</span>
+                  <span>Products</span>
+                </Link>
+              </>
+            )}
+
+            {/* Hardware Features */}
+            {currentBusiness.businessType === 'hardware' && (
+              <>
+                <Link href="/hardware/pos" className={getLinkClasses('/hardware/pos')}>
+                  <span className="text-lg">🔧</span>
+                  <span>POS System</span>
+                </Link>
+                <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
+                  <span className="text-lg">📊</span>
+                  <span>Sales Reports</span>
+                </Link>
+                <Link href="/hardware/products" className={getLinkClasses('/hardware/products')}>
+                  <span className="text-lg">🛠️</span>
+                  <span>Products</span>
+                </Link>
+              </>
+            )}
+          </>
         )}
 
         {/* Business and Personal Finances - User-level permissions (business-agnostic) */}

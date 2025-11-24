@@ -91,7 +91,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="confirm-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center"
+          className="fixed inset-0 z-[100000] flex items-center justify-center"
         >
           <div className="absolute inset-0 bg-black/40" onClick={() => handleClose(false)} />
           <div className="relative w-full max-w-lg rounded bg-white dark:bg-gray-800 p-6 shadow-lg mx-4" onClick={(e) => e.stopPropagation()}>

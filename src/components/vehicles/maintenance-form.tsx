@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DateInput } from '@/components/ui/date-input'
-import { CreateMaintenanceData, Vehicle } from '@/types/vehicle'
+import { CreateMaintenanceData, Vehicle, VehicleMaintenanceRecord } from '@/types/vehicle'
 import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 
@@ -10,9 +10,10 @@ interface MaintenanceFormProps {
   onSuccess?: () => void
   onCancel?: () => void
   vehicleId?: string
+  maintenance?: VehicleMaintenanceRecord
 }
 
-export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceFormProps) {
+export function MaintenanceForm({ onSuccess, onCancel, vehicleId, maintenance }: MaintenanceFormProps) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -20,20 +21,20 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
   const toast = useToastContext()
 
   const [formData, setFormData] = useState<CreateMaintenanceData>({
-    vehicleId: vehicleId || '',
-    serviceType: 'ROUTINE',
-    serviceName: '',
-    serviceProvider: '',
-    serviceDate: new Date().toISOString().slice(0, 10),
-    mileageAtService: 0,
-    cost: 0,
-    currency: 'USD',
-    nextServiceMileage: 0,
-    nextServiceDate: '',
-    warrantyUntil: '',
-    receiptUrl: '',
-    notes: '',
-    isCompleted: false
+    vehicleId: maintenance?.vehicleId || vehicleId || '',
+    serviceType: maintenance?.serviceType || 'OIL_CHANGE',
+    serviceName: maintenance?.serviceName || '',
+    serviceProvider: maintenance?.serviceProvider || '',
+    serviceDate: maintenance?.serviceDate ? new Date(maintenance.serviceDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    mileageAtService: maintenance?.mileageAtService || 0,
+    cost: maintenance?.cost || 0,
+    currency: maintenance?.currency || 'USD',
+    nextServiceMileage: maintenance?.nextServiceMileage || 0,
+    nextServiceDate: maintenance?.nextServiceDate ? new Date(maintenance.nextServiceDate).toISOString().slice(0, 10) : '',
+    warrantyUntil: maintenance?.warrantyUntil || '',
+    receiptUrl: maintenance?.receiptUrl || '',
+    notes: maintenance?.notes || '',
+    isCompleted: maintenance?.isCompleted || false
   })
 
   useEffect(() => {
@@ -74,13 +75,24 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
     setError('')
 
     try {
+      const payload = maintenance
+        ? {
+            ...formData,
+            id: maintenance.id,
+            cost: Number(formData.cost)  // Ensure cost is a number
+          }
+        : {
+            ...formData,
+            cost: Number(formData.cost)  // Ensure cost is a number
+          }
+
       const body = await fetchWithValidation('/api/vehicles/maintenance', {
-        method: 'POST',
+        method: maintenance ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       })
 
-      const successMsg = body?.message || 'Maintenance record saved'
+      const successMsg = body?.message || (maintenance ? 'Maintenance record updated' : 'Maintenance record saved')
       try { toast.push(successMsg) } catch (e) {}
       if (onSuccess) onSuccess()
     } catch (err) {
@@ -110,7 +122,7 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
   return (
     <div className="card p-6 max-w-full overflow-x-hidden">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-primary">Record Maintenance Service</h2>
+        <h2 className="text-xl font-semibold text-primary">{maintenance ? 'Edit Maintenance Record' : 'Record Maintenance Service'}</h2>
         {onCancel && (
           <button onClick={onCancel} className="text-secondary hover:text-primary transition-colors">✕</button>
         )}
@@ -142,12 +154,12 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">Service Type *</label>
             <select name="serviceType" required value={formData.serviceType} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors">
-              <option value="ROUTINE">Routine Maintenance</option>
-              <option value="REPAIR">Repair</option>
+              <option value="OIL_CHANGE">Oil Change</option>
+              <option value="TIRE_REPLACEMENT">Tire Replacement</option>
+              <option value="BRAKE_SERVICE">Brake Service</option>
               <option value="INSPECTION">Inspection</option>
-              <option value="EMERGENCY">Emergency</option>
-              <option value="WARRANTY">Warranty Work</option>
-              <option value="UPGRADE">Upgrade</option>
+              <option value="REPAIR">Repair</option>
+              <option value="OTHER">Other</option>
             </select>
           </div>
 
@@ -218,7 +230,9 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId }: MaintenanceF
           {onCancel && (
             <button type="button" onClick={onCancel} className="px-4 py-2 text-secondary bg-gray-200 dark:bg-gray-600 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors w-full sm:w-auto" disabled={isSubmitting}>Cancel</button>
           )}
-          <button type="submit" disabled={isSubmitting || !formData.vehicleId} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto">{isSubmitting ? 'Recording...' : 'Record Service'}</button>
+          <button type="submit" disabled={isSubmitting || !formData.vehicleId} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto">
+            {isSubmitting ? (maintenance ? 'Updating...' : 'Recording...') : (maintenance ? 'Update Service' : 'Record Service')}
+          </button>
         </div>
       </form>
     </div>

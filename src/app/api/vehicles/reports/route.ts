@@ -222,8 +222,8 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
     where: tripFilter,
     include: {
       vehicles: { select: { licensePlate: true, make: true, model: true, ownershipType: true, mileageUnit: true } },
-      // relation on VehicleTrip for driver is 'vehicleDrivers'
-      vehicleDrivers: { select: { fullName: true } },
+      // relation on VehicleTrip for driver is 'vehicle_drivers'
+      vehicle_drivers: { select: { fullName: true } },
       businesses: { select: { name: true } },
       vehicle_expenses: {
         where: { expenseType: 'FUEL' },
@@ -242,7 +242,12 @@ async function generateMileageSummaryReport(dateFilter?: any, vehicleId?: string
   }))
 
   const summary = normalizedTrips.reduce((acc, trip) => {
-    const mileage = trip.tripMileage || 0
+    // Calculate mileage from tripMileage, or fall back to endMileage - startMileage
+    let mileage = trip.tripMileage || 0
+    if (!mileage && trip.endMileage && trip.startMileage) {
+      mileage = trip.endMileage - trip.startMileage
+    }
+
     acc.totalMileage += mileage
     acc.businessMileage += trip.tripType === 'BUSINESS' ? mileage : 0
     acc.personalMileage += trip.tripType === 'PERSONAL' ? mileage : 0
@@ -322,22 +327,49 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
   if (vehicleId) expenseFilter.vehicleId = vehicleId
   if (businessId) expenseFilter.businessId = businessId
 
-  const expenses = await prisma.vehicleExpenses.findMany({
-    where: expenseFilter,
-    include: {
-      vehicles: { select: { licensePlate: true, make: true, model: true } },
-      businesses: { select: { name: true } },
-      vehicle_trips: { select: { tripPurpose: true, tripType: true, tripMileage: true } }
-    }
-  })
-  const normalizedExpenses = expenses.map(e => ({
+  // Build maintenance filter
+  const maintenanceFilter: any = {}
+  if (dateFilter) maintenanceFilter.serviceDate = dateFilter
+  if (vehicleId) maintenanceFilter.vehicleId = vehicleId
+  // Note: maintenance records don't have businessId, they're linked via vehicle
+
+  // Build license filter
+  const licenseFilter: any = {}
+  if (dateFilter) licenseFilter.issueDate = dateFilter
+  if (vehicleId) licenseFilter.vehicleId = vehicleId
+
+  // Fetch trip expenses, maintenance costs, and license renewals
+  const [tripExpenses, maintenanceRecords, licenseRenewals] = await Promise.all([
+    prisma.vehicleExpenses.findMany({
+      where: expenseFilter,
+      include: {
+        vehicles: { select: { licensePlate: true, make: true, model: true } },
+        businesses: { select: { name: true } },
+        vehicle_trips: { select: { tripPurpose: true, tripType: true, tripMileage: true } }
+      }
+    }),
+    prisma.vehicleMaintenanceRecords.findMany({
+      where: maintenanceFilter,
+      include: {
+        vehicles: { select: { licensePlate: true, make: true, model: true } }
+      }
+    }),
+    prisma.vehicleLicenses.findMany({
+      where: licenseFilter,
+      include: {
+        vehicles: { select: { licensePlate: true, make: true, model: true } }
+      }
+    })
+  ])
+
+  const normalizedExpenses = tripExpenses.map(e => ({
     ...e,
     vehicle: (e as any).vehicles,
     business: (e as any).businesses,
     trip: (e as any).vehicle_trips
   }))
 
-  // Enhanced summary with detailed expense breakdown
+  // Enhanced summary with detailed expense breakdown (trip expenses)
   const summary = normalizedExpenses.reduce((acc, expense) => {
     const amt = Number(expense.amount ?? 0)
     acc.totalAmount += amt
@@ -376,7 +408,7 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
     totalAmount: 0,
     businessDeductible: 0,
     personalExpenses: 0,
-    totalExpenses: expenses.length,
+    totalExpenses: tripExpenses.length,
     byType: {} as Record<string, number>,
     byCategory: {} as Record<string, { count: number; totalAmount: number }>,
     fuelMetrics: {
@@ -386,6 +418,60 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
       byType: {} as Record<string, { quantity: number; cost: number; transactions: number }>
     }
   })
+
+  // Add maintenance costs to the summary
+  maintenanceRecords.forEach(maintenance => {
+    const maintenanceCost = Number((maintenance as any).serviceCost ?? 0)
+    summary.totalAmount += maintenanceCost
+
+    // Add to MAINTENANCE category
+    const maintenanceType = 'MAINTENANCE'
+    summary.byType[maintenanceType] = (summary.byType[maintenanceType] || 0) + maintenanceCost
+
+    // Add to category breakdown
+    const serviceType = (maintenance as any).serviceType || 'MAINTENANCE'
+    if (!summary.byCategory[serviceType]) {
+      summary.byCategory[serviceType] = { count: 0, totalAmount: 0 }
+    }
+    summary.byCategory[serviceType].count++
+    summary.byCategory[serviceType].totalAmount += maintenanceCost
+  })
+
+  // Add license renewal costs (including late fees) to the summary
+  licenseRenewals.forEach(license => {
+    const renewalCost = Number((license as any).renewalCost ?? 0)
+    const lateFee = Number((license as any).lateFee ?? 0)
+    const totalLicenseCost = renewalCost + lateFee
+
+    if (totalLicenseCost > 0) {
+      summary.totalAmount += totalLicenseCost
+
+      // Add to LICENSE category
+      const licenseType = 'LICENSE'
+      summary.byType[licenseType] = (summary.byType[licenseType] || 0) + totalLicenseCost
+
+      // Add to category breakdown by license type
+      const licenseCategory = `LICENSE_${(license as any).licenseType}` || 'LICENSE'
+      if (!summary.byCategory[licenseCategory]) {
+        summary.byCategory[licenseCategory] = { count: 0, totalAmount: 0 }
+      }
+      summary.byCategory[licenseCategory].count++
+      summary.byCategory[licenseCategory].totalAmount += totalLicenseCost
+
+      // Track late fees separately if present
+      if (lateFee > 0) {
+        const lateFeeCategory = 'LICENSE_LATE_FEE'
+        if (!summary.byCategory[lateFeeCategory]) {
+          summary.byCategory[lateFeeCategory] = { count: 0, totalAmount: 0 }
+        }
+        summary.byCategory[lateFeeCategory].count++
+        summary.byCategory[lateFeeCategory].totalAmount += lateFee
+      }
+    }
+  })
+
+  // Update total expense count to include maintenance and licenses
+  summary.totalExpenses = tripExpenses.length + maintenanceRecords.length + licenseRenewals.length
 
   // Calculate average fuel cost per unit
   if (summary.fuelMetrics.totalQuantity > 0) {
@@ -548,22 +634,23 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
           vehicles: { select: { licensePlate: true, make: true, model: true } }
       }
     }),
-    // Driver licenses expiring in 60 days
+    // Driver licenses expiring in 60 days (only for licenses that have expiry dates)
     prisma.vehicleDrivers.findMany({
       where: {
         ...driverFilter,
         isActive: true,
-        licenseExpiry: {
-          gte: new Date(),
-          lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
-        }
+        AND: [
+          { licenseExpiry: { not: null } },
+          { licenseExpiry: { gte: new Date() } },
+          { licenseExpiry: { lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) } }
+        ]
       }
     }),
     // Expired or inactive driver authorizations
     prisma.driverAuthorizations.findMany({
       where: {
-        // relation name is 'vehicleDrivers' on DriverAuthorization
-        vehicleDrivers: driverFilter,
+        // relation name is 'vehicle_drivers' on DriverAuthorization
+        vehicle_drivers: driverFilter,
         OR: [
           { isActive: false },
           {
@@ -574,8 +661,8 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
         ]
       },
       include: {
-        // relation field name for driver on DriverAuthorization is 'vehicleDrivers'
-        vehicleDrivers: { select: { fullName: true } },
+        // relation field name for driver on DriverAuthorization is 'vehicle_drivers'
+        vehicle_drivers: { select: { fullName: true } },
         vehicles: { select: { licensePlate: true, make: true, model: true } }
       }
     })

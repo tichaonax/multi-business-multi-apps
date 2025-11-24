@@ -49,6 +49,16 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
     hasPermission(session.user as SessionUser, 'canManageDrivers')
   )
 
+  // Check if user has permission to delete drivers (only system admins)
+  const canDeleteDrivers = session?.user && isSystemAdmin(session.user as SessionUser)
+
+  // Check if driver can be deleted (has no related data)
+  const canDeleteDriver = (driver: VehicleDriver): boolean => {
+    const hasTrips = driver.trips && driver.trips.length > 0
+    const hasAuthorizations = driver.authorizations && driver.authorizations.length > 0
+    return !hasTrips && !hasAuthorizations
+  }
+
   const fetchVehicleCounts = async (driverIds: string[]) => {
     try {
       const counts: Record<string, number> = {}
@@ -131,10 +141,54 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
     }
   }, [page, refreshSignal])
 
-  const handleDelete = async (driverId: string) => {
+  const handleToggleActive = async (driver: VehicleDriver) => {
+    const action = driver.isActive ? 'disable' : 'enable'
+    const ok = await confirm({
+      title: `${action === 'disable' ? 'Disable' : 'Enable'} driver`,
+      description: driver.isActive
+        ? `Are you sure you want to disable ${driver.fullName}? They will not be able to access the system and cannot be assigned to new vehicles until reactivated.`
+        : `Are you sure you want to enable ${driver.fullName}? They will regain system access and can be assigned to vehicles.`,
+      confirmText: action === 'disable' ? 'Disable' : 'Enable',
+      cancelText: 'Cancel'
+    })
+
+    if (!ok) return
+
+    try {
+      const response = await fetch(`/api/vehicles/drivers?id=${driver.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !driver.isActive })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || `Failed to ${action} driver`)
+      }
+
+      toast.push(`Driver ${action}d successfully`)
+      // Refresh the list
+      fetchDrivers()
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : `Failed to ${action} driver`)
+    }
+  }
+
+  const handleDelete = async (driver: VehicleDriver) => {
+    // Check if driver has related data
+    const relatedData = []
+    if (driver.trips && driver.trips.length > 0) relatedData.push('trips')
+    if (driver.authorizations && driver.authorizations.length > 0) relatedData.push('vehicle authorizations')
+
+    if (relatedData.length > 0) {
+      toast.push(`Cannot delete driver: They have ${relatedData.join(', ')}. Please remove these first or disable the driver instead.`)
+      return
+    }
+
     const ok = await confirm({
       title: 'Delete driver',
-      description: 'Are you sure you want to delete this driver? This action cannot be undone.',
+      description: `Are you sure you want to delete ${driver.fullName}? This action cannot be undone. Consider disabling the driver instead.`,
       confirmText: 'Delete',
       cancelText: 'Cancel'
     })
@@ -142,7 +196,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
     if (!ok) return
 
     try {
-      const response = await fetch(`/api/vehicles/drivers?id=${driverId}`, {
+      const response = await fetch(`/api/vehicles/drivers?id=${driver.id}`, {
         method: 'DELETE',
       })
 
@@ -152,6 +206,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
         throw new Error(result.error || 'Failed to delete driver')
       }
 
+      toast.push('Driver deleted successfully')
       // Refresh the list
       fetchDrivers()
     } catch (err) {
@@ -264,14 +319,16 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
   const confirm = useConfirm()
   const toast = useToastContext()
 
-  const isLicenseExpiringSoon = (expiryDate: string) => {
+  const isLicenseExpiringSoon = (expiryDate?: string) => {
+    if (!expiryDate) return false // No expiry date means license doesn't expire
     const expiry = new Date(expiryDate)
     const today = new Date()
     const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return daysUntilExpiry <= 30 && daysUntilExpiry >= 0
   }
 
-  const isLicenseExpired = (expiryDate: string) => {
+  const isLicenseExpired = (expiryDate?: string) => {
+    if (!expiryDate) return false // No expiry date means license doesn't expire
     const expiry = new Date(expiryDate)
     const today = new Date()
     return expiry < today
@@ -522,12 +579,36 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
                               )}
                             </button>
                           )}
+                          {canManageUsers && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleToggleActive(driver)
+                              }}
+                              className={`px-3 py-1 text-sm rounded-md transition-colors min-h-[32px] ${
+                                driver.isActive
+                                  ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+                              }`}
+                              title={driver.isActive ? 'Disable driver' : 'Enable driver'}
+                            >
+                              {driver.isActive ? 'Disable' : 'Enable'}
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleDelete(driver.id)
+                              handleDelete(driver)
                             }}
-                            className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors min-h-[32px]"
+                            disabled={!canDeleteDrivers || !canDeleteDriver(driver)}
+                            title={
+                              !canDeleteDrivers
+                                ? 'You do not have permission to delete drivers'
+                                : !canDeleteDriver(driver)
+                                ? 'Cannot delete driver with existing trips or vehicle authorizations. Disable the driver instead.'
+                                : 'Delete driver'
+                            }
+                            className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors min-h-[32px] disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Delete
                           </button>

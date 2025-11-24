@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Minus, DollarSign, Receipt } from 'lucide-react'
 import { TripExpenseItem, TripExpenseCategory, FuelType } from '@/types/trip-expenses'
+import { useConfirm } from '@/components/ui/confirm-modal'
 
 interface ExpenseInputProps {
   category: TripExpenseCategory
@@ -27,6 +28,7 @@ export function ExpenseInput({
   currency = 'USD'
 }: ExpenseInputProps) {
   const [showDetails, setShowDetails] = useState(false)
+  const confirm = useConfirm()
 
   const handleChange = (field: keyof TripExpenseItem, value: any) => {
     onChange({
@@ -40,6 +42,25 @@ export function ExpenseInput({
     handleChange('amount', amount)
   }
 
+  const handleRemove = async () => {
+    const description = [
+      `Amount: $${expense.amount || 0}`,
+      expense.vendorName ? `Vendor: ${expense.vendorName}` : '',
+      expense.description ? `Description: ${expense.description}` : ''
+    ].filter(Boolean).join('\n')
+
+    const confirmed = await confirm({
+      title: `Delete ${category.label} Expense`,
+      description: description || 'Are you sure you want to delete this expense?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    })
+
+    if (confirmed) {
+      onRemove()
+    }
+  }
+
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
       {/* Header */}
@@ -48,28 +69,15 @@ export function ExpenseInput({
           <span className="text-lg">{category.icon}</span>
           <h4 className="font-medium text-primary">{category.label}</h4>
         </div>
-        <div className="flex items-center space-x-2">
-          {onAddNext && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onAddNext}
-              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            <Minus className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleRemove}
+          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+        >
+          <Minus className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Amount Input */}
@@ -202,6 +210,21 @@ export function ExpenseInput({
               placeholder="Receipt photo URL or reference"
             />
           </div>
+        </div>
+      )}
+
+      {/* Add Next Expense Button - Prominent at bottom */}
+      {onAddNext && (
+        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onAddNext}
+            className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-300 hover:border-blue-400"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Next Expense
+          </Button>
         </div>
       )}
     </div>

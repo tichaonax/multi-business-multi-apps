@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 // Validation schemas
 const CreateVehicleSchema = z.object({
   licensePlate: z.string().min(1, 'License plate is required'),
-  vin: z.string().min(17, 'VIN must be 17 characters').max(17, 'VIN must be 17 characters'),
+  vin: z.string().min(5, 'VIN must be at least 5 characters'),
   make: z.string().min(1, 'Make is required'),
   model: z.string().min(1, 'Model is required'),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
@@ -30,7 +30,7 @@ const CreateVehicleSchema = z.object({
 const UpdateVehicleSchema = z.object({
   id: z.string().min(1),
   licensePlate: z.string().min(1).optional(),
-  vin: z.string().length(17).optional(),
+  vin: z.string().min(5, 'VIN must be at least 5 characters').optional(),
   make: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
@@ -133,6 +133,7 @@ export async function GET(request: NextRequest) {
       ...v,
       business: v.businesses || null,
       user: v.users || null,
+      vehicleLicenses: v.vehicle_licenses || [],
       trips: v.vehicle_trips || [],
       maintenanceRecords: v.vehicle_maintenance_records || [],
       expenseRecords: v.vehicle_expenses || [],

@@ -16,6 +16,7 @@ import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { LicenseStatusIndicator } from './license-status-indicator'
 import { LicenseFormModal } from './license-form-modal'
+import { LicenseDetailModal } from './license-detail-modal'
 import {
   X,
   Car,
@@ -50,6 +51,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const [vehicleData, setVehicleData] = useState(vehicle)
   const [selectedLicenseIds, setSelectedLicenseIds] = useState<string[]>([])
   const [showAllLicenses, setShowAllLicenses] = useState(false)
+  const [viewingLicense, setViewingLicense] = useState<VehicleLicense | null>(null)
 
   const [formData, setFormData] = useState({
     licensePlate: vehicle.licensePlate,
@@ -821,10 +823,14 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                     {getLatestLicensesByType().map((license) => {
                       const status = getLicenseStatus(license)
                       return (
-                        <div key={license.licenseType} className={`flex items-center justify-between p-3 rounded-lg border ${getLicenseStatusStyle(status)}`}>
+                        <button
+                          key={license.licenseType}
+                          onClick={() => setViewingLicense(license)}
+                          className={`w-full flex items-center justify-between p-3 rounded-lg border ${getLicenseStatusStyle(status)} hover:opacity-80 transition-opacity cursor-pointer`}
+                        >
                           <div className="flex items-center space-x-3">
                             {getLicenseStatusIcon(status)}
-                            <div className="flex-1">
+                            <div className="flex-1 text-left">
                               <div className="flex items-center space-x-2">
                                 <span className="text-sm font-medium">
                                   {license.licenseType.replace('_', ' ')}
@@ -835,13 +841,14 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 Effective: {formatDateByFormat(license.issueDate, globalDateFormat)} • Expires: {formatDateByFormat(license.expiryDate, globalDateFormat)}
+                                {license.renewalCost && <span> • Cost: ${license.renewalCost.toLocaleString()}</span>}
                               </div>
                             </div>
                           </div>
                           <div className="text-xs font-medium">
                             {getStatusText(status)}
                           </div>
-                        </div>
+                        </button>
                       )
                     })}
                   </div>
@@ -923,6 +930,11 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                                 <span className="font-medium">
                                   Expires: {formatDateByFormat(license.expiryDate, globalDateFormat)}
                                 </span>
+                                {license.renewalCost && (
+                                  <span className="font-medium text-green-700 dark:text-green-400">
+                                    Cost: ${license.renewalCost.toLocaleString()}
+                                  </span>
+                                )}
                                 <span className="opacity-60">
                                   Created: {formatDateByFormat(license.createdAt, globalDateFormat)}
                                 </span>
@@ -1022,6 +1034,21 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
           }}
           onSave={handleLicenseSave}
         />
+
+        {/* License Detail Modal */}
+        {viewingLicense && (
+          <LicenseDetailModal
+            license={viewingLicense}
+            onClose={() => setViewingLicense(null)}
+            onEdit={(license) => {
+              setEditingLicense(license)
+              setShowLicenseModal(true)
+              setViewingLicense(null)
+            }}
+            onDelete={handleDeleteLicense}
+            canEdit={canEdit}
+          />
+        )}
       </div>
     </div>
   )

@@ -45,7 +45,9 @@ export interface VehicleDriver {
   id: string
   fullName: string
   licenseNumber: string
-  licenseExpiry: string
+  licenseCountryOfIssuance: string
+  licenseExpiry?: string
+  driverLicenseTemplateId?: string
   phoneNumber?: string
   emailAddress?: string
   emergencyContact?: string
@@ -76,6 +78,7 @@ export interface VehicleLicense {
   issueDate: string
   expiryDate: string
   renewalCost?: number
+  lateFee?: number
   isActive: boolean
   documentUrl?: string
   reminderDays: number
@@ -179,7 +182,7 @@ export interface VehicleExpense {
 export interface VehicleMaintenanceRecord {
   id: string
   vehicleId: string
-  serviceType: 'ROUTINE' | 'REPAIR' | 'INSPECTION' | 'EMERGENCY' | 'WARRANTY' | 'UPGRADE'
+  serviceType: 'OIL_CHANGE' | 'TIRE_REPLACEMENT' | 'BRAKE_SERVICE' | 'INSPECTION' | 'REPAIR' | 'OTHER'
   serviceName: string
   serviceProvider?: string
   serviceDate: string
@@ -267,7 +270,9 @@ export interface CreateVehicleData {
 export interface CreateDriverData {
   fullName: string
   licenseNumber: string
-  licenseExpiry: string
+  licenseCountryOfIssuance: string
+  licenseExpiry?: string
+  driverLicenseTemplateId?: string
   phoneNumber?: string
   emailAddress?: string
   emergencyContact?: string
@@ -312,7 +317,7 @@ export interface CreateExpenseData {
 
 export interface CreateMaintenanceData {
   vehicleId: string
-  serviceType: 'ROUTINE' | 'REPAIR' | 'INSPECTION' | 'EMERGENCY' | 'WARRANTY' | 'UPGRADE'
+  serviceType: 'OIL_CHANGE' | 'TIRE_REPLACEMENT' | 'BRAKE_SERVICE' | 'INSPECTION' | 'REPAIR' | 'OTHER'
   serviceName: string
   serviceProvider?: string
   serviceDate: string

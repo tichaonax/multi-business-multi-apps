@@ -120,9 +120,14 @@ export default function NewContractPage() {
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [contractCreated, setContractCreated] = useState(false)
+  const hasAutoShownPreview = useRef(false)
   const [createdContract, setCreatedContract] = useState<any>(null)
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({})
   const [umbrellaBusinessData, setUmbrellaBusinessData] = useState<any>(null)
+  const [showAddBenefitTypeModal, setShowAddBenefitTypeModal] = useState(false)
+  const [pendingBenefitIndex, setPendingBenefitIndex] = useState<number | null>(null)
+  const [benefitSearchTerms, setBenefitSearchTerms] = useState<{[key: number]: string}>({})
+  const [showBenefitDropdowns, setShowBenefitDropdowns] = useState<{[key: number]: boolean}>({})
 
   const [formData, setFormData] = useState<ContractFormData>({
     jobTitleId: '',
@@ -161,6 +166,11 @@ export default function NewContractPage() {
     if (formData.baseSalary && parseFloat(formData.baseSalary) <= 0) errors.baseSalary = 'Base Salary must be greater than 0'
     if (!formData.startDate) errors.startDate = 'Start Date is required'
 
+    // Log validation errors for debugging
+    if (Object.keys(errors).length > 0) {
+      console.log('🚫 Form validation failed:', errors)
+    }
+
     // Check if supervisor is required based on job title and available employees
     const selectedJobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId)
     const availableSupervisors = employees.filter(emp => emp.id !== employeeId)
@@ -193,7 +203,7 @@ export default function NewContractPage() {
 
   const getInputClassName = (fieldName: string) => {
     const hasError = validationErrors[fieldName]
-    return `input w-full ${hasError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`
+    return `input w-full h-11 px-3 py-2 ${hasError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`
   }
 
   const clearFieldError = (fieldName: string) => {
@@ -285,6 +295,14 @@ export default function NewContractPage() {
 
   useEffect(() => {
     if (employee) {
+      console.log('📝 Pre-populating form from employee data:', {
+        jobTitleId: employee.jobTitle?.id,
+        compensationTypeId: employee.compensationType?.id,
+        primaryBusinessId: employee.primaryBusiness?.id,
+        supervisorId: employee.supervisor?.id,
+        employeeData: employee
+      })
+
       // Pre-populate form with employee data but do not overwrite fields that are already populated
       setFormData(prev => ({
         ...prev,
@@ -428,21 +446,123 @@ export default function NewContractPage() {
       ...prev,
       benefits: prev.benefits.filter((_, i) => i !== index)
     }))
+    // Clean up search term for this benefit
+    setBenefitSearchTerms(prev => {
+      const updated = { ...prev }
+      delete updated[index]
+      // Reindex remaining benefits
+      const reindexed: {[key: number]: string} = {}
+      Object.keys(updated).forEach(key => {
+        const oldIndex = parseInt(key)
+        if (oldIndex > index) {
+          reindexed[oldIndex - 1] = updated[oldIndex]
+        } else if (oldIndex < index) {
+          reindexed[oldIndex] = updated[oldIndex]
+        }
+      })
+      return reindexed
+    })
+    // Clean up dropdown visibility
+    setShowBenefitDropdowns(prev => {
+      const updated = { ...prev }
+      delete updated[index]
+      return updated
+    })
   }
 
   const updateBenefit = (index: number, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
-      benefits: prev.benefits.map((benefit, i) => 
+      benefits: prev.benefits.map((benefit, i) =>
         i === index ? { ...benefit, [field]: value } : benefit
       )
     }))
   }
 
+  const handleBenefitTypeChange = (index: number, value: string) => {
+    if (value === '__create_new__') {
+      setPendingBenefitIndex(index)
+      setShowAddBenefitTypeModal(true)
+    } else {
+      updateBenefit(index, 'benefitTypeId', value)
+    }
+  }
+
+  const handleNewBenefitTypeSuccess = async (name: string, type: string) => {
+    try {
+      // Check for duplicates (case-insensitive)
+      const duplicate = benefitTypes.find(
+        bt => bt.name.toLowerCase().trim() === name.toLowerCase().trim()
+      )
+
+      if (duplicate) {
+        alert(`A benefit type named "${duplicate.name}" already exists. Please use a different name.`)
+        return false
+      }
+
+      const response = await fetch('/api/benefit-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), type })
+      })
+
+      if (response.ok) {
+        const newBenefitType = await response.json()
+        // Add the new benefit type to the list
+        setBenefitTypes(prev => [...prev, newBenefitType])
+        // Auto-select the newly created benefit type for the pending benefit
+        if (pendingBenefitIndex !== null) {
+          updateBenefit(pendingBenefitIndex, 'benefitTypeId', newBenefitType.id)
+          // Update search term to show the selected benefit
+          setBenefitSearchTerms(prev => ({
+            ...prev,
+            [pendingBenefitIndex]: `${newBenefitType.name} (${newBenefitType.type})`
+          }))
+        }
+        // Close the modal
+        setShowAddBenefitTypeModal(false)
+        setPendingBenefitIndex(null)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error creating benefit type:', error)
+      return false
+    }
+  }
+
+  const getFilteredBenefitTypes = (index: number) => {
+    const searchTerm = benefitSearchTerms[index] || ''
+    const available = getAvailableBenefitTypes(index)
+
+    if (!searchTerm) return available
+
+    return available.filter(type =>
+      type.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      type.type.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }
+
+  // Update search term when benefit is selected programmatically
+  useEffect(() => {
+    formData.benefits.forEach((benefit, index) => {
+      if (benefit.benefitTypeId && !benefitSearchTerms[index]) {
+        const selectedType = benefitTypes.find(bt => bt.id === benefit.benefitTypeId)
+        if (selectedType) {
+          setBenefitSearchTerms(prev => ({
+            ...prev,
+            [index]: `${selectedType.name} (${selectedType.type})`
+          }))
+        }
+      }
+    })
+  }, [formData.benefits, benefitTypes])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
+      toast.push('Please fill in all required fields')
       return
     }
 
@@ -507,42 +627,87 @@ export default function NewContractPage() {
   }
 
   const buildContractData = () => {
-    if (!employee || !formData.baseSalary) return null
+    if (!employee || !formData.baseSalary) {
+      console.log('⚠️ buildContractData: Missing employee or baseSalary', { employee: !!employee, baseSalary: formData.baseSalary })
+      return null
+    }
 
     const selectedBusiness = businesses.find(b => b.id === formData.primaryBusinessId)
     const jobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId) || employee.jobTitle || { title: 'Unknown', department: null, description: null, responsibilities: [] }
     const supervisor = employees.find(emp => emp.id === formData.supervisorId) || employee.supervisor
     const compensationType = compensationTypes.find(ct => ct.id === formData.compensationTypeId) || employee.compensationType || { name: 'Unknown', type: 'Unknown', description: null }
-    const benefits = formData.benefits.filter(b => b.benefitTypeId && b.amount).map(benefit => ({
-      benefitType: benefitTypes.find(bt => bt.id === benefit.benefitTypeId)!,
-      amount: parseFloat(benefit.amount),
-      isPercentage: benefit.isPercentage,
-      notes: benefit.notes
-    }))
-    
+
+    // Debug logging
+    console.log('📋 buildContractData:', {
+      selectedBusiness: selectedBusiness?.name,
+      jobTitle: jobTitle?.title,
+      compensationType: compensationType?.name,
+      supervisor: supervisor?.fullName,
+      formData: {
+        primaryBusinessId: formData.primaryBusinessId,
+        jobTitleId: formData.jobTitleId,
+        compensationTypeId: formData.compensationTypeId,
+        baseSalary: formData.baseSalary
+      }
+    })
+    const benefits = formData.benefits.filter(b => b.benefitTypeId && b.amount).map(benefit => {
+      const benefitType = benefitTypes.find(bt => bt.id === benefit.benefitTypeId)
+      if (!benefitType) {
+        console.warn('⚠️ Benefit type not found:', benefit.benefitTypeId)
+        return null
+      }
+      return {
+        benefitType,
+        amount: parseFloat(benefit.amount),
+        isPercentage: benefit.isPercentage,
+        notes: benefit.notes || null
+      }
+    }).filter(Boolean) as Array<{
+      benefitType: { name: string; type: string };
+      amount: number;
+      isPercentage: boolean;
+      notes: string | null;
+    }>
+
     return {
       contractNumber: 'DRAFT',
       version: 1,
       employee: {
-        fullName: employee.fullName,
-        employeeNumber: employee.employeeNumber,
-        email: employee.email,
+        fullName: employee.fullName || '',
+        employeeNumber: employee.employeeNumber || '',
+        email: employee.email || null,
         phone: employee.phone || '',
-        address: employee.address,
-        nationalId: employee.nationalId,
-        driverLicenseNumber: null
+        address: employee.address || null,
+        nationalId: employee.nationalId || null,
+        driverLicenseNumber: employee.driverLicenseNumber || null
       },
-      jobTitle,
-      compensationType,
-      business: selectedBusiness || {
-        name: employee.primaryBusiness?.name || '_________________________________',
-        type: employee.primaryBusiness?.type || 'unknown'
+      jobTitle: {
+        title: jobTitle?.title || 'Unknown',
+        department: jobTitle?.department || null,
+        description: jobTitle?.description || null,
+        responsibilities: Array.isArray(jobTitle?.responsibilities) ? jobTitle.responsibilities : []
       },
-      supervisor,
+      compensationType: {
+        name: compensationType?.name || 'Unknown',
+        type: compensationType?.type || 'Unknown',
+        description: compensationType?.description || null
+      },
+      business: {
+        name: selectedBusiness?.name || employee.primaryBusiness?.name || '_________________________________',
+        type: selectedBusiness?.type || employee.primaryBusiness?.type || 'unknown',
+        address: selectedBusiness?.address || '',
+        phone: selectedBusiness?.phone || '',
+        email: selectedBusiness?.email || '',
+        registrationNumber: selectedBusiness?.registrationNumber || ''
+      },
+      supervisor: supervisor ? {
+        fullName: supervisor.fullName || '',
+        jobTitle: supervisor.jobTitle || undefined
+      } : null,
       baseSalary: parseFloat(formData.baseSalary || '0'),
-      isCommissionBased: formData.isCommissionBased,
-      isSalaryBased: formData.isSalaryBased,
-      startDate: formData.startDate,
+      isCommissionBased: formData.isCommissionBased || false,
+      isSalaryBased: formData.isSalaryBased !== false,
+      startDate: formData.startDate || new Date().toISOString().split('T')[0],
       endDate: formData.endDate || null,
       probationPeriodMonths: formData.probationPeriodMonths ? parseInt(formData.probationPeriodMonths) : null,
       benefits,
@@ -603,12 +768,12 @@ export default function NewContractPage() {
       specialDuties: '',
       responsibilities: data.jobTitle.responsibilities || [],
       customResponsibilities: data.customResponsibilities || '',
-      businessName: data.businesses.name,
-      businessType: data.businesses.type || '',
-      businessAddress: data.businesses.address || '',
-      businessPhone: data.businesses.phone || '',
-      businessEmail: data.businesses.email || '',
-      businessRegistrationNumber: data.businesses.registrationNumber || '',
+      businessName: data.business.name,
+      businessType: data.business.type || '',
+      businessAddress: data.business.address || '',
+      businessPhone: data.business.phone || '',
+      businessEmail: data.business.email || '',
+      businessRegistrationNumber: data.business.registrationNumber || '',
       supervisorName: data.supervisor?.fullName || '',
       supervisorTitle: data.supervisor?.jobTitle?.title || '',
       probationPeriodMonths: data.probationPeriodMonths || undefined,
@@ -634,6 +799,23 @@ export default function NewContractPage() {
 
   // Single source of truth for contract data
   const contractData = buildContractData()
+
+  // Debug: Log contract data status and auto-show preview once
+  useEffect(() => {
+    if (!contractData) {
+      console.log('⚠️ Contract data not available:', {
+        hasEmployee: !!employee,
+        hasBaseSalary: !!formData.baseSalary,
+        baseSalaryValue: formData.baseSalary
+      })
+      // Reset the auto-show flag when data becomes unavailable
+      hasAutoShownPreview.current = false
+    } else if (!hasAutoShownPreview.current) {
+      // Automatically show preview the first time contract data becomes available
+      setShowPreview(true)
+      hasAutoShownPreview.current = true
+    }
+  }, [contractData, employee, formData.baseSalary])
 
   const handleGeneratePDF = async () => {
     if (!contractData || !employee) return
@@ -910,7 +1092,7 @@ export default function NewContractPage() {
                     required
                   >
                     <option value="">Select Job Title</option>
-                    {jobTitles.map(jobTitle => (
+                    {[...jobTitles].sort((a, b) => a.title.localeCompare(b.title)).map(jobTitle => (
                       <option key={jobTitle.id} value={jobTitle.id}>
                         {jobTitle.title} {jobTitle.department && `(${jobTitle.department})`}
                       </option>
@@ -935,7 +1117,7 @@ export default function NewContractPage() {
                     required
                   >
                     <option value="">Select Compensation Type</option>
-                    {compensationTypes.map(type => (
+                    {[...compensationTypes].sort((a, b) => a.name.localeCompare(b.name)).map(type => (
                       <option key={type.id} value={type.id}>
                         {type.name} ({type.type})
                         {type.frequency && ` - ${type.frequency}`}
@@ -946,99 +1128,104 @@ export default function NewContractPage() {
                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.compensationTypeId}</p>
                   )}
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Base Salary *
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={formData.baseSalary}
-                        onChange={(e) => {
-                          setFormData(prev => ({ ...prev, baseSalary: e.target.value }))
-                          clearFieldError('baseSalary')
-                        }}
-                        className={getInputClassName('baseSalary')}
-                        placeholder="Enter salary amount"
-                        required
-                      />
-                    </div>
-                    <div className="w-32">
-                      <select
-                        value={formData.salaryFrequency}
-                        onChange={(e) => setFormData(prev => ({ ...prev, salaryFrequency: e.target.value }))}
-                        className="input-field h-full"
-                        required
-                      >
-                        <option value="monthly">Monthly</option>
-                        <option value="annual">Annual</option>
-                      </select>
-                    </div>
+              {/* Base Salary - Full Width Row */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-secondary mb-2">
+                  Base Salary *
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.baseSalary}
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, baseSalary: e.target.value }))
+                        clearFieldError('baseSalary')
+                      }}
+                      className={getInputClassName('baseSalary')}
+                      placeholder="Enter salary amount"
+                      required
+                    />
                   </div>
-                  {validationErrors.baseSalary && (
-                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.baseSalary}</p>
-                  )}
-                  <p className="mt-1 text-xs text-secondary">
-                    Select the frequency that matches how you're entering the salary amount
-                  </p>
+                  <div className="w-32">
+                    <select
+                      value={formData.salaryFrequency}
+                      onChange={(e) => setFormData(prev => ({ ...prev, salaryFrequency: e.target.value }))}
+                      className="input-field h-11 px-3 py-2"
+                      required
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="annual">Annual</option>
+                    </select>
+                  </div>
                 </div>
+                {validationErrors.baseSalary && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.baseSalary}</p>
+                )}
+                <p className="mt-1 text-xs text-secondary">
+                  Select the frequency that matches how you're entering the salary amount
+                </p>
+              </div>
 
-                <div>
-                  {(() => {
-                    const selectedJobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId)
-                    const availableSupervisors = employees.filter(emp => emp.id !== employeeId)
-                    const isManagementRole = selectedJobTitle?.title.toLowerCase().includes('manager') ||
-                                              selectedJobTitle?.title.toLowerCase().includes('director') ||
-                                              selectedJobTitle?.title.toLowerCase().includes('ceo') ||
-                                              selectedJobTitle?.title.toLowerCase().includes('chief') ||
-                                              selectedJobTitle?.title.toLowerCase().includes('head') ||
-                                              selectedJobTitle?.level?.toLowerCase().includes('senior') ||
-                                              selectedJobTitle?.department?.toLowerCase() === 'executive'
+              {/* Supervisor - Full Width Row */}
+              <div className="mt-4">
+                {(() => {
+                  const selectedJobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId)
+                  const availableSupervisors = employees.filter(emp => emp.id !== employeeId)
+                  const isManagementRole = selectedJobTitle?.title.toLowerCase().includes('manager') ||
+                                            selectedJobTitle?.title.toLowerCase().includes('director') ||
+                                            selectedJobTitle?.title.toLowerCase().includes('ceo') ||
+                                            selectedJobTitle?.title.toLowerCase().includes('chief') ||
+                                            selectedJobTitle?.title.toLowerCase().includes('head') ||
+                                            selectedJobTitle?.level?.toLowerCase().includes('senior') ||
+                                            selectedJobTitle?.department?.toLowerCase() === 'executive'
 
-                    return (
-                      <>
-                        <label className="block text-sm font-medium text-secondary mb-2">
-                          Supervisor {!isManagementRole && availableSupervisors.length > 0 && '*'}
-                          {isManagementRole && (
-                            <span className="text-xs text-green-600 dark:text-green-400 ml-2">(Optional for management roles)</span>
-                          )}
-                          {availableSupervisors.length === 0 && (
-                            <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">(No other employees available)</span>
-                          )}
-                        </label>
-                        <select
-                          value={formData.supervisorId}
-                          onChange={(e) => {
-                            setFormData(prev => ({ ...prev, supervisorId: e.target.value }))
-                            clearFieldError('supervisorId')
-                          }}
-                          className={getInputClassName('supervisorId')}
-                          required={!isManagementRole && availableSupervisors.length > 0}
-                        >
-                          <option value="">
-                            {availableSupervisors.length === 0
-                              ? "No supervisors available"
-                              : isManagementRole
-                                ? "No supervisor (reports to board/owner)"
-                                : "Select Supervisor"}
-                          </option>
-                          {availableSupervisors.map(emp => (
-                            <option key={emp.id} value={emp.id}>
-                              {emp.fullName} - {emp.jobTitle?.title || 'No Title'}
-                            </option>
-                          ))}
-                        </select>
-                        {validationErrors.supervisorId && (
-                          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.supervisorId}</p>
+                  return (
+                    <>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Supervisor {!isManagementRole && availableSupervisors.length > 0 && '*'}
+                        {isManagementRole && (
+                          <span className="text-xs text-green-600 dark:text-green-400 ml-2">(Optional for management roles)</span>
                         )}
-                      </>
-                    )
-                  })()}
-                </div>
+                        {availableSupervisors.length === 0 && (
+                          <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">(No other employees available)</span>
+                        )}
+                      </label>
+                      <select
+                        value={formData.supervisorId}
+                        onChange={(e) => {
+                          setFormData(prev => ({ ...prev, supervisorId: e.target.value }))
+                          clearFieldError('supervisorId')
+                        }}
+                        className={getInputClassName('supervisorId')}
+                        required={!isManagementRole && availableSupervisors.length > 0}
+                      >
+                        <option value="">
+                          {availableSupervisors.length === 0
+                            ? "No supervisors available"
+                            : isManagementRole
+                              ? "No supervisor (reports to board/owner)"
+                              : "Select Supervisor"}
+                        </option>
+                        {[...availableSupervisors].sort((a, b) => a.fullName.localeCompare(b.fullName)).map(emp => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.fullName} - {emp.jobTitle?.title || 'No Title'}
+                          </option>
+                        ))}
+                      </select>
+                      {validationErrors.supervisorId && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.supervisorId}</p>
+                      )}
+                    </>
+                  )
+                })()}
+              </div>
 
+              {/* Date and Other Fields Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div>
                   <DateInput
                     label="Start Date *"
@@ -1072,7 +1259,7 @@ export default function NewContractPage() {
                     type="number"
                     value={formData.probationPeriodMonths}
                     onChange={(e) => setFormData(prev => ({ ...prev, probationPeriodMonths: e.target.value }))}
-                    className="input w-full"
+                    className="input w-full h-11 px-3 py-2"
                   />
                 </div>
 
@@ -1107,7 +1294,7 @@ export default function NewContractPage() {
                   value={formData.customResponsibilities}
                   onChange={(e) => setFormData(prev => ({ ...prev, customResponsibilities: e.target.value }))}
                   rows={4}
-                  className="input w-full"
+                  className="input w-full px-3 py-2"
                   placeholder="Any additional responsibilities beyond the standard job title requirements..."
                 />
               </div>
@@ -1127,79 +1314,124 @@ export default function NewContractPage() {
               </div>
 
               {formData.benefits.map((benefit, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4 p-4 border border-gray-200 dark:border-gray-700 rounded">
-                  <div>
+                <div key={index} className="mb-4 p-4 border border-gray-200 dark:border-gray-700 rounded">
+                  {/* Benefit Type - Full Width Row - Searchable */}
+                  <div className="mb-4 relative">
                     <label className="block text-sm font-medium text-secondary mb-2">
                       Benefit Type
                     </label>
-                    <select
-                      value={benefit.benefitTypeId}
-                      onChange={(e) => updateBenefit(index, 'benefitTypeId', e.target.value)}
-                      className="input w-full"
-                    >
-                      <option value="">Select Benefit</option>
-                      {benefit.benefitTypeId && !getAvailableBenefitTypes(index).find(t => t.id === benefit.benefitTypeId) && (
-                        <option key={benefit.benefitTypeId} value={benefit.benefitTypeId}>
-                          {benefitTypes.find(t => t.id === benefit.benefitTypeId)?.name} (Already selected)
-                        </option>
-                      )}
-                      {getAvailableBenefitTypes(index).map(type => (
-                        <option key={type.id} value={type.id}>
-                          {type.name} ({type.type})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">
-                      Amount
-                    </label>
                     <input
-                      type="number"
-                      step="0.01"
-                      value={benefit.amount}
+                      type="text"
+                      value={benefitSearchTerms[index] || ''}
                       onChange={(e) => {
-                        updateBenefit(index, 'amount', e.target.value)
-                        clearFieldError(`benefit_${index}_amount`)
+                        setBenefitSearchTerms(prev => ({ ...prev, [index]: e.target.value }))
+                        setShowBenefitDropdowns(prev => ({ ...prev, [index]: true }))
+                        // Clear selection if user starts typing
+                        if (e.target.value !== benefitSearchTerms[index]) {
+                          updateBenefit(index, 'benefitTypeId', '')
+                        }
                       }}
-                      className={getInputClassName(`benefit_${index}_amount`)}
+                      onFocus={() => setShowBenefitDropdowns(prev => ({ ...prev, [index]: true }))}
+                      className="input w-full h-11 px-3 py-2"
+                      placeholder="Search or select benefit type..."
                     />
-                    {validationErrors[`benefit_${index}_amount`] && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors[`benefit_${index}_amount`]}</p>
+                    {showBenefitDropdowns[index] && (
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {getFilteredBenefitTypes(index).length > 0 ? (
+                          <>
+                            {[...getFilteredBenefitTypes(index)].sort((a, b) => a.name.localeCompare(b.name)).map(type => (
+                              <div
+                                key={type.id}
+                                onClick={() => {
+                                  updateBenefit(index, 'benefitTypeId', type.id)
+                                  setBenefitSearchTerms(prev => ({ ...prev, [index]: `${type.name} (${type.type})` }))
+                                  setShowBenefitDropdowns(prev => ({ ...prev, [index]: false }))
+                                }}
+                                className="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm text-primary"
+                              >
+                                {type.name} <span className="text-xs text-secondary">({type.type})</span>
+                              </div>
+                            ))}
+                            <div className="border-t border-gray-200 dark:border-gray-700"></div>
+                          </>
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-secondary italic">
+                            No matching benefit types found
+                          </div>
+                        )}
+                        <div
+                          onClick={() => {
+                            handleBenefitTypeChange(index, '__create_new__')
+                            setShowBenefitDropdowns(prev => ({ ...prev, [index]: false }))
+                          }}
+                          className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer text-sm font-semibold text-blue-600 dark:text-blue-400"
+                        >
+                          + Create New Benefit Type...
+                        </div>
+                      </div>
+                    )}
+                    {/* Click outside to close */}
+                    {showBenefitDropdowns[index] && (
+                      <div
+                        className="fixed inset-0 z-[5]"
+                        onClick={() => setShowBenefitDropdowns(prev => ({ ...prev, [index]: false }))}
+                      />
                     )}
                   </div>
 
-                  <div>
-                    <label className="flex items-center">
+                  {/* Amount, Percentage, Remove/Add - Second Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Amount
+                      </label>
                       <input
-                        type="checkbox"
-                        checked={benefit.isPercentage}
-                        onChange={(e) => updateBenefit(index, 'isPercentage', e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                        type="number"
+                        step="0.01"
+                        value={benefit.amount}
+                        onChange={(e) => {
+                          updateBenefit(index, 'amount', e.target.value)
+                          clearFieldError(`benefit_${index}_amount`)
+                        }}
+                        className={getInputClassName(`benefit_${index}_amount`)}
                       />
-                      <span className="text-sm text-secondary">Percentage</span>
-                    </label>
+                      {validationErrors[`benefit_${index}_amount`] && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors[`benefit_${index}_amount`]}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={benefit.isPercentage}
+                          onChange={(e) => updateBenefit(index, 'isPercentage', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                        />
+                        <span className="text-sm text-secondary">Percentage</span>
+                      </label>
+                    </div>
+
+                    <div className="md:col-span-2 flex flex-row gap-4 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeBenefit(index)}
+                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm"
+                      >
+                        Remove
+                      </button>
+                      <button
+                        type="button"
+                        onClick={addBenefit}
+                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                      >
+                        + Add Next
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={() => removeBenefit(index)}
-                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm text-left"
-                    >
-                      Remove
-                    </button>
-                    <button
-                      type="button"
-                      onClick={addBenefit}
-                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm text-left"
-                    >
-                      + Add Next
-                    </button>
-                  </div>
-
-                  <div className="md:col-span-4">
+                  {/* Notes - Full Width Row */}
+                  <div>
                     <label className="block text-sm font-medium text-secondary mb-2">
                       Notes
                     </label>
@@ -1207,7 +1439,7 @@ export default function NewContractPage() {
                       type="text"
                       value={benefit.notes}
                       onChange={(e) => updateBenefit(index, 'notes', e.target.value)}
-                      className="input w-full"
+                      className="input w-full h-11 px-3 py-2"
                       placeholder="Additional notes about this benefit..."
                     />
                   </div>
@@ -1222,7 +1454,7 @@ export default function NewContractPage() {
                 value={formData.notes}
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                 rows={4}
-                className="input w-full"
+                className="input w-full px-3 py-2"
                 placeholder="Any special conditions, terms, or notes for this contract..."
               />
             </div>
@@ -1269,16 +1501,14 @@ export default function NewContractPage() {
                   
                   <button
                     type="button"
-                    onClick={() => {
-                      // Just show the preview without scrolling
-                      setShowPreview(true)
-                    }}
+                    onClick={() => setShowPreview(!showPreview)}
                     className="btn-secondary"
                     disabled={!contractData}
+                    title={!contractData ? 'Please fill in all required fields including Base Salary to preview' : (showPreview ? 'Hide preview' : 'Show preview')}
                   >
-                    👁️ Preview Contract
+                    {showPreview ? '👁️ Hide Preview' : '👁️ Show Preview'}
                   </button>
-                  
+
                   <button
                     type="submit"
                     disabled={saving}
@@ -1289,21 +1519,112 @@ export default function NewContractPage() {
                 </>
               )}
             </div>
+            {!contractData && (
+              <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
+                ℹ️ Please fill in all required fields (Job Title, Compensation Type, Base Salary, Start Date) to enable contract preview and creation.
+              </p>
+            )}
           </form>
         </div>
 
-        {/* Contract Preview */}
-        {showPreview && contractData && (
-          <div className="space-y-4">
+        {/* Contract Preview - Sticky */}
+        <div className="sticky top-20 space-y-4 self-start">
+          {showPreview && contractData ? (
             <div className="card p-4">
               <h3 className="text-lg font-semibold text-primary mb-4">Contract Preview</h3>
-              <div className="overflow-y-auto max-h-96 border border-gray-200 dark:border-gray-700 rounded p-4">
+              <div className="overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-4" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                 <ContractTemplate data={contractData} globalDateFormat={globalDateFormat} />
               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="card p-4">
+              <h3 className="text-lg font-semibold text-primary mb-4">Contract Preview</h3>
+              <div className="flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-600 rounded p-8 min-h-[400px]">
+                <div className="text-center text-secondary">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="mt-4 text-sm font-medium">Preview not available</p>
+                  <p className="mt-2 text-xs">
+                    {!contractData
+                      ? 'Fill in Job Title, Compensation Type, Base Salary, and Start Date to see preview'
+                      : 'Click "Show Preview" button to view contract'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Add Benefit Type Modal */}
+      {showAddBenefitTypeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-primary mb-4">Create New Benefit Type</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              const formData = new FormData(e.currentTarget)
+              const name = formData.get('name') as string
+              const type = formData.get('type') as string
+              if (name && type) {
+                handleNewBenefitTypeSuccess(name, type)
+              }
+            }}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Benefit Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    required
+                    className="input w-full h-11 px-3 py-2"
+                    placeholder="e.g., Transport Allowance"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Benefit Type *
+                  </label>
+                  <select
+                    name="type"
+                    required
+                    className="input w-full h-11 px-3 py-2"
+                  >
+                    <option value="">Select Type</option>
+                    <option value="allowance">Allowance</option>
+                    <option value="bonus">Bonus</option>
+                    <option value="insurance">Insurance</option>
+                    <option value="retirement">Retirement</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddBenefitTypeModal(false)
+                    setPendingBenefitIndex(null)
+                  }}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                >
+                  Create Benefit Type
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </ContentLayout>
   )

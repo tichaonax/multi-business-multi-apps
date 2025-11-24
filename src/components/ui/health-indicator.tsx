@@ -33,7 +33,10 @@ export default function HealthIndicator({
   const [error, setError] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [extensionWarning, setExtensionWarning] = useState(false)
   const [lastCheck, setLastCheck] = useState<Date>(new Date())
+
+  // Refs for click-outside detection
   const popoverRef = useRef<HTMLDivElement>(null)
   const ledRef = useRef<HTMLDivElement>(null)
 
@@ -70,31 +73,130 @@ export default function HealthIndicator({
   useEffect(() => {
     const fetchHealth = async () => {
       try {
-        const response = await fetch('/api/health')
-        if (!response.ok) {
-          throw new Error('Health check failed')
+        // Add a small delay to avoid rapid requests that might trigger extension blocking
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+
+        let response: Response
+        try {
+          response = await fetch('/api/health', {
+            signal: controller.signal,
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            }
+          })
+        } catch (fetchErr) {
+          // Handle fetch-level errors (including extension interference)
+          if (fetchErr instanceof Error) {
+            if (fetchErr.name === 'TypeError' || fetchErr.message.includes('Failed to fetch')) {
+              console.warn('Browser extension detected - fetch request blocked, trying XMLHttpRequest fallback:', fetchErr.message)
+
+              // Try XMLHttpRequest as fallback
+              try {
+                const xhrResponse = await new Promise<{ status: number; data: any }>((resolve, reject) => {
+                  const xhr = new XMLHttpRequest()
+                  xhr.open('GET', '/api/health')
+                  xhr.setRequestHeader('Cache-Control', 'no-cache')
+                  xhr.setRequestHeader('Pragma', 'no-cache')
+
+                  xhr.timeout = 10000
+                  xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                      try {
+                        const data = JSON.parse(xhr.responseText)
+                        resolve({ status: xhr.status, data })
+                      } catch (parseErr) {
+                        reject(new Error('Invalid JSON response'))
+                      }
+                    } else {
+                      reject(new Error(`XHR failed with status: ${xhr.status}`))
+                    }
+                  }
+                  xhr.onerror = () => reject(new Error('XHR network error'))
+                  xhr.ontimeout = () => reject(new Error('XHR timeout'))
+                  xhr.send()
+                })
+
+                // If XMLHttpRequest succeeds, process the response
+                const data: HealthResponse = xhrResponse.data
+                if (!data || typeof data.status !== 'string') {
+                  throw new Error('Invalid health check response format')
+                }
+
+                setHealth(data)
+                setError(false)
+                setExtensionWarning(false)
+                setLoading(false)
+                setLastCheck(new Date())
+                return
+              } catch (xhrErr) {
+                console.warn('XMLHttpRequest fallback also failed:', xhrErr)
+                setExtensionWarning(true)
+                setError(true)
+                setLoading(false)
+                setLastCheck(new Date())
+                return
+              }
+            }
+          }
+          throw fetchErr // Re-throw other errors to be handled below
         }
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          throw new Error(`Health check failed with status: ${response.status}`)
+        }
+
         const data: HealthResponse = await response.json()
+
+        // Validate the response structure
+        if (!data || typeof data.status !== 'string') {
+          throw new Error('Invalid health check response format')
+        }
+
         setHealth(data)
         setError(false)
+        setExtensionWarning(false)
         setLoading(false)
         setLastCheck(new Date())
       } catch (err) {
-        console.error('Health check error:', err)
+        // Handle different types of errors more specifically
+        if (err instanceof Error) {
+          if (err.name === 'AbortError') {
+            console.warn('Health check timed out')
+          } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('TypeError')) {
+            console.warn('Health check blocked by browser extension or network issue:', err.message)
+            setExtensionWarning(true)
+          } else {
+            console.error('Health check error:', err.message)
+            setExtensionWarning(false)
+          }
+        } else {
+          console.error('Unknown health check error:', err)
+          setExtensionWarning(false)
+        }
+
         setError(true)
         setLoading(false)
         setLastCheck(new Date())
       }
     }
 
-    // Initial fetch
-    fetchHealth()
+    // Initial fetch with a slight delay to avoid immediate blocking
+    const initialTimeout = setTimeout(fetchHealth, 1000)
 
     // Set up polling interval
     const interval = setInterval(fetchHealth, pollInterval)
 
     // Cleanup on unmount
-    return () => clearInterval(interval)
+    return () => {
+      clearTimeout(initialTimeout)
+      clearInterval(interval)
+    }
   }, [pollInterval])
 
   // Determine status and styling
@@ -112,12 +214,12 @@ export default function HealthIndicator({
 
     if (error || !health) {
       return {
-        color: 'bg-red-500',
-        borderColor: 'border-red-200',
-        bgColor: 'bg-red-50',
-        textColor: 'text-red-700',
-        label: 'Offline',
-        icon: '❌'
+        color: extensionWarning ? 'bg-orange-500' : 'bg-red-500',
+        borderColor: extensionWarning ? 'border-orange-200' : 'border-red-200',
+        bgColor: extensionWarning ? 'bg-orange-50' : 'bg-red-50',
+        textColor: extensionWarning ? 'text-orange-700' : 'text-red-700',
+        label: extensionWarning ? 'Extension Block' : 'Offline',
+        icon: extensionWarning ? '🛡️' : '❌'
       }
     }
 
@@ -227,6 +329,14 @@ export default function HealthIndicator({
 
             {/* Details */}
             <div className="p-3 space-y-2 text-xs">
+              {extensionWarning && (
+                <div className="bg-orange-100 border border-orange-200 rounded p-2 mb-2">
+                  <div className="text-orange-800 font-medium text-xs mb-1">Browser Extension Detected</div>
+                  <div className="text-orange-700 text-xs">
+                    A browser extension (like uBlock Origin) may be blocking health checks. Try disabling it for this site or adding an exception.
+                  </div>
+                </div>
+              )}
               {health?.uptime && (
                 <div className="flex justify-between">
                   <span className="text-gray-500">Uptime:</span>

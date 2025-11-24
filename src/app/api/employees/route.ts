@@ -338,6 +338,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Check if userId already has an employee record
+    if (userId) {
+      const existingEmployeeWithUser = await prisma.employees.findUnique({
+        where: { userId }
+      })
+
+      if (existingEmployeeWithUser) {
+        return NextResponse.json(
+          { error: 'This user already has an employee record', employeeId: existingEmployeeWithUser.id },
+          { status: 409 }
+        )
+      }
+    }
+
     if (userId && !userAccount) {
       return NextResponse.json(
         { error: 'Invalid user account' },
@@ -409,7 +423,7 @@ export async function POST(req: NextRequest) {
 
       // Create leave balance for current year
       const currentYear = new Date().getFullYear()
-      await tx.employeeLeaveBalances.create({
+      await tx.employeeLeaveBalance.create({
         data: {
           employeeId: newEmployee.id,
           year: currentYear,
@@ -418,7 +432,8 @@ export async function POST(req: NextRequest) {
           usedAnnualDays: 0,
           usedSickDays: 0,
           remainingAnnual: annualLeaveDays,
-          remainingSick: sickLeaveDays
+          remainingSick: sickLeaveDays,
+          updatedAt: new Date()
         }
       })
 
@@ -469,7 +484,13 @@ export async function POST(req: NextRequest) {
     })
   } catch (error: any) {
     console.error('Employee creation error:', error)
-    
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      meta: error.meta,
+      stack: error.stack
+    })
+
     // Handle unique constraint violations
     if (error.code === 'P2002') {
       const field = error.meta?.target?.[0]
@@ -491,10 +512,16 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         )
       }
+      if (field === 'userId') {
+        return NextResponse.json(
+          { error: 'This user already has an employee record' },
+          { status: 400 }
+        )
+      }
     }
 
     return NextResponse.json(
-      { error: 'Failed to create employee' },
+      { error: 'Failed to create employee', details: error.message },
       { status: 500 }
     )
   }
