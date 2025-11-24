@@ -14,7 +14,7 @@ function HistoricalReportViewContent() {
   const reportDate = searchParams.get('date')
 
   // Determine POS link based on business type
-  const businessType = currentBusiness?.businessType || 'restaurant'
+  const businessType = currentBusiness?.businessType || 'hardware'
   const posLink = `/${businessType}/pos`
 
   useEffect(() => {
@@ -71,7 +71,7 @@ function HistoricalReportViewContent() {
               ← Back to POS
             </Link>
             <Link
-              href="/restaurant/reports/history"
+              href={`/${businessType}/reports/history`}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               ← Back to History
@@ -107,7 +107,7 @@ function HistoricalReportViewContent() {
         {/* Print Button - Hidden when printing */}
         <div className="mb-6 flex gap-3 print:hidden">
           <Link
-            href="/restaurant/reports/history"
+            href={`/${businessType}/reports/history`}
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
             ← Back to History
