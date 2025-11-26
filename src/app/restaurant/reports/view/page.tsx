@@ -29,9 +29,9 @@ function HistoricalReportViewContent() {
     try {
       setLoading(true)
 
-      // Fetch the daily sales data for the specific date
+      // Fetch the daily sales data for the specific date using universal API
       const response = await fetch(
-        `/api/restaurant/daily-sales?businessId=${currentBusinessId}&date=${reportDate}`
+        `/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=${businessType}&date=${reportDate}`
       )
 
       if (response.ok) {

@@ -37,6 +37,12 @@ export async function GET() {
           isDemo: true,
           createdAt: true,
           updatedAt: true,
+          business_accounts: {
+            select: {
+              id: true,
+              balance: true,
+            },
+          },
         },
         orderBy: [
           { type: 'asc' },
@@ -66,6 +72,12 @@ export async function GET() {
               role: true,
               permissions: true,
               isActive: true,
+            },
+          },
+          business_accounts: {
+            select: {
+              id: true,
+              balance: true,
             },
           },
         },

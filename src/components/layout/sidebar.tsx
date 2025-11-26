@@ -516,6 +516,64 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* Payroll Account - Only for users with payroll account permissions */}
+        {(hasUserPermission(currentUser, 'canAccessPayrollAccount') || isSystemAdmin(currentUser)) && (
+          <>
+            <Link
+              href="/payroll/account"
+              className={getLinkClasses('/payroll/account')}
+            >
+              <span className="text-lg">💰</span>
+              <span>Payroll Account</span>
+            </Link>
+
+            {/* Payroll Account Sub-menu - Show when on payroll account pages */}
+            {pathname.startsWith('/payroll/account') && (
+              <div className="ml-8 space-y-1 mt-1">
+                {(hasUserPermission(currentUser, 'canMakePayrollDeposits') || isSystemAdmin(currentUser)) && (
+                  <Link
+                    href="/payroll/account/deposits"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>💸</span>
+                    <span>Deposits</span>
+                  </Link>
+                )}
+
+                {(hasUserPermission(currentUser, 'canMakePayrollPayments') || isSystemAdmin(currentUser)) && (
+                  <>
+                    <Link
+                      href="/payroll/account/payments"
+                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    >
+                      <span>💳</span>
+                      <span>Batch Payments</span>
+                    </Link>
+
+                    <Link
+                      href="/payroll/account/payments/advance"
+                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    >
+                      <span>⚡</span>
+                      <span>Salary Advance</span>
+                    </Link>
+                  </>
+                )}
+
+                {(hasUserPermission(currentUser, 'canViewPayrollHistory') || isSystemAdmin(currentUser)) && (
+                  <Link
+                    href="/payroll/account/payments/history"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>📜</span>
+                    <span>Payment History</span>
+                  </Link>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
         {/* Reports - Only for managers and admins, not drivers */}
         {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canAccessFinancialData')) && (
           <Link

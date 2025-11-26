@@ -127,8 +127,8 @@ export function IncomePieChart({ data, totalIncome }: IncomePieChartProps) {
         </p>
       </div>
 
-      <ResponsiveContainer width="100%" height={450}>
-        <PieChart margin={{ top: 40, right: 20, bottom: 80, left: 20 }}>
+      <ResponsiveContainer width="100%" height={525}>
+        <PieChart margin={{ top: 80, right: 20, bottom: 80, left: 20 }}>
           <Pie
             data={processedData}
             cx="50%"

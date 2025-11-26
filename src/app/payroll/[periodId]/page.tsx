@@ -8,6 +8,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { PayrollEntryForm } from '@/components/payroll/payroll-entry-form'
 import { PayrollEntryDetailModal } from '@/components/payroll/payroll-entry-detail-modal'
 import { PayrollExportPreviewModal } from '@/components/payroll/payroll-export-preview-modal'
+import { BatchPaymentModal } from '@/components/payroll/batch-payment-modal'
 import { hasPermission, isSystemAdmin, getUserRoleInBusiness, canDeletePayroll } from '@/lib/permission-utils'
 
 interface PayrollPeriod {
@@ -110,6 +111,7 @@ export default function PayrollPeriodDetailPage() {
   const [syncingBenefits, setSyncingBenefits] = useState(false)
   const [addingAllEmployees, setAddingAllEmployees] = useState(false)
   const [availableEmployeesCount, setAvailableEmployeesCount] = useState<number | null>(null)
+  const [showProcessPayments, setShowProcessPayments] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -1046,6 +1048,33 @@ export default function PayrollPeriodDetailPage() {
               >
                 {exporting ? 'Regenerating...' : 'Regenerate Export'}
               </button>
+
+              {/* Payroll Account Actions */}
+              <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
+              <button
+                onClick={() => router.push('/payroll/account/deposits')}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+              >
+                💰 Make Deposit
+              </button>
+              <button
+                onClick={() => setShowProcessPayments(true)}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              >
+                💸 Process Payments
+              </button>
+              <button
+                onClick={() => router.push('/payroll/account/payments/advance')}
+                className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700"
+              >
+                ⚡ Salary Advance
+              </button>
+              <button
+                onClick={() => router.push('/payroll/account/payments/history')}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700"
+              >
+                📊 View History
+              </button>
             </>
           )}
         </div>
@@ -1384,6 +1413,18 @@ export default function PayrollPeriodDetailPage() {
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
         periodId={periodId}
+      />
+
+      {/* Batch Payment Modal */}
+      <BatchPaymentModal
+        isOpen={showProcessPayments}
+        onClose={() => setShowProcessPayments(false)}
+        periodId={periodId}
+        periodName={`${getMonthName(period.month)} ${period.year} Payroll`}
+        onSuccess={() => {
+          showNotification('success', 'Payments processed successfully')
+          loadPeriod()
+        }}
       />
     </ContentLayout>
   )

@@ -152,6 +152,60 @@ export function MobileSidebar() {
                 </Link>
               )}
 
+              {/* Payroll Account - show to users who can access payroll account */}
+              {(hasUserPermission(user, 'canAccessPayrollAccount') || isSystemAdmin(user)) && (
+                <>
+                  <Link
+                    href="/payroll/account"
+                    className="block px-4 py-3 rounded hover:bg-gray-700"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    💰 Payroll Account
+                  </Link>
+
+                  {/* Sub-menu items */}
+                  {(hasUserPermission(user, 'canMakePayrollDeposits') || isSystemAdmin(user)) && (
+                    <Link
+                      href="/payroll/account/deposits"
+                      className="block px-4 py-2 pl-8 text-sm rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      💸 Deposits
+                    </Link>
+                  )}
+
+                  {(hasUserPermission(user, 'canMakePayrollPayments') || isSystemAdmin(user)) && (
+                    <>
+                      <Link
+                        href="/payroll/account/payments"
+                        className="block px-4 py-2 pl-8 text-sm rounded hover:bg-gray-700"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        💳 Batch Payments
+                      </Link>
+
+                      <Link
+                        href="/payroll/account/payments/advance"
+                        className="block px-4 py-2 pl-8 text-sm rounded hover:bg-gray-700"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        ⚡ Salary Advance
+                      </Link>
+                    </>
+                  )}
+
+                  {(hasUserPermission(user, 'canViewPayrollHistory') || isSystemAdmin(user)) && (
+                    <Link
+                      href="/payroll/account/payments/history"
+                      className="block px-4 py-2 pl-8 text-sm rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      📜 Payment History
+                    </Link>
+                  )}
+                </>
+              )}
+
               {/* HR Reports - Only for users with actual employee management permissions */}
               {(isSystemAdmin(user) || hasPermission(user, 'canManageEmployees') || hasPermission(user, 'canEditEmployees')) && (
                 <Link
