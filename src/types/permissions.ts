@@ -164,6 +164,17 @@ export interface CoreBusinessPermissions {
   canViewPayrollReports: boolean;
   canManageAdvances: boolean;
 
+  // Payroll Account Management
+  canAccessPayrollAccount: boolean;
+  canViewPayrollAccountBalance: boolean;
+  canMakePayrollDeposits: boolean;
+  canMakePayrollPayments: boolean;
+  canAdjustPaymentAmounts: boolean;
+  canIssuePaymentVouchers: boolean;
+  canCompletePayments: boolean;
+  canViewPayrollHistory: boolean;
+  canExportPayrollPayments: boolean;
+
   // Supplier Management
   canViewSuppliers: boolean;
   canCreateSuppliers: boolean;
@@ -864,6 +875,17 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canViewPayrollReports: true,
   canManageAdvances: true,
 
+  // Payroll Account Management - Full access
+  canAccessPayrollAccount: true,
+  canViewPayrollAccountBalance: true,
+  canMakePayrollDeposits: true,
+  canMakePayrollPayments: true,
+  canAdjustPaymentAmounts: true,
+  canIssuePaymentVouchers: true,
+  canCompletePayments: true,
+  canViewPayrollHistory: true,
+  canExportPayrollPayments: true,
+
   // Supplier Management - Full access
   canViewSuppliers: true,
   canCreateSuppliers: true,
@@ -957,6 +979,17 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canReconcilePayroll: true,
   canViewPayrollReports: true,
   canManageAdvances: true,
+
+  // Payroll Account Management - Manager access (must have permission in business)
+  canAccessPayrollAccount: true,
+  canViewPayrollAccountBalance: true,
+  canMakePayrollDeposits: true,
+  canMakePayrollPayments: true,
+  canAdjustPaymentAmounts: true,
+  canIssuePaymentVouchers: true,
+  canCompletePayments: true,
+  canViewPayrollHistory: true,
+  canExportPayrollPayments: false,  // ❌ FALSE by default - must be explicitly granted
 
   // Supplier Management - Manager access
   canViewSuppliers: true,
@@ -1052,6 +1085,17 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canViewPayrollReports: false,
   canManageAdvances: false,
 
+  // Payroll Account Management - No access
+  canAccessPayrollAccount: false,
+  canViewPayrollAccountBalance: false,
+  canMakePayrollDeposits: false,
+  canMakePayrollPayments: false,
+  canAdjustPaymentAmounts: false,
+  canIssuePaymentVouchers: false,
+  canCompletePayments: false,
+  canViewPayrollHistory: false,
+  canExportPayrollPayments: false,
+
   // Supplier Management - View only
   canViewSuppliers: true,
   canCreateSuppliers: false,
@@ -1144,6 +1188,17 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewPayrollReports: true,
   canManageAdvances: false,
 
+  // Payroll Account Management - View only
+  canAccessPayrollAccount: true,
+  canViewPayrollAccountBalance: true,
+  canMakePayrollDeposits: false,
+  canMakePayrollPayments: false,
+  canAdjustPaymentAmounts: false,
+  canIssuePaymentVouchers: false,
+  canCompletePayments: false,
+  canViewPayrollHistory: true,
+  canExportPayrollPayments: false,
+
   // Supplier Management - View only
   canViewSuppliers: true,
   canCreateSuppliers: false,
@@ -1235,6 +1290,17 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canReconcilePayroll: true,
   canViewPayrollReports: true,
   canManageAdvances: true,
+
+  // Payroll Account Management - Full access
+  canAccessPayrollAccount: true,
+  canViewPayrollAccountBalance: true,
+  canMakePayrollDeposits: true,
+  canMakePayrollPayments: true,
+  canAdjustPaymentAmounts: true,
+  canIssuePaymentVouchers: true,
+  canCompletePayments: true,
+  canViewPayrollHistory: true,
+  canExportPayrollPayments: true,
 
   // Supplier Management - Full access
   canViewSuppliers: true,

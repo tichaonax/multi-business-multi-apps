@@ -548,7 +548,7 @@ export default function AdminPersonalFinancePage() {
                   {/* User vs Global Statistics */}
                   <div className="card p-6">
                     <h2 className="text-xl font-semibold text-primary mb-4">
-                      {financeData.users.name} vs Global Statistics
+                      {financeData.user.name} vs Global Statistics
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -617,7 +617,7 @@ export default function AdminPersonalFinancePage() {
                   {/* Transactions Table */}
                   <div className="card p-6">
                     <h3 className="text-lg font-semibold text-primary mb-4">
-                      Transactions for {financeData.users.name}
+                      Transactions for {financeData.user.name}
                     </h3>
 
                     <div className="overflow-x-auto">

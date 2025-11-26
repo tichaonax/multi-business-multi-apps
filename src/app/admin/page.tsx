@@ -439,6 +439,8 @@ export default function AdminPage() {
 
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-clothing', label: 'Seed Clothing Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Clothing Demo</button>
 
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-realistic-employees', label: 'Seed Realistic Employees', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded">Seed Realistic Employees</button>
+
               {/* Unseed buttons */}
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/unseed-contractors', label: 'Unseed Contractors Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Contractors Demo</button>
 
@@ -476,6 +478,7 @@ export default function AdminPage() {
                     if (endpoint.includes('seed-restaurant')) confirmText = `SEED-RESTAURANT-${nowSuffix}`
                     if (endpoint.includes('unseed-restaurant') || endpoint.includes('cleanup-dev-data')) confirmText = `UNSEED-RESTAURANT-${nowSuffix}`
                     if (endpoint.includes('seed-dev-data')) confirmText = `CREATE-DEV-SEED-${nowSuffix}`
+                    if (endpoint.includes('seed-realistic-employees')) confirmText = `SEED-REALISTIC-EMPLOYEES-${nowSuffix}`
 
                     const body = { ...(modalAction.body || {}), confirm: true, confirmText }
 

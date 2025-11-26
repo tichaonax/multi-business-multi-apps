@@ -44,14 +44,14 @@ export async function GET(req: NextRequest) {
         userId: userId
       },
       include: {
-        user: {
+        users: {
           select: {
             id: true,
             name: true,
             email: true
           }
         },
-        projectTransactions: {
+        project_transactions: {
           select: {
             id: true,
             paymentMethod: true,
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
             paymentCategory: true,
             status: true,
             notes: true,
-            recipientPerson: {
+            persons: {
               select: {
                 id: true,
                 fullName: true,
@@ -67,9 +67,9 @@ export async function GET(req: NextRequest) {
                 phone: true
               }
             },
-            projectContractor: {
-              include: {
-                person: {
+            project_contractors: {
+              select: {
+                persons: {
                   select: {
                     id: true,
                     fullName: true,
@@ -79,14 +79,14 @@ export async function GET(req: NextRequest) {
                 }
               }
             },
-            constructionProject: {
+            construction_projects: {
               select: {
                 id: true,
                 name: true,
                 status: true
               }
             },
-            projectStage: {
+            project_stages: {
               select: {
                 id: true,
                 name: true
@@ -239,7 +239,7 @@ export async function PUT(req: NextRequest) {
         notes: notes || null
       },
       include: {
-        user: {
+        users: {
           select: {
             id: true,
             name: true,
