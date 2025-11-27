@@ -124,10 +124,7 @@ export async function GET(
             business_stock_movements: true
           }
         },
-        product_barcodes: {
-          where: { isActive: true },
-          orderBy: { isPrimary: 'desc' }
-        }
+        product_barcodes: true
       },
       orderBy: { name: 'asc' },
       // Fetch more items before pagination to account for filtering by ingredientType
@@ -167,16 +164,7 @@ export async function GET(
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
-        barcodes: product.product_barcodes.map(b => ({
-          id: b.id,
-          code: b.code,
-          type: b.type,
-          isPrimary: b.isPrimary,
-          isUniversal: b.isUniversal,
-          isActive: b.isActive,
-          label: b.label || undefined,
-          notes: b.notes || undefined
-        })),
+        barcodes: (product as any).product_barcodes || [],
         attributes: product.attributes || {}
       }
     })
