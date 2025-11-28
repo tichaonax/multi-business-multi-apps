@@ -195,10 +195,29 @@ export async function GET(
 
   } catch (error) {
     console.error('Error fetching stock movements:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch stock movements' },
-      { status: 500 }
-    )
+    // For businesses with no inventory, return empty gracefully
+    return NextResponse.json({
+      movements: [],
+      pagination: {
+        page: 1,
+        limit: 50,
+        total: 0,
+        totalPages: 0
+      },
+      summary: {
+        totalMovements: 0,
+        byType: {
+          receive: 0,
+          use: 0,
+          waste: 0,
+          adjustment: 0,
+          transfer: 0,
+          return: 0
+        },
+        totalValue: 0
+      },
+      filters: {}
+    })
   }
 }
 
@@ -207,8 +226,6 @@ export async function POST(
   { params }: { params: Promise<{ businessId: string }> }
 )
  {
-
-    const { businessId } = await params
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {

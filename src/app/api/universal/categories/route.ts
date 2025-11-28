@@ -27,14 +27,19 @@ export async function GET(request: NextRequest) {
     const parentId = searchParams.get('parentId')
     const includeProducts = searchParams.get('includeProducts') === 'true'
 
-    if (!businessId) {
+    // Allow filtering by businessId OR businessType
+    if (!businessId && !businessType) {
       return NextResponse.json(
-        { error: 'businessId is required' },
+        { error: 'businessId or businessType is required' },
         { status: 400 }
       )
     }
 
-    const where: any = { businessId, isActive: true }
+    const where: any = { isActive: true }
+
+    if (businessId) {
+      where.businessId = businessId
+    }
 
     if (businessType) {
       where.businessType = businessType

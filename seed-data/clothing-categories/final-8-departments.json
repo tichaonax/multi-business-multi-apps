@@ -402,7 +402,7 @@
           "sku": "CND-4680",
           "category": "Men Clothing",
           "department": "Men Clothing",
-          "categoryName": null,
+          "categoryName": "Shorts",
           "subcategory": null
         },
         {
@@ -5569,7 +5569,7 @@
           "sku": "CMY-1946",
           "category": "Rompers",
           "department": "Rompers",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -5601,7 +5601,7 @@
           "sku": "CNE-2214",
           "category": "Shorts",
           "department": "Shorts",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -5609,7 +5609,7 @@
           "sku": "CNI-5475",
           "category": "T-Shirts",
           "department": "T-Shirts",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -5617,7 +5617,7 @@
           "sku": "CNI-4038",
           "category": "Trousers",
           "department": "Trousers",
-          "categoryName": null,
+          "categoryName": "Trousers",
           "subcategory": null
         },
         {
@@ -5801,7 +5801,7 @@
           "sku": "CNJ-2682",
           "category": "Women Clothing",
           "department": "Women Clothing",
-          "categoryName": null,
+          "categoryName": "Clothing",
           "subcategory": null
         },
         {
@@ -8221,7 +8221,7 @@
           "sku": "QTS-001",
           "category": "Accessories",
           "department": "Accessories",
-          "categoryName": null,
+          "categoryName": "Home & Beauty",
           "subcategory": null
         },
         {
@@ -8245,7 +8245,7 @@
           "sku": "LPS-091",
           "category": "Carry Bags",
           "department": "Carry Bags",
-          "categoryName": null,
+          "categoryName": "Panties",
           "subcategory": null
         },
         {
@@ -8269,7 +8269,7 @@
           "sku": "HBM-100",
           "category": "Computer Accessories",
           "department": "Computer Accessories",
-          "categoryName": null,
+          "categoryName": "Trousers",
           "subcategory": null
         },
         {
@@ -8285,7 +8285,7 @@
           "sku": "CMK-1597",
           "category": "Laptop Accessories",
           "department": "Laptop Accessories",
-          "categoryName": null,
+          "categoryName": "Shirts",
           "subcategory": null
         },
         {
@@ -8332,7 +8332,7 @@
           "sku": "NBS-052",
           "category": "Bath Towels",
           "department": "Bath Towels",
-          "categoryName": null,
+          "categoryName": "Socks",
           "subcategory": null
         },
         {
@@ -8364,7 +8364,7 @@
           "sku": "FST_057",
           "category": "Bedspread",
           "department": "Bedspread",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -8388,7 +8388,7 @@
           "sku": "JIL-060",
           "category": "Blankets",
           "department": "Blankets",
-          "categoryName": null,
+          "categoryName": "Clothing",
           "subcategory": null
         },
         {
@@ -8396,7 +8396,7 @@
           "sku": "FSS-099",
           "category": "Comforter",
           "department": "Comforter",
-          "categoryName": null,
+          "categoryName": "Suits",
           "subcategory": null
         },
         {
@@ -8404,7 +8404,7 @@
           "sku": "TFB-103",
           "category": "Fleece",
           "department": "Fleece",
-          "categoryName": null,
+          "categoryName": "Dresses",
           "subcategory": null
         },
         {
@@ -8412,7 +8412,7 @@
           "sku": "CNI-2788",
           "category": "Quilts",
           "department": "Quilts",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -8420,7 +8420,7 @@
           "sku": "CNJ-4363",
           "category": "Sheets",
           "department": "Sheets",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -8428,7 +8428,7 @@
           "sku": "CNI-1139",
           "category": "Sleeping Bag",
           "department": "Sleeping Bag",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -8436,7 +8436,7 @@
           "sku": "CMZ-5199",
           "category": "Wrapper",
           "department": "Wrapper",
-          "categoryName": null,
+          "categoryName": "Home & Beauty",
           "subcategory": null
         }
       ]
@@ -8459,7 +8459,7 @@
           "sku": "WSK-102",
           "category": "Electronics",
           "department": "Electronics",
-          "categoryName": null,
+          "categoryName": "Sandals",
           "subcategory": null
         },
         {
@@ -8475,7 +8475,7 @@
           "sku": "LSS-105",
           "category": "General Merchandise",
           "department": "General Merchandise",
-          "categoryName": null,
+          "categoryName": "Jeans",
           "subcategory": null
         },
         {
@@ -8491,7 +8491,7 @@
           "sku": "CNI-2302",
           "category": "Mixed Clothes",
           "department": "Mixed Clothes",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -8515,7 +8515,7 @@
           "sku": "CNI-5617",
           "category": "New Born",
           "department": "New Born",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -8571,7 +8571,7 @@
           "sku": "CNH-9106",
           "category": "Raffles Clothes",
           "department": "Raffles Clothes",
-          "categoryName": null,
+          "categoryName": "Skirts",
           "subcategory": null
         },
         {
@@ -8579,7 +8579,7 @@
           "sku": "CNJ-3574",
           "category": "Toys",
           "department": "Toys",
-          "categoryName": null,
+          "categoryName": "Trousers",
           "subcategory": null
         },
         {

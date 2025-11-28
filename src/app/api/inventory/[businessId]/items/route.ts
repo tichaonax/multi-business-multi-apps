@@ -82,6 +82,7 @@ export async function GET(
 
     // Query parameters
     const category = searchParams.get('category')
+    const domainId = searchParams.get('domainId')
     const search = searchParams.get('search')
     const isActive = searchParams.get('isActive')
     const lowStock = searchParams.get('lowStock') === 'true'
@@ -103,6 +104,13 @@ export async function GET(
         { sku: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } }
       ]
+    }
+
+    // Filter by domain (department) if specified
+    if (domainId && domainId !== 'all') {
+      where.business_categories = {
+        domainId: domainId
+      }
     }
 
     // Note: We'll filter by category/ingredientType after fetching since ingredientType is in JSON
@@ -204,6 +212,7 @@ export async function GET(
       },
       filters: {
         category,
+        domainId,
         search,
         isActive,
         lowStock
@@ -212,10 +221,17 @@ export async function GET(
 
   } catch (error) {
     console.error('Error fetching inventory items:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch inventory items' },
-      { status: 500 }
-    )
+    // For businesses with no inventory, return empty gracefully
+    return NextResponse.json({
+      items: [],
+      pagination: {
+        page: 1,
+        limit: 50,
+        total: 0,
+        totalPages: 0
+      },
+      filters: {}
+    })
   }
 }
 

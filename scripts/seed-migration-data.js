@@ -117,6 +117,7 @@ async function seedIdTemplates() {
   }
 
   console.log(`✅ Seeded ${templates.length} ID format templates`)
+  return templates.length
 }
 
 /**
@@ -125,7 +126,7 @@ async function seedIdTemplates() {
  */
 async function seedPhoneTemplates() {
   console.log('📱 Phone format templates not found in schema - skipping')
-  return
+  return 0
 }
 
 /**
@@ -134,7 +135,7 @@ async function seedPhoneTemplates() {
  */
 async function seedDateTemplates() {
   console.log('📅 Date format templates not found in schema - skipping')
-  return
+  return 0
 }
 
 /**
@@ -188,6 +189,7 @@ async function seedJobTitles() {
     { title: 'Driver', description: 'Operates company vehicles for transportation', department: 'Operations', level: 'support' }
   ]
 
+  let seededCount = 0
   for (const jobTitle of jobTitles) {
     if (!prisma.jobTitles || typeof prisma.jobTitles.upsert !== 'function') {
       console.warn('Prisma model jobTitles not available - skipping job titles seeding');
@@ -206,9 +208,11 @@ async function seedJobTitles() {
         updatedAt: new Date()
       }
     })
+    seededCount++
   }
 
-  console.log(`✅ Seeded ${jobTitles.length} job titles`)
+  console.log(`✅ Seeded ${seededCount} job titles`)
+  return seededCount
 }
 
 /**
@@ -235,6 +239,7 @@ async function seedCompensationTypes() {
     { name: 'Stipend', type: 'stipend', baseAmount: null, commissionPercentage: null }
   ]
 
+  let seededCount = 0
   for (const compensationType of compensationTypes) {
     if (!prisma.compensationTypes || typeof prisma.compensationTypes.upsert !== 'function') {
       console.warn('Prisma model compensationTypes not available - skipping compensation types seeding');
@@ -252,9 +257,11 @@ async function seedCompensationTypes() {
         updatedAt: new Date()
       }
     })
+    seededCount++
   }
 
-  console.log(`✅ Seeded ${compensationTypes.length} compensation types`)
+  console.log(`✅ Seeded ${seededCount} compensation types`)
+  return seededCount
 }
 
 /**
@@ -305,6 +312,7 @@ async function seedBenefitTypes() {
     { name: 'Company Vehicle', type: 'company', defaultAmount: null, isPercentage: false }
   ]
 
+  let seededCount = 0
   for (const benefitType of benefitTypes) {
     if (!prisma.benefitTypes || typeof prisma.benefitTypes.upsert !== 'function') {
       console.warn('Prisma model benefitTypes not available - skipping benefit types seeding');
@@ -322,9 +330,11 @@ async function seedBenefitTypes() {
         updatedAt: new Date()
       }
     })
+    seededCount++
   }
 
-  console.log(`✅ Seeded ${benefitTypes.length} benefit types`)
+  console.log(`✅ Seeded ${seededCount} benefit types`)
+  return seededCount
 }
 
 /**
@@ -342,7 +352,7 @@ async function createAdminUser() {
 
   if (existingAdmin) {
     console.log('✅ Admin user already exists')
-    return
+    return 1
   }
 
   // Hash password
@@ -364,6 +374,189 @@ async function createAdminUser() {
   console.log(`   Email: ${adminEmail}`)
   console.log(`   Password: admin123`)
   console.log(`   Role: admin`)
+  return 1
+}
+
+/**
+ * Create Default Business for Admin
+ */
+async function createDefaultBusiness() {
+  console.log('🏢 Creating default business for admin...')
+
+  const adminEmail = 'admin@business.local'
+
+  // Find admin user
+  const adminUser = await prisma.users.findUnique({
+    where: { email: adminEmail }
+  })
+
+  if (!adminUser) {
+    console.log('⚠️  Admin user not found - skipping default business creation')
+    return 0
+  }
+
+  // Check if admin already has a business
+  const existingMembership = await prisma.businessMemberships.findFirst({
+    where: { userId: adminUser.id }
+  })
+
+  if (existingMembership) {
+    console.log('✅ Admin already has business membership')
+    return 1
+  }
+
+  // Generate unique shortName
+  let shortName = 'default'
+  let counter = 1
+  while (await prisma.businesses.findFirst({ where: { shortName } })) {
+    shortName = `default${counter}`
+    counter++
+  }
+
+  // Create default business
+  const business = await prisma.businesses.create({
+    data: {
+      id: require('crypto').randomUUID(),
+      name: 'Default Business',
+      type: 'other',
+      description: 'Default business created during system setup',
+      shortName,
+      createdBy: adminUser.id,
+      isActive: true,
+      isDemo: false
+    }
+  })
+
+  // Create business membership for admin as business-owner
+  const BUSINESS_OWNER_PERMISSIONS = {
+    // Business Management - Full access
+    canViewBusiness: true,
+    canEditBusiness: true,
+    canDeleteBusiness: true,
+    canManageBusinessUsers: true,
+    canManageBusinessSettings: true,
+
+    // User Management - Full access
+    canViewUsers: true,
+    canInviteUsers: true,
+    canEditUserPermissions: true,
+    canRemoveUsers: true,
+    canViewAuditLogs: true,
+
+    // Data Management - Full access
+    canExportBusinessData: true,
+    canImportBusinessData: true,
+    canBackupBusiness: true,
+    canRestoreBusiness: true,
+
+    // Employee Management - Full access
+    canViewEmployees: true,
+    canCreateEmployees: true,
+    canEditEmployees: true,
+    canDeleteEmployees: true,
+    canManageEmployees: true,
+    canViewEmployeeContracts: true,
+    canCreateEmployeeContracts: true,
+    canEditEmployeeContracts: true,
+    canApproveEmployeeContracts: true,
+    canDeleteEmployeeContracts: true,
+    canManageJobTitles: true,
+    canManageBenefitTypes: true,
+    canManageCompensationTypes: true,
+    canManageDisciplinaryActions: true,
+    canViewEmployeeReports: true,
+    canExportEmployeeData: true,
+    canApproveSalaryIncreases: true,
+    canProcessSalaryIncreases: true,
+
+    // Financial Management - Full access
+    canAccessFinancialData: true,
+    canManageProjectBudgets: true,
+    canManageProjectPayments: true,
+    canViewCostReports: true,
+    canApproveBudgetChanges: true,
+    canViewProfitabilityReports: true,
+
+    // Customer Management - Full access
+    canAccessCustomers: true,
+    canViewCustomers: true,
+    canManageCustomers: true,
+    canCreateCustomers: true,
+    canEditCustomers: true,
+    canDeleteCustomers: true,
+    canManageDivisionAccounts: true,
+    canManageLaybys: true,
+    canManageCredit: true,
+    canViewCustomerReports: true,
+    canExportCustomerData: true,
+    canLinkCustomerAccounts: true,
+
+    // Payroll Management - Full access
+    canAccessPayroll: true,
+    canManagePayroll: true,
+    canCreatePayrollPeriod: true,
+    canEditPayrollEntry: true,
+    canApprovePayroll: true,
+    canExportPayroll: true,
+    canResetExportedPayrollToPreview: true,
+    canDeletePayroll: true,
+    canPrintPayrollEntryDetails: true,
+    canEnterPaySlips: true,
+    canReconcilePayroll: true,
+    canViewPayrollReports: true,
+    canManageAdvances: true,
+
+    // Payroll Account Management - Full access
+    canAccessPayrollAccount: true,
+    canViewPayrollAccountBalance: true,
+    canMakePayrollDeposits: true,
+    canMakePayrollPayments: true,
+    canAdjustPaymentAmounts: true,
+    canIssuePaymentVouchers: true,
+    canCompletePayments: true,
+    canViewPayrollHistory: true,
+    canExportPayrollPayments: true,
+
+    // Expense Account Management - Full access
+    canAccessExpenseAccount: true,
+    canCreateExpenseAccount: true,
+    canMakeExpenseDeposits: true,
+    canMakeExpensePayments: true,
+    canViewExpenseReports: true,
+    canCreateIndividualPayees: true,
+    canDeleteExpenseAccounts: true,
+    canAdjustExpensePayments: true,
+
+    // Supplier Management - Full access
+    canViewSuppliers: true,
+    canCreateSuppliers: true,
+    canEditSuppliers: true,
+    canDeleteSuppliers: true,
+    canManageSupplierCatalog: true,
+
+    // Location Management - Full access
+    canViewLocations: true,
+    canCreateLocations: true,
+    canEditLocations: true,
+    canDeleteLocations: true,
+  };
+
+  await prisma.businessMemberships.create({
+    data: {
+      id: require('crypto').randomUUID(),
+      businessId: business.id,
+      userId: adminUser.id,
+      role: 'business-owner',
+      permissions: BUSINESS_OWNER_PERMISSIONS,
+      isActive: true
+    }
+  })
+
+  console.log('✅ Default business created for admin')
+  console.log(`   Business Name: ${business.name}`)
+  console.log(`   Business ID: ${business.id}`)
+  console.log(`   Short Name: ${business.shortName}`)
+  return 1
 }
 
 /**
@@ -377,19 +570,168 @@ async function seedExpenseCategories() {
 
   if (existingDomains > 0) {
     console.log(`✅ Expense categories already seeded (${existingDomains} domains found)`)
-    return
+    // Return actual counts from database
+    const categoriesCount = await prisma.expenseCategories.count()
+    const subcategoriesCount = await prisma.expenseSubcategories.count()
+    return { domains: existingDomains, categories: categoriesCount, subcategories: subcategoriesCount }
   }
 
   try {
     // Import and run the expense category seed
-    const { runExpenseCategorySeed } = require('../src/lib/seed-data/expense-categories-seed.ts')
+    const { runExpenseCategorySeed } = require('../src/lib/seed-data/expense-categories-seed.js')
     await runExpenseCategorySeed()
     console.log('✅ Expense categories seeded successfully')
+
+    // Get actual counts after seeding
+    const domainsCount = await prisma.expenseDomains.count()
+    const categoriesCount = await prisma.expenseCategories.count()
+    const subcategoriesCount = await prisma.expenseSubcategories.count()
+
+    return { domains: domainsCount, categories: categoriesCount, subcategories: subcategoriesCount }
   } catch (error) {
     console.error('⚠️  Failed to seed expense categories:', error.message)
     console.log('   You can manually seed expense categories later with:')
     console.log('   npx tsx src/lib/seed-data/expense-categories-seed.ts')
+    return { domains: 0, categories: 0, subcategories: 0 }
   }
+}
+
+/**
+ * Grant Expense Account Permissions to Admin User
+ */
+async function grantExpensePermissionsToAdmin() {
+  console.log('💳 Granting expense account permissions to admin user...')
+
+  const adminEmail = 'admin@business.local'
+
+  // Find the admin user
+  const adminUser = await prisma.users.findUnique({
+    where: { email: adminEmail }
+  })
+
+  if (!adminUser) {
+    console.log('⚠️  Admin user not found - skipping permission grant')
+    return
+  }
+
+  // Check if admin already has expense permissions
+  const currentPermissions = adminUser.permissions || {}
+  if (currentPermissions.canAccessExpenseAccount) {
+    console.log('✅ Admin already has expense account permissions')
+    return
+  }
+
+  // Grant all expense account permissions
+  const expensePermissions = {
+    canAccessExpenseAccount: true,
+    canCreateExpenseAccount: true,
+    canMakeExpenseDeposits: true,
+    canMakeExpensePayments: true,
+    canViewExpenseReports: true,
+    canCreateIndividualPayees: true,
+    canDeleteExpenseAccounts: true,
+    canAdjustExpensePayments: true
+  }
+
+  // Update admin user with expense permissions
+  await prisma.users.update({
+    where: { email: adminEmail },
+    data: {
+      permissions: {
+        ...currentPermissions,
+        ...expensePermissions
+      }
+    }
+  })
+
+  console.log('✅ Granted expense account permissions to admin user')
+}
+
+/**
+ * Seed Test Expense Accounts
+ */
+async function seedExpenseAccounts() {
+  console.log('💳 Seeding test expense accounts...')
+
+  // Check if expense accounts already exist
+  const existingAccounts = await prisma.expenseAccounts.count()
+
+  if (existingAccounts > 0) {
+    console.log(`✅ Expense accounts already seeded (${existingAccounts} accounts found)`)
+    return existingAccounts
+  }
+
+  // Find admin user to create accounts
+  const adminUser = await prisma.users.findUnique({
+    where: { email: 'admin@business.local' }
+  })
+
+  if (!adminUser) {
+    console.log('⚠️  Admin user not found - skipping expense account seeding')
+    return 0
+  }
+
+  // Create test expense accounts
+  const accounts = [
+    {
+      id: `acc_${Date.now()}_general`,
+      accountName: 'General Expenses',
+      accountNumber: 'EXP-001',
+      description: 'General business expense account for operational costs',
+      balance: 0.00,
+      createdBy: adminUser.id,
+      isActive: true
+    },
+    {
+      id: `acc_${Date.now()}_travel`,
+      accountName: 'Travel & Accommodation',
+      accountNumber: 'EXP-002',
+      description: 'Expense account for business travel and accommodation',
+      balance: 0.00,
+      createdBy: adminUser.id,
+      isActive: true
+    },
+    {
+      id: `acc_${Date.now()}_supplies`,
+      accountName: 'Office Supplies',
+      accountNumber: 'EXP-003',
+      description: 'Expense account for office supplies and equipment',
+      balance: 0.00,
+      createdBy: adminUser.id,
+      isActive: true
+    }
+  ]
+
+  let createdCount = 0
+
+  for (const account of accounts) {
+    try {
+      await prisma.expenseAccounts.create({
+        data: account
+      })
+      createdCount++
+
+      // Only create initial deposit if balance is greater than 0
+      if (account.balance > 0) {
+        await prisma.expenseAccountDeposits.create({
+          data: {
+            id: `dep_${Date.now()}_${account.id}`,
+            expenseAccountId: account.id,
+            sourceType: 'MANUAL',
+            amount: account.balance,
+            depositDate: new Date(),
+            manualNote: `Initial deposit for ${account.accountName}`,
+            createdBy: adminUser.id
+          }
+        })
+      }
+    } catch (error) {
+      console.error(`⚠️  Failed to create expense account ${account.accountName}:`, error.message)
+    }
+  }
+
+  console.log(`✅ Created ${createdCount} test expense accounts with zero balance`)
+  return createdCount
 }
 
 /**
@@ -398,6 +740,22 @@ async function seedExpenseCategories() {
 async function main() {
   console.log('🌱 Starting migration data seeding...')
   console.log('')
+
+  // Track actual seeding counts
+  const seedingStats = {
+    idTemplates: 0,
+    phoneTemplates: 0,
+    dateTemplates: 0,
+    jobTitles: 0,
+    compensationTypes: 0,
+    benefitTypes: 0,
+    expenseDomains: 0,
+    expenseCategories: 0,
+    expenseSubcategories: 0,
+    adminUsers: 0,
+    defaultBusinesses: 0,
+    expenseAccounts: 0
+  }
 
   try {
     // Preflight: ensure critical tables exist before attempting upserts
@@ -439,33 +797,52 @@ async function main() {
     }
 
     // Seed all reference data
-    await seedIdTemplates()
-    await seedPhoneTemplates()
-    await seedDateTemplates()
-    await seedJobTitles()
-    await seedCompensationTypes()
-    await seedBenefitTypes()
+    seedingStats.idTemplates = await seedIdTemplates()
+    seedingStats.phoneTemplates = await seedPhoneTemplates()
+    seedingStats.dateTemplates = await seedDateTemplates()
+    seedingStats.jobTitles = await seedJobTitles()
+    seedingStats.compensationTypes = await seedCompensationTypes()
+    seedingStats.benefitTypes = await seedBenefitTypes()
 
-    // Seed expense categories
-    await seedExpenseCategories()
+    // Seed expense categories and capture counts
+    const expenseStats = await seedExpenseCategories()
+    seedingStats.expenseDomains = expenseStats.domains
+    seedingStats.expenseCategories = expenseStats.categories
+    seedingStats.expenseSubcategories = expenseStats.subcategories
+
+    // NOTE: Clothing categories are now seeded via migration:
+    // prisma/migrations/20251127140000_seed_complete_clothing_categories/migration.sql
+    // This runs automatically with `npx prisma migrate deploy`
 
     // Create admin user
-    await createAdminUser()
+    seedingStats.adminUsers = await createAdminUser()
+
+    // NOTE: Default business removed - users should create their first business via UI
+    // seedingStats.defaultBusinesses = await createDefaultBusiness()
+
+    // Grant expense account permissions to admin
+    await grantExpensePermissionsToAdmin()
+
+    // Seed test expense accounts
+    seedingStats.expenseAccounts = await seedExpenseAccounts()
 
     console.log('')
     console.log('🎉 Migration data seeding completed successfully!')
     console.log('')
     console.log('📋 Summary:')
-    console.log('   • 5 ID format templates')
-    console.log('   • 7 Phone format templates')
-    console.log('   • 5 Date format templates')
-    console.log('   • 29 Job titles')
-    console.log('   • 15 Compensation types')
-    console.log('   • 28 Benefit types')
-    console.log('   • 8 Expense domains')
-    console.log('   • 71 Expense categories')
-    console.log('   • 471 Expense subcategories')
-    console.log('   • 1 Admin user (admin@business.local / admin123)')
+    console.log(`   • ${seedingStats.idTemplates} ID format templates`)
+    console.log(`   • ${seedingStats.phoneTemplates} Phone format templates`)
+    console.log(`   • ${seedingStats.dateTemplates} Date format templates`)
+    console.log(`   • ${seedingStats.jobTitles} Job titles`)
+    console.log(`   • ${seedingStats.compensationTypes} Compensation types`)
+    console.log(`   • ${seedingStats.benefitTypes} Benefit types`)
+    console.log(`   • ${seedingStats.expenseDomains} Expense domains`)
+    console.log(`   • ${seedingStats.expenseCategories} Expense categories`)
+    console.log(`   • ${seedingStats.expenseSubcategories} Expense subcategories`)
+    console.log(`   • ${seedingStats.adminUsers} Admin user (admin@business.local / admin123)`)
+    // console.log(`   • ${seedingStats.defaultBusinesses} Default business for admin`)
+    console.log('   • Expense account permissions granted to admin')
+    console.log(`   • ${seedingStats.expenseAccounts} Test expense accounts (zero balance - ready for funding)`)
     console.log('')
     console.log('✅ Database is now ready for production use!')
 

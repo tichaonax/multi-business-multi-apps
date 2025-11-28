@@ -21,6 +21,7 @@ const BUSINESS_TYPES = [
   'restaurant',
   'grocery',
   'clothing',
+  'hardware',
   'consulting',
   'retail',
   'services',

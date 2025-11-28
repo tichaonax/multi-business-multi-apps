@@ -6,7 +6,7 @@ async function checkBusinesses() {
   try {
     console.log('Checking businesses in database...')
 
-    const businesses = await prisma.business.findMany({
+    const businesses = await prisma.businesses.findMany({
       select: {
         id: true,
         name: true,
@@ -17,7 +17,22 @@ async function checkBusinesses() {
 
     console.log(`\nFound ${businesses.length} businesses:`)
     businesses.forEach(b => {
-      console.log(`- ${b.name} (${b.type}) [Active: ${b.isActive}]`)
+      console.log(`- ${b.name} (${b.type}) [ID: ${b.id}] [Active: ${b.isActive}]`)
+    })
+
+    // Check business memberships
+    const memberships = await prisma.businessMemberships.findMany({
+      where: { isActive: true },
+      include: {
+        businesses: { select: { name: true } },
+        users: { select: { email: true } }
+      },
+      take: 10
+    })
+
+    console.log(`\nFound ${memberships.length} active business memberships:`)
+    memberships.forEach(m => {
+      console.log(`- ${m.users.email} -> ${m.businesses.name}`)
     })
 
     if (businesses.length === 0) {
@@ -26,7 +41,7 @@ async function checkBusinesses() {
     }
 
     // Check users
-    const users = await prisma.user.findMany({
+    const users = await prisma.users.findMany({
       select: {
         id: true,
         name: true,

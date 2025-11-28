@@ -36,8 +36,23 @@ const businessTypeModules = [
   { type: 'clothing', icon: '👕', name: 'Clothing' },
   { type: 'hardware', icon: '🔧', name: 'Hardware' },
   { type: 'construction', icon: '🏗️', name: 'Construction' },
-  { type: 'services', icon: '🔧', name: 'Services' },
+  { type: 'services', icon: '💼', name: 'Services' },
+  { type: 'retail', icon: '🏪', name: 'Retail' },
+  { type: 'consulting', icon: '📊', name: 'Consulting' },
 ]
+
+// Helper function to get icon for any business type
+const getBusinessTypeIcon = (type: string): string => {
+  const module = businessTypeModules.find(m => m.type === type)
+  return module?.icon || '🏢' // Default icon for unknown types
+}
+
+// Helper function to get display name for any business type
+const getBusinessTypeName = (type: string): string => {
+  if (type === 'other') return 'Other Businesses'
+  const module = businessTypeModules.find(m => m.type === type)
+  return module?.name || type.charAt(0).toUpperCase() + type.slice(1) // Capitalize first letter for unknown types
+}
 
 export function Sidebar() {
   const { data: session } = useSession()
@@ -101,14 +116,41 @@ export function Sidebar() {
     }
   }, [session?.user, businessMemberships])
 
-  // Helper function to group businesses by type
+  // Helper function to group businesses by type - DYNAMIC with "Other" category
   const groupBusinessesByType = (businessList: Business[]) => {
-    const grouped = businessTypeModules.map(module => ({
-      type: module.type,
-      icon: module.icon,
-      businesses: businessList.filter((b: Business) => b.type === module.type)
+    // Define which types have full feature sets (dedicated pages)
+    const primaryTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']
+
+    // Get all unique business types from actual businesses
+    const uniqueTypes = Array.from(new Set(businessList.map((b: Business) => b.type)))
+
+    // Separate primary types from other types
+    const primaryTypesPresent = uniqueTypes.filter(type => primaryTypes.includes(type))
+    const otherTypes = uniqueTypes.filter(type => !primaryTypes.includes(type))
+
+    // Create groups for primary types
+    const grouped = primaryTypesPresent.map(type => ({
+      type: type,
+      icon: getBusinessTypeIcon(type),
+      businesses: businessList.filter((b: Business) => b.type === type)
     }))
-    // Remove the filter - show all business types even with 0 count
+
+    // If there are "other" types, create an "Other" group
+    if (otherTypes.length > 0) {
+      const otherBusinesses = businessList.filter((b: Business) => otherTypes.includes(b.type))
+      grouped.push({
+        type: 'other',
+        icon: '🏢', // Generic building icon for "Other"
+        businesses: otherBusinesses
+      })
+    }
+
+    // Sort by type name for consistent display (but "other" should be last)
+    grouped.sort((a, b) => {
+      if (a.type === 'other') return 1
+      if (b.type === 'other') return -1
+      return a.type.localeCompare(b.type)
+    })
 
     setBusinessGroups(grouped)
   }
@@ -185,18 +227,24 @@ export function Sidebar() {
 
         // Determine navigation path - preserve current module if applicable
         const currentPath = pathname
-        let targetPath = `/${business.type}` // Default to business homepage
+
+        // Define business types with dedicated page structures
+        const primaryBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']
+        const hasDedicatedPages = primaryBusinessTypes.includes(business.type)
+
+        // Default path: use business type page if it exists, otherwise go to dashboard
+        let targetPath = hasDedicatedPages ? `/${business.type}` : '/dashboard'
 
         // Check if we're currently on a business-specific module page
         const businessModules = ['pos', 'reports', 'inventory', 'products', 'menu', 'orders', 'employees', 'suppliers', 'customers']
         const pathSegments = currentPath.split('/').filter(Boolean)
 
-        if (pathSegments.length >= 2) {
+        if (pathSegments.length >= 2 && hasDedicatedPages) {
           const currentBusinessType = pathSegments[0]
           const currentModule = pathSegments[1]
 
           // If we're on a business module page, preserve the module for the new business
-          if (businessModules.includes(currentModule) && ['restaurant', 'grocery', 'clothing', 'hardware'].includes(currentBusinessType)) {
+          if (businessModules.includes(currentModule) && primaryBusinessTypes.includes(currentBusinessType)) {
             // Special handling for reports - they all use the same universal component
             if (currentModule === 'reports') {
               // Preserve the full reports sub-path (e.g., sales-analytics, dashboard, etc.)
@@ -208,7 +256,9 @@ export function Sidebar() {
                 restaurant: ['pos', 'reports', 'inventory', 'menu', 'orders', 'employees', 'suppliers', 'customers'],
                 grocery: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
                 clothing: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
-                hardware: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers']
+                hardware: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
+                construction: ['reports'],
+                services: ['list', 'categories', 'suppliers', 'add']
               }
 
               if (supportedModules[business.type as keyof typeof supportedModules]?.includes(currentModule)) {
@@ -303,8 +353,8 @@ export function Sidebar() {
           </button>
         )}
 
-        {/* Universal Hierarchical Business Navigation - Only for managers and admins, NOT promoted drivers */}
-        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canManageEmployees') || hasPermission(currentUser, 'canEditEmployees') || hasPermission(currentUser, 'canAccessFinancialData')) && (
+        {/* Universal Hierarchical Business Navigation - Available to ALL users */}
+        {businessGroups.length > 0 && (
           <>
             <div className="pt-4 pb-2">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Business Types</h3>
@@ -319,7 +369,7 @@ export function Sidebar() {
                 >
                   <div className="flex items-center space-x-3">
                     <span className="text-lg">{group.icon}</span>
-                    <span className="capitalize">{group.type}</span>
+                    <span>{getBusinessTypeName(group.type)}</span>
                     <span className="text-xs text-gray-400">({group.businesses.length})</span>
                   </div>
                   <span className="text-sm text-gray-400">
@@ -341,9 +391,17 @@ export function Sidebar() {
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="truncate">{business.name}</span>
+                          <div className="flex flex-col truncate">
+                            <span className="truncate">{business.name}</span>
+                            {/* Show business type badge for "Other" category */}
+                            {group.type === 'other' && (
+                              <span className="text-xs text-gray-400 capitalize">
+                                {getBusinessTypeIcon(business.type)} {getBusinessTypeName(business.type)}
+                              </span>
+                            )}
+                          </div>
                           {currentBusiness?.businessId === business.id && (
-                            <span className="text-xs">✓</span>
+                            <span className="text-xs ml-2">✓</span>
                           )}
                         </div>
                       </button>
@@ -439,6 +497,47 @@ export function Sidebar() {
                   <span className="text-lg">🛠️</span>
                   <span>Products</span>
                 </Link>
+              </>
+            )}
+
+            {/* Services Features */}
+            {currentBusiness.businessType === 'services' && (
+              <>
+                <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                  <span className="text-lg">💼</span>
+                  <span>Services List</span>
+                </Link>
+                <Link href="/services/categories" className={getLinkClasses('/services/categories')}>
+                  <span className="text-lg">📂</span>
+                  <span>Categories</span>
+                </Link>
+                <Link href="/services/suppliers" className={getLinkClasses('/services/suppliers')}>
+                  <span className="text-lg">🤝</span>
+                  <span>Suppliers</span>
+                </Link>
+              </>
+            )}
+
+            {/* Default Features for Other Business Types (retail, consulting, etc.) */}
+            {!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'construction'].includes(currentBusiness.businessType) && (
+              <>
+                <Link href="/dashboard" className={getLinkClasses('/dashboard')}>
+                  <span className="text-lg">📊</span>
+                  <span>Dashboard</span>
+                </Link>
+                <Link href="/business/manage" className={getLinkClasses('/business/manage')}>
+                  <span className="text-lg">⚙️</span>
+                  <span>Business Settings</span>
+                </Link>
+                <div className="px-3 py-2 text-xs text-gray-400">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span>{getBusinessTypeIcon(currentBusiness.businessType)}</span>
+                    <span className="capitalize">{getBusinessTypeName(currentBusiness.businessType)} Business</span>
+                  </div>
+                  <p className="text-gray-500">
+                    Dedicated features for {getBusinessTypeName(currentBusiness.businessType).toLowerCase()} businesses are coming soon.
+                  </p>
+                </div>
               </>
             )}
           </>
@@ -567,6 +666,44 @@ export function Sidebar() {
                   >
                     <span>📜</span>
                     <span>Payment History</span>
+                  </Link>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Expense Accounts - Only for users with expense account permissions */}
+        {(hasUserPermission(currentUser, 'canAccessExpenseAccount') || isSystemAdmin(currentUser)) && (
+          <>
+            <Link
+              href="/expense-accounts"
+              className={getLinkClasses('/expense-accounts')}
+            >
+              <span className="text-lg">💳</span>
+              <span>Expense Accounts</span>
+            </Link>
+
+            {/* Expense Accounts Sub-menu - Show when on expense account pages */}
+            {pathname.startsWith('/expense-accounts') && (
+              <div className="ml-8 space-y-1 mt-1">
+                {(hasUserPermission(currentUser, 'canCreateExpenseAccount') || isSystemAdmin(currentUser)) && (
+                  <Link
+                    href="/expense-accounts/new"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>➕</span>
+                    <span>Create Account</span>
+                  </Link>
+                )}
+
+                {(hasUserPermission(currentUser, 'canViewExpenseReports') || isSystemAdmin(currentUser)) && (
+                  <Link
+                    href="/expense-accounts/reports"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>📊</span>
+                    <span>All Reports</span>
                   </Link>
                 )}
               </div>

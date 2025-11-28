@@ -42,7 +42,6 @@ function normalizeProduct(product: any) {
   product.category = product.category || (product.business_categories ? { id: product.business_categories.id, name: product.business_categories.name } : null)
   product.variants = product.variants || product.product_variants || []
   product.images = product.images || product.product_images || []
-  product.barcodes = product.product_barcodes || []
   product.business = product.business || null
 
   // remove internal/plural fields so responses match previous shape
@@ -50,7 +49,6 @@ function normalizeProduct(product: any) {
   delete product.business_categories
   delete product.product_variants
   delete product.ProductImages
-  delete product.product_barcodes
 
   return product
 }
@@ -106,24 +104,13 @@ export async function GET(request: NextRequest) {
     if (productType) where.productType = productType as any
     if (condition) where.condition = condition as any
 
-    // Filter by barcode type and UPC presence
-    if (barcodeType || hasUpc !== null) {
-      const barcodeFilter: any = {}
-
-      if (barcodeType) {
-        barcodeFilter.type = barcodeType
+    // Filter by barcode presence (using barcode field directly)
+    if (hasUpc === 'true') {
+      where.barcode = {
+        not: null
       }
-
-      if (hasUpc !== null) {
-        const hasUpcBool = hasUpc === 'true'
-        barcodeFilter.type = hasUpcBool
-          ? { in: ['UPC_A', 'EAN_13', 'EAN_8'] }
-          : { notIn: ['UPC_A', 'EAN_13', 'EAN_8'] }
-      }
-
-      where.product_barcodes = {
-        some: barcodeFilter
-      }
+    } else if (hasUpc === 'false') {
+      where.barcode = null
     }
 
     if (search) {
@@ -132,23 +119,14 @@ export async function GET(request: NextRequest) {
         { description: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
         { barcode: { contains: search, mode: 'insensitive' } },
-        // Search in ProductBarcodes table
-        {
-          product_barcodes: {
-            some: {
-              code: { contains: search, mode: 'insensitive' }
-            }
-          }
-        },
-        // Also search in variant barcodes
+        // Search in variant SKUs and barcodes
         {
           product_variants: {
             some: {
-              product_barcodes: {
-                some: {
-                  code: { contains: search, mode: 'insensitive' }
-                }
-              }
+              OR: [
+                { sku: { contains: search, mode: 'insensitive' } },
+                { barcode: { contains: search, mode: 'insensitive' } }
+              ]
             }
           }
         }
@@ -168,32 +146,10 @@ export async function GET(request: NextRequest) {
           business_categories: {
             select: { id: true, name: true }
           },
-          product_barcodes: {
-            select: {
-              id: true,
-              code: true,
-              type: true,
-              isPrimary: true,
-              isUniversal: true,
-              label: true
-            }
-          },
           ...(includeVariants && {
             product_variants: {
               where: { isActive: true },
-              orderBy: { name: 'asc' },
-              include: {
-                product_barcodes: {
-                  select: {
-                    id: true,
-                    code: true,
-                    type: true,
-                    isPrimary: true,
-                    isUniversal: true,
-                    label: true
-                  }
-                }
-              }
+              orderBy: { name: 'asc' }
             }
           }),
           ...(includeImages && {
@@ -212,20 +168,20 @@ export async function GET(request: NextRequest) {
       prisma.businessProducts.count({ where })
     ])
 
-    // Sort products by UPC presence if requested
+    // Sort products by barcode presence if requested
     let sortedProducts = products
     if (sortBy === 'upc-first' || sortBy === 'no-upc-first') {
       sortedProducts = products.sort((a, b) => {
-        const aHasUpc = a.product_barcodes.some(bc => ['UPC_A', 'EAN_13', 'EAN_8'].includes(bc.type))
-        const bHasUpc = b.product_barcodes.some(bc => ['UPC_A', 'EAN_13', 'EAN_8'].includes(bc.type))
+        const aHasBarcode = !!a.barcode
+        const bHasBarcode = !!b.barcode
 
         if (sortBy === 'upc-first') {
-          if (aHasUpc && !bHasUpc) return -1
-          if (!aHasUpc && bHasUpc) return 1
+          if (aHasBarcode && !bHasBarcode) return -1
+          if (!aHasBarcode && bHasBarcode) return 1
           return a.name.localeCompare(b.name)
         } else { // no-upc-first
-          if (!aHasUpc && bHasUpc) return -1
-          if (aHasUpc && !bHasUpc) return 1
+          if (!aHasBarcode && bHasBarcode) return -1
+          if (aHasBarcode && !bHasBarcode) return 1
           return a.name.localeCompare(b.name)
         }
       })

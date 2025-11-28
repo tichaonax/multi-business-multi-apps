@@ -2,7 +2,7 @@
   {
     "id": "category_clothing_0_bags",
     "businessId": null,
-    "name": "Bags",
+    "name": "Bags (Accessories)",
     "description": "Bags category",
     "parentId": null,
     "displayOrder": 1,
@@ -17,7 +17,7 @@
   {
     "id": "category_clothing_1_cap",
     "businessId": null,
-    "name": "Cap",
+    "name": "Cap (Accessories)",
     "description": "Cap category",
     "parentId": null,
     "displayOrder": 2,
@@ -47,7 +47,7 @@
   {
     "id": "category_clothing_3_hat",
     "businessId": null,
-    "name": "Hat",
+    "name": "Hat (Accessories)",
     "description": "Hat category",
     "parentId": null,
     "displayOrder": 4,
@@ -62,7 +62,7 @@
   {
     "id": "category_clothing_4_jackets",
     "businessId": null,
-    "name": "Jackets",
+    "name": "Jackets (Accessories)",
     "description": "Jackets category",
     "parentId": null,
     "displayOrder": 5,
@@ -77,7 +77,7 @@
   {
     "id": "category_clothing_5_jerseys",
     "businessId": null,
-    "name": "Jerseys",
+    "name": "Jerseys (Accessories)",
     "description": "Jerseys category",
     "parentId": null,
     "displayOrder": 6,
@@ -122,7 +122,7 @@
   {
     "id": "category_clothing_8_uncategorized",
     "businessId": null,
-    "name": "Uncategorized",
+    "name": "Uncategorized (Accessories)",
     "description": "Uncategorized category",
     "parentId": null,
     "displayOrder": 9,
@@ -137,7 +137,7 @@
   {
     "id": "category_clothing_9_accessories",
     "businessId": null,
-    "name": "Accessories",
+    "name": "Accessories (Baby)",
     "description": "Accessories category",
     "parentId": null,
     "displayOrder": 10,
@@ -257,7 +257,7 @@
   {
     "id": "category_clothing_17_beach_towels",
     "businessId": null,
-    "name": "Beach Towels",
+    "name": "Beach Towels (Baby)",
     "description": "Beach Towels category",
     "parentId": null,
     "displayOrder": 18,
@@ -272,7 +272,7 @@
   {
     "id": "category_clothing_18_bodysuits",
     "businessId": null,
-    "name": "Bodysuits",
+    "name": "Bodysuits (Baby)",
     "description": "Bodysuits category",
     "parentId": null,
     "displayOrder": 19,
@@ -287,7 +287,7 @@
   {
     "id": "category_clothing_19_cap",
     "businessId": null,
-    "name": "Cap",
+    "name": "Cap (Baby)",
     "description": "Cap category",
     "parentId": null,
     "displayOrder": 20,
@@ -302,7 +302,7 @@
   {
     "id": "category_clothing_20_clothing",
     "businessId": null,
-    "name": "Clothing",
+    "name": "Clothing (Baby)",
     "description": "Clothing category",
     "parentId": null,
     "displayOrder": 21,
@@ -317,7 +317,7 @@
   {
     "id": "category_clothing_21_dresses",
     "businessId": null,
-    "name": "Dresses",
+    "name": "Dresses (Baby)",
     "description": "Dresses category",
     "parentId": null,
     "displayOrder": 22,
@@ -332,7 +332,7 @@
   {
     "id": "category_clothing_22_fleece_jackets",
     "businessId": null,
-    "name": "Fleece Jackets",
+    "name": "Fleece Jackets (Baby)",
     "description": "Fleece Jackets category",
     "parentId": null,
     "displayOrder": 23,
@@ -362,7 +362,7 @@
   {
     "id": "category_clothing_24_graphic_tees",
     "businessId": null,
-    "name": "Graphic Tees",
+    "name": "Graphic Tees (Baby)",
     "description": "Graphic Tees category",
     "parentId": null,
     "displayOrder": 25,
@@ -377,7 +377,7 @@
   {
     "id": "category_clothing_25_jackets",
     "businessId": null,
-    "name": "Jackets",
+    "name": "Jackets (Baby)",
     "description": "Jackets category",
     "parentId": null,
     "displayOrder": 26,
@@ -392,7 +392,7 @@
   {
     "id": "category_clothing_26_jeans",
     "businessId": null,
-    "name": "Jeans",
+    "name": "Jeans (Baby)",
     "description": "Jeans category",
     "parentId": null,
     "displayOrder": 27,
@@ -407,7 +407,7 @@
   {
     "id": "category_clothing_27_jumpsuit",
     "businessId": null,
-    "name": "Jumpsuit",
+    "name": "Jumpsuit (Baby)",
     "description": "Jumpsuit category",
     "parentId": null,
     "displayOrder": 28,
@@ -422,7 +422,7 @@
   {
     "id": "category_clothing_28_leggings",
     "businessId": null,
-    "name": "Leggings",
+    "name": "Leggings (Baby)",
     "description": "Leggings category",
     "parentId": null,
     "displayOrder": 29,
@@ -437,7 +437,7 @@
   {
     "id": "category_clothing_29_mixed",
     "businessId": null,
-    "name": "Mixed",
+    "name": "Mixed (Baby)",
     "description": "Mixed category",
     "parentId": null,
     "displayOrder": 30,
@@ -467,7 +467,7 @@
   {
     "id": "category_clothing_31_outfit",
     "businessId": null,
-    "name": "Outfit",
+    "name": "Outfit (Baby)",
     "description": "Outfit category",
     "parentId": null,
     "displayOrder": 32,
@@ -482,7 +482,7 @@
   {
     "id": "category_clothing_32_pajamas",
     "businessId": null,
-    "name": "Pajamas",
+    "name": "Pajamas (Baby)",
     "description": "Pajamas category",
     "parentId": null,
     "displayOrder": 33,
@@ -497,7 +497,7 @@
   {
     "id": "category_clothing_33_panties",
     "businessId": null,
-    "name": "Panties",
+    "name": "Panties (Baby)",
     "description": "Panties category",
     "parentId": null,
     "displayOrder": 34,
@@ -512,7 +512,7 @@
   {
     "id": "category_clothing_34_pants",
     "businessId": null,
-    "name": "Pants",
+    "name": "Pants (Baby)",
     "description": "Pants category",
     "parentId": null,
     "displayOrder": 35,
@@ -527,7 +527,7 @@
   {
     "id": "category_clothing_35_ribbon_towels",
     "businessId": null,
-    "name": "Ribbon Towels",
+    "name": "Ribbon Towels (Baby)",
     "description": "Ribbon Towels category",
     "parentId": null,
     "displayOrder": 36,
@@ -542,7 +542,7 @@
   {
     "id": "category_clothing_36_rompers",
     "businessId": null,
-    "name": "Rompers",
+    "name": "Rompers (Baby)",
     "description": "Rompers category",
     "parentId": null,
     "displayOrder": 37,
@@ -557,7 +557,7 @@
   {
     "id": "category_clothing_37_sandals",
     "businessId": null,
-    "name": "Sandals",
+    "name": "Sandals (Baby)",
     "description": "Sandals category",
     "parentId": null,
     "displayOrder": 38,
@@ -572,7 +572,7 @@
   {
     "id": "category_clothing_38_sets",
     "businessId": null,
-    "name": "Sets",
+    "name": "Sets (Baby)",
     "description": "Sets category",
     "parentId": null,
     "displayOrder": 39,
@@ -587,7 +587,7 @@
   {
     "id": "category_clothing_39_shirts",
     "businessId": null,
-    "name": "Shirts",
+    "name": "Shirts (Baby)",
     "description": "Shirts category",
     "parentId": null,
     "displayOrder": 40,
@@ -602,7 +602,7 @@
   {
     "id": "category_clothing_40_shoes",
     "businessId": null,
-    "name": "Shoes",
+    "name": "Shoes (Baby)",
     "description": "Shoes category",
     "parentId": null,
     "displayOrder": 41,
@@ -617,7 +617,7 @@
   {
     "id": "category_clothing_41_shorts",
     "businessId": null,
-    "name": "Shorts",
+    "name": "Shorts (Baby)",
     "description": "Shorts category",
     "parentId": null,
     "displayOrder": 42,
@@ -632,7 +632,7 @@
   {
     "id": "category_clothing_42_skintights",
     "businessId": null,
-    "name": "Skintights",
+    "name": "Skintights (Baby)",
     "description": "Skintights category",
     "parentId": null,
     "displayOrder": 43,
@@ -647,7 +647,7 @@
   {
     "id": "category_clothing_43_skirts",
     "businessId": null,
-    "name": "Skirts",
+    "name": "Skirts (Baby)",
     "description": "Skirts category",
     "parentId": null,
     "displayOrder": 44,
@@ -662,7 +662,7 @@
   {
     "id": "category_clothing_44_socks",
     "businessId": null,
-    "name": "Socks",
+    "name": "Socks (Baby)",
     "description": "Socks category",
     "parentId": null,
     "displayOrder": 45,
@@ -677,7 +677,7 @@
   {
     "id": "category_clothing_45_suits",
     "businessId": null,
-    "name": "Suits",
+    "name": "Suits (Baby)",
     "description": "Suits category",
     "parentId": null,
     "displayOrder": 46,
@@ -707,7 +707,7 @@
   {
     "id": "category_clothing_47_sweatpants",
     "businessId": null,
-    "name": "Sweatpants",
+    "name": "Sweatpants (Baby)",
     "description": "Sweatpants category",
     "parentId": null,
     "displayOrder": 48,
@@ -722,7 +722,7 @@
   {
     "id": "category_clothing_48_swim",
     "businessId": null,
-    "name": "Swim",
+    "name": "Swim (Baby)",
     "description": "Swim category",
     "parentId": null,
     "displayOrder": 49,
@@ -737,7 +737,7 @@
   {
     "id": "category_clothing_49_t_shirt",
     "businessId": null,
-    "name": "T-Shirt",
+    "name": "T-Shirt (Baby)",
     "description": "T-Shirt category",
     "parentId": null,
     "displayOrder": 50,
@@ -752,7 +752,7 @@
   {
     "id": "category_clothing_50_tennis",
     "businessId": null,
-    "name": "Tennis",
+    "name": "Tennis (Baby)",
     "description": "Tennis category",
     "parentId": null,
     "displayOrder": 51,
@@ -767,7 +767,7 @@
   {
     "id": "category_clothing_51_tops",
     "businessId": null,
-    "name": "Tops",
+    "name": "Tops (Baby)",
     "description": "Tops category",
     "parentId": null,
     "displayOrder": 52,
@@ -812,7 +812,7 @@
   {
     "id": "category_clothing_54_tracksuit",
     "businessId": null,
-    "name": "Tracksuit",
+    "name": "Tracksuit (Baby)",
     "description": "Tracksuit category",
     "parentId": null,
     "displayOrder": 55,
@@ -827,7 +827,7 @@
   {
     "id": "category_clothing_55_trousers",
     "businessId": null,
-    "name": "Trousers",
+    "name": "Trousers (Baby)",
     "description": "Trousers category",
     "parentId": null,
     "displayOrder": 56,
@@ -842,7 +842,7 @@
   {
     "id": "category_clothing_56_underwear",
     "businessId": null,
-    "name": "Underwear",
+    "name": "Underwear (Baby)",
     "description": "Underwear category",
     "parentId": null,
     "displayOrder": 57,
@@ -857,7 +857,7 @@
   {
     "id": "category_clothing_57_vest",
     "businessId": null,
-    "name": "Vest",
+    "name": "Vest (Baby)",
     "description": "Vest category",
     "parentId": null,
     "displayOrder": 58,
@@ -872,7 +872,7 @@
   {
     "id": "category_clothing_58_vests",
     "businessId": null,
-    "name": "Vests",
+    "name": "Vests (Baby)",
     "description": "Vests category",
     "parentId": null,
     "displayOrder": 59,
@@ -887,7 +887,7 @@
   {
     "id": "category_clothing_59_accessories",
     "businessId": null,
-    "name": "Accessories",
+    "name": "Accessories (Boys)",
     "description": "Accessories category",
     "parentId": null,
     "displayOrder": 60,
@@ -932,7 +932,7 @@
   {
     "id": "category_clothing_62_cap",
     "businessId": null,
-    "name": "Cap",
+    "name": "Cap (Boys)",
     "description": "Cap category",
     "parentId": null,
     "displayOrder": 63,
@@ -947,7 +947,7 @@
   {
     "id": "category_clothing_63_character_shop",
     "businessId": null,
-    "name": "Character Shop",
+    "name": "Character Shop (Boys)",
     "description": "Character Shop category",
     "parentId": null,
     "displayOrder": 64,
@@ -962,7 +962,7 @@
   {
     "id": "category_clothing_64_clothing",
     "businessId": null,
-    "name": "Clothing",
+    "name": "Clothing (Boys)",
     "description": "Clothing category",
     "parentId": null,
     "displayOrder": 65,
@@ -977,7 +977,7 @@
   {
     "id": "category_clothing_65_fleece_jackets",
     "businessId": null,
-    "name": "Fleece Jackets",
+    "name": "Fleece Jackets (Boys)",
     "description": "Fleece Jackets category",
     "parentId": null,
     "displayOrder": 66,
@@ -992,7 +992,7 @@
   {
     "id": "category_clothing_66_graphic_tees",
     "businessId": null,
-    "name": "Graphic Tees",
+    "name": "Graphic Tees (Boys)",
     "description": "Graphic Tees category",
     "parentId": null,
     "displayOrder": 67,
@@ -1007,7 +1007,7 @@
   {
     "id": "category_clothing_67_jackets",
     "businessId": null,
-    "name": "Jackets",
+    "name": "Jackets (Boys)",
     "description": "Jackets category",
     "parentId": null,
     "displayOrder": 68,
@@ -1022,7 +1022,7 @@
   {
     "id": "category_clothing_68_jackets_outerwear",
     "businessId": null,
-    "name": "Jackets & Outerwear",
+    "name": "Jackets & Outerwear (Boys)",
     "description": "Jackets & Outerwear category",
     "parentId": null,
     "displayOrder": 69,
@@ -1037,7 +1037,7 @@
   {
     "id": "category_clothing_69_jeans",
     "businessId": null,
-    "name": "Jeans",
+    "name": "Jeans (Boys)",
     "description": "Jeans category",
     "parentId": null,
     "displayOrder": 70,
@@ -1052,7 +1052,7 @@
   {
     "id": "category_clothing_70_jersey",
     "businessId": null,
-    "name": "Jersey",
+    "name": "Jersey (Boys)",
     "description": "Jersey category",
     "parentId": null,
     "displayOrder": 71,
@@ -1067,7 +1067,7 @@
   {
     "id": "category_clothing_71_jombo",
     "businessId": null,
-    "name": "Jombo",
+    "name": "Jombo (Boys)",
     "description": "Jombo category",
     "parentId": null,
     "displayOrder": 72,
@@ -1082,7 +1082,7 @@
   {
     "id": "category_clothing_72_jumpsuit",
     "businessId": null,
-    "name": "Jumpsuit",
+    "name": "Jumpsuit (Boys)",
     "description": "Jumpsuit category",
     "parentId": null,
     "displayOrder": 73,
@@ -1097,7 +1097,7 @@
   {
     "id": "category_clothing_73_mixed",
     "businessId": null,
-    "name": "Mixed",
+    "name": "Mixed (Boys)",
     "description": "Mixed category",
     "parentId": null,
     "displayOrder": 74,
@@ -1112,7 +1112,7 @@
   {
     "id": "category_clothing_74_outfit",
     "businessId": null,
-    "name": "Outfit",
+    "name": "Outfit (Boys)",
     "description": "Outfit category",
     "parentId": null,
     "displayOrder": 75,
@@ -1127,7 +1127,7 @@
   {
     "id": "category_clothing_75_pajamas",
     "businessId": null,
-    "name": "Pajamas",
+    "name": "Pajamas (Boys)",
     "description": "Pajamas category",
     "parentId": null,
     "displayOrder": 76,
@@ -1142,7 +1142,7 @@
   {
     "id": "category_clothing_76_pants",
     "businessId": null,
-    "name": "Pants",
+    "name": "Pants (Boys)",
     "description": "Pants category",
     "parentId": null,
     "displayOrder": 77,
@@ -1157,7 +1157,7 @@
   {
     "id": "category_clothing_77_raffles",
     "businessId": null,
-    "name": "Raffles",
+    "name": "Raffles (Boys)",
     "description": "Raffles category",
     "parentId": null,
     "displayOrder": 78,
@@ -1172,7 +1172,7 @@
   {
     "id": "category_clothing_78_sandals",
     "businessId": null,
-    "name": "Sandals",
+    "name": "Sandals (Boys)",
     "description": "Sandals category",
     "parentId": null,
     "displayOrder": 79,
@@ -1187,7 +1187,7 @@
   {
     "id": "category_clothing_79_sets",
     "businessId": null,
-    "name": "Sets",
+    "name": "Sets (Boys)",
     "description": "Sets category",
     "parentId": null,
     "displayOrder": 80,
@@ -1202,7 +1202,7 @@
   {
     "id": "category_clothing_80_shirts",
     "businessId": null,
-    "name": "Shirts",
+    "name": "Shirts (Boys)",
     "description": "Shirts category",
     "parentId": null,
     "displayOrder": 81,
@@ -1217,7 +1217,7 @@
   {
     "id": "category_clothing_81_shoes",
     "businessId": null,
-    "name": "Shoes",
+    "name": "Shoes (Boys)",
     "description": "Shoes category",
     "parentId": null,
     "displayOrder": 82,
@@ -1232,7 +1232,7 @@
   {
     "id": "category_clothing_82_shorts",
     "businessId": null,
-    "name": "Shorts",
+    "name": "Shorts (Boys)",
     "description": "Shorts category",
     "parentId": null,
     "displayOrder": 83,
@@ -1247,7 +1247,7 @@
   {
     "id": "category_clothing_83_socks",
     "businessId": null,
-    "name": "Socks",
+    "name": "Socks (Boys)",
     "description": "Socks category",
     "parentId": null,
     "displayOrder": 84,
@@ -1262,7 +1262,7 @@
   {
     "id": "category_clothing_84_suits",
     "businessId": null,
-    "name": "Suits",
+    "name": "Suits (Boys)",
     "description": "Suits category",
     "parentId": null,
     "displayOrder": 85,
@@ -1277,7 +1277,7 @@
   {
     "id": "category_clothing_85_sweatshirt",
     "businessId": null,
-    "name": "Sweatshirt",
+    "name": "Sweatshirt (Boys)",
     "description": "Sweatshirt category",
     "parentId": null,
     "displayOrder": 86,
@@ -1292,7 +1292,7 @@
   {
     "id": "category_clothing_86_swim",
     "businessId": null,
-    "name": "Swim",
+    "name": "Swim (Boys)",
     "description": "Swim category",
     "parentId": null,
     "displayOrder": 87,
@@ -1307,7 +1307,7 @@
   {
     "id": "category_clothing_87_t_shirt",
     "businessId": null,
-    "name": "T-Shirt",
+    "name": "T-Shirt (Boys)",
     "description": "T-Shirt category",
     "parentId": null,
     "displayOrder": 88,
@@ -1322,7 +1322,7 @@
   {
     "id": "category_clothing_88_tennis",
     "businessId": null,
-    "name": "Tennis",
+    "name": "Tennis (Boys)",
     "description": "Tennis category",
     "parentId": null,
     "displayOrder": 89,
@@ -1337,7 +1337,7 @@
   {
     "id": "category_clothing_89_tops",
     "businessId": null,
-    "name": "Tops",
+    "name": "Tops (Boys)",
     "description": "Tops category",
     "parentId": null,
     "displayOrder": 90,
@@ -1352,7 +1352,7 @@
   {
     "id": "category_clothing_90_tracksuit",
     "businessId": null,
-    "name": "Tracksuit",
+    "name": "Tracksuit (Boys)",
     "description": "Tracksuit category",
     "parentId": null,
     "displayOrder": 91,
@@ -1367,7 +1367,7 @@
   {
     "id": "category_clothing_91_trousers",
     "businessId": null,
-    "name": "Trousers",
+    "name": "Trousers (Boys)",
     "description": "Trousers category",
     "parentId": null,
     "displayOrder": 92,
@@ -1382,7 +1382,7 @@
   {
     "id": "category_clothing_92_underwear",
     "businessId": null,
-    "name": "Underwear",
+    "name": "Underwear (Boys)",
     "description": "Underwear category",
     "parentId": null,
     "displayOrder": 93,
@@ -1397,7 +1397,7 @@
   {
     "id": "category_clothing_93_vests",
     "businessId": null,
-    "name": "Vests",
+    "name": "Vests (Boys)",
     "description": "Vests category",
     "parentId": null,
     "displayOrder": 94,
@@ -1412,7 +1412,7 @@
   {
     "id": "category_clothing_94_bags",
     "businessId": null,
-    "name": "Bags",
+    "name": "Bags (domain_clothing_general_merch)",
     "description": "Bags category",
     "parentId": null,
     "displayOrder": 95,
@@ -1427,7 +1427,7 @@
   {
     "id": "category_clothing_95_beach_towels",
     "businessId": null,
-    "name": "Beach Towels",
+    "name": "Beach Towels (domain_clothing_general_merch)",
     "description": "Beach Towels category",
     "parentId": null,
     "displayOrder": 96,
@@ -1487,7 +1487,7 @@
   {
     "id": "category_clothing_99_jeans",
     "businessId": null,
-    "name": "Jeans",
+    "name": "Jeans (domain_clothing_general_merch)",
     "description": "Jeans category",
     "parentId": null,
     "displayOrder": 100,
@@ -1532,7 +1532,7 @@
   {
     "id": "category_clothing_102_ribbon_towels",
     "businessId": null,
-    "name": "Ribbon Towels",
+    "name": "Ribbon Towels (domain_clothing_general_merch)",
     "description": "Ribbon Towels category",
     "parentId": null,
     "displayOrder": 103,
@@ -1547,7 +1547,7 @@
   {
     "id": "category_clothing_103_socks",
     "businessId": null,
-    "name": "Socks",
+    "name": "Socks (domain_clothing_general_merch)",
     "description": "Socks category",
     "parentId": null,
     "displayOrder": 104,
@@ -1577,7 +1577,7 @@
   {
     "id": "category_clothing_105_towels",
     "businessId": null,
-    "name": "Towels",
+    "name": "Towels (domain_clothing_general_merch)",
     "description": "Towels category",
     "parentId": null,
     "displayOrder": 106,
@@ -1592,7 +1592,7 @@
   {
     "id": "category_clothing_106_uncategorized",
     "businessId": null,
-    "name": "Uncategorized",
+    "name": "Uncategorized (domain_clothing_general_merch)",
     "description": "Uncategorized category",
     "parentId": null,
     "displayOrder": 107,
@@ -1607,7 +1607,7 @@
   {
     "id": "category_clothing_107_accessories",
     "businessId": null,
-    "name": "Accessories",
+    "name": "Accessories (Girls)",
     "description": "Accessories category",
     "parentId": null,
     "displayOrder": 108,
@@ -1637,7 +1637,7 @@
   {
     "id": "category_clothing_109_cap",
     "businessId": null,
-    "name": "Cap",
+    "name": "Cap (Girls)",
     "description": "Cap category",
     "parentId": null,
     "displayOrder": 110,
@@ -1652,7 +1652,7 @@
   {
     "id": "category_clothing_110_clothing",
     "businessId": null,
-    "name": "Clothing",
+    "name": "Clothing (Girls)",
     "description": "Clothing category",
     "parentId": null,
     "displayOrder": 111,
@@ -1667,7 +1667,7 @@
   {
     "id": "category_clothing_111_dresses",
     "businessId": null,
-    "name": "Dresses",
+    "name": "Dresses (Girls)",
     "description": "Dresses category",
     "parentId": null,
     "displayOrder": 112,
@@ -1682,7 +1682,7 @@
   {
     "id": "category_clothing_112_fleece_jackets",
     "businessId": null,
-    "name": "Fleece Jackets",
+    "name": "Fleece Jackets (Girls)",
     "description": "Fleece Jackets category",
     "parentId": null,
     "displayOrder": 113,
@@ -1697,7 +1697,7 @@
   {
     "id": "category_clothing_113_graphic_tees",
     "businessId": null,
-    "name": "Graphic Tees",
+    "name": "Graphic Tees (Girls)",
     "description": "Graphic Tees category",
     "parentId": null,
     "displayOrder": 114,
@@ -1712,7 +1712,7 @@
   {
     "id": "category_clothing_114_jackets",
     "businessId": null,
-    "name": "Jackets",
+    "name": "Jackets (Girls)",
     "description": "Jackets category",
     "parentId": null,
     "displayOrder": 115,
@@ -1727,7 +1727,7 @@
   {
     "id": "category_clothing_115_jackets_outerwear",
     "businessId": null,
-    "name": "Jackets & Outerwear",
+    "name": "Jackets & Outerwear (Girls)",
     "description": "Jackets & Outerwear category",
     "parentId": null,
     "displayOrder": 116,
@@ -1742,7 +1742,7 @@
   {
     "id": "category_clothing_116_jeans",
     "businessId": null,
-    "name": "Jeans",
+    "name": "Jeans (Girls)",
     "description": "Jeans category",
     "parentId": null,
     "displayOrder": 117,
@@ -1757,7 +1757,7 @@
   {
     "id": "category_clothing_117_jombo",
     "businessId": null,
-    "name": "Jombo",
+    "name": "Jombo (Girls)",
     "description": "Jombo category",
     "parentId": null,
     "displayOrder": 118,
@@ -1787,7 +1787,7 @@
   {
     "id": "category_clothing_119_jumpsuit",
     "businessId": null,
-    "name": "Jumpsuit",
+    "name": "Jumpsuit (Girls)",
     "description": "Jumpsuit category",
     "parentId": null,
     "displayOrder": 120,
@@ -1802,7 +1802,7 @@
   {
     "id": "category_clothing_120_leggings",
     "businessId": null,
-    "name": "Leggings",
+    "name": "Leggings (Girls)",
     "description": "Leggings category",
     "parentId": null,
     "displayOrder": 121,
@@ -1817,7 +1817,7 @@
   {
     "id": "category_clothing_121_mixed",
     "businessId": null,
-    "name": "Mixed",
+    "name": "Mixed (Girls)",
     "description": "Mixed category",
     "parentId": null,
     "displayOrder": 122,
@@ -1832,7 +1832,7 @@
   {
     "id": "category_clothing_122_outfit",
     "businessId": null,
-    "name": "Outfit",
+    "name": "Outfit (Girls)",
     "description": "Outfit category",
     "parentId": null,
     "displayOrder": 123,
@@ -1847,7 +1847,7 @@
   {
     "id": "category_clothing_123_pajamas",
     "businessId": null,
-    "name": "Pajamas",
+    "name": "Pajamas (Girls)",
     "description": "Pajamas category",
     "parentId": null,
     "displayOrder": 124,
@@ -1862,7 +1862,7 @@
   {
     "id": "category_clothing_124_panties",
     "businessId": null,
-    "name": "Panties",
+    "name": "Panties (Girls)",
     "description": "Panties category",
     "parentId": null,
     "displayOrder": 125,
@@ -1877,7 +1877,7 @@
   {
     "id": "category_clothing_125_pants",
     "businessId": null,
-    "name": "Pants",
+    "name": "Pants (Girls)",
     "description": "Pants category",
     "parentId": null,
     "displayOrder": 126,
@@ -1892,7 +1892,7 @@
   {
     "id": "category_clothing_126_raffles",
     "businessId": null,
-    "name": "Raffles",
+    "name": "Raffles (Girls)",
     "description": "Raffles category",
     "parentId": null,
     "displayOrder": 127,
@@ -1907,7 +1907,7 @@
   {
     "id": "category_clothing_127_rompers",
     "businessId": null,
-    "name": "Rompers",
+    "name": "Rompers (Girls)",
     "description": "Rompers category",
     "parentId": null,
     "displayOrder": 128,
@@ -1922,7 +1922,7 @@
   {
     "id": "category_clothing_128_sandals",
     "businessId": null,
-    "name": "Sandals",
+    "name": "Sandals (Girls)",
     "description": "Sandals category",
     "parentId": null,
     "displayOrder": 129,
@@ -1937,7 +1937,7 @@
   {
     "id": "category_clothing_129_sets",
     "businessId": null,
-    "name": "Sets",
+    "name": "Sets (Girls)",
     "description": "Sets category",
     "parentId": null,
     "displayOrder": 130,
@@ -1952,7 +1952,7 @@
   {
     "id": "category_clothing_130_shirts",
     "businessId": null,
-    "name": "Shirts",
+    "name": "Shirts (Girls)",
     "description": "Shirts category",
     "parentId": null,
     "displayOrder": 131,
@@ -1967,7 +1967,7 @@
   {
     "id": "category_clothing_131_shoes",
     "businessId": null,
-    "name": "Shoes",
+    "name": "Shoes (Girls)",
     "description": "Shoes category",
     "parentId": null,
     "displayOrder": 132,
@@ -1982,7 +1982,7 @@
   {
     "id": "category_clothing_132_shorts",
     "businessId": null,
-    "name": "Shorts",
+    "name": "Shorts (Girls)",
     "description": "Shorts category",
     "parentId": null,
     "displayOrder": 133,
@@ -1997,7 +1997,7 @@
   {
     "id": "category_clothing_133_skirts",
     "businessId": null,
-    "name": "Skirts",
+    "name": "Skirts (Girls)",
     "description": "Skirts category",
     "parentId": null,
     "displayOrder": 134,
@@ -2027,7 +2027,7 @@
   {
     "id": "category_clothing_135_socks",
     "businessId": null,
-    "name": "Socks",
+    "name": "Socks (Girls)",
     "description": "Socks category",
     "parentId": null,
     "displayOrder": 136,
@@ -2042,7 +2042,7 @@
   {
     "id": "category_clothing_136_suits",
     "businessId": null,
-    "name": "Suits",
+    "name": "Suits (Girls)",
     "description": "Suits category",
     "parentId": null,
     "displayOrder": 137,
@@ -2057,7 +2057,7 @@
   {
     "id": "category_clothing_137_swim",
     "businessId": null,
-    "name": "Swim",
+    "name": "Swim (Girls)",
     "description": "Swim category",
     "parentId": null,
     "displayOrder": 138,
@@ -2072,7 +2072,7 @@
   {
     "id": "category_clothing_138_t_shirt",
     "businessId": null,
-    "name": "T-Shirt",
+    "name": "T-Shirt (Girls)",
     "description": "T-Shirt category",
     "parentId": null,
     "displayOrder": 139,
@@ -2087,7 +2087,7 @@
   {
     "id": "category_clothing_139_tights",
     "businessId": null,
-    "name": "Tights",
+    "name": "Tights (Girls)",
     "description": "Tights category",
     "parentId": null,
     "displayOrder": 140,
@@ -2102,7 +2102,7 @@
   {
     "id": "category_clothing_140_tops",
     "businessId": null,
-    "name": "Tops",
+    "name": "Tops (Girls)",
     "description": "Tops category",
     "parentId": null,
     "displayOrder": 141,
@@ -2117,7 +2117,7 @@
   {
     "id": "category_clothing_141_tracksuit",
     "businessId": null,
-    "name": "Tracksuit",
+    "name": "Tracksuit (Girls)",
     "description": "Tracksuit category",
     "parentId": null,
     "displayOrder": 142,
@@ -2132,7 +2132,7 @@
   {
     "id": "category_clothing_142_trousers",
     "businessId": null,
-    "name": "Trousers",
+    "name": "Trousers (Girls)",
     "description": "Trousers category",
     "parentId": null,
     "displayOrder": 143,
@@ -2147,7 +2147,7 @@
   {
     "id": "category_clothing_143_underwear",
     "businessId": null,
-    "name": "Underwear",
+    "name": "Underwear (Girls)",
     "description": "Underwear category",
     "parentId": null,
     "displayOrder": 144,
@@ -2162,7 +2162,7 @@
   {
     "id": "category_clothing_144_vests",
     "businessId": null,
-    "name": "Vests",
+    "name": "Vests (Girls)",
     "description": "Vests category",
     "parentId": null,
     "displayOrder": 145,
@@ -2237,7 +2237,7 @@
   {
     "id": "category_clothing_149_towels",
     "businessId": null,
-    "name": "Towels",
+    "name": "Towels (domain_clothing_home_textiles)",
     "description": "Towels category",
     "parentId": null,
     "displayOrder": 150,
@@ -2252,7 +2252,7 @@
   {
     "id": "category_clothing_150_uncategorized",
     "businessId": null,
-    "name": "Uncategorized",
+    "name": "Uncategorized (domain_clothing_home_textiles)",
     "description": "Uncategorized category",
     "parentId": null,
     "displayOrder": 151,
@@ -2297,7 +2297,7 @@
   {
     "id": "category_clothing_153_belt",
     "businessId": null,
-    "name": "Belt",
+    "name": "Belt (Men's)",
     "description": "Belt category",
     "parentId": null,
     "displayOrder": 154,
@@ -2327,7 +2327,7 @@
   {
     "id": "category_clothing_155_blazer",
     "businessId": null,
-    "name": "Blazer",
+    "name": "Blazer (Men's)",
     "description": "Blazer category",
     "parentId": null,
     "displayOrder": 156,
@@ -2372,7 +2372,7 @@
   {
     "id": "category_clothing_158_boots",
     "businessId": null,
-    "name": "Boots",
+    "name": "Boots (Men's)",
     "description": "Boots category",
     "parentId": null,
     "displayOrder": 159,
@@ -2447,7 +2447,7 @@
   {
     "id": "category_clothing_163_cap",
     "businessId": null,
-    "name": "Cap",
+    "name": "Cap (Men's)",
     "description": "Cap category",
     "parentId": null,
     "displayOrder": 164,
@@ -2477,7 +2477,7 @@
   {
     "id": "category_clothing_165_character_shop",
     "businessId": null,
-    "name": "Character Shop",
+    "name": "Character Shop (Men's)",
     "description": "Character Shop category",
     "parentId": null,
     "displayOrder": 166,
@@ -2537,7 +2537,7 @@
   {
     "id": "category_clothing_169_clothing",
     "businessId": null,
-    "name": "Clothing",
+    "name": "Clothing (Men's)",
     "description": "Clothing category",
     "parentId": null,
     "displayOrder": 170,
@@ -2597,7 +2597,7 @@
   {
     "id": "category_clothing_173_dress",
     "businessId": null,
-    "name": "Dress",
+    "name": "Dress (Men's)",
     "description": "Dress category",
     "parentId": null,
     "displayOrder": 174,
@@ -2642,7 +2642,7 @@
   {
     "id": "category_clothing_176_fleece",
     "businessId": null,
-    "name": "Fleece",
+    "name": "Fleece (Men's)",
     "description": "Fleece category",
     "parentId": null,
     "displayOrder": 177,
@@ -2657,7 +2657,7 @@
   {
     "id": "category_clothing_177_fleece_jackets",
     "businessId": null,
-    "name": "Fleece Jackets",
+    "name": "Fleece Jackets (Men's)",
     "description": "Fleece Jackets category",
     "parentId": null,
     "displayOrder": 178,
@@ -2702,7 +2702,7 @@
   {
     "id": "category_clothing_180_gloves",
     "businessId": null,
-    "name": "Gloves",
+    "name": "Gloves (Men's)",
     "description": "Gloves category",
     "parentId": null,
     "displayOrder": 181,
@@ -2717,7 +2717,7 @@
   {
     "id": "category_clothing_181_graphic_tees",
     "businessId": null,
-    "name": "Graphic Tees",
+    "name": "Graphic Tees (Men's)",
     "description": "Graphic Tees category",
     "parentId": null,
     "displayOrder": 182,
@@ -2732,7 +2732,7 @@
   {
     "id": "category_clothing_182_hat",
     "businessId": null,
-    "name": "Hat",
+    "name": "Hat (Men's)",
     "description": "Hat category",
     "parentId": null,
     "displayOrder": 183,
@@ -2792,7 +2792,7 @@
   {
     "id": "category_clothing_186_jacket",
     "businessId": null,
-    "name": "Jacket",
+    "name": "Jacket (Men's)",
     "description": "Jacket category",
     "parentId": null,
     "displayOrder": 187,
@@ -2807,7 +2807,7 @@
   {
     "id": "category_clothing_187_jackets",
     "businessId": null,
-    "name": "Jackets",
+    "name": "Jackets (Men's)",
     "description": "Jackets category",
     "parentId": null,
     "displayOrder": 188,
@@ -2822,7 +2822,7 @@
   {
     "id": "category_clothing_188_jeans",
     "businessId": null,
-    "name": "Jeans",
+    "name": "Jeans (Men's)",
     "description": "Jeans category",
     "parentId": null,
     "displayOrder": 189,
@@ -2837,7 +2837,7 @@
   {
     "id": "category_clothing_189_jersey",
     "businessId": null,
-    "name": "Jersey",
+    "name": "Jersey (Men's)",
     "description": "Jersey category",
     "parentId": null,
     "displayOrder": 190,
@@ -2867,7 +2867,7 @@
   {
     "id": "category_clothing_191_joggers",
     "businessId": null,
-    "name": "Joggers",
+    "name": "Joggers (Men's)",
     "description": "Joggers category",
     "parentId": null,
     "displayOrder": 192,
@@ -2882,7 +2882,7 @@
   {
     "id": "category_clothing_192_jombo",
     "businessId": null,
-    "name": "Jombo",
+    "name": "Jombo (Men's)",
     "description": "Jombo category",
     "parentId": null,
     "displayOrder": 193,
@@ -2897,7 +2897,7 @@
   {
     "id": "category_clothing_193_jumpsuit",
     "businessId": null,
-    "name": "Jumpsuit",
+    "name": "Jumpsuit (Men's)",
     "description": "Jumpsuit category",
     "parentId": null,
     "displayOrder": 194,
@@ -2957,7 +2957,7 @@
   {
     "id": "category_clothing_197_mixed",
     "businessId": null,
-    "name": "Mixed",
+    "name": "Mixed (Men's)",
     "description": "Mixed category",
     "parentId": null,
     "displayOrder": 198,
@@ -3017,7 +3017,7 @@
   {
     "id": "category_clothing_201_pajamas",
     "businessId": null,
-    "name": "Pajamas",
+    "name": "Pajamas (Men's)",
     "description": "Pajamas category",
     "parentId": null,
     "displayOrder": 202,
@@ -3032,7 +3032,7 @@
   {
     "id": "category_clothing_202_pants",
     "businessId": null,
-    "name": "Pants",
+    "name": "Pants (Men's)",
     "description": "Pants category",
     "parentId": null,
     "displayOrder": 203,
@@ -3107,7 +3107,7 @@
   {
     "id": "category_clothing_207_raffles",
     "businessId": null,
-    "name": "Raffles",
+    "name": "Raffles (Men's)",
     "description": "Raffles category",
     "parentId": null,
     "displayOrder": 208,
@@ -3152,7 +3152,7 @@
   {
     "id": "category_clothing_210_sandals",
     "businessId": null,
-    "name": "Sandals",
+    "name": "Sandals (Men's)",
     "description": "Sandals category",
     "parentId": null,
     "displayOrder": 211,
@@ -3167,7 +3167,7 @@
   {
     "id": "category_clothing_211_scarf",
     "businessId": null,
-    "name": "Scarf",
+    "name": "Scarf (Men's)",
     "description": "Scarf category",
     "parentId": null,
     "displayOrder": 212,
@@ -3182,7 +3182,7 @@
   {
     "id": "category_clothing_212_shirts",
     "businessId": null,
-    "name": "Shirts",
+    "name": "Shirts (Men's)",
     "description": "Shirts category",
     "parentId": null,
     "displayOrder": 213,
@@ -3197,7 +3197,7 @@
   {
     "id": "category_clothing_213_shoes",
     "businessId": null,
-    "name": "Shoes",
+    "name": "Shoes (Men's)",
     "description": "Shoes category",
     "parentId": null,
     "displayOrder": 214,
@@ -3212,7 +3212,7 @@
   {
     "id": "category_clothing_214_shorts",
     "businessId": null,
-    "name": "Shorts",
+    "name": "Shorts (Men's)",
     "description": "Shorts category",
     "parentId": null,
     "displayOrder": 215,
@@ -3272,7 +3272,7 @@
   {
     "id": "category_clothing_218_socks",
     "businessId": null,
-    "name": "Socks",
+    "name": "Socks (Men's)",
     "description": "Socks category",
     "parentId": null,
     "displayOrder": 219,
@@ -3302,7 +3302,7 @@
   {
     "id": "category_clothing_220_suits",
     "businessId": null,
-    "name": "Suits",
+    "name": "Suits (Men's)",
     "description": "Suits category",
     "parentId": null,
     "displayOrder": 221,
@@ -3332,7 +3332,7 @@
   {
     "id": "category_clothing_222_sweater",
     "businessId": null,
-    "name": "Sweater",
+    "name": "Sweater (Men's)",
     "description": "Sweater category",
     "parentId": null,
     "displayOrder": 223,
@@ -3347,7 +3347,7 @@
   {
     "id": "category_clothing_223_sweatpants",
     "businessId": null,
-    "name": "Sweatpants",
+    "name": "Sweatpants (Men's)",
     "description": "Sweatpants category",
     "parentId": null,
     "displayOrder": 224,
@@ -3362,7 +3362,7 @@
   {
     "id": "category_clothing_224_sweatshirt",
     "businessId": null,
-    "name": "Sweatshirt",
+    "name": "Sweatshirt (Men's)",
     "description": "Sweatshirt category",
     "parentId": null,
     "displayOrder": 225,
@@ -3377,7 +3377,7 @@
   {
     "id": "category_clothing_225_swim",
     "businessId": null,
-    "name": "Swim",
+    "name": "Swim (Men's)",
     "description": "Swim category",
     "parentId": null,
     "displayOrder": 226,
@@ -3392,7 +3392,7 @@
   {
     "id": "category_clothing_226_t_shirt",
     "businessId": null,
-    "name": "T-Shirt",
+    "name": "T-Shirt (Men's)",
     "description": "T-Shirt category",
     "parentId": null,
     "displayOrder": 227,
@@ -3437,7 +3437,7 @@
   {
     "id": "category_clothing_229_tennis",
     "businessId": null,
-    "name": "Tennis",
+    "name": "Tennis (Men's)",
     "description": "Tennis category",
     "parentId": null,
     "displayOrder": 230,
@@ -3497,7 +3497,7 @@
   {
     "id": "category_clothing_233_tops",
     "businessId": null,
-    "name": "Tops",
+    "name": "Tops (Men's)",
     "description": "Tops category",
     "parentId": null,
     "displayOrder": 234,
@@ -3512,7 +3512,7 @@
   {
     "id": "category_clothing_234_tracksuit",
     "businessId": null,
-    "name": "Tracksuit",
+    "name": "Tracksuit (Men's)",
     "description": "Tracksuit category",
     "parentId": null,
     "displayOrder": 235,
@@ -3527,7 +3527,7 @@
   {
     "id": "category_clothing_235_trousers",
     "businessId": null,
-    "name": "Trousers",
+    "name": "Trousers (Men's)",
     "description": "Trousers category",
     "parentId": null,
     "displayOrder": 236,
@@ -3572,7 +3572,7 @@
   {
     "id": "category_clothing_238_uncategorized",
     "businessId": null,
-    "name": "Uncategorized",
+    "name": "Uncategorized (Men's)",
     "description": "Uncategorized category",
     "parentId": null,
     "displayOrder": 239,
@@ -3587,7 +3587,7 @@
   {
     "id": "category_clothing_239_underwear",
     "businessId": null,
-    "name": "Underwear",
+    "name": "Underwear (Men's)",
     "description": "Underwear category",
     "parentId": null,
     "displayOrder": 240,
@@ -3602,7 +3602,7 @@
   {
     "id": "category_clothing_240_vest",
     "businessId": null,
-    "name": "Vest",
+    "name": "Vest (Men's)",
     "description": "Vest category",
     "parentId": null,
     "displayOrder": 241,
@@ -3617,7 +3617,7 @@
   {
     "id": "category_clothing_241_vests",
     "businessId": null,
-    "name": "Vests",
+    "name": "Vests (Men's)",
     "description": "Vests category",
     "parentId": null,
     "displayOrder": 242,
@@ -3632,7 +3632,7 @@
   {
     "id": "category_clothing_242_wallet",
     "businessId": null,
-    "name": "Wallet",
+    "name": "Wallet (Men's)",
     "description": "Wallet category",
     "parentId": null,
     "displayOrder": 243,
@@ -3647,7 +3647,7 @@
   {
     "id": "category_clothing_243_watch",
     "businessId": null,
-    "name": "Watch",
+    "name": "Watch (Men's)",
     "description": "Watch category",
     "parentId": null,
     "displayOrder": 244,
@@ -3677,7 +3677,7 @@
   {
     "id": "category_clothing_245_accessories",
     "businessId": null,
-    "name": "Accessories",
+    "name": "Accessories (Women's)",
     "description": "Accessories category",
     "parentId": null,
     "displayOrder": 246,
@@ -3752,7 +3752,7 @@
   {
     "id": "category_clothing_250_belt",
     "businessId": null,
-    "name": "Belt",
+    "name": "Belt (Women's)",
     "description": "Belt category",
     "parentId": null,
     "displayOrder": 251,
@@ -3782,7 +3782,7 @@
   {
     "id": "category_clothing_252_blazer",
     "businessId": null,
-    "name": "Blazer",
+    "name": "Blazer (Women's)",
     "description": "Blazer category",
     "parentId": null,
     "displayOrder": 253,
@@ -3827,7 +3827,7 @@
   {
     "id": "category_clothing_255_bodysuits",
     "businessId": null,
-    "name": "Bodysuits",
+    "name": "Bodysuits (Women's)",
     "description": "Bodysuits category",
     "parentId": null,
     "displayOrder": 256,
@@ -3857,7 +3857,7 @@
   {
     "id": "category_clothing_257_boots",
     "businessId": null,
-    "name": "Boots",
+    "name": "Boots (Women's)",
     "description": "Boots category",
     "parentId": null,
     "displayOrder": 258,
@@ -3992,7 +3992,7 @@
   {
     "id": "category_clothing_266_cap",
     "businessId": null,
-    "name": "Cap",
+    "name": "Cap (Women's)",
     "description": "Cap category",
     "parentId": null,
     "displayOrder": 267,
@@ -4067,7 +4067,7 @@
   {
     "id": "category_clothing_271_clothing",
     "businessId": null,
-    "name": "Clothing",
+    "name": "Clothing (Women's)",
     "description": "Clothing category",
     "parentId": null,
     "displayOrder": 272,
@@ -4172,7 +4172,7 @@
   {
     "id": "category_clothing_278_dress",
     "businessId": null,
-    "name": "Dress",
+    "name": "Dress (Women's)",
     "description": "Dress category",
     "parentId": null,
     "displayOrder": 279,
@@ -4202,7 +4202,7 @@
   {
     "id": "category_clothing_280_dresses",
     "businessId": null,
-    "name": "Dresses",
+    "name": "Dresses (Women's)",
     "description": "Dresses category",
     "parentId": null,
     "displayOrder": 281,
@@ -4277,7 +4277,7 @@
   {
     "id": "category_clothing_285_fleece",
     "businessId": null,
-    "name": "Fleece",
+    "name": "Fleece (Women's)",
     "description": "Fleece category",
     "parentId": null,
     "displayOrder": 286,
@@ -4292,7 +4292,7 @@
   {
     "id": "category_clothing_286_fleece_jackets",
     "businessId": null,
-    "name": "Fleece Jackets",
+    "name": "Fleece Jackets (Women's)",
     "description": "Fleece Jackets category",
     "parentId": null,
     "displayOrder": 287,
@@ -4382,7 +4382,7 @@
   {
     "id": "category_clothing_292_gloves",
     "businessId": null,
-    "name": "Gloves",
+    "name": "Gloves (Women's)",
     "description": "Gloves category",
     "parentId": null,
     "displayOrder": 293,
@@ -4397,7 +4397,7 @@
   {
     "id": "category_clothing_293_graphic_tees",
     "businessId": null,
-    "name": "Graphic Tees",
+    "name": "Graphic Tees (Women's)",
     "description": "Graphic Tees category",
     "parentId": null,
     "displayOrder": 294,
@@ -4427,7 +4427,7 @@
   {
     "id": "category_clothing_295_hat",
     "businessId": null,
-    "name": "Hat",
+    "name": "Hat (Women's)",
     "description": "Hat category",
     "parentId": null,
     "displayOrder": 296,
@@ -4517,7 +4517,7 @@
   {
     "id": "category_clothing_301_jacket",
     "businessId": null,
-    "name": "Jacket",
+    "name": "Jacket (Women's)",
     "description": "Jacket category",
     "parentId": null,
     "displayOrder": 302,
@@ -4532,7 +4532,7 @@
   {
     "id": "category_clothing_302_jackets",
     "businessId": null,
-    "name": "Jackets",
+    "name": "Jackets (Women's)",
     "description": "Jackets category",
     "parentId": null,
     "displayOrder": 303,
@@ -4562,7 +4562,7 @@
   {
     "id": "category_clothing_304_jeans",
     "businessId": null,
-    "name": "Jeans",
+    "name": "Jeans (Women's)",
     "description": "Jeans category",
     "parentId": null,
     "displayOrder": 305,
@@ -4577,7 +4577,7 @@
   {
     "id": "category_clothing_305_jerseys",
     "businessId": null,
-    "name": "Jerseys",
+    "name": "Jerseys (Women's)",
     "description": "Jerseys category",
     "parentId": null,
     "displayOrder": 306,
@@ -4592,7 +4592,7 @@
   {
     "id": "category_clothing_306_joggers",
     "businessId": null,
-    "name": "Joggers",
+    "name": "Joggers (Women's)",
     "description": "Joggers category",
     "parentId": null,
     "displayOrder": 307,
@@ -4637,7 +4637,7 @@
   {
     "id": "category_clothing_309_jumpsuit",
     "businessId": null,
-    "name": "Jumpsuit",
+    "name": "Jumpsuit (Women's)",
     "description": "Jumpsuit category",
     "parentId": null,
     "displayOrder": 310,
@@ -4727,7 +4727,7 @@
   {
     "id": "category_clothing_315_leggings",
     "businessId": null,
-    "name": "Leggings",
+    "name": "Leggings (Women's)",
     "description": "Leggings category",
     "parentId": null,
     "displayOrder": 316,
@@ -4802,7 +4802,7 @@
   {
     "id": "category_clothing_320_mixed",
     "businessId": null,
-    "name": "Mixed",
+    "name": "Mixed (Women's)",
     "description": "Mixed category",
     "parentId": null,
     "displayOrder": 321,
@@ -4862,7 +4862,7 @@
   {
     "id": "category_clothing_324_outfit",
     "businessId": null,
-    "name": "Outfit",
+    "name": "Outfit (Women's)",
     "description": "Outfit category",
     "parentId": null,
     "displayOrder": 325,
@@ -4892,7 +4892,7 @@
   {
     "id": "category_clothing_326_pajamas",
     "businessId": null,
-    "name": "Pajamas",
+    "name": "Pajamas (Women's)",
     "description": "Pajamas category",
     "parentId": null,
     "displayOrder": 327,
@@ -4907,7 +4907,7 @@
   {
     "id": "category_clothing_327_panties",
     "businessId": null,
-    "name": "Panties",
+    "name": "Panties (Women's)",
     "description": "Panties category",
     "parentId": null,
     "displayOrder": 328,
@@ -4922,7 +4922,7 @@
   {
     "id": "category_clothing_328_pants",
     "businessId": null,
-    "name": "Pants",
+    "name": "Pants (Women's)",
     "description": "Pants category",
     "parentId": null,
     "displayOrder": 329,
@@ -5057,7 +5057,7 @@
   {
     "id": "category_clothing_337_raffles",
     "businessId": null,
-    "name": "Raffles",
+    "name": "Raffles (Women's)",
     "description": "Raffles category",
     "parentId": null,
     "displayOrder": 338,
@@ -5072,7 +5072,7 @@
   {
     "id": "category_clothing_338_rompers",
     "businessId": null,
-    "name": "Rompers",
+    "name": "Rompers (Women's)",
     "description": "Rompers category",
     "parentId": null,
     "displayOrder": 339,
@@ -5102,7 +5102,7 @@
   {
     "id": "category_clothing_340_sandals",
     "businessId": null,
-    "name": "Sandals",
+    "name": "Sandals (Women's)",
     "description": "Sandals category",
     "parentId": null,
     "displayOrder": 341,
@@ -5117,7 +5117,7 @@
   {
     "id": "category_clothing_341_scarf",
     "businessId": null,
-    "name": "Scarf",
+    "name": "Scarf (Women's)",
     "description": "Scarf category",
     "parentId": null,
     "displayOrder": 342,
@@ -5177,7 +5177,7 @@
   {
     "id": "category_clothing_345_shirts",
     "businessId": null,
-    "name": "Shirts",
+    "name": "Shirts (Women's)",
     "description": "Shirts category",
     "parentId": null,
     "displayOrder": 346,
@@ -5192,7 +5192,7 @@
   {
     "id": "category_clothing_346_shoes",
     "businessId": null,
-    "name": "Shoes",
+    "name": "Shoes (Women's)",
     "description": "Shoes category",
     "parentId": null,
     "displayOrder": 347,
@@ -5207,7 +5207,7 @@
   {
     "id": "category_clothing_347_shorts",
     "businessId": null,
-    "name": "Shorts",
+    "name": "Shorts (Women's)",
     "description": "Shorts category",
     "parentId": null,
     "displayOrder": 348,
@@ -5252,7 +5252,7 @@
   {
     "id": "category_clothing_350_skintights",
     "businessId": null,
-    "name": "Skintights",
+    "name": "Skintights (Women's)",
     "description": "Skintights category",
     "parentId": null,
     "displayOrder": 351,
@@ -5282,7 +5282,7 @@
   {
     "id": "category_clothing_352_skirts",
     "businessId": null,
-    "name": "Skirts",
+    "name": "Skirts (Women's)",
     "description": "Skirts category",
     "parentId": null,
     "displayOrder": 353,
@@ -5357,7 +5357,7 @@
   {
     "id": "category_clothing_357_socks",
     "businessId": null,
-    "name": "Socks",
+    "name": "Socks (Women's)",
     "description": "Socks category",
     "parentId": null,
     "displayOrder": 358,
@@ -5417,7 +5417,7 @@
   {
     "id": "category_clothing_361_suits",
     "businessId": null,
-    "name": "Suits",
+    "name": "Suits (Women's)",
     "description": "Suits category",
     "parentId": null,
     "displayOrder": 362,
@@ -5447,7 +5447,7 @@
   {
     "id": "category_clothing_363_sweater",
     "businessId": null,
-    "name": "Sweater",
+    "name": "Sweater (Women's)",
     "description": "Sweater category",
     "parentId": null,
     "displayOrder": 364,
@@ -5462,7 +5462,7 @@
   {
     "id": "category_clothing_364_sweatpants",
     "businessId": null,
-    "name": "Sweatpants",
+    "name": "Sweatpants (Women's)",
     "description": "Sweatpants category",
     "parentId": null,
     "displayOrder": 365,
@@ -5492,7 +5492,7 @@
   {
     "id": "category_clothing_366_swim",
     "businessId": null,
-    "name": "Swim",
+    "name": "Swim (Women's)",
     "description": "Swim category",
     "parentId": null,
     "displayOrder": 367,
@@ -5537,7 +5537,7 @@
   {
     "id": "category_clothing_369_t_shirt",
     "businessId": null,
-    "name": "T-Shirt",
+    "name": "T-Shirt (Women's)",
     "description": "T-Shirt category",
     "parentId": null,
     "displayOrder": 370,
@@ -5567,7 +5567,7 @@
   {
     "id": "category_clothing_371_tennis",
     "businessId": null,
-    "name": "Tennis",
+    "name": "Tennis (Women's)",
     "description": "Tennis category",
     "parentId": null,
     "displayOrder": 372,
@@ -5582,7 +5582,7 @@
   {
     "id": "category_clothing_372_tights",
     "businessId": null,
-    "name": "Tights",
+    "name": "Tights (Women's)",
     "description": "Tights category",
     "parentId": null,
     "displayOrder": 373,
@@ -5597,7 +5597,7 @@
   {
     "id": "category_clothing_373_tops",
     "businessId": null,
-    "name": "Tops",
+    "name": "Tops (Women's)",
     "description": "Tops category",
     "parentId": null,
     "displayOrder": 374,
@@ -5612,7 +5612,7 @@
   {
     "id": "category_clothing_374_tracksuit",
     "businessId": null,
-    "name": "Tracksuit",
+    "name": "Tracksuit (Women's)",
     "description": "Tracksuit category",
     "parentId": null,
     "displayOrder": 375,
@@ -5627,7 +5627,7 @@
   {
     "id": "category_clothing_375_trousers",
     "businessId": null,
-    "name": "Trousers",
+    "name": "Trousers (Women's)",
     "description": "Trousers category",
     "parentId": null,
     "displayOrder": 376,
@@ -5687,7 +5687,7 @@
   {
     "id": "category_clothing_379_uncategorized",
     "businessId": null,
-    "name": "Uncategorized",
+    "name": "Uncategorized (Women's)",
     "description": "Uncategorized category",
     "parentId": null,
     "displayOrder": 380,
@@ -5702,7 +5702,7 @@
   {
     "id": "category_clothing_380_underwear",
     "businessId": null,
-    "name": "Underwear",
+    "name": "Underwear (Women's)",
     "description": "Underwear category",
     "parentId": null,
     "displayOrder": 381,
@@ -5717,7 +5717,7 @@
   {
     "id": "category_clothing_381_vest",
     "businessId": null,
-    "name": "Vest",
+    "name": "Vest (Women's)",
     "description": "Vest category",
     "parentId": null,
     "displayOrder": 382,
@@ -5732,7 +5732,7 @@
   {
     "id": "category_clothing_382_vests",
     "businessId": null,
-    "name": "Vests",
+    "name": "Vests (Women's)",
     "description": "Vests category",
     "parentId": null,
     "displayOrder": 383,
@@ -5747,7 +5747,7 @@
   {
     "id": "category_clothing_383_wallet",
     "businessId": null,
-    "name": "Wallet",
+    "name": "Wallet (Women's)",
     "description": "Wallet category",
     "parentId": null,
     "displayOrder": 384,
@@ -5762,7 +5762,7 @@
   {
     "id": "category_clothing_384_watch",
     "businessId": null,
-    "name": "Watch",
+    "name": "Watch (Women's)",
     "description": "Watch category",
     "parentId": null,
     "displayOrder": 385,

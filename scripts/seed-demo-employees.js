@@ -73,6 +73,7 @@ function getPermissionsByRole(role, businessType) {
 const employeesByBusiness = {
   'restaurant-demo-business': [
     { firstName: 'Sarah', lastName: 'Johnson', role: 'manager', jobTitle: 'General Manager', compensationType: 'monthly-management' },
+    { firstName: 'Marcus', lastName: 'Thompson', role: 'finance-manager', jobTitle: 'Finance Manager', compensationType: 'monthly-management' },
     { firstName: 'Michael', lastName: 'Chen', role: 'staff', jobTitle: 'Sales Associate', compensationType: 'hourly-skilled' },
     { firstName: 'Emily', lastName: 'Rodriguez', role: 'sales', jobTitle: 'Sales Representative', compensationType: 'base-plus-commission-low' },
     { firstName: 'David', lastName: 'Williams', role: 'sales', jobTitle: 'Sales Representative', compensationType: 'base-plus-commission-low' }
@@ -202,6 +203,34 @@ async function seedDemoEmployees() {
         console.log(`  👤 Creating employee: ${fullName}`);
 
         try {
+          // Determine user-level permissions based on role
+          let userPermissions = {};
+
+          // Finance managers get FULL expense account permissions
+          if (empData.role === 'finance-manager') {
+            userPermissions = {
+              canAccessExpenseAccount: true,
+              canCreateExpenseAccount: true,
+              canMakeExpenseDeposits: true,
+              canMakeExpensePayments: true,
+              canViewExpenseReports: true,
+              canCreateIndividualPayees: true,
+              canDeleteExpenseAccounts: true,
+              canAdjustExpensePayments: true
+            };
+            console.log(`    💰 Granting FULL expense account permissions to Finance Manager`);
+          }
+          // Regular managers get limited expense account permissions
+          else if (empData.role === 'manager') {
+            userPermissions = {
+              canAccessExpenseAccount: true,
+              canMakeExpensePayments: true,
+              canViewExpenseReports: true,
+              canCreateIndividualPayees: true
+            };
+            console.log(`    🔑 Granting expense account permissions to manager`);
+          }
+
           // 1. Create user account
           const user = await prisma.users.create({
             data: {
@@ -210,6 +239,7 @@ async function seedDemoEmployees() {
               name: fullName,
               role: 'user',
               isActive: true,
+              permissions: userPermissions,
               createdAt: new Date()
             }
           });
@@ -249,17 +279,20 @@ async function seedDemoEmployees() {
           console.log(`    ✅ Employee record created: ${employee.employeeNumber}`);
 
           // 3. Create business membership with role-based permissions
+          // Map finance-manager to 'manager' for business membership (business roles are limited)
+          const businessRole = empData.role === 'finance-manager' ? 'manager' : empData.role;
+
           const membership = await prisma.businessMemberships.create({
             data: {
               userId: user.id,
               businessId: businessId,
-              role: empData.role,
+              role: businessRole,
               permissions: getPermissionsByRole(empData.role, business.type),
               isActive: true
             }
           });
           totalMemberships++;
-          console.log(`    ✅ Business membership created with role: ${empData.role}`);
+          console.log(`    ✅ Business membership created with role: ${businessRole}`);
 
           employeeNumber++;
 

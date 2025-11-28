@@ -15,6 +15,7 @@ import { UserEditModal } from '@/components/user-management/user-edit-modal'
 import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import HealthIndicator from '@/components/ui/health-indicator'
 import { LaybyAlertsWidget } from '@/components/laybys/layby-alerts-widget'
+import { LowBalanceAlert } from '@/components/expense-account/low-balance-alert'
 import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
 import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -34,7 +35,7 @@ function DashboardContent() {
   const customAlert = useAlert()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentBusiness, switchBusiness } = useBusinessPermissionsContext()
+  const { currentBusiness, switchBusiness, activeBusinesses, loading: businessesLoading } = useBusinessPermissionsContext()
   const currentUser = session?.user as any
   const businessId = currentBusiness?.businessId
   const [stats, setStats] = useState({
@@ -512,23 +513,43 @@ function DashboardContent() {
         ) : (
           // Regular dashboard for non-drivers
           <>
-            {/* Quick Action - Go to Current Business */}
-            {currentBusiness && (
-              <div className="mb-6">
-                <Link 
-                  href={`/${currentBusiness.businessType}`}
-                  className="inline-flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
-                >
-                  <span className="text-2xl">🏢</span>
-                  <div className="text-left">
-                    <div className="text-sm opacity-90">Go to Business</div>
-                    <div className="text-lg">{currentBusiness.businessName}</div>
+            {/* Quick Action - Go to Current Business or Create First Business */}
+            {!businessesLoading && (
+              <>
+                {activeBusinesses.length === 0 ? (
+                  <div className="mb-6">
+                    <Link
+                      href="/business/manage"
+                      className="inline-flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+                    >
+                      <span className="text-2xl">✨</span>
+                      <div className="text-left">
+                        <div className="text-sm opacity-90">Get Started</div>
+                        <div className="text-lg">Click here to create your first business</div>
+                      </div>
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Link>
                   </div>
-                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-              </div>
+                ) : currentBusiness && (
+                  <div className="mb-6">
+                    <Link
+                      href={`/${currentBusiness.businessType}`}
+                      className="inline-flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+                    >
+                      <span className="text-2xl">🏢</span>
+                      <div className="text-left">
+                        <div className="text-sm opacity-90">Go to Business</div>
+                        <div className="text-lg">{currentBusiness.businessName}</div>
+                      </div>
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Link>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Quick Stats */}
@@ -682,6 +703,11 @@ function DashboardContent() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Expense Account Low Balance Alerts */}
+        <div className="mt-6">
+          <LowBalanceAlert />
         </div>
 
         {/* Layby Alerts Widget */}

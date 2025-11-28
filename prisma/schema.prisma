@@ -40,7 +40,7 @@ model AuditLogs {
   recordId   String?
   changes    Json?
   details    Json?
-  users      Users?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  users      Users?   @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
 }
@@ -104,19 +104,19 @@ model BusinessCategories {
   isActive                  Boolean                  @default(true)
   businessType              String
   attributes                Json?
-  emoji                     String                   @default("📦")
-  color                     String                   @default("#3B82F6")
-  domainId                  String?
-  isUserCreated             Boolean                  @default(false)
-  createdBy                 String?
   createdAt                 DateTime                 @default(now())
   updatedAt                 DateTime
+  color                     String                   @default("#3B82F6")
+  createdBy                 String?
+  domainId                  String?
+  emoji                     String                   @default("📦")
+  isUserCreated             Boolean                  @default(false)
   businesses                Businesses?              @relation(fields: [businessId], references: [id])
+  users                     Users?                   @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
+  domain                    InventoryDomains?        @relation(fields: [domainId], references: [id])
   business_categories       BusinessCategories?      @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
   other_business_categories BusinessCategories[]     @relation("business_categoriesTobusiness_categories")
   business_products         BusinessProducts[]
-  domain                    InventoryDomains?        @relation(fields: [domainId], references: [id])
-  users                     Users?                   @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
   inventory_subcategories   InventorySubcategories[]
 
   @@unique([businessType, name])
@@ -152,33 +152,6 @@ model BusinessCustomers {
   @@map("business_customers")
 }
 
-model BusinessExpenses {
-  id                    String                 @id @default(uuid())
-  businessId            String
-  categoryId            String
-  subcategoryId         String?
-  employeeId            String?
-  amount                Decimal                @db.Decimal(10, 2)
-  description           String
-  expenseDate           DateTime
-  receiptUrl            String?
-  notes                 String?
-  createdAt             DateTime               @default(now())
-  createdBy             String?
-
-  businesses            Businesses             @relation(fields: [businessId], references: [id])
-  expense_categories    ExpenseCategories      @relation(fields: [categoryId], references: [id])
-  expense_subcategories ExpenseSubcategories?  @relation(fields: [subcategoryId], references: [id])
-  employees             Employees?             @relation(fields: [employeeId], references: [id])
-  users                 Users?                 @relation(fields: [createdBy], references: [id])
-  payroll_account_deposits PayrollAccountDeposits[]
-
-  @@map("business_expenses")
-  @@index([businessId, expenseDate])
-  @@index([categoryId])
-  @@index([employeeId])
-}
-
 model BusinessMemberships {
   id                   String               @id @default(uuid())
   userId               String
@@ -199,17 +172,17 @@ model BusinessMemberships {
 }
 
 model BusinessOrderItems {
-  id               String           @id @default(uuid())
+  id               String          @id @default(uuid())
   orderId          String
-  productVariantId String?
-  quantity         Decimal          @db.Decimal(10, 3) // Changed from Int to Decimal for weight support
-  unitPrice        Decimal          @db.Decimal(10, 2)
-  discountAmount   Decimal          @default(0) @db.Decimal(10, 2)
-  totalPrice       Decimal          @db.Decimal(10, 2)
+  productVariantId String
+  quantity         Int
+  unitPrice        Decimal         @db.Decimal(10, 2)
+  discountAmount   Decimal         @default(0) @db.Decimal(10, 2)
+  totalPrice       Decimal         @db.Decimal(10, 2)
   attributes       Json?
-  createdAt        DateTime         @default(now())
-  business_orders  BusinessOrders   @relation(fields: [orderId], references: [id])
-  product_variants ProductVariants? @relation(fields: [productVariantId], references: [id])
+  createdAt        DateTime        @default(now())
+  business_orders  BusinessOrders  @relation(fields: [orderId], references: [id])
+  product_variants ProductVariants @relation(fields: [productVariantId], references: [id])
 
   @@map("business_order_items")
 }
@@ -249,11 +222,9 @@ model BusinessProducts {
   name                     String
   description              String?
   sku                      String?
+  barcode                  String?
   brandId                  String?
   categoryId               String
-  subcategoryId            String?
-  supplierId               String?
-  locationId               String?
   productType              ProductType              @default(PHYSICAL)
   condition                ProductCondition         @default(NEW)
   basePrice                Decimal                  @db.Decimal(10, 2)
@@ -269,7 +240,6 @@ model BusinessProducts {
   calories                 Int?
   isCombo                  Boolean                  @default(false)
   comboItemsData           Json?
-  requiresCompanionItem    Boolean                  @default(false)
   originalPrice            Decimal?                 @db.Decimal(10, 2)
   discountPercent          Decimal?                 @db.Decimal(5, 2)
   discountAmount           Decimal?                 @db.Decimal(10, 2)
@@ -278,19 +248,23 @@ model BusinessProducts {
   promotionName            String?
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime
+  locationId               String?
+  subcategoryId            String?
+  supplierId               String?
+  requiresCompanionItem    Boolean                  @default(false)
   business_brands          BusinessBrands?          @relation(fields: [brandId], references: [id])
   businesses               Businesses               @relation(fields: [businessId], references: [id])
   business_categories      BusinessCategories       @relation(fields: [categoryId], references: [id])
+  business_locations       BusinessLocations?       @relation("ProductLocation", fields: [locationId], references: [id])
   inventory_subcategory    InventorySubcategories?  @relation(fields: [subcategoryId], references: [id])
   business_suppliers       BusinessSuppliers?       @relation("ProductSupplier", fields: [supplierId], references: [id])
-  business_locations       BusinessLocations?       @relation("ProductLocation", fields: [locationId], references: [id])
   business_stock_movements BusinessStockMovements[]
   menu_combo_items         MenuComboItems[]
   product_attributes       ProductAttributes[]
+  product_barcodes         ProductBarcodes[]
   product_images           ProductImages[]
   product_variants         ProductVariants[]
   supplier_products        SupplierProducts[]
-  product_barcodes         ProductBarcodes[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -320,28 +294,28 @@ model BusinessStockMovements {
 
 model BusinessSuppliers {
   id                String             @id @default(uuid())
-  businessId        String? // Optional: tracks which business created this supplier (for audit)
+  businessId        String?
   supplierNumber    String
   name              String
   contactPerson     String?
   email             String?
   phone             String?
-  taxId             String?
   address           String?
-  productsSupplied  String? // Comma-separated list of products/materials supplied
   paymentTerms      String?
   creditLimit       Decimal?           @db.Decimal(12, 2)
-  emoji             String?
-  accountBalance    Decimal?           @default(0) @db.Decimal(12, 2)
-  notes             String?
   isActive          Boolean            @default(true)
-  businessType      String // Suppliers are shared by businessType (e.g., all hardware businesses)
+  businessType      String
   attributes        Json?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  accountBalance    Decimal?           @default(0) @db.Decimal(12, 2)
+  emoji             String?
+  notes             String?
+  taxId             String?
+  productsSupplied  String?
+  business_products BusinessProducts[] @relation("ProductSupplier")
   businesses        Businesses?        @relation(fields: [businessId], references: [id])
   supplier_products SupplierProducts[]
-  business_products BusinessProducts[] @relation("ProductSupplier")
 
   @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
@@ -401,48 +375,47 @@ model Businesses {
   updatedAt                                                                DateTime                      @default(now())
   umbrellaBusinessId                                                       String?
   isUmbrellaBusiness                                                       Boolean                       @default(false)
-  isDemo                                                                   Boolean                       @default(false)
   umbrellaBusinessName                                                     String?                       @default("Demo Umbrella Company")
   umbrellaBusinessAddress                                                  String?
   umbrellaBusinessEmail                                                    String?
   umbrellaBusinessPhone                                                    String?
   umbrellaBusinessRegistration                                             String?
   shortName                                                                String?
+  isDemo                                                                   Boolean                       @default(false)
   business_accounts                                                        BusinessAccounts?
   business_brands                                                          BusinessBrands[]
   business_categories                                                      BusinessCategories[]
   business_customers                                                       BusinessCustomers[]
-  business_expenses                                                        BusinessExpenses[]
+  business_locations                                                       BusinessLocations[]
   business_memberships                                                     BusinessMemberships[]
-  customer_laybys                                                          CustomerLayby[]
   business_orders                                                          BusinessOrders[]
   business_products                                                        BusinessProducts[]
   business_stock_movements                                                 BusinessStockMovements[]
   business_suppliers                                                       BusinessSuppliers[]
-  business_locations                                                       BusinessLocations[]
   business_transactions                                                    BusinessTransactions[]
   businesses                                                               Businesses?                   @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
   other_businesses                                                         Businesses[]                  @relation("businessesTobusinesses")
+  customer_laybys                                                          CustomerLayby[]
   employee_business_assignments                                            EmployeeBusinessAssignments[]
   employee_contracts_employee_contracts_primaryBusinessIdTobusinesses      EmployeeContracts[]           @relation("employee_contracts_primaryBusinessIdTobusinesses")
   employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     EmployeeContracts[]           @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
   employees                                                                Employees[]
+  expense_account_deposits                                                 ExpenseAccountDeposits[]      @relation("ExpenseAccountDepositSource")
+  expense_account_payments_as_payee                                        ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeBusiness")
   inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
   inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
   menu_combos                                                              MenuCombos[]
   menu_promotions                                                          MenuPromotions[]
+  payroll_accounts                                                         PayrollAccounts?
   payroll_exports                                                          PayrollExports[]
   payroll_periods                                                          PayrollPeriods[]
+  print_jobs                                                               PrintJobs[]
+  product_barcodes                                                         ProductBarcodes[]
   projects                                                                 Projects[]
   vehicle_expenses                                                         VehicleExpenses[]
   vehicle_reimbursements                                                   VehicleReimbursements[]
   vehicle_trips                                                            VehicleTrips[]
   vehicles                                                                 Vehicles[]
-  print_jobs                                                               PrintJobs[]
-  receipt_sequences                                                        ReceiptSequences[]
-  product_barcodes                                                         ProductBarcodes[]
-  payroll_accounts                                                         PayrollAccounts?
-  payroll_account_deposits                                                 PayrollAccountDeposits[]
 
   @@map("businesses")
 }
@@ -599,52 +572,40 @@ model ContractRenewals {
 }
 
 model CustomerLayby {
-  id          String  @id @default(cuid())
-  laybyNumber String  @unique
-  businessId  String
-  customerId  String?
-
-  // Status & Financial
-  status           LaybyStatus @default(ACTIVE)
-  totalAmount      Decimal     @db.Decimal(12, 2)
-  depositAmount    Decimal     @db.Decimal(12, 2)
-  depositPercent   Decimal     @db.Decimal(5, 2)
-  balanceRemaining Decimal     @db.Decimal(12, 2)
-  totalPaid        Decimal     @default(0) @db.Decimal(12, 2)
-
-  // Terms & Schedule
-  installmentAmount    Decimal?              @db.Decimal(12, 2)
+  id                   String                 @id @default(cuid())
+  laybyNumber          String                 @unique
+  businessId           String
+  customerId           String?
+  status               LaybyStatus            @default(ACTIVE)
+  totalAmount          Decimal                @db.Decimal(12, 2)
+  depositAmount        Decimal                @db.Decimal(12, 2)
+  depositPercent       Decimal                @db.Decimal(5, 2)
+  balanceRemaining     Decimal                @db.Decimal(12, 2)
+  totalPaid            Decimal                @default(0) @db.Decimal(12, 2)
+  installmentAmount    Decimal?               @db.Decimal(12, 2)
   installmentFrequency InstallmentFrequency?
   paymentDueDate       DateTime?
   completionDueDate    DateTime?
-
-  // Fees & Charges
-  serviceFee        Decimal @default(0) @db.Decimal(12, 2)
-  lateFee           Decimal @default(0) @db.Decimal(12, 2)
-  administrationFee Decimal @default(0) @db.Decimal(12, 2)
-  totalFees         Decimal @default(0) @db.Decimal(12, 2)
-
-  // Items & Release
-  items           Json
-  itemsReleased   Boolean   @default(false)
-  itemsReleasedAt DateTime?
-  itemsReleasedBy String?
-
-  // Metadata
-  notes              String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  createdBy          String
-  completedAt        DateTime?
-  cancelledAt        DateTime?
-  cancellationReason String?
-  cancellationRefund Decimal?  @db.Decimal(12, 2)
-
-  // Relations
-  business Businesses             @relation(fields: [businessId], references: [id])
-  customer BusinessCustomers?     @relation(fields: [customerId], references: [id])
-  creator  Users                  @relation("CustomerLaybyCreator", fields: [createdBy], references: [id])
-  payments CustomerLaybyPayment[]
+  serviceFee           Decimal                @default(0) @db.Decimal(12, 2)
+  lateFee              Decimal                @default(0) @db.Decimal(12, 2)
+  administrationFee    Decimal                @default(0) @db.Decimal(12, 2)
+  totalFees            Decimal                @default(0) @db.Decimal(12, 2)
+  items                Json
+  itemsReleased        Boolean                @default(false)
+  itemsReleasedAt      DateTime?
+  itemsReleasedBy      String?
+  notes                String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  createdBy            String
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  cancellationReason   String?
+  cancellationRefund   Decimal?               @db.Decimal(12, 2)
+  payments             CustomerLaybyPayment[]
+  business             Businesses             @relation(fields: [businessId], references: [id])
+  creator              Users                  @relation("CustomerLaybyCreator", fields: [createdBy], references: [id])
+  customer             BusinessCustomers?     @relation(fields: [customerId], references: [id])
 
   @@index([businessId])
   @@index([customerId])
@@ -653,27 +614,21 @@ model CustomerLayby {
 }
 
 model CustomerLaybyPayment {
-  id            String @id @default(cuid())
-  laybyId       String
-  receiptNumber String @unique
-
-  // Payment Details
-  amount           Decimal       @db.Decimal(12, 2)
-  paymentMethod    PaymentMethod
-  paymentReference String?
-
-  // Metadata
-  paymentDate       DateTime @default(now())
+  id                String                 @id @default(cuid())
+  laybyId           String
+  receiptNumber     String                 @unique
+  amount            Decimal                @db.Decimal(12, 2)
+  paymentMethod     PaymentMethod
+  paymentReference  String?
+  paymentDate       DateTime               @default(now())
   processedBy       String
   notes             String?
-  isRefund          Boolean  @default(false)
+  isRefund          Boolean                @default(false)
   refundedPaymentId String?
-
-  // Relations
-  layby           CustomerLayby          @relation(fields: [laybyId], references: [id], onDelete: Cascade)
-  processor       Users                  @relation("CustomerLaybyPaymentProcessor", fields: [processedBy], references: [id])
-  refundedPayment CustomerLaybyPayment?  @relation("RefundRelation", fields: [refundedPaymentId], references: [id])
-  refunds         CustomerLaybyPayment[] @relation("RefundRelation")
+  layby             CustomerLayby          @relation(fields: [laybyId], references: [id], onDelete: Cascade)
+  processor         Users                  @relation("CustomerLaybyPaymentProcessor", fields: [processedBy], references: [id])
+  refundedPayment   CustomerLaybyPayment?  @relation("RefundRelation", fields: [refundedPaymentId], references: [id])
+  refunds           CustomerLaybyPayment[] @relation("RefundRelation")
 
   @@index([laybyId])
   @@map("customer_layby_payments")
@@ -754,14 +709,14 @@ model DriverAuthorizations {
 }
 
 model DriverLicenseTemplates {
-  id          String      @id @default(uuid())
-  name        String
-  description String?
-  pattern     String
-  example     String
-  countryCode String?
-  createdAt   DateTime    @default(now())
-  isActive    Boolean     @default(true)
+  id             String           @id @default(uuid())
+  name           String
+  description    String?
+  pattern        String
+  example        String
+  countryCode    String?
+  createdAt      DateTime         @default(now())
+  isActive       Boolean          @default(true)
   updatedAt      DateTime         @default(now())
   employees      Employees[]
   persons        Persons[]
@@ -1077,7 +1032,6 @@ model Employees {
   userId                                                                    String?                       @unique
   driverLicenseNumber                                                       String?
   driverLicenseTemplateId                                                   String?
-  business_expenses                                                         BusinessExpenses[]
   business_orders                                                           BusinessOrders[]
   business_stock_movements                                                  BusinessStockMovements[]
   contract_renewals                                                         ContractRenewals[]
@@ -1112,8 +1066,8 @@ model Employees {
   employees                                                                 Employees?                    @relation("employeesToemployees", fields: [supervisorId], references: [id])
   other_employees                                                           Employees[]                   @relation("employeesToemployees")
   users                                                                     Users?                        @relation(fields: [userId], references: [id])
+  expense_account_payments_as_payee                                         ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeEmployee")
   payroll_entries                                                           PayrollEntries[]
-  payroll_payments                                                          PayrollPayments[]
 
   @@map("employees")
 }
@@ -1131,43 +1085,136 @@ model ExpenseDomains {
 }
 
 model ExpenseCategories {
-  id                    String                 @id @default(uuid())
-  domainId              String?
-  name                  String
-  emoji                 String                 @default("💰")
-  color                 String                 @default("#3B82F6")
-  description           String?
-  isDefault             Boolean                @default(false)
-  isUserCreated         Boolean                @default(false)
-  createdAt             DateTime               @default(now())
-  createdBy             String?
-  domain                ExpenseDomains?        @relation(fields: [domainId], references: [id])
-  users                 Users?                 @relation(fields: [createdBy], references: [id])
-  expense_subcategories ExpenseSubcategories[]
-  personal_expenses     PersonalExpenses[]
-  business_expenses     BusinessExpenses[]
+  id                       String                   @id @default(uuid())
+  name                     String
+  emoji                    String                   @default("💰")
+  color                    String                   @default("#3B82F6")
+  createdAt                DateTime                 @default(now())
+  isDefault                Boolean                  @default(false)
+  domainId                 String?
+  description              String?
+  isUserCreated            Boolean                  @default(false)
+  createdBy                String?
+  expense_account_payments ExpenseAccountPayments[] @relation("ExpensePaymentCategory")
+  users                    Users?                   @relation(fields: [createdBy], references: [id])
+  domain                   ExpenseDomains?          @relation(fields: [domainId], references: [id])
+  expense_subcategories    ExpenseSubcategories[]
+  personal_expenses        PersonalExpenses[]
 
   @@unique([domainId, name])
   @@map("expense_categories")
 }
 
 model ExpenseSubcategories {
-  id                String             @id @default(uuid())
-  categoryId        String
-  name              String
-  emoji             String?
-  description       String?
-  isDefault         Boolean            @default(false)
-  isUserCreated     Boolean            @default(false)
-  createdAt         DateTime           @default(now())
-  createdBy         String?
-  category          ExpenseCategories  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  users             Users?             @relation(fields: [createdBy], references: [id])
-  personal_expenses PersonalExpenses[]
-  business_expenses BusinessExpenses[]
+  id                       String                   @id @default(uuid())
+  categoryId               String
+  name                     String
+  emoji                    String?
+  description              String?
+  isDefault                Boolean                  @default(false)
+  isUserCreated            Boolean                  @default(false)
+  createdAt                DateTime                 @default(now())
+  createdBy                String?
+  expense_account_payments ExpenseAccountPayments[] @relation("ExpensePaymentSubcategory")
+  category                 ExpenseCategories        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users                    Users?                   @relation(fields: [createdBy], references: [id])
+  personal_expenses        PersonalExpenses[]
 
   @@unique([categoryId, name])
   @@map("expense_subcategories")
+}
+
+model ExpenseAccounts {
+  id                  String                   @id @default(uuid())
+  accountNumber       String                   @unique
+  accountName         String
+  balance             Decimal                  @default(0) @db.Decimal(12, 2)
+  description         String?
+  isActive            Boolean                  @default(true)
+  lowBalanceThreshold Decimal                  @default(500) @db.Decimal(12, 2)
+  createdBy           String
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @default(now()) @updatedAt
+  deposits            ExpenseAccountDeposits[]
+  payments            ExpenseAccountPayments[]
+  creator             Users                    @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
+
+  @@index([isActive], map: "idx_expense_accounts_active")
+  @@index([balance], map: "idx_expense_accounts_balance")
+  @@index([createdAt(sort: Desc)], map: "idx_expense_accounts_created")
+  @@map("expense_accounts")
+}
+
+model ExpenseAccountDeposits {
+  id                String          @id @default(uuid())
+  expenseAccountId  String
+  sourceType        String
+  sourceBusinessId  String?
+  amount            Decimal         @db.Decimal(12, 2)
+  depositDate       DateTime
+  autoGeneratedNote String?
+  manualNote        String?
+  transactionType   String?
+  createdBy         String
+  createdAt         DateTime        @default(now())
+  creator           Users           @relation("ExpenseAccountDepositCreator", fields: [createdBy], references: [id])
+  expenseAccount    ExpenseAccounts @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
+  sourceBusiness    Businesses?     @relation("ExpenseAccountDepositSource", fields: [sourceBusinessId], references: [id])
+
+  @@index([expenseAccountId, depositDate])
+  @@index([sourceBusinessId])
+  @@index([expenseAccountId], map: "idx_expense_deposits_account")
+  @@index([expenseAccountId, depositDate(sort: Desc)], map: "idx_expense_deposits_account_date")
+  @@index([depositDate(sort: Desc)], map: "idx_expense_deposits_date")
+  @@index([sourceType], map: "idx_expense_deposits_type")
+  @@map("expense_account_deposits")
+}
+
+model ExpenseAccountPayments {
+  id                     String                @id @default(uuid())
+  expenseAccountId       String
+  payeeType              String
+  payeeUserId            String?
+  payeeEmployeeId        String?
+  payeePersonId          String?
+  payeeBusinessId        String?
+  categoryId             String
+  subcategoryId          String?
+  subSubcategoryId       String?
+  amount                 Decimal               @db.Decimal(12, 2)
+  paymentDate            DateTime
+  notes                  String?
+  receiptNumber          String?
+  receiptServiceProvider String?
+  receiptReason          String?
+  isFullPayment          Boolean               @default(true)
+  batchId                String?
+  status                 String                @default("SUBMITTED")
+  createdBy              String
+  submittedBy            String?
+  submittedAt            DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @default(now()) @updatedAt
+  category               ExpenseCategories     @relation("ExpensePaymentCategory", fields: [categoryId], references: [id])
+  creator                Users                 @relation("ExpensePaymentCreator", fields: [createdBy], references: [id])
+  expenseAccount         ExpenseAccounts       @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
+  payeeBusiness          Businesses?           @relation("ExpensePaymentPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeEmployee          Employees?            @relation("ExpensePaymentPayeeEmployee", fields: [payeeEmployeeId], references: [id])
+  payeePerson            Persons?              @relation("ExpensePaymentPayeePerson", fields: [payeePersonId], references: [id])
+  payeeUser              Users?                @relation("ExpensePaymentPayeeUser", fields: [payeeUserId], references: [id])
+  subcategory            ExpenseSubcategories? @relation("ExpensePaymentSubcategory", fields: [subcategoryId], references: [id])
+  submitter              Users?                @relation("ExpensePaymentSubmitter", fields: [submittedBy], references: [id])
+
+  @@index([expenseAccountId, paymentDate])
+  @@index([categoryId])
+  @@index([payeeType])
+  @@index([batchId])
+  @@index([status])
+  @@index([expenseAccountId, paymentDate(sort: Desc)], map: "idx_expense_payments_account_date")
+  @@index([expenseAccountId, status], map: "idx_expense_payments_account_status")
+  @@index([createdAt(sort: Desc)], map: "idx_expense_payments_created_at")
+  @@index([paymentDate(sort: Desc)], map: "idx_expense_payments_payment_date")
+  @@map("expense_account_payments")
 }
 
 model EmojiLookup {
@@ -1210,9 +1257,9 @@ model InventorySubcategories {
   displayOrder      Int                @default(0)
   createdAt         DateTime           @default(now())
   createdBy         String?
+  business_products BusinessProducts[]
   category          BusinessCategories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   users             Users?             @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
-  business_products BusinessProducts[]
 
   @@unique([categoryId, name])
   @@map("inventory_subcategories")
@@ -1235,13 +1282,13 @@ model IdFormatTemplates {
   id          String      @id @default(uuid())
   name        String
   description String?
-  format      String? // Display format for UI (e.g., ##-######?##)
-  pattern     String // Regex pattern for validation
+  pattern     String
   example     String
   countryCode String?
   createdAt   DateTime    @default(now())
   isActive    Boolean     @default(true)
   updatedAt   DateTime    @default(now())
+  format      String?
   employees   Employees[]
   persons     Persons[]
 
@@ -1249,18 +1296,13 @@ model IdFormatTemplates {
 }
 
 model FullSyncSessions {
-  id                     String    @id @default(uuid())
-  sessionId              String    @unique
+  id                     String    @id(map: "initial_load_sessions_pkey") @default(uuid())
+  sessionId              String    @unique(map: "initial_load_sessions_sessionId_key")
   sourceNodeId           String
   targetNodeId           String
   tableName              String    @default("businesses")
   totalRecords           Int       @default(0)
   processedRecords       Int       @default(0)
-  transferredRecords     Int       @default(0)
-  transferredBytes       BigInt    @default(0)
-  progress               Int       @default(0)
-  currentStep            String?
-  estimatedTimeRemaining Int       @default(0)
   status                 String    @default("PENDING")
   startedAt              DateTime  @default(now())
   completedAt            DateTime?
@@ -1269,10 +1311,15 @@ model FullSyncSessions {
   currentBatch           Int       @default(0)
   metadata               Json?
   createdAt              DateTime  @default(now())
-  direction              String    @default("push") // 'push' or 'pull'
-  method                 String    @default("backup") // 'backup' or 'http'
-  phase                  String? // 'backup', 'transfer', 'convert', 'restore', 'verify'
-  transferSpeed          Float? // bytes per second
+  transferredRecords     Int       @default(0)
+  transferredBytes       BigInt    @default(0)
+  progress               Int       @default(0)
+  currentStep            String?
+  estimatedTimeRemaining Int       @default(0)
+  direction              String    @default("push")
+  method                 String    @default("backup")
+  phase                  String?
+  transferSpeed          Float?
   estimatedCompletion    DateTime?
 
   @@map("full_sync_sessions")
@@ -1288,10 +1335,7 @@ model InterBusinessLoans {
   lenderType                                                     String
   lenderUserId                                                   String?
   lenderBusinessId                                               String?
-  lenderPersonId                                                 String?
   borrowerBusinessId                                             String?
-  borrowerPersonId                                               String?
-  borrowerType                                                   String
   loanDate                                                       DateTime
   dueDate                                                        DateTime?
   status                                                         String             @default("active")
@@ -1300,6 +1344,9 @@ model InterBusinessLoans {
   createdAt                                                      DateTime           @default(now())
   updatedAt                                                      DateTime
   createdBy                                                      String
+  borrowerPersonId                                               String?
+  borrowerType                                                   String
+  lenderPersonId                                                 String?            @map("lender_person_id")
   businesses_inter_business_loans_borrowerBusinessIdTobusinesses Businesses?        @relation("inter_business_loans_borrowerBusinessIdTobusinesses", fields: [borrowerBusinessId], references: [id])
   persons_borrower                                               Persons?           @relation("loans_as_borrower", fields: [borrowerPersonId], references: [id])
   persons_lender                                                 Persons?           @relation("loans_as_lender", fields: [lenderPersonId], references: [id])
@@ -1573,7 +1620,6 @@ model PayrollEntries {
   payroll_periods         PayrollPeriods?        @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
   users                   Users?                 @relation(fields: [processedBy], references: [id])
   payroll_entry_benefits  PayrollEntryBenefits[]
-  payroll_payments        PayrollPayments[]
 
   @@index([contractId])
   @@index([employeeId])
@@ -1658,101 +1704,19 @@ model PayrollPeriods {
 }
 
 model PayrollAccounts {
-  id                        String                     @id @default(uuid())
-  businessId                String?                    @unique
-  accountNumber             String                     @unique
-  balance                   Decimal                    @default(0) @db.Decimal(12, 2)
-  isActive                  Boolean                    @default(true)
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @default(now())
-  createdBy                 String
+  id            String      @id @default(uuid())
+  businessId    String?     @unique
+  accountNumber String      @unique
+  balance       Decimal     @default(0) @db.Decimal(12, 2)
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @default(now())
+  createdBy     String
+  businesses    Businesses? @relation(fields: [businessId], references: [id])
+  users         Users       @relation(fields: [createdBy], references: [id])
 
-  businesses                Businesses?                @relation(fields: [businessId], references: [id])
-  users                     Users                      @relation(fields: [createdBy], references: [id])
-  payroll_account_deposits  PayrollAccountDeposits[]
-  payroll_payments          PayrollPayments[]
-
+  @@index([businessId])
   @@map("payroll_accounts")
-}
-
-model PayrollAccountDeposits {
-  id                    String           @id @default(uuid())
-  payrollAccountId      String
-  sourceBusinessId      String
-  amount                Decimal          @db.Decimal(12, 2)
-  depositDate           DateTime         @default(now())
-  autoGeneratedNote     String
-  transactionType       String           @default("PAYROLL_EXPENSE")
-  createdBy             String
-  createdAt             DateTime         @default(now())
-  expenseId             String?
-
-  payroll_accounts      PayrollAccounts  @relation(fields: [payrollAccountId], references: [id])
-  businesses            Businesses       @relation(fields: [sourceBusinessId], references: [id])
-  users                 Users            @relation(fields: [createdBy], references: [id])
-  business_expenses     BusinessExpenses? @relation(fields: [expenseId], references: [id])
-
-  @@map("payroll_account_deposits")
-  @@index([payrollAccountId, depositDate])
-}
-
-model PayrollPayments {
-  id                    String                @id @default(uuid())
-  payrollAccountId      String
-  employeeId            String
-  payrollEntryId        String?
-  amount                Decimal               @db.Decimal(12, 2)
-  originalAmount        Decimal?              @db.Decimal(12, 2)
-  adjustmentNote        String?
-  paymentType           String
-  paymentDate           DateTime              @default(now())
-  paymentSchedule       String?
-  status                String                @default("PENDING")
-  isAdvance             Boolean               @default(false)
-  deductions            Json?
-  commissionAmount      Decimal?              @db.Decimal(12, 2)
-  createdBy             String
-  signedBy              String?
-  signedAt              DateTime?
-  completedBy           String?
-  completedAt           DateTime?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @default(now())
-  isLocked              Boolean               @default(false)
-
-  payroll_accounts      PayrollAccounts       @relation(fields: [payrollAccountId], references: [id])
-  employees             Employees             @relation(fields: [employeeId], references: [id])
-  payroll_entries       PayrollEntries?       @relation(fields: [payrollEntryId], references: [id])
-  users_created         Users                 @relation("PayrollPaymentCreatedBy", fields: [createdBy], references: [id])
-  users_signed          Users?                @relation("PayrollPaymentSignedBy", fields: [signedBy], references: [id])
-  users_completed       Users?                @relation("PayrollPaymentCompletedBy", fields: [completedBy], references: [id])
-  payment_vouchers      PayrollPaymentVouchers[]
-
-  @@map("payroll_payments")
-  @@index([employeeId, paymentDate])
-  @@index([payrollAccountId, status])
-}
-
-model PayrollPaymentVouchers {
-  id                    String           @id @default(uuid())
-  paymentId             String
-  voucherNumber         String           @unique
-  employeeNumber        String
-  employeeName          String
-  employeeNationalId    String
-  amount                Decimal          @db.Decimal(12, 2)
-  paymentDate           DateTime
-  issuedAt              DateTime         @default(now())
-  signedAt              DateTime?
-  signatureData         String?
-  regenerationCount     Int              @default(0)
-  lastRegeneratedAt     DateTime?
-  notes                 String?
-
-  payroll_payments      PayrollPayments  @relation(fields: [paymentId], references: [id])
-
-  @@map("payroll_payment_vouchers")
-  @@index([voucherNumber])
 }
 
 model PermissionTemplates {
@@ -1784,8 +1748,6 @@ model PersonalBudgets {
 
 model PersonalExpenses {
   id                   String                @id @default(uuid())
-  categoryId           String?
-  subcategoryId        String?
   category             String
   description          String
   amount               Decimal               @db.Decimal(12, 2)
@@ -1796,9 +1758,11 @@ model PersonalExpenses {
   userId               String?
   notes                String?
   updatedAt            DateTime              @default(now())
+  categoryId           String?
+  subcategoryId        String?
+  loan_transactions    LoanTransactions[]
   expense_category     ExpenseCategories?    @relation(fields: [categoryId], references: [id])
   expense_subcategory  ExpenseSubcategories? @relation(fields: [subcategoryId], references: [id])
-  loan_transactions    LoanTransactions[]
   users                Users?                @relation(fields: [userId], references: [id])
   project_transactions ProjectTransactions[]
 
@@ -1806,37 +1770,28 @@ model PersonalExpenses {
 }
 
 model Persons {
-  id                       String                  @id @default(uuid())
-  email                    String?                 @unique
-  phone                    String
-  address                  String?
-  notes                    String?
-  createdAt                DateTime                @default(now())
-  createdBy                String?
-  fullName                 String
-  idFormatTemplateId       String?
-  isActive                 Boolean                 @default(true)
-  nationalId               String?                 @unique
-  updatedAt                DateTime                @default(now())
-  driverLicenseNumber      String?
-  driverLicenseTemplateId  String?
-
-  // Bank-specific fields (nullable, only used for bank lenders)
-  swiftCode                String?                 // Full 11-char SWIFT code (e.g., ZBCOZWHXXXX)
-  swiftCodeShort           String?                 // 8-char SWIFT code (e.g., ZBCOZWHX)
-  bankRegistrationNo       String?                 // Bank registration number
-  branchCode               String?                 // Branch code
-  city                     String?                 // City
-  country                  String?                 // Country
-  alternatePhones          String[]                // Additional phone numbers
-
-  loans_as_borrower        InterBusinessLoans[]    @relation("loans_as_borrower")
-  loans_as_lender          InterBusinessLoans[]    @relation("loans_as_lender")
-  users                    Users?                  @relation(fields: [createdBy], references: [id])
-  driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
-  id_format_templates      IdFormatTemplates?      @relation(fields: [idFormatTemplateId], references: [id])
-  project_contractors      ProjectContractors[]
-  project_transactions     ProjectTransactions[]
+  id                                String                   @id @default(uuid())
+  email                             String?                  @unique
+  phone                             String
+  address                           String?
+  notes                             String?
+  createdAt                         DateTime                 @default(now())
+  createdBy                         String?
+  fullName                          String
+  idFormatTemplateId                String?
+  isActive                          Boolean                  @default(true)
+  nationalId                        String                   @unique
+  updatedAt                         DateTime                 @default(now())
+  driverLicenseNumber               String?
+  driverLicenseTemplateId           String?
+  expense_account_payments_as_payee ExpenseAccountPayments[] @relation("ExpensePaymentPayeePerson")
+  loans_as_borrower                 InterBusinessLoans[]     @relation("loans_as_borrower")
+  loans_as_lender                   InterBusinessLoans[]     @relation("loans_as_lender")
+  users                             Users?                   @relation(fields: [createdBy], references: [id])
+  driver_license_templates          DriverLicenseTemplates?  @relation(fields: [driverLicenseTemplateId], references: [id])
+  id_format_templates               IdFormatTemplates?       @relation(fields: [idFormatTemplateId], references: [id])
+  project_contractors               ProjectContractors[]
+  project_transactions              ProjectTransactions[]
 
   @@map("persons")
 }
@@ -1876,7 +1831,8 @@ model ProductVariants {
   id                       String                   @id @default(uuid())
   productId                String
   name                     String?
-  sku                      String
+  sku                      String                   @unique
+  barcode                  String?
   price                    Decimal?                 @db.Decimal(10, 2)
   stockQuantity            Int                      @default(0)
   reorderLevel             Int                      @default(0)
@@ -1891,52 +1847,29 @@ model ProductVariants {
   business_order_items     BusinessOrderItems[]
   business_stock_movements BusinessStockMovements[]
   menu_combo_items         MenuComboItems[]
-  business_products        BusinessProducts         @relation(fields: [productId], references: [id])
   product_barcodes         ProductBarcodes[]
+  business_products        BusinessProducts         @relation(fields: [productId], references: [id])
 
-  @@unique([productId, sku])
   @@map("product_variants")
 }
 
 model ProductBarcodes {
   id               String             @id @default(uuid())
-
-  // Ownership - one barcode belongs to EITHER product OR variant
   productId        String?
   variantId        String?
-
-  // Barcode data
-  code             String             // The actual barcode value (UPC, EAN, etc.)
-  type             BarcodeType        // Type of barcode
-
-  // Classification metadata
-  isPrimary        Boolean            @default(false)  // Main barcode for this product/variant
-  isUniversal      Boolean            @default(false)  // True for UPC/EAN (shared across businesses)
+  code             String
+  type             BarcodeType
+  isPrimary        Boolean            @default(false)
+  isUniversal      Boolean            @default(false)
   isActive         Boolean            @default(true)
-
-  // Descriptive information
-  label            String?            // e.g., "Retail UPC", "Case Barcode", "Warehouse Location"
+  label            String?
   notes            String?
-
-  // Business association (only for business-specific custom barcodes)
-  businessId       String?            // NULL for universal codes (UPC/EAN)
-
-  // Audit timestamps
+  businessId       String?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
-
-  // Relations
   business_product BusinessProducts?  @relation(fields: [productId], references: [id], onDelete: Cascade)
   product_variant  ProductVariants?   @relation(fields: [variantId], references: [id], onDelete: Cascade)
   business         Businesses?        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  // Indexes for fast barcode lookup
-  @@index([code, type])                    // Fast barcode lookup by code and type
-  @@index([code, type, businessId])        // Business-scoped barcode search
-  @@index([productId])                     // All barcodes for a product
-  @@index([variantId])                     // All barcodes for a variant
-  @@index([isUniversal, type])             // Universal barcode search
-  @@unique([code, type, variantId])        // Prevent duplicate barcodes on same variant
 
   @@map("product_barcodes")
 }
@@ -2172,26 +2105,27 @@ model SyncMetrics {
 }
 
 model SyncNodes {
-  id               String    @id @default(uuid())
-  nodeId           String    @unique
+  id               String            @id @default(uuid())
+  nodeId           String            @unique
   nodeName         String
   ipAddress        String?
   port             Int?
   registrationKey  String?
   publicKey        String?
-  isActive         Boolean   @default(true)
-  lastSeen         DateTime  @default(now())
+  isActive         Boolean           @default(true)
+  lastSeen         DateTime          @default(now())
   nodeVersion      String?
   databaseVersion  String?
   schemaVersion    String?
   schemaHash       String?
   migrationName    String?
   schemaAppliedAt  DateTime?
-  schemaCompatible Boolean   @default(true)
+  schemaCompatible Boolean           @default(true)
   platformInfo     Json?
   capabilities     Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @default(now())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now())
+  network_printers NetworkPrinters[]
 
   @@map("sync_nodes")
 }
@@ -2212,41 +2146,21 @@ model SyncSessions {
   @@map("sync_sessions")
 }
 
-model InitialLoadSessions {
-  id                     String    @id @default(uuid())
-  sourceNodeId           String
-  targetNodeId           String
-  startedAt              DateTime  @default(now())
-  completedAt            DateTime?
-  status                 String    @default("PREPARING")
-  progress               Int       @default(0)
-  currentStep            String?
-  totalRecords           Int       @default(0)
-  transferredRecords     Int       @default(0)
-  transferredBytes       BigInt?
-  estimatedTimeRemaining Int       @default(0)
-  errorMessage           String?
-  metadata               Json?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-
-  @@map("initial_load_sessions")
-}
-
 model NetworkPrinters {
   id           String      @id @default(uuid())
   printerId    String      @unique
   printerName  String
-  printerType  String // label, receipt, document
-  nodeId       String // Which sync node owns this printer
+  printerType  String
+  nodeId       String
   ipAddress    String?
   port         Int?
-  capabilities Json? // Array of capabilities: ['esc-pos', 'zebra-zpl']
+  capabilities Json?
   isShareable  Boolean     @default(false)
   isOnline     Boolean     @default(true)
   lastSeen     DateTime    @default(now())
   createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  updatedAt    DateTime    @default(now()) @updatedAt
+  sync_nodes   SyncNodes   @relation(fields: [nodeId], references: [nodeId])
   print_jobs   PrintJobs[]
 
   @@index([nodeId])
@@ -2258,17 +2172,18 @@ model PrintJobs {
   id               String          @id @default(uuid())
   printerId        String
   businessId       String
-  businessType     String // restaurant, clothing, grocery, etc.
+  businessType     String
   userId           String
-  jobType          String // receipt, label
-  jobData          Json // Receipt or label data
-  status           String          @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  jobType          String
+  jobData          Json
+  status           String          @default("PENDING")
   retryCount       Int             @default(0)
   errorMessage     String?
   createdAt        DateTime        @default(now())
   processedAt      DateTime?
-  network_printers NetworkPrinters @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  updatedAt        DateTime        @default(now())
   businesses       Businesses      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  network_printers NetworkPrinters @relation(fields: [printerId], references: [id], onDelete: Cascade)
   users            Users           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([printerId])
@@ -2277,21 +2192,6 @@ model PrintJobs {
   @@index([status])
   @@index([createdAt])
   @@map("print_jobs")
-}
-
-model ReceiptSequences {
-  id           String     @id @default(uuid())
-  businessId   String
-  date         String // YYYY-MM-DD format
-  lastSequence Int        @default(0) // Incremental counter that resets daily
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  businesses   Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, date])
-  @@index([businessId])
-  @@index([date])
-  @@map("receipt_sequences")
 }
 
 model Users {
@@ -2319,27 +2219,32 @@ model Users {
   accounts                                                        Accounts[]
   audit_logs                                                      AuditLogs[]
   business_accounts                                               BusinessAccounts[]
-  business_expenses                                               BusinessExpenses[]
+  inventory_categories                                            BusinessCategories[]        @relation("CategoryCreatedBy")
   business_memberships                                            BusinessMemberships[]
   business_transactions                                           BusinessTransactions[]
   chat_messages                                                   ChatMessages[]
   chat_participants                                               ChatParticipants[]
   chat_rooms                                                      ChatRooms[]
-  customer_layby_creators                                         CustomerLayby[]             @relation("CustomerLaybyCreator")
-  customer_layby_payment_processors                               CustomerLaybyPayment[]      @relation("CustomerLaybyPaymentProcessor")
   construction_expenses                                           ConstructionExpenses[]
   construction_projects                                           ConstructionProjects[]
+  customer_layby_payment_processors                               CustomerLaybyPayment[]      @relation("CustomerLaybyPaymentProcessor")
+  customer_layby_creators                                         CustomerLayby[]             @relation("CustomerLaybyCreator")
   driver_authorizations                                           DriverAuthorizations[]
   employees                                                       Employees?
+  expense_account_deposits_created                                ExpenseAccountDeposits[]    @relation("ExpenseAccountDepositCreator")
+  expense_account_payments_created                                ExpenseAccountPayments[]    @relation("ExpensePaymentCreator")
+  expense_account_payments_as_payee                               ExpenseAccountPayments[]    @relation("ExpensePaymentPayeeUser")
+  expense_account_payments_submitted                              ExpenseAccountPayments[]    @relation("ExpensePaymentSubmitter")
+  expense_accounts_created                                        ExpenseAccounts[]           @relation("ExpenseAccountCreator")
   expense_categories                                              ExpenseCategories[]
   expense_subcategories                                           ExpenseSubcategories[]
-  inventory_categories                                            BusinessCategories[]        @relation("CategoryCreatedBy")
-  inventory_subcategories                                         InventorySubcategories[]    @relation("SubcategoryCreatedBy")
   fund_sources                                                    FundSources[]
   inter_business_loans_inter_business_loans_createdByTousers      InterBusinessLoans[]        @relation("inter_business_loans_createdByTousers")
   inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]        @relation("inter_business_loans_lenderUserIdTousers")
+  inventory_subcategories                                         InventorySubcategories[]    @relation("SubcategoryCreatedBy")
   loan_transactions                                               LoanTransactions[]
   orders                                                          Orders[]
+  payroll_accounts                                                PayrollAccounts[]
   payroll_adjustments_payroll_adjustments_approvedByTousers       PayrollAdjustments[]        @relation("payroll_adjustments_approvedByTousers")
   payroll_adjustments_payroll_adjustments_createdByTousers        PayrollAdjustments[]        @relation("payroll_adjustments_createdByTousers")
   payroll_entries                                                 PayrollEntries[]
@@ -2350,6 +2255,7 @@ model Users {
   personal_budgets                                                PersonalBudgets[]
   personal_expenses                                               PersonalExpenses[]
   persons                                                         Persons[]
+  print_jobs                                                      PrintJobs[]
   project_transactions_project_transactions_approvedByTousers     ProjectTransactions[]       @relation("project_transactions_approvedByTousers")
   project_transactions_project_transactions_createdByTousers      ProjectTransactions[]       @relation("project_transactions_createdByTousers")
   projects                                                        Projects[]
@@ -2360,36 +2266,30 @@ model Users {
   vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursements[]     @relation("vehicle_reimbursements_approvedByTousers")
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicles[]
-  print_jobs                                                      PrintJobs[]
-  payroll_accounts                                                PayrollAccounts[]
-  payroll_account_deposits                                        PayrollAccountDeposits[]
-  payroll_payments_created                                        PayrollPayments[]           @relation("PayrollPaymentCreatedBy")
-  payroll_payments_signed                                         PayrollPayments[]           @relation("PayrollPaymentSignedBy")
-  payroll_payments_completed                                      PayrollPayments[]           @relation("PayrollPaymentCompletedBy")
 
   @@map("users")
 }
 
 model VehicleDrivers {
-  id                       String                 @id @default(uuid())
+  id                       String                  @id @default(uuid())
   fullName                 String
-  licenseNumber            String                 @unique
-  licenseCountryOfIssuance String
+  licenseNumber            String                  @unique
   licenseExpiry            DateTime?
-  driverLicenseTemplateId  String?
   phoneNumber              String?
-  emailAddress          String?
-  emergencyContact      String?
-  emergencyPhone        String?
-  userId                String?
-  isActive              Boolean                @default(true)
-  dateOfBirth           DateTime?
-  address               String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime
+  emailAddress             String?
+  emergencyContact         String?
+  emergencyPhone           String?
+  userId                   String?
+  isActive                 Boolean                 @default(true)
+  dateOfBirth              DateTime?
+  address                  String?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime
+  licenseCountryOfIssuance String
+  driverLicenseTemplateId  String?
   driver_authorizations    DriverAuthorizations[]
-  users                    Users?                  @relation(fields: [userId], references: [id])
   driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
+  users                    Users?                  @relation(fields: [userId], references: [id])
   vehicle_trips            VehicleTrips[]
 
   @@map("vehicle_drivers")
@@ -2432,7 +2332,6 @@ model VehicleLicenses {
   issueDate        DateTime
   expiryDate       DateTime
   renewalCost      Decimal?    @db.Decimal(10, 2)
-  lateFee          Decimal?    @db.Decimal(10, 2)
   isActive         Boolean     @default(true)
   documentUrl      String?
   reminderDays     Int         @default(30)
@@ -2486,17 +2385,6 @@ model VehicleMaintenanceServiceExpenses {
   vehicle_maintenance_services VehicleMaintenanceServices @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@map("vehicle_maintenance_service_expenses")
-}
-
-model IssuingAuthorities {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  country   String?
-  type      String?  // e.g., 'GOVERNMENT', 'PRIVATE', 'REGULATORY'
-  createdAt DateTime @default(now())
-  updatedAt DateTime
-
-  @@map("issuing_authorities")
 }
 
 model VehicleMaintenanceServices {
@@ -2648,12 +2536,12 @@ enum ExpenseType {
   FUEL
   TOLL
   PARKING
-  FOOD
   MAINTENANCE
-  TIRE
-  OIL
   INSURANCE
   OTHER
+  FOOD
+  TIRE
+  OIL
 }
 
 enum FuelType {
@@ -2739,6 +2627,22 @@ enum ProductType {
   COMBO
 }
 
+enum BarcodeType {
+  UPC_A           // 12-digit Universal Product Code (North America)
+  UPC_E           // 6-digit UPC (compressed)
+  EAN_13          // 13-digit European Article Number
+  EAN_8           // 8-digit EAN (compressed)
+  CODE128         // Variable length, high density
+  CODE39          // Alphanumeric
+  ITF             // Interleaved 2 of 5 (cases/cartons)
+  CODABAR         // Libraries, blood banks
+  QR_CODE         // 2D matrix barcode
+  DATA_MATRIX     // 2D barcode
+  PDF417          // 2D stacked barcode
+  CUSTOM          // Business-specific format
+  SKU_BARCODE     // Barcode representation of internal SKU
+}
+
 enum PromotionType {
   PERCENTAGE
   FIXED_AMOUNT
@@ -2796,9 +2700,9 @@ enum StockMovementType {
 enum SyncOperation {
   CREATE
   UPDATE
-  UPSERT
   DELETE
   TRUNCATE
+  UPSERT
 }
 
 enum TripType {
@@ -2820,20 +2724,4 @@ enum InstallmentFrequency {
   FORTNIGHTLY
   MONTHLY
   CUSTOM
-}
-
-enum BarcodeType {
-  UPC_A           // 12-digit Universal Product Code (North America)
-  UPC_E           // 6-digit UPC (compressed)
-  EAN_13          // 13-digit European Article Number
-  EAN_8           // 8-digit EAN (compressed)
-  CODE128         // Variable length, high density
-  CODE39          // Alphanumeric
-  ITF             // Interleaved 2 of 5 (cases/cartons)
-  CODABAR         // Libraries, blood banks
-  QR_CODE         // 2D matrix barcode
-  DATA_MATRIX     // 2D barcode
-  PDF417          // 2D stacked barcode
-  CUSTOM          // Business-specific format
-  SKU_BARCODE     // Barcode representation of internal SKU
 }

@@ -116,13 +116,13 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
     const categoryMap = new Map<string, any>() // domain|categoryName -> category
     const subcategoryMap = new Map<string, any>() // categoryId|subcategoryName -> subcategory
 
-    categories.forEach(cat => {
+    categories.forEach((cat: any) => {
       const domainId = cat.domainId
       const key = `${domainId}|${cat.name}`
       categoryMap.set(key, cat)
 
       // Map subcategories
-      cat.inventory_subcategories?.forEach(subcat => {
+      cat.inventory_subcategories?.forEach((subcat: any) => {
         const subKey = `${cat.id}|${subcat.name}`
         subcategoryMap.set(subKey, subcat)
       })
@@ -152,13 +152,32 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
           }
 
           // Find matching category
-          // First try domain-specific match
-          const categoryKey = `${domainId}|${item.categoryName}`
+          // Handle null categoryName by defaulting to "Uncategorized" for the domain
+          const categoryName = item.categoryName || 'Uncategorized'
+
+          // First try exact domain-specific match
+          const categoryKey = `${domainId}|${categoryName}`
           let category = categoryMap.get(categoryKey)
 
-          // If not found, try any match with same name (fallback)
+          // If not found, try exact match with any domain (fallback 1)
           if (!category) {
-            category = Array.from(categoryMap.values()).find(c => c.name === item.categoryName)
+            category = Array.from(categoryMap.values()).find(c => c.name === categoryName)
+          }
+
+          // If still not found, try fuzzy match - categories that start with the name (fallback 2)
+          // This handles renamed categories like "Accessories" -> "Accessories (Women's)"
+          if (!category) {
+            // First try within the correct domain
+            category = Array.from(categoryMap.values()).find(c =>
+              c.domainId === domainId && c.name.startsWith(categoryName)
+            )
+
+            // If still not found, try any domain
+            if (!category) {
+              category = Array.from(categoryMap.values()).find(c =>
+                c.name.startsWith(categoryName)
+              )
+            }
           }
 
           if (!category) {
@@ -166,7 +185,7 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
             errorLog.push({
               sku: item.sku,
               product: item.product,
-              error: `Category not found: ${item.categoryName}`
+              error: `Category not found: ${categoryName} (domain: ${domainId})`
             })
             continue
           }
@@ -182,7 +201,7 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
           }
 
           // Create product
-          await prisma.businessProducts.create({
+          const product = await prisma.businessProducts.create({
             data: {
               businessId: businessId,
               name: item.product,
@@ -193,10 +212,24 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
               costPrice: null,
               businessType: 'clothing',
               isActive: true,
-              isAvailable: false, // False since quantity is 0
+              isAvailable: true, // True so it shows in inventory (zero stock but visible for restocking)
               productType: 'PHYSICAL',
               condition: 'NEW',
               description: item.categoryName, // Use category as description
+              updatedAt: new Date()
+            }
+          })
+
+          // Create default variant with zero stock
+          await prisma.productVariants.create({
+            data: {
+              productId: product.id,
+              name: 'Default',
+              sku: item.sku,
+              stockQuantity: 0, // Zero quantity ready for restocking
+              reorderLevel: 5, // Default reorder threshold
+              price: 0.00,
+              isActive: true,
               updatedAt: new Date()
             }
           })

@@ -113,6 +113,10 @@ export function UniversalInventoryStats({
       ])
 
       if (!itemsResponse.ok || !reportsResponse.ok || !alertsResponse.ok) {
+        // Check for authentication errors
+        if (itemsResponse.status === 401 || reportsResponse.status === 401 || alertsResponse.status === 401) {
+          throw new Error('Authentication required. Please log in to view inventory statistics.')
+        }
         throw new Error('Failed to fetch inventory statistics')
       }
 
@@ -247,21 +251,115 @@ export function UniversalInventoryStats({
     // Business-specific calculations
     let businessSpecific = {}
     if (businessType === 'restaurant') {
+      // Calculate real restaurant-specific metrics from actual data
+
+      // 1. Food Cost Percentage - ratio of inventory cost to potential revenue
+      const totalCost = items.reduce((sum: number, item: any) =>
+        sum + (parseFloat(item.costPrice || 0) * item.currentStock), 0
+      )
+      const totalPotentialRevenue = items.reduce((sum: number, item: any) =>
+        sum + (parseFloat(item.basePrice || 0) * item.currentStock), 0
+      )
+      const foodCostPercentage = totalPotentialRevenue > 0 ?
+        (totalCost / totalPotentialRevenue) * 100 : 0
+
+      // 2. Waste Percentage - from movement history
+      const wasteMovements = movements.filter((m: any) =>
+        m.movementType === 'waste' || m.movementType === 'WASTE' ||
+        m.movementType === 'spoilage' || m.movementType === 'SPOILAGE'
+      )
+      const wasteValue = wasteMovements.reduce((sum: number, m: any) =>
+        sum + (m.totalCost || (m.unitCost * Math.abs(m.quantity)) || 0), 0
+      )
+      const wastePercentage = totalValue > 0 ? (wasteValue / totalValue) * 100 : 0
+
+      // 3. Turnover Rate - sales activity vs average inventory
+      const soldMovements = movements.filter((m: any) =>
+        m.movementType === 'sale' || m.movementType === 'SALE' ||
+        m.movementType === 'SALE_FULFILLED' || m.movementType === 'usage'
+      )
+      const totalSold = soldMovements.reduce((sum: number, m: any) =>
+        sum + Math.abs(m.quantity), 0
+      )
+      const avgInventory = items.reduce((sum: number, item: any) =>
+        sum + item.currentStock, 0
+      ) / (items.length || 1)
+      const turnoverRate = avgInventory > 0 ? totalSold / avgInventory : 0
+
+      // 4. Average Shelf Life - from product attributes
+      let totalShelfLife = 0
+      let itemsWithShelfLife = 0
+
+      items.forEach((item: any) => {
+        const shelfLife = item.attributes?.shelfLife || item.attributes?.expirationDays
+        if (shelfLife && shelfLife > 0) {
+          totalShelfLife += parseFloat(shelfLife)
+          itemsWithShelfLife++
+        }
+      })
+
+      const avgShelfLife = itemsWithShelfLife > 0 ?
+        totalShelfLife / itemsWithShelfLife : 0
+
       businessSpecific = {
         restaurant: {
-          foodCostPercentage: 28.5, // Mock data - would be calculated from sales data
-          wastePercentage: 2.6,
-          turnoverRate: 12.4,
-          avgShelfLife: 4.2
+          foodCostPercentage: Math.round(foodCostPercentage * 10) / 10,
+          wastePercentage: Math.round(wastePercentage * 10) / 10,
+          turnoverRate: Math.round(turnoverRate * 10) / 10,
+          avgShelfLife: Math.round(avgShelfLife * 10) / 10
         }
       }
     } else if (businessType === 'grocery') {
+      // Calculate real grocery-specific metrics from actual data
+
+      // 1. Organic Percentage - items with organic certification
+      const organicItems = items.filter((item: any) =>
+        item.attributes?.organicCertified === true ||
+        item.attributes?.organic === true
+      )
+      const organicPercentage = totalItems > 0 ?
+        (organicItems.length / totalItems) * 100 : 0
+
+      // 2. Local Products Percentage - items from local sources
+      const localItems = items.filter((item: any) =>
+        item.attributes?.local === true ||
+        item.attributes?.localSource === true ||
+        item.attributes?.locallySourced === true
+      )
+      const localPercentage = totalItems > 0 ?
+        (localItems.length / totalItems) * 100 : 0
+
+      // 3. Seasonal Items Count - items marked as seasonal or on promotion
+      const seasonalItemsCount = items.filter((item: any) =>
+        item.attributes?.seasonal === true ||
+        item.attributes?.seasonalItem === true ||
+        item.promotionStartDate
+      ).length
+
+      // 4. Average Margin - calculate from cost and selling price
+      let totalMargin = 0
+      let itemsWithPricing = 0
+
+      items.forEach((item: any) => {
+        const cost = parseFloat(item.costPrice || 0)
+        const price = parseFloat(item.basePrice || 0)
+
+        if (price > 0 && cost > 0) {
+          const margin = ((price - cost) / price) * 100
+          totalMargin += margin
+          itemsWithPricing++
+        }
+      })
+
+      const avgMargin = itemsWithPricing > 0 ?
+        totalMargin / itemsWithPricing : 0
+
       businessSpecific = {
         grocery: {
-          organicPercentage: 15.3,
-          localPercentage: 8.7,
-          seasonalItems: 24,
-          avgMargin: 22.1
+          organicPercentage: Math.round(organicPercentage * 10) / 10,
+          localPercentage: Math.round(localPercentage * 10) / 10,
+          seasonalItems: seasonalItemsCount,
+          avgMargin: Math.round(avgMargin * 10) / 10
         }
       }
     } else if (businessType === 'clothing') {
@@ -447,12 +545,18 @@ export function UniversalInventoryStats({
     return (
       <div className="text-center py-8">
         <div className="text-red-600 mb-2">⚠️ {error || 'No data available'}</div>
-        <button
-          onClick={fetchStats}
-          className="btn-primary text-sm"
-        >
-          Retry
-        </button>
+        {error?.includes('Authentication') ? (
+          <div className="text-sm text-gray-600 mb-4">
+            Please log in to view inventory statistics.
+          </div>
+        ) : (
+          <button
+            onClick={fetchStats}
+            className="btn-primary text-sm"
+          >
+            Retry
+          </button>
+        )}
       </div>
     )
   }

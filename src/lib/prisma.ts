@@ -32,11 +32,17 @@ export const prisma = globalForPrisma.prisma ?? (() => {
     const ipAddress = getLocalIPAddress()
     const registrationKey = process.env.SYNC_REGISTRATION_KEY || 'default-key'
 
-    // Create base client with sync helper
+    // Create base client with sync helper and connection pool limits
     const baseClient = createSyncPrismaClient({
       nodeId,
       registrationKey,
-      enabled: true
+      enabled: true,
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL
+        }
+      },
+      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error']
     })
 
     // Get the sync helper from the client

@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
-import fs from 'fs';
-import path from 'path';
-import { randomUUID } from 'crypto';
+const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+const path = require('path');
+const { randomUUID } = require('crypto');
 
 const prisma = new PrismaClient();
 
@@ -175,7 +175,7 @@ function getColorForDomain(domainName: string): string {
 /**
  * Seed domains, categories, and subcategories from markdown files
  */
-export async function seedExpenseCategories() {
+async function seedExpenseCategories() {
   console.log('🌱 Starting expense category seed...\n');
 
   const seedDataDir = path.join(process.cwd(), 'seed-data', 'expense-types');
@@ -265,7 +265,7 @@ export async function seedExpenseCategories() {
  * Create mapping from old category strings to new category IDs
  * This will be used for migrating existing expenses
  */
-export async function createCategoryMapping(): Promise<Map<string, { categoryId: string; subcategoryId?: string }>> {
+async function createCategoryMapping(): Promise<Map<string, { categoryId: string; subcategoryId?: string }>> {
   console.log('🗺️  Creating category mapping for migration...\n');
 
   const mapping = new Map<string, { categoryId: string; subcategoryId?: string }>();
@@ -304,7 +304,7 @@ export async function createCategoryMapping(): Promise<Map<string, { categoryId:
 /**
  * Migrate existing expenses to new category structure
  */
-export async function migrateExistingExpenses() {
+async function migrateExistingExpenses() {
   console.log('🔄 Starting expense migration...\n');
 
   // Get all expenses that don't have categoryId set
@@ -401,7 +401,7 @@ export async function migrateExistingExpenses() {
 /**
  * Main seed function - runs all seed operations
  */
-export async function runExpenseCategorySeed() {
+async function runExpenseCategorySeed() {
   try {
     console.log('═══════════════════════════════════════════════════════\n');
     console.log('   💰 EXPENSE CATEGORY SEED & MIGRATION\n');
@@ -434,3 +434,10 @@ if (require.main === module) {
       process.exit(1);
     });
 }
+
+module.exports = {
+  seedExpenseCategories,
+  createCategoryMapping,
+  migrateExistingExpenses,
+  runExpenseCategorySeed
+};

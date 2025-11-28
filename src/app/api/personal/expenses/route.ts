@@ -58,7 +58,8 @@ export async function GET() {
             inter_business_loans: {
               include: {
                 businesses_inter_business_loans_borrowerBusinessIdTobusinesses: { select: { name: true } },
-                persons: { select: { fullName: true } },
+                persons_borrower: { select: { fullName: true } },
+                persons_lender: { select: { fullName: true } },
                 businesses_inter_business_loans_lenderBusinessIdTobusinesses: { select: { name: true } }
               }
             }
@@ -97,7 +98,9 @@ export async function GET() {
           totalAmount: Number(lt.inter_business_loans.totalAmount),
           interestRate: Number(lt.inter_business_loans.interestRate),
           borrowerBusiness: lt.inter_business_loans.businesses_inter_business_loans_borrowerBusinessIdTobusinesses,
-          lenderBusiness: lt.inter_business_loans.businesses_inter_business_loans_lenderBusinessIdTobusinesses
+          borrowerPerson: lt.inter_business_loans.persons_borrower,
+          lenderBusiness: lt.inter_business_loans.businesses_inter_business_loans_lenderBusinessIdTobusinesses,
+          lenderPerson: lt.inter_business_loans.persons_lender
         } : null
       }))
     }))

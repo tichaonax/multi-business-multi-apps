@@ -6,7 +6,7 @@ import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { businessId } = params
+    const { businessId } = await params
     const user = session.user as SessionUser
 
     // Check permissions
@@ -41,7 +41,7 @@ export async function GET(
           select: { name: true }
         },
         persons_lender: {
-          select: { fullName: true, bankRegistrationNo: true }
+          select: { fullName: true }
         }
       },
       orderBy: { loanDate: 'desc' }
@@ -67,14 +67,12 @@ export async function GET(
     // Format loans for response
     const loans = loansAsBorrower.map(loan => {
       let lenderName = 'Unknown'
-      let lenderType: 'business' | 'bank' | 'individual' = 'individual'
+      let lenderType: 'business' | 'bank' | 'individual' = loan.lenderType as 'business' | 'bank' | 'individual'
 
       if (loan.lenderType === 'business' && loan.businesses_inter_business_loans_lenderBusinessIdTobusinesses) {
         lenderName = loan.businesses_inter_business_loans_lenderBusinessIdTobusinesses.name
-        lenderType = 'business'
       } else if (loan.persons_lender) {
         lenderName = loan.persons_lender.fullName
-        lenderType = loan.persons_lender.bankRegistrationNo ? 'bank' : 'individual'
       }
 
       const principal = Number(loan.principalAmount)

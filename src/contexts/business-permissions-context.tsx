@@ -281,7 +281,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
   };
 
   const activeBusinesses = getActiveBusinesses(businesses);
-  const isSystemAdmin = currentBusiness?.permissions?.canManageAllBusinesses || false;
+  const isSystemAdmin = session?.user?.role === "admin" || currentBusiness?.permissions?.canManageAllBusinesses || false;
   const isBusinessOwner = currentBusiness?.role === "business-owner";
 
   const contextValue: BusinessPermissionsContextType = {

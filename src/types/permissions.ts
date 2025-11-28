@@ -175,6 +175,16 @@ export interface CoreBusinessPermissions {
   canViewPayrollHistory: boolean;
   canExportPayrollPayments: boolean;
 
+  // Expense Account Management
+  canAccessExpenseAccount: boolean;
+  canCreateExpenseAccount: boolean;
+  canMakeExpenseDeposits: boolean;
+  canMakeExpensePayments: boolean;
+  canViewExpenseReports: boolean;
+  canCreateIndividualPayees: boolean;
+  canDeleteExpenseAccounts: boolean;
+  canAdjustExpensePayments: boolean;
+
   // Supplier Management
   canViewSuppliers: boolean;
   canCreateSuppliers: boolean;
@@ -378,7 +388,7 @@ export interface BusinessPermissions extends UserLevelPermissions, CoreBusinessP
 }
 
 // Business type definitions
-export type BusinessType = 'clothing' | 'restaurant' | 'construction' | 'grocery' | 'consulting' | 'retail' | 'services' | 'other';
+export type BusinessType = 'clothing' | 'restaurant' | 'construction' | 'grocery' | 'hardware' | 'consulting' | 'retail' | 'services' | 'other';
 
 // Module definitions for easy management
 export interface PermissionModule {
@@ -547,6 +557,35 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
       ]
     }
   ],
+  hardware: [
+    {
+      title: 'Inventory Management',
+      permissions: [
+        { key: 'canViewInventory', label: 'View Inventory' },
+        { key: 'canManageInventory', label: 'Manage Inventory' },
+        { key: 'canViewStockLevels', label: 'View Stock Levels' },
+        { key: 'canReceiveStock', label: 'Receive Stock' },
+        { key: 'canTransferStock', label: 'Transfer Stock' },
+      ]
+    },
+    {
+      title: 'Sales & Retail',
+      permissions: [
+        { key: 'canProcessSales', label: 'Process Sales' },
+        { key: 'canProcessReturns', label: 'Process Returns' },
+        { key: 'canManageDiscounts', label: 'Manage Discounts' },
+        { key: 'canViewSalesReports', label: 'View Sales Reports' },
+      ]
+    },
+    {
+      title: 'Product Management',
+      permissions: [
+        { key: 'canManageProducts', label: 'Manage Products' },
+        { key: 'canManageSuppliers', label: 'Manage Suppliers' },
+        { key: 'canManagePriceLists', label: 'Manage Price Lists' },
+      ]
+    }
+  ],
   consulting: [
     {
       title: 'Client Management',
@@ -570,7 +609,7 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
     }
   ],
   retail: [], // Similar to clothing but more generic
-  services: [], // Similar to consulting but more generic  
+  services: [], // Similar to consulting but more generic
   other: [] // No specific modules, only core permissions
 };
 
@@ -685,6 +724,22 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canExportPayrollAcrossBusinesses', label: 'Export Payroll (Global)' },
       { key: 'canResetPayrollAcrossBusinesses', label: 'Reset Exported Payroll (Global)' },
       { key: 'canDeletePayrollAcrossBusinesses', label: 'Delete Payroll (Global)' },
+    ]
+  },
+  // Expense Account Management
+  // Business-agnostic permissions for managing expense accounts across the platform
+  expenseAccountManagement: {
+    title: 'Expense Account Management',
+    description: 'Manage expense accounts, deposits, payments, and payees across all businesses',
+    permissions: [
+      { key: 'canAccessExpenseAccount', label: 'Access Expense Accounts' },
+      { key: 'canCreateExpenseAccount', label: 'Create Expense Accounts' },
+      { key: 'canMakeExpenseDeposits', label: 'Make Deposits' },
+      { key: 'canMakeExpensePayments', label: 'Make Payments' },
+      { key: 'canViewExpenseReports', label: 'View Reports' },
+      { key: 'canCreateIndividualPayees', label: 'Create Individual Payees' },
+      { key: 'canDeleteExpenseAccounts', label: 'Delete Expense Accounts' },
+      { key: 'canAdjustExpensePayments', label: 'Adjust Payments' },
     ]
   }
 };
@@ -886,6 +941,16 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canViewPayrollHistory: true,
   canExportPayrollPayments: true,
 
+  // Expense Account Management - Full access
+  canAccessExpenseAccount: true,
+  canCreateExpenseAccount: true,
+  canMakeExpenseDeposits: true,
+  canMakeExpensePayments: true,
+  canViewExpenseReports: true,
+  canCreateIndividualPayees: true,
+  canDeleteExpenseAccounts: true,
+  canAdjustExpensePayments: true,
+
   // Supplier Management - Full access
   canViewSuppliers: true,
   canCreateSuppliers: true,
@@ -990,6 +1055,16 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canCompletePayments: true,
   canViewPayrollHistory: true,
   canExportPayrollPayments: false,  // ❌ FALSE by default - must be explicitly granted
+
+  // Expense Account Management - Manager access (view, payments, reports only)
+  canAccessExpenseAccount: true,
+  canCreateExpenseAccount: false,  // ❌ Admin only
+  canMakeExpenseDeposits: false,  // ❌ Admin + special permission only
+  canMakeExpensePayments: true,
+  canViewExpenseReports: true,
+  canCreateIndividualPayees: true,
+  canDeleteExpenseAccounts: false,  // ❌ Admin only
+  canAdjustExpensePayments: false,  // ❌ Special permission only
 
   // Supplier Management - Manager access
   canViewSuppliers: true,
@@ -1096,6 +1171,16 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canViewPayrollHistory: false,
   canExportPayrollPayments: false,
 
+  // Expense Account Management - No access
+  canAccessExpenseAccount: false,
+  canCreateExpenseAccount: false,
+  canMakeExpenseDeposits: false,
+  canMakeExpensePayments: false,
+  canViewExpenseReports: false,
+  canCreateIndividualPayees: false,
+  canDeleteExpenseAccounts: false,
+  canAdjustExpensePayments: false,
+
   // Supplier Management - View only
   canViewSuppliers: true,
   canCreateSuppliers: false,
@@ -1199,6 +1284,16 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewPayrollHistory: true,
   canExportPayrollPayments: false,
 
+  // Expense Account Management - View only
+  canAccessExpenseAccount: true,
+  canCreateExpenseAccount: false,
+  canMakeExpenseDeposits: false,
+  canMakeExpensePayments: false,
+  canViewExpenseReports: true,
+  canCreateIndividualPayees: false,
+  canDeleteExpenseAccounts: false,
+  canAdjustExpensePayments: false,
+
   // Supplier Management - View only
   canViewSuppliers: true,
   canCreateSuppliers: false,
@@ -1301,6 +1396,16 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canCompletePayments: true,
   canViewPayrollHistory: true,
   canExportPayrollPayments: true,
+
+  // Expense Account Management - Full access
+  canAccessExpenseAccount: true,
+  canCreateExpenseAccount: true,
+  canMakeExpenseDeposits: true,
+  canMakeExpensePayments: true,
+  canViewExpenseReports: true,
+  canCreateIndividualPayees: true,
+  canDeleteExpenseAccounts: true,
+  canAdjustExpensePayments: true,
 
   // Supplier Management - Full access
   canViewSuppliers: true,

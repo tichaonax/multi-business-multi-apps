@@ -26,7 +26,7 @@ async function seedAllDemoData() {
 
   const startTime = Date.now()
   let currentStep = 0
-  const totalSteps = 4
+  const totalSteps = 5
 
   try {
     // ═══════════════════════════════════════════════════════════
@@ -117,9 +117,26 @@ async function seedAllDemoData() {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // Step 4: Final Verification
+    // Step 4: Seed Demo Expense Accounts
     // ═══════════════════════════════════════════════════════════
     currentStep = 4
+    console.log(`[${currentStep}/${totalSteps}] 💳 Seeding Demo Expense Accounts...\n`)
+
+    console.log('   Running: node scripts/seed-demo-expense-accounts.js')
+    try {
+      execSync('node scripts/seed-demo-expense-accounts.js', {
+        stdio: 'inherit',
+        cwd: process.cwd()
+      })
+      console.log('\n✅ Expense accounts seeded successfully\n')
+    } catch (error) {
+      throw new Error(`Failed to seed expense accounts: ${error.message}`)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Step 5: Final Verification
+    // ═══════════════════════════════════════════════════════════
+    currentStep = 5
     console.log(`[${currentStep}/${totalSteps}] ✅ Running Final Verification...\n`)
 
     // Count seeded data
@@ -158,12 +175,17 @@ async function seedAllDemoData() {
       }
     })
 
+    const expenseAccountCount = await prisma.expenseAccounts.count()
+    const expenseDepositCount = await prisma.expenseAccountDeposits.count()
+
     console.log('📊 Data Summary:')
     console.log(`   Demo Businesses: ${demoBusinesses.length}`)
     console.log(`   Employees: ${employeeCount}`)
     console.log(`   Business Expenses: ${expenseCount}`)
     console.log(`   Sales Orders: ${orderCount}`)
     console.log(`   Orders with Sales Person: ${ordersWithEmployees} (${((ordersWithEmployees/orderCount)*100).toFixed(1)}%)`)
+    console.log(`   Expense Accounts: ${expenseAccountCount}`)
+    console.log(`   Expense Deposits: ${expenseDepositCount}`)
     console.log('')
 
     // Verify each demo business has data

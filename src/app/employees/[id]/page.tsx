@@ -15,6 +15,9 @@ import { ContractApprovalModal } from '@/components/contracts/contract-approval-
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import type { Employee } from '@/types/employee'
+import { PayeeExpenseSummary } from '@/components/expense-account/payee-expense-summary'
+import { PayeePaymentsTable } from '@/components/expense-account/payee-payments-table'
+import { PayeeExpenseReport } from '@/components/expense-account/payee-expense-report'
 
 const EMPLOYMENT_STATUS_COLORS = {
   active: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
@@ -599,7 +602,7 @@ export default function EmployeeDetailPage() {
         {/* Navigation Tabs */}
         <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
           <nav className="-mb-px flex space-x-4 sm:space-x-8 min-w-max px-1">
-            {['profile', 'contracts', 'assignments', 'performance'].map((tab) => (
+            {['profile', 'contracts', 'assignments', 'performance', 'expensePayments'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -609,7 +612,7 @@ export default function EmployeeDetailPage() {
                     : 'border-transparent text-secondary hover:text-primary hover:border-gray-300'
                 }`}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === 'expensePayments' ? 'Expense Payments' : tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             ))}
           </nav>
@@ -1244,6 +1247,29 @@ export default function EmployeeDetailPage() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Expense Account Payments Tab */}
+        {activeTab === 'expensePayments' && (
+          <div className="space-y-6">
+            {/* Summary Card */}
+            <PayeeExpenseSummary
+              payeeType="EMPLOYEE"
+              payeeId={employeeId}
+            />
+
+            {/* Payments Table */}
+            <PayeePaymentsTable
+              payeeType="EMPLOYEE"
+              payeeId={employeeId}
+            />
+
+            {/* Expense Report with Charts */}
+            <PayeeExpenseReport
+              payeeType="EMPLOYEE"
+              payeeId={employeeId}
+            />
           </div>
         )}
       </div>

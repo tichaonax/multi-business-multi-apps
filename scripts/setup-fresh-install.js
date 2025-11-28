@@ -217,6 +217,11 @@ async function main() {
       required: true
     },
     {
+      command: 'node scripts/seed-migration-data.js',
+      description: 'Seeding reference data (ID templates, job titles, expense categories, admin user)',
+      required: true
+    },
+    {
       command: 'npm run create-admin',
       description: 'Creating admin user',
       required: false

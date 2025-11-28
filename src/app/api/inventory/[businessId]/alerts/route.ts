@@ -49,45 +49,79 @@ export async function GET(
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    // For now, return empty alerts array until inventory items are set up
+    // Generate real alerts based on actual inventory levels
     let alerts: InventoryAlert[] = []
 
     try {
-      // Try to get basic products without complex relationships
+      // Get products with their variants to check actual stock levels
       const products = await prisma.businessProducts.findMany({
         where: {
           businessId,
           isActive: true
         },
-        take: 10 // Limit to avoid performance issues
-      })
-
-      // Generate simple demo alerts if products exist
-      products.forEach((product, index) => {
-        if (index < 3) { // Only create a few demo alerts
-          alerts.push({
-            id: `alert-${product.id}-demo`,
-            businessId,
-            alertType: 'low_stock',
-            priority: 'medium',
-            itemId: product.id,
-            itemName: product.name,
-            itemSku: product.sku || '',
-            category: 'General',
-            currentStock: 5,
-            threshold: 10,
-            unit: 'units',
-            message: `${product.name} stock is running low`,
-            actionRequired: 'Consider reordering soon',
-            value: 50,
-            isAcknowledged: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          })
+        include: {
+          product_variants: true,
+          business_categories: {
+            select: { name: true }
+          }
         }
       })
+
+      // Generate real alerts based on actual stock levels
+      for (const product of products) {
+        for (const variant of product.product_variants) {
+          const stockQuantity = Number(variant.stockQuantity) || 0
+          const reorderLevel = Number(variant.reorderLevel) || 5
+          const variantPrice = Number(variant.price) || 0
+
+          // Out of stock alert
+          if (stockQuantity === 0) {
+            alerts.push({
+              id: `alert-${variant.id}-out-of-stock`,
+              businessId,
+              alertType: 'out_of_stock',
+              priority: 'critical',
+              itemId: product.id,
+              itemName: product.name,
+              itemSku: variant.sku || product.sku || '',
+              category: product.business_categories?.name || 'Uncategorized',
+              currentStock: stockQuantity,
+              threshold: reorderLevel,
+              unit: 'units',
+              message: `${product.name} is out of stock`,
+              actionRequired: 'Reorder immediately',
+              value: variantPrice * reorderLevel,
+              isAcknowledged: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            })
+          }
+          // Low stock alert (stock is above 0 but below reorder level)
+          else if (stockQuantity > 0 && stockQuantity <= reorderLevel) {
+            alerts.push({
+              id: `alert-${variant.id}-low-stock`,
+              businessId,
+              alertType: 'low_stock',
+              priority: 'high',
+              itemId: product.id,
+              itemName: product.name,
+              itemSku: variant.sku || product.sku || '',
+              category: product.business_categories?.name || 'Uncategorized',
+              currentStock: stockQuantity,
+              threshold: reorderLevel,
+              unit: 'units',
+              message: `${product.name} stock is running low (${stockQuantity} remaining)`,
+              actionRequired: 'Consider reordering soon',
+              value: variantPrice * (reorderLevel - stockQuantity),
+              isAcknowledged: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            })
+          }
+        }
+      }
     } catch (dbError) {
-      console.log('Database query failed for alerts, returning empty:', dbError)
+      console.error('Database query failed for alerts:', dbError)
       alerts = []
     }
 
@@ -166,10 +200,36 @@ export async function GET(
 
   } catch (error) {
     console.error('Error fetching inventory alerts:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch inventory alerts' },
-      { status: 500 }
-    )
+    // For businesses with no inventory, return empty gracefully
+    return NextResponse.json({
+      alerts: [],
+      pagination: {
+        page: 1,
+        limit: 50,
+        total: 0,
+        totalPages: 0
+      },
+      summary: {
+        total: 0,
+        unacknowledged: 0,
+        byPriority: {
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 0
+        },
+        byType: {
+          lowStock: 0,
+          outOfStock: 0,
+          expiringSoon: 0,
+          expired: 0,
+          overstock: 0,
+          priceChange: 0
+        },
+        totalValue: 0
+      },
+      filters: {}
+    })
   }
 }
 
