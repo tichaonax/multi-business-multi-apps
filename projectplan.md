@@ -297,4 +297,124 @@ The build successfully generated:
 
 ### Conclusion
 
-The issue has been **completely resolved**. The build error was caused by conflicting Pages Router files (`pages/_error.tsx` and `pages/404.tsx`) that were incompatible with the App Router-based application. Removing these legacy files eliminated the build conflict, and the application now builds successfully using only the App Router with proper error handling via `src/app/error.tsx` and `src/app/not-found.tsx`.
+The issue has been **completely resolved** locally. The build error was caused by conflicting Pages Router files (`pages/_error.tsx` and `pages/404.tsx`) that were incompatible with the App Router-based application. Removing these legacy files eliminated the build conflict, and the application now builds successfully using only the App Router with proper error handling via `src/app/error.tsx` and `src/app/not-found.tsx`.
+
+---
+
+## 🚨 Remote Server Deployment Issue
+
+### Problem Encountered
+
+After pushing to GitHub and deploying to the remote server, the build still failed with the same error:
+
+```
+Error: <Html> should not be imported outside of pages/_document.
+Error occurred prerendering page "/404"
+Export encountered an error on /_error: /404
+```
+
+### Root Cause
+
+**Git doesn't automatically delete untracked files when you pull.**
+
+When we deleted `pages/_error.tsx` and `pages/404.tsx` from git and pushed to GitHub:
+1. ✅ Files were removed from git tracking
+2. ✅ Local repository is clean (we manually deleted them)
+3. ❌ Remote server still has the old files as **untracked files**
+4. ❌ Git pull only updates tracked files, doesn't remove untracked ones
+
+### Solution for Remote Server
+
+Created comprehensive cleanup tools:
+
+1. **Cleanup Script:** `scripts/cleanup-pages-router.js`
+   - Automatically removes legacy Pages Router files
+   - Cleans build cache
+   - Provides detailed feedback
+   - Safe to run multiple times
+
+2. **Deployment Guide:** `DEPLOYMENT-FIX.md`
+   - Step-by-step instructions for remote deployment
+   - Multiple cleanup options (script, manual, Windows)
+   - Verification steps
+   - Prevention tips
+
+3. **NPM Script:** Added to `package.json`
+   ```bash
+   npm run cleanup:pages-router
+   ```
+
+### Remote Server Deployment Steps
+
+**Quick Fix (Run on Remote Server):**
+
+```bash
+# 1. Pull latest code
+git pull origin main
+
+# 2. Run cleanup script
+npm run cleanup:pages-router
+# OR: node scripts/cleanup-pages-router.js
+
+# 3. Rebuild
+npm run build
+```
+
+**Manual Alternative:**
+
+```bash
+# Remove legacy files
+rm pages/_error.tsx pages/404.tsx
+rmdir pages  # if empty
+
+# Clean build cache
+rm -rf .next
+
+# Rebuild
+npm run build
+```
+
+### Files Added for Remote Deployment
+
+1. **scripts/cleanup-pages-router.js**
+   - Removes `pages/_error.tsx` and `pages/404.tsx`
+   - Removes empty `pages/` directory
+   - Cleans `.next` build cache
+   - Provides detailed output and summary
+
+2. **DEPLOYMENT-FIX.md**
+   - Complete deployment guide
+   - Root cause explanation
+   - Multiple cleanup options
+   - Verification steps
+   - Prevention strategies
+
+3. **package.json** (updated)
+   - Added `cleanup:pages-router` script
+
+### Expected Outcome After Cleanup
+
+```
+✓ Compiled successfully in 67s
+✓ Generating static pages (335/335)
+Finalizing page optimization ...
+```
+
+### Prevention for Future
+
+To prevent this issue in future deployments:
+
+1. **Check for untracked files** after pulling:
+   ```bash
+   git status
+   ```
+
+2. **Use git clean** if deleted files still present:
+   ```bash
+   git clean -fd  # Remove untracked files and directories
+   ```
+
+3. **Run cleanup script** when deploying this fix:
+   ```bash
+   npm run cleanup:pages-router
+   ```

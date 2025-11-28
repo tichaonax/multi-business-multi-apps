@@ -73,6 +73,7 @@
     "setup:clean-cache": "node scripts/clean-and-setup.js",
     "setup:production-safe": "node scripts/production-safe-setup.js",
     "setup:fresh-db": "node scripts/setup-fresh-database.js",
+    "cleanup:pages-router": "node scripts/cleanup-pages-router.js",
     "create-admin": "node scripts/create-admin.js",
     "check:db-state": "node scripts/check-database-state.js",
     "hooks:install": "node scripts/install-git-hooks.js",
