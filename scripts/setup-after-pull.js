@@ -505,7 +505,7 @@ async function main() {
   run('node scripts/schema-protector.js backup', 'Creating schema backup', false)
 
   // Step 2: Install/update dependencies
-  run('npm install', 'Installing/updating dependencies', false)
+  run('npm install --legacy-peer-deps', 'Installing/updating dependencies', false)
 
   // Step 3: Regenerate Prisma client (schema should not be modified during deployment)
   run('npx prisma generate', 'Regenerating Prisma client', false)

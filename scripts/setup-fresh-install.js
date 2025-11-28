@@ -187,7 +187,7 @@ async function main() {
 
   const steps = [
     {
-      command: 'npm install',
+      command: 'npm install --legacy-peer-deps',
       description: 'Installing dependencies',
       required: true
     },

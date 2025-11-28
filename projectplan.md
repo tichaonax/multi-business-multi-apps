@@ -1,335 +1,200 @@
-# Project Plan: Fix Hardcoded Grocery & Restaurant Inventory Metrics
+# Fix: npm install dependency conflict with printer package
 
-**Date:** 2025-11-27
+**Date:** 2025-11-28
 **Status:** Planning
-**Priority:** Medium
+**Priority:** High (Blocking production deployment)
 
 ---
 
 ## Problem Statement
 
-The grocery and restaurant inventory dashboards display **hardcoded metrics** instead of calculating them from real inventory data.
+Fresh production server installation is failing during `npm install` due to a peer dependency conflict with the `printer` package:
 
-### Current Hardcoded Values
+```
+npm error ERESOLVE unable to resolve dependency tree
+npm error Could not resolve dependency:
+npm error peer grunt@"~0.4" from grunt-node-gyp@1.0.0
+npm error Found: grunt@1.6.1
+```
 
-**Grocery Metrics:**
-- Organic Items: 15.3% (hardcoded)
-- Local Products: 8.7% (hardcoded)
-- Seasonal Items: 24 (hardcoded)
-- Avg Margin: 22.1% (hardcoded)
-
-**Restaurant Metrics:**
-- Food Cost %: 28.5% (hardcoded)
-- Waste %: 2.6% (hardcoded)
-- Turnover Rate: 12.4 (hardcoded)
-- Avg Shelf Life: 4.2 days (hardcoded)
-
-**Location:** `src/components/universal/inventory/universal-inventory-stats.tsx`
-- Lines 262-270 (grocery)
-- Lines 254-261 (restaurant)
-
-**Reference:** Clothing business type (lines 271-340) already calculates real metrics correctly.
+### Root Cause
+- The `printer` package (v0.4.0) uses `grunt-node-gyp` which requires `grunt@~0.4` (version 0.4.x)
+- However, grunt v1.6.1 is being installed
+- This creates an incompatible peer dependency conflict
+- npm v7+ enforces strict peer dependency resolution, causing the installation to fail
 
 ---
 
-## Data Structure Analysis
+## Solution
 
-### Grocery Product Attributes (from seed data)
-```javascript
-attributes: {
-  organicCertified: false,      // boolean - for organic calculation
-  temperatureZone: 'ambient',   // string
-  storageTemp: 'refrigerated',  // string
-  expirationDays: 7,            // number - shelf life
-  pluCode: '4011',              // string
-  unitType: 'weight',           // string
-  snapEligible: true,           // boolean
-  loyaltyPoints: 2              // number
-}
-```
-
-**Missing attributes:**
-- `local`: boolean (for local products)
-- `seasonal`: boolean (for seasonal items)
-
-### Restaurant Product Attributes (from seed data)
-```javascript
-attributes: {
-  shelfLife: 7,                 // number (in days)
-  storageTemp: 'refrigerated',  // string
-  ingredientType: 'Vegetables', // string
-  printToKitchen: true,         // boolean
-  posCategory: 'Vegetables'     // string
-}
-```
-
-### Available Data in Component
-The `calculateStats` function receives:
-- `items`: Array of inventory items
-- `costPrice`: Purchase cost
-- `basePrice`: Selling price
-- `currentStock`: Inventory quantity
-- `attributes`: JSON field with custom attributes
-- `movements`: Stock movement history
-
----
-
-## Implementation Plan
-
-### Phase 1: Grocery Metrics
-
-#### 1.1 Organic Percentage
-```typescript
-const organicItems = items.filter((item: any) =>
-  item.attributes?.organicCertified === true ||
-  item.attributes?.organic === true
-)
-const organicPercentage = totalItems > 0 ?
-  (organicItems.length / totalItems) * 100 : 0
-```
-
-#### 1.2 Local Products Percentage
-```typescript
-const localItems = items.filter((item: any) =>
-  item.attributes?.local === true ||
-  item.attributes?.localSource === true
-)
-const localPercentage = totalItems > 0 ?
-  (localItems.length / totalItems) * 100 : 0
-```
-
-#### 1.3 Seasonal Items Count
-```typescript
-const seasonalItemsCount = items.filter((item: any) =>
-  item.attributes?.seasonal === true ||
-  item.attributes?.seasonalItem === true ||
-  item.promotionStartDate
-).length
-```
-
-#### 1.4 Average Margin
-```typescript
-let totalMargin = 0
-let itemsWithPricing = 0
-
-items.forEach((item: any) => {
-  const cost = parseFloat(item.costPrice || 0)
-  const price = parseFloat(item.basePrice || 0)
-
-  if (price > 0 && cost > 0) {
-    const margin = ((price - cost) / price) * 100
-    totalMargin += margin
-    itemsWithPricing++
-  }
-})
-
-const avgMargin = itemsWithPricing > 0 ?
-  totalMargin / itemsWithPricing : 0
-```
-
-### Phase 2: Restaurant Metrics
-
-#### 2.1 Food Cost Percentage
-```typescript
-const totalCost = items.reduce((sum: number, item: any) =>
-  sum + (parseFloat(item.costPrice || 0) * item.currentStock), 0
-)
-const totalPotentialRevenue = items.reduce((sum: number, item: any) =>
-  sum + (parseFloat(item.basePrice || 0) * item.currentStock), 0
-)
-const foodCostPercentage = totalPotentialRevenue > 0 ?
-  (totalCost / totalPotentialRevenue) * 100 : 0
-```
-
-#### 2.2 Waste Percentage
-```typescript
-const wasteMovements = movements.filter((m: any) =>
-  m.movementType === 'waste' || m.movementType === 'WASTE' ||
-  m.movementType === 'spoilage'
-)
-const wasteValue = wasteMovements.reduce((sum: number, m: any) =>
-  sum + (m.totalCost || (m.unitCost * Math.abs(m.quantity)) || 0), 0
-)
-const wastePercentage = totalValue > 0 ?
-  (wasteValue / totalValue) * 100 : 0
-```
-
-#### 2.3 Turnover Rate
-```typescript
-const soldMovements = movements.filter((m: any) =>
-  m.movementType === 'sale' || m.movementType === 'SALE_FULFILLED'
-)
-const totalSold = soldMovements.reduce((sum: number, m: any) =>
-  sum + Math.abs(m.quantity), 0
-)
-const avgInventory = items.reduce((sum: number, item: any) =>
-  sum + item.currentStock, 0
-) / (items.length || 1)
-
-const turnoverRate = avgInventory > 0 ? totalSold / avgInventory : 0
-```
-
-#### 2.4 Average Shelf Life
-```typescript
-let totalShelfLife = 0
-let itemsWithShelfLife = 0
-
-items.forEach((item: any) => {
-  const shelfLife = item.attributes?.shelfLife ||
-                    item.attributes?.expirationDays
-  if (shelfLife && shelfLife > 0) {
-    totalShelfLife += parseFloat(shelfLife)
-    itemsWithShelfLife++
-  }
-})
-
-const avgShelfLife = itemsWithShelfLife > 0 ?
-  totalShelfLife / itemsWithShelfLife : 0
-```
+Add the `--legacy-peer-deps` flag to all `npm install` commands in setup scripts. This flag:
+- Tells npm to ignore peer dependency conflicts
+- Uses the more permissive npm v4-v6 behavior
+- Allows installation to proceed despite version mismatches
+- Is safer than `--force` which can cause other issues
 
 ---
 
 ## Impact Analysis
 
-### Files Affected
-1. `src/components/universal/inventory/universal-inventory-stats.tsx` - Main implementation
+### Files Requiring Changes (3 files)
 
-### Risk Level
-- **Low Risk** - Changes isolated to calculation logic
-- **No Schema Changes** - Uses existing attributes
-- **Backward Compatible** - Handles missing data gracefully
+1. **scripts/setup-fresh-install.js** (line 190)
+   - Used for: Fresh installations on new servers
+   - Impact: Critical - this is what's currently failing
 
-### Testing Requirements
-1. Test with real grocery inventory
-2. Test with real restaurant inventory
-3. Test with empty inventory (edge case)
-4. Test with partial data (missing attributes)
+2. **scripts/setup-after-pull.js** (line 508)
+   - Used for: Upgrades/updates after git pull
+   - Impact: Important - prevents future failures
 
----
+3. **scripts/install/install.js** (line 280)
+   - Used for: Main installation system
+   - Impact: Important - comprehensive installer
 
-## Todo Checklist
-
-- [x] Analyze current data structure and attributes
-- [ ] Design calculation logic for grocery metrics
-- [ ] Design calculation logic for restaurant metrics
-- [ ] Implement real metric calculations
-- [ ] Test with real data
-- [ ] Document changes
+### Risk Assessment
+- **Risk Level:** Low
+- **Breaking Changes:** None
+- **Backward Compatibility:** Full
+- **Testing Required:** Run setup script
 
 ---
 
-## Key Decisions
+## Implementation Plan
 
-1. **Follow Clothing Pattern:** Use same approach as clothing metrics (lines 271-340)
-2. **Graceful Degradation:** Handle missing attributes without errors
-3. **No Migration Needed:** Use existing JSON attributes
-4. **Simple Changes:** Minimize code complexity
+### TODO Items:
+- [ ] Update `scripts/setup-fresh-install.js` to use `npm install --legacy-peer-deps`
+- [ ] Update `scripts/setup-after-pull.js` to use `npm install --legacy-peer-deps`
+- [ ] Update `scripts/install/install.js` to use `npm install --legacy-peer-deps`
+- [ ] Test the fix by running setup
+
+---
+
+## Implementation Details
+
+### Change 1: scripts/setup-fresh-install.js:190
+
+**Before:**
+```javascript
+{
+  command: 'npm install',
+  description: 'Installing dependencies',
+  required: true
+},
+```
+
+**After:**
+```javascript
+{
+  command: 'npm install --legacy-peer-deps',
+  description: 'Installing dependencies',
+  required: true
+},
+```
+
+### Change 2: scripts/setup-after-pull.js:508
+
+**Before:**
+```javascript
+run('npm install', 'Installing/updating dependencies', false)
+```
+
+**After:**
+```javascript
+run('npm install --legacy-peer-deps', 'Installing/updating dependencies', false)
+```
+
+### Change 3: scripts/install/install.js:280
+
+**Before:**
+```javascript
+execSync('npm install', {
+  stdio: this.options.silent ? 'pipe' : 'inherit',
+  cwd: this.projectRoot
+})
+```
+
+**After:**
+```javascript
+execSync('npm install --legacy-peer-deps', {
+  stdio: this.options.silent ? 'pipe' : 'inherit',
+  cwd: this.projectRoot
+})
+```
+
+---
+
+## Alternative Solutions Considered
+
+1. **Remove printer package** ❌
+   - Would break receipt printing functionality
+   - Not acceptable for production
+
+2. **Upgrade printer package** ❌
+   - No newer version available
+   - Package appears unmaintained
+
+3. **Use --force flag** ❌
+   - More aggressive than needed
+   - Can cause unexpected dependency resolution issues
+   - --legacy-peer-deps is safer
+
+4. **Fork and fix printer package** ❌
+   - Too much maintenance overhead
+   - Would need to maintain fork long-term
+
+5. **Use --legacy-peer-deps** ✅
+   - Recommended solution
+   - Minimal risk
+   - Allows installation to proceed
+   - Standard approach for legacy packages
+
+---
+
+## Testing Plan
+
+After implementation, test by running:
+```bash
+npm run setup
+```
+
+Expected outcome:
+- ✅ npm install completes successfully
+- ✅ Dependencies install without errors
+- ✅ Setup script continues to completion
+- ✅ printer package is installed and functional
 
 ---
 
 ## Review Section
 
-### ✅ Implementation Complete
-
-**Date Completed:** 2025-11-27
-**Status:** Successfully implemented and tested
-
 ### Changes Made
 
-**File Modified:** `src/components/universal/inventory/universal-inventory-stats.tsx`
+**Status:** ✅ Implementation Complete
 
-**Lines Changed:**
-- Lines 253-311: Replaced hardcoded restaurant metrics with real calculations
-- Lines 312-364: Replaced hardcoded grocery metrics with real calculations
+**Files Modified:** 3 files, 4 total changes
 
-### Metrics Now Calculated
+1. **scripts/setup-fresh-install.js:190**
+   - Changed: `npm install` → `npm install --legacy-peer-deps`
+   - Impact: Fresh installation script now bypasses peer dependency conflicts
 
-**Grocery (Real Data):**
-- ✅ Organic Percentage - from `organicCertified` attribute
-- ✅ Local Products % - from `local`/`localSource` attributes
-- ✅ Seasonal Items Count - from `seasonal` attribute or promotions
-- ✅ Average Margin - calculated from `(basePrice - costPrice) / basePrice * 100`
+2. **scripts/setup-after-pull.js:508**
+   - Changed: `npm install` → `npm install --legacy-peer-deps`
+   - Impact: Update/upgrade script now bypasses peer dependency conflicts
 
-**Restaurant (Real Data):**
-- ✅ Food Cost % - from `totalCost / totalPotentialRevenue * 100`
-- ✅ Waste % - from waste movements in history
-- ✅ Turnover Rate - from sales movements vs average inventory
-- ✅ Average Shelf Life - from `shelfLife`/`expirationDays` attributes
+3. **scripts/install/install.js:280**
+   - Changed: `npm install` → `npm install --legacy-peer-deps`
+   - Impact: Main installer now bypasses peer dependency conflicts
+
+4. **scripts/install/install.js:296** (Bonus consistency fix)
+   - Changed: `npm install ${deps}` → `npm install --legacy-peer-deps ${deps}`
+   - Impact: Sync service dependencies installation also uses legacy peer deps
 
 ### Test Results
+(To be filled after running setup script)
 
-Created test script `test-metrics-calculation.js` with sample data:
+### Issues Encountered
+None during implementation - all changes applied cleanly.
 
-**Grocery Test Results:**
-- Organic Items: 20.0% (1/5 items)
-- Local Products: 20.0% (1/5 items)
-- Seasonal Items: 1 item
-- Average Margin: 58.8%
-
-**Restaurant Test Results:**
-- Food Cost %: 52.7%
-- Waste %: 3.0%
-- Turnover Rate: 1.8
-- Average Shelf Life: 94.5 days
-
-✅ All calculations working correctly with real data!
-
-### Key Benefits
-
-1. **Accurate Metrics** - Dashboard now shows real inventory data
-2. **Dynamic Updates** - Metrics change as inventory changes
-3. **No Migration Needed** - Uses existing JSON attributes
-4. **Follows Patterns** - Same approach as clothing metrics
-5. **Graceful Degradation** - Handles missing attributes (returns 0)
-
-### Code Quality
-
-- ✅ Followed existing coding patterns (clothing metrics)
-- ✅ Added clear comments for each calculation
-- ✅ Proper null/undefined handling
-- ✅ Consistent rounding (1 decimal place)
-- ✅ No breaking changes
-
-### Future Enhancements
-
-**Optional - Add Missing Attributes:**
-1. Add `local: boolean` to grocery seed data for more accurate local %
-2. Add `seasonal: boolean` to grocery seed data for seasonal tracking
-3. Track waste movements in restaurant for accurate waste %
-4. Add more movement types for better turnover calculation
-
-**Optional - UI Improvements:**
-1. Add tooltips explaining how each metric is calculated
-2. Add drill-down views to see which items contribute to metrics
-3. Add trend charts showing metric changes over time
-
-### Impact Assessment
-
-**Risk Level:** ✅ Low
-- Changes isolated to one component
-- No database schema changes
-- No breaking changes to API
-- Backward compatible
-
-**Files Affected:** 1
-- `src/components/universal/inventory/universal-inventory-stats.tsx`
-
-**Components Using This:** 4+
-- Grocery inventory page
-- Restaurant inventory page
-- Any other business type using UniversalInventoryStats
-
-### Next Steps
-
-**Recommended:**
-1. ✅ Test in browser with real grocery business
-2. ✅ Test in browser with real restaurant business
-3. Verify metrics make sense with actual seed data
-4. Consider adding missing attributes to seed scripts (optional)
-
----
-
-## Previous Project
-
-**MBM-114A:** Business expense tracking - Completed 2025-11-23
-See: `ai-contexts/project-plans/completed/2025-11/`
+### Follow-up Items
+- Test with `npm run setup` to verify fix resolves the installation error
+- Monitor for any unexpected dependency behavior in production

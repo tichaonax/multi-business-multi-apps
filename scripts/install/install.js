@@ -277,7 +277,7 @@ class MainInstaller {
 
       if (needsInstall || this.options.force) {
         logInfo('Installing npm dependencies...')
-        execSync('npm install', {
+        execSync('npm install --legacy-peer-deps', {
           stdio: this.options.silent ? 'pipe' : 'inherit',
           cwd: this.projectRoot
         })
@@ -293,7 +293,7 @@ class MainInstaller {
 
       if (missingDeps.length > 0) {
         logInfo(`Installing sync service dependencies: ${missingDeps.join(', ')}`)
-        execSync(`npm install ${missingDeps.join(' ')}`, {
+        execSync(`npm install --legacy-peer-deps ${missingDeps.join(' ')}`, {
           stdio: this.options.silent ? 'pipe' : 'inherit',
           cwd: this.projectRoot
         })
