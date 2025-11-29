@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateUniqueShortName } from '@/lib/business-shortname'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { generateAccountNumber } from '@/lib/expense-account-utils'
 
 export async function GET() {
   try {
@@ -63,38 +64,66 @@ export async function POST(req: NextRequest) {
 
     const shortName = await generateUniqueShortName(prisma as any, name.trim())
 
-    const createData = ({
-      name: name.trim(),
-      type: type.trim(),
-      description: description?.trim() || null,
-      shortName,
-      isActive: true,
-      settings: {},
-      createdBy: session.user.id
-    } as any)
-
-    const business = await prisma.businesses.create({ data: createData })
-
-    // Create audit log
-    await prisma.auditLogs.create({
-      // Cast to any to avoid strict Prisma typing for optional fields like id
-      data: ({
-        action: 'BUSINESS_CREATED',
-        entityType: 'Business',
-        entityId: business.id,
-        userId: session.user.id,
-        details: {
-          businessName: business.name,
-          businessType: business.type
-        }
+    // Create business, business account, and default expense account in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const createData = ({
+        name: name.trim(),
+        type: type.trim(),
+        description: description?.trim() || null,
+        shortName,
+        isActive: true,
+        settings: {},
+        createdBy: session.user.id
       } as any)
-    }).catch(error => {
-      console.error('Failed to create audit log:', error)
+
+      const business = await tx.businesses.create({ data: createData })
+
+      // Create business account
+      await tx.businessAccounts.create({
+        data: {
+          businessId: business.id,
+          balance: 0,
+          updatedAt: new Date(),
+          createdBy: session.user.id,
+        },
+      })
+
+      // Create default expense account
+      const accountNumber = await generateAccountNumber()
+      await tx.expenseAccounts.create({
+        data: {
+          accountNumber,
+          accountName: `${name.trim()} Expense Account`,
+          description: `Default expense account for ${name.trim()}`,
+          balance: 0,
+          lowBalanceThreshold: 500,
+          isActive: true,
+          createdBy: session.user.id,
+        },
+      })
+
+      // Create audit log
+      await tx.auditLogs.create({
+        data: ({
+          action: 'BUSINESS_CREATED',
+          entityType: 'Business',
+          entityId: business.id,
+          userId: session.user.id,
+          details: {
+            businessName: business.name,
+            businessType: business.type
+          }
+        } as any)
+      }).catch(error => {
+        console.error('Failed to create audit log:', error)
+      })
+
+      return business
     })
 
     return NextResponse.json({
       message: 'Business created successfully',
-      business
+      business: result
     })
   } catch (error) {
     console.error('Error creating business:', error)

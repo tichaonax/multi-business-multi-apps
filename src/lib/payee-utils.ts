@@ -377,6 +377,7 @@ export async function createIndividualPayee(
         id: personId,
         fullName: data.fullName.trim(),
         nationalId: data.nationalId?.trim() || null,
+        idFormatTemplateId: data.idFormatTemplateId || null,
         phone: data.phone?.trim() || '',
         email: data.email?.trim() || null,
         address: data.address?.trim() || null,

@@ -18,8 +18,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    // Get user permissions (pass full user object, not just ID)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
@@ -96,8 +96,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    // Get user permissions (pass full user object, not just ID)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canCreateExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to update expense accounts' },
@@ -105,7 +105,7 @@ export async function PATCH(
       )
     }
 
-    const { accountId } = params
+    const { accountId} = params
     const body = await request.json()
     const { accountName, description, lowBalanceThreshold } = body
 
@@ -209,8 +209,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    // Get user permissions (pass full user object, not just ID)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canDeleteExpenseAccounts) {
       return NextResponse.json(
         { error: 'You do not have permission to delete expense accounts' },

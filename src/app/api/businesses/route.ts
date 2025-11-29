@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { generateUniqueShortName } from '@/lib/business-shortname';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { generateAccountNumber } from '@/lib/expense-account-utils';
 
 export async function GET() {
   try {
@@ -115,33 +116,63 @@ export async function POST(req: NextRequest) {
 
     // Generate a unique shortName and create business and make the creator the owner
     const shortName = await generateUniqueShortName(prisma as any, name)
-    const business = await prisma.businesses.create({
-      // Cast data to any to avoid TypeScript strict input type issues (id generation handled at runtime)
-      data: ({
-        name,
-        type,
-        description: description || null,
-        shortName,
-        createdBy: session.user.id,
-        business_memberships: {
-          create: ({
-            userId: session.user.id,
-            role: 'business-owner',
-            permissions: BUSINESS_PERMISSION_PRESETS['business-owner'],
-            isActive: true,
-          } as any),
-        },
-      } as any),
-      include: {
-        business_memberships: {
-          where: {
-            userId: session.user.id,
+
+    // Create business, business account, and default expense account in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create business
+      const business = await tx.businesses.create({
+        data: ({
+          name,
+          type,
+          description: description || null,
+          shortName,
+          createdBy: session.user.id,
+          business_memberships: {
+            create: ({
+              userId: session.user.id,
+              role: 'business-owner',
+              permissions: BUSINESS_PERMISSION_PRESETS['business-owner'],
+              isActive: true,
+            } as any),
+          },
+        } as any),
+        include: {
+          business_memberships: {
+            where: {
+              userId: session.user.id,
+            },
           },
         },
-      },
+      });
+
+      // Create business account
+      await tx.businessAccounts.create({
+        data: {
+          businessId: business.id,
+          balance: 0,
+          updatedAt: new Date(),
+          createdBy: session.user.id,
+        },
+      });
+
+      // Create default expense account
+      const accountNumber = await generateAccountNumber();
+      await tx.expenseAccounts.create({
+        data: {
+          accountNumber,
+          accountName: `${name} Expense Account`,
+          description: `Default expense account for ${name}`,
+          balance: 0,
+          lowBalanceThreshold: 500,
+          isActive: true,
+          createdBy: session.user.id,
+        },
+      });
+
+      return business;
     });
 
-    return NextResponse.json(business);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating business:', error);
     return NextResponse.json(

@@ -11,6 +11,7 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
  * Body:
  * - fullName: string (required)
  * - nationalId?: string (optional, must be unique if provided)
+ * - idFormatTemplateId?: string (optional, ID format template for national ID)
  * - phone?: string (optional)
  * - email?: string (optional)
  * - address?: string (optional)
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canCreateIndividualPayees) {
       return NextResponse.json(
         { error: 'You do not have permission to create individual payees' },
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json()
-    const { fullName, nationalId, phone, email, address } = body
+    const { fullName, nationalId, idFormatTemplateId, phone, email, address } = body
 
     // Validate required fields
     if (!fullName || fullName.trim() === '') {
@@ -45,21 +46,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate national ID format if provided (basic validation)
+    // Validate national ID format if provided
     if (nationalId && nationalId.trim() !== '') {
       const trimmedId = nationalId.trim()
-      // Check if it's numeric and has reasonable length (customize based on your requirements)
-      if (!/^\d+$/.test(trimmedId)) {
-        return NextResponse.json(
-          { error: 'National ID must contain only numbers' },
-          { status: 400 }
-        )
-      }
-      if (trimmedId.length < 6 || trimmedId.length > 20) {
-        return NextResponse.json(
-          { error: 'National ID must be between 6 and 20 digits' },
-          { status: 400 }
-        )
+
+      // If a template is provided, skip hard-coded validation
+      // (frontend NationalIdInput already validated against template pattern)
+      if (!idFormatTemplateId) {
+        // Only apply numeric validation if NO template is specified
+        // (legacy validation for backwards compatibility)
+        if (!/^\d+$/.test(trimmedId)) {
+          return NextResponse.json(
+            { error: 'National ID must contain only numbers (or select an ID format template)' },
+            { status: 400 }
+          )
+        }
+        if (trimmedId.length < 6 || trimmedId.length > 20) {
+          return NextResponse.json(
+            { error: 'National ID must be between 6 and 20 digits' },
+            { status: 400 }
+          )
+        }
+      } else {
+        // When template is provided, just check reasonable max length
+        if (trimmedId.length > 50) {
+          return NextResponse.json(
+            { error: 'National ID must not exceed 50 characters' },
+            { status: 400 }
+          )
+        }
       }
     }
 
@@ -92,6 +107,7 @@ export async function POST(request: NextRequest) {
       {
         fullName: fullName.trim(),
         nationalId: nationalId?.trim() || undefined,
+        idFormatTemplateId: idFormatTemplateId || undefined,
         phone: phone?.trim() || undefined,
         email: email?.trim() || undefined,
         address: address?.trim() || undefined,

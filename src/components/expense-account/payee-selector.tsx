@@ -16,6 +16,7 @@ interface PayeeSelectorProps {
   onCreateIndividual?: () => void
   disabled?: boolean
   error?: string
+  refreshTrigger?: number  // Increment this to trigger a refresh
 }
 
 export function PayeeSelector({
@@ -23,7 +24,8 @@ export function PayeeSelector({
   onChange,
   onCreateIndividual,
   disabled = false,
-  error
+  error,
+  refreshTrigger = 0
 }: PayeeSelectorProps) {
   const [payees, setPayees] = useState<Record<string, Payee[]>>({
     USER: [],
@@ -35,9 +37,10 @@ export function PayeeSelector({
   const [searchQuery, setSearchQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
 
+  // Load payees on mount and when refreshTrigger changes
   useEffect(() => {
     loadPayees()
-  }, [])
+  }, [refreshTrigger])
 
   const loadPayees = async () => {
     try {

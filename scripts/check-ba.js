@@ -1,0 +1,1 @@
+const {PrismaClient}=require('@prisma/client'); const p=new PrismaClient(); p.businessAccounts.findMany().then(r=>{console.log('Count:',r.length); r.forEach(a=>console.log(a.businessId, a.balance)); return p.\()})

@@ -50,21 +50,50 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Return domains as expense_categories for compatibility with existing flattening logic
+    // ALSO fetch global flat categories (domainId = null)
+    const globalCategories = await prisma.expenseCategories.findMany({
+      where: {
+        domainId: null, // Global categories not tied to any domain
+        ...(includeUserCreated ? {} : { isUserCreated: false }),
+      },
+      select: {
+        id: true,
+        name: true,
+        emoji: true,
+        color: true,
+        description: true,
+        isDefault: true,
+        isUserCreated: true,
+        createdBy: true,
+        requiresSubcategory: true,
+        createdAt: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    // Combine domains and global categories
+    const domainCategories = domains.map(domain => ({
+      ...domain,
+      color: '#3B82F6', // Default color for domains
+      isDefault: false,
+      isUserCreated: false,
+      createdBy: null,
+      users: null,
+      requiresSubcategory: true, // Domains typically have subcategories
+    }));
+
+    const allCategories = [...globalCategories, ...domainCategories];
+
+    // Return all categories
     return NextResponse.json({
       domains: [{
-        expense_categories: domains.map(domain => ({
-          ...domain,
-          color: '#3B82F6', // Default color for domains
-          isDefault: false,
-          isUserCreated: false,
-          createdBy: null,
-          users: null,
-        }))
+        expense_categories: allCategories
       }],
       count: {
         domains: 1,
-        categories: domains.length,
+        categories: allCategories.length,
       },
     });
   } catch (error) {

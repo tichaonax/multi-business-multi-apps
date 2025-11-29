@@ -535,7 +535,11 @@ function DashboardContent() {
                 ) : currentBusiness && (
                   <div className="mb-6">
                     <Link
-                      href={`/${currentBusiness.businessType}`}
+                      href={(() => {
+                        const primaryBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']
+                        const hasDedicatedPages = primaryBusinessTypes.includes(currentBusiness.businessType)
+                        return hasDedicatedPages ? `/${currentBusiness.businessType}` : '/dashboard'
+                      })()}
                       className="inline-flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
                     >
                       <span className="text-2xl">🏢</span>
@@ -1268,7 +1272,10 @@ function DashboardContent() {
                                 }
                                 setStatsLoading(false)
                                 // Navigate to the business orders page
-                                router.push(`/${business.type}/orders`)
+                                const primaryBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']
+                                const hasDedicatedPages = primaryBusinessTypes.includes(business.type)
+                                const targetPath = hasDedicatedPages ? `/${business.type}/orders` : '/dashboard'
+                                router.push(targetPath)
                               } catch (error) {
                                 console.error('Failed to switch business:', error)
                                 await customAlert({

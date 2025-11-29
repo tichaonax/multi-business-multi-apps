@@ -29,6 +29,7 @@ export function CreateIndividualPayeeModal({
   const [formData, setFormData] = useState({
     fullName: '',
     nationalId: '',
+    idFormatTemplateId: '', // Track selected ID format template
     phone: ''
   })
 
@@ -94,6 +95,7 @@ export function CreateIndividualPayeeModal({
         body: JSON.stringify({
           fullName: formData.fullName.trim(),
           nationalId: formData.nationalId.trim() || null,
+          idFormatTemplateId: formData.idFormatTemplateId || null,
           phone: formData.phone.trim() || null
         })
       })
@@ -115,6 +117,7 @@ export function CreateIndividualPayeeModal({
       setFormData({
         fullName: '',
         nationalId: '',
+        idFormatTemplateId: '',
         phone: ''
       })
       setErrors({ fullName: '', nationalId: '', phone: '' })
@@ -134,6 +137,7 @@ export function CreateIndividualPayeeModal({
     // Check if form has unsaved changes
     const hasChanges = formData.fullName.trim() !== '' ||
                        formData.nationalId.trim() !== '' ||
+                       formData.idFormatTemplateId.trim() !== '' ||
                        formData.phone.trim() !== ''
 
     if (hasChanges) {
@@ -149,6 +153,7 @@ export function CreateIndividualPayeeModal({
     setFormData({
       fullName: '',
       nationalId: '',
+      idFormatTemplateId: '',
       phone: ''
     })
     setErrors({ fullName: '', nationalId: '', phone: '' })
@@ -191,8 +196,13 @@ export function CreateIndividualPayeeModal({
             </label>
             <NationalIdInput
               value={formData.nationalId}
-              onChange={(value) => {
-                setFormData({ ...formData, nationalId: value })
+              templateId={formData.idFormatTemplateId}
+              onChange={(nationalId, templateId) => {
+                setFormData({
+                  ...formData,
+                  nationalId: nationalId,
+                  idFormatTemplateId: templateId || ''
+                })
                 setErrors({ ...errors, nationalId: '' })
               }}
               error={errors.nationalId}

@@ -68,11 +68,11 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
     ? 'from-red-500 to-red-600'
     : isLowBalance
     ? 'from-yellow-500 to-yellow-600'
-    : 'from-green-500 to-green-600'
+    : 'from-green-600 to-green-700'
 
   return (
-    <div className={`bg-gradient-to-r ${cardGradient} rounded-lg shadow-lg p-6 text-white`}>
-      <div className="flex items-center justify-between mb-6">
+    <div className={`bg-gradient-to-r ${cardGradient} rounded-lg shadow-lg p-4 text-white`}>
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-medium opacity-90">{accountData.accountName || 'Expense Account'}</h2>
           <p className="text-xs opacity-75">{accountData.accountNumber}</p>
@@ -103,9 +103,9 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
       </div>
 
       {/* Main Balance */}
-      <div className="mb-6">
+      <div className="mb-4">
         <p className="text-sm font-medium opacity-90 mb-1">Current Balance</p>
-        <p className="text-4xl font-bold">{formatCurrency(balance)}</p>
+        <p className="text-3xl font-bold">{formatCurrency(balance)}</p>
       </div>
 
       {/* Balance Alert */}

@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma'
 import {
   validatePaymentAmount,
   validateBatchPaymentTotal,
-  updateExpenseAccountBalance,
 } from '@/lib/expense-account-utils'
 import { validatePayee } from '@/lib/payee-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
@@ -383,15 +382,65 @@ export async function POST(
         )
       }
 
-      // Validate subcategory if provided
+      // Validate subcategory if category requires it
+      if (category.requiresSubcategory && !payment.subcategoryId) {
+        return NextResponse.json(
+          {
+            error: `Payment ${paymentIndex}: This category requires a subcategory`,
+            index: i,
+          },
+          { status: 400 }
+        )
+      }
+
+      // Validate subcategory exists if provided
       if (payment.subcategoryId) {
         const subcategory = await prisma.expenseSubcategories.findUnique({
           where: { id: payment.subcategoryId },
         })
         if (!subcategory) {
           return NextResponse.json(
-            { error: `Payment ${paymentIndex}: Expense subcategory not found`, index: i },
+            {
+              error: `Payment ${paymentIndex}: Expense subcategory not found`,
+              index: i,
+            },
             { status: 404 }
+          )
+        }
+        // Validate subcategory belongs to category
+        if (subcategory.categoryId !== payment.categoryId) {
+          return NextResponse.json(
+            {
+              error: `Payment ${paymentIndex}: Subcategory does not belong to the selected category`,
+              index: i,
+            },
+            { status: 400 }
+          )
+        }
+      }
+
+      // Validate sub-subcategory exists if provided
+      if (payment.subSubcategoryId) {
+        const subSubcategory = await prisma.expenseSubSubcategories.findUnique({
+          where: { id: payment.subSubcategoryId },
+        })
+        if (!subSubcategory) {
+          return NextResponse.json(
+            {
+              error: `Payment ${paymentIndex}: Expense sub-subcategory not found`,
+              index: i,
+            },
+            { status: 404 }
+          )
+        }
+        // Validate sub-subcategory belongs to subcategory
+        if (subSubcategory.subcategoryId !== payment.subcategoryId) {
+          return NextResponse.json(
+            {
+              error: `Payment ${paymentIndex}: Sub-subcategory does not belong to the selected subcategory`,
+              index: i,
+            },
+            { status: 400 }
           )
         }
       }
@@ -483,7 +532,29 @@ export async function POST(
       }
 
       // Update expense account balance (only submitted payments affect balance)
-      const newBalance = await updateExpenseAccountBalance(accountId)
+      // Calculate balance from deposits and payments within the transaction
+      const depositsSum = await tx.expenseAccountDeposits.aggregate({
+        where: { expenseAccountId: accountId },
+        _sum: { amount: true },
+      })
+
+      const paymentsSum = await tx.expenseAccountPayments.aggregate({
+        where: {
+          expenseAccountId: accountId,
+          status: 'SUBMITTED',
+        },
+        _sum: { amount: true },
+      })
+
+      const totalDeposits = Number(depositsSum._sum.amount || 0)
+      const totalPayments = Number(paymentsSum._sum.amount || 0)
+      const newBalance = totalDeposits - totalPayments
+
+      // Update the account balance
+      await tx.expenseAccounts.update({
+        where: { id: accountId },
+        data: { balance: newBalance, updatedAt: new Date() },
+      })
 
       return { payments: createdPayments, newBalance }
     })

@@ -24,7 +24,7 @@ export async function GET(
     }
 
     // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
@@ -159,7 +159,7 @@ export async function PATCH(
     }
 
     // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canAdjustExpensePayments) {
       return NextResponse.json(
         { error: 'You do not have permission to adjust expense payments' },
@@ -369,7 +369,7 @@ export async function DELETE(
     }
 
     // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canAdjustExpensePayments) {
       return NextResponse.json(
         { error: 'You do not have permission to delete expense payments' },

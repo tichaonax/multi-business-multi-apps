@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },

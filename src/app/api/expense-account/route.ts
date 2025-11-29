@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    // Get user permissions (pass full user object, not just ID)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
@@ -82,8 +82,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    // Get user permissions (pass full user object, not just ID)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canCreateExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to create expense accounts' },

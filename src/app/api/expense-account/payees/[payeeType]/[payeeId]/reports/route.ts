@@ -23,7 +23,7 @@ export async function GET(
     }
 
     // Get user permissions
-    const permissions = await getEffectivePermissions(session.user.id)
+    const permissions = getEffectivePermissions(session.user)
     if (!permissions.canViewExpenseReports) {
       return NextResponse.json(
         { error: 'You do not have permission to view expense reports' },

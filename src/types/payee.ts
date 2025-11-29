@@ -67,6 +67,7 @@ export interface PayeeReference {
 export interface CreateIndividualPayeeInput {
   fullName: string
   nationalId?: string
+  idFormatTemplateId?: string  // ID format template for national ID
   phone?: string
   email?: string
   address?: string

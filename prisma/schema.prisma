@@ -1095,6 +1095,7 @@ model ExpenseCategories {
   description              String?
   isUserCreated            Boolean                  @default(false)
   createdBy                String?
+  requiresSubcategory      Boolean                  @default(false)
   expense_account_payments ExpenseAccountPayments[] @relation("ExpensePaymentCategory")
   users                    Users?                   @relation(fields: [createdBy], references: [id])
   domain                   ExpenseDomains?          @relation(fields: [domainId], references: [id])

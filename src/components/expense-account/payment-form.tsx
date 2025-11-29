@@ -5,6 +5,7 @@ import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { PayeeSelector } from './payee-selector'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
+import { CreateCategoryModal } from './create-category-modal'
 import { PaymentBatchList } from './payment-batch-list'
 
 interface ExpenseCategory {
@@ -12,6 +13,7 @@ interface ExpenseCategory {
   name: string
   emoji: string
   color: string
+  requiresSubcategory?: boolean  // If false, subcategories are optional
   subcategories?: ExpenseSubcategory[]
 }
 
@@ -73,7 +75,10 @@ export function PaymentForm({
   const [loadingSubSubcategories, setLoadingSubSubcategories] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [showReceiptSection, setShowReceiptSection] = useState(false)
+  const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)  // Increment to refresh payee list
+  const [categoryRefreshTrigger, setCategoryRefreshTrigger] = useState(0)  // Increment to refresh category list
 
   const [batchPayments, setBatchPayments] = useState<BatchPayment[]>([])
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
@@ -99,10 +104,10 @@ export function PaymentForm({
     paymentDate: ''
   })
 
-  // Load categories
+  // Load categories on mount and when categoryRefreshTrigger changes
   useEffect(() => {
     loadCategories()
-  }, [])
+  }, [categoryRefreshTrigger])
 
   // Load batch from sessionStorage
   useEffect(() => {
@@ -169,6 +174,7 @@ export function PaymentForm({
                   name: cat.name,
                   emoji: cat.emoji,
                   color: cat.color || '#000000',
+                  requiresSubcategory: cat.requiresSubcategory ?? false,
                 })
               })
             }
@@ -501,6 +507,7 @@ export function PaymentForm({
 
   const handleCreateIndividualSuccess = (payload: any) => {
     if (payload.payee) {
+      // Set the newly created payee as selected
       setFormData({
         ...formData,
         payee: {
@@ -509,6 +516,22 @@ export function PaymentForm({
           name: payload.payee.fullName
         }
       })
+      // Trigger payee list refresh
+      setPayeeRefreshTrigger(prev => prev + 1)
+    }
+  }
+
+  const handleCreateCategorySuccess = (payload: any) => {
+    if (payload.category) {
+      // Set the newly created category as selected
+      setFormData({
+        ...formData,
+        categoryId: payload.category.id,
+        subcategoryId: '',
+        subSubcategoryId: ''
+      })
+      // Trigger category list refresh
+      setCategoryRefreshTrigger(prev => prev + 1)
     }
   }
 
@@ -555,79 +578,106 @@ export function PaymentForm({
               }}
               onCreateIndividual={() => setShowIndividualModal(true)}
               error={errors.payee}
+              refreshTrigger={payeeRefreshTrigger}
             />
           </div>
 
           {/* Category, Subcategory & Sub-subcategory */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Category <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.categoryId}
-                onChange={(e) => {
-                  setFormData({ ...formData, categoryId: e.target.value, subcategoryId: '', subSubcategoryId: '' })
-                  setErrors({ ...errors, categoryId: '' })
-                }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.categoryId ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                }`}
-              >
-                <option value="">Select category...</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.emoji} {category.name}
-                  </option>
-                ))}
-              </select>
-              {errors.categoryId && (
-                <p className="mt-1 text-sm text-red-500">{errors.categoryId}</p>
-              )}
-            </div>
+          {(() => {
+            // Get selected category to check if it requires subcategory
+            const selectedCategory = categories.find(c => c.id === formData.categoryId)
+            const showSubcategories = selectedCategory?.requiresSubcategory !== false
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Subcategory
-              </label>
-              <select
-                value={formData.subcategoryId}
-                onChange={(e) => setFormData({ ...formData, subcategoryId: e.target.value, subSubcategoryId: '' })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={!formData.categoryId || loadingSubcategories}
-              >
-                <option value="">
-                  {loadingSubcategories ? 'Loading...' : 'None'}
-                </option>
-                {subcategories.map((sub) => (
-                  <option key={sub.id} value={sub.id}>
-                    {sub.emoji} {sub.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            return (
+              <div className={`grid ${showSubcategories ? 'grid-cols-3' : 'grid-cols-1'} gap-4`}>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Category <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryModal(true)}
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                    >
+                      + Create New
+                    </button>
+                  </div>
+                  <select
+                    value={formData.categoryId}
+                    onChange={(e) => {
+                      setFormData({ ...formData, categoryId: e.target.value, subcategoryId: '', subSubcategoryId: '' })
+                      setErrors({ ...errors, categoryId: '' })
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.categoryId ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    }`}
+                  >
+                    <option value="">Select category...</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.emoji} {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.categoryId && (
+                    <p className="mt-1 text-sm text-red-500">{errors.categoryId}</p>
+                  )}
+                  {selectedCategory && !selectedCategory.requiresSubcategory && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      ✓ This category doesn't require subcategories
+                    </p>
+                  )}
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Sub-subcategory
-              </label>
-              <select
-                value={formData.subSubcategoryId}
-                onChange={(e) => setFormData({ ...formData, subSubcategoryId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={!formData.subcategoryId || loadingSubSubcategories}
-              >
-                <option value="">
-                  {loadingSubSubcategories ? 'Loading...' : 'None'}
-                </option>
-                {subSubcategories.map((subSub) => (
-                  <option key={subSub.id} value={subSub.id}>
-                    {subSub.emoji} {subSub.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+                {showSubcategories && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Subcategory
+                      </label>
+                      <select
+                        value={formData.subcategoryId}
+                        onChange={(e) => setFormData({ ...formData, subcategoryId: e.target.value, subSubcategoryId: '' })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={!formData.categoryId || loadingSubcategories}
+                      >
+                        <option value="">
+                          {loadingSubcategories ? 'Loading...' : 'None'}
+                        </option>
+                        {subcategories.map((sub) => (
+                          <option key={sub.id} value={sub.id}>
+                            {sub.emoji} {sub.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Sub-subcategory
+                      </label>
+                      <select
+                        value={formData.subSubcategoryId}
+                        onChange={(e) => setFormData({ ...formData, subSubcategoryId: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={!formData.subcategoryId || loadingSubSubcategories}
+                      >
+                        <option value="">
+                          {loadingSubSubcategories ? 'Loading...' : 'None'}
+                        </option>
+                        {subSubcategories.map((subSub) => (
+                          <option key={subSub.id} value={subSub.id}>
+                            {subSub.emoji} {subSub.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Amount & Date */}
           <div className="grid grid-cols-2 gap-4">
@@ -861,6 +911,14 @@ export function PaymentForm({
         onClose={() => setShowIndividualModal(false)}
         onSuccess={handleCreateIndividualSuccess}
         onError={(error) => console.error('Create individual error:', error)}
+      />
+
+      {/* Create Category Modal */}
+      <CreateCategoryModal
+        isOpen={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        onSuccess={handleCreateCategorySuccess}
+        onError={(error) => console.error('Create category error:', error)}
       />
     </div>
   )
