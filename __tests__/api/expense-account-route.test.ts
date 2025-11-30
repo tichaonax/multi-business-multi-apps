@@ -4,7 +4,16 @@
  * @jest-environment node
  */
 
-import { NextRequest } from 'next/server'
+// Node environment may include web platform Request/Response - set to global if available
+if (typeof globalThis.Request !== 'undefined') {
+  global.Request = globalThis.Request
+  global.Response = globalThis.Response
+  global.Headers = globalThis.Headers
+}
+
+// NextRequest is used to craft request objects for Next.js route tests. Use runtime require after polyfills.
+// Avoid importing `next/server` directly due to environment server import hoisting and Request polyfill issues.
+// Use a minimal Request-like object for API route handlers in tests.
 import { createTestUser } from '../helpers/test-helpers'
 
 jest.mock('@/lib/auth', () => ({
@@ -13,6 +22,15 @@ jest.mock('@/lib/auth', () => ({
 
 jest.mock('next-auth', () => ({
   getServerSession: jest.fn(),
+}))
+
+// Mock next/server to avoid web Request imports that Node/Jest don't provide by default
+jest.mock('next/server', () => ({
+  NextRequest: class {},
+  NextResponse: { json: (body: any, options?: any) => ({
+    status: options?.status || 200,
+    json: async () => body
+  }) },
 }))
 
 jest.mock('@/lib/permission-utils', () => ({
@@ -88,7 +106,7 @@ describe('GET /api/expense-account', () => {
       },
     ])
 
-    const request = new NextRequest(new URL('http://localhost:3000/api/expense-account'), { method: 'GET' })
+    const request = { method: 'GET', url: 'http://localhost:3000/api/expense-account' } as any
     const response = await GET(request)
     const result = await response.json()
 

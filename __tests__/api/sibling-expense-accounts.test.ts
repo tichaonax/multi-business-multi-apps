@@ -4,7 +4,7 @@
  * @jest-environment node
  */
 
-import { NextRequest } from 'next/server'
+// Avoid importing next/server to prevent runtime Request imports during module evaluation
 import { createTestUser, createTestBusiness, createTestExpenseAccount } from '../helpers/test-helpers'
 
 // Mock the auth utilities
@@ -64,6 +64,12 @@ jest.mock('next-auth', () => ({
   getServerSession: jest.fn(),
 }))
 
+// Mock next/server as we don't have web platform globals in Jest by default
+jest.mock('next/server', () => ({
+  NextRequest: class {},
+  NextResponse: { json: (body: any, options?: any) => ({ status: options?.status || 200, json: async () => body }) },
+}))
+
 jest.mock('@/lib/permission-utils', () => ({
   getEffectivePermissions: jest.fn(),
 }))
@@ -74,6 +80,15 @@ const mockRequireAdmin = require('@/lib/auth-utils').requireAdmin
 const { prisma } = require('@/lib/prisma')
 const { GET, POST } = require('@/app/api/expense-account/[accountId]/sibling/route')
 const { POST: mergePOST } = require('@/app/api/expense-account/[accountId]/merge/route')
+
+// Helper to build Request-like objects for Next.js route tests
+function makeRequest(url: string, method: string = 'GET', body: any = null) {
+  return {
+    method,
+    url,
+    json: async () => body,
+  } as any
+}
 
 describe('/api/expense-account/[accountId]/sibling', () => {
   let testUser: any
@@ -128,10 +143,7 @@ describe('/api/expense-account/[accountId]/sibling', () => {
         ;(prisma.expenseAccounts.findUnique as jest.Mock).mockResolvedValue(parentAccount)
         ;(prisma.expenseAccounts.findMany as jest.Mock).mockResolvedValue(siblingAccounts)
 
-      const request = new NextRequest(
-        new URL(`http://localhost:3000/api/expense-account/${parentAccount.id}/sibling`),
-        { method: 'GET' }
-      )
+      const request = makeRequest(`http://localhost:3000/api/expense-account/${parentAccount.id}/sibling`, 'GET')
 
       const response = await GET(request, { params: { accountId: parentAccount.id } })
       const result = await response.json()
@@ -153,7 +165,7 @@ describe('/api/expense-account/[accountId]/sibling', () => {
       ;(prisma.expenseAccounts.findMany as jest.Mock).mockResolvedValue([])
       ;(prisma.expenseAccounts.findMany as jest.Mock).mockResolvedValue([])
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${parentAccount.id}/sibling`),
         { method: 'GET' }
       )
@@ -174,7 +186,7 @@ describe('/api/expense-account/[accountId]/sibling', () => {
       ;(prisma.expenseAccounts.findUnique as jest.Mock).mockResolvedValue(null)
       ;(prisma.expenseAccounts.findMany as jest.Mock).mockResolvedValue([])
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL('http://localhost:3000/api/expense-account/non-existent/sibling'),
         { method: 'GET' }
       )
@@ -192,7 +204,7 @@ describe('/api/expense-account/[accountId]/sibling', () => {
       const mockGetEffectivePermissions = require('@/lib/permission-utils').getEffectivePermissions
       mockGetEffectivePermissions.mockReturnValue({ canAccessExpenseAccount: false })
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${parentAccount.id}/sibling`),
         { method: 'GET' }
       )
@@ -229,7 +241,7 @@ describe('/api/expense-account/[accountId]/sibling', () => {
       ;(prisma.expenseAccounts.findFirst as jest.Mock).mockResolvedValue(null)
       ;(prisma.expenseAccounts.create as jest.Mock).mockResolvedValue(newSiblingAccount)
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${parentAccount.id}/sibling`),
         {
           method: 'POST',
@@ -277,7 +289,7 @@ describe('/api/expense-account/[accountId]/sibling', () => {
       ;(prisma.expenseAccount.create as jest.Mock).mockResolvedValue(newSiblingAccount)
       ;(prisma.expenseAccounts.create as jest.Mock).mockResolvedValue(newSiblingAccount)
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${parentAccount.id}/sibling`),
         {
           method: 'POST',
@@ -295,7 +307,7 @@ describe('/api/expense-account/[accountId]/sibling', () => {
     })
 
     it('should return 400 for invalid request data', async () => {
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${parentAccount.id}/sibling`),
         {
           method: 'POST',
@@ -317,7 +329,7 @@ describe('/api/expense-account/[accountId]/sibling', () => {
       ;(prisma.expenseAccount.findUnique as jest.Mock).mockResolvedValue(null)
       ;(prisma.expenseAccounts.findUnique as jest.Mock).mockResolvedValue(null)
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL('http://localhost:3000/api/expense-account/non-existent/sibling'),
         {
           method: 'POST',
@@ -401,7 +413,7 @@ describe('/api/expense-account/[accountId]/merge', () => {
         })
       })
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${siblingAccount.id}/merge`),
         {
           method: 'POST',
@@ -422,7 +434,7 @@ describe('/api/expense-account/[accountId]/merge', () => {
     })
 
     it('should return 400 when trying to merge account with itself', async () => {
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${parentAccount.id}/merge`),
         {
           method: 'POST',
@@ -451,7 +463,7 @@ describe('/api/expense-account/[accountId]/merge', () => {
       ;(prisma.expenseAccountTransaction.findMany as jest.Mock).mockResolvedValue(transactions)
       ;(prisma.expenseAccountTransactions.findMany as jest.Mock).mockResolvedValue(transactions)
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${siblingAccount.id}/merge`),
         {
           method: 'POST',
@@ -474,7 +486,7 @@ describe('/api/expense-account/[accountId]/merge', () => {
     it('should return 404 for non-existent sibling account', async () => {
       ;(prisma.expenseAccounts.findUnique as jest.Mock).mockResolvedValue(null)
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL('http://localhost:3000/api/expense-account/non-existent/merge'),
         {
           method: 'POST',
