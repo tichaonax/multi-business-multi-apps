@@ -90304,7 +90304,7 @@
       "updatedAt": "2025-11-30T02:02:28.805Z"
     },
     {
-      "id": "f23a7b10-16de-4d21-99a3-cca6f6ae1c3a",
+      "id": "benefit-medical-aid",
       "name": "Medical Aid",
       "description": null,
       "type": "insurance",
@@ -90348,7 +90348,7 @@
       "updatedAt": "2025-11-30T02:02:28.872Z"
     },
     {
-      "id": "88a35769-3a54-4071-a14b-e5339a277c09",
+      "id": "benefit-pension-fund",
       "name": "Pension Fund",
       "description": null,
       "type": "retirement",
@@ -90359,7 +90359,7 @@
       "updatedAt": "2025-11-30T02:02:30.665Z"
     },
     {
-      "id": "ccd15872-b16f-431d-9bf8-2e49a4bf16d4",
+      "id": "benefit-meal-allowance",
       "name": "Meal Allowance",
       "description": null,
       "type": "allowance",
@@ -90370,7 +90370,7 @@
       "updatedAt": "2025-11-30T02:02:30.672Z"
     },
     {
-      "id": "f6165b34-a94e-4e02-bb0c-5062a49ef1a4",
+      "id": "benefit-phone-allowance",
       "name": "Phone Allowance",
       "description": null,
       "type": "allowance",
@@ -90381,7 +90381,7 @@
       "updatedAt": "2025-11-30T02:02:30.673Z"
     },
     {
-      "id": "fa318048-4f8c-47b1-b7c0-69793b0c5791",
+      "id": "benefit-internet-allowance",
       "name": "Internet Allowance",
       "description": null,
       "type": "allowance",
@@ -90403,7 +90403,7 @@
       "updatedAt": "2025-11-30T02:02:28.848Z"
     },
     {
-      "id": "8c457bb0-9759-45a8-8f0a-db10bc73b603",
+      "id": "benefit-tool-allowance",
       "name": "Tool Allowance",
       "description": null,
       "type": "allowance",
@@ -90480,7 +90480,7 @@
       "updatedAt": "2025-11-30T02:02:28.851Z"
     },
     {
-      "id": "2ca30ca6-210a-4a11-b0f6-fc92a0ca7a20",
+      "id": "benefit-annual-bonus",
       "name": "Annual Bonus",
       "description": null,
       "type": "bonus",
@@ -90491,7 +90491,7 @@
       "updatedAt": "2025-11-30T02:02:30.692Z"
     },
     {
-      "id": "b4147caa-1829-4fdc-99b6-989d68cf961f",
+      "id": "benefit-overtime-pay",
       "name": "Overtime Pay",
       "description": null,
       "type": "compensation",
@@ -90502,7 +90502,7 @@
       "updatedAt": "2025-11-30T02:02:30.693Z"
     },
     {
-      "id": "dfb2c31d-74f2-44af-86fa-bd9b93c805e6",
+      "id": "benefit-night-shift-differential",
       "name": "Night Shift Differential",
       "description": null,
       "type": "compensation",
@@ -90513,7 +90513,7 @@
       "updatedAt": "2025-11-30T02:02:30.695Z"
     },
     {
-      "id": "86b610c8-7ea9-4e7a-8328-2f45b2e5af9b",
+      "id": "benefit-weekend-differential",
       "name": "Weekend Differential",
       "description": null,
       "type": "compensation",
