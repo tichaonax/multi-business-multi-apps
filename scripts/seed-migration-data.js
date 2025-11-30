@@ -146,47 +146,47 @@ async function seedJobTitles() {
 
   const jobTitles = [
     // Construction
-    { title: 'Site Supervisor', description: 'Supervises construction site operations', department: 'Construction', level: 'supervisor' },
-    { title: 'Civil Engineer', description: 'Designs and oversees civil engineering projects', department: 'Engineering', level: 'professional' },
-    { title: 'Project Manager', description: 'Manages construction projects from start to finish', department: 'Management', level: 'manager' },
-    { title: 'Mason', description: 'Skilled worker specializing in stone and brick work', department: 'Construction', level: 'skilled' },
-    { title: 'Carpenter', description: 'Skilled worker specializing in wood construction', department: 'Construction', level: 'skilled' },
-    { title: 'Electrician', description: 'Installs and maintains electrical systems', department: 'Construction', level: 'skilled' },
-    { title: 'Plumber', description: 'Installs and maintains plumbing systems', department: 'Construction', level: 'skilled' },
-    { title: 'Painter', description: 'Applies paint and finishes to buildings', department: 'Construction', level: 'skilled' },
-    { title: 'Welder', description: 'Joins metal parts through welding', department: 'Construction', level: 'skilled' },
-    { title: 'Foreman', description: 'Leads construction crews and ensures quality', department: 'Construction', level: 'supervisor' },
+    { id: 'job-site-supervisor', title: 'Site Supervisor', description: 'Supervises construction site operations', department: 'Construction', level: 'supervisor' },
+    { id: 'job-civil-engineer', title: 'Civil Engineer', description: 'Designs and oversees civil engineering projects', department: 'Engineering', level: 'professional' },
+    { id: 'job-project-manager', title: 'Project Manager', description: 'Manages construction projects from start to finish', department: 'Management', level: 'manager' },
+    { id: 'job-mason', title: 'Mason', description: 'Skilled worker specializing in stone and brick work', department: 'Construction', level: 'skilled' },
+    { id: 'job-carpenter', title: 'Carpenter', description: 'Skilled worker specializing in wood construction', department: 'Construction', level: 'skilled' },
+    { id: 'job-electrician', title: 'Electrician', description: 'Installs and maintains electrical systems', department: 'Construction', level: 'skilled' },
+    { id: 'job-plumber', title: 'Plumber', description: 'Installs and maintains plumbing systems', department: 'Construction', level: 'skilled' },
+    { id: 'job-painter', title: 'Painter', description: 'Applies paint and finishes to buildings', department: 'Construction', level: 'skilled' },
+    { id: 'job-welder', title: 'Welder', description: 'Joins metal parts through welding', department: 'Construction', level: 'skilled' },
+    { id: 'job-foreman', title: 'Foreman', description: 'Leads construction crews and ensures quality', department: 'Construction', level: 'supervisor' },
 
     // Management & Administration
-    { title: 'General Manager', description: 'Overall business operations management', department: 'Management', level: 'senior' },
-    { title: 'Operations Manager', description: 'Manages daily business operations', department: 'Operations', level: 'manager' },
-    { title: 'Human Resources Manager', description: 'Manages employee relations and policies', department: 'HR', level: 'manager' },
-    { title: 'Finance Manager', description: 'Manages financial operations and planning', department: 'Finance', level: 'manager' },
-    { title: 'Accountant', description: 'Handles financial records and transactions', department: 'Finance', level: 'professional' },
-    { title: 'Secretary', description: 'Provides administrative support', department: 'Administration', level: 'support' },
-    { title: 'Receptionist', description: 'Handles front desk and customer service', department: 'Administration', level: 'support' },
+    { id: 'job-general-manager', title: 'General Manager', description: 'Overall business operations management', department: 'Management', level: 'senior' },
+    { id: 'job-operations-manager', title: 'Operations Manager', description: 'Manages daily business operations', department: 'Operations', level: 'manager' },
+    { id: 'job-human-resources-manager', title: 'Human Resources Manager', description: 'Manages employee relations and policies', department: 'HR', level: 'manager' },
+    { id: 'job-finance-manager', title: 'Finance Manager', description: 'Manages financial operations and planning', department: 'Finance', level: 'manager' },
+    { id: 'job-accountant', title: 'Accountant', description: 'Handles financial records and transactions', department: 'Finance', level: 'professional' },
+    { id: 'job-secretary', title: 'Secretary', description: 'Provides administrative support', department: 'Administration', level: 'support' },
+    { id: 'job-receptionist', title: 'Receptionist', description: 'Handles front desk and customer service', department: 'Administration', level: 'support' },
 
     // Sales & Marketing
-    { title: 'Sales Manager', description: 'Manages sales team and strategies', department: 'Sales', level: 'manager' },
-    { title: 'Sales Representative', description: 'Sells products and services to customers', department: 'Sales', level: 'professional' },
-    { title: 'Marketing Manager', description: 'Develops and executes marketing strategies', department: 'Marketing', level: 'manager' },
+    { id: 'job-sales-manager', title: 'Sales Manager', description: 'Manages sales team and strategies', department: 'Sales', level: 'manager' },
+    { id: 'job-sales-representative', title: 'Sales Representative', description: 'Sells products and services to customers', department: 'Sales', level: 'professional' },
+    { id: 'job-marketing-manager', title: 'Marketing Manager', description: 'Develops and executes marketing strategies', department: 'Marketing', level: 'manager' },
 
     // Operations
-    { title: 'Warehouse Manager', description: 'Manages warehouse operations and inventory', department: 'Operations', level: 'manager' },
-    { title: 'Inventory Clerk', description: 'Tracks and manages inventory levels', department: 'Operations', level: 'support' },
-    { title: 'Quality Control Inspector', description: 'Ensures quality standards are met', department: 'Quality', level: 'professional' },
-    { title: 'Safety Officer', description: 'Ensures workplace safety compliance', department: 'Safety', level: 'professional' },
+    { id: 'job-warehouse-manager', title: 'Warehouse Manager', description: 'Manages warehouse operations and inventory', department: 'Operations', level: 'manager' },
+    { id: 'job-inventory-clerk', title: 'Inventory Clerk', description: 'Tracks and manages inventory levels', department: 'Operations', level: 'support' },
+    { id: 'job-quality-control-inspector', title: 'Quality Control Inspector', description: 'Ensures quality standards are met', department: 'Quality', level: 'professional' },
+    { id: 'job-safety-officer', title: 'Safety Officer', description: 'Ensures workplace safety compliance', department: 'Safety', level: 'professional' },
 
     // Technical
-    { title: 'IT Support Specialist', description: 'Provides technical support and maintenance', department: 'IT', level: 'professional' },
-    { title: 'Network Administrator', description: 'Manages computer networks and systems', department: 'IT', level: 'professional' },
+    { id: 'job-it-support-specialist', title: 'IT Support Specialist', description: 'Provides technical support and maintenance', department: 'IT', level: 'professional' },
+    { id: 'job-network-administrator', title: 'Network Administrator', description: 'Manages computer networks and systems', department: 'IT', level: 'professional' },
 
     // Customer Service
-    { title: 'Customer Service Representative', description: 'Assists customers with inquiries and issues', department: 'Customer Service', level: 'support' },
-    { title: 'Customer Service Manager', description: 'Manages customer service operations', department: 'Customer Service', level: 'manager' },
+    { id: 'job-customer-service-representative', title: 'Customer Service Representative', description: 'Assists customers with inquiries and issues', department: 'Customer Service', level: 'support' },
+    { id: 'job-customer-service-manager', title: 'Customer Service Manager', description: 'Manages customer service operations', department: 'Customer Service', level: 'manager' },
 
     // General
-    { title: 'Driver', description: 'Operates company vehicles for transportation', department: 'Operations', level: 'support' }
+    { id: 'job-driver', title: 'Driver', description: 'Operates company vehicles for transportation', department: 'Operations', level: 'support' }
   ]
 
   let seededCount = 0
@@ -200,7 +200,7 @@ async function seedJobTitles() {
       where: { title: jobTitle.title },
       update: jobTitle,
       create: {
-        id: require('crypto').randomUUID(),
+        id: jobTitle.id,
         ...jobTitle,
         responsibilities: [],
         isActive: true,
@@ -222,21 +222,21 @@ async function seedCompensationTypes() {
   console.log('💰 Seeding compensation types...')
 
   const compensationTypes = [
-    { name: 'Hourly Rate', type: 'hourly', baseAmount: null, commissionPercentage: null },
-    { name: 'Monthly Salary', type: 'salary', baseAmount: null, commissionPercentage: null },
-    { name: 'Weekly Wage', type: 'weekly', baseAmount: null, commissionPercentage: null },
-    { name: 'Daily Rate', type: 'daily', baseAmount: null, commissionPercentage: null },
-    { name: 'Commission Only', type: 'commission', baseAmount: null, commissionPercentage: null },
-    { name: 'Base + Commission', type: 'base_commission', baseAmount: null, commissionPercentage: null },
-    { name: 'Project Based', type: 'project', baseAmount: null, commissionPercentage: null },
-    { name: 'Piece Rate', type: 'piece', baseAmount: null, commissionPercentage: null },
-    { name: 'Annual Salary', type: 'annual', baseAmount: null, commissionPercentage: null },
-    { name: 'Contract Rate', type: 'contract', baseAmount: null, commissionPercentage: null },
-    { name: 'Performance Based', type: 'performance', baseAmount: null, commissionPercentage: null },
-    { name: 'Retainer', type: 'retainer', baseAmount: null, commissionPercentage: null },
-    { name: 'Consulting Fee', type: 'consulting', baseAmount: null, commissionPercentage: null },
-    { name: 'Freelance Rate', type: 'freelance', baseAmount: null, commissionPercentage: null },
-    { name: 'Stipend', type: 'stipend', baseAmount: null, commissionPercentage: null }
+    { id: 'comp-hourly-rate', name: 'Hourly Rate', type: 'hourly', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-monthly-salary', name: 'Monthly Salary', type: 'salary', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-weekly-wage', name: 'Weekly Wage', type: 'weekly', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-daily-rate', name: 'Daily Rate', type: 'daily', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-commission-only', name: 'Commission Only', type: 'commission', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-base-plus-commission', name: 'Base + Commission', type: 'base_commission', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-project-based', name: 'Project Based', type: 'project', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-piece-rate', name: 'Piece Rate', type: 'piece', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-annual-salary', name: 'Annual Salary', type: 'annual', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-contract-rate', name: 'Contract Rate', type: 'contract', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-performance-based', name: 'Performance Based', type: 'performance', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-retainer', name: 'Retainer', type: 'retainer', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-consulting-fee', name: 'Consulting Fee', type: 'consulting', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-freelance-rate', name: 'Freelance Rate', type: 'freelance', baseAmount: null, commissionPercentage: null },
+    { id: 'comp-stipend', name: 'Stipend', type: 'stipend', baseAmount: null, commissionPercentage: null }
   ]
 
   let seededCount = 0
@@ -250,7 +250,7 @@ async function seedCompensationTypes() {
       where: { name: compensationType.name },
       update: compensationType,
       create: {
-        id: require('crypto').randomUUID(),
+        id: compensationType.id,
         ...compensationType,
         isActive: true,
         createdAt: new Date(),
@@ -272,42 +272,42 @@ async function seedBenefitTypes() {
 
   const benefitTypes = [
     // Insurance Benefits
-    { name: 'Health Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
-    { name: 'Medical Aid', type: 'insurance', defaultAmount: null, isPercentage: false },
-    { name: 'Dental Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
-    { name: 'Life Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
-    { name: 'Disability Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
-    { name: 'Pension Fund', type: 'retirement', defaultAmount: null, isPercentage: true },
-    { name: 'Provident Fund', type: 'retirement', defaultAmount: null, isPercentage: true },
-    { name: 'Retirement Savings', type: 'retirement', defaultAmount: null, isPercentage: true },
+    { id: 'benefit-health-insurance', name: 'Health Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-medical-aid', name: 'Medical Aid', type: 'insurance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-dental-insurance', name: 'Dental Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-life-insurance', name: 'Life Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-disability-insurance', name: 'Disability Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-pension-fund', name: 'Pension Fund', type: 'retirement', defaultAmount: null, isPercentage: true },
+    { id: 'benefit-provident-fund', name: 'Provident Fund', type: 'retirement', defaultAmount: null, isPercentage: true },
+    { id: 'benefit-retirement-savings', name: 'Retirement Savings', type: 'retirement', defaultAmount: null, isPercentage: true },
 
     // Allowances
-    { name: 'Housing Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
-    { name: 'Transport Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
-    { name: 'Meal Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
-    { name: 'Phone Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
-    { name: 'Internet Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
-    { name: 'Uniform Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
-    { name: 'Tool Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-housing-allowance', name: 'Housing Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-transport-allowance', name: 'Transport Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-meal-allowance', name: 'Meal Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-phone-allowance', name: 'Phone Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-internet-allowance', name: 'Internet Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-uniform-allowance', name: 'Uniform Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-tool-allowance', name: 'Tool Allowance', type: 'allowance', defaultAmount: null, isPercentage: false },
 
     // Time Off
-    { name: 'Annual Leave', type: 'time_off', defaultAmount: 21, isPercentage: false },
-    { name: 'Sick Leave', type: 'time_off', defaultAmount: 10, isPercentage: false },
-    { name: 'Maternity Leave', type: 'time_off', defaultAmount: 90, isPercentage: false },
-    { name: 'Paternity Leave', type: 'time_off', defaultAmount: 5, isPercentage: false },
-    { name: 'Study Leave', type: 'time_off', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-annual-leave', name: 'Annual Leave', type: 'time_off', defaultAmount: 21, isPercentage: false },
+    { id: 'benefit-sick-leave', name: 'Sick Leave', type: 'time_off', defaultAmount: 10, isPercentage: false },
+    { id: 'benefit-maternity-leave', name: 'Maternity Leave', type: 'time_off', defaultAmount: 90, isPercentage: false },
+    { id: 'benefit-paternity-leave', name: 'Paternity Leave', type: 'time_off', defaultAmount: 5, isPercentage: false },
+    { id: 'benefit-study-leave', name: 'Study Leave', type: 'time_off', defaultAmount: null, isPercentage: false },
 
     // Other Benefits
-    { name: 'Performance Bonus', type: 'bonus', defaultAmount: null, isPercentage: true },
-    { name: 'Annual Bonus', type: 'bonus', defaultAmount: null, isPercentage: true },
-    { name: 'Overtime Pay', type: 'compensation', defaultAmount: 1.5, isPercentage: true },
-    { name: 'Night Shift Differential', type: 'compensation', defaultAmount: 10, isPercentage: true },
-    { name: 'Weekend Differential', type: 'compensation', defaultAmount: 15, isPercentage: true },
-    { name: 'Training Budget', type: 'development', defaultAmount: null, isPercentage: false },
-    { name: 'Professional Development', type: 'development', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-performance-bonus', name: 'Performance Bonus', type: 'bonus', defaultAmount: null, isPercentage: true },
+    { id: 'benefit-annual-bonus', name: 'Annual Bonus', type: 'bonus', defaultAmount: null, isPercentage: true },
+    { id: 'benefit-overtime-pay', name: 'Overtime Pay', type: 'compensation', defaultAmount: 1.5, isPercentage: true },
+    { id: 'benefit-night-shift-differential', name: 'Night Shift Differential', type: 'compensation', defaultAmount: 10, isPercentage: true },
+    { id: 'benefit-weekend-differential', name: 'Weekend Differential', type: 'compensation', defaultAmount: 15, isPercentage: true },
+    { id: 'benefit-training-budget', name: 'Training Budget', type: 'development', defaultAmount: null, isPercentage: false },
+    { id: 'benefit-professional-development', name: 'Professional Development', type: 'development', defaultAmount: null, isPercentage: false },
 
     // Company Benefits
-    { name: 'Company Vehicle', type: 'company', defaultAmount: null, isPercentage: false }
+    { id: 'benefit-company-vehicle', name: 'Company Vehicle', type: 'company', defaultAmount: null, isPercentage: false }
   ]
 
   let seededCount = 0
@@ -321,7 +321,7 @@ async function seedBenefitTypes() {
       where: { name: benefitType.name },
       update: benefitType,
       create: {
-        id: require('crypto').randomUUID(),
+        id: benefitType.id,
         ...benefitType,
         isActive: true,
         createdAt: new Date(),
