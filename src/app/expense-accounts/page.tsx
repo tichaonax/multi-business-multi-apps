@@ -14,6 +14,7 @@ export default function ExpenseAccountsPage() {
   const [canAccessExpenseAccount, setCanAccessExpenseAccount] = useState(false)
   const [canCreateSiblingAccounts, setCanCreateSiblingAccounts] = useState(false)
   const [canMergeSiblingAccounts, setCanMergeSiblingAccounts] = useState(false)
+  const [canViewExpenseReports, setCanViewExpenseReports] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function ExpenseAccountsPage() {
       setCanCreateAccount(permissions.canCreateExpenseAccount || false)
       setCanCreateSiblingAccounts(permissions.canCreateSiblingAccounts || false)
       setCanMergeSiblingAccounts(permissions.canMergeSiblingAccounts || false)
+      setCanViewExpenseReports(permissions.canViewExpenseReports || false)
 
       // Redirect if no access permission
       if (!permissions.canAccessExpenseAccount) {
@@ -79,6 +81,7 @@ export default function ExpenseAccountsPage() {
           canCreateAccount={canCreateAccount}
           canCreateSiblingAccounts={canCreateSiblingAccounts}
           canMergeSiblingAccounts={canMergeSiblingAccounts}
+          canViewExpenseReports={canViewExpenseReports}
         />
       </div>
     </ContentLayout>

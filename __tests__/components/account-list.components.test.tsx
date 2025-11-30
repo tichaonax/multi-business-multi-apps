@@ -4,6 +4,10 @@ import React from 'react'
 // We'll set up a spy on `useRouter` from next/navigation after imports for better control
 const pushMock = jest.fn(() => Promise.resolve(undefined))
 import { renderWithProviders as render, screen, waitFor, within } from '../helpers/render-with-providers'
+import { render as rtlRender } from '@testing-library/react'
+import { ThemeProvider } from '@/contexts/theme-context'
+import { ToastProvider } from '@/components/ui/toast'
+import { ConfirmProvider } from '@/components/ui/confirm-modal'
 import * as nextNavigation from 'next/navigation'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
@@ -181,6 +185,120 @@ describe('AccountList Component', () => {
     expect(largestAmountLink).toBeInTheDocument()
     expect(largestAmountLink).toHaveAttribute('href', '/expense-accounts/parent_1/payments/pay_parent_1')
     // Simulate server returning a valid page — ensure it should exist now
+  })
+
+  it('keeps deposit link clickable after merging a sibling', async () => {
+    const parentAccount = {
+      id: 'parent_1',
+      accountNumber: 'EXP-001',
+      accountName: 'Office Supplies',
+      balance: 1000,
+      depositsTotal: 1000,
+      paymentsTotal: 100,
+      depositCount: 1,
+      paymentCount: 1,
+      largestPayment: 100,
+      largestPaymentPayee: 'Vendor A',
+      largestPaymentId: 'pay_parent_1',
+      lowBalanceThreshold: 500,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      parentAccountId: null,
+      siblingNumber: null,
+      isSibling: false,
+      canMerge: true,
+      creator: { name: 'Test', email: 'test@example.com' },
+    }
+
+    const siblingAccount = {
+      id: 'sib_1',
+      accountNumber: 'EXP-001-1',
+      accountName: 'Historical Q1',
+      balance: 0,
+      depositsTotal: 0,
+      paymentsTotal: 0,
+      depositCount: 0,
+      paymentCount: 0,
+      largestPayment: 0,
+      largestPaymentPayee: null,
+      largestPaymentId: null,
+      lowBalanceThreshold: 0,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      parentAccountId: 'parent_1',
+      siblingNumber: 1,
+      isSibling: true,
+      canMerge: true,
+      creator: { name: 'Test', email: 'test@example.com' },
+    }
+
+    const updatedParent = { ...parentAccount, depositCount: 2, depositsTotal: 1100 }
+
+    const settingsResponse = {
+      allowSelfRegistration: true,
+      defaultRegistrationRole: 'employee',
+      requireAdminApproval: false,
+      maxUsersPerBusiness: 50,
+      globalDateFormat: 'dd/mm/yyyy',
+      defaultCountryCode: 'ZW',
+    }
+
+    let accountLoads = 0
+    const fetchMock = jest.fn(async (input: RequestInfo, init?: RequestInit) => {
+      console.log('fetchMock called with', typeof input === 'string' ? input : (input as any)?.url || input.toString(), init)
+      const url = typeof input === 'string' ? input : (input as any)?.url || input.toString()
+      if (url.includes('/api/admin/settings')) {
+        return { ok: true, json: async () => settingsResponse }
+      }
+
+      if (url.includes('/api/expense-account') && (!init || init.method === 'GET')) {
+        accountLoads += 1
+        // First account GET returns both parent and sibling
+        if (accountLoads === 1) {
+          return { ok: true, json: async () => ({ success: true, data: { accounts: [parentAccount, siblingAccount] } }) }
+        }
+        // Subsequent account GET returns updated parent only
+        return { ok: true, json: async () => ({ success: true, data: { accounts: [updatedParent] } }) }
+      }
+
+      if (url.includes('/merge') && init?.method === 'POST') {
+        return { ok: true, json: async () => ({ success: true, message: 'Merged', data: { mergedAccountId: siblingAccount.id, parentAccountId: parentAccount.id } }) }
+      }
+
+      // Default generic ok response for other endpoints
+      return { ok: true, json: async () => ({}) }
+    })
+
+    ;(global as any).fetch = fetchMock
+
+    const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
+      <ThemeProvider>
+        <ToastProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    )
+    rtlRender(<AccountList canCreateAccount={false} canCreateSiblingAccounts={true} canMergeSiblingAccounts={true} canViewExpenseReports={true} />, { wrapper: Wrapper })
+    await waitFor(() => expect(screen.getByText('Office Supplies')).toBeInTheDocument())
+
+    // Click Merge button for the sibling
+    const siblingCard = screen.getByText('Historical Q1').closest('.card') as HTMLElement
+    const mergeButton = within(siblingCard).getByRole('button', { name: /merge/i })
+    await userEvent.click(mergeButton)
+
+    // Modal should appear; click through steps
+    const nextButton = await screen.findByRole('button', { name: /Next: Confirm Merge/i })
+    await userEvent.click(nextButton)
+    const confirmMergeButton = await screen.findByRole('button', { name: /Merge Accounts/i })
+    await userEvent.click(confirmMergeButton)
+
+    // After merge completes, account list reload should show updated parent only
+    await waitFor(() => expect(screen.getByText('Office Supplies')).toBeInTheDocument())
+    // Verify deposit link exists and has updated depositCount
+    const parentCard = screen.getByText('Office Supplies').closest('.card') as HTMLElement
+    const depositLink = within(parentCard).getByRole('link', { name: /Open deposit report for Office Supplies/ })
+    expect(depositLink).toBeInTheDocument()
+    expect(within(depositLink).getByText('2')).toBeInTheDocument()
   })
 })
 

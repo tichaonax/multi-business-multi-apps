@@ -44,6 +44,34 @@ export async function updateExpenseAccountBalance(accountId: string) {
 }
 
 /**
+ * Update expense account balance using a provided transaction client (tx)
+ * This ensures updates can participate in an existing transaction and avoid race conditions
+ */
+export async function updateExpenseAccountBalanceTx(tx: any, accountId: string) {
+  // Reuse the same logic as calculateExpenseAccountBalance but executed with tx
+  const depositsSum = await tx.expenseAccountDeposits.aggregate({
+    where: { expenseAccountId: accountId },
+    _sum: { amount: true },
+  })
+
+  const paymentsSum = await tx.expenseAccountPayments.aggregate({
+    where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+    _sum: { amount: true },
+  })
+
+  const totalDeposits = Number(depositsSum._sum.amount || 0)
+  const totalPayments = Number(paymentsSum._sum.amount || 0)
+  const balance = totalDeposits - totalPayments
+
+  await tx.expenseAccounts.update({
+    where: { id: accountId },
+    data: { balance, updatedAt: new Date() },
+  })
+
+  return balance
+}
+
+/**
  * Get expense account balance with transaction summary
  * @param accountId - The expense account ID
  */
@@ -694,8 +722,8 @@ export async function mergeSiblingAccount(siblingAccountId: string, userId: stri
       where: { id: siblingAccountId },
     })
 
-    // Update parent account balance
-    await updateExpenseAccountBalance(siblingAccount.parentAccountId!)
+    // Update parent account balance inside the same transaction to prevent race conditions
+    await updateExpenseAccountBalanceTx(tx, siblingAccount.parentAccountId!)
 
     return {
       mergedAccountId: siblingAccountId,

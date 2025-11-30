@@ -1090,6 +1090,7 @@ model ExpenseCategories {
   emoji                    String                   @default("💰")
   color                    String                   @default("#3B82F6")
   createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @default(now()) @updatedAt
   isDefault                Boolean                  @default(false)
   domainId                 String?
   description              String?

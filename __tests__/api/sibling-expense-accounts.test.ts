@@ -82,11 +82,33 @@ const { GET, POST } = require('@/app/api/expense-account/[accountId]/sibling/rou
 const { POST: mergePOST } = require('@/app/api/expense-account/[accountId]/merge/route')
 
 // Helper to build Request-like objects for Next.js route tests
-function makeRequest(url: string, method: string = 'GET', body: any = null) {
+function makeRequest(url: string | URL, methodOrOpts: any = 'GET', body: any = null) {
+  let method = 'GET'
+  let requestBody = body
+
+  if (typeof methodOrOpts === 'string') {
+    method = methodOrOpts
+  } else if (methodOrOpts && typeof methodOrOpts === 'object') {
+    method = methodOrOpts.method || 'GET'
+    requestBody = methodOrOpts.body !== undefined ? methodOrOpts.body : requestBody
+  }
+
+  // If URL object passed, convert to string
+  const urlStr = typeof url === 'string' ? url : url.toString()
+
   return {
     method,
-    url,
-    json: async () => body,
+    url: urlStr,
+    json: async () => {
+      if (typeof requestBody === 'string') {
+        try {
+          return JSON.parse(requestBody)
+        } catch (e) {
+          return requestBody
+        }
+      }
+      return requestBody
+    },
   } as any
 }
 
@@ -404,8 +426,14 @@ describe('/api/expense-account/[accountId]/merge', () => {
       ;(prisma.expenseAccountTransactions.findMany as jest.Mock).mockResolvedValue([])
       ;(prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         return callback({
-          expenseAccountDeposits: { updateMany: jest.fn().mockResolvedValue([]) },
-          expenseAccountPayments: { updateMany: jest.fn().mockResolvedValue([]) },
+          expenseAccountDeposits: {
+            updateMany: jest.fn().mockResolvedValue([]),
+            aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
+          },
+          expenseAccountPayments: {
+            updateMany: jest.fn().mockResolvedValue([]),
+            aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
+          },
           expenseAccounts: {
             update: jest.fn().mockResolvedValue(mergedAccount),
             delete: jest.fn().mockResolvedValue(siblingAccount),
@@ -511,7 +539,7 @@ describe('/api/expense-account/[accountId]/merge', () => {
         return null
       })
 
-      const request = new NextRequest(
+      const request = makeRequest(
         new URL(`http://localhost:3000/api/expense-account/${siblingAccount.id}/merge`),
         {
           method: 'POST',
