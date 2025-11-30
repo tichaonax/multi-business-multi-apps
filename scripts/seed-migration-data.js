@@ -672,7 +672,7 @@ async function seedExpenseAccounts() {
   // Create test expense accounts
   const accounts = [
     {
-      id: `acc_${Date.now()}_general`,
+      id: 'acc-general-expenses',
       accountName: 'General Expenses',
       accountNumber: 'EXP-001',
       description: 'General business expense account for operational costs',
@@ -681,7 +681,7 @@ async function seedExpenseAccounts() {
       isActive: true
     },
     {
-      id: `acc_${Date.now()}_travel`,
+      id: 'acc-travel-accommodation',
       accountName: 'Travel & Accommodation',
       accountNumber: 'EXP-002',
       description: 'Expense account for business travel and accommodation',
@@ -690,7 +690,7 @@ async function seedExpenseAccounts() {
       isActive: true
     },
     {
-      id: `acc_${Date.now()}_supplies`,
+      id: 'acc-office-supplies',
       accountName: 'Office Supplies',
       accountNumber: 'EXP-003',
       description: 'Expense account for office supplies and equipment',

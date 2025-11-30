@@ -8,9 +8,15 @@
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
+// Helper function to create fixed IDs
+function createFixedId(prefix, name) {
+  return `${prefix}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`;
+}
+
 // Predefined flat categories (requiresSubcategory = false)
 const FLAT_CATEGORIES = [
   {
+    id: 'cat-flat-contractor-services',
     name: 'Contractor Services',
     emoji: '🔨',
     color: '#F59E0B',
@@ -19,6 +25,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-professional-fees',
     name: 'Professional Fees',
     emoji: '💼',
     color: '#3B82F6',
@@ -27,6 +34,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-utilities-services',
     name: 'Utilities & Services',
     emoji: '⚡',
     color: '#10B981',
@@ -35,6 +43,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-office-supplies',
     name: 'Office Supplies',
     emoji: '📎',
     color: '#8B5CF6',
@@ -43,6 +52,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-maintenance-repairs',
     name: 'Maintenance & Repairs',
     emoji: '🔧',
     color: '#EF4444',
@@ -51,6 +61,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-transportation',
     name: 'Transportation',
     emoji: '🚗',
     color: '#06B6D4',
@@ -59,6 +70,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-insurance',
     name: 'Insurance',
     emoji: '🛡️',
     color: '#14B8A6',
@@ -67,6 +79,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-subscriptions',
     name: 'Subscriptions',
     emoji: '📱',
     color: '#A855F7',
@@ -75,6 +88,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-miscellaneous',
     name: 'Miscellaneous',
     emoji: '💰',
     color: '#6B7280',
@@ -83,6 +97,7 @@ const FLAT_CATEGORIES = [
     isDefault: true,
   },
   {
+    id: 'cat-flat-salaries',
     name: 'Salaries',
     emoji: '💵',
     color: '#059669',
@@ -127,6 +142,7 @@ async function seedFlatCategories() {
       // Create new category
       const newCategory = await prisma.expenseCategories.create({
         data: {
+          id: category.id,
           name: category.name,
           emoji: category.emoji,
           color: category.color,

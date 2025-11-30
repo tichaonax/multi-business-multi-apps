@@ -5,6 +5,11 @@ const { randomUUID } = require('crypto');
 
 const prisma = new PrismaClient();
 
+// Helper function to create fixed IDs
+function createFixedId(prefix, name) {
+  return `${prefix}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`;
+}
+
 // Domain configuration mapping file names to domain info
 const DOMAIN_CONFIG = {
   'business-expenses.md': {
@@ -193,7 +198,7 @@ async function seedExpenseCategories() {
       // Create domain
       const createdDomain = await tx.expenseDomains.create({
         data: {
-          id: randomUUID(),
+          id: createFixedId('domain', domain.domainName),
           name: domain.domainName,
           emoji: domain.domainEmoji,
           description: domain.domainDescription,
@@ -206,7 +211,7 @@ async function seedExpenseCategories() {
       for (const category of domain.categories) {
         const createdCategory = await tx.expenseCategories.create({
           data: {
-            id: randomUUID(),
+            id: createFixedId('cat', `${domain.domainName}-${category.name}`),
             domainId: createdDomain.id,
             name: category.name,
             emoji: category.emoji,
@@ -222,7 +227,7 @@ async function seedExpenseCategories() {
         for (const subcategory of category.subcategories) {
           await tx.expenseSubcategories.create({
             data: {
-              id: randomUUID(),
+              id: createFixedId('subcat', `${domain.domainName}-${category.name}-${subcategory.name}`),
               categoryId: createdCategory.id,
               name: subcategory.name,
               emoji: subcategory.emoji,
