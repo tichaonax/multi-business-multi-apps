@@ -141,7 +141,7 @@ export function BusinessSelectionModal({
       setError('Product name is required')
       return
     }
-n    // Clothing requires size
+    // Clothing requires size
     if (selectedInventoryType === 'clothing' && !size) {
       setError('Size is required for clothing items')
       return

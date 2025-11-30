@@ -56,13 +56,20 @@ interface PaymentFormProps {
   currentBalance: number
   onSuccess?: () => void
   onAddFunds?: () => void
+  accountInfo?: {
+    accountName: string
+    isSibling: boolean
+    siblingNumber: number | null
+    parentAccountId: string | null
+  }
 }
 
 export function PaymentForm({
   accountId,
   currentBalance,
   onSuccess,
-  onAddFunds
+  onAddFunds,
+  accountInfo
 }: PaymentFormProps) {
   const customAlert = useAlert()
   const customConfirm = useConfirm()
@@ -563,6 +570,23 @@ export function PaymentForm({
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           {editingPaymentId ? 'Edit Payment' : 'Add Payment to Batch'}
         </h3>
+
+        {/* Sibling Account Indicator */}
+        {accountInfo?.isSibling && (
+          <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                SIBLING ACCOUNT
+              </span>
+              <span className="text-sm text-purple-700 dark:text-purple-300">
+                #{accountInfo.siblingNumber} of {accountInfo.accountName}
+              </span>
+            </div>
+            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+              💡 This is a sibling account for entering historical expense data. Payments here will be merged back into the parent account later.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-4">
           {/* Payee Selector */}

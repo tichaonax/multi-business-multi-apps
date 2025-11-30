@@ -31,6 +31,9 @@ Cookie: next-auth.session-token={token}
 | GET | `/expense-account/[accountId]/reports` | `canViewExpenseReports` | Get account reports |
 | GET | `/expense-account/payees/[payeeType]/[payeeId]/payments` | `canAccessExpenseAccount` | Get payee payments |
 | GET | `/expense-account/payees/[payeeType]/[payeeId]/reports` | `canViewExpenseReports` | Get payee reports |
+| GET | `/expense-account/[accountId]/sibling` | `canAccessExpenseAccount` | List sibling accounts |
+| POST | `/expense-account/[accountId]/sibling` | `canCreateExpenseAccount` | Create sibling account |
+| POST | `/expense-account/[accountId]/merge` | `canMergeSiblingAccounts` | Merge sibling into parent |
 
 ---
 
@@ -719,6 +722,222 @@ Get analytics and reports for a specific payee across all expense accounts.
 
 ---
 
+## 11. List Sibling Accounts
+
+### GET `/expense-account/[accountId]/sibling`
+
+List all sibling accounts for a given parent expense account.
+
+**Permission:** `canAccessExpenseAccount`
+
+**Path Parameters:**
+- `accountId` (string, required): The parent expense account ID
+
+**Query Parameters:** None
+
+**Response: 200 OK**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "exp_sib_123",
+      "accountNumber": "EXP-001-01",
+      "name": "Q4 2024 Historical Data",
+      "description": "Historical expense data entry",
+      "balance": 250.75,
+      "isSibling": true,
+      "canMerge": true,
+      "parentAccountId": "exp_001",
+      "siblingNumber": 1,
+      "businessId": "biz_123",
+      "createdAt": "2025-11-15T10:30:00Z",
+      "updatedAt": "2025-11-15T14:45:00Z"
+    }
+  ]
+}
+```
+
+**Response: 404 Not Found**
+```json
+{
+  "success": false,
+  "error": "Parent account not found"
+}
+```
+
+**Response: 403 Forbidden**
+```json
+{
+  "success": false,
+  "error": "Permission denied"
+}
+```
+
+---
+
+## 12. Create Sibling Account
+
+### POST `/expense-account/[accountId]/sibling`
+
+Create a new sibling account for historical data entry.
+
+**Permission:** `canCreateExpenseAccount`
+
+**Path Parameters:**
+- `accountId` (string, required): The parent expense account ID
+
+**Request Body:**
+```json
+{
+  "name": "Q4 2024 Historical Data",
+  "description": "For entering historical expenses from Q4"
+}
+```
+
+**Request Body Schema:**
+- `name` (string, required): Display name for the sibling account (1-100 characters)
+- `description` (string, optional): Detailed description of the sibling's purpose
+
+**Response: 201 Created**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "exp_sib_456",
+    "accountNumber": "EXP-001-01",
+    "name": "Q4 2024 Historical Data",
+    "description": "For entering historical expenses from Q4",
+    "balance": 0,
+    "isSibling": true,
+    "canMerge": true,
+    "parentAccountId": "exp_001",
+    "siblingNumber": 1,
+    "businessId": "biz_123",
+    "createdAt": "2025-11-29T09:15:00Z",
+    "updatedAt": "2025-11-29T09:15:00Z"
+  }
+}
+```
+
+**Response: 400 Bad Request**
+```json
+{
+  "success": false,
+  "error": "Name is required"
+}
+```
+
+**Response: 404 Not Found**
+```json
+{
+  "success": false,
+  "error": "Parent account not found"
+}
+```
+
+**Response: 403 Forbidden**
+```json
+{
+  "success": false,
+  "error": "Permission denied"
+}
+```
+
+---
+
+## 13. Merge Sibling Account
+
+### POST `/expense-account/[accountId]/merge`
+
+Merge a sibling account back into its parent account. This operation transfers all transactions and optionally the balance.
+
+**Permission:** `canMergeSiblingAccounts` (admin permission required for non-zero balance siblings)
+
+**Path Parameters:**
+- `accountId` (string, required): The sibling expense account ID to merge
+
+**Request Body:**
+```json
+{
+  "targetAccountId": "exp_001"
+}
+```
+
+**Request Body Schema:**
+- `targetAccountId` (string, required): The parent account ID to merge into (must match sibling's parentAccountId)
+
+**Response: 200 OK**
+```json
+{
+  "success": true,
+  "data": {
+    "mergedAccount": {
+      "id": "exp_001",
+      "accountNumber": "EXP-001",
+      "name": "Main Expense Account",
+      "balance": 1250.75,
+      "updatedAt": "2025-11-29T10:30:00Z"
+    },
+    "deletedSibling": {
+      "id": "exp_sib_456",
+      "accountNumber": "EXP-001-01",
+      "name": "Q4 2024 Historical Data",
+      "balance": 250.75
+    },
+    "transactionsTransferred": 15,
+    "balanceTransferred": 250.75
+  }
+}
+```
+
+**Response: 400 Bad Request**
+```json
+{
+  "success": false,
+  "error": "Cannot merge account with itself"
+}
+```
+
+```json
+{
+  "success": false,
+  "error": "Sibling account has non-zero balance and requires admin permission"
+}
+```
+
+```json
+{
+  "success": false,
+  "error": "Sibling account has existing transactions and cannot be merged"
+}
+```
+
+**Response: 404 Not Found**
+```json
+{
+  "success": false,
+  "error": "Sibling account not found"
+}
+```
+
+```json
+{
+  "success": false,
+  "error": "Target account not found"
+}
+```
+
+**Response: 403 Forbidden**
+```json
+{
+  "success": false,
+  "error": "Permission denied"
+}
+```
+
+---
+
 ## Error Handling
 
 ### Standard Error Response Format
@@ -765,6 +984,13 @@ Not currently implemented. Future enhancement could include:
 ---
 
 ## Changelog
+
+**Version 1.1.0** (2025-11-29)
+- Added sibling account endpoints for historical data entry
+- GET `/expense-account/[accountId]/sibling` - List sibling accounts
+- POST `/expense-account/[accountId]/sibling` - Create sibling account
+- POST `/expense-account/[accountId]/merge` - Merge sibling into parent
+- Added `canMergeSiblingAccounts` permission for admin merge operations
 
 **Version 1.0.0** (2025-11-26)
 - Initial release

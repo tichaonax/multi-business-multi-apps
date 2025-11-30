@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { CreateAccountModal } from './create-account-modal'
+import { CreateSiblingAccountModal } from './create-sibling-modal'
+import { MergeAccountModal } from './merge-account-modal'
 import type { OnSuccessArg } from '@/types/ui'
 
 interface ExpenseAccount {
@@ -12,8 +14,18 @@ interface ExpenseAccount {
   description: string | null
   balance: number
   lowBalanceThreshold: number
+  depositsTotal?: number
+  paymentsTotal?: number
+  depositCount?: number
+  paymentCount?: number
+  largestPayment?: number
+  largestPaymentPayee?: string | null
   isActive: boolean
   createdAt: string
+  parentAccountId?: string | null
+  siblingNumber?: number | null
+  isSibling: boolean
+  canMerge: boolean
   creator?: {
     name: string
     email: string
@@ -23,15 +35,27 @@ interface ExpenseAccount {
 interface AccountListProps {
   onSelectAccount?: (account: ExpenseAccount) => void
   canCreateAccount?: boolean
+  canCreateSiblingAccounts?: boolean
+  canMergeSiblingAccounts?: boolean
+  canViewExpenseReports?: boolean
 }
 
-export function AccountList({ onSelectAccount, canCreateAccount = false }: AccountListProps) {
+export function AccountList({ 
+  onSelectAccount, 
+  canCreateAccount = false,
+  canCreateSiblingAccounts = false,
+  canMergeSiblingAccounts = false
+  , canViewExpenseReports = false
+}: AccountListProps) {
   const router = useRouter()
   const [accounts, setAccounts] = useState<ExpenseAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('active')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showCreateSiblingModal, setShowCreateSiblingModal] = useState(false)
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [selectedAccount, setSelectedAccount] = useState<ExpenseAccount | null>(null)
 
   useEffect(() => {
     loadAccounts()
@@ -104,6 +128,43 @@ export function AccountList({ onSelectAccount, canCreateAccount = false }: Accou
 
   const handleCreateError = (error: string) => {
     console.error('Account creation error:', error)
+  }
+
+  const handleSiblingCreate = (account: ExpenseAccount) => {
+    setSelectedAccount(account)
+    setShowCreateSiblingModal(true)
+  }
+
+  const handleMergeAccount = (account: ExpenseAccount) => {
+    setSelectedAccount(account)
+    setShowMergeModal(true)
+  }
+
+  const handleSiblingSuccess = (payload: OnSuccessArg) => {
+    if (payload.refresh) {
+      loadAccounts()
+    }
+  }
+
+  const handleMergeSuccess = (payload: OnSuccessArg) => {
+    if (payload.refresh) {
+      loadAccounts()
+    }
+  }
+
+  const handleSiblingCreateSuccess = (payload: OnSuccessArg) => {
+    loadAccounts()
+    if (payload.id) {
+      router.push(`/expense-accounts/${payload.id}`)
+    }
+  }
+
+  const handleSiblingCreateError = (error: string) => {
+    console.error('Sibling account creation error:', error)
+  }
+
+  const handleMergeError = (error: string) => {
+    console.error('Account merge error:', error)
   }
 
   // Filter accounts
@@ -202,12 +263,12 @@ export function AccountList({ onSelectAccount, canCreateAccount = false }: Accou
 
             return (
               <div
-                key={account.id}
-                onClick={() => handleAccountClick(account)}
-                className="card hover:shadow-md transition-shadow cursor-pointer"
-              >
+                    key={account.id}
+                    onClick={() => handleAccountClick(account)}
+                    className={`card px-6 hover:shadow-md transition-shadow cursor-pointer ${account.isSibling ? 'bg-gradient-to-r from-purple-50/50 dark:from-purple-900/10 border-l-4 border-purple-300 dark:border-purple-700' : ''}`}
+                  >
                 <div className="flex items-center justify-between">
-                  <div className="flex-1">
+                  <div className="flex-1 pl-6">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-semibold text-primary">
                         {account.accountName}
@@ -215,6 +276,11 @@ export function AccountList({ onSelectAccount, canCreateAccount = false }: Accou
                       <span className="text-xs text-secondary px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
                         {account.accountNumber}
                       </span>
+                      {account.isSibling && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                          SIBLING
+                        </span>
+                      )}
                       {!account.isActive && (
                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
                           INACTIVE
@@ -228,6 +294,14 @@ export function AccountList({ onSelectAccount, canCreateAccount = false }: Accou
                       </p>
                     )}
 
+                    {account.isSibling && account.parentAccountId && (
+                      <div className="mb-3 p-2 bg-purple-50 dark:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-800">
+                        <p className="text-xs text-purple-700 dark:text-purple-300">
+                          <strong>Sibling Account #{account.siblingNumber}</strong> of parent account
+                        </p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
                         <span className="text-secondary">Balance:</span>
@@ -237,6 +311,7 @@ export function AccountList({ onSelectAccount, canCreateAccount = false }: Accou
                             {formatCurrency(Number(account.balance))}
                           </span>
                         </div>
+                        {/* removed duplicate deposits/payments display here - now shown in the right badge */}
                       </div>
                       <div>
                         <span className="text-secondary">Threshold:</span>
@@ -260,22 +335,89 @@ export function AccountList({ onSelectAccount, canCreateAccount = false }: Accou
                       Created by {account.creator?.name || 'Unknown'} on{' '}
                       {new Date(account.createdAt).toLocaleDateString()}
                     </div>
+
+                    {/* Action Buttons */}
+                    <div className="mt-3 flex gap-2">
+                      {canCreateSiblingAccounts && !account.isSibling && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSiblingCreate(account)
+                          }}
+                          className="px-3 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 dark:hover:bg-purple-800 rounded transition-colors"
+                          title="Create a sibling account for historical data entry"
+                        >
+                          Create Sibling
+                        </button>
+                      )}
+                      {canMergeSiblingAccounts && account.isSibling && account.canMerge && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleMergeAccount(account)
+                          }}
+                          className="px-3 py-1 text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 dark:hover:bg-orange-800 rounded transition-colors"
+                          title="Merge this sibling account back into its parent"
+                        >
+                          Merge
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="ml-4">
-                    <svg
-                      className="w-6 h-6 text-secondary"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
+                  <div className="ml-4 flex flex-col items-end gap-2 min-w-[200px] pl-6 pr-5 py-3 rounded-md bg-white/5 dark:bg-gray-900/30 border border-gray-200/5">
+                    <div className="text-right text-xs text-secondary">Deposits</div>
+                    <div className="text-right">
+                      <div className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(Number(account.depositsTotal ?? 0))}</div>
+                      <div className="text-right text-xs text-secondary">
+                        {/* deposit count chip */}
+                        {canViewExpenseReports ? (
+                          <a
+                            href={`/expense-accounts/${account.id}/deposits`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-xs text-green-800 dark:text-green-200 hover:underline"
+                            aria-label={`Open deposit report for ${account.accountName}`}
+                            title={`Open deposit report for ${account.accountName}`}
+                          >
+                            <span className="font-semibold">{account.depositCount ?? 0}</span>
+                            <span className="opacity-75">deposits</span>
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700/10 text-xs text-gray-700 dark:text-gray-200">
+                            <span className="font-semibold">{account.depositCount ?? 0}</span>
+                            <span className="opacity-75">deposits</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-secondary">Payments</div>
+                    <div className="text-right">
+                      <div className="font-semibold text-orange-600 dark:text-orange-300">{formatCurrency(Number(account.paymentsTotal ?? 0))}</div>
+                      <div className="text-right text-xs text-secondary">
+                        <span className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-xs text-orange-800 dark:text-orange-200">
+                          <span className="font-semibold">{account.paymentCount ?? 0}</span>
+                          <span className="opacity-75">payments</span>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-secondary mt-1">Largest Payment</div>
+                      <div className="text-right">
+                        {account.largestPaymentId ? (
+                          <a
+                            href={`/expense-accounts/${account.id}/payments/${account.largestPaymentId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-semibold text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+                            aria-label={`Open largest payment ${formatCurrency(Number(account.largestPayment ?? 0))}`}
+                          >
+                            {formatCurrency(Number(account.largestPayment ?? 0))}
+                          </a>
+                        ) : (
+                          <div className="font-semibold text-red-600 dark:text-red-400">{formatCurrency(Number(account.largestPayment ?? 0))}</div>
+                        )}
+                      {account.largestPaymentPayee && (
+                        <div className="text-xs text-secondary">to {account.largestPaymentPayee}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -290,6 +432,24 @@ export function AccountList({ onSelectAccount, canCreateAccount = false }: Accou
         onClose={() => setShowCreateModal(false)}
         onSuccess={handleCreateSuccess}
         onError={handleCreateError}
+      />
+
+      {/* Create Sibling Account Modal */}
+      <CreateSiblingAccountModal
+        isOpen={showCreateSiblingModal}
+        onClose={() => setShowCreateSiblingModal(false)}
+        parentAccount={selectedAccount}
+        onSuccess={handleSiblingCreateSuccess}
+        onError={handleSiblingCreateError}
+      />
+
+      {/* Merge Account Modal */}
+      <MergeAccountModal
+        isOpen={showMergeModal}
+        onClose={() => setShowMergeModal(false)}
+        siblingAccount={selectedAccount}
+        onSuccess={handleMergeSuccess}
+        onError={handleMergeError}
       />
     </div>
   )

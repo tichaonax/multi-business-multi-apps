@@ -8,6 +8,11 @@ export interface ExpenseAccount {
   description?: string | null
   isActive: boolean
   lowBalanceThreshold: number
+  // Sibling account fields
+  parentAccountId?: string | null
+  siblingNumber?: number | null
+  isSibling: boolean
+  canMerge: boolean
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -18,6 +23,13 @@ export interface ExpenseAccount {
   }
   deposits?: ExpenseAccountDeposit[]
   payments?: ExpenseAccountPayment[]
+  depositsTotal?: number
+  paymentsTotal?: number
+  largestPayment?: number
+  largestPaymentPayee?: string | null
+  largestPaymentId?: string | null
+  parentAccount?: ExpenseAccount | null
+  siblingAccounts?: ExpenseAccount[]
 }
 
 export interface ExpenseAccountDeposit {
@@ -144,6 +156,11 @@ export interface CreateExpenseAccountInput {
   lowBalanceThreshold?: number
 }
 
+export interface CreateSiblingAccountInput extends CreateExpenseAccountInput {
+  parentAccountId: string
+  siblingNumber: number
+}
+
 export interface CreateDepositInput {
   sourceType: DepositSourceType
   sourceBusinessId?: string
@@ -174,6 +191,27 @@ export interface CreatePaymentInput {
 export interface BatchPaymentInput {
   expenseAccountId: string
   payments: CreatePaymentInput[]
+}
+
+// Sibling Account Types
+export interface SiblingAccountInfo {
+  parentAccount: ExpenseAccount
+  siblingAccounts: ExpenseAccount[]
+  nextSiblingNumber: number
+}
+
+export interface MergeSiblingAccountInput {
+  siblingAccountId: string
+  confirmZeroBalance: boolean
+  confirmIrreversible: boolean
+}
+
+export interface MergeSiblingAccountResult {
+  success: boolean
+  mergedAccount: ExpenseAccount
+  deletedSiblingId: string
+  transferredTransactions: number
+  error?: string
 }
 
 // Transaction Type (combines deposits and payments for history view)

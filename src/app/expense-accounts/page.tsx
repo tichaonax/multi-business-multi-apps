@@ -12,6 +12,8 @@ export default function ExpenseAccountsPage() {
   const router = useRouter()
   const [canCreateAccount, setCanCreateAccount] = useState(false)
   const [canAccessExpenseAccount, setCanAccessExpenseAccount] = useState(false)
+  const [canCreateSiblingAccounts, setCanCreateSiblingAccounts] = useState(false)
+  const [canMergeSiblingAccounts, setCanMergeSiblingAccounts] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -32,6 +34,8 @@ export default function ExpenseAccountsPage() {
 
       setCanAccessExpenseAccount(permissions.canAccessExpenseAccount || false)
       setCanCreateAccount(permissions.canCreateExpenseAccount || false)
+      setCanCreateSiblingAccounts(permissions.canCreateSiblingAccounts || false)
+      setCanMergeSiblingAccounts(permissions.canMergeSiblingAccounts || false)
 
       // Redirect if no access permission
       if (!permissions.canAccessExpenseAccount) {
@@ -71,7 +75,11 @@ export default function ExpenseAccountsPage() {
       description="Manage expense accounts, make deposits and payments"
     >
       <div className="space-y-6">
-        <AccountList canCreateAccount={canCreateAccount} />
+        <AccountList 
+          canCreateAccount={canCreateAccount}
+          canCreateSiblingAccounts={canCreateSiblingAccounts}
+          canMergeSiblingAccounts={canMergeSiblingAccounts}
+        />
       </div>
     </ContentLayout>
   )

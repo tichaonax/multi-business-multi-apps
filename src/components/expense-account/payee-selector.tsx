@@ -71,7 +71,24 @@ export function PayeeSelector({
     const typePayees = payees[value.type as keyof typeof payees] || []
     const selected = typePayees.find(p => p.id === value.id)
 
-    if (!selected) return 'Select a payee...'
+    if (!selected) {
+      // If the selected payee isn't yet in the loaded payee lists (e.g., newly created),
+      // show the provided value.name as a fallback so the user sees their selection immediately
+      if ((value as any)?.name) {
+        const v: any = value
+        const badge = getTypeBadge(v.type)
+        const identifier = v?.identifier ? ` (${v.identifier})` : ''
+        return (
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 text-xs font-medium rounded ${badge.className}`}>
+              {badge.label}
+            </span>
+            <span>{v.name}{identifier}</span>
+          </div>
+        )
+      }
+      return 'Select a payee...'
+    }
 
     const badge = getTypeBadge(selected.type)
     const identifier = selected.identifier ? ` (${selected.identifier})` : ''

@@ -29,21 +29,30 @@ interface Transaction {
 
 interface TransactionHistoryProps {
   accountId: string
+  defaultType?: 'DEPOSIT' | 'PAYMENT'
+  defaultSortOrder?: 'asc' | 'desc'
+  pageLimit?: number
 }
 
-export function TransactionHistory({ accountId }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50 }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
+  const [typeFilter, setTypeFilter] = useState<string>(defaultType)
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(defaultSortOrder)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
-  const limit = 50
+  const limit = pageLimit
 
   useEffect(() => {
     loadTransactions()
   }, [accountId, startDate, endDate, typeFilter, page])
+  // also refetch when sortOrder changes
+  useEffect(() => {
+    setPage(0)
+    loadTransactions()
+  }, [sortOrder])
 
   const loadTransactions = async () => {
     try {
@@ -54,6 +63,7 @@ export function TransactionHistory({ accountId }: TransactionHistoryProps) {
       if (typeFilter) params.append('transactionType', typeFilter)
       params.append('limit', limit.toString())
       params.append('offset', (page * limit).toString())
+      params.append('sortOrder', sortOrder)
 
       const response = await fetch(
         `/api/expense-account/${accountId}/transactions?${params.toString()}`,
@@ -101,7 +111,7 @@ export function TransactionHistory({ accountId }: TransactionHistoryProps) {
   const handleReset = () => {
     setStartDate('')
     setEndDate('')
-    setTypeFilter('')
+    setTypeFilter(defaultType)
     setPage(0)
   }
 
@@ -153,6 +163,20 @@ export function TransactionHistory({ accountId }: TransactionHistoryProps) {
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Sort
+            </label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="desc">Newest First</option>
+              <option value="asc">Oldest First</option>
+            </select>
+          </div>
+
           <div className="flex items-end">
             <button
               onClick={handleReset}
@@ -186,6 +210,9 @@ export function TransactionHistory({ accountId }: TransactionHistoryProps) {
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Category
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Source
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Amount
@@ -236,6 +263,13 @@ export function TransactionHistory({ accountId }: TransactionHistoryProps) {
                           <span>
                             {transaction.category.emoji} {transaction.category.name}
                           </span>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        {transaction.sourceBusiness ? (
+                          <span className="font-medium">{transaction.sourceBusiness.name}</span>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500">—</span>
                         )}

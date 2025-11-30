@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { renderWithProviders as render, screen, fireEvent, waitFor } from '../../../__tests__/helpers/render-with-providers'
 import { BusinessSelectionModal } from '../../components/global/business-selection-modal'
 
 // Mock next-auth

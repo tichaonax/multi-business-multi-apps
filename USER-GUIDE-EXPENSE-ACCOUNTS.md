@@ -3,19 +3,20 @@
 ## Table of Contents
 
 1. [Introduction](#introduction)
-2. [Getting Started](#getting-started)
-3. [Creating an Expense Account](#creating-an-expense-account)
-4. [Adding Funds to an Account](#adding-funds-to-an-account)
-5. [Making Payments](#making-payments)
-6. [Batch Payments](#batch-payments)
-7. [Managing Payees](#managing-payees)
-8. [Viewing Transaction History](#viewing-transaction-history)
-9. [Understanding Reports & Analytics](#understanding-reports--analytics)
-10. [Low Balance Alerts](#low-balance-alerts)
-11. [Viewing Payee Payment History](#viewing-payee-payment-history)
-12. [Common Workflows](#common-workflows)
-13. [Permissions & Access Control](#permissions--access-control)
-14. [Troubleshooting & FAQ](#troubleshooting--faq)
+2. [Sibling Accounts for Historical Data](#sibling-accounts-for-historical-data)
+3. [Getting Started](#getting-started)
+4. [Creating an Expense Account](#creating-an-expense-account)
+5. [Adding Funds to an Account](#adding-funds-to-an-account)
+6. [Making Payments](#making-payments)
+7. [Batch Payments](#batch-payments)
+8. [Managing Payees](#managing-payees)
+9. [Viewing Transaction History](#viewing-transaction-history)
+10. [Understanding Reports & Analytics](#understanding-reports--analytics)
+11. [Low Balance Alerts](#low-balance-alerts)
+12. [Viewing Payee Payment History](#viewing-payee-payment-history)
+13. [Common Workflows](#common-workflows)
+14. [Permissions & Access Control](#permissions--access-control)
+15. [Troubleshooting & FAQ](#troubleshooting--faq)
 
 ---
 
@@ -39,6 +40,144 @@ Expense Accounts are dedicated financial accounts used to manage and track proje
 - **Rich Analytics**: View spending by category, payee type, and time period
 - **Bidirectional Tracking**: View payments from both account and payee perspectives
 - **Permission-Based Access**: Control who can create accounts, add funds, make payments, and view reports
+- **Sibling Accounts**: Create temporary accounts for historical data entry and merge them back seamlessly
+
+---
+
+## Sibling Accounts for Historical Data
+
+### What are Sibling Accounts?
+
+Sibling Accounts are temporary expense accounts that allow you to enter historical expense data without affecting your current account balances. They're perfect for:
+
+- **Historical Data Entry**: Recording expenses from past periods (last month, quarter, or year)
+- **Data Migration**: Importing expense data from other systems
+- **Audit Corrections**: Adding missing expense records
+- **Budget Reconciliation**: Matching historical spending against budgets
+
+### How Sibling Accounts Work
+
+1. **Create a Sibling**: From any expense account, create a sibling account for historical data
+2. **Enter Historical Payments**: Add payments with past dates (system allows any date)
+3. **Build Historical Balance**: Sibling accumulates historical expense data
+4. **Merge Back**: Seamlessly merge the sibling back into the parent account
+5. **Clean Integration**: All historical data becomes part of the parent account's history
+
+### Key Benefits
+
+- **No Balance Impact**: Historical entries don't affect current account balances
+- **Date Flexibility**: Enter payments with any date in the past
+- **Audit Trail**: Complete transaction history maintained
+- **Safe Merging**: Zero-balance validation prevents accidental data loss
+- **Visual Indicators**: Clear distinction between current and historical data
+
+### Creating a Sibling Account
+
+**Required Permission:** Create Expense Accounts
+
+1. Navigate to any **Expense Account** detail page
+2. Look for the **"Create Sibling"** button (usually in account actions)
+3. Click **"Create Sibling Account"**
+4. Fill in the details:
+
+   **Name** (Required)
+   - Descriptive name for the historical period
+   - Example: "Q4 2024 Expenses", "January 2025 Corrections", "Legacy System Import"
+
+   **Description** (Optional)
+   - Purpose and context for the sibling account
+   - Example: "Entering missing expense reports from Q4"
+
+5. Click **"Create Sibling"**
+
+### What Happens When You Create a Sibling
+
+- System generates a numbered account (e.g., EXP-001-01, EXP-001-02)
+- Sibling appears with a distinct visual indicator (badge/color)
+- Initial balance is $0.00
+- You can immediately start adding historical payments
+
+### Adding Historical Payments to Siblings
+
+1. Click on the **Sibling Account** from the account list
+2. Click **"Add Payment"** (same as regular accounts)
+3. Fill in payment details:
+
+   **Amount**: The historical expense amount
+   **Description**: What the expense was for
+   **Payee**: Who received the payment
+   **Payment Date**: **Select any date in the past**
+
+4. Submit the payment
+
+**Important Notes:**
+- Sibling accounts accept **any payment date** (past or future)
+- Payments don't affect the parent account's current balance
+- All payments are tracked separately until merging
+
+### Merging Sibling Accounts
+
+**Required Permission:** Merge Sibling Accounts (admin permission required for non-zero balance siblings)
+
+#### Safe Merge (Zero Balance Siblings)
+
+1. Navigate to the **Sibling Account**
+2. Click **"Merge into Parent"** button
+3. Review the confirmation dialog
+4. Click **"Confirm Merge"**
+
+**Result:** Sibling transactions are transferred to parent account history, sibling is deleted.
+
+#### Admin Merge (Non-Zero Balance Siblings)
+
+**⚠️ Warning:** Only administrators can merge siblings with balances. This transfers the balance to the parent account.
+
+1. Navigate to the **Sibling Account**
+2. Click **"Merge into Parent"** (button shows admin requirement)
+3. Administrator reviews and approves the merge
+4. System transfers balance and transactions to parent
+5. Sibling account is permanently deleted
+
+### Visual Indicators
+
+- **Sibling Badge**: Blue "Sibling" badge on account cards
+- **Account Numbers**: Format like EXP-001-01, EXP-001-02
+- **Merge Button**: Only visible on sibling accounts
+- **Date Flexibility**: Calendar shows no date restrictions
+
+### Best Practices
+
+1. **Use Descriptive Names**: Make sibling purposes clear (e.g., "Q3 2024 Audit Corrections")
+2. **Enter Chronologically**: Add payments in date order for easier review
+3. **Merge Promptly**: Don't leave siblings unmerged for long periods
+4. **Zero Balance First**: Try to merge siblings with $0.00 balance when possible
+5. **Document Purpose**: Use descriptions to explain why historical data was needed
+
+### Common Use Cases
+
+#### Quarterly Audit Preparation
+```
+1. Create sibling: "Q4 2024 Audit Adjustments"
+2. Add missing expense reports from October-December
+3. Merge back to parent account
+4. Audit shows complete historical record
+```
+
+#### System Migration
+```
+1. Create sibling: "Legacy System Import"
+2. Import historical expenses from old system
+3. Verify data accuracy
+4. Merge into live account
+```
+
+#### Budget Reconciliation
+```
+1. Create sibling: "January Overspend Corrections"
+2. Add expenses missed in monthly reporting
+3. Merge to show true January spending
+4. Budget reports become accurate
+```
 
 ---
 
@@ -51,10 +190,11 @@ To use the expense account system, your administrator must grant you one or more
 | Permission | What You Can Do |
 |------------|-----------------|
 | **Access Expense Accounts** | View expense accounts and their details |
-| **Create Expense Accounts** | Create new expense accounts |
+| **Create Expense Accounts** | Create new expense accounts and sibling accounts |
 | **Make Deposits** | Add funds to accounts (manual or business transfers) |
 | **Make Payments** | Create single or batch payments |
 | **View Reports** | Access analytics, charts, and spending reports |
+| **Merge Sibling Accounts** | Merge sibling accounts back into parent accounts (admin permission) |
 
 **Note:** If you don't see "Expense Accounts" in your sidebar menu, you don't have any expense account permissions. Contact your system administrator.
 
@@ -692,8 +832,9 @@ The system uses granular permissions. Your administrator can grant you any combi
 - Make Deposits ✓
 - Make Payments ✓
 - View Reports ✓
+- Merge Sibling Accounts ✓
 
-**Can do:** Everything
+**Can do:** Everything, including creating sibling accounts and merging them (even with balances)
 
 #### Finance Manager (Typical for Finance Team)
 - Create Expense Accounts ✗
@@ -897,6 +1038,44 @@ A: Anyone with "Access Expense Accounts" permission can see all expense accounts
 
 A: Accounts are never truly deleted, only marked inactive. Contact your administrator to reactivate an account.
 
+### Sibling Accounts
+
+**Q: What happens to sibling account data after merging?**
+
+A: When you merge a sibling account:
+- All transactions are transferred to the parent account
+- Transaction dates and amounts remain unchanged
+- The sibling account is permanently deleted
+- Parent account balance may increase if sibling had a balance
+
+**Q: Can I unmerge a sibling account?**
+
+A: No, merging is permanent and cannot be reversed. Always review sibling data carefully before merging.
+
+**Q: Why can't I merge a sibling with a balance?**
+
+A: Merging with a balance transfers money to the parent account, which could affect financial reporting. Only administrators can perform this operation to prevent accidental balance changes.
+
+**Q: Can I create multiple siblings from one parent?**
+
+A: Yes! Each sibling gets a sequential number (EXP-001-01, EXP-001-02, etc.). You can have as many siblings as needed for different historical periods.
+
+**Q: Do sibling payments affect reports?**
+
+A: Sibling payments only appear in reports after merging. Until then, they're kept separate to avoid affecting current period analytics.
+
+**Q: What if I enter wrong historical data in a sibling?**
+
+A: You can delete individual payments from the sibling account before merging. After merging, the data becomes part of the permanent record.
+
+**Q: Can I transfer money between siblings?**
+
+A: No, siblings are meant for historical data only. Money transfers should happen through regular expense accounts.
+
+**Q: How long should I keep siblings unmerged?**
+
+A: Merge as soon as historical data entry is complete. Don't leave siblings unmerged for extended periods as they can cause confusion.
+
 ---
 
 ## Getting Help
@@ -945,6 +1124,9 @@ Have suggestions for improving the system?
 | See spending reports | Account → View Reports button | View Reports |
 | Check low balance alerts | Dashboard | Access Expense Accounts |
 | View who I've paid | Employee page → Expense Payments tab | Access Expense Accounts |
+| Create sibling for historical data | Account → Create Sibling button | Create Expense Accounts |
+| Enter historical payments | Sibling Account → Add Payment | Make Payments |
+| Merge sibling back to parent | Sibling Account → Merge into Parent | Merge Sibling Accounts |
 
 ### Keyboard Shortcuts
 
@@ -957,9 +1139,9 @@ Have suggestions for improving the system?
 
 ---
 
-**Version:** 1.0
-**Last Updated:** November 26, 2025
-**For:** Multi-Business Management Platform - Expense Account Module
+**Version:** 1.1
+**Last Updated:** November 29, 2025
+**For:** Multi-Business Management Platform - Expense Account Module with Sibling Accounts
 
 ---
 

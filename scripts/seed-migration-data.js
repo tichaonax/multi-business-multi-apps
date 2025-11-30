@@ -277,8 +277,6 @@ async function seedBenefitTypes() {
     { name: 'Dental Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
     { name: 'Life Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
     { name: 'Disability Insurance', type: 'insurance', defaultAmount: null, isPercentage: false },
-
-    // Retirement Benefits
     { name: 'Pension Fund', type: 'retirement', defaultAmount: null, isPercentage: true },
     { name: 'Provident Fund', type: 'retirement', defaultAmount: null, isPercentage: true },
     { name: 'Retirement Savings', type: 'retirement', defaultAmount: null, isPercentage: true },
@@ -751,6 +749,7 @@ async function main() {
     benefitTypes: 0,
     expenseDomains: 0,
     expenseCategories: 0,
+    expenseFlatCategories: 0,
     expenseSubcategories: 0,
     adminUsers: 0,
     defaultBusinesses: 0,
@@ -810,6 +809,17 @@ async function main() {
     seedingStats.expenseCategories = expenseStats.categories
     seedingStats.expenseSubcategories = expenseStats.subcategories
 
+    // Step 1.1: Ensure flat global expense categories are seeded (domainId == null)
+    try {
+      const { seedFlatCategories } = require('../scripts/seed-expense-flat-categories.js')
+      console.log('\n🌱 Ensuring global flat categories are seeded...')
+      const flatResult = await seedFlatCategories()
+      // flatResult is { created, skipped, total }
+      seedingStats.expenseFlatCategories = flatResult.created + flatResult.skipped
+    } catch (err) {
+      console.warn('⚠️  Failed to run flat categories seed:', err.message)
+    }
+
     // NOTE: Clothing categories are now seeded via migration:
     // prisma/migrations/20251127140000_seed_complete_clothing_categories/migration.sql
     // This runs automatically with `npx prisma migrate deploy`
@@ -838,6 +848,7 @@ async function main() {
     console.log(`   • ${seedingStats.benefitTypes} Benefit types`)
     console.log(`   • ${seedingStats.expenseDomains} Expense domains`)
     console.log(`   • ${seedingStats.expenseCategories} Expense categories`)
+    console.log(`   • ${seedingStats.expenseFlatCategories} Flat/global expense categories`)
     console.log(`   • ${seedingStats.expenseSubcategories} Expense subcategories`)
     console.log(`   • ${seedingStats.adminUsers} Admin user (admin@business.local / admin123)`)
     // console.log(`   • ${seedingStats.defaultBusinesses} Default business for admin`)

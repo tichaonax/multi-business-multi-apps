@@ -6,9 +6,10 @@ import { useAlert } from '@/components/ui/confirm-modal'
 interface AccountBalanceCardProps {
   accountData: any
   onRefresh?: () => void
+  canViewExpenseReports?: boolean
 }
 
-export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCardProps) {
+export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseReports = false }: AccountBalanceCardProps) {
   const customAlert = useAlert()
   const [balanceSummary, setBalanceSummary] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -64,14 +65,17 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
   const isNormalBalance = balance >= threshold
 
   // Determine card color based on balance status
+  // For sibling accounts, use a different accent color (purple) when balance is normal.
   const cardGradient = isCriticalBalance
     ? 'from-red-500 to-red-600'
     : isLowBalance
     ? 'from-yellow-500 to-yellow-600'
+    : accountData.isSibling
+    ? 'from-purple-600 to-purple-700'
     : 'from-green-600 to-green-700'
 
   return (
-    <div className={`bg-gradient-to-r ${cardGradient} rounded-lg shadow-lg p-4 text-white`}>
+    <div className={`bg-gradient-to-r ${cardGradient} rounded-lg shadow-lg p-6 text-white`}>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-medium opacity-90">{accountData.accountName || 'Expense Account'}</h2>
@@ -140,29 +144,47 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
       {/* Balance Summary Grid */}
       {balanceSummary && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white/10 rounded-lg p-3">
+          <div className="bg-white/10 rounded-lg p-4">
             <p className="text-xs opacity-75 mb-1">Total Deposits</p>
             <p className="text-lg font-semibold">
               {formatCurrency(balanceSummary.totalDeposits || 0)}
             </p>
             <p className="text-xs opacity-75">
-              {balanceSummary.depositCount || 0} deposits
+              {canViewExpenseReports ? (
+                <a
+                  href={`/expense-accounts/${accountData.id}/deposits`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-xs text-green-800 dark:text-green-200 hover:underline"
+                  aria-label={`Open deposits for ${accountData.accountName}`}
+                >
+                  <span className="font-semibold">{balanceSummary.depositCount || 0}</span>
+                  <span className="opacity-75">deposits</span>
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700/10 text-xs text-gray-700 dark:text-gray-200">
+                  <span className="font-semibold">{balanceSummary.depositCount || 0}</span>
+                  <span className="opacity-75">deposits</span>
+                </span>
+              )}
             </p>
           </div>
 
-          <div className="bg-white/10 rounded-lg p-3">
+          <div className="bg-white/10 rounded-lg p-4">
             <p className="text-xs opacity-75 mb-1">Total Payments</p>
             <p className="text-lg font-semibold">
               {formatCurrency(balanceSummary.totalPayments || 0)}
             </p>
             <p className="text-xs opacity-75">
-              {balanceSummary.paymentCount || 0} payments
+              <span className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-xs text-orange-800 dark:text-orange-200">
+                <span className="font-semibold">{balanceSummary.paymentCount || 0}</span>
+                <span className="opacity-75">payments</span>
+              </span>
             </p>
           </div>
 
           {balanceSummary.draftPaymentCount !== undefined &&
            balanceSummary.draftPaymentCount > 0 && (
-            <div className="col-span-2 bg-white/10 border border-white/30 rounded-lg p-3">
+            <div className="col-span-2 bg-white/10 border border-white/30 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs opacity-75 mb-1">Draft Payments</p>

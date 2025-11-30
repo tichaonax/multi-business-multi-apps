@@ -152,9 +152,11 @@ async function seedFlatCategories() {
   console.log(`   ✅ Created: ${created}`)
   console.log(`   ⏭️  Skipped (already exists): ${skipped}`)
   console.log(`   📝 Total categories: ${FLAT_CATEGORIES.length}`)
+
+  return { created, skipped, total: FLAT_CATEGORIES.length }
 }
 
-async function main() {
+async function seedFlatCategoriesMain() {
   try {
     await seedFlatCategories()
     console.log('\n✅ Seeding completed successfully!')
@@ -166,4 +168,8 @@ async function main() {
   }
 }
 
-main()
+if (require.main === module) {
+  seedFlatCategoriesMain()
+}
+
+module.exports = { seedFlatCategories, seedFlatCategoriesMain }

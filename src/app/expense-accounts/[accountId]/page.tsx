@@ -20,6 +20,11 @@ interface ExpenseAccount {
   lowBalanceThreshold: number
   isActive: boolean
   createdAt: string
+  // Sibling account fields
+  parentAccountId: string | null
+  siblingNumber: number | null
+  isSibling: boolean
+  canMerge: boolean
 }
 
 export default function ExpenseAccountDetailPage() {
@@ -29,6 +34,9 @@ export default function ExpenseAccountDetailPage() {
   const accountId = params.accountId as string
 
   const [account, setAccount] = useState<ExpenseAccount | null>(null)
+  const [depositsCount, setDepositsCount] = useState<number | null>(null)
+  const [paymentsCount, setPaymentsCount] = useState<number | null>(null)
+  const [countsError, setCountsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   const [showDepositModal, setShowDepositModal] = useState(false)
@@ -49,6 +57,8 @@ export default function ExpenseAccountDetailPage() {
     if (session?.user && accountId) {
       checkPermissions()
       loadAccount()
+      // Also fetch counts from the balance endpoint
+      fetchCounts()
     }
   }, [session, accountId])
 
@@ -91,6 +101,26 @@ export default function ExpenseAccountDetailPage() {
     }
   }
 
+  const fetchCounts = async () => {
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/balance`, { credentials: 'include' })
+      if (!res.ok) {
+        // Set friendly error for UI and log status so it is obvious why counts are hidden
+        if (res.status === 401 || res.status === 403) setCountsError('unauthorized')
+        else setCountsError('unavailable')
+        console.warn(`Failed to fetch balance counts: ${res.status}`)
+        return
+      }
+      const data = await res.json()
+      setDepositsCount(data?.data?.depositCount ?? 0)
+      setPaymentsCount(data?.data?.paymentCount ?? 0)
+      setCountsError(null)
+    } catch (err) {
+      console.error('Error fetching counts', err)
+      setCountsError('error')
+    }
+  }
+
   const handleRefresh = () => {
     loadAccount()
   }
@@ -128,6 +158,31 @@ export default function ExpenseAccountDetailPage() {
     <ContentLayout
       title={account.accountName}
       description={`Account #${account.accountNumber}`}
+      headerActions={(
+        <div className="flex items-center gap-6">
+          <div className="text-sm text-secondary">Deposits</div>
+          <div>
+            {depositsCount !== null ? (
+                  canMakeExpenseDeposits ? (
+                    <a
+                      href={`/expense-accounts/${accountId}/deposits`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-green-600 dark:text-green-400 font-semibold hover:underline"
+                      aria-label={`Open deposits for ${account.accountName}`}
+                    >
+                      {depositsCount}
+                    </a>
+                  ) : (
+                  <div className="text-green-600 font-semibold">{depositsCount}</div>
+                )
+              ) : (
+                <div title={countsError ? `Counts not available (${countsError})` : 'Counts not loaded'} className="text-green-600 font-semibold">—</div>
+              )}
+          </div>
+          <div className="text-sm text-secondary">Payments</div>
+          <div title={countsError ? `Counts not available (${countsError})` : ''} className="text-orange-600 font-semibold">{paymentsCount ?? '—'}</div>
+        </div>
+      )}
     >
       <div className="space-y-6">
         {/* Header with Actions */}
@@ -161,6 +216,7 @@ export default function ExpenseAccountDetailPage() {
         <AccountBalanceCard
           accountData={account}
           onRefresh={handleRefresh}
+          canViewExpenseReports={canViewExpenseReports}
         />
 
         {/* Tabs */}
@@ -318,6 +374,12 @@ export default function ExpenseAccountDetailPage() {
                   currentBalance={Number(account.balance)}
                   onSuccess={handlePaymentSuccess}
                   onAddFunds={() => setActiveTab('deposits')}
+                  accountInfo={{
+                    accountName: account.accountName,
+                    isSibling: account.isSibling,
+                    siblingNumber: account.siblingNumber,
+                    parentAccountId: account.parentAccountId
+                  }}
                 />
               </div>
             )}

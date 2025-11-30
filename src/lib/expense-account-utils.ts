@@ -1,6 +1,5 @@
-import { PrismaClient, Prisma } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { Prisma } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 
 /**
  * Calculate current balance from deposits and payments
@@ -457,4 +456,285 @@ export async function getExpenseAccountsWithLowBalance() {
     },
     orderBy: { balance: 'asc' },
   })
+}
+
+// ============================================================================
+// SIBLING ACCOUNT UTILITIES
+// ============================================================================
+
+/**
+ * Generate next sibling account number for a parent account
+ * @param parentAccountId - The parent account ID
+ * @returns The next sibling number (e.g., 1, 2, 3...)
+ */
+export async function generateNextSiblingNumber(parentAccountId: string): Promise<number> {
+  const maxSibling = await prisma.expenseAccounts.findFirst({
+    where: { parentAccountId },
+    select: { siblingNumber: true },
+    orderBy: { siblingNumber: 'desc' },
+  })
+
+  return (maxSibling?.siblingNumber || 0) + 1
+}
+
+/**
+ * Create a sibling account for historical data entry
+ * @param parentAccountId - The parent account ID
+ * @param siblingData - The sibling account data
+ * @param creatorId - The user creating the sibling account
+ */
+export async function createSiblingAccount(
+  parentAccountId: string,
+  siblingData: {
+    name: string
+    description?: string
+    lowBalanceThreshold?: number
+  },
+  creatorId: string
+) {
+  // Verify parent account exists and is not itself a sibling
+  const parentAccount = await prisma.expenseAccounts.findUnique({
+    where: { id: parentAccountId },
+    select: { id: true, isSibling: true, accountNumber: true },
+  })
+
+  if (!parentAccount) {
+    throw new Error('Parent account not found')
+  }
+
+  if (parentAccount.isSibling) {
+    throw new Error('Cannot create sibling account from another sibling account')
+  }
+
+  // Generate sibling number and account number
+  const siblingNumber = await generateNextSiblingNumber(parentAccountId)
+  const siblingAccountNumber = `${parentAccount.accountNumber}-${siblingNumber.toString().padStart(2, '0')}`
+
+  // Create the sibling account
+  const siblingAccount = await prisma.expenseAccounts.create({
+    data: {
+      accountNumber: siblingAccountNumber,
+      accountName: siblingData.name,
+      description: siblingData.description,
+      lowBalanceThreshold: siblingData.lowBalanceThreshold || 0,
+      balance: 0,
+      isActive: true,
+      isSibling: true,
+      canMerge: true,
+      parentAccountId,
+      siblingNumber,
+      createdBy: creatorId,
+    },
+  })
+
+  return siblingAccount
+}
+
+/**
+ * Get all sibling accounts for a parent account
+ * @param parentAccountId - The parent account ID
+ */
+export async function getSiblingAccounts(parentAccountId: string) {
+  return await prisma.expenseAccounts.findMany({
+    where: {
+      parentAccountId,
+      isSibling: true,
+    },
+    include: {
+      creator: {
+        select: { id: true, name: true, email: true },
+      },
+    },
+    orderBy: { siblingNumber: 'asc' },
+  })
+}
+
+/**
+ * Get parent account with all its siblings
+ * @param accountId - Either parent or sibling account ID
+ */
+export async function getAccountWithSiblings(accountId: string) {
+  // First, find the account
+  const account = await prisma.expenseAccounts.findUnique({
+    where: { id: accountId },
+    include: {
+      parentAccount: {
+        include: {
+          siblingAccounts: {
+            include: {
+              creator: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+            orderBy: { siblingNumber: 'asc' },
+          },
+          creator: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      },
+      siblingAccounts: {
+        include: {
+          creator: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+        orderBy: { siblingNumber: 'asc' },
+      },
+      creator: {
+        select: { id: true, name: true, email: true },
+      },
+    },
+  })
+
+  if (!account) {
+    throw new Error('Account not found')
+  }
+
+  // If this is a sibling, return the parent with all siblings
+  if (account.isSibling && account.parentAccount) {
+    return {
+      parentAccount: account.parentAccount,
+      siblings: account.parentAccount.siblingAccounts,
+      isSibling: true,
+      currentAccount: account,
+    }
+  }
+
+  // If this is a parent, return it with siblings
+  return {
+    parentAccount: account,
+    siblings: account.siblingAccounts,
+    isSibling: false,
+    currentAccount: account,
+  }
+}
+
+/**
+ * Validate if a sibling account can be merged
+ * @param siblingAccountId - The sibling account ID to merge
+ */
+export async function validateSiblingAccountForMerge(siblingAccountId: string): Promise<{
+  canMerge: boolean
+  error?: string
+  account?: any
+}> {
+  const account = await prisma.expenseAccounts.findUnique({
+    where: { id: siblingAccountId },
+    select: {
+      id: true,
+      isSibling: true,
+      canMerge: true,
+      balance: true,
+      parentAccountId: true,
+      accountName: true,
+    },
+  })
+
+  if (!account) {
+    return { canMerge: false, error: 'Sibling account not found' }
+  }
+
+  if (!account.isSibling) {
+    return { canMerge: false, error: 'Account is not a sibling account' }
+  }
+
+  if (!account.canMerge) {
+    return { canMerge: false, error: 'Account is not eligible for merging' }
+  }
+
+  const balance = Number(account.balance)
+  if (balance !== 0) {
+    return {
+      canMerge: false,
+      error: `Cannot merge account with non-zero balance. Current balance: ${formatCurrency(balance)}`,
+      account,
+    }
+  }
+
+  return { canMerge: true, account }
+}
+
+/**
+ * Merge a sibling account back into its parent account
+ * @param siblingAccountId - The sibling account ID to merge
+ * @param userId - The user performing the merge
+ */
+export async function mergeSiblingAccount(siblingAccountId: string, userId: string) {
+  // Validate the merge operation
+  const validation = await validateSiblingAccountForMerge(siblingAccountId)
+  if (!validation.canMerge) {
+    throw new Error(validation.error)
+  }
+
+  const siblingAccount = validation.account!
+
+  // Ensure parent account exists
+  const parentAccount = await prisma.expenseAccounts.findUnique({ where: { id: siblingAccount.parentAccountId! } })
+  if (!parentAccount) {
+    throw new Error('Target account not found')
+  }
+
+  // Start a transaction to ensure data consistency
+  return await prisma.$transaction(async (tx: any) => {
+    // Move all deposits from sibling to parent
+    await tx.expenseAccountDeposits.updateMany({
+      where: { expenseAccountId: siblingAccountId },
+      data: { expenseAccountId: siblingAccount.parentAccountId! },
+    })
+
+    // Move all payments from sibling to parent
+    await tx.expenseAccountPayments.updateMany({
+      where: { expenseAccountId: siblingAccountId },
+      data: { expenseAccountId: siblingAccount.parentAccountId! },
+    })
+
+    // Delete the sibling account
+    await tx.expenseAccounts.delete({
+      where: { id: siblingAccountId },
+    })
+
+    // Update parent account balance
+    await updateExpenseAccountBalance(siblingAccount.parentAccountId!)
+
+    return {
+      mergedAccountId: siblingAccountId,
+      parentAccountId: siblingAccount.parentAccountId,
+      message: `Successfully merged sibling account "${siblingAccount.name}" back into parent account`,
+    }
+  })
+}
+
+/**
+ * Check if an account has any active sibling accounts
+ * @param accountId - The account ID to check
+ */
+export async function hasActiveSiblings(accountId: string): Promise<boolean> {
+  const count = await prisma.expenseAccounts.count({
+    where: {
+      parentAccountId: accountId,
+      isSibling: true,
+      isActive: true,
+    },
+  })
+
+  return count > 0
+}
+
+/**
+ * Get the next available sibling account number for a parent
+ * @param parentAccountId - The parent account ID
+ */
+export async function getNextSiblingAccountNumber(parentAccountId: string): Promise<string> {
+  const parentAccount = await prisma.expenseAccounts.findUnique({
+    where: { id: parentAccountId },
+    select: { accountNumber: true },
+  })
+
+  if (!parentAccount) {
+    throw new Error('Parent account not found')
+  }
+
+  const nextNumber = await generateNextSiblingNumber(parentAccountId)
+  return `${parentAccount.accountNumber}-${nextNumber.toString().padStart(2, '0')}`
 }

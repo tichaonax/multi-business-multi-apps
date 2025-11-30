@@ -206,6 +206,39 @@ export function MobileSidebar() {
                 </>
               )}
 
+              {/* Expense Accounts - Only for users with expense account permissions */}
+              {(hasUserPermission(user, 'canAccessExpenseAccount') || isSystemAdmin(user)) && (
+                <>
+                  <Link
+                    href="/expense-accounts"
+                    className="block px-4 py-3 rounded hover:bg-gray-700"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    💳 Expense Accounts
+                  </Link>
+
+                  {(hasUserPermission(user, 'canCreateExpenseAccount') || isSystemAdmin(user)) && (
+                    <Link
+                      href="/expense-accounts/new"
+                      className="block px-4 py-2 pl-8 text-sm rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      ➕ Create Account
+                    </Link>
+                  )}
+
+                  {(hasUserPermission(user, 'canViewExpenseReports') || isSystemAdmin(user)) && (
+                    <Link
+                      href="/expense-accounts/reports"
+                      className="block px-4 py-2 pl-8 text-sm rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      📊 All Reports
+                    </Link>
+                  )}
+                </>
+              )}
+
               {/* HR Reports - Only for users with actual employee management permissions */}
               {(isSystemAdmin(user) || hasPermission(user, 'canManageEmployees') || hasPermission(user, 'canEditEmployees')) && (
                 <Link
@@ -369,6 +402,17 @@ export function MobileSidebar() {
                       onClick={() => setIsOpen(false)}
                     >
                       💰 Business Loans
+                    </Link>
+                  )}
+
+                  {/* Expense Accounts link - visible to users who can access expense accounts or admins */}
+                  {(isSystemAdmin(user) || hasUserPermission(user, 'canAccessExpenseAccount')) && (
+                    <Link
+                      href="/expense-accounts"
+                      className="block px-4 py-3 rounded hover:bg-gray-700"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      💳 Expense Accounts
                     </Link>
                   )}
 

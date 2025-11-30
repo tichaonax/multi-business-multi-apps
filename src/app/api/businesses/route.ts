@@ -117,8 +117,23 @@ export async function POST(req: NextRequest) {
     // Generate a unique shortName and create business and make the creator the owner
     const shortName = await generateUniqueShortName(prisma as any, name)
 
+    // Ensure session user exists in DB before creating FK references
+    const dbUser = await prisma.users.findUnique({ where: { id: session.user.id } })
+    if (!dbUser) {
+      console.warn('⚠️  Session user not found in users table - aborting business create:', session.user.id)
+      return NextResponse.json({ error: 'Unauthorized - user not found' }, { status: 401 })
+    }
+
     // Create business, business account, and default expense account in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      const creatorId = dbUser.id
+
+      // Re-check user exists in transaction
+      const creatorExists = await tx.users.findUnique({ where: { id: creatorId } })
+      if (!creatorExists) {
+        throw new Error('Session user not found during business creation (deleted)')
+      }
+
       // Create business
       const business = await tx.businesses.create({
         data: ({
@@ -126,10 +141,10 @@ export async function POST(req: NextRequest) {
           type,
           description: description || null,
           shortName,
-          createdBy: session.user.id,
+          createdBy: creatorId,
           business_memberships: {
             create: ({
-              userId: session.user.id,
+              userId: creatorId,
               role: 'business-owner',
               permissions: BUSINESS_PERMISSION_PRESETS['business-owner'],
               isActive: true,
@@ -151,7 +166,7 @@ export async function POST(req: NextRequest) {
           businessId: business.id,
           balance: 0,
           updatedAt: new Date(),
-          createdBy: session.user.id,
+          createdBy: creatorId,
         },
       });
 
@@ -165,7 +180,7 @@ export async function POST(req: NextRequest) {
           balance: 0,
           lowBalanceThreshold: 500,
           isActive: true,
-          createdBy: session.user.id,
+          createdBy: creatorId,
         },
       });
 

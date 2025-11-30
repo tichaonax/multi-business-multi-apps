@@ -414,6 +414,7 @@ interface UserDropdownProps {
 
 function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
   const pathname = usePathname()
+  const { hasPermission } = useBusinessPermissionsContext()
 
   const handleSignOut = () => {
     // Clear any stored callback URLs and redirect to home page
@@ -537,6 +538,60 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
                     </div>
                   </Link>
                 </>
+              )}
+
+              {(
+                isSystemAdmin(user) ||
+                hasPermission('canExportBusinessData') ||
+                hasPermission('canImportBusinessData') ||
+                hasPermission('canBackupBusiness') ||
+                hasPermission('canRestoreBusiness')
+              ) && (
+                <Link
+                  href="/admin/data-management"
+                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => setShowMenu(false)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>🗂️</span>
+                    <span>Data Management</span>
+                  </div>
+                </Link>
+              )}
+
+              {/* Business Management link - visible to system admins and users with business management permissions */}
+              {(
+                isSystemAdmin(user) ||
+                hasPermission('canManageBusinessUsers') ||
+                hasPermission('canManageBusinessSettings')
+              ) && (
+                <Link
+                  href="/business/manage"
+                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => setShowMenu(false)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>🏢</span>
+                    <span>Business Management</span>
+                  </div>
+                </Link>
+              )}
+
+              {/* Expense Accounts link - visible to users who can access expense accounts or admins */}
+              {(
+                isSystemAdmin(user) ||
+                hasPermission('canAccessExpenseAccount')
+              ) && (
+                <Link
+                  href="/expense-accounts"
+                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => setShowMenu(false)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>💳</span>
+                    <span>Expense Accounts</span>
+                  </div>
+                </Link>
               )}
 
               <div className="border-t border-gray-200 dark:border-gray-700 my-1" />

@@ -64,8 +64,21 @@ export async function POST(req: NextRequest) {
 
     const shortName = await generateUniqueShortName(prisma as any, name.trim())
 
+    // Ensure session user exists in DB before creating FK references
+    const dbUser = await prisma.users.findUnique({ where: { id: session.user.id } })
+    if (!dbUser) {
+      console.warn('⚠️  Session user not found in users table - aborting business create:', session.user.id)
+      return NextResponse.json({ error: 'Unauthorized - user not found' }, { status: 401 })
+    }
+
     // Create business, business account, and default expense account in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      const creatorId = dbUser.id
+      // Re-check presence of user inside transaction to avoid a TOCTOU race
+      const creatorExists = await tx.users.findUnique({ where: { id: creatorId } })
+      if (!creatorExists) {
+        throw new Error('Session user not found during business creation (deleted)')
+      }
       const createData = ({
         name: name.trim(),
         type: type.trim(),
@@ -73,7 +86,7 @@ export async function POST(req: NextRequest) {
         shortName,
         isActive: true,
         settings: {},
-        createdBy: session.user.id
+        createdBy: creatorId
       } as any)
 
       const business = await tx.businesses.create({ data: createData })
@@ -84,7 +97,7 @@ export async function POST(req: NextRequest) {
           businessId: business.id,
           balance: 0,
           updatedAt: new Date(),
-          createdBy: session.user.id,
+          createdBy: creatorId,
         },
       })
 
@@ -98,7 +111,7 @@ export async function POST(req: NextRequest) {
           balance: 0,
           lowBalanceThreshold: 500,
           isActive: true,
-          createdBy: session.user.id,
+          createdBy: creatorId,
         },
       })
 
@@ -108,7 +121,7 @@ export async function POST(req: NextRequest) {
           action: 'BUSINESS_CREATED',
           entityType: 'Business',
           entityId: business.id,
-          userId: session.user.id,
+          userId: creatorId,
           details: {
             businessName: business.name,
             businessType: business.type

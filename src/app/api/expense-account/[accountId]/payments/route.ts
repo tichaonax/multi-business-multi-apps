@@ -344,9 +344,23 @@ export async function POST(
         )
       }
 
-      // Validate payment date (cannot be in the future)
+      // Validate payment date
       const payDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date()
-      if (payDate > new Date()) {
+      const now = new Date()
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000) // 24 hours ago
+
+      // Check if this is a historical date (more than 24 hours in the past)
+      const isHistoricalDate = payDate < oneDayAgo
+
+      if (isHistoricalDate && !permissions.canEnterHistoricalData) {
+        return NextResponse.json(
+          { error: `Payment ${paymentIndex}: You do not have permission to enter historical expense data`, index: i },
+          { status: 403 }
+        )
+      }
+
+      // Payment date cannot be in the future
+      if (payDate > now) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Payment date cannot be in the future`, index: i },
           { status: 400 }

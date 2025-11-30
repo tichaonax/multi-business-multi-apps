@@ -39,6 +39,49 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     })
 
+    // Compute aggregate deposits and payments for each account in a single query using groupBy
+    const accountIds = accounts.map((a) => a.id)
+    const depositGroups = await prisma.expenseAccountDeposits.groupBy({
+      by: ['expenseAccountId'],
+      where: { expenseAccountId: { in: accountIds } },
+      _sum: { amount: true },
+      _count: { id: true },
+    })
+    const paymentGroups = await prisma.expenseAccountPayments.groupBy({
+      by: ['expenseAccountId'],
+      where: { expenseAccountId: { in: accountIds } },
+      _sum: { amount: true },
+      _max: { amount: true },
+      _count: { id: true },
+    })
+
+    const depositMap = new Map(depositGroups.map((g) => [g.expenseAccountId, Number(g._sum?.amount ?? 0)]))
+    const depositCountMap = new Map(depositGroups.map((g) => [g.expenseAccountId, Number(g._count?.id ?? 0)]))
+    const paymentMap = new Map(paymentGroups.map((g) => [g.expenseAccountId, Number(g._sum?.amount ?? 0)]))
+    const paymentCountMap = new Map(paymentGroups.map((g) => [g.expenseAccountId, Number(g._count?.id ?? 0)]))
+
+    // Find the largest payment amount for each account and the payee for that payment
+    const payments = await prisma.expenseAccountPayments.findMany({
+      where: { expenseAccountId: { in: accountIds } },
+      include: {
+        payeeUser: { select: { name: true } },
+        payeeEmployee: { select: { fullName: true } },
+        payeePerson: { select: { fullName: true } },
+        payeeBusiness: { select: { name: true } },
+      },
+    })
+
+    const largestPaymentMap = new Map()
+    for (const p of payments) {
+      const aid = p.expenseAccountId
+      const amt = Number(p.amount ?? 0)
+      const existing = largestPaymentMap.get(aid)
+      if (!existing || amt > existing.amount || (amt === existing.amount && new Date(p.paymentDate) > new Date(existing.paymentDate))) {
+        // compute payee name
+        const payeeName = p.payeeUser?.name || p.payeeEmployee?.fullName || p.payeePerson?.fullName || p.payeeBusiness?.name || null
+        largestPaymentMap.set(aid, { id: p.id, amount: amt, payeeName, paymentDate: p.paymentDate })
+      }
+    }
     return NextResponse.json({
       success: true,
       data: {
@@ -50,10 +93,22 @@ export async function GET(request: NextRequest) {
           description: account.description,
           isActive: account.isActive,
           lowBalanceThreshold: Number(account.lowBalanceThreshold),
+          // Sibling-related fields
+          parentAccountId: account.parentAccountId,
+          siblingNumber: account.siblingNumber,
+          isSibling: account.isSibling,
+          canMerge: account.canMerge,
           createdBy: account.createdBy,
           createdAt: account.createdAt.toISOString(),
           updatedAt: account.updatedAt.toISOString(),
           creator: account.creator,
+          depositsTotal: depositMap.get(account.id) ?? 0,
+          paymentsTotal: paymentMap.get(account.id) ?? 0,
+          depositCount: depositCountMap.get(account.id) ?? 0,
+          paymentCount: paymentCountMap.get(account.id) ?? 0,
+          largestPayment: largestPaymentMap.get(account.id)?.amount ?? 0,
+          largestPaymentPayee: largestPaymentMap.get(account.id)?.payeeName ?? null,
+          largestPaymentId: largestPaymentMap.get(account.id)?.id ?? null,
         })),
       },
     })

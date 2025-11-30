@@ -184,6 +184,10 @@ export interface CoreBusinessPermissions {
   canCreateIndividualPayees: boolean;
   canDeleteExpenseAccounts: boolean;
   canAdjustExpensePayments: boolean;
+  // Sibling Account Permissions
+  canCreateSiblingAccounts: boolean;
+  canEnterHistoricalData: boolean;
+  canMergeSiblingAccounts: boolean;
 
   // Supplier Management
   canViewSuppliers: boolean;
@@ -740,6 +744,10 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canCreateIndividualPayees', label: 'Create Individual Payees' },
       { key: 'canDeleteExpenseAccounts', label: 'Delete Expense Accounts' },
       { key: 'canAdjustExpensePayments', label: 'Adjust Payments' },
+      // Sibling Account Permissions
+      { key: 'canCreateSiblingAccounts', label: 'Create Sibling Accounts' },
+      { key: 'canEnterHistoricalData', label: 'Enter Historical Data' },
+      { key: 'canMergeSiblingAccounts', label: 'Merge Sibling Accounts' },
     ]
   }
 };
@@ -950,6 +958,9 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: true,
   canDeleteExpenseAccounts: true,
   canAdjustExpensePayments: true,
+  canCreateSiblingAccounts: true,
+  canEnterHistoricalData: true,
+  canMergeSiblingAccounts: true,
 
   // Supplier Management - Full access
   canViewSuppliers: true,
@@ -1065,6 +1076,9 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: true,
   canDeleteExpenseAccounts: false,  // ❌ Admin only
   canAdjustExpensePayments: false,  // ❌ Special permission only
+  canCreateSiblingAccounts: false,  // ❌ Admin only
+  canEnterHistoricalData: false,    // ❌ Admin only
+  canMergeSiblingAccounts: false,   // ❌ Admin only
 
   // Supplier Management - Manager access
   canViewSuppliers: true,
@@ -1180,6 +1194,9 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: false,
   canDeleteExpenseAccounts: false,
   canAdjustExpensePayments: false,
+  canCreateSiblingAccounts: false,
+  canEnterHistoricalData: false,
+  canMergeSiblingAccounts: false,
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1293,6 +1310,9 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: false,
   canDeleteExpenseAccounts: false,
   canAdjustExpensePayments: false,
+  canCreateSiblingAccounts: false,
+  canEnterHistoricalData: false,
+  canMergeSiblingAccounts: false,
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1406,6 +1426,9 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: true,
   canDeleteExpenseAccounts: true,
   canAdjustExpensePayments: true,
+  canCreateSiblingAccounts: true,
+  canEnterHistoricalData: true,
+  canMergeSiblingAccounts: true,
 
   // Supplier Management - Full access
   canViewSuppliers: true,

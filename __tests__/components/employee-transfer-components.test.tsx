@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, jest, beforeEach } from '@jest/globals'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { renderWithProviders as render, screen, fireEvent, waitFor } from '../helpers/render-with-providers'
 import '@testing-library/jest-dom'
 import { BusinessSelector } from '@/components/business/business-selector'
 import { EmployeeTransferPreview } from '@/components/business/employee-transfer-preview'

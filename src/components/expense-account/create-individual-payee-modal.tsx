@@ -12,7 +12,7 @@ interface CreateIndividualPayeeModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: (payload: OnSuccessArg & { payee?: any }) => void
-  onError: (error: string) => void
+  onError?: (error: string) => void
 }
 
 export function CreateIndividualPayeeModal({
@@ -103,12 +103,13 @@ export function CreateIndividualPayeeModal({
       // Success
       toast.push('Individual payee created successfully')
       try {
+        const created = result?.data?.payee || result?.data
         onSuccess({
-          message: 'Individual payee created successfully',
-          id: result.data.person.id,
-          refresh: true,
-          payee: result.data.person // Return the created payee
-        })
+            message: 'Individual payee created successfully',
+            id: created?.id,
+            refresh: true,
+            payee: created // Return the created payee
+          })
       } catch (e) {}
 
       onClose()
@@ -126,7 +127,7 @@ export function CreateIndividualPayeeModal({
       const message = error instanceof Error ? error.message : 'Failed to create individual payee'
       toast.push(message)
       try {
-        onError(message)
+        onError?.(message)
       } catch (e) {}
     } finally {
       setLoading(false)
