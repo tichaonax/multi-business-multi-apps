@@ -86,7 +86,8 @@ describe('POST /api/backup (restore)', () => {
       businesses: { upsert: jest.fn().mockResolvedValue(true) },
       auditLogs: { create: jest.fn().mockResolvedValue(true) }
     }
-
+    ,
+      fullSyncSessions: { upsert: jest.fn().mockResolvedValue(true) }
     prisma.$transaction.mockImplementation(async (cb) => {
       return await cb(tx)
     })
@@ -104,3 +105,27 @@ describe('POST /api/backup (restore)', () => {
     expect(tx.auditLogs.create).toHaveBeenCalledTimes(auditLogs.length)
   })
 })
+    // no fullSyncSessions present by default, but we can add a BigInt conversion test next
+
+
+  it('converts BigInt fields from string to BigInt on restore', async () => {
+    getServerSession.mockResolvedValue({ user: { role: 'admin' } })
+
+    const fullSyncSessions = [
+      { id: 's1', sessionId: 'sess-1', sourceNodeId: 'n1', targetNodeId: 'n2', transferredBytes: '102400' }
+    ]
+
+    const backupData = { metadata: { backupType: 'full' }, fullSyncSessions }
+
+    const tx = { fullSyncSessions: { upsert: jest.fn().mockResolvedValue(true) } }
+    prisma.$transaction.mockImplementation(async (cb) => await cb(tx))
+
+    const request = { method: 'POST', url: 'http://localhost/api/backup', json: async () => backupData } as any
+    const response = await POST(request)
+
+    expect(response.status).toBe(200)
+    // Check that tx.fullSyncSessions.upsert was called with BigInt for transferredBytes
+    expect(tx.fullSyncSessions.upsert).toHaveBeenCalled()
+    const callArgs = tx.fullSyncSessions.upsert.mock.calls[0][0]
+    expect(callArgs.create.transferredBytes).toBe(BigInt('102400'))
+  })

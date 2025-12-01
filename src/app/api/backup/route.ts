@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { convertBackupTypes, parsePrismaSchemaForTypes } from '@/lib/backup-serialization';
 
 import { randomBytes } from 'crypto';
 export async function GET(request: NextRequest) {
@@ -1233,7 +1234,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const backupData = await request.json();
+    let backupData = await request.json();
+
+    // Convert backup strings for BigInt/Decimal to types where appropriate based on Prisma schema
+    try {
+      const schemaMap = parsePrismaSchemaForTypes();
+      backupData = convertBackupTypes(backupData, schemaMap);
+    } catch (err) {
+      console.warn('Warning: failed to parse Prisma schema for type conversions:', err instanceof Error ? err.message : String(err));
+    }
 
     if (!backupData.metadata) {
       return NextResponse.json({
