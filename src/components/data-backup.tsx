@@ -107,6 +107,17 @@ export function DataBackup() {
     loadRealBusinesses();
   }, []);
 
+  // Auto-reload page after successful restore
+  useEffect(() => {
+    if (restoreResult) {
+      // Wait 2 seconds to show the success message, then reload
+      const timer = setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [restoreResult]);
+
   const loadDemoBusinesses = async () => {
     setLoadingDemos(true);
     try {
