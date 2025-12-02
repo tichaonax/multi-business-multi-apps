@@ -1,0 +1,14 @@
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With
+Access-Control-Allow-Credentials: true
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+content-type: application/json
+set-cookie: multi-business.session-token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..V1Jviyc1ViCX0SpV.LCaGPitIosP9bK49GptHsmAKfFf0BKxOMn6u8-vkXM9qFlFL7bTz0LVTVeVMV62-DnK5KnlZqseMmI8LvZR98AS3-TVxgnc84K1jJ0r9bTxJxywG0BW1g0Dqkdy7XnwJ6Lof1psYko67o0xTwPyNWMridTCt9A434tctTUp8EE3vWOcbuXS7EzQkZGLaaE7MphXSu0eEaaz2V9zvzlzIQ73NxVK2qGEe8GHWI3UoizLsIURIqXCz6EcoeMoR_b8W-4buCx7oAwLhiHt_EUK1S6khPv4LJ3ab97FSBE7Wi3o7x4P_-3N-ZFmMvPPweNwO53ebGM2_f1eL9OY47dCAKa2y_c1_oA2UKkW-CM_hoKJ7PIkoxKZVI3Frr8ILHe2AH-lbnQ_TutBGNulgb05Fez9k7lCYDk1KsA0kbnm92j_ZLbuBcIqj5AKDgxcCaN4I8WLCK9gcRGxUZU3nl9HcaHpAYQ9CMLk1daLV70CHg-06b9ROKsmtK5zrXuQNjRm4DwLLY6723yjrfcXN_3SB-2yy7WqcFcXyY3UjMORAmth6BCOnVG79hzqRb2ViWhGIRkhRL3B_71IGDL7KtrItcxlzKmld5K9-QuoQZGsxch0HwGc-_jO557XWGWI-nCqi_0Cq74WOXgIowKYKbaRQwwZ-ZqAC-ML2xHV_HGOkUKgjREa1jEeF8L8BQ-hT118YdlXWnCD6r3zp_QR3SF3qlhBOmiXDAiLMU2KS3FMMLynUQelL1hzwQk8O3XmRUGvVpUmzQNgKnXVC5aK-_4tziNqU_ihQSSAw2nsm8l1uF7v9mKzwSCc88jkMroxXhKxl6XLQEF3UlbL33BnSZFEj724bUgPGda681lrMJ1bViDm7nWs3GUXx6FI-w9-rl7lxky5WYXg8ikv-BodcDCV29L-kMVdvSzzpQlIGrT0nb7ZeSveZpq1rU5ZyvSmUJTFJH-4fCDreQ8hFgGyGBqjxz55eCQ6uk4KKBXjd5R8mxZVkQ1sQXOlefPm1bwjqxGYjSFCYTxSPmI2McSepV_AucnGzxNyOrWEfPwyet39Hk2x3tFkXjEZ76FEcU3SO_kaQu3JvNDhEM6pWVRryNSgASCJ4Lv6S52cSiu5jpOFxNYyqGpYSPWU1hxoEqQWYPCri6SDLKDIvARgrzKPvwFX4ICDn7tjabB7MU6sU.yCOSY53dpq76CIfCZf3eDQ; Path=/; Expires=Tue, 30 Dec 2025 23:21:00 GMT; HttpOnly; SameSite=Lax
+Date: Sun, 30 Nov 2025 23:21:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+
+{"user":{"name":"System Administrator","email":"admin@business.local","id":"e9fd7e54-b386-4466-8af4-4b2892614a56","role":"admin","permissions":{"admin":["manage_users","backup_restore"],"grocery":["read","write","delete","reports","pos"],"clothing":["read","write","delete","reports","pos"],"personal":["read","write","delete","reports"],"restaurant":["read","write","delete","reports","pos"],"construction":["read","write","delete","reports"],"canViewExpenseReports":true,"canMakeExpenseDeposits":true,"canMakeExpensePayments":true,"canAccessExpenseAccount":true,"canCreateExpenseAccount":true,"canAdjustExpensePayments":true,"canDeleteExpenseAccounts":true,"canCreateIndividualPayees":true},"businessMemberships":[]},"expires":"2025-12-30T23:21:00.855Z","sessionId":"e9fd7e54-b386-4466-8af4-4b2892614a56-1764544853506-r5tq0jhdg","loginTime":1764544853506}

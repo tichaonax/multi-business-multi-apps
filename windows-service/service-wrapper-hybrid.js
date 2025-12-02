@@ -97,7 +97,8 @@ class HybridServiceWrapper extends EventEmitter {
     this.isShuttingDown = false;
     this.restartAttempts = 0;
     this.maxRestartAttempts = 5;
-    this.restartDelay = 5000; // 5 seconds
+    this.gracePeriodMs = 5 * 60 * 1000; // 5 minutes grace period
+    this.serviceStartTime = null;
     this.pidFile = path.join(__dirname, 'daemon', 'service.pid');
     this.logFile = path.join(__dirname, 'daemon', 'service.log');
     this.forceBuild = options.forceBuild || false;
@@ -190,10 +191,14 @@ class HybridServiceWrapper extends EventEmitter {
       // Save PID
       this.savePid(this.childProcess.pid);
 
+      // Record service start time for grace period
+      this.serviceStartTime = Date.now();
+
       // Setup process event handlers
       this.setupProcessHandlers();
 
       console.log(`✅ Sync service started with PID: ${this.childProcess.pid}`);
+      console.log(`⏰ Grace period active: ${this.gracePeriodMs / 1000}s before failure monitoring begins`);
       this.emit('started', { pid: this.childProcess.pid });
 
       // Build Next.js application if needed
@@ -1348,7 +1353,17 @@ class HybridServiceWrapper extends EventEmitter {
       this.emit('error', error);
 
       if (!this.isShuttingDown) {
-        this.handleRestart();
+        const uptime = this.serviceStartTime ? Date.now() - this.serviceStartTime : 0;
+        const inGracePeriod = uptime < this.gracePeriodMs;
+
+        if (inGracePeriod) {
+          console.log(`⏰ Service error during grace period (${Math.round(uptime / 1000)}s < ${this.gracePeriodMs / 1000}s), restarting immediately...`);
+          // Reset restart attempts during grace period
+          this.restartAttempts = 0;
+          this.start();
+        } else {
+          this.handleRestart();
+        }
       }
     });
 
@@ -1357,8 +1372,18 @@ class HybridServiceWrapper extends EventEmitter {
       this.cleanupPid();
 
       if (!this.isShuttingDown && code !== 0) {
-        console.log('🔄 Process exited unexpectedly, attempting restart...');
-        this.handleRestart();
+        const uptime = this.serviceStartTime ? Date.now() - this.serviceStartTime : 0;
+        const inGracePeriod = uptime < this.gracePeriodMs;
+
+        if (inGracePeriod) {
+          console.log(`⏰ Service exited during grace period (${Math.round(uptime / 1000)}s < ${this.gracePeriodMs / 1000}s), restarting immediately...`);
+          // Reset restart attempts during grace period
+          this.restartAttempts = 0;
+          this.start();
+        } else {
+          console.log('🔄 Process exited unexpectedly after grace period, attempting restart...');
+          this.handleRestart();
+        }
       } else {
         this.emit('stopped');
       }
@@ -1366,7 +1391,7 @@ class HybridServiceWrapper extends EventEmitter {
   }
 
   /**
-   * Handle automatic restart
+   * Handle automatic restart with progressive delays
    */
   async handleRestart() {
     this.restartAttempts++;
@@ -1376,11 +1401,26 @@ class HybridServiceWrapper extends EventEmitter {
       process.exit(1);
     }
 
-    console.log(`🔄 Attempting restart ${this.restartAttempts}/${this.maxRestartAttempts} in ${this.restartDelay}ms...`);
+    // Progressive delay sequence for service failures
+    const getRestartDelay = (attempt) => {
+      switch (attempt) {
+        case 1: return 60000;  // 1 minute for first failure
+        case 2: return 60000;  // 1 minute for second failure
+        case 3: return 300000; // 5 minutes for third failure
+        default: return 300000; // 5 minutes for any additional attempts
+      }
+    };
 
-    await new Promise(resolve => setTimeout(resolve, this.restartDelay));
+    const delayMs = getRestartDelay(this.restartAttempts);
+    const delayMinutes = (delayMs / 60000).toFixed(1);
+
+    console.log(`🔄 Attempting restart ${this.restartAttempts}/${this.maxRestartAttempts} in ${delayMinutes} minutes (${delayMs}ms)...`);
+
+    await new Promise(resolve => setTimeout(resolve, delayMs));
 
     if (!this.isShuttingDown) {
+      // Reset service start time for new instance
+      this.serviceStartTime = null;
       await this.start();
     }
   }

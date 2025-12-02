@@ -92,6 +92,10 @@ export function DataBackup() {
   });
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
+  const [restoreProgressId, setRestoreProgressId] = useState<string | null>(null);
+  const [restoreProgress, setRestoreProgress] = useState<any | null>(null);
+  const pollingRef = useRef<number | null>(null);
+  const polling404Count = useRef<number>(0);
   const [demoBusinesses, setDemoBusinesses] = useState<DemoBusiness[]>([]);
   const [loadingDemos, setLoadingDemos] = useState(false);
   const [deletingDemo, setDeletingDemo] = useState<string | null>(null);
@@ -285,13 +289,92 @@ export function DataBackup() {
       }
 
       const result = await response.json();
-      setRestoreResult(result);
+      // If the API returned a `results` object, it's a completed (wait=true) response
+      if (result?.results) {
+        setRestoreResult(result as RestoreResult);
+        setRestoreProgressId(null);
+        setRestoreProgress(null);
+      } else if (result?.progressId) {
+        // Background restore started - use progressId to poll
+        setRestoreResult(null);
+        setRestoreProgressId(result.progressId as string);
+        setRestoreProgress(null);
+      } else {
+        // Fallback: may contain message only
+        setRestoreResult(null);
+        setRestoreProgressId(null);
+        setRestoreProgress(null);
+      }
     } catch (error) {
       await customAlert({ title: 'Restore Failed', description: 'The restore operation failed. Please check the backup file and try again.' });
     } finally {
       setLoading(false);
     }
   };
+
+  // Poll progress endpoint when we have a progressId
+  useEffect(() => {
+    if (!restoreProgressId) {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/backup/progress?id=${encodeURIComponent(restoreProgressId)}`);
+        if (res.status === 404) {
+          polling404Count.current += 1;
+          // After 3 consecutive 404s, stop polling and show alert
+          if (polling404Count.current >= 3) {
+            if (pollingRef.current) {
+              window.clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+            await customAlert({ title: 'Restore Progress Unavailable', description: 'The restore progress ID could not be found on the server. The background restore may have failed or the server restarted. Please try again or check server logs.' });
+            setRestoreProgressId(null);
+          }
+          return
+        }
+        polling404Count.current = 0;
+        if (res.ok) {
+          const data = await res.json();
+          setRestoreProgress(data?.progress ?? null);
+          // Stop polling if processed & total are equal (complete) or if model === 'error'
+          if (data?.progress?.total && data?.progress?.processed && data.progress.processed >= data.progress.total) {
+            if (pollingRef.current) {
+              window.clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+            // Mark as finished
+            setRestoreProgressId(null);
+            
+          }
+          if (data?.progress?.model === 'error') {
+            if (pollingRef.current) {
+              window.clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to poll backup progress', err);
+      }
+    };
+
+    // Start immediate poll then interval
+    void poll();
+    pollingRef.current = window.setInterval(poll, 2000) as unknown as number;
+
+    return () => {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [restoreProgressId]);
 
   const backupTypes = [
     {
@@ -637,12 +720,12 @@ export function DataBackup() {
         </div>
 
         {/* Restore Results */}
-        {restoreResult && (
+        { (restoreResult || restoreProgress) && (
           <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-950 dark:border-green-800">
             <div className="flex items-center gap-2 mb-4">
               <CheckCircle className="h-5 w-5 text-green-600" />
               <h4 className="font-medium text-green-900 dark:text-green-100">
-                Restore Completed
+                {restoreResult ? 'Restore Completed' : 'Restore In Progress'}
               </h4>
             </div>
 
@@ -650,48 +733,76 @@ export function DataBackup() {
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Users:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult.results.restored.users}
+                  {restoreResult?.results?.restored?.users ?? (restoreProgress?.counts?.users?.processed ?? 0)}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Businesses:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult.results.restored.businesses}
+                  {restoreResult?.results?.restored?.businesses ?? (restoreProgress?.counts?.businesses?.processed ?? '')}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Employees:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult.results.restored.employees}
+                  {restoreResult?.results?.restored?.employees ?? (restoreProgress?.counts?.employees?.processed ?? '')}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Memberships:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult.results.restored.businessMemberships}
+                  {restoreResult?.results?.restored?.businessMemberships ?? (restoreProgress?.counts?.businessMemberships?.processed ?? '')}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Audit Logs:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult.results.restored.auditLogs}
+                  {restoreResult?.results?.restored?.auditLogs ?? (restoreProgress?.counts?.auditLogs?.processed ?? '')}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Reference Data:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult.results.restored.referenceData}
+                  {restoreResult?.results?.restored?.referenceData ?? (
+                    (() => {
+                      const refKeys = ['jobTitles','compensationTypes','benefitTypes','idFormatTemplates','driverLicenseTemplates','permissionTemplates','projectTypes','inventoryDomains','inventorySubcategories','expenseDomains','expenseCategories','expenseSubcategories','emojiLookup']
+                      const counts = restoreProgress?.counts ?? {}
+                      return refKeys.reduce((s, k) => s + (counts[k]?.processed ?? 0), 0) || ''
+                    })()
+                  )}
                 </span>
               </div>
             </div>
 
-            {restoreResult.results.errors.length > 0 && (
+            {/* If progress exists, show overall processed/total and model */}
+            {restoreProgress && !restoreResult && (
+              <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+                <div>
+                  Processed: {Object.values(restoreProgress.counts ?? {}).reduce((a, c) => a + (c.processed ?? 0), 0)} / {Object.values(restoreProgress.counts ?? {}).reduce((a, c) => a + (c.total ?? 0), 0) || '...'} records
+                </div>
+                <div>Last activity: {restoreProgress.model ?? 'N/A'} (record {restoreProgress.recordId ?? 'N/A'})</div>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Progress ID: <code className="bg-slate-100 dark:bg-slate-800 p-1 rounded">{restoreProgressId}</code></div>
+              </div>
+            )}
+
+            {restoreProgress && !restoreResult && Object.values(restoreProgress.counts ?? {}).length > 0 && (
+              <div className="mt-2">
+                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-2 bg-green-600 dark:bg-green-400"
+                    style={{ width: `${Math.min(100, Math.round((Object.values(restoreProgress.counts ?? {}).reduce((a, c) => a + (c.processed ?? 0), 0) / (Object.values(restoreProgress.counts ?? {}).reduce((a, c) => a + (c.total ?? 0), 0) || 1)) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {(restoreResult?.results?.errors?.length > 0 || (restoreProgress?.errors?.length ?? 0) > 0) && (
               <div>
                 <h5 className="font-medium text-red-900 dark:text-red-100 mb-2">
-                  Errors ({restoreResult.results.errors.length}):
+                  Errors ({restoreResult?.results?.errors?.length ?? restoreProgress?.errors?.length ?? 0}):
                 </h5>
                 <div className="max-h-32 overflow-y-auto space-y-1">
-                  {restoreResult.results.errors.map((error, index) => (
+                  {(restoreResult?.results?.errors ?? restoreProgress?.errors ?? []).map((error, index) => (
                     <div
                       key={index}
                       className="text-xs text-red-800 dark:text-red-200"

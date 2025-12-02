@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as crypto from 'crypto'
 import { spawn } from 'child_process'
+import { isPgDumpAvailable, installPgDumpHint } from '@/lib/pg-utils'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync, statSync } from 'fs'
@@ -107,6 +108,13 @@ async function createDatabaseBackup(backupFile: string): Promise<void> {
     const env = {
       ...process.env,
       PGPASSWORD: url.password || ''
+    }
+
+    if (!isPgDumpAvailable()) {
+      const hint = installPgDumpHint()
+      console.error('pg_dump is not available on this server - aborting backup creation', hint)
+      reject(new Error(`pg_dump not available: ${hint}`))
+      return
     }
 
     console.log(`Creating backup with pg_dump...`)

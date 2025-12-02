@@ -44,8 +44,8 @@ export function SubcategoryEditor({
     }
   }, [subcategory, isEditMode]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
+    try { e?.preventDefault?.() } catch (ex) {}
     setError(null);
 
     if (!name.trim()) {
@@ -111,7 +111,7 @@ export function SubcategoryEditor({
 
   if (!isOpen) return null;
 
-  return (
+  const modal = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
@@ -126,8 +126,21 @@ export function SubcategoryEditor({
           )}
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-6">
+        {/* Form (non-HTML form to avoid nested forms inside parent forms) */}
+        <div
+          role="form"
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const t = e.target as HTMLElement
+              if (t && t.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                void handleSubmit()
+              }
+            }
+          }}
+          className="px-6 py-4 space-y-6"
+        >
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded">
@@ -151,6 +164,11 @@ export function SubcategoryEditor({
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+  return (
+    <ModalPortal>
+      {modal}
+    </ModalPortal>
+  );
               This subcategory will be visible to all users
             </p>
           </div>
@@ -199,7 +217,7 @@ export function SubcategoryEditor({
               )}
             </div>
           )}
-        </form>
+        </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
@@ -213,7 +231,7 @@ export function SubcategoryEditor({
           </button>
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={loading || !name.trim() || !emoji.trim()}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
@@ -225,5 +243,11 @@ export function SubcategoryEditor({
         </div>
       </div>
     </div>
-  );
+  )
+
+  return (
+    <ModalPortal>
+      {modal}
+    </ModalPortal>
+  )
 }

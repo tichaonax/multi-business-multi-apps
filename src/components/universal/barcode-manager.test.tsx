@@ -65,4 +65,20 @@ describe('BarcodeManager', () => {
       expect(codeInput).toBeInTheDocument()
     })
   })
+
+  it('should not render a nested <form> when placed inside a parent form element', async () => {
+    // Render BarcodeManager inside a parent <form> to simulate the inventory form case
+    const { container } = render(
+      <form>
+        <BarcodeManager {...defaultProps} />
+      </form>
+    )
+
+    // Open the modal (simulate the usual use case)
+    fireEvent.click(screen.getByText('+ Add Barcode'))
+
+    // There should be no <form> element nested within another <form>
+    const nested = container.querySelectorAll('form form')
+    expect(nested.length).toBe(0)
+  })
 })

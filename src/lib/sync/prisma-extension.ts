@@ -75,11 +75,42 @@ export function createSyncExtension(syncHelper: SyncHelper) {
                 })
               } catch (error) {
                 console.warn(`Could not fetch old data for ${model}:`, error)
+                // Fallback: if findUnique fails due to unknown composite unique
+                // or mismatched where shape, try a findFirst() using a normalized where
+                try {
+                  const normalizedWhere = normalizeWhere(args.where)
+                  if (normalizedWhere) {
+                    oldData = await (client as any)[model].findFirst({ where: normalizedWhere })
+                  }
+                } catch (err2) {
+                  console.warn(`Fallback findFirst also failed for ${model}:`, err2)
+                }
               }
             }
 
             // Execute the operation
-            const result = await query(args)
+            let result
+            try {
+              result = await query(args)
+            } catch (error) {
+              console.warn(`Update failed for ${model}, attempting fallback:`, error)
+              try {
+                const normalizedWhere = normalizeWhere(args.where)
+                if (normalizedWhere) {
+                  const existing = await (client as any)[model].findFirst({ where: normalizedWhere })
+                  if (existing) {
+                    result = await (client as any)[model].update({ where: { id: existing.id }, data: args.data })
+                  } else {
+                    throw error
+                  }
+                } else {
+                  throw error
+                }
+              } catch (err2) {
+                console.error(`Fallback update failed for ${model}:`, err2)
+                throw err2
+              }
+            }
 
             // Track the change if not excluded
             if (!EXCLUDED_TABLES.has(model) && oldData) {
@@ -110,11 +141,40 @@ export function createSyncExtension(syncHelper: SyncHelper) {
                 })
               } catch (error) {
                 console.warn(`Could not fetch data before delete for ${model}:`, error)
+                try {
+                  const normalizedWhere = normalizeWhere(args.where)
+                  if (normalizedWhere) {
+                    oldData = await (client as any)[model].findFirst({ where: normalizedWhere })
+                  }
+                } catch (err2) {
+                  console.warn(`Fallback findFirst also failed for ${model}:`, err2)
+                }
               }
             }
 
             // Execute the operation
-            const result = await query(args)
+            let result
+            try {
+              result = await query(args)
+            } catch (error) {
+              console.warn(`Delete failed for ${model}, attempting fallback:`, error)
+              try {
+                const normalizedWhere = normalizeWhere(args.where)
+                if (normalizedWhere) {
+                  const existing = await (client as any)[model].findFirst({ where: normalizedWhere })
+                  if (existing) {
+                    result = await (client as any)[model].delete({ where: { id: existing.id } })
+                  } else {
+                    throw error
+                  }
+                } else {
+                  throw error
+                }
+              } catch (err2) {
+                console.error(`Fallback delete failed for ${model}:`, err2)
+                throw err2
+              }
+            }
 
             // Track the change if not excluded
             if (!EXCLUDED_TABLES.has(model) && oldData) {
@@ -146,11 +206,50 @@ export function createSyncExtension(syncHelper: SyncHelper) {
                 isUpdate = !!oldData
               } catch (error) {
                 console.warn(`Could not check existence for ${model}:`, error)
+                // Try a normalized findFirst fallback to determine if record exists
+                try {
+                  const normalizedWhere = normalizeWhere(args.where)
+                  if (normalizedWhere) {
+                    oldData = await (client as any)[model].findFirst({ where: normalizedWhere })
+                    isUpdate = !!oldData
+                  }
+                } catch (err2) {
+                  console.warn(`Fallback existence check (findFirst) failed for ${model}:`, err2)
+                }
               }
             }
 
             // Execute the operation
-            const result = await query(args)
+            let result
+            try {
+              result = await query(args)
+            } catch (error) {
+              // If the upsert itself fails with a Prisma validation error because the
+              // 'where' uses a key Prisma doesn't expect, attempt a graceful fallback:
+              // perform a findFirst on normalized where, and then do an update or create
+              // using id-based where if we can find an existing record.
+              console.warn(`Upsert failed for ${model}, attempting fallback:`, error)
+              try {
+                const normalizedWhere = normalizeWhere(args.where)
+                let existing = null
+                if (normalizedWhere) {
+                  existing = await (client as any)[model].findFirst({ where: normalizedWhere })
+                }
+                if (existing) {
+                  // Use id-based update when possible
+                  result = await (client as any)[model].update({ where: { id: existing.id }, data: args.update })
+                  isUpdate = true
+                  oldData = existing
+                } else {
+                  // Create instead
+                  result = await (client as any)[model].create({ data: args.create })
+                  isUpdate = false
+                }
+              } catch (err2) {
+                console.error(`Fallback upsert failed for ${model}:`, err2)
+                throw err2
+              }
+            }
 
             // Track the change if not excluded
             if (!EXCLUDED_TABLES.has(model)) {
@@ -211,4 +310,17 @@ export function createSyncExtension(syncHelper: SyncHelper) {
       }
     })
   })
+}
+
+// Utility: normalize a Prisma 'where' argument in case it's using a composite unique
+// alias. Many clients send `where: { businessId_name: { businessId: 'abc', name: 'X' } }`.
+// If the key isn't a real field, but the value is an object of fields, return that
+// inner object so we can use it with findFirst({ where: normalized }).
+export function normalizeWhere(whereArg: any) {
+  if (!whereArg || typeof whereArg !== 'object') return whereArg
+  const keys = Object.keys(whereArg)
+  if (keys.length === 1 && typeof whereArg[keys[0]] === 'object') {
+    return whereArg[keys[0]]
+  }
+  return whereArg
 }

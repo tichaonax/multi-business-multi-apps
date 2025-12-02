@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import ModalPortal from '@/components/ui/modal-portal'
 
 export type BarcodeType = 'UPC_A' | 'UPC_E' | 'EAN_13' | 'EAN_8' | 'CODE128' | 'CODE39' | 'ITF' | 'CODABAR' | 'QR_CODE' | 'DATA_MATRIX' | 'PDF417' | 'CUSTOM' | 'SKU_BARCODE'
 
@@ -113,8 +114,8 @@ export function BarcodeManager({
     return null
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
+    try { e?.preventDefault?.() } catch (ex) {}
 
     const validationError = validateBarcode(formData.code, formData.type)
     if (validationError) {
@@ -325,9 +326,10 @@ export function BarcodeManager({
       )}
 
       {showAddForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   {editingBarcode ? 'Edit Barcode' : 'Add New Barcode'}
@@ -427,7 +429,22 @@ export function BarcodeManager({
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <div
+                role="form"
+                tabIndex={-1}
+                className="space-y-4"
+                onKeyDown={(e) => {
+                  // Pretend Enter should submit (but not inside textareas)
+                  if (e.key === 'Enter') {
+                    const t = e.target as HTMLElement
+                    if (t && t.tagName !== 'TEXTAREA') {
+                      e.preventDefault()
+                      // Call submit without event
+                      void handleSubmit()
+                    }
+                  }
+                }}
+              >
                 {errors.general && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                     <p className="text-red-600 text-sm">{errors.general}</p>
@@ -558,16 +575,18 @@ export function BarcodeManager({
                     Cancel
                   </button>
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={() => void handleSubmit()}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   >
                     {editingBarcode ? 'Update' : 'Add'} Barcode
                   </button>
                 </div>
-              </form>
+              </div>
+            </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   )

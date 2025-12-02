@@ -84,17 +84,16 @@ export function convertBackupTypes(backupData: any, schemaMap?: SchemaMap): any 
   for (const [key, value] of Object.entries(backupData)) {
     // We expect many top-level keys to be plural forms of model names: e.g., "businesses" maps to `businesses` table
     // We'll try to match to our schema map by directly looking for key or fallback to snake_case singular
-    const tableName = key // keys are usually the actual table keys used in backup
-    if (!map[tableName]) {
-      // try to singularize/convert basic camelCase or Pascal case to snake case
-      const fallback = tableName
-        .replace(/([A-Z])/g, '_$1')
-        .toLowerCase()
+    let tableName = key // keys are usually the actual table keys used in backup
+    let tableKeyToUse = tableName
+    if (!map[tableKeyToUse]) {
+      // try to convert camelCase or PascalCase shapes to snake_case and see if they match schema
+      const fallback = tableKeyToUse.replace(/([A-Z])/g, '_$1').toLowerCase()
       if (!map[fallback]) continue
-      // else use fallback
+      tableKeyToUse = fallback
     }
 
-    const modelMap = map[tableName] || map[tableName]
+    const modelMap = map[tableKeyToUse]
     if (!modelMap) continue
 
     if (Array.isArray(value)) {

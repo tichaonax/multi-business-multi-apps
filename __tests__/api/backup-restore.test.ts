@@ -84,10 +84,9 @@ describe('POST /api/backup (restore)', () => {
     const tx = {
       jobTitles: { upsert: jest.fn().mockResolvedValue(true) },
       businesses: { upsert: jest.fn().mockResolvedValue(true) },
-      auditLogs: { create: jest.fn().mockResolvedValue(true) }
-    }
-    ,
+      auditLogs: { create: jest.fn().mockResolvedValue(true) },
       fullSyncSessions: { upsert: jest.fn().mockResolvedValue(true) }
+    }
     prisma.$transaction.mockImplementation(async (cb) => {
       return await cb(tx)
     })
@@ -128,4 +127,23 @@ describe('POST /api/backup (restore)', () => {
     expect(tx.fullSyncSessions.upsert).toHaveBeenCalled()
     const callArgs = tx.fullSyncSessions.upsert.mock.calls[0][0]
     expect(callArgs.create.transferredBytes).toBe(BigInt('102400'))
+  })
+
+  it('handles snake_case table keys like benefit_types', async () => {
+    getServerSession.mockResolvedValue({ user: { role: 'admin' } })
+
+    const benefit_types = [
+      { id: 'bt_1', name: 'Health', description: 'Health benefit', type: 'benefit', defaultAmount: 100, isPercentage: false, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    ]
+
+    const backupData = { metadata: { backupType: 'full' }, benefit_types }
+
+    const tx = { benefitTypes: { upsert: jest.fn().mockResolvedValue(true) } }
+    prisma.$transaction.mockImplementation(async (cb) => await cb(tx))
+
+    const request = { method: 'POST', url: 'http://localhost/api/backup', json: async () => backupData } as any
+    const response = await POST(request)
+
+    expect(response.status).toBe(200)
+    expect(tx.benefitTypes.upsert).toHaveBeenCalled()
   })
