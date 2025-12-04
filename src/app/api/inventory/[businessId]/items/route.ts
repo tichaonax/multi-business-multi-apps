@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import { randomBytes } from 'crypto'
 import { randomUUID } from 'crypto'
+import { generateSKU } from '@/lib/sku-generator'
 
 interface UniversalInventoryItem {
   id: string
@@ -310,8 +311,8 @@ export async function POST(
     if (!categoryId && body.category) {
       const category = await prisma.businessCategories.upsert({
         where: {
-          businessId_name: {
-            businessId,
+          businessType_name: {
+            businessType: business.type,
             name: body.category
           }
         },
@@ -382,26 +383,50 @@ export async function POST(
       }
     }
 
-    // Create the product
-    const product = await prisma.businessProducts.create({
-      data: {
-        id: randomUUID(),
-        businessId,
-        name: body.name,
-        description: body.description || '',
-        sku: body.sku || null,
-        barcode: body.barcode || null,
-        categoryId: categoryId || undefined,
-        subcategoryId: subcategoryId,
-        supplierId: body.supplierId || null,
-        locationId: body.locationId || null,
-        basePrice: parseFloat(basePrice),
-        costPrice: body.costPrice ? parseFloat(body.costPrice) : null,
-        businessType: business.type,
-        isActive: body.isActive !== false,
-        attributes: body.attributes || {},
-        updatedAt: new Date()
+    // Auto-generate SKU if not provided
+    let sku = body.sku || null
+    if (!sku && body.name) {
+      try {
+        sku = await generateSKU(prisma, {
+          productName: body.name,
+          category: body.category,
+          businessId,
+          businessType: business.type
+        })
+        console.log(`[SKU Auto-generated] ${sku} for product "${body.name}"`)
+      } catch (error) {
+        console.error('Failed to auto-generate SKU:', error)
+        // Continue without SKU - user can add it later
+      }
+    }
+
+    // Create or update the product (handle partial updates during form filling)
+    const productId = body.id || randomUUID()
+    const productData = {
+      businessId,
+      name: body.name,
+      description: body.description || '',
+      sku,
+      barcode: body.barcode || null,
+      categoryId: categoryId || undefined,
+      subcategoryId: subcategoryId,
+      supplierId: body.supplierId || null,
+      locationId: body.locationId || null,
+      basePrice: parseFloat(basePrice),
+      costPrice: body.costPrice ? parseFloat(body.costPrice) : null,
+      businessType: business.type,
+      isActive: body.isActive !== false,
+      attributes: body.attributes || {},
+      updatedAt: new Date()
+    }
+
+    const product = await prisma.businessProducts.upsert({
+      where: { id: productId },
+      create: {
+        id: productId,
+        ...productData
       },
+      update: productData,
       include: {
         business_categories: true,
         inventory_subcategory: true,
@@ -410,19 +435,32 @@ export async function POST(
       }
     })
 
-    // Create default variant
-    const variant = await prisma.productVariants.create({
-      data: {
-        id: randomUUID(),
-        productId: product.id,
-        name: 'Default',
-        sku: body.sku || product.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-001`,
-        stockQuantity: 0,
-        reorderLevel: body.lowStockThreshold || 10,
-        price: parseFloat(basePrice),
-        updatedAt: new Date()
-      }
+    // Create or update default variant (handle partial updates)
+    const existingVariant = await prisma.productVariants.findFirst({
+      where: { productId: product.id, name: 'Default' }
     })
+
+    const variantData = {
+      productId: product.id,
+      name: 'Default',
+      sku: body.sku || product.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-001`,
+      stockQuantity: existingVariant?.stockQuantity || 0,
+      reorderLevel: body.lowStockThreshold || 10,
+      price: parseFloat(basePrice),
+      updatedAt: new Date()
+    }
+
+    const variant = existingVariant
+      ? await prisma.productVariants.update({
+          where: { id: existingVariant.id },
+          data: variantData
+        })
+      : await prisma.productVariants.create({
+          data: {
+            id: randomUUID(),
+            ...variantData
+          }
+        })
 
     // If initial stock is provided, create stock movement
     if (body.currentStock && parseFloat(body.currentStock) > 0) {
@@ -459,6 +497,27 @@ export async function POST(
 
       await prisma.productAttributes.createMany({
         data: attributeData
+      })
+    }
+
+    // Create barcodes if provided in the new multi-barcode format
+    if (body.barcodes && Array.isArray(body.barcodes) && body.barcodes.length > 0) {
+      const barcodeData = body.barcodes.map((barcode: any) => ({
+        id: barcode.id?.startsWith('temp-') ? randomUUID() : (barcode.id || randomUUID()),
+        productId: product.id,
+        businessId: barcode.isUniversal ? null : businessId,
+        code: barcode.code,
+        type: barcode.type || 'CODE128',
+        label: barcode.label || 'Product Barcode',
+        isPrimary: barcode.isPrimary || false,
+        isUniversal: barcode.isUniversal || false,
+        isActive: barcode.isActive !== false,
+        notes: barcode.notes || null
+      }))
+
+      await prisma.productBarcodes.createMany({
+        data: barcodeData,
+        skipDuplicates: true // Skip if barcode already exists
       })
     }
 

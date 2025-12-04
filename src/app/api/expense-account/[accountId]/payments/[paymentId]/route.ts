@@ -4,10 +4,12 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import {
   validatePaymentAmount,
-  updateExpenseAccountBalance,
+  validatePaymentEdit,
+  updateExpenseAccountBalanceTx,
+  isWithinEditWindow,
 } from '@/lib/expense-account-utils'
 import { validatePayee } from '@/lib/payee-utils'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
 
 /**
  * GET /api/expense-account/[accountId]/payments/[paymentId]
@@ -15,7 +17,7 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { accountId: string; paymentId: string } }
+  { params }: { params: Promise<{ accountId: string; paymentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -32,7 +34,7 @@ export async function GET(
       )
     }
 
-    const { accountId, paymentId } = params
+    const { accountId, paymentId } = await params
 
     // Get payment with relations
     const payment = await prisma.expenseAccountPayments.findUnique({
@@ -150,7 +152,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { accountId: string; paymentId: string } }
+  { params }: { params: Promise<{ accountId: string; paymentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -160,14 +162,16 @@ export async function PATCH(
 
     // Get user permissions
     const permissions = getEffectivePermissions(session.user)
-    if (!permissions.canAdjustExpensePayments) {
+    const isAdmin = isSystemAdmin(session.user)
+
+    if (!permissions.canEditExpenseTransactions) {
       return NextResponse.json(
-        { error: 'You do not have permission to adjust expense payments' },
+        { error: 'You do not have permission to edit expense transactions' },
         { status: 403 }
       )
     }
 
-    const { accountId, paymentId } = params
+    const { accountId, paymentId } = await params
 
     // Get existing payment
     const existingPayment = await prisma.expenseAccountPayments.findUnique({
@@ -191,16 +195,17 @@ export async function PATCH(
       )
     }
 
-    // Check if payment is DRAFT (only DRAFT payments can be edited)
-    if (existingPayment.status !== 'DRAFT') {
+    // Check if within edit window (5 days for non-admins)
+    const editWindowCheck = isWithinEditWindow(existingPayment.createdAt, isAdmin)
+    if (!editWindowCheck.allowed) {
       return NextResponse.json(
-        {
-          error: 'Cannot update submitted payment',
-          reason: 'Only DRAFT payments can be modified. Submitted payments are immutable for audit trail.',
-        },
+        { error: editWindowCheck.error },
         { status: 403 }
       )
     }
+
+    // Note: We now allow editing submitted payments with proper validation
+    // to prevent negative balances
 
     // Parse request body
     const body = await request.json()
@@ -221,16 +226,27 @@ export async function PATCH(
 
     // Validate and update amount if provided
     if (amount !== undefined) {
-      const amountValidation = validatePaymentAmount(
-        Number(amount),
-        Number(existingPayment.expenseAccount.balance)
-      )
+      const amountValidation = validatePaymentAmount(Number(amount))
       if (!amountValidation.valid) {
         return NextResponse.json(
           { error: amountValidation.error },
           { status: 400 }
         )
       }
+
+      // Validate that this change won't cause negative balances
+      const editValidation = await validatePaymentEdit(
+        paymentId,
+        accountId,
+        Number(amount)
+      )
+      if (!editValidation.valid) {
+        return NextResponse.json(
+          { error: editValidation.error },
+          { status: 400 }
+        )
+      }
+
       updateData.amount = Number(amount)
     }
 
@@ -284,38 +300,46 @@ export async function PATCH(
     if (receiptReason !== undefined) updateData.receiptReason = receiptReason?.trim() || null
     if (isFullPayment !== undefined) updateData.isFullPayment = isFullPayment
 
-    // Update payment
-    const updatedPayment = await prisma.expenseAccountPayments.update({
-      where: { id: paymentId },
-      data: updateData,
-      include: {
-        payeeUser: {
-          select: { id: true, name: true, email: true },
-        },
-        payeeEmployee: {
-          select: {
-            id: true,
-            employeeNumber: true,
-            fullName: true,
+    // Use transaction to update payment and recalculate balance
+    const result = await prisma.$transaction(async (tx) => {
+      // Update payment
+      const updatedPayment = await tx.expenseAccountPayments.update({
+        where: { id: paymentId },
+        data: updateData,
+        include: {
+          payeeUser: {
+            select: { id: true, name: true, email: true },
+          },
+          payeeEmployee: {
+            select: {
+              id: true,
+              employeeNumber: true,
+              fullName: true,
+            },
+          },
+          payeePerson: {
+            select: {
+              id: true,
+              fullName: true,
+              nationalId: true,
+            },
+          },
+          payeeBusiness: {
+            select: { id: true, name: true, type: true },
+          },
+          category: {
+            select: { id: true, name: true, emoji: true },
+          },
+          subcategory: {
+            select: { id: true, name: true, emoji: true },
           },
         },
-        payeePerson: {
-          select: {
-            id: true,
-            fullName: true,
-            nationalId: true,
-          },
-        },
-        payeeBusiness: {
-          select: { id: true, name: true, type: true },
-        },
-        category: {
-          select: { id: true, name: true, emoji: true },
-        },
-        subcategory: {
-          select: { id: true, name: true, emoji: true },
-        },
-      },
+      })
+
+      // Recalculate and update account balance
+      const newBalance = await updateExpenseAccountBalanceTx(tx, accountId)
+
+      return { updatedPayment, newBalance }
     })
 
     return NextResponse.json({
@@ -323,23 +347,24 @@ export async function PATCH(
       message: 'Payment updated successfully',
       data: {
         payment: {
-          id: updatedPayment.id,
-          expenseAccountId: updatedPayment.expenseAccountId,
-          payeeType: updatedPayment.payeeType,
-          payeeUser: updatedPayment.payeeUser,
-          payeeEmployee: updatedPayment.payeeEmployee,
-          payeePerson: updatedPayment.payeePerson,
-          payeeBusiness: updatedPayment.payeeBusiness,
-          category: updatedPayment.category,
-          subcategory: updatedPayment.subcategory,
-          amount: Number(updatedPayment.amount),
-          paymentDate: updatedPayment.paymentDate.toISOString(),
-          notes: updatedPayment.notes,
-          receiptNumber: updatedPayment.receiptNumber,
-          status: updatedPayment.status,
-          createdAt: updatedPayment.createdAt.toISOString(),
-          updatedAt: updatedPayment.updatedAt.toISOString(),
+          id: result.updatedPayment.id,
+          expenseAccountId: result.updatedPayment.expenseAccountId,
+          payeeType: result.updatedPayment.payeeType,
+          payeeUser: result.updatedPayment.payeeUser,
+          payeeEmployee: result.updatedPayment.payeeEmployee,
+          payeePerson: result.updatedPayment.payeePerson,
+          payeeBusiness: result.updatedPayment.payeeBusiness,
+          category: result.updatedPayment.category,
+          subcategory: result.updatedPayment.subcategory,
+          amount: Number(result.updatedPayment.amount),
+          paymentDate: result.updatedPayment.paymentDate.toISOString(),
+          notes: result.updatedPayment.notes,
+          receiptNumber: result.updatedPayment.receiptNumber,
+          status: result.updatedPayment.status,
+          createdAt: result.updatedPayment.createdAt.toISOString(),
+          updatedAt: result.updatedPayment.updatedAt.toISOString(),
         },
+        expenseAccountBalance: result.newBalance,
       },
     })
   } catch (error) {
@@ -360,7 +385,7 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { accountId: string; paymentId: string } }
+  { params }: { params: Promise<{ accountId: string; paymentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -377,7 +402,7 @@ export async function DELETE(
       )
     }
 
-    const { accountId, paymentId } = params
+    const { accountId, paymentId } = await params
 
     // Get existing payment
     const existingPayment = await prisma.expenseAccountPayments.findUnique({

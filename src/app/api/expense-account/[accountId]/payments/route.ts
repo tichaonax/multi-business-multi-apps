@@ -385,6 +385,55 @@ export async function POST(
         )
       }
 
+      // Validate payment amount for individuals without national ID
+      if (payment.payeeType === 'PERSON') {
+        const person = await prisma.persons.findUnique({
+          where: { id: payeeId },
+          select: { nationalId: true, fullName: true },
+        })
+
+        console.log('[PaymentAPI] Validating person payment:', {
+          payeeId,
+          personFound: !!person,
+          personNationalId: person?.nationalId,
+          amount: payment.amount
+        })
+
+        if (person && !person.nationalId) {
+          // Get settings to check max payment without ID
+          // Fetch from settings API (should ideally be cached)
+          let maxPaymentWithoutId = 100 // Default fallback
+          try {
+            const settingsRes = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:8080'}/api/admin/settings`, {
+              headers: { 'Cookie': request.headers.get('cookie') || '' }
+            })
+            if (settingsRes.ok) {
+              const settings = await settingsRes.json()
+              maxPaymentWithoutId = settings.maxPaymentWithoutId || 100
+            }
+          } catch (error) {
+            console.error('[PaymentAPI] Failed to fetch settings, using default:', error)
+          }
+
+          console.log('[PaymentAPI] Person has no national ID - checking limit:', {
+            maxPaymentWithoutId,
+            amount: Number(payment.amount),
+            willBlock: Number(payment.amount) >= maxPaymentWithoutId
+          })
+
+          if (Number(payment.amount) >= maxPaymentWithoutId) {
+            console.log('[PaymentAPI] BLOCKING payment - exceeds limit')
+            return NextResponse.json(
+              {
+                error: `Payment ${paymentIndex}: Cannot pay $${maxPaymentWithoutId.toFixed(2)} or more to ${person.fullName} without a national ID. Maximum allowed: $${(maxPaymentWithoutId - 0.01).toFixed(2)}. Please add their national ID or reduce the amount.`,
+                index: i,
+              },
+              { status: 400 }
+            )
+          }
+        }
+      }
+
       // Validate category exists
       const category = await prisma.expenseCategories.findUnique({
         where: { id: payment.categoryId },

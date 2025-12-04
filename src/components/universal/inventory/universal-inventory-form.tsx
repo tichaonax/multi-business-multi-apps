@@ -5,6 +5,7 @@ import { SupplierSelector } from '@/components/suppliers/supplier-selector'
 import { LocationSelector } from '@/components/locations/location-selector'
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor'
 import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { useSession } from 'next-auth/react'
 import { hasUserPermission } from '@/lib/permission-utils'
 import { LabelPreview } from '@/components/printing/label-preview'
@@ -100,6 +101,7 @@ export function UniversalInventoryForm({
   }>>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [availableSubcategories, setAvailableSubcategories] = useState<InventorySubcategory[]>([])
+  const [generatingSKU, setGeneratingSKU] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
@@ -264,11 +266,54 @@ export function UniversalInventoryForm({
     setShowSubcategoryEditor(false)
   }
 
+  const handleGenerateSKU = async () => {
+    if (!formData.name) {
+      await customAlert({
+        title: 'Name Required',
+        description: 'Please enter a product name first to generate a SKU.'
+      })
+      return
+    }
+
+    setGeneratingSKU(true)
+    try {
+      const response = await fetch(`/api/inventory/${businessId}/generate-sku`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: formData.name,
+          category: selectedCategory || undefined
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setFormData(prev => ({ ...prev, sku: data.sku }))
+
+        // Show pattern info if available
+        if (data.pattern) {
+          console.log(`SKU generated following pattern: ${data.pattern.sample}`)
+        }
+      } else {
+        throw new Error('Failed to generate SKU')
+      }
+    } catch (error) {
+      console.error('Error generating SKU:', error)
+      await customAlert({
+        title: 'Generation Failed',
+        description: 'Could not auto-generate SKU. Please enter one manually.'
+      })
+    } finally {
+      setGeneratingSKU(false)
+    }
+  }
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
     if (!formData.name.trim()) newErrors.name = 'Name is required'
-    if (!formData.sku.trim()) newErrors.sku = 'SKU is required'
+    // SKU is optional - backend will auto-generate if not provided
+    // if (!formData.sku.trim()) newErrors.sku = 'SKU is required'
     if (!formData.categoryId?.trim()) newErrors.categoryId = 'Category is required'
     if (!formData.unit.trim()) newErrors.unit = 'Unit is required'
     if (formData.currentStock < 0) newErrors.currentStock = 'Stock cannot be negative'
@@ -292,12 +337,15 @@ export function UniversalInventoryForm({
     setLoading(true)
 
     try {
+      // Merge barcodes into formData before submission
+      const submissionData = { ...formData, barcodes }
+
       // If onSubmit is provided, let the parent handle the submission
       if (onSubmit) {
-        await onSubmit(formData)
+        await onSubmit(submissionData)
         // If printOnSave is checked, show label preview
         if (printOnSave && canPrintInventoryLabels) {
-          setSavedItemForLabel(formData)
+          setSavedItemForLabel(submissionData)
           setShowLabelPreview(true)
         }
         setLoading(false)
@@ -315,7 +363,7 @@ export function UniversalInventoryForm({
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(submissionData)
       })
 
       if (response.ok) {
@@ -810,18 +858,29 @@ export function UniversalInventoryForm({
 
             <div>
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                SKU *
+                SKU <span className="text-gray-400 font-normal">(optional - auto-generated if empty)</span>
               </label>
-              <input
-                type="text"
-                value={formData.sku}
-                onChange={(e) => handleInputChange('sku', e.target.value)}
-                className={`input-field ${errors.sku ? 'border-red-300' : ''}`}
-                placeholder="Enter business SKU code"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={formData.sku}
+                  onChange={(e) => handleInputChange('sku', e.target.value)}
+                  className={`input-field flex-1 ${errors.sku ? 'border-red-300' : ''}`}
+                  placeholder="Auto-generated or enter custom SKU"
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerateSKU}
+                  disabled={generatingSKU || !formData.name}
+                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  title="Auto-generate SKU based on product name and existing patterns"
+                >
+                  {generatingSKU ? '⏳ Generating...' : '✨ Auto-generate'}
+                </button>
+              </div>
               {errors.sku && <p className="text-red-600 text-sm mt-1">{errors.sku}</p>}
               <p className="text-xs text-gray-500 mt-1">
-                Business-internal identifier (separate from scannable barcodes below)
+                Leave empty for automatic SKU, or click "Auto-generate" to preview before saving. Follows existing patterns in your inventory.
               </p>
             </div>
 
@@ -829,19 +888,19 @@ export function UniversalInventoryForm({
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                 Category *
               </label>
-              <select
+              <SearchableSelect
+                options={categories.map(cat => ({
+                  id: cat.id,
+                  name: cat.name,
+                  emoji: cat.emoji,
+                  color: cat.color
+                }))}
                 value={formData.categoryId || ''}
-                onChange={(e) => handleCategoryChange(e.target.value)}
-                className={`input-field ${errors.categoryId ? 'border-red-300' : ''}`}
-              >
-                <option value="">Select category...</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.emoji} {category.name}
-                  </option>
-                ))}
-              </select>
-              {errors.categoryId && <p className="text-red-600 text-sm mt-1">{errors.categoryId}</p>}
+                onChange={handleCategoryChange}
+                placeholder="Select category..."
+                searchPlaceholder="Search categories..."
+                error={errors.categoryId}
+              />
             </div>
 
             <div>
@@ -859,25 +918,21 @@ export function UniversalInventoryForm({
                   </button>
                 )}
               </div>
-              <select
+              <SearchableSelect
+                options={availableSubcategories.map(sub => ({
+                  id: sub.id,
+                  name: sub.name,
+                  emoji: sub.emoji
+                }))}
                 value={formData.subcategoryId || ''}
-                onChange={(e) => handleInputChange('subcategoryId', e.target.value || '')}
-                className="input-field"
+                onChange={(id) => handleInputChange('subcategoryId', id || '')}
+                placeholder="No subcategory"
+                searchPlaceholder="Search subcategories..."
                 disabled={!selectedCategory}
-              >
-                <option value="">No subcategory</option>
-                {availableSubcategories.map((subcategory) => (
-                  <option key={subcategory.id} value={subcategory.id}>
-                    {subcategory.emoji && `${subcategory.emoji} `}{subcategory.name}
-                  </option>
-                ))}
-              </select>
-              {!selectedCategory && (
-                <p className="text-gray-500 text-sm mt-1">Select a category first</p>
-              )}
-              {selectedCategory && availableSubcategories.length === 0 && (
-                <p className="text-gray-500 text-sm mt-1">No subcategories available. Click "+ Create Subcategory" to add one.</p>
-              )}
+                emptyMessage={selectedCategory && availableSubcategories.length === 0 
+                  ? 'No subcategories available. Click "+ Create Subcategory" to add one.' 
+                  : 'Select a category first'}
+              />
             </div>
 
             <div>
@@ -1009,21 +1064,37 @@ export function UniversalInventoryForm({
         {/* Business-Specific Fields */}
         {getBusinessSpecificFields()}
 
-        <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
-          </button>
+        <div className="flex justify-between gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+          <div className="flex gap-3">
+            {mode === 'edit' && item?.id && (
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}`
+                  window.location.href = url
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
+              >
+                <span>🛒</span> Sell this Item
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
+            </button>
+          </div>
         </div>
       </form>
 

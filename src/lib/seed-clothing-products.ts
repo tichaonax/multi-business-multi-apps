@@ -17,7 +17,7 @@ const DEPT_TO_DOMAIN: Record<string, string> = {
 export interface SeedProductResult {
   success: boolean
   imported: number
-  skipped: number
+  skipped: number // Always 0 now - kept for API compatibility
   errors: number
   errorLog: Array<{
     sku: string
@@ -91,7 +91,7 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
 
     const productData = JSON.parse(fs.readFileSync(dataFile, 'utf-8'))
 
-    // 3. Load all clothing categories and subcategories
+    // 3. Load all existing clothing categories and domains
     const categories = await prisma.businessCategories.findMany({
       where: { businessType: 'clothing' },
       include: {
@@ -100,17 +100,17 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
       }
     })
 
-    if (categories.length === 0) {
-      return {
-        success: false,
-        imported: 0,
-        skipped: 0,
-        errors: 0,
-        errorLog: [],
-        totalProducts: 0,
-        message: 'No clothing categories found. Please run category seeding first.'
+    // Load all domains to ensure they exist
+    const domains = await prisma.inventoryDomains.findMany({
+      where: {
+        OR: [
+          { name: { in: ['Mens', 'Womens', 'Boys', 'Girls', 'Baby', 'Accessories', 'Home Textiles', 'General Merchandise'] } }
+        ]
       }
-    }
+    })
+
+    const domainLookup = new Map<string, any>()
+    domains.forEach(d => domainLookup.set(d.id, d))
 
     // Build lookup maps
     const categoryMap = new Map<string, any>() // domain|categoryName -> category
@@ -138,96 +138,119 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
 
       for (const item of dept.items) {
         try {
-          // Check if product already exists (by businessId + SKU)
-          const existing = await prisma.businessProducts.findFirst({
-            where: {
-              businessId: businessId,
-              sku: item.sku
-            }
-          })
+          // Generate unique SKU for this business + product
+          const sku = item.sku
 
-          if (existing) {
-            skipped++
-            continue
-          }
-
-          // Find matching category
-          // Handle null categoryName by defaulting to "Uncategorized" for the domain
-          const categoryName = item.categoryName || 'Uncategorized'
-
-          // First try exact domain-specific match
-          const categoryKey = `${domainId}|${categoryName}`
+          // Look up or create category (businessType specific, NOT businessId specific)
+          const categoryKey = `${domainId}|${item.categoryName}`
           let category = categoryMap.get(categoryKey)
 
-          // If not found, try exact match with any domain (fallback 1)
           if (!category) {
-            category = Array.from(categoryMap.values()).find(c => c.name === categoryName)
-          }
-
-          // If still not found, try fuzzy match - categories that start with the name (fallback 2)
-          // This handles renamed categories like "Accessories" -> "Accessories (Women's)"
-          if (!category) {
-            // First try within the correct domain
-            category = Array.from(categoryMap.values()).find(c =>
-              c.domainId === domainId && c.name.startsWith(categoryName)
-            )
-
-            // If still not found, try any domain
-            if (!category) {
-              category = Array.from(categoryMap.values()).find(c =>
-                c.name.startsWith(categoryName)
-              )
-            }
-          }
-
-          if (!category) {
-            errors++
-            errorLog.push({
-              sku: item.sku,
-              product: item.product,
-              error: `Category not found: ${categoryName} (domain: ${domainId})`
+            // Category doesn't exist - create it (businessType: 'clothing', businessId: null)
+            console.log(`Creating missing category: ${item.categoryName} in domain ${domainId}`)
+            
+            category = await prisma.businessCategories.create({
+              data: {
+                name: item.categoryName,
+                businessType: 'clothing',
+                businessId: null, // Business type specific, not business ID specific
+                domainId: domainId,
+                description: item.categoryName,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              }
             })
-            continue
+            
+            // Add to map for future lookups
+            categoryMap.set(categoryKey, category)
           }
 
-          // Find matching subcategory (if provided)
-          let subcategoryId: string | null = null
-          if (item.subcategory) {
-            const subcategoryKey = `${category.id}|${item.subcategory}`
-            const subcategory = subcategoryMap.get(subcategoryKey)
-            if (subcategory) {
-              subcategoryId = subcategory.id
+          // Look up or create subcategory if available
+          let subcategoryId = null
+          if (item.subcategoryName) {
+            const subcategoryKey = `${category.id}|${item.subcategoryName}`
+            let subcategory = subcategoryMap.get(subcategoryKey)
+            
+            if (!subcategory) {
+              // Subcategory doesn't exist - create it
+              console.log(`Creating missing subcategory: ${item.subcategoryName} for category ${item.categoryName}`)
+              
+              subcategory = await prisma.inventorySubcategories.create({
+                data: {
+                  name: item.subcategoryName,
+                  categoryId: category.id,
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                }
+              })
+              
+              // Add to map for future lookups
+              subcategoryMap.set(subcategoryKey, subcategory)
             }
+            
+            subcategoryId = subcategory.id
           }
 
-          // Create product
-          const product = await prisma.businessProducts.create({
-            data: {
-              businessId: businessId,
+          // Use upsert to either create new product or update existing one
+          const product = await prisma.businessProducts.upsert({
+            where: {
+              businessId_sku: {
+                businessId: businessId,
+                sku: sku
+              }
+            },
+            update: {
               name: item.product,
-              sku: item.sku,
               categoryId: category.id,
               subcategoryId: subcategoryId,
-              basePrice: 0.00, // Default price, can be updated later
+              basePrice: 0.00, // Reset to default, can be updated later
               costPrice: null,
               businessType: 'clothing',
               isActive: true,
-              isAvailable: true, // True so it shows in inventory (zero stock but visible for restocking)
+              isAvailable: true,
               productType: 'PHYSICAL',
               condition: 'NEW',
-              description: item.categoryName, // Use category as description
+              description: item.categoryName,
+              updatedAt: new Date()
+            },
+            create: {
+              businessId: businessId,
+              name: item.product,
+              sku: sku,
+              categoryId: category.id,
+              subcategoryId: subcategoryId,
+              basePrice: 0.00,
+              costPrice: null,
+              businessType: 'clothing',
+              isActive: true,
+              isAvailable: true,
+              productType: 'PHYSICAL',
+              condition: 'NEW',
+              description: item.categoryName,
               updatedAt: new Date()
             }
           })
 
-          // Create default variant with zero stock
-          await prisma.productVariants.create({
-            data: {
+          // Handle product variant - upsert by unique SKU (not productId which is not unique)
+          await prisma.productVariants.upsert({
+            where: {
+              sku: sku // Use unique SKU constraint
+            },
+            update: {
+              name: 'Default',
+              productId: product.id, // Ensure variant is linked to current product
+              stockQuantity: 0,
+              reorderLevel: 5,
+              price: 0.00,
+              isActive: true,
+              updatedAt: new Date()
+            },
+            create: {
               productId: product.id,
               name: 'Default',
-              sku: item.sku,
-              stockQuantity: 0, // Zero quantity ready for restocking
-              reorderLevel: 5, // Default reorder threshold
+              sku: sku,
+              stockQuantity: 0,
+              reorderLevel: 5,
               price: 0.00,
               isActive: true,
               updatedAt: new Date()
@@ -253,7 +276,7 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
     return {
       success: true,
       imported,
-      skipped,
+      skipped: 0, // No longer skipping - we update existing products
       errors,
       errorLog,
       totalProducts,

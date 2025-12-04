@@ -18,7 +18,8 @@ import {
   CheckCircle,
   AlertTriangle,
   Zap,
-  Printer
+  Printer,
+  Package
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -195,6 +196,56 @@ export default function AdminPage() {
             >
               Manage Sync
             </a>
+          </div>
+
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Package className="h-6 w-6 mr-2 text-blue-500" />
+                <h3 className="text-lg font-semibold text-primary">Seed Templates</h3>
+              </div>
+              <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs font-semibold rounded">
+                NEW
+              </span>
+            </div>
+            <p className="text-secondary mb-4">Export, import, and manage business seed data templates</p>
+            <div className="text-sm text-secondary mb-4">
+              • Export templates from existing businesses
+              <br />
+              • Bulk export multiple businesses at once
+              <br />
+              • Preview changes before importing
+              <br />
+              • Compare templates with existing data
+              <br />
+              • Apply templates to initialize new businesses
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href="/admin/seed-templates"
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium transition-colors"
+              >
+                Manage Templates
+              </a>
+              <a
+                href="/admin/seed-templates/export"
+                className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg font-medium transition-colors"
+              >
+                Export
+              </a>
+              <a
+                href="/admin/seed-templates/import"
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg font-medium transition-colors"
+              >
+                Import
+              </a>
+              <a
+                href="/admin/seed-templates/bulk-export"
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium transition-colors"
+              >
+                Bulk Export
+              </a>
+            </div>
           </div>
 
           {isSysAdmin && (

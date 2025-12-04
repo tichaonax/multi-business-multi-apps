@@ -766,3 +766,243 @@ export async function getNextSiblingAccountNumber(parentAccountId: string): Prom
   const nextNumber = await generateNextSiblingNumber(parentAccountId)
   return `${parentAccount.accountNumber}-${nextNumber.toString().padStart(2, '0')}`
 }
+
+/**
+ * Validate if editing a deposit amount would cause negative balances in subsequent transactions
+ * @param depositId - The deposit ID being edited
+ * @param accountId - The expense account ID
+ * @param newAmount - The new amount for the deposit
+ * @returns Object with valid flag and error message if invalid
+ */
+export async function validateDepositEdit(
+  depositId: string,
+  accountId: string,
+  newAmount: number
+): Promise<{ valid: boolean; error?: string }> {
+  // Get the deposit being edited
+  const deposit = await prisma.expenseAccountDeposits.findUnique({
+    where: { id: depositId },
+    select: { amount: true, depositDate: true }
+  })
+
+  if (!deposit) {
+    return { valid: false, error: 'Deposit not found' }
+  }
+
+  const currentAmount = Number(deposit.amount)
+  const amountDifference = newAmount - currentAmount
+
+  // If increasing deposit, no negative balance issues
+  if (amountDifference >= 0) {
+    return { valid: true }
+  }
+
+  // Get all transactions (deposits and payments) after this deposit chronologically
+  const [depositsAfter, paymentsAfter] = await Promise.all([
+    prisma.expenseAccountDeposits.findMany({
+      where: {
+        expenseAccountId: accountId,
+        depositDate: { gte: deposit.depositDate }
+      },
+      orderBy: { depositDate: 'asc' },
+      select: { id: true, amount: true, depositDate: true }
+    }),
+    prisma.expenseAccountPayments.findMany({
+      where: {
+        expenseAccountId: accountId,
+        status: 'SUBMITTED',
+        paymentDate: { gte: deposit.depositDate }
+      },
+      orderBy: { paymentDate: 'asc' },
+      select: { id: true, amount: true, paymentDate: true }
+    })
+  ])
+
+  // Build chronological list of all transactions
+  interface Transaction {
+    id: string
+    date: Date
+    amount: number
+    type: 'DEPOSIT' | 'PAYMENT'
+  }
+
+  const allTransactions: Transaction[] = [
+    ...depositsAfter.map(d => ({
+      id: d.id,
+      date: d.depositDate,
+      amount: Number(d.amount),
+      type: 'DEPOSIT' as const
+    })),
+    ...paymentsAfter.map(p => ({
+      id: p.id,
+      date: p.paymentDate,
+      amount: Number(p.amount),
+      type: 'PAYMENT' as const
+    }))
+  ].sort((a, b) => a.date.getTime() - b.date.getTime())
+
+  // Calculate balances chronologically with the new amount
+  // Get balance up to (but not including) this deposit
+  const [depositsBefore, paymentsBefore] = await Promise.all([
+    prisma.expenseAccountDeposits.aggregate({
+      where: {
+        expenseAccountId: accountId,
+        depositDate: { lt: deposit.depositDate }
+      },
+      _sum: { amount: true }
+    }),
+    prisma.expenseAccountPayments.aggregate({
+      where: {
+        expenseAccountId: accountId,
+        status: 'SUBMITTED',
+        paymentDate: { lt: deposit.depositDate }
+      },
+      _sum: { amount: true }
+    })
+  ])
+
+  let runningBalance = Number(depositsBefore._sum.amount || 0) - Number(paymentsBefore._sum.amount || 0)
+
+  // Apply all transactions chronologically with the edited amount
+  for (const transaction of allTransactions) {
+    if (transaction.type === 'DEPOSIT') {
+      // If this is the deposit being edited, use new amount
+      const amount = transaction.id === depositId ? newAmount : transaction.amount
+      runningBalance += amount
+    } else {
+      // Payment
+      runningBalance -= transaction.amount
+      // Check if this causes negative balance
+      if (runningBalance < 0) {
+        return {
+          valid: false,
+          error: `Editing this deposit would cause a negative balance of $${Math.abs(runningBalance).toFixed(2)} on ${transaction.date.toLocaleDateString()}`
+        }
+      }
+    }
+  }
+
+  return { valid: true }
+}
+
+/**
+ * Validate if editing a payment amount would cause negative balance
+ * @param paymentId - The payment ID being edited
+ * @param accountId - The expense account ID
+ * @param newAmount - The new amount for the payment
+ * @returns Object with valid flag and error message if invalid
+ */
+export async function validatePaymentEdit(
+  paymentId: string,
+  accountId: string,
+  newAmount: number
+): Promise<{ valid: boolean; error?: string }> {
+  // Get the payment being edited
+  const payment = await prisma.expenseAccountPayments.findUnique({
+    where: { id: paymentId },
+    select: { amount: true, paymentDate: true, status: true }
+  })
+
+  if (!payment) {
+    return { valid: false, error: 'Payment not found' }
+  }
+
+  // Only check for submitted payments (DRAFT payments don't affect balance)
+  if (payment.status !== 'SUBMITTED') {
+    return { valid: true }
+  }
+
+  const currentAmount = Number(payment.amount)
+  const amountDifference = newAmount - currentAmount
+
+  // Debug logging
+  console.log('[validatePaymentEdit] Payment ID:', paymentId)
+  console.log('[validatePaymentEdit] Current amount:', currentAmount, '-> New amount:', newAmount)
+  console.log('[validatePaymentEdit] Amount difference:', amountDifference)
+  console.log('[validatePaymentEdit] Payment date:', payment.paymentDate)
+
+  // If decreasing payment, no negative balance issues
+  // (we're putting money back into the account)
+  if (amountDifference <= 0) {
+    console.log('[validatePaymentEdit] Decreasing payment - validation passed')
+    return { valid: true }
+  }
+
+  // For editing existing payments, we need to check if the increase would cause
+  // any balance to go negative from this point forward.
+  // Since the payment already exists, we calculate the current account balance
+  // and see if there's enough cushion to increase this payment.
+
+  // Get current account balance
+  const [allDeposits, allPaymentsExcludingThis] = await Promise.all([
+    prisma.expenseAccountDeposits.aggregate({
+      where: { expenseAccountId: accountId },
+      _sum: { amount: true }
+    }),
+    prisma.expenseAccountPayments.aggregate({
+      where: {
+        expenseAccountId: accountId,
+        status: 'SUBMITTED',
+        id: { not: paymentId }
+      },
+      _sum: { amount: true }
+    })
+  ])
+
+  const totalDeposits = Number(allDeposits._sum.amount || 0)
+  const totalOtherPayments = Number(allPaymentsExcludingThis._sum.amount || 0)
+  // Current balance if this payment didn't exist
+  const balanceWithoutThisPayment = totalDeposits - totalOtherPayments
+  // Current balance with this payment at current amount
+  const currentBalance = balanceWithoutThisPayment - currentAmount
+  // What balance would be if we apply the new amount
+  const balanceWithNewAmount = balanceWithoutThisPayment - newAmount
+
+  console.log('[validatePaymentEdit] Total deposits:', totalDeposits)
+  console.log('[validatePaymentEdit] Total other payments:', totalOtherPayments)
+  console.log('[validatePaymentEdit] Balance without this payment:', balanceWithoutThisPayment)
+  console.log('[validatePaymentEdit] Current balance:', currentBalance)
+  console.log('[validatePaymentEdit] Balance with new amount:', balanceWithNewAmount)
+
+  // Check if the new amount would make the current balance negative
+  if (balanceWithNewAmount < 0) {
+    const shortfall = Math.abs(balanceWithNewAmount)
+    return {
+      valid: false,
+      error: `Insufficient funds for this amount. Current account balance would become: -$${shortfall.toFixed(2)}. Please reduce the amount or add more deposits first.`
+    }
+  }
+
+  console.log('[validatePaymentEdit] Validation passed - sufficient funds for edit')
+  return { valid: true }
+}
+
+/**
+ * Check if a transaction is within the 5-day edit window
+ * @param createdAt - The transaction creation date
+ * @param isAdmin - Whether the user is an admin (admins can always edit)
+ * @returns Object with allowed flag and error message if not allowed
+ */
+export function isWithinEditWindow(
+  createdAt: Date,
+  isAdmin: boolean
+): { allowed: boolean; error?: string } {
+  // Admins can always edit
+  if (isAdmin) {
+    return { allowed: true }
+  }
+
+  // Calculate days since creation
+  const now = new Date()
+  const diffMs = now.getTime() - createdAt.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays > 5) {
+    return {
+      allowed: false,
+      error: `This transaction can only be edited within 5 days of creation. It was created ${diffDays} days ago. Only admins can edit older transactions.`
+    }
+  }
+
+  return { allowed: true }
+}

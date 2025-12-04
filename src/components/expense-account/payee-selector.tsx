@@ -187,7 +187,7 @@ export function PayeeSelector({
           </div>
 
           {/* Payee List */}
-          <div className="max-h-72 overflow-y-auto">
+          <div className="max-h-60 overflow-y-auto">
             {allPayeesCount === 0 ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                 No payees found
@@ -306,7 +306,7 @@ export function PayeeSelector({
           </div>
 
           {/* Footer Actions */}
-          <div className="p-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
             {onCreateIndividual && (
               <button
                 type="button"

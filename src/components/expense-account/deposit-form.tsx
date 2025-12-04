@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { DateInput } from '@/components/ui/date-input'
+import { getTodayLocalDateString } from '@/lib/date-utils'
 
 interface Business {
   id: string
@@ -26,7 +27,7 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
     sourceType: 'MANUAL' as 'BUSINESS' | 'MANUAL' | 'OTHER',
     sourceBusinessId: '',
     amount: '',
-    depositDate: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
+    depositDate: getTodayLocalDateString(),
     transactionType: 'DEPOSIT' as string,
     manualNote: '',
   })
@@ -59,7 +60,7 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
           id: b.id,
           name: b.name,
           type: b.type,
-          balance: b.business_accounts?.balance || 0
+          balance: Number(b.business_accounts?.balance || 0)
         }))
 
         setBusinesses(transformedBusinesses)
@@ -105,8 +106,8 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
       newErrors.amount = 'Amount must be greater than 0'
     } else if (amount > 999999999.99) {
       newErrors.amount = 'Amount exceeds maximum allowed value'
-    } else if (formData.sourceType === 'BUSINESS' && selectedBusiness && amount > selectedBusiness.balance) {
-      newErrors.amount = `Insufficient business balance. Available: $${selectedBusiness.balance.toFixed(2)}`
+    } else if (formData.sourceType === 'BUSINESS' && selectedBusiness && amount > Number(selectedBusiness.balance)) {
+      newErrors.amount = `Insufficient business balance. Available: $${Number(selectedBusiness.balance).toFixed(2)}`
     }
 
     // Validate deposit date
@@ -166,7 +167,7 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
           sourceType: 'MANUAL',
           sourceBusinessId: '',
           amount: '',
-          depositDate: new Date().toISOString().split('T')[0],
+          depositDate: getTodayLocalDateString(),
           transactionType: 'DEPOSIT',
           manualNote: '',
         })
@@ -391,7 +392,7 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
               sourceType: 'MANUAL',
               sourceBusinessId: '',
               amount: '',
-              depositDate: new Date().toISOString().split('T')[0],
+              depositDate: getTodayLocalDateString(),
               transactionType: 'DEPOSIT',
               manualNote: '',
             })

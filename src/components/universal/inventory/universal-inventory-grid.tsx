@@ -49,6 +49,7 @@ interface UniversalInventoryGridProps {
   onItemView?: (item: UniversalInventoryItem) => void
   onItemDelete?: (item: UniversalInventoryItem) => void
   onResetExternalFilters?: () => void  // Callback to reset parent filters
+  refreshTrigger?: number  // Change this value to force a refresh
   showActions?: boolean
   headerActions?: React.ReactNode
   layout?: 'table' | 'grid' | 'cards'
@@ -69,6 +70,7 @@ export function UniversalInventoryGrid({
   onItemView,
   onItemDelete,
   onResetExternalFilters,  // Callback to reset parent filters
+  refreshTrigger,  // Force refresh when this value changes
   showActions = true,
   headerActions,
   layout = 'table',
@@ -83,6 +85,7 @@ export function UniversalInventoryGrid({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all')
   const [selectedLocation, setSelectedLocation] = useState<string>('all')
@@ -101,6 +104,19 @@ export function UniversalInventoryGrid({
   const { canPrintInventoryLabels } = usePrinterPermissions()
   const { monitorJob, notifyJobQueued } = usePrintJobMonitor()
 
+  // Debounce search term to avoid searching on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      // Reset to first page when search changes
+      if (searchTerm !== debouncedSearchTerm) {
+        setCurrentPage(1)
+      }
+    }, 1000) // Wait 1 second after user stops typing
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
   // Use external categoryFilter if provided, otherwise use internal state
   const effectiveCategory = categoryFilter || selectedCategory
 
@@ -114,7 +130,7 @@ export function UniversalInventoryGrid({
         const params = new URLSearchParams({
           page: currentPage.toString(),
           limit: pageSize.toString(),
-          ...(searchTerm && { search: searchTerm }),
+          ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
           ...(effectiveCategory !== 'all' && { category: effectiveCategory }),
           ...(departmentFilter && { domainId: departmentFilter })
         })
@@ -154,7 +170,7 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, searchTerm, selectedCategory, categoryFilter, departmentFilter])
+  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, refreshTrigger])
 
   // Filter items by supplier and location
   const filteredItems = items.filter(item => {

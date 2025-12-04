@@ -1,6 +1,7 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -24,6 +25,10 @@ export default function ClothingInventoryPage() {
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [stats, setStats] = useState<any>(null)
   const [isSeeding, setIsSeeding] = useState(false)
+  const [hasSeededProducts, setHasSeededProducts] = useState(false)
+  const [checkingSeedStatus, setCheckingSeedStatus] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const searchParams = useSearchParams()
   const customAlert = useAlert()
   const confirm = useConfirm()
 
@@ -38,10 +43,30 @@ export default function ClothingInventoryPage() {
     businesses
   } = useBusinessPermissionsContext()
 
+  // Handle productId from URL parameters
+  useEffect(() => {
+    const productId = searchParams?.get('productId')
+    if (productId && currentBusinessId) {
+      fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data) {
+            setSelectedItem(data.data)
+            setShowAddForm(true)
+            setActiveTab('inventory')
+            router.replace('/clothing/inventory', { scroll: false })
+          }
+        })
+        .catch(err => console.error('Failed to load product:', err))
+    }
+  }, [searchParams, currentBusinessId, router])
+
   // Fetch department statistics
   const fetchStats = async () => {
+    if (!currentBusinessId) return
+    
     try {
-      const response = await fetch('/api/admin/clothing/stats')
+      const response = await fetch(`/api/admin/clothing/stats?businessId=${currentBusinessId}`)
       const data = await response.json()
 
       if (data.success) {
@@ -49,6 +74,39 @@ export default function ClothingInventoryPage() {
       }
     } catch (error) {
       console.error('Error fetching stats:', error)
+    }
+  }
+
+  // Check if business has already seeded products
+  // Check if products exist for this business (seeding creates products, not inventory items)
+  const checkSeedingStatus = async () => {
+    if (!currentBusinessId) {
+      setHasSeededProducts(false)
+      setCheckingSeedStatus(false)
+      return
+    }
+
+    try {
+      setCheckingSeedStatus(true)
+      const queryParams = new URLSearchParams({
+        businessType: 'clothing',
+        limit: '1'
+      })
+      queryParams.set('businessId', currentBusinessId)
+
+      const response = await fetch(`/api/universal/products?${queryParams.toString()}`)
+      const data = await response.json()
+
+      if (data.success && data.data && data.data.length > 0) {
+        setHasSeededProducts(true)
+      } else {
+        setHasSeededProducts(false)
+      }
+    } catch (error) {
+      console.error('Error checking seeding status:', error)
+      setHasSeededProducts(false)
+    } finally {
+      setCheckingSeedStatus(false)
     }
   }
 
@@ -60,10 +118,15 @@ export default function ClothingInventoryPage() {
     }
   }, [])
 
-  // Fetch stats on mount
+  // Fetch stats when business changes
   useEffect(() => {
     fetchStats()
-  }, [])
+  }, [currentBusinessId])
+
+  // Check seeding status when business changes
+  useEffect(() => {
+    checkSeedingStatus()
+  }, [currentBusinessId])
 
   // Save active tab whenever it changes
   useEffect(() => {
@@ -153,7 +216,8 @@ export default function ClothingInventoryPage() {
         })
 
             if (response.ok) {
-              router.refresh()
+              // Trigger grid refresh by updating the key
+              setRefreshKey(prev => prev + 1)
             } else {
               await customAlert({ title: 'Failed to delete item' })
             }
@@ -205,8 +269,7 @@ export default function ClothingInventoryPage() {
       if (data.success) {
         const { imported, skipped, errors } = data.data
         let message = `Successfully seeded products!\n\n`
-        message += `• Imported: ${imported} products\n`
-        message += `• Skipped: ${skipped} products (already existed)\n`
+        message += `• Imported/Updated: ${imported} products\n`
         if (errors > 0) {
           message += `• Errors: ${errors}\n`
         }
@@ -219,6 +282,7 @@ export default function ClothingInventoryPage() {
         // Refresh the page to show new products
         router.refresh()
         fetchStats()
+        checkSeedingStatus()
       } else {
         await customAlert({
           title: 'Seeding Failed',
@@ -261,7 +325,8 @@ export default function ClothingInventoryPage() {
         setShowAddForm(false)
         setSelectedItem(null)
         setActiveTab('inventory')
-        router.refresh()
+        // Trigger grid refresh by updating the key
+        setRefreshKey(prev => prev + 1)
       } else {
         // Extract error message from API response
         const errorData = await response.json()
@@ -387,11 +452,11 @@ export default function ClothingInventoryPage() {
                       <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={handleSeedProducts}
-                          disabled={isSeeding}
+                          disabled={isSeeding || hasSeededProducts || checkingSeedStatus}
                           className="btn-secondary border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Import 1067 common clothing products with zero quantities"
+                          title={checkingSeedStatus ? "Checking product status..." : hasSeededProducts ? "Products already seeded for this business" : "Import 1067 common clothing products with zero quantities"}
                         >
-                          {isSeeding ? '⏳ Seeding...' : '🌱 Seed Products'}
+                          {checkingSeedStatus ? '⏳ Checking...' : isSeeding ? '⏳ Seeding...' : hasSeededProducts ? '✅ Products Seeded' : '🌱 Seed Products'}
                         </button>
                         <button
                           onClick={() => {
@@ -460,6 +525,7 @@ export default function ClothingInventoryPage() {
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
                       onResetExternalFilters={handleResetExternalFilters}
+                      refreshTrigger={refreshKey}
                       showActions={true}
                       layout="table"
                       allowSearch={true}

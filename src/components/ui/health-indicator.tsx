@@ -17,14 +17,14 @@ interface HealthResponse {
 
 interface HealthIndicatorProps {
   pollInterval?: number
-  position?: 'bottom-right' | 'bottom-left' | 'top-right'
+  position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'bottom-center'
   showFullOnDesktop?: boolean
   enableClickToExpand?: boolean
 }
 
 export default function HealthIndicator({
   pollInterval = 30000,
-  position = 'bottom-right',
+  position = 'bottom-center',
   showFullOnDesktop = true,
   enableClickToExpand = true
 }: HealthIndicatorProps) {
@@ -250,7 +250,8 @@ export default function HealthIndicator({
   const positionClasses = {
     'bottom-right': 'bottom-4 right-4',
     'bottom-left': 'bottom-4 left-4',
-    'top-right': 'top-4 right-4'
+    'top-right': 'top-4 right-4',
+    'bottom-center': 'bottom-2 left-1/2 -translate-x-1/2'
   }
 
   // Format relative time for last check
@@ -316,7 +317,12 @@ export default function HealthIndicator({
         {/* Popover with details */}
         <div
           ref={popoverRef}
-          className={`fixed ${position === 'bottom-right' ? 'bottom-20 right-4' : position === 'bottom-left' ? 'bottom-20 left-4' : 'top-20 right-4'} z-[9999] w-64 animate-in slide-in-from-bottom-2 duration-200`}
+          className={`fixed ${
+            position === 'bottom-right' ? 'bottom-20 right-4' :
+            position === 'bottom-left' ? 'bottom-20 left-4' :
+            position === 'bottom-center' ? 'bottom-20 left-1/2 -translate-x-1/2' :
+            'top-20 right-4'
+          } z-[9999] w-64 animate-in slide-in-from-bottom-2 duration-200`}
         >
           <div className={`rounded-lg border shadow-lg bg-white ${statusInfo.borderColor}`}>
             {/* Header */}
@@ -366,21 +372,19 @@ export default function HealthIndicator({
     )
   }
 
-  // Desktop full card view
+  // Desktop full card view - compact thin version
   return (
     <div
-      className={`fixed ${positionClasses[position]} z-[9999] flex flex-col gap-1 rounded-lg border p-3 shadow-md ${statusInfo.bgColor} ${statusInfo.borderColor} transition-all duration-200`}
+      className={`fixed ${positionClasses[position]} z-[9999] flex items-center gap-2 rounded-full border px-3 py-1.5 shadow-md ${statusInfo.bgColor} ${statusInfo.borderColor} transition-all duration-200`}
     >
-      <div className="flex items-center gap-2">
-        <div className={`h-3 w-3 rounded-full ${statusInfo.color}`} />
-        <span className={`text-sm font-medium ${statusInfo.textColor}`}>
-          {statusInfo.label}
-        </span>
-      </div>
+      <div className={`h-2 w-2 rounded-full ${statusInfo.color}`} />
+      <span className={`text-xs font-medium ${statusInfo.textColor}`}>
+        {statusInfo.label}
+      </span>
       {health?.uptime && (
-        <div className="text-xs text-gray-500 pl-5">
-          Uptime: {health.uptime.formatted}
-        </div>
+        <span className="text-xs text-gray-500 border-l border-gray-300 pl-2 ml-1">
+          {health.uptime.formatted}
+        </span>
       )}
     </div>
   )

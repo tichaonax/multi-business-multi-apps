@@ -30,6 +30,8 @@ export default function MenuManagementPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSeeding, setIsSeeding] = useState(false)
+  const [hasSeededProducts, setHasSeededProducts] = useState(false)
+  const [checkingSeedStatus, setCheckingSeedStatus] = useState(true)
 
   // Filters and search
   const [searchTerm, setSearchTerm] = useState('')
@@ -48,6 +50,11 @@ export default function MenuManagementPage() {
   useEffect(() => {
     loadMenuData()
   }, [])
+
+  // Check seeding status when business changes
+  useEffect(() => {
+    checkSeedingStatus()
+  }, [currentBusinessId])
 
   const loadMenuData = async () => {
     try {
@@ -120,6 +127,38 @@ export default function MenuManagementPage() {
     }
   }
 
+  // Check if business has already seeded products
+  const checkSeedingStatus = async () => {
+    if (!currentBusinessId) {
+      setHasSeededProducts(false)
+      setCheckingSeedStatus(false)
+      return
+    }
+
+    try {
+      setCheckingSeedStatus(true)
+      const queryParams = new URLSearchParams({
+        businessType: 'restaurant',
+        limit: '1'
+      })
+      queryParams.set('businessId', currentBusinessId)
+
+      const response = await fetch(`/api/universal/products?${queryParams.toString()}`)
+      const data = await response.json()
+
+      if (data.success && data.data && data.data.length > 0) {
+        setHasSeededProducts(true)
+      } else {
+        setHasSeededProducts(false)
+      }
+    } catch (error) {
+      console.error('Error checking seeding status:', error)
+      setHasSeededProducts(false)
+    } finally {
+      setCheckingSeedStatus(false)
+    }
+  }
+
   const handleSeedProducts = async () => {
     // Get business name from businesses array or current business
     const businessName = currentBusiness?.businessName ||
@@ -170,8 +209,7 @@ export default function MenuManagementPage() {
       if (data.success) {
         const { imported, skipped, errors } = data.data
         let message = `Successfully seeded menu items!\n\n`
-        message += `• Imported: ${imported} products\n`
-        message += `• Skipped: ${skipped} products (already existed)\n`
+        message += `• Imported/Updated: ${imported} products\n`
         if (errors > 0) {
           message += `• Errors: ${errors}\n`
         }
@@ -184,6 +222,7 @@ export default function MenuManagementPage() {
 
         // Refresh the menu data
         await loadMenuData()
+        checkSeedingStatus()
         router.refresh()
       } else {
         await customAlert({
@@ -441,11 +480,11 @@ export default function MenuManagementPage() {
               <div className="flex items-center gap-2">
                 <Button
                   onClick={handleSeedProducts}
-                  disabled={isSeeding}
+                  disabled={isSeeding || hasSeededProducts || checkingSeedStatus}
                   className="bg-green-600 hover:bg-green-700 text-white dark:bg-green-600 dark:hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Import 111 default menu items with zero pricing"
+                  title={checkingSeedStatus ? "Checking menu status..." : hasSeededProducts ? "Menu items already seeded for this business" : "Import 111 default menu items with zero pricing"}
                 >
-                  {isSeeding ? '⏳ Seeding...' : '🌱 Seed Menu Items'}
+                  {checkingSeedStatus ? '⏳ Checking...' : isSeeding ? '⏳ Seeding...' : hasSeededProducts ? '✅ Menu Seeded' : '🌱 Seed Menu Items'}
                 </Button>
                 <Button onClick={handleCreateItem} className="bg-primary hover:bg-primary/90 dark:bg-blue-600 dark:hover:bg-blue-500">
                   ➕ Add Menu Item

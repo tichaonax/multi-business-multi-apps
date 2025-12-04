@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -20,6 +21,8 @@ export default function HardwareInventoryPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const router = useRouter()
   const customAlert = useAlert()
@@ -36,6 +39,24 @@ export default function HardwareInventoryPage() {
 
   // Check if current business is a hardware business
   const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
+
+  // Handle productId from URL parameters
+  useEffect(() => {
+    const productId = searchParams?.get('productId')
+    if (productId && currentBusinessId) {
+      fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data) {
+            setSelectedItem(data.data)
+            setShowAddForm(true)
+            setActiveTab('inventory')
+            router.replace('/hardware/inventory', { scroll: false })
+          }
+        })
+        .catch(err => console.error('Failed to load product:', err))
+    }
+  }, [searchParams, currentBusinessId, router])
 
   // Redirect to signin if not authenticated
   React.useEffect(() => {
@@ -158,7 +179,8 @@ export default function HardwareInventoryPage() {
       })
 
       if (response.ok) {
-        router.refresh()
+        // Trigger grid refresh by updating the key
+        setRefreshKey(prev => prev + 1)
       } else {
         await customAlert({ title: 'Delete failed', description: 'Failed to delete item' })
       }
@@ -226,7 +248,8 @@ export default function HardwareInventoryPage() {
         setShowAddForm(false)
         setSelectedItem(null)
         setActiveTab('inventory')
-        router.refresh()
+        // Trigger grid refresh by updating the key
+        setRefreshKey(prev => prev + 1)
       } else{
         const error = await response.json()
         await customAlert({ title: 'Save failed', description: error.message || 'Failed to save item' })
@@ -333,6 +356,7 @@ export default function HardwareInventoryPage() {
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
+                      refreshTrigger={refreshKey}
                       showActions={true}
                       layout="table"
                       allowSearch={true}

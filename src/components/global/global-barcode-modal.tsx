@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import { getGlobalBarcodeScanningAccess, canStockInventoryFromModal } from '@/lib/permission-utils'
 import { BusinessSelectionModal, InventoryType, ProductData } from './business-selection-modal'
 import { useToast } from '@/components/ui/use-toast'
+import { useRouter } from 'next/navigation'
 
 interface BusinessInventory {
   businessId: string
@@ -33,6 +34,7 @@ interface GlobalBarcodeModalProps {
 
 export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: GlobalBarcodeModalProps) {
   const { data: session } = useSession()
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [businesses, setBusinesses] = useState<BusinessInventory[]>([])
   const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null)
@@ -41,6 +43,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   const [currentBarcode, setCurrentBarcode] = useState(barcode)
   const [currentConfidence, setCurrentConfidence] = useState(confidence)
   const [showBusinessSelection, setShowBusinessSelection] = useState(false)
+  const [pendingNavigation, setPendingNavigation] = useState<{ url: string, business: BusinessInventory } | null>(null)
   const { push: showToast } = useToast()
 
   useEffect(() => {
@@ -183,6 +186,44 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     setShowBusinessSelection(true)
   }
 
+  const handleViewProduct = (business: BusinessInventory) => {
+    // Get current business from localStorage
+    const currentBusinessId = localStorage.getItem('currentBusinessId')
+    
+    // Use the item ID (which is the inventory item ID) for navigation
+    const itemId = business.productId // This is actually the item ID from the lookup
+    const url = `/${business.businessType}/inventory${itemId ? `?productId=${itemId}` : ''}`
+    
+    // If different business, show confirmation
+    if (currentBusinessId && currentBusinessId !== business.businessId) {
+      setPendingNavigation({ url, business })
+    } else {
+      // Same business or no current business, navigate directly
+      switchBusinessAndNavigate(business.businessId, url)
+    }
+  }
+
+  const switchBusinessAndNavigate = (businessId: string, url: string) => {
+    // Update localStorage with new business
+    localStorage.setItem('currentBusinessId', businessId)
+    // Close modal
+    onClose()
+    // Use window.location.href for full page reload to ensure context updates
+    // This prevents race condition where page loads before context updates
+    window.location.href = url
+  }
+
+  const handleConfirmBusinessSwitch = () => {
+    if (pendingNavigation) {
+      switchBusinessAndNavigate(pendingNavigation.business.businessId, pendingNavigation.url)
+      setPendingNavigation(null)
+    }
+  }
+
+  const handleCancelBusinessSwitch = () => {
+    setPendingNavigation(null)
+  }
+
   // Helper function to format product attributes for display
   const getProductDetails = (business: BusinessInventory) => {
     const details: string[] = []
@@ -283,7 +324,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {businesses.length === 0 && !isLoading ? 'Product Not Found' : 'Product Found'}
+              {isLoading ? 'Searching for Product...' : businesses.length === 0 ? 'Product Not Found' : `Product Found in ${businesses.length} Business${businesses.length > 1 ? 'es' : ''}`}
             </h2>
             <button
               onClick={onClose}
@@ -434,7 +475,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          window.location.href = `/${business.businessType}/products`
+                          handleViewProduct(business)
                         }}
                         className="px-3 py-2 bg-gray-600 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 text-sm"
                       >
@@ -446,7 +487,13 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
                           onClick={(e) => {
                             e.stopPropagation()
                             if (business.productId) {
-                              window.location.href = `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}`
+                              const url = `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}`
+                              const currentBusinessId = localStorage.getItem('currentBusinessId')
+                              if (currentBusinessId && currentBusinessId !== business.businessId) {
+                                setPendingNavigation({ url, business })
+                              } else {
+                                switchBusinessAndNavigate(business.businessId, url)
+                              }
                             }
                           }}
                           className="px-3 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 text-sm"
@@ -478,6 +525,35 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
         onBusinessSelected={handleBusinessSelectedForInventory}
         barcode={currentBarcode}
       />
+
+      {/* Business Switch Confirmation Dialog */}
+      {pendingNavigation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Switch Business?
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              This product belongs to <span className="font-semibold">{pendingNavigation.business.businessName}</span>.
+              Do you want to switch to this business to view the product?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCancelBusinessSwitch}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmBusinessSwitch}
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600"
+              >
+                Switch & View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -416,6 +416,7 @@ model Businesses {
   vehicle_reimbursements                                                   VehicleReimbursements[]
   vehicle_trips                                                            VehicleTrips[]
   vehicles                                                                 Vehicles[]
+  seed_data_templates                                                      SeedDataTemplates[]
 
   @@map("businesses")
 }
@@ -1783,7 +1784,7 @@ model PersonalExpenses {
 model Persons {
   id                                String                   @id @default(uuid())
   email                             String?                  @unique
-  phone                             String
+  phone                             String?
   address                           String?
   notes                             String?
   createdAt                         DateTime                 @default(now())
@@ -1791,7 +1792,7 @@ model Persons {
   fullName                          String
   idFormatTemplateId                String?
   isActive                          Boolean                  @default(true)
-  nationalId                        String                   @unique
+  nationalId                        String?                  @unique
   updatedAt                         DateTime                 @default(now())
   driverLicenseNumber               String?
   driverLicenseTemplateId           String?
@@ -2277,6 +2278,7 @@ model Users {
   vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursements[]     @relation("vehicle_reimbursements_approvedByTousers")
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicles[]
+  seed_data_templates                                             SeedDataTemplates[]
 
   @@map("users")
 }
@@ -2735,4 +2737,55 @@ enum InstallmentFrequency {
   FORTNIGHTLY
   MONTHLY
   CUSTOM
+}
+
+model SeedDataTemplates {
+  id              String  @id @default(uuid())
+  name            String // "Clothing Products v3.0", "Restaurant Menu Standard"
+  businessType    String // "clothing", "restaurant", "hardware", "grocery"
+  version         String // "3.0.0" - semantic versioning
+  description     String?
+  isActive        Boolean @default(true)
+  isSystemDefault Boolean @default(false) // The default template for new businesses
+  productCount    Int     @default(0)
+  categoryCount   Int     @default(0)
+
+  // JSON data structure containing complete seed data
+  templateData Json
+
+  // Metadata
+  createdBy String // User ID who created/exported this
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Audit trail
+  sourceBusinessId String? // If exported from a live business
+  exportNotes      String? // Admin notes about changes/improvements
+
+  // Relations
+  user           Users       @relation(fields: [createdBy], references: [id])
+  sourceBusiness Businesses? @relation(fields: [sourceBusinessId], references: [id])
+
+  @@unique([businessType, version])
+  @@index([businessType, isActive])
+  @@index([isSystemDefault])
+  @@map("seed_data_templates")
+}
+
+model SystemSettings {
+  id                            String   @id @default(uuid())
+  allowSelfRegistration         Boolean  @default(true)
+  defaultRegistrationRole       String   @default("employee")
+  defaultRegistrationPermissions Json
+  requireAdminApproval          Boolean  @default(false)
+  maxUsersPerBusiness           Int      @default(50)
+  globalDateFormat              String   @default("dd/mm/yyyy")
+  defaultCountryCode            String   @default("ZW")
+  defaultIdFormatTemplateId     String?
+  defaultMileageUnit            String   @default("km")
+  maxPaymentWithoutId           Decimal  @default(100) @db.Decimal(10, 2)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+
+  @@map("system_settings")
 }

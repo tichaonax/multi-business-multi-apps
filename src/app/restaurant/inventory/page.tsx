@@ -1,6 +1,7 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -25,6 +26,7 @@ export default function RestaurantInventoryPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const router = useRouter()
 
@@ -43,6 +45,24 @@ export default function RestaurantInventoryPage() {
 
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
+
+  // Handle productId from URL parameters
+  useEffect(() => {
+    const productId = searchParams?.get('productId')
+    if (productId && currentBusinessId) {
+      fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data) {
+            setSelectedItem(data.data)
+            setShowAddForm(true)
+            setActiveTab('ingredients')
+            router.replace('/restaurant/inventory', { scroll: false })
+          }
+        })
+        .catch(err => console.error('Failed to load product:', err))
+    }
+  }, [searchParams, currentBusinessId, router])
 
   // Redirect to signin if not authenticated
   useEffect(() => {
@@ -354,6 +374,7 @@ export default function RestaurantInventoryPage() {
                     businessId={businessId}
                     businessType="restaurant"
                     categoryFilter={selectedCategory || undefined}
+                    refreshTrigger={refreshTrigger}
                     onItemEdit={(item) => {
                       setSelectedItem(item)
                       setShowAddForm(true)
@@ -398,6 +419,7 @@ export default function RestaurantInventoryPage() {
                       setSelectedItem(null)
                     }}
                     renderMode="inline"
+                    mode={selectedItem ? 'edit' : 'create'}
                     customFields={[
                       {
                         name: 'storageTemp',

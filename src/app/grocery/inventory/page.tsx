@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import Link from 'next/link'
@@ -22,6 +23,8 @@ export default function GroceryInventoryPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [showViewModal, setShowViewModal] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const searchParams = useSearchParams()
 
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -35,6 +38,26 @@ export default function GroceryInventoryPage() {
     loading: businessLoading,
     businesses
   } = useBusinessPermissionsContext()
+
+  // Handle productId from URL parameters
+  useEffect(() => {
+    const productId = searchParams?.get('productId')
+    if (productId && currentBusinessId) {
+      // Fetch the product and open edit form
+      fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data) {
+            setSelectedItem(data.data)
+            setShowAddForm(true)
+            setActiveTab('inventory')
+            // Clear the URL parameter after loading
+            router.replace('/grocery/inventory', { scroll: false })
+          }
+        })
+        .catch(err => console.error('Failed to load product:', err))
+    }
+  }, [searchParams, currentBusinessId, router])
 
   useEffect(() => {
     if (status === 'loading') return
@@ -115,7 +138,8 @@ export default function GroceryInventoryPage() {
       })
 
       if (response.ok) {
-        router.refresh()
+        // Trigger grid refresh by updating the key
+        setRefreshKey(prev => prev + 1)
       } else {
         await customAlert({ title: 'Delete failed', description: 'Failed to delete item' })
       }
@@ -161,7 +185,8 @@ export default function GroceryInventoryPage() {
         setShowAddForm(false)
         setSelectedItem(null)
         setActiveTab('inventory')
-        router.refresh()
+        // Trigger grid refresh by updating the key
+        setRefreshKey(prev => prev + 1)
       } else {
         const error = await response.json()
         await customAlert({ title: 'Save failed', description: error.message || 'Failed to save item' })
@@ -262,6 +287,7 @@ export default function GroceryInventoryPage() {
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
+                      refreshTrigger={refreshKey}
                       headerActions={(
                         <div className="flex items-center gap-2">
                           <button
@@ -428,6 +454,7 @@ export default function GroceryInventoryPage() {
                       setSelectedItem(null)
                     }}
                     renderMode="inline"
+                    mode={selectedItem ? 'edit' : 'create'}
                     customFields={[
                       {
                         name: 'pluCode',

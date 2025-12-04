@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import ModalPortal from '@/components/ui/modal-portal'
+import { globalBarcodeService } from '@/lib/services/global-barcode-service'
 
 export type BarcodeType = 'UPC_A' | 'UPC_E' | 'EAN_13' | 'EAN_8' | 'CODE128' | 'CODE39' | 'ITF' | 'CODABAR' | 'QR_CODE' | 'DATA_MATRIX' | 'PDF417' | 'CUSTOM' | 'SKU_BARCODE'
 
@@ -54,7 +55,7 @@ export function BarcodeManager({
   const [showScanner, setShowScanner] = useState(false)
   const [formData, setFormData] = useState({
     code: '',
-    type: 'UPC_A' as BarcodeType,
+    type: 'CODE128' as BarcodeType,
     isPrimary: false,
     isUniversal: false,
     label: '',
@@ -62,10 +63,28 @@ export function BarcodeManager({
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  // Disable global barcode scanning while the Add/Edit Barcode modal is open
+  useEffect(() => {
+    if (showAddForm) {
+      const wasEnabled = globalBarcodeService.isEnabled()
+      if (wasEnabled) {
+        globalBarcodeService.disable()
+        console.log('🔒 BarcodeManager: Disabled global scanning while modal is open')
+      }
+
+      return () => {
+        if (wasEnabled) {
+          globalBarcodeService.enable()
+          console.log('🔓 BarcodeManager: Re-enabled global scanning after modal closed')
+        }
+      }
+    }
+  }, [showAddForm])
+
   const resetForm = () => {
     setFormData({
       code: '',
-      type: 'UPC_A',
+      type: 'CODE128',
       isPrimary: false,
       isUniversal: false,
       label: '',
@@ -77,7 +96,8 @@ export function BarcodeManager({
 
   const handleBarcodeScanned = (scannedCode: string) => {
     setFormData(prev => ({ ...prev, code: scannedCode }))
-    setShowScanner(false)
+    // Keep scanner open so user can continue making updates
+    // User can manually close scanner if needed
     if (errors.code) setErrors(prev => ({ ...prev, code: '' }))
   }
 
@@ -347,7 +367,7 @@ export function BarcodeManager({
               </div>
 
               {showScanner && (
-                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-800 mb-4">
+                <div data-scanner-section className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-800 mb-4">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">📱</span>
@@ -434,11 +454,14 @@ export function BarcodeManager({
                 tabIndex={-1}
                 className="space-y-4"
                 onKeyDown={(e) => {
-                  // Pretend Enter should submit (but not inside textareas)
+                  // Only handle Enter for form submission, not in scanner or textarea
                   if (e.key === 'Enter') {
                     const t = e.target as HTMLElement
-                    if (t && t.tagName !== 'TEXTAREA') {
+                    // Check if we're in the scanner section or a textarea
+                    const inScanner = showScanner && t?.closest('[data-scanner-section]')
+                    if (!inScanner && t && t.tagName !== 'TEXTAREA') {
                       e.preventDefault()
+                      e.stopPropagation()
                       // Call submit without event
                       void handleSubmit()
                     }
@@ -489,6 +512,7 @@ export function BarcodeManager({
                           : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500'
                       }`}
                       placeholder="Enter barcode value"
+                      autoFocus
                     />
                     <button
                       type="button"

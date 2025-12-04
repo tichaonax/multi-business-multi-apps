@@ -228,43 +228,48 @@ export function Sidebar() {
         // Determine navigation path - preserve current module if applicable
         const currentPath = pathname
 
-        // Define business types with dedicated page structures
-        const primaryBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']
-        const hasDedicatedPages = primaryBusinessTypes.includes(business.type)
+        // Define business types with universal module support (inventory, products, pos, reports, orders, employees, suppliers, customers)
+        const universalModuleBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware']
+        const allPrimaryBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']
+        const hasDedicatedPages = allPrimaryBusinessTypes.includes(business.type)
+
+        // Define universal modules shared across restaurant, grocery, clothing, hardware
+        const universalModules = ['inventory', 'products', 'pos', 'reports', 'orders', 'employees', 'suppliers', 'customers']
 
         // Default path: use business type page if it exists, otherwise go to dashboard
         let targetPath = hasDedicatedPages ? `/${business.type}` : '/dashboard'
 
-        // Check if we're currently on a business-specific module page
-        const businessModules = ['pos', 'reports', 'inventory', 'products', 'menu', 'orders', 'employees', 'suppliers', 'customers']
+        // Parse current path to extract business type and module
         const pathSegments = currentPath.split('/').filter(Boolean)
 
-        if (pathSegments.length >= 2 && hasDedicatedPages) {
+        if (pathSegments.length >= 2) {
           const currentBusinessType = pathSegments[0]
           const currentModule = pathSegments[1]
 
-          // If we're on a business module page, preserve the module for the new business
-          if (businessModules.includes(currentModule) && primaryBusinessTypes.includes(currentBusinessType)) {
-            // Special handling for reports - they all use the same universal component
+          // Check if both current and target businesses support universal modules
+          const currentSupportsUniversal = universalModuleBusinessTypes.includes(currentBusinessType)
+          const targetSupportsUniversal = universalModuleBusinessTypes.includes(business.type)
+
+          // If switching between universal module businesses and on a universal module, preserve it
+          if (currentSupportsUniversal && targetSupportsUniversal && universalModules.includes(currentModule)) {
+            // Special handling for reports - preserve full sub-path
             if (currentModule === 'reports') {
-              // Preserve the full reports sub-path (e.g., sales-analytics, dashboard, etc.)
-              const reportsSubPath = pathSegments.slice(2).join('/') // Get everything after /businessType/reports/
+              const reportsSubPath = pathSegments.slice(2).join('/')
               targetPath = reportsSubPath ? `/${business.type}/reports/${reportsSubPath}` : `/${business.type}/reports`
             } else {
-              // For other modules, check if the target business supports this module
-              const supportedModules = {
-                restaurant: ['pos', 'reports', 'inventory', 'menu', 'orders', 'employees', 'suppliers', 'customers'],
-                grocery: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
-                clothing: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
-                hardware: ['pos', 'reports', 'inventory', 'products', 'orders', 'employees', 'suppliers', 'customers'],
-                construction: ['reports'],
-                services: ['list', 'categories', 'suppliers', 'add']
-              }
-
-              if (supportedModules[business.type as keyof typeof supportedModules]?.includes(currentModule)) {
-                targetPath = `/${business.type}/${currentModule}`
-              }
+              // For restaurant, 'menu' is specific to restaurant only (not in universalModules)
+              // For inventory/products/pos/orders/employees/suppliers/customers, preserve across all four types
+              targetPath = `/${business.type}/${currentModule}`
             }
+          }
+          // Special case: if current business is restaurant and on 'menu', target is another universal business
+          else if (currentBusinessType === 'restaurant' && currentModule === 'menu' && targetSupportsUniversal) {
+            // Don't preserve 'menu' - go to target business homepage
+            targetPath = `/${business.type}`
+          }
+          // If switching from universal module business to construction/services, use default (homepage)
+          else if (currentSupportsUniversal && !targetSupportsUniversal) {
+            // targetPath already set to default
           }
         }
 

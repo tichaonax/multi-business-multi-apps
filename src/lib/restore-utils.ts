@@ -5,6 +5,79 @@ function snakeToCamel(s: string) {
   return s.replace(/_([a-z])/g, (_, ch) => ch.toUpperCase())
 }
 
+/**
+ * Strip nested relations from data object to avoid Prisma validation errors during upsert.
+ * Relations should be handled separately, not as part of basic create/update operations.
+ */
+function stripNestedRelations(data: any): any {
+  if (!data || typeof data !== 'object') return data
+
+  const cleaned = { ...data }
+
+  // Remove common relation field patterns
+  const relationFields = [
+    // Direct relations (camelCase)
+    'businesses', 'users', 'employees', 'business_memberships', 'business_categories',
+    'business_products', 'business_orders', 'business_order_items', 'business_transactions',
+    'business_accounts', 'business_brands', 'business_customers', 'business_locations',
+    'business_stock_movements', 'business_suppliers', 'customer_laybys', 'customer_layby_payments',
+    'inventory_domains', 'inventory_subcategories', 'expense_domains', 'expense_categories',
+    'expense_subcategories', 'job_titles', 'compensation_types', 'benefit_types',
+    'permission_templates', 'employee_contracts', 'employee_benefits', 'employee_allowances',
+    'employee_bonuses', 'employee_deductions', 'employee_deduction_payments', 'employee_leave_balance',
+    'employee_leave_requests', 'employee_loans', 'employee_loan_payments', 'employee_salary_increases',
+    'employee_time_tracking', 'employee_attendance', 'employee_business_assignments',
+    'contract_benefits', 'contract_renewals', 'disciplinary_actions', 'benefit_types',
+    'payroll_accounts', 'payroll_exports', 'payroll_periods', 'print_jobs', 'product_variants',
+    'product_images', 'product_attributes', 'product_barcodes', 'supplier_products',
+    'menu_combos', 'menu_combo_items', 'menu_promotions', 'projects', 'project_contractors',
+    'project_stages', 'project_transactions', 'construction_projects', 'construction_expenses',
+    'vehicles', 'vehicle_trips', 'vehicle_expenses', 'vehicle_reimbursements', 'vehicle_drivers',
+    'driver_authorizations', 'persons', 'inter_business_loans', 'expense_account_deposits',
+    'expense_account_payments', 'business_memberships', 'other_businesses', 'employees',
+    'business_categories', 'other_business_categories', 'domain', 'parent_location',
+    'child_locations', 'business_products', 'business_suppliers', 'business_locations',
+    'business_accounts', 'business_transactions', 'business_orders', 'business_order_items',
+    'business_customers', 'business_stock_movements', 'customer_laybys', 'customer_layby_payments',
+    'inventory_subcategories', 'business_brands', 'product_variants', 'product_images',
+    'product_attributes', 'product_barcodes', 'supplier_products', 'menu_combos',
+    'menu_combo_items', 'menu_promotions',
+
+    // Reverse relations (plural forms that might be included)
+    'business_memberships', 'employees', 'business_categories', 'business_products',
+    'business_orders', 'business_order_items', 'business_transactions', 'business_accounts',
+    'business_brands', 'business_customers', 'business_locations', 'business_stock_movements',
+    'business_suppliers', 'customer_laybys', 'customer_layby_payments', 'inventory_subcategories',
+    'product_variants', 'product_images', 'product_attributes', 'product_barcodes',
+    'supplier_products', 'menu_combos', 'menu_combo_items', 'menu_promotions'
+  ]
+
+  // Remove relation fields
+  for (const field of relationFields) {
+    if (cleaned[field] !== undefined) {
+      delete cleaned[field]
+    }
+  }
+
+  // Also remove any field that is an array or object (potential relations)
+  for (const [key, value] of Object.entries(cleaned)) {
+    if (Array.isArray(value) || (value !== null && typeof value === 'object' && !isDateLike(value))) {
+      delete cleaned[key]
+    }
+  }
+
+  return cleaned
+}
+
+/**
+ * Check if an object looks like a Date (has date-like properties)
+ */
+function isDateLike(obj: any): boolean {
+  return obj && typeof obj === 'object' &&
+         (obj.hasOwnProperty('toISOString') || obj.hasOwnProperty('$type') ||
+          (typeof obj.$date === 'string') || (typeof obj.$date === 'number'))
+}
+
 export function findPrismaModelName(prisma: AnyPrismaClient, name: string) {
   // direct match
   if ((prisma as any)[name]) return name
@@ -79,11 +152,14 @@ export async function upsertModelInBatches(
           const row = batch[ri]
           const where = { id: row.id }
           try {
+            // Strip nested relations from the data to avoid Prisma validation errors
+            const cleanRow = stripNestedRelations(row)
+
             // If `id` is not present, fall back to create or skip
             if (!row.id) {
-              await tx[resolvedName].create({ data: row })
+              await tx[resolvedName].create({ data: cleanRow })
             } else {
-              await tx[resolvedName].upsert({ where, create: row, update: row })
+              await tx[resolvedName].upsert({ where, create: cleanRow, update: cleanRow })
             }
             processedIdsInTx.push(row?.id ?? null)
           } catch (e) {
@@ -112,10 +188,13 @@ export async function upsertModelInBatches(
         const row = batch[ri]
         const where = { id: row.id }
         try {
+          // Strip nested relations from the data to avoid Prisma validation errors
+          const cleanRow = stripNestedRelations(row)
+
           if (!row.id) {
-            await prisma[resolvedName].create({ data: row })
+            await prisma[resolvedName].create({ data: cleanRow })
           } else {
-            await prisma[resolvedName].upsert({ where, create: row, update: row })
+            await prisma[resolvedName].upsert({ where, create: cleanRow, update: cleanRow })
           }
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e)

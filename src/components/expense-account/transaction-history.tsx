@@ -229,7 +229,13 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                   return (
                     <tr
                       key={transaction.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                      onClick={() => {
+                        const detailPath = isDeposit
+                          ? `/expense-accounts/${accountId}/deposits/${transaction.id}`
+                          : `/expense-accounts/${accountId}/payments/${transaction.id}`
+                        window.location.href = detailPath
+                      }}
                     >
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                         {formatDate(transaction.date)}
