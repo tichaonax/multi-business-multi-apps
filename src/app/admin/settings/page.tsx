@@ -16,6 +16,7 @@ interface SystemSettings {
   defaultCountryCode: string
   defaultIdFormatTemplateId: string
   defaultMileageUnit: string
+  maxPaymentWithoutId: number
 }
 
 export default function AdminSettingsPage() {
@@ -225,6 +226,28 @@ export default function AdminSettingsPage() {
                   Maximum number of users allowed in a single business.
                 </p>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-primary mb-2">
+                  Maximum Payment Without National ID
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input-field max-w-xs"
+                  value={settings?.maxPaymentWithoutId ?? 100}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value)
+                    if (!isNaN(value)) {
+                      updateSettings({ maxPaymentWithoutId: value })
+                    }
+                  }}
+                  min="0"
+                />
+                <p className="text-sm text-gray-600 mt-1">
+                  Maximum payment amount allowed to individuals without a national ID. Businesses and entities are exempt from this limit.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -349,22 +372,53 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          {/* Permission Preview */}
+          {/* Permission Customization */}
           <div className="card p-6">
-            <h2 className="text-lg font-semibold mb-4 text-primary">Default Permission Preview</h2>
+            <h2 className="text-lg font-semibold mb-4 text-primary">Default Permissions for New Users</h2>
             <p className="text-sm text-secondary mb-4">
-              These are the permissions that will be assigned to new users with the "{settings?.defaultRegistrationRole?.replace('-', ' ')}" role:
+              Customize the permissions that will be assigned to new users with the "{settings?.defaultRegistrationRole?.replace('-', ' ')}" role.
+              Click on any permission to toggle it on/off:
             </p>
-            
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-64 overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {settings?.defaultRegistrationPermissions && Object.entries(settings.defaultRegistrationPermissions).map(([permission, enabled]) => (
-                  <div key={permission} className={`flex items-center space-x-2 ${enabled ? 'text-green-700' : 'text-gray-500'}`}>
-                    <span>{enabled ? '✅' : '❌'}</span>
-                    <span>{permission}</span>
-                  </div>
+                  <label
+                    key={permission}
+                    className={`flex items-center space-x-3 p-2 rounded cursor-pointer transition-colors ${
+                      enabled
+                        ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
+                        : 'bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={enabled as boolean}
+                      onChange={(e) => {
+                        if (settings?.defaultRegistrationPermissions) {
+                          updateSettings({
+                            defaultRegistrationPermissions: {
+                              ...settings.defaultRegistrationPermissions,
+                              [permission]: e.target.checked
+                            }
+                          })
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <span className={`text-sm ${enabled ? 'text-green-700 dark:text-green-300 font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
+                      {permission}
+                    </span>
+                  </label>
                 ))}
               </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                <strong>💡 Tip:</strong> Start with a role preset, then customize individual permissions.
+                Changes are applied to all new users going forward. Existing users are not affected.
+              </p>
             </div>
           </div>
 

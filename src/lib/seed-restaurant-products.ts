@@ -123,62 +123,49 @@ export async function seedRestaurantProducts(businessId: string): Promise<SeedPr
           throw new Error(`Category not found: ${item.categoryName}`)
         }
 
-        // Generate unique SKU for this business
+        // Generate consistent SKU based on product name (deterministic across machines)
         const baseSku = item.name
           .replace(/[^\w\s]/g, '') // Remove emojis and special chars
           .trim()
           .toUpperCase()
           .replace(/\s+/g, '-')
-        const sku = `RST-${baseSku}-${timestamp}-${index}`
+          .substring(0, 50) // Limit length
+        const sku = `RST-${baseSku}`
 
-        // Check if product with same name already exists for this business
-        const existing = await prisma.businessProducts.findFirst({
+        // Use upsert to either create new product or update existing one
+        const product = await prisma.businessProducts.upsert({
           where: {
-            businessId,
-            name: item.name
-          }
-        })
-
-        if (existing) {
-          skipped++
-          continue
-        }
-
-        // Create product
-        const product = await prisma.businessProducts.create({
-          data: {
-            businessId,
+            businessId_sku: {
+              businessId: businessId,
+              sku: sku
+            }
+          },
+          update: {
             name: item.name,
             description: item.description || '',
-            sku,
-            categoryId,
-            basePrice: 0, // Always zero - each restaurant sets their own prices
-            costPrice: 0,
+            categoryId: categoryId,
+            basePrice: item.basePrice || 0,
+            costPrice: item.costPrice || null,
             businessType: 'restaurant',
             productType: item.productType || 'PHYSICAL',
             isActive: true,
-            isCombo: item.isCombo || false,
-            comboItemsData: item.comboItemsData || null,
+            isAvailable: true,
             attributes: item.attributes || {},
-            createdAt: new Date(),
             updatedAt: new Date()
-          }
-        })
-
-        // Create default variant
-        const variantSku = `${sku}-VARIANT-${timestamp}`
-        const variantId = `${product.id}-variant-default-${timestamp}`
-
-        await prisma.productVariants.create({
-          data: {
-            id: variantId,
-            productId: product.id,
-            sku: variantSku,
-            price: 0,
-            stockQuantity: 0,
+          },
+          create: {
+            businessId: businessId,
+            name: item.name,
+            description: item.description || '',
+            sku: sku,
+            categoryId: categoryId,
+            basePrice: item.basePrice || 0,
+            costPrice: item.costPrice || null,
+            businessType: 'restaurant',
+            productType: item.productType || 'PHYSICAL',
             isActive: true,
             isAvailable: true,
-            createdAt: new Date(),
+            attributes: item.attributes || {},
             updatedAt: new Date()
           }
         })
@@ -197,11 +184,11 @@ export async function seedRestaurantProducts(businessId: string): Promise<SeedPr
     return {
       success: true,
       imported,
-      skipped,
+      skipped: 0, // No longer skipping - we update existing products
       errors,
       errorLog,
       totalProducts: productData.length,
-      message: `Successfully imported ${imported} products (${skipped} skipped, ${errors} errors)`
+      message: `Successfully processed ${productData.length} products (${imported} imported/updated, ${errors} errors)`
     }
 
   } catch (error: any) {

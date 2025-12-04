@@ -66,6 +66,11 @@ export interface UserLevelPermissions {
   canAccessGlobalBarcodeScanning: boolean;        // Access global barcode scanning within accessible businesses
   canViewGlobalInventoryAcrossBusinesses: boolean; // View inventory from businesses user doesn't have access to (informational only)
   canStockInventoryFromModal: boolean;            // Add inventory to businesses via global barcode modal
+
+  // Seed Data Template Management (Admin only - cross-business capability)
+  canManageSeedTemplates: boolean;    // View, activate, delete seed templates
+  canExportSeedTemplates: boolean;    // Create and export templates from businesses
+  canApplySeedTemplates: boolean;     // Import and apply templates to businesses
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -184,6 +189,7 @@ export interface CoreBusinessPermissions {
   canCreateIndividualPayees: boolean;
   canDeleteExpenseAccounts: boolean;
   canAdjustExpensePayments: boolean;
+  canEditExpenseTransactions: boolean; // Edit deposits/payments within 5-day window (admin can always edit)
   // Sibling Account Permissions
   canCreateSiblingAccounts: boolean;
   canEnterHistoricalData: boolean;
@@ -744,6 +750,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canCreateIndividualPayees', label: 'Create Individual Payees' },
       { key: 'canDeleteExpenseAccounts', label: 'Delete Expense Accounts' },
       { key: 'canAdjustExpensePayments', label: 'Adjust Payments' },
+      { key: 'canEditExpenseTransactions', label: 'Edit Transactions (5-day window)' },
       // Sibling Account Permissions
       { key: 'canCreateSiblingAccounts', label: 'Create Sibling Accounts' },
       { key: 'canEnterHistoricalData', label: 'Enter Historical Data' },
@@ -958,6 +965,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: true,
   canDeleteExpenseAccounts: true,
   canAdjustExpensePayments: true,
+  canEditExpenseTransactions: true, // ✅ Admin/Manager can always edit (bypasses 5-day window)
   canCreateSiblingAccounts: true,
   canEnterHistoricalData: true,
   canMergeSiblingAccounts: true,
@@ -1076,6 +1084,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: true,
   canDeleteExpenseAccounts: false,  // ❌ Admin only
   canAdjustExpensePayments: false,  // ❌ Special permission only
+  canEditExpenseTransactions: false,  // ❌ Special permission only (5-day window applies)
   canCreateSiblingAccounts: false,  // ❌ Admin only
   canEnterHistoricalData: false,    // ❌ Admin only
   canMergeSiblingAccounts: false,   // ❌ Admin only
@@ -1194,6 +1203,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: false,
   canDeleteExpenseAccounts: false,
   canAdjustExpensePayments: false,
+  canEditExpenseTransactions: false,
   canCreateSiblingAccounts: false,
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
@@ -1310,6 +1320,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: false,
   canDeleteExpenseAccounts: false,
   canAdjustExpensePayments: false,
+  canEditExpenseTransactions: false,
   canCreateSiblingAccounts: false,
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
@@ -1426,6 +1437,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canCreateIndividualPayees: true,
   canDeleteExpenseAccounts: true,
   canAdjustExpensePayments: true,
+  canEditExpenseTransactions: true, // ✅ Admin/Manager can always edit (bypasses 5-day window)
   canCreateSiblingAccounts: true,
   canEnterHistoricalData: true,
   canMergeSiblingAccounts: true,
@@ -1510,6 +1522,11 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canAccessGlobalBarcodeScanning: false,        // Must be explicitly granted
   canViewGlobalInventoryAcrossBusinesses: false, // Must be explicitly granted
   canStockInventoryFromModal: false,            // Must be explicitly granted
+
+  // Seed Data Template Management - Admin only
+  canManageSeedTemplates: false,    // Admin only
+  canExportSeedTemplates: false,    // Admin only
+  canApplySeedTemplates: false,     // Admin only
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
@@ -1577,6 +1594,11 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canAccessGlobalBarcodeScanning: true,        // Admins can access global barcode scanning
   canViewGlobalInventoryAcrossBusinesses: true, // Admins can view inventory across all businesses
   canStockInventoryFromModal: true,            // Admins can add inventory from modal
+
+  // Seed Data Template Management - Full access for admins
+  canManageSeedTemplates: true,     // Admins can manage templates
+  canExportSeedTemplates: true,     // Admins can export templates
+  canApplySeedTemplates: true,      // Admins can import/apply templates
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
@@ -1645,6 +1667,11 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canAccessGlobalBarcodeScanning: false,
   canViewGlobalInventoryAcrossBusinesses: false,
   canStockInventoryFromModal: false,
+
+  // Seed Data Template Management - No access for drivers
+  canManageSeedTemplates: false,
+  canExportSeedTemplates: false,
+  canApplySeedTemplates: false,
 };
 
 // Permission presets for easy management

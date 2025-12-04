@@ -111,14 +111,18 @@ export function DataBackup() {
     loadRealBusinesses();
   }, []);
 
-  // Auto-reload page after successful restore
+  // Show completion alert after successful restore
   useEffect(() => {
     if (restoreResult) {
-      // Wait 2 seconds to show the success message, then reload
-      const timer = setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-      return () => clearTimeout(timer);
+      // Show alert and redirect when user clicks OK
+      const showCompletionAlert = async () => {
+        await customAlert({
+          title: '✅ Restore Complete!',
+          description: 'Your backup has been successfully restored. Click OK to reload the application and see your restored data.'
+        });
+        window.location.href = '/dashboard';
+      };
+      showCompletionAlert();
     }
   }, [restoreResult]);
 
@@ -281,7 +285,7 @@ export function DataBackup() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(backupData),
+        body: JSON.stringify({ backupData }),
       });
 
       if (!response.ok) {
@@ -350,13 +354,20 @@ export function DataBackup() {
             }
             // Mark as finished
             setRestoreProgressId(null);
-            
+            // Show completion alert then redirect
+            await customAlert({
+              title: '✅ Restore Complete!',
+              description: 'Your backup has been successfully restored. Click OK to reload the application and see your restored data.'
+            });
+            window.location.href = '/dashboard';
           }
           if (data?.progress?.model === 'error') {
             if (pollingRef.current) {
               window.clearInterval(pollingRef.current);
               pollingRef.current = null;
             }
+            setRestoreProgressId(null);
+            await customAlert({ title: 'Restore Failed', description: 'The restore operation encountered errors. Please check the logs.' });
           }
         }
       } catch (err) {

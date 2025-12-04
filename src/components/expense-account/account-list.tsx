@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { CreateAccountModal } from './create-account-modal'
 import { CreateSiblingAccountModal } from './create-sibling-modal'
 import { MergeAccountModal } from './merge-account-modal'
+import { QuickDepositModal } from './quick-deposit-modal'
+import { QuickPaymentModal } from './quick-payment-modal'
 import type { OnSuccessArg } from '@/types/ui'
 
 interface ExpenseAccount {
@@ -55,6 +57,8 @@ export function AccountList({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showCreateSiblingModal, setShowCreateSiblingModal] = useState(false)
   const [showMergeModal, setShowMergeModal] = useState(false)
+  const [showQuickDepositModal, setShowQuickDepositModal] = useState(false)
+  const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<ExpenseAccount | null>(null)
 
   useEffect(() => {
@@ -165,6 +169,36 @@ export function AccountList({
 
   const handleMergeError = (error: string) => {
     console.error('Account merge error:', error)
+  }
+
+  const handleQuickDeposit = (account: ExpenseAccount) => {
+    setSelectedAccount(account)
+    setShowQuickDepositModal(true)
+  }
+
+  const handleQuickPayment = (account: ExpenseAccount) => {
+    setSelectedAccount(account)
+    setShowQuickPaymentModal(true)
+  }
+
+  const handleQuickDepositSuccess = (payload: OnSuccessArg) => {
+    if (payload.refresh) {
+      loadAccounts()
+    }
+  }
+
+  const handleQuickPaymentSuccess = (payload: OnSuccessArg) => {
+    if (payload.refresh) {
+      loadAccounts()
+    }
+  }
+
+  const handleQuickDepositError = (error: string) => {
+    console.error('Quick deposit error:', error)
+  }
+
+  const handleQuickPaymentError = (error: string) => {
+    console.error('Quick payment error:', error)
   }
 
   // Filter accounts
@@ -337,7 +371,33 @@ export function AccountList({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex gap-2 flex-wrap">
+                      {/* Quick Action Buttons */}
+                      {account.isActive && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleQuickDeposit(account)
+                            }}
+                            className="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800 rounded transition-colors"
+                            title="Quick deposit to this account"
+                          >
+                            Quick Deposit
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleQuickPayment(account)
+                            }}
+                            className="px-3 py-1 text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 dark:hover:bg-orange-800 rounded transition-colors"
+                            title="Quick payment from this account"
+                          >
+                            Quick Payment
+                          </button>
+                        </>
+                      )}
+
                       {canCreateSiblingAccounts && !account.isSibling && (
                         <button
                           onClick={(e) => {
@@ -394,10 +454,23 @@ export function AccountList({
                     <div className="text-right">
                       <div className="font-semibold text-orange-600 dark:text-orange-300">{formatCurrency(Number(account.paymentsTotal ?? 0))}</div>
                       <div className="text-right text-xs text-secondary">
-                        <span className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-xs text-orange-800 dark:text-orange-200">
-                          <span className="font-semibold">{account.paymentCount ?? 0}</span>
-                          <span className="opacity-75">payments</span>
-                        </span>
+                        {canViewExpenseReports ? (
+                          <a
+                            href={`/expense-accounts/${account.id}/payments`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-xs text-orange-800 dark:text-orange-200 hover:underline"
+                            aria-label={`Open payment report for ${account.accountName}`}
+                            title={`Open payment report for ${account.accountName}`}
+                          >
+                            <span className="font-semibold">{account.paymentCount ?? 0}</span>
+                            <span className="opacity-75">payments</span>
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700/10 text-xs text-gray-700 dark:text-gray-200">
+                            <span className="font-semibold">{account.paymentCount ?? 0}</span>
+                            <span className="opacity-75">payments</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right text-xs text-secondary mt-1">Largest Payment</div>
@@ -451,6 +524,31 @@ export function AccountList({
         onSuccess={handleMergeSuccess}
         onError={handleMergeError}
       />
+
+      {/* Quick Deposit Modal */}
+      {selectedAccount && (
+        <QuickDepositModal
+          isOpen={showQuickDepositModal}
+          onClose={() => setShowQuickDepositModal(false)}
+          accountId={selectedAccount.id}
+          accountName={selectedAccount.accountName}
+          onSuccess={handleQuickDepositSuccess}
+          onError={handleQuickDepositError}
+        />
+      )}
+
+      {/* Quick Payment Modal */}
+      {selectedAccount && (
+        <QuickPaymentModal
+          isOpen={showQuickPaymentModal}
+          onClose={() => setShowQuickPaymentModal(false)}
+          accountId={selectedAccount.id}
+          accountName={selectedAccount.accountName}
+          currentBalance={Number(selectedAccount.balance)}
+          onSuccess={handleQuickPaymentSuccess}
+          onError={handleQuickPaymentError}
+        />
+      )}
     </div>
   )
 }

@@ -27,6 +27,7 @@ export async function GET(
         inventory_subcategory: true,
         business_suppliers: true,
         business_locations: true,
+        product_barcodes: true,
         product_variants: {
           include: {
             business_stock_movements: true
@@ -52,7 +53,8 @@ export async function GET(
     }, 0)
 
     return NextResponse.json({
-      item: {
+      success: true,
+      data: {
         id: product.id,
         businessId: product.businessId,
         businessType: product.businessType,
@@ -76,7 +78,17 @@ export async function GET(
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
-        attributes: product.attributes || {}
+        attributes: product.attributes || {},
+        barcodes: (product.product_barcodes || []).map((bc: any) => ({
+          id: bc.id,
+          code: bc.code,
+          type: bc.type || 'CODE128',
+          label: bc.label || 'Product Barcode',
+          isPrimary: bc.isPrimary || false,
+          isUniversal: bc.isUniversal || false,
+          isActive: bc.isActive !== false,
+          notes: bc.notes || null
+        }))
       }
     })
 
@@ -219,6 +231,7 @@ export async function PUT(
         inventory_subcategory: true,
         business_suppliers: true,
         business_locations: true,
+        product_barcodes: true,
         product_variants: {
           include: {
             business_stock_movements: true
@@ -226,6 +239,39 @@ export async function PUT(
         }
       }
     })
+
+    // Handle barcodes if provided in the new multi-barcode format
+    if (body.barcodes && Array.isArray(body.barcodes)) {
+      // Delete existing barcodes for this product
+      await prisma.productBarcodes.deleteMany({
+        where: { productId: itemId }
+      })
+
+      // Create new barcodes
+      if (body.barcodes.length > 0) {
+        const barcodeData = body.barcodes
+          .filter((bc: any) => bc.code && bc.code.trim()) // Only include barcodes with valid codes
+          .map((barcode: any) => ({
+            id: barcode.id?.startsWith('temp-') ? undefined : barcode.id, // Let Prisma generate ID for temp IDs
+            productId: itemId,
+            businessId: barcode.isUniversal ? null : businessId,
+            code: barcode.code,
+            type: barcode.type || 'CODE128',
+            label: barcode.label || 'Product Barcode',
+            isPrimary: barcode.isPrimary || false,
+            isUniversal: barcode.isUniversal || false,
+            isActive: barcode.isActive !== false,
+            notes: barcode.notes || null
+          }))
+
+        if (barcodeData.length > 0) {
+          await prisma.productBarcodes.createMany({
+            data: barcodeData,
+            skipDuplicates: true
+          })
+        }
+      }
+    }
 
     // Calculate current stock
     const currentStock = updatedProduct.product_variants.reduce((total: number, variant: any) => {
@@ -235,6 +281,12 @@ export async function PUT(
       }, 0)
       return total + variantStock
     }, 0)
+
+    // Fetch updated barcodes after barcode operations
+    const finalProduct = await prisma.businessProducts.findUnique({
+      where: { id: itemId },
+      include: { product_barcodes: true }
+    })
 
     // Return response in same format as GET endpoint
     return NextResponse.json({
@@ -263,7 +315,17 @@ export async function PUT(
         isActive: updatedProduct.isActive,
         createdAt: updatedProduct.createdAt.toISOString(),
         updatedAt: updatedProduct.updatedAt.toISOString(),
-        attributes: updatedProduct.attributes || {}
+        attributes: updatedProduct.attributes || {},
+        barcodes: (finalProduct?.product_barcodes || []).map((bc: any) => ({
+          id: bc.id,
+          code: bc.code,
+          type: bc.type || 'CODE128',
+          label: bc.label || 'Product Barcode',
+          isPrimary: bc.isPrimary || false,
+          isUniversal: bc.isUniversal || false,
+          isActive: bc.isActive !== false,
+          notes: bc.notes || null
+        }))
       }
     })
 

@@ -7,6 +7,7 @@ import { PayeeSelector } from './payee-selector'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { CreateCategoryModal } from './create-category-modal'
 import { PaymentBatchList } from './payment-batch-list'
+import { getTodayLocalDateString } from '@/lib/date-utils'
 
 interface ExpenseCategory {
   id: string
@@ -96,7 +97,7 @@ export function PaymentForm({
     subcategoryId: '',
     subSubcategoryId: '',
     amount: '',
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: getTodayLocalDateString(),
     notes: '',
     receiptNumber: '',
     receiptServiceProvider: '',
@@ -261,7 +262,7 @@ export function PaymentForm({
     return currentBalance - totalBatch
   }
 
-  const validateForm = () => {
+  const validateForm = async () => {
     const newErrors = {
       payee: '',
       categoryId: '',
@@ -284,6 +285,47 @@ export function PaymentForm({
       newErrors.amount = 'Amount must be greater than 0'
     } else if (amount > 999999999.99) {
       newErrors.amount = 'Amount exceeds maximum allowed value'
+    } else if (formData.payee?.type === 'PERSON') {
+      // Validate payment amount for individuals without national ID
+      try {
+        console.log('[PaymentForm] Validating person payment:', {
+          payeeId: formData.payee.id,
+          payeeName: formData.payee.name,
+          amount
+        })
+
+        const [settingsRes, personRes] = await Promise.all([
+          fetch('/api/admin/settings'),
+          fetch(`/api/persons/${formData.payee.id}`)
+        ])
+
+        console.log('[PaymentForm] API responses:', {
+          settingsOk: settingsRes.ok,
+          personOk: personRes.ok
+        })
+
+        if (settingsRes.ok && personRes.ok) {
+          const settings = await settingsRes.json()
+          const personData = await personRes.json()
+          const maxPaymentWithoutId = settings.maxPaymentWithoutId || 100
+
+          console.log('[PaymentForm] Validation data:', {
+            personNationalId: personData.nationalId,
+            maxPaymentWithoutId,
+            amount,
+            willBlock: !personData.nationalId && amount >= maxPaymentWithoutId
+          })
+
+          if (personData && !personData.nationalId && amount >= maxPaymentWithoutId) {
+            newErrors.amount = `Cannot pay $${maxPaymentWithoutId.toFixed(2)} or more to ${formData.payee.name} without a national ID. Maximum allowed: $${(maxPaymentWithoutId - 0.01).toFixed(2)}. Please add their national ID or reduce the amount.`
+            console.log('[PaymentForm] Validation BLOCKED - error set:', newErrors.amount)
+          } else {
+            console.log('[PaymentForm] Validation PASSED')
+          }
+        }
+      } catch (error) {
+        console.error('[PaymentForm] Error validating payee:', error)
+      }
     }
 
     if (!formData.paymentDate) {
@@ -302,8 +344,8 @@ export function PaymentForm({
     return !newErrors.payee && !newErrors.categoryId && !newErrors.amount && !newErrors.paymentDate
   }
 
-  const handleAddToBatch = () => {
-    if (!validateForm()) {
+  const handleAddToBatch = async () => {
+    if (!(await validateForm())) {
       return
     }
 
@@ -365,7 +407,7 @@ export function PaymentForm({
       subcategoryId: '',
       subSubcategoryId: '',
       amount: '',
-      paymentDate: new Date().toISOString().split('T')[0],
+      paymentDate: getTodayLocalDateString(),
       notes: '',
       receiptNumber: '',
       receiptServiceProvider: '',

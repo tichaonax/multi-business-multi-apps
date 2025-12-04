@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "backupType": "test",
+    "timestamp": "2025-11-30T13:21:21.609Z",
+    "version": "1.0",
+    "source": "test-backup",
+    "includeAuditLogs": false,
+    "includeDemoData": false,
+    "includeBusinessData": true
+  },
+  "businessSuppliers": [
+    {
+      "id": "44b06b0a-ec21-4db2-a366-8dfa2bb52655",
+      "businessId": null,
+      "supplierNumber": "CLO-SUP-001",
+      "name": "Fashion Forward Imports",
+      "contactPerson": "Import Manager",
+      "email": "orders@fashionforward.com",
+      "phone": "+1-555-0201",
+      "address": null,
+      "paymentTerms": null,
+      "creditLimit": null,
+      "isActive": true,
+      "businessType": "clothing",
+      "attributes": null,
+      "createdAt": "2025-11-30T13:21:21.609Z",
+      "updatedAt": "2025-12-01T19:22:58.547Z",
+      "accountBalance": "0",
+      "emoji": null,
+      "notes": "Men's and women's apparel supplier",
+      "taxId": null,
+      "productsSupplied": null,
+      "supplier_products": []
+    },
+    {
+      "id": "test-supplier-2",
+      "businessId": "test-business",
+      "supplierNumber": "TEST-002",
+      "name": "Test Supplier 2",
+      "contactPerson": "Test Contact",
+      "email": "test@example.com",
+      "phone": "+1-555-0002",
+      "address": "123 Test St",
+      "paymentTerms": "Net 30",
+      "creditLimit": "5000",
+      "isActive": true,
+      "businessType": "grocery",
+      "attributes": { "category": "test" },
+      "createdAt": "2025-11-30T10:00:00.000Z",
+      "updatedAt": "2025-11-30T10:00:00.000Z",
+      "accountBalance": "100",
+      "emoji": "🧪",
+      "notes": "Test supplier with products",
+      "taxId": "TEST123",
+      "productsSupplied": "Various test products",
+      "supplier_products": [
+        {
+          "id": "test-product-1",
+          "supplierId": "test-supplier-2",
+          "productId": "prod-123",
+          "supplierSku": "SUP-SKU-001",
+          "supplierPrice": "10.50",
+          "minimumOrder": 5,
+          "leadTimeDays": 7,
+          "isActive": true,
+          "attributes": null,
+          "createdAt": "2025-11-30T10:00:00.000Z",
+          "updatedAt": "2025-11-30T10:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}
