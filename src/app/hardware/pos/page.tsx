@@ -37,6 +37,21 @@ export default function HardwarePOSPage() {
   // Check if current business is a hardware business
   const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
 
+  // Load daily sales
+  const loadDailySales = async () => {
+    if (!currentBusinessId) return
+
+    try {
+      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=hardware`)
+      if (response.ok) {
+        const data = await response.json()
+        setDailySales(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to load daily sales:', error)
+    }
+  }
+
   // Redirect to signin if not authenticated
   useEffect(() => {
     if (status === 'loading') return
@@ -44,6 +59,13 @@ export default function HardwarePOSPage() {
       router.push('/auth/signin')
     }
   }, [session, status, router])
+
+  // Load daily sales on mount
+  useEffect(() => {
+    if (currentBusinessId && isHardwareBusiness) {
+      loadDailySales()
+    }
+  }, [currentBusinessId, isHardwareBusiness])
 
   // Show loading while session or business context is loading
   if (status === 'loading' || businessLoading) {
@@ -136,6 +158,7 @@ export default function HardwarePOSPage() {
     params.set('addProduct', productId)
     if (variantId) params.set('variantId', variantId)
     params.set('businessId', businessId)
+    params.set('autoAdd', 'true')  // Enable auto-add to cart
 
     // Navigate with query parameters to trigger auto-add
     router.push(`/hardware/pos?${params.toString()}`)
@@ -146,28 +169,6 @@ export default function HardwarePOSPage() {
     // Reload daily sales after order completion
     setTimeout(() => loadDailySales(), 500)
   }
-
-  // Load daily sales
-  const loadDailySales = async () => {
-    if (!currentBusinessId) return
-
-    try {
-      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=hardware`)
-      if (response.ok) {
-        const data = await response.json()
-        setDailySales(data.data)
-      }
-    } catch (error) {
-      console.error('Failed to load daily sales:', error)
-    }
-  }
-
-  // Load daily sales on mount
-  useEffect(() => {
-    if (currentBusinessId && isHardwareBusiness) {
-      loadDailySales()
-    }
-  }, [currentBusinessId, isHardwareBusiness])
 
   return (
     <BusinessProvider businessId={businessId}>
@@ -199,9 +200,9 @@ export default function HardwarePOSPage() {
             </div>
 
             {/* POS System */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className={`grid gap-6 ${showProductGrid ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
               {/* Universal POS */}
-              <div>
+              <div className={showProductGrid ? '' : 'max-w-3xl mx-auto w-full'}>
                 <UniversalPOS
                   businessId={businessId}
                   employeeId={employeeId!}
@@ -211,7 +212,7 @@ export default function HardwarePOSPage() {
 
               {/* Product Grid */}
               {showProductGrid && (
-                <div className="xl:col-span-1">
+                <div>
                   <div className="card p-4">
                     <h2 className="text-lg font-semibold text-primary mb-4">
                       Browse Hardware Items

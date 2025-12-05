@@ -43,6 +43,21 @@ export default function ClothingPOSPage() {
   // Check if current business is a clothing business
   const isClothingBusiness = currentBusiness?.businessType === 'clothing'
 
+  // Load daily sales
+  const loadDailySales = async () => {
+    if (!currentBusinessId) return
+
+    try {
+      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=clothing`)
+      if (response.ok) {
+        const data = await response.json()
+        setDailySales(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to load daily sales:', error)
+    }
+  }
+
   // Redirect to signin if not authenticated
   useEffect(() => {
     if (status === 'loading') return
@@ -50,6 +65,13 @@ export default function ClothingPOSPage() {
       router.push('/auth/signin')
     }
   }, [session, status, router])
+
+  // Load daily sales on mount
+  useEffect(() => {
+    if (currentBusinessId && isClothingBusiness) {
+      loadDailySales()
+    }
+  }, [currentBusinessId, isClothingBusiness])
 
   // Show loading while session or business context is loading
   if (status === 'loading' || businessLoading) {
@@ -142,6 +164,7 @@ export default function ClothingPOSPage() {
     params.set('addProduct', productId)
     if (variantId) params.set('variantId', variantId)
     params.set('businessId', businessId)
+    params.set('autoAdd', 'true')  // Enable auto-add to cart
 
     // Navigate with query parameters to trigger auto-add
     router.push(`/clothing/pos?${params.toString()}`)
@@ -152,28 +175,6 @@ export default function ClothingPOSPage() {
     // Reload daily sales after order completion
     setTimeout(() => loadDailySales(), 500)
   }
-
-  // Load daily sales
-  const loadDailySales = async () => {
-    if (!currentBusinessId) return
-
-    try {
-      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=clothing`)
-      if (response.ok) {
-        const data = await response.json()
-        setDailySales(data.data)
-      }
-    } catch (error) {
-      console.error('Failed to load daily sales:', error)
-    }
-  }
-
-  // Load daily sales on mount
-  useEffect(() => {
-    if (currentBusinessId && isClothingBusiness) {
-      loadDailySales()
-    }
-  }, [currentBusinessId, isClothingBusiness])
 
   return (
     <BusinessProvider businessId={businessId}>
@@ -227,9 +228,9 @@ export default function ClothingPOSPage() {
                 onOrderComplete={handleOrderComplete}
               />
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className={`grid gap-6 ${showProductGrid ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
                 {/* Basic POS System */}
-                <div>
+                <div className={showProductGrid ? '' : 'max-w-3xl mx-auto w-full'}>
                   <UniversalPOS
                     businessId={businessId}
                     employeeId={employeeId!}
@@ -239,7 +240,7 @@ export default function ClothingPOSPage() {
 
                 {/* Product Grid (when visible) */}
                 {showProductGrid && (
-                  <div className="xl:col-span-1">
+                  <div>
                     <div className="card p-4">
                       <h2 className="text-lg font-semibold text-primary mb-4">
                         Browse Products

@@ -103,6 +103,7 @@ export function UniversalInventoryForm({
   const [availableSubcategories, setAvailableSubcategories] = useState<InventorySubcategory[]>([])
   const [generatingSKU, setGeneratingSKU] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [isNavigatingToPOS, setIsNavigatingToPOS] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
   const [printOnSave, setPrintOnSave] = useState(false)
@@ -816,18 +817,60 @@ export function UniversalInventoryForm({
       <button
         type="button"
         onClick={onCancel}
+        disabled={isNavigatingToPOS}
         aria-label="Close"
-        className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded focus:outline-none"
+        className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
       >
         ×
       </button>
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-          {mode === 'edit' ? 'Edit Inventory Item' : 'Add New Inventory Item'}
-        </h2>
-        <p className="text-gray-600 dark:text-gray-300 mt-1">
-          {businessType.charAt(0).toUpperCase() + businessType.slice(1)} inventory management
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+              {mode === 'edit' ? 'Edit Inventory Item' : 'Add New Inventory Item'}
+            </h2>
+            <p className="text-gray-600 dark:text-gray-300 mt-1">
+              {businessType.charAt(0).toUpperCase() + businessType.slice(1)} inventory management
+            </p>
+          </div>
+          {mode === 'edit' && item?.id && (
+            <button
+              type="button"
+              onClick={() => {
+                // Set loading state immediately
+                setIsNavigatingToPOS(true)
+
+                // Check if unit is "each" or similar single-unit types
+                const isSingleUnit = ['each', 'ea', 'piece', 'pc', 'pcs', 'unit', 'item'].includes(
+                  (formData.unit || item.unit || '').toLowerCase().trim()
+                )
+
+                if (isSingleUnit) {
+                  // Auto-add to cart with quantity 1 for single-unit items
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}&autoAdd=true`
+                  window.location.href = url
+                } else {
+                  // Just navigate to POS for weight-based or other unit types
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}`
+                  window.location.href = url
+                }
+              }}
+              disabled={isNavigatingToPOS}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 whitespace-nowrap flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isNavigatingToPOS ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <span>🛒</span> Sell this Item
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -1069,7 +1112,8 @@ export function UniversalInventoryForm({
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+              disabled={isNavigatingToPOS}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
@@ -1079,12 +1123,37 @@ export function UniversalInventoryForm({
               <button
                 type="button"
                 onClick={() => {
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}`
-                  window.location.href = url
+                  // Set loading state immediately
+                  setIsNavigatingToPOS(true)
+
+                  // Check if unit is "each" or similar single-unit types
+                  const isSingleUnit = ['each', 'ea', 'piece', 'pc', 'pcs', 'unit', 'item'].includes(
+                    (formData.unit || item.unit || '').toLowerCase().trim()
+                  )
+
+                  if (isSingleUnit) {
+                    // Auto-add to cart with quantity 1 for single-unit items
+                    const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}&autoAdd=true`
+                    window.location.href = url
+                  } else {
+                    // Just navigate to POS for weight-based or other unit types
+                    const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}`
+                    window.location.href = url
+                  }
                 }}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
+                disabled={isNavigatingToPOS}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>🛒</span> Sell this Item
+                {isNavigatingToPOS ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🛒</span> Sell this Item
+                  </>
+                )}
               </button>
             )}
             <button

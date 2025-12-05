@@ -6,7 +6,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider, useBusinessContext, BarcodeScanner } from '@/components/universal'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { printReceipt } from '@/lib/printing/print-receipt'
@@ -57,6 +57,8 @@ interface Customer {
 function GroceryPOSContent() {
   const { formatCurrency } = useBusinessContext()
   const customAlert = useAlert()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [cart, setCart] = useState<CartItem[]>([])
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [barcodeInput, setBarcodeInput] = useState('')
@@ -75,6 +77,7 @@ function GroceryPOSContent() {
   const [cashTendered, setCashTendered] = useState('')
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
+  const [isAutoAdding, setIsAutoAdding] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<{
     id: string
     customerNumber: string
@@ -254,6 +257,62 @@ function GroceryPOSContent() {
     setWeightInput('')
     setCurrentWeight(0)
   }
+
+  // Detect if we should auto-add on page load
+  useEffect(() => {
+    const addProductId = searchParams?.get('addProduct')
+    const autoAdd = searchParams?.get('autoAdd')
+
+    if (addProductId && autoAdd === 'true') {
+      setIsAutoAdding(true)
+    }
+  }, [searchParams])
+
+  // Handle auto-add product from URL parameters
+  useEffect(() => {
+    const addProductId = searchParams?.get('addProduct')
+    const autoAdd = searchParams?.get('autoAdd')
+
+    console.log('Auto-add check:', {
+      addProductId,
+      autoAdd,
+      productsLength: products.length,
+      productsLoading,
+      isAutoAdding,
+      hasProducts: products.length > 0
+    })
+
+    // Wait for products to be loaded and auto-add flag to be set
+    if (addProductId && autoAdd === 'true' && products.length > 0 && !productsLoading && isAutoAdding) {
+      console.log('Attempting auto-add for product:', addProductId)
+
+      // Find the product in the loaded products list
+      // The addProductId is an inventory item ID which maps to product.id or variant.id
+      const product = products.find(p => p.id === addProductId)
+
+      if (product) {
+        console.log('✅ Auto-adding product to cart:', product.name, product)
+        // Auto-add to cart with quantity 1
+        addToCart(product, 1)
+
+        // Clear URL parameters and loading state after adding
+        setTimeout(() => {
+          console.log('Cleaning up auto-add state')
+          router.replace(`/grocery/pos?businessId=${currentBusinessId}`, { scroll: false })
+          setIsAutoAdding(false)
+        }, 500)
+      } else {
+        console.error('❌ Product not found in POS products list:', addProductId)
+        console.log('Available products:', products.slice(0, 5).map(p => ({ id: p.id, name: p.name })))
+        console.log('Total products loaded:', products.length)
+        // Clear loading state even if product not found after a delay to show error
+        setTimeout(() => {
+          router.replace(`/grocery/pos?businessId=${currentBusinessId}`, { scroll: false })
+          setIsAutoAdding(false)
+        }, 1000)
+      }
+    }
+  }, [searchParams, products, productsLoading, currentBusinessId, router, isAutoAdding])
 
   const removeFromCart = (productId: string) => {
     setCart(cart.filter(item => item.id !== productId))
@@ -996,6 +1055,23 @@ function GroceryPOSContent() {
         </div>
       </div>
     </ContentLayout>
+
+    {/* Loading Overlay for Auto-Add Product */}
+    {isAutoAdding && (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70]">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 max-w-sm w-full mx-4">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 dark:border-green-400 mb-4"></div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Adding to Cart...
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+              Please wait while we add the item to your cart
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   )
 }

@@ -26,6 +26,7 @@ export default function RestaurantInventoryPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false)
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -50,6 +51,7 @@ export default function RestaurantInventoryPage() {
   useEffect(() => {
     const productId = searchParams?.get('productId')
     if (productId && currentBusinessId) {
+      setIsLoadingProduct(true)
       fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
         .then(res => res.json())
         .then(data => {
@@ -58,9 +60,15 @@ export default function RestaurantInventoryPage() {
             setShowAddForm(true)
             setActiveTab('ingredients')
             router.replace('/restaurant/inventory', { scroll: false })
+            setTimeout(() => setIsLoadingProduct(false), 800)
+          } else {
+            setIsLoadingProduct(false)
           }
         })
-        .catch(err => console.error('Failed to load product:', err))
+        .catch(err => {
+          console.error('Failed to load product:', err)
+          setIsLoadingProduct(false)
+        })
     }
   }, [searchParams, currentBusinessId, router])
 
@@ -478,6 +486,23 @@ export default function RestaurantInventoryPage() {
                       }
                     ]}
                   />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading Overlay for Product Fetch */}
+          {isLoadingProduct && (
+            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70]">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 max-w-sm w-full mx-4">
+                <div className="flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 dark:border-red-400 mb-4"></div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Loading Product...
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                    Please wait while we fetch the product details
+                  </p>
                 </div>
               </div>
             </div>

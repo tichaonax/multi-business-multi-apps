@@ -44,6 +44,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   const [currentConfidence, setCurrentConfidence] = useState(confidence)
   const [showBusinessSelection, setShowBusinessSelection] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<{ url: string, business: BusinessInventory } | null>(null)
+  const [isSwitching, setIsSwitching] = useState(false)
   const { push: showToast } = useToast()
 
   useEffect(() => {
@@ -204,13 +205,14 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   }
 
   const switchBusinessAndNavigate = (businessId: string, url: string) => {
+    // Set loading state
+    setIsSwitching(true)
     // Update localStorage with new business
     localStorage.setItem('currentBusinessId', businessId)
-    // Close modal
-    onClose()
     // Use window.location.href for full page reload to ensure context updates
     // This prevents race condition where page loads before context updates
     window.location.href = url
+    // Note: onClose and setIsSwitching(false) won't execute due to page reload
   }
 
   const handleConfirmBusinessSwitch = () => {
@@ -222,6 +224,21 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
 
   const handleCancelBusinessSwitch = () => {
     setPendingNavigation(null)
+  }
+
+  const handleSellItem = () => {
+    // Find the first accessible business
+    const firstAccessible = businesses.find(biz => biz.hasAccess)
+    if (!firstAccessible || !firstAccessible.productId) return
+
+    const url = `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addProduct=${firstAccessible.productId}${firstAccessible.variantId ? `&variantId=${firstAccessible.variantId}` : ''}`
+    const currentBusinessId = localStorage.getItem('currentBusinessId')
+
+    if (currentBusinessId && currentBusinessId !== firstAccessible.businessId) {
+      setPendingNavigation({ url, business: firstAccessible })
+    } else {
+      switchBusinessAndNavigate(firstAccessible.businessId, url)
+    }
   }
 
   // Helper function to format product attributes for display
@@ -322,16 +339,32 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {isLoading ? 'Searching for Product...' : businesses.length === 0 ? 'Product Not Found' : `Product Found in ${businesses.length} Business${businesses.length > 1 ? 'es' : ''}`}
-            </h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-            >
-              ✕
-            </button>
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {isLoading ? 'Searching for Product...' : businesses.length === 0 ? 'Product Not Found' : `Product Found in ${businesses.length} Business${businesses.length > 1 ? 'es' : ''}`}
+              </h2>
+              <button
+                onClick={onClose}
+                disabled={isSwitching}
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Sell this Item button - shown when products are found */}
+            {!isLoading && businesses.length > 0 && businesses.some(biz => biz.hasAccess) && (
+              <div className="mt-3">
+                <button
+                  onClick={handleSellItem}
+                  disabled={isSwitching}
+                  className="w-full px-4 py-3 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  🛒 Sell this Item
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mb-4">
@@ -477,7 +510,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
                           e.stopPropagation()
                           handleViewProduct(business)
                         }}
-                        className="px-3 py-2 bg-gray-600 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 text-sm"
+                        disabled={isSwitching}
+                        className="px-3 py-2 bg-gray-600 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         View
                       </button>
@@ -496,7 +530,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
                               }
                             }
                           }}
-                          className="px-3 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 text-sm"
+                          disabled={isSwitching}
+                          className="px-3 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Add to Cart
                         </button>
@@ -511,7 +546,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
           <div className="flex justify-end gap-3 mt-6">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              disabled={isSwitching}
+              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
@@ -540,16 +576,35 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
             <div className="flex gap-3 justify-end">
               <button
                 onClick={handleCancelBusinessSwitch}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                disabled={isSwitching}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmBusinessSwitch}
-                className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600"
+                disabled={isSwitching}
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Switch & View
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Overlay during Business Switch */}
+      {isSwitching && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 max-w-sm w-full mx-4">
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 dark:border-blue-400 mb-4"></div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Switching Business...
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                Please wait while we load the product details
+              </p>
             </div>
           </div>
         </div>

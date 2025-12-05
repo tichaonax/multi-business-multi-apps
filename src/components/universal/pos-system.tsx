@@ -64,7 +64,7 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
   const [cashTendered, setCashTendered] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [autoAddProcessed, setAutoAddProcessed] = useState(false)
+  const [autoAddProcessed, setAutoAddProcessed] = useState<string | null>(null)
 
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false)
@@ -148,16 +148,19 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
     setError(null)
   }
 
-  // Auto-add product from query parameters (from barcode scanner navigation)
+  // Auto-add product from query parameters (from barcode scanner navigation or inventory)
   useEffect(() => {
     const addProductId = searchParams?.get('addProduct')
     const variantId = searchParams?.get('variantId')
     const queryBusinessId = searchParams?.get('businessId')
+    const autoAdd = searchParams?.get('autoAdd')
 
-    if (addProductId && !autoAddProcessed) {
-      setAutoAddProcessed(true)
+    // Only process if addProduct parameter exists and we haven't already processed THIS specific product
+    if (addProductId && autoAddProcessed !== addProductId) {
+      console.log('🔄 Processing auto-add for product:', addProductId)
+      setAutoAddProcessed(addProductId)
 
-      // Fetch the product and add it to cart
+      // Fetch the product and optionally add it to cart
       const fetchAndAddProduct = async () => {
         try {
           // Use businessId from query params (the business where product was found)
@@ -166,21 +169,35 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
 
           const response = await fetch(`/api/admin/products/${addProductId}?businessId=${targetBusinessId}`)
           if (!response.ok) {
-            console.error('Failed to fetch product for auto-add')
+            console.error('❌ Failed to fetch product for auto-add')
+            // Clean up URL even on error
+            const currentPath = window.location.pathname
+            router.replace(currentPath)
             return
           }
 
           const data = await response.json()
           if (data.success && data.product) {
-            // Add to cart with variant if specified
-            addToCart(data.product, variantId || undefined, 1)
+            console.log('✅ Product fetched:', data.product.name)
+            // Auto-add to cart only if autoAdd=true (for "each" unit type items)
+            // Otherwise, the product is just loaded but not added (user can add manually)
+            if (autoAdd === 'true') {
+              console.log('➕ Adding to cart')
+              addToCart(data.product, variantId || undefined, 1)
+            }
 
             // Clean up the URL
             const currentPath = window.location.pathname
             router.replace(currentPath)
+          } else {
+            console.error('❌ Product not found in response')
+            const currentPath = window.location.pathname
+            router.replace(currentPath)
           }
         } catch (err) {
-          console.error('Error auto-adding product:', err)
+          console.error('❌ Error auto-adding product:', err)
+          const currentPath = window.location.pathname
+          router.replace(currentPath)
         }
       }
 
@@ -361,18 +378,18 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
   const labels = getBusinessLabels()
 
   return (
-    <div className="card rounded-lg shadow-lg">
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-bold text-primary">{labels.title}</h2>
-        <p className="text-sm text-secondary">
+      <div className="p-6 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-850">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labels.title}</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
           {config?.businessName} - {config?.businessType}
         </p>
       </div>
 
       <div className="flex">
         {/* Left Panel - Cart */}
-        <div className="flex-1 p-4">
+        <div className="flex-1 p-6">
           {/* Customer Lookup */}
           <div className="mb-4">
             <CustomerLookup
@@ -386,13 +403,15 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
 
           {/* Barcode Scanner */}          <BarcodeScanner            onProductScanned={(product, variantId, scannedBarcode) => addToCart(product, variantId, 1, scannedBarcode)}            businessId={businessId}            showScanner={showBarcodeScanner}            onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}          />
           {/* Cart Items */}
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="font-semibold text-primary">{labels.items} ({cart.length})</h3>
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                {labels.items} <span className="text-blue-600 dark:text-blue-400">({cart.length})</span>
+              </h3>
               {cart.length > 0 && (
                 <button
                   onClick={clearCart}
-                  className="text-sm text-red-600 hover:text-red-800"
+                  className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
                 >
                   Clear All
                 </button>
@@ -400,38 +419,40 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
             </div>
 
             {cart.length === 0 ? (
-              <div className="text-center py-8 text-secondary">
-                <div className="text-4xl mb-2">🛒</div>
-                <p>No items in {businessFeatures.isRestaurant() ? 'order' : 'cart'}</p>
+              <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
+                <div className="text-5xl mb-3">🛒</div>
+                <p className="text-gray-600 dark:text-gray-400 font-medium">No items in {businessFeatures.isRestaurant() ? 'order' : 'cart'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Scan a barcode or select products to get started</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                 {cart.map((item, index) => (
-                  <div key={`${item.productId}-${item.variantId || 'default'}`} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-primary">{(item as any).productName || item.product?.name || (item as any).name || 'Item'}</h4>
+                  <div key={`${item.productId}-${item.variantId || 'default'}`} className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-shadow">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-900 dark:text-white truncate">{(item as any).productName || item.product?.name || (item as any).name || 'Item'}</h4>
                       {item.variant?.name && (
-                        <p className="text-sm text-secondary">{item.variant.name}</p>
+                        <p className="text-sm text-blue-600 dark:text-blue-400 mt-0.5">{item.variant.name}</p>
                       )}
-                      <p className="text-sm text-secondary">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         {formatCurrency(item.unitPrice)} each
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <input
                         type="number"
                         min="1"
                         value={item.quantity}
                         onChange={(e) => updateCartItem(index, { quantity: parseInt(e.target.value) || 1 })}
-                        className="w-16 px-2 py-1 text-center input-field"
+                        className="w-16 px-2 py-1.5 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
-                      <span className="font-medium text-primary">
+                      <span className="font-bold text-gray-900 dark:text-white min-w-[80px] text-right">
                         {formatCurrency(item.totalPrice)}
                       </span>
                       <button
                         onClick={() => removeFromCart(index)}
-                        className="text-red-500 hover:text-red-700 p-1"
+                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Remove item"
                       >
                         ✕
                       </button>
@@ -444,22 +465,22 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
 
           {/* Totals */}
           {cart.length > 0 && (
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>{formatCurrency(subtotal)}</span>
+            <div className="border-t-2 border-gray-200 dark:border-gray-700 pt-6 mt-4 bg-gray-50 dark:bg-gray-800/50 -mx-6 px-6 pb-6 rounded-b-xl">
+              <div className="space-y-3">
+                <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                  <span className="font-medium">Subtotal:</span>
+                  <span className="font-semibold">{formatCurrency(subtotal)}</span>
                 </div>
 
                 {config?.general?.taxEnabled && (
-                  <div className="flex justify-between">
-                    <span>Tax ({config.general.taxRate}%):</span>
-                    <span>{formatCurrency(taxAmount)}</span>
+                  <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                    <span className="font-medium">Tax ({config.general.taxRate}%):</span>
+                    <span className="font-semibold">{formatCurrency(taxAmount)}</span>
                   </div>
                 )}
 
-                <div className="flex justify-between">
-                  <span>Discount:</span>
+                <div className="flex justify-between items-center text-gray-700 dark:text-gray-300">
+                  <span className="font-medium">Discount:</span>
                   <input
                     type="number"
                     min="0"
@@ -467,13 +488,13 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
                     step="0.01"
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
-                    className="w-24 px-2 py-1 text-right input-field"
+                    className="w-28 px-3 py-1.5 text-right border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-semibold"
                   />
                 </div>
 
-                <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                <div className="flex justify-between text-2xl font-bold pt-3 border-t-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
                   <span>Total:</span>
-                  <span className="text-primary">{formatCurrency(totalAmount)}</span>
+                  <span className="text-blue-600 dark:text-blue-400">{formatCurrency(totalAmount)}</span>
                 </div>
               </div>
             </div>
@@ -481,29 +502,29 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
 
           {/* Payment Method */}
           {cart.length > 0 && (
-            <div className="mt-4 space-y-4">
+            <div className="mt-6 space-y-4 bg-gray-50 dark:bg-gray-800 p-5 rounded-lg border border-gray-200 dark:border-gray-700">
               <div>
-                <label className="block text-sm font-medium text-primary mb-2">
-                  Payment Method
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  💳 Payment Method
                 </label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="input-field w-full"
+                  className="input-field w-full text-base font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 >
-                  <option value="CASH">Cash</option>
-                  <option value="CARD">Card</option>
-                  <option value="MOBILE_MONEY">Mobile Money</option>
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
-                  {businessFeatures.isConsulting() && <option value="NET_30">Net 30</option>}
+                  <option value="CASH">💵 Cash</option>
+                  <option value="CARD">💳 Card</option>
+                  <option value="MOBILE_MONEY">📱 Mobile Money</option>
+                  <option value="BANK_TRANSFER">🏦 Bank Transfer</option>
+                  {businessFeatures.isConsulting() && <option value="NET_30">📄 Net 30</option>}
                 </select>
               </div>
 
               {/* Cash Tender Input */}
               {paymentMethod === 'CASH' && (
                 <div>
-                  <label className="block text-sm font-medium text-primary mb-2">
-                    Cash Tendered
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    💵 Cash Tendered
                   </label>
                   <input
                     type="number"
@@ -512,19 +533,19 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
                     placeholder="Enter amount received"
                     value={cashTendered}
                     onChange={(e) => setCashTendered(e.target.value)}
-                    className="input-field w-full text-lg font-semibold"
+                    className="input-field w-full text-xl font-bold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     autoFocus
                   />
                   {cashTendered && parseFloat(cashTendered) >= totalAmount && (
-                    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded">
-                      <div className="flex justify-between text-green-800 dark:text-green-200 font-semibold">
-                        <span>Change:</span>
+                    <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 rounded-lg border border-green-300 dark:border-green-700">
+                      <div className="flex justify-between text-green-800 dark:text-green-200 font-bold text-lg">
+                        <span>Change Due:</span>
                         <span>{formatCurrency(parseFloat(cashTendered) - totalAmount)}</span>
                       </div>
                     </div>
                   )}
                   {cashTendered && parseFloat(cashTendered) < totalAmount && (
-                    <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
+                    <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-lg border border-red-300 dark:border-red-700 text-red-800 dark:text-red-200 text-sm font-medium">
                       ⚠️ Amount tendered is less than total
                     </div>
                   )}
@@ -533,15 +554,15 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
 
               {/* Auto-print receipt option */}
               {canPrintReceipts && (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-3 p-3 bg-white dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600">
                   <input
                     type="checkbox"
                     id="autoPrintReceipt"
                     checked={autoPrintReceipt}
                     onChange={(e) => setAutoPrintReceipt(e.target.checked)}
-                    className="rounded"
+                    className="rounded w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
                   />
-                  <label htmlFor="autoPrintReceipt" className="text-sm font-medium text-primary">
+                  <label htmlFor="autoPrintReceipt" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
                     🧾 Print receipt after checkout
                   </label>
                 </div>
@@ -561,9 +582,19 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
             <button
               onClick={processOrder}
               disabled={isProcessing || (paymentMethod === 'CASH' && (!cashTendered || parseFloat(cashTendered) < totalAmount))}
-              className="w-full mt-4 bg-primary text-white px-4 py-3 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-4 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
             >
-              {isProcessing ? 'Processing...' : labels.processButton}
+              {isProcessing ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Processing Order...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <span>✓</span>
+                  <span>{labels.processButton}</span>
+                </div>
+              )}
             </button>
           )}
         </div>

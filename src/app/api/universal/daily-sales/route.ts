@@ -247,16 +247,6 @@ export async function GET(request: NextRequest) {
       orderStatusBreakdown[status].total += Number(order.totalAmount || 0)
     })
 
-    // Get receipt count for today
-    const receiptSequence = await prisma.receiptSequences.findUnique({
-      where: {
-        businessId_date: {
-          businessId,
-          date: dateStr,
-        },
-      },
-    })
-
     // Calculate hourly breakdown
     const hourlyBreakdown: Record<number, { hour: number; orders: number; sales: number }> = {}
     orders.forEach(order => {
@@ -283,7 +273,7 @@ export async function GET(request: NextRequest) {
           totalTax,
           totalDiscount,
           averageOrderValue: totalOrders > 0 ? totalSales / totalOrders : 0,
-          receiptsIssued: receiptSequence?.lastSequence || 0,
+          receiptsIssued: totalOrders,
         },
         paymentMethods,
         employeeSales: Object.values(employeeSales).sort(
