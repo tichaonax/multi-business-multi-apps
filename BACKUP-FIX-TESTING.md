@@ -157,11 +157,31 @@ If barcodes are still missing with this query, there may be a different issue (o
 
 Several test scripts have been created in the `scripts/` directory:
 
+- `final-expense-backup-test.js` - Tests empty expense accounts (accounts without transactions)
+- `complete-backup-validation-test.js` - **COMPREHENSIVE TEST** - Validates all critical data types
 - `simple-expense-account-test.js` - Basic test (requires API auth)
 - `check-barcode-backup.js` - Investigates barcode backup
 - `verify-expense-account-backup-fix.js` - Validates the fix
 
-**Note**: These require the dev server to be running and may need auth modifications.
+### Running the Comprehensive Test
+
+```bash
+npx tsx scripts/complete-backup-validation-test.js
+```
+
+This test validates:
+- ✅ Expense accounts without transactions (empty/setup accounts)
+- ✅ Expense accounts with deposits
+- ✅ Expense accounts with payments
+- ✅ Deposit transactions
+- ✅ Payment transactions
+- ✅ Product barcodes
+
+**Test Results (Last Run):**
+- Created 3 expense accounts, 1 deposit, 1 payment, 1 barcode
+- Performed backup using `createCleanBackup()`
+- All 6 items verified in backup JSON file
+- ✅ **ALL TESTS PASSED**
 
 ## Manual Validation Checklist
 
