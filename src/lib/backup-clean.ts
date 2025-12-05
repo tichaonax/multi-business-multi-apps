@@ -365,6 +365,9 @@ export async function createCleanBackup(
 
   backupData.expenseSubcategories = await prisma.expenseSubcategories.findMany()
 
+  // Get user IDs for expense account filtering (need this before querying expense accounts)
+  const userIds = backupData.users.map((u: any) => u.id)
+
   // Include expense accounts that are:
   // 1. Created by users in backed-up businesses, OR
   // 2. Have deposits from backed-up businesses, OR
@@ -442,7 +445,7 @@ export async function createCleanBackup(
   })
 
   // 10. Personal finance
-  const userIds = backupData.users.map((u: any) => u.id)
+  // Note: userIds already defined earlier for expense accounts
 
   backupData.personalBudgets = await prisma.personalBudgets.findMany({
     where: {
