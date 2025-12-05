@@ -365,9 +365,15 @@ export async function createCleanBackup(
 
   backupData.expenseSubcategories = await prisma.expenseSubcategories.findMany()
 
+  // Include expense accounts that are:
+  // 1. Created by users in backed-up businesses, OR
+  // 2. Have deposits from backed-up businesses, OR
+  // 3. Have payments to backed-up businesses
+  // This ensures empty accounts (setup accounts) are included
   backupData.expenseAccounts = await prisma.expenseAccounts.findMany({
     where: {
       OR: [
+        { createdBy: { in: userIds } },
         { deposits: { some: { sourceBusinessId: { in: businessIds } } } },
         { payments: { some: { payeeBusinessId: { in: businessIds } } } }
       ]
