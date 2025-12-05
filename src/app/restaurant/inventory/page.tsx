@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
-export default function RestaurantInventoryPage() {
+function RestaurantInventoryContent() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts'>('ingredients')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
@@ -511,5 +511,17 @@ export default function RestaurantInventoryPage() {
       </ContentLayout>
       </BusinessProvider>
     </BusinessTypeRoute>
+  )
+}
+
+export default function RestaurantInventoryPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    }>
+      <RestaurantInventoryContent />
+    </Suspense>
   )
 }

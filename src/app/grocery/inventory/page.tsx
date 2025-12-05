@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
-export default function GroceryInventoryPage() {
+function GroceryInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
@@ -702,5 +702,17 @@ export default function GroceryInventoryPage() {
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>
+  )
+}
+
+export default function GroceryInventoryPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    }>
+      <GroceryInventoryContent />
+    </Suspense>
   )
 }
