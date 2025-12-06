@@ -256,6 +256,11 @@ async function main() {
       required: false
     },
     {
+      command: process.platform === 'win32' ? 'if exist .next rmdir /s /q .next' : 'rm -rf .next',
+      description: 'Cleaning Next.js build cache before first build',
+      required: false
+    },
+    {
       command: 'npm run build',
       description: 'Building the application',
       required: true
