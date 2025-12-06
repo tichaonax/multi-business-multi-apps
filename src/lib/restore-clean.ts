@@ -13,6 +13,9 @@ type AnyPrismaClient = PrismaClient & any
  * This ensures foreign key constraints are satisfied
  */
 const RESTORE_ORDER = [
+  // System settings (no dependencies)
+  'systemSettings',
+
   // Reference data (no dependencies)
   'emojiLookup',
   'jobTitles',
@@ -22,6 +25,9 @@ const RESTORE_ORDER = [
   'driverLicenseTemplates',
   'permissionTemplates',
   'projectTypes',
+  'conflictResolutions',
+  'dataSnapshots',
+  'seedDataTemplates',
   
   // Inventory and expense reference data
   'inventoryDomains',
@@ -32,7 +38,6 @@ const RESTORE_ORDER = [
   // Users and authentication
   'users',
   'accounts',
-  'sessions',
   
   // Businesses (core entity)
   'businesses',
@@ -135,14 +140,7 @@ const RESTORE_ORDER = [
   // Miscellaneous
   'supplierProducts',
   'interBusinessLoans',
-  'loanTransactions',
-  'chatRooms',
-  'chatMessages',
-  'chatParticipants',
-  'printJobs',
-  
-  // Audit logs (last)
-  'auditLogs'
+  'loanTransactions'
 ]
 
 /**

@@ -68,6 +68,9 @@ export async function createCleanBackup(
   // Filter for non-demo businesses by default
   const businessFilter = includeDemoData ? {} : { isDemo: false }
 
+  // 0. System settings (global)
+  backupData.systemSettings = await prisma.systemSettings.findMany()
+
   // 1. Core business and user data (NO INCLUDES)
   backupData.businesses = await prisma.businesses.findMany({
     where: businessFilter
@@ -618,14 +621,7 @@ export async function createCleanBackup(
   // 17. Project types
   backupData.projectTypes = await prisma.projectTypes.findMany()
 
-  // 18. Chat system
-  backupData.chatRooms = await prisma.chatRooms.findMany()
-
-  backupData.chatMessages = await prisma.chatMessages.findMany()
-
-  backupData.chatParticipants = await prisma.chatParticipants.findMany()
-
-  // 19. Inter-business loans
+  // 18. Inter-business loans
   backupData.interBusinessLoans = await prisma.interBusinessLoans.findMany({
     where: {
       OR: [
@@ -646,10 +642,7 @@ export async function createCleanBackup(
     }
   })
 
-  // 20. Sessions
-  backupData.sessions = await prisma.sessions.findMany()
-
-  // 21. Reference data (global)
+  // 19. Reference data (global)
   backupData.emojiLookup = await prisma.emojiLookup.findMany()
   backupData.jobTitles = await prisma.jobTitles.findMany()
   backupData.compensationTypes = await prisma.compensationTypes.findMany()
@@ -658,20 +651,10 @@ export async function createCleanBackup(
   backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany()
   backupData.permissionTemplates = await prisma.permissionTemplates.findMany()
 
-  // 22. Print system (business-scoped only)
-  backupData.printJobs = await prisma.printJobs.findMany({
-    where: {
-      businessId: { in: businessIds }
-    }
-  })
-
-  // 23. Audit logs (only if explicitly requested)
-  if (includeAuditLogs) {
-    backupData.auditLogs = await prisma.auditLogs.findMany({
-      orderBy: { timestamp: 'desc' },
-      take: auditLogLimit
-    })
-  }
+  // 20. System data
+  backupData.conflictResolutions = await prisma.conflictResolutions.findMany()
+  backupData.dataSnapshots = await prisma.dataSnapshots.findMany()
+  backupData.seedDataTemplates = await prisma.seedDataTemplates.findMany()
 
   return backupData
 }
