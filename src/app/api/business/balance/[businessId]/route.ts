@@ -17,17 +17,21 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { businessId } = await params
 
-    // Verify user has access to this business
-    const userBusinesses = await prisma.businessMemberships.findMany({
-      where: {
-        userId: session.user.id,
-        businessId: businessId,
-        isActive: true
-      }
-    })
+    // Verify user has access to this business (admins have access to all businesses)
+    const isAdmin = session.user.role === 'admin'
 
-    if (userBusinesses.length === 0) {
-      return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
+    if (!isAdmin) {
+      const userBusinesses = await prisma.businessMemberships.findMany({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true
+        }
+      })
+
+      if (userBusinesses.length === 0) {
+        return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
+      }
     }
 
     // Get business balance information
