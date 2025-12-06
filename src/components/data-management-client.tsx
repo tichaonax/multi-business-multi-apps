@@ -6,14 +6,15 @@ import { useEffect, useState } from 'react';
 import { DataExport } from '@/components/data-export';
 import { DataImport } from '@/components/data-import';
 import { DataBackup } from '@/components/data-backup';
-import { Download, Upload, HardDrive, Shield } from 'lucide-react';
+import { DataSeed } from '@/components/data-seed';
+import { Download, Upload, HardDrive, Shield, Sprout } from 'lucide-react';
 import { ContentLayout } from '@/components/layout/content-layout';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 
 export function DataManagementClient() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'export' | 'import' | 'backup'>('export');
+  const [activeTab, setActiveTab] = useState<'export' | 'import' | 'backup' | 'seed'>('export');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -91,6 +92,23 @@ export function DataManagementClient() {
                   <span className="ml-1 text-xs">(Admin Only)</span>
                 )}
               </button>
+              <button
+                onClick={() => setActiveTab('seed')}
+                disabled={!isAdmin}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'seed' && isAdmin
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : !isAdmin
+                      ? 'border-transparent text-slate-300 cursor-not-allowed dark:text-slate-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'
+                }`}
+              >
+                <Sprout className="h-4 w-4 inline mr-2" />
+                Seed & Validate
+                {!isAdmin && (
+                  <span className="ml-1 text-xs">(Admin Only)</span>
+                )}
+              </button>
             </nav>
           </div>
         </div>
@@ -133,6 +151,26 @@ export function DataManagementClient() {
                   </h3>
                   <p className="text-slate-600 dark:text-slate-400">
                     Backup and restore functionality is restricted to
+                    administrators only. Please contact your system
+                    administrator for assistance.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'seed' && (
+            <>
+              {isAdmin ? (
+                <DataSeed />
+              ) : (
+                <div className="text-center py-12">
+                  <Shield className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
+                    Administrator Access Required
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Seed and validation functionality is restricted to
                     administrators only. Please contact your system
                     administrator for assistance.
                   </p>
