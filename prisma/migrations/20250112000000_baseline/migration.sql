@@ -1646,6 +1646,25 @@ CREATE TABLE "public"."sync_sessions" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."system_settings" (
+    "id" TEXT NOT NULL,
+    "allowSelfRegistration" BOOLEAN NOT NULL DEFAULT true,
+    "defaultRegistrationRole" TEXT NOT NULL DEFAULT 'employee',
+    "defaultRegistrationPermissions" JSONB NOT NULL,
+    "requireAdminApproval" BOOLEAN NOT NULL DEFAULT false,
+    "maxUsersPerBusiness" INTEGER NOT NULL DEFAULT 50,
+    "globalDateFormat" TEXT NOT NULL DEFAULT 'dd/mm/yyyy',
+    "defaultCountryCode" TEXT NOT NULL DEFAULT 'ZW',
+    "defaultIdFormatTemplateId" TEXT,
+    "defaultMileageUnit" TEXT NOT NULL DEFAULT 'km',
+    "maxPaymentWithoutId" DECIMAL(10,2) NOT NULL DEFAULT 50,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "system_settings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
