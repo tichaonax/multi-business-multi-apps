@@ -185,6 +185,35 @@ async function main() {
     }
   }
 
+  // Clean package-lock.json if it exists to avoid lock file conflicts
+  console.log('🧹 Cleaning package-lock.json to avoid dependency conflicts...\n')
+  const lockFilePath = path.join(ROOT_DIR, 'package-lock.json')
+  if (fs.existsSync(lockFilePath)) {
+    try {
+      fs.unlinkSync(lockFilePath)
+      console.log('✅ Removed package-lock.json\n')
+    } catch (error) {
+      console.warn('⚠️  Could not remove package-lock.json (continuing anyway)\n')
+    }
+  }
+
+  // Clean node_modules for truly fresh install
+  console.log('🧹 Cleaning node_modules for fresh installation...\n')
+  const nodeModulesPath = path.join(ROOT_DIR, 'node_modules')
+  if (fs.existsSync(nodeModulesPath)) {
+    try {
+      console.log('   This may take a minute...')
+      if (process.platform === 'win32') {
+        execSync(`rmdir /s /q "${nodeModulesPath}"`, { stdio: 'inherit' })
+      } else {
+        execSync(`rm -rf "${nodeModulesPath}"`, { stdio: 'inherit' })
+      }
+      console.log('✅ Removed node_modules\n')
+    } catch (error) {
+      console.warn('⚠️  Could not remove node_modules (continuing anyway)\n')
+    }
+  }
+
   const steps = [
     {
       command: 'npm install --legacy-peer-deps',
