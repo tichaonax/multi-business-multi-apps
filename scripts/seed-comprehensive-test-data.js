@@ -758,13 +758,15 @@ const seedData = {
   ],
 
   // Expense accounts
+  // Note: EXP-001, EXP-002, EXP-003 are reserved for system default accounts
+  // (acc-general-expenses, acc-travel-accommodation, acc-office-supplies)
   expenseAccounts: [
     {
       id: 'expense-account-001',
-      accountNumber: 'EXP-001',
-      accountName: 'Office Supplies Account',
+      accountNumber: 'EXP-004',
+      accountName: 'Test Expense Account',
       balance: 1000.00,
-      description: 'Account for office supplies expenses',
+      description: 'Test expense account for seed data',
       isActive: true,
       lowBalanceThreshold: 100.00,
       createdBy: 'user-test-seed-001'
