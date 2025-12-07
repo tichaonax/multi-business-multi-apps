@@ -79,16 +79,9 @@ export async function createCleanBackup(
   const businessIds = backupData.businesses.map((b: any) => b.id)
   const businessTypes = [...new Set(backupData.businesses.map((b: any) => b.type))]
 
-  // 2. Users (only those with memberships in backed up businesses)
-  backupData.users = await prisma.users.findMany({
-    where: includeDemoData ? {} : {
-      business_memberships: {
-        some: {
-          businessId: { in: businessIds }
-        }
-      }
-    }
-  })
+  // 2. Users - for FULL backups, include ALL users (they are system/seed data)
+  // Users don't have isDemo flag, so back them all up
+  backupData.users = await prisma.users.findMany()
 
   // 3. Accounts
   backupData.accounts = await prisma.accounts.findMany()
@@ -373,32 +366,16 @@ export async function createCleanBackup(
   // Get user IDs for expense account filtering (need this before querying expense accounts)
   const userIds = backupData.users.map((u: any) => u.id)
 
-  // Include expense accounts that are:
-  // 1. Created by users in backed-up businesses, OR
-  // 2. Have deposits from backed-up businesses, OR
-  // 3. Have payments to backed-up businesses
-  // This ensures empty accounts (setup accounts) are included
-  backupData.expenseAccounts = await prisma.expenseAccounts.findMany({
-    where: {
-      OR: [
-        { createdBy: { in: userIds } },
-        { deposits: { some: { sourceBusinessId: { in: businessIds } } } },
-        { payments: { some: { payeeBusinessId: { in: businessIds } } } }
-      ]
-    }
-  })
+  // 8. Expense accounts and transactions
+  // For FULL backups: Include ALL expense accounts (generic, system, and business-specific)
+  // These don't have isDemo flag, so back up everything
+  backupData.expenseAccounts = await prisma.expenseAccounts.findMany()
 
-  backupData.expenseAccountDeposits = await prisma.expenseAccountDeposits.findMany({
-    where: {
-      sourceBusinessId: { in: businessIds }
-    }
-  })
+  // Include ALL deposits (including generic ones with sourceBusinessId=null)
+  backupData.expenseAccountDeposits = await prisma.expenseAccountDeposits.findMany()
 
-  backupData.expenseAccountPayments = await prisma.expenseAccountPayments.findMany({
-    where: {
-      payeeBusinessId: { in: businessIds }
-    }
-  })
+  // Include ALL payments (including generic ones with payeeBusinessId=null)
+  backupData.expenseAccountPayments = await prisma.expenseAccountPayments.findMany()
 
   // 9. Payroll system
   backupData.payrollPeriods = await prisma.payrollPeriods.findMany({
@@ -518,11 +495,8 @@ export async function createCleanBackup(
   // VehicleDrivers don't have direct business relation - include all
   backupData.vehicleDrivers = await prisma.vehicleDrivers.findMany()
 
-  backupData.vehicleExpenses = await prisma.vehicleExpenses.findMany({
-    where: {
-      businessId: { in: businessIds }
-    }
-  })
+  // Include ALL vehicle expenses (including generic ones with businessId=null)
+  backupData.vehicleExpenses = await prisma.vehicleExpenses.findMany()
 
   backupData.vehicleLicenses = await prisma.vehicleLicenses.findMany({
     where: {
