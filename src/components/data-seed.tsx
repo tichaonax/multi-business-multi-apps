@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Sprout, CheckCircle2, AlertCircle, Loader2, Database, FileCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sprout, CheckCircle2, AlertCircle, Loader2, Database, FileCheck, RefreshCw } from 'lucide-react';
 
 interface SeedResult {
   success: boolean;
@@ -31,12 +31,45 @@ interface ValidationResult {
   error?: string;
 }
 
+interface BackupFile {
+  name: string;
+  mtime: number;
+  size: number;
+}
+
 export function DataSeed() {
   const [seeding, setSeeding] = useState(false);
   const [validating, setValidating] = useState(false);
   const [seedResult, setSeedResult] = useState<SeedResult | null>(null);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
-  const [backupFileName, setBackupFileName] = useState('complete-backup-2025-12-06T17-36-29.json');
+  const [backupFileName, setBackupFileName] = useState('');
+  const [backupFiles, setBackupFiles] = useState<BackupFile[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [useManualInput, setUseManualInput] = useState(false);
+
+  // Fetch available backup files
+  const fetchBackupFiles = async () => {
+    setLoadingBackups(true);
+    try {
+      const response = await fetch('/api/admin/backups');
+      if (response.ok) {
+        const data = await response.json();
+        setBackupFiles(data.backups || []);
+        // Auto-select the most recent backup
+        if (data.backups && data.backups.length > 0 && !backupFileName) {
+          setBackupFileName(data.backups[0].name);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch backup files:', error);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBackupFiles();
+  }, []);
 
   const handleSeed = async () => {
     setSeeding(true);
@@ -193,17 +226,61 @@ export function DataSeed() {
             </p>
 
             <div className="mb-4">
-              <label htmlFor="backupFile" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Backup File Name
-              </label>
-              <input
-                type="text"
-                id="backupFile"
-                value={backupFileName}
-                onChange={(e) => setBackupFileName(e.target.value)}
-                placeholder="complete-backup-2025-12-06T17-36-29.json"
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-slate-100"
-              />
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="backupFile" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Backup File
+                </label>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={fetchBackupFiles}
+                    disabled={loadingBackups}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center"
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${loadingBackups ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseManualInput(!useManualInput)}
+                    className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  >
+                    {useManualInput ? 'Use Dropdown' : 'Manual Input'}
+                  </button>
+                </div>
+              </div>
+
+              {useManualInput ? (
+                <input
+                  type="text"
+                  id="backupFile"
+                  value={backupFileName}
+                  onChange={(e) => setBackupFileName(e.target.value)}
+                  placeholder="complete-backup-2025-12-06T17-36-29.json"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-slate-100"
+                />
+              ) : (
+                <select
+                  id="backupFile"
+                  value={backupFileName}
+                  onChange={(e) => setBackupFileName(e.target.value)}
+                  disabled={loadingBackups}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-slate-100 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
+                >
+                  <option value="">-- Select a backup file --</option>
+                  {backupFiles.map((file) => (
+                    <option key={file.name} value={file.name}>
+                      {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB - {new Date(file.mtime).toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {backupFiles.length === 0 && !loadingBackups && !useManualInput && (
+                <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+                  No backup files found. Use "Manual Input" to enter a filename.
+                </p>
+              )}
             </div>
 
             <button

@@ -16,12 +16,35 @@ export async function GET(request: NextRequest) {
   const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const base = path.join(process.cwd(), 'scripts')
-  if (!fs.existsSync(base)) return NextResponse.json({ backups: [] })
-  const files = fs.readdirSync(base).filter(f => f.startsWith('cleanup-backup-') && f.endsWith('.json'))
-  const stats = files.map(f => {
-    const stat = fs.statSync(path.join(base, f))
-    return { name: f, mtime: stat.mtime.getTime(), size: stat.size }
-  }).sort((a,b) => b.mtime - a.mtime)
-  return NextResponse.json({ backups: stats })
+  // Check multiple directories for backup files
+  const searchPaths = [
+    path.join(process.cwd(), 'scripts'),
+    process.cwd(), // Root directory
+  ]
+
+  const allBackups: { name: string; mtime: number; size: number }[] = []
+
+  for (const basePath of searchPaths) {
+    if (!fs.existsSync(basePath)) continue
+
+    const files = fs.readdirSync(basePath).filter(f =>
+      (f.includes('backup') || f.includes('restore')) &&
+      f.endsWith('.json') &&
+      !f.includes('node_modules')
+    )
+
+    const stats = files.map(f => {
+      const stat = fs.statSync(path.join(basePath, f))
+      return { name: f, mtime: stat.mtime.getTime(), size: stat.size }
+    })
+
+    allBackups.push(...stats)
+  }
+
+  // Remove duplicates and sort by modification time
+  const uniqueBackups = Array.from(
+    new Map(allBackups.map(b => [b.name, b])).values()
+  ).sort((a, b) => b.mtime - a.mtime)
+
+  return NextResponse.json({ backups: uniqueBackups })
 }
