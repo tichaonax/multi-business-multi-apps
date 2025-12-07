@@ -131,12 +131,19 @@ export async function POST(request: NextRequest) {
 
     // Initialize progress with model counts from backup
     const counts: Record<string, { processed: number; total: number }> = {};
+    let totalRecords = 0;
     for (const [key, value] of Object.entries(backupData)) {
       if (key !== 'metadata' && Array.isArray(value)) {
         counts[key] = { processed: 0, total: value.length };
+        totalRecords += value.length;
       }
     }
-    updateProgress(progressId, { counts, model: 'starting' });
+    updateProgress(progressId, {
+      counts,
+      model: 'starting',
+      processed: 0,
+      total: totalRecords
+    });
 
     // Define restore function
     const runRestore = async () => {
@@ -163,17 +170,11 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        // Calculate total records that should be processed
-        const totalRecords = Object.values(counts).reduce(
-          (sum, { total }) => sum + total,
-          0
-        );
-
         // Update progress with final status
         updateProgress(progressId, {
           model: result.success ? 'completed' : 'error',
           processed: result.processed,  // Actual records processed
-          total: totalRecords            // Total records that should be processed
+          total: totalRecords            // Total records from initial calculation
         });
 
         console.log('[restore] Restore completed:', {
