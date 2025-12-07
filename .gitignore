@@ -139,3 +139,4 @@ projectplan-fix-api-prisma-schema-mismatch-*.md
 scripts/scan-api-schema-mismatches.ts
 scripts/validate-all-relations.ts
 scripts/validate-prisma-usage.ts
+test-backup-*.json
