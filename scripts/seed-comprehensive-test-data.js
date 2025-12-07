@@ -2498,6 +2498,23 @@ async function createComprehensiveTestData() {
               create: account
             })
           }
+        } else if (tableName === 'productBarcodes') {
+          // Special handling for productBarcodes - check for existing to avoid duplicates
+          for (const barcode of data) {
+            const existing = await prisma.productBarcodes.findFirst({
+              where: {
+                code: barcode.code,
+                variantId: barcode.variantId || null,
+                productId: barcode.productId || null
+              }
+            });
+
+            if (!existing) {
+              await prisma.productBarcodes.create({
+                data: barcode
+              });
+            }
+          }
         } else {
           // Bulk create for other tables
           await prisma[tableName].createMany({
