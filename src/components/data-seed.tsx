@@ -274,39 +274,52 @@ export function DataSeed() {
                         }`}>
                           Tables Matched: {validationResult.results.tablesMatched} / 96
                         </p>
-                        {validationResult.results.tablesMismatched > 0 && (
-                          <div className="mt-3">
-                            <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-2">
-                              Mismatched Tables:
-                            </p>
-                            <div className="max-h-60 overflow-y-auto">
-                              <table className="min-w-full text-sm">
-                                <thead>
-                                  <tr className="bg-yellow-100 dark:bg-yellow-900">
-                                    <th className="px-3 py-2 text-left">Table</th>
-                                    <th className="px-3 py-2 text-right">Database</th>
-                                    <th className="px-3 py-2 text-right">Backup</th>
-                                    <th className="px-3 py-2 text-right">Diff</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-yellow-200 dark:divide-yellow-800">
-                                  {validationResult.results.mismatches.map((mismatch, idx) => (
-                                    <tr key={idx}>
-                                      <td className="px-3 py-2">{mismatch.table}</td>
-                                      <td className="px-3 py-2 text-right">{mismatch.database}</td>
-                                      <td className="px-3 py-2 text-right">{mismatch.backup}</td>
-                                      <td className={`px-3 py-2 text-right ${
-                                        mismatch.difference > 0 ? 'text-green-600' : 'text-red-600'
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-2">
+                            All Tables ({Object.keys(validationResult.results.summary).length} total):
+                          </p>
+                          <div className="max-h-96 overflow-y-auto border border-slate-300 dark:border-slate-600 rounded">
+                            <table className="min-w-full text-sm">
+                              <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800">
+                                <tr>
+                                  <th className="px-3 py-2 text-left">Table</th>
+                                  <th className="px-3 py-2 text-right">Database</th>
+                                  <th className="px-3 py-2 text-right">Backup</th>
+                                  <th className="px-3 py-2 text-right">Diff</th>
+                                  <th className="px-3 py-2 text-center">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                                {Object.entries(validationResult.results.summary).map(([tableName, tableData]: [string, any]) => {
+                                  const dbCount = typeof tableData.database === 'number' ? tableData.database : 0;
+                                  const backupCount = typeof tableData.backup === 'number' ? tableData.backup : 0;
+                                  const diff = dbCount - backupCount;
+                                  const matched = tableData.matched;
+
+                                  return (
+                                    <tr key={tableName} className={matched ? '' : 'bg-red-50 dark:bg-red-950'}>
+                                      <td className="px-3 py-2 font-medium">{tableName}</td>
+                                      <td className="px-3 py-2 text-right">{dbCount}</td>
+                                      <td className="px-3 py-2 text-right">{backupCount}</td>
+                                      <td className={`px-3 py-2 text-right font-semibold ${
+                                        diff === 0 ? 'text-slate-500' : diff > 0 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                                       }`}>
-                                        {mismatch.difference > 0 ? '+' : ''}{mismatch.difference}
+                                        {diff !== 0 && (diff > 0 ? '+' : '')}{diff === 0 ? '—' : diff}
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        {matched ? (
+                                          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 inline" />
+                                        ) : (
+                                          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 inline" />
+                                        )}
                                       </td>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
-                        )}
+                        </div>
                       </div>
                     )}
                     {validationResult.error && (
