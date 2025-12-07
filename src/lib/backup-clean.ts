@@ -654,7 +654,18 @@ export async function createCleanBackup(
   // 20. System data
   backupData.conflictResolutions = await prisma.conflictResolutions.findMany()
   backupData.dataSnapshots = await prisma.dataSnapshots.findMany()
-  backupData.seedDataTemplates = await prisma.seedDataTemplates.findMany()
+
+  // seedDataTemplates - skip if table doesn't exist (not in older databases)
+  try {
+    backupData.seedDataTemplates = await prisma.seedDataTemplates.findMany()
+  } catch (error: any) {
+    if (error.code === 'P2021') {
+      console.log('⚠️  Skipping seedDataTemplates: table does not exist in database')
+      backupData.seedDataTemplates = []
+    } else {
+      throw error
+    }
+  }
 
   return backupData
 }
