@@ -147,10 +147,10 @@ export async function POST(request: NextRequest) {
         const result = await restoreCleanBackup(prisma, backupData, {
           onProgress: (model, processed, total) => {
             console.log(`[restore] ${model}: ${processed}/${total}`);
+            // Only update the counts for this specific model
+            // Don't overwrite top-level processed/total
             updateProgress(progressId, {
               model,
-              processed,
-              total,
               counts: { [model]: { processed, total } }
             });
           },
