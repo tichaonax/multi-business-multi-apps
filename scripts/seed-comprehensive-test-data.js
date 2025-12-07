@@ -2489,6 +2489,15 @@ async function createComprehensiveTestData() {
               create: permTemplate
             })
           }
+        } else if (tableName === 'expenseAccounts') {
+          // Special handling for expenseAccounts - update existing or create if not exists
+          for (const account of data) {
+            await prisma.expenseAccounts.upsert({
+              where: { id: account.id },
+              update: account,
+              create: account
+            })
+          }
         } else {
           // Bulk create for other tables
           await prisma[tableName].createMany({
