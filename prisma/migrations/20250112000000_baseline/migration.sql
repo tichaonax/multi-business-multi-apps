@@ -2051,6 +2051,36 @@ CREATE UNIQUE INDEX "vehicles_licensePlate_key" ON "public"."vehicles"("licenseP
 -- CreateIndex
 CREATE UNIQUE INDEX "vehicles_vin_key" ON "public"."vehicles"("vin");
 
+-- CreateTable
+CREATE TABLE "public"."seed_data_templates" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "businessType" TEXT NOT NULL,
+    "version" TEXT NOT NULL,
+    "description" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "isSystemDefault" BOOLEAN NOT NULL DEFAULT false,
+    "productCount" INTEGER NOT NULL DEFAULT 0,
+    "categoryCount" INTEGER NOT NULL DEFAULT 0,
+    "templateData" JSONB NOT NULL,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "sourceBusinessId" TEXT,
+    "exportNotes" TEXT,
+
+    CONSTRAINT "seed_data_templates_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "seed_data_templates_businessType_isActive_idx" ON "public"."seed_data_templates"("businessType", "isActive");
+
+-- CreateIndex
+CREATE INDEX "seed_data_templates_isSystemDefault_idx" ON "public"."seed_data_templates"("isSystemDefault");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "seed_data_templates_businessType_version_key" ON "public"."seed_data_templates"("businessType", "version");
+
 -- AddForeignKey
 ALTER TABLE "public"."accounts" ADD CONSTRAINT "accounts_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -2549,3 +2579,9 @@ ALTER TABLE "public"."vehicles" ADD CONSTRAINT "vehicles_businessId_fkey" FOREIG
 -- AddForeignKey
 ALTER TABLE "public"."vehicles" ADD CONSTRAINT "vehicles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
+
+-- AddForeignKey
+ALTER TABLE "public"."seed_data_templates" ADD CONSTRAINT "seed_data_templates_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."seed_data_templates" ADD CONSTRAINT "seed_data_templates_sourceBusinessId_fkey" FOREIGN KEY ("sourceBusinessId") REFERENCES "public"."businesses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
