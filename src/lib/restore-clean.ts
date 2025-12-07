@@ -144,16 +144,29 @@ const RESTORE_ORDER = [
 ]
 
 /**
+ * Model name mappings (backup table names to Prisma model names)
+ */
+const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
+  'customerLaybys': 'customerLayby',
+  'customerLaybyPayments': 'customerLaybyPayment'
+}
+
+/**
  * Model name mappings (snake_case to camelCase)
  */
 function findPrismaModelName(prisma: AnyPrismaClient, name: string): string {
+  // Check explicit mappings first (handles plural → singular conversions)
+  if (TABLE_TO_MODEL_MAPPING[name]) {
+    return TABLE_TO_MODEL_MAPPING[name]
+  }
+
   // Direct match
   if ((prisma as any)[name]) return name
-  
+
   // Convert snake_case to camelCase
   const camel = name.replace(/_([a-z])/g, (_, ch) => ch.toUpperCase())
   if ((prisma as any)[camel]) return camel
-  
+
   // Try lowercase comparison
   const lower = name.toLowerCase().replace(/_/g, '')
   for (const key of Object.keys(prisma)) {
@@ -161,7 +174,7 @@ function findPrismaModelName(prisma: AnyPrismaClient, name: string): string {
       return key
     }
   }
-  
+
   return name
 }
 
