@@ -162,9 +162,10 @@ async function seedPermissionTemplates() {
     let adminUser = await prisma.users.findFirst({ where: { email: 'admin@business.local' } })
     if (!adminUser) {
       // create a minimal system admin for ownership of templates
+      // Use fixed ID for consistency across all fresh installs
       adminUser = await prisma.users.create({
         data: {
-          id: require('crypto').randomUUID(),
+          id: 'admin-system-user-default',  // Fixed ID for system admin
           email: 'admin@business.local',
           name: 'System Administrator',
           passwordHash: require('crypto').createHash('sha256').update('admin123').digest('hex'),

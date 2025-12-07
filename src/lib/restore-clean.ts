@@ -23,21 +23,21 @@ const RESTORE_ORDER = [
   'benefitTypes',
   'idFormatTemplates',
   'driverLicenseTemplates',
-  'permissionTemplates',
   'projectTypes',
   'conflictResolutions',
   'dataSnapshots',
-  'seedDataTemplates',
-  
+
   // Inventory and expense reference data
   'inventoryDomains',
   'expenseDomains',
   'expenseCategories',
   'expenseSubcategories',
-  
+
   // Users and authentication
   'users',
   'accounts',
+  'permissionTemplates',  // Depends on users via createdBy FK
+  'seedDataTemplates',  // Depends on users via createdBy FK
   
   // Businesses (core entity)
   'businesses',
@@ -122,12 +122,12 @@ const RESTORE_ORDER = [
   'vehicleDrivers',
   'vehicleExpenses',
   'vehicleLicenses',
+  'driverAuthorizations',  // MUST come before vehicleTrips (composite FK dependency)
   'vehicleMaintenanceRecords',
   'vehicleMaintenanceServices',
   'vehicleMaintenanceServiceExpenses',
-  'vehicleTrips',
+  'vehicleTrips',  // Depends on driverAuthorizations via composite FK
   'vehicleReimbursements',
-  'driverAuthorizations',
   
   // Restaurant/Menu
   'menuItems',

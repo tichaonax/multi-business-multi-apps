@@ -1,16 +1,28 @@
-#!/usr/bin/env node
-const { PrismaClient } = require('@prisma/client')
+const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
-console.log('Available Prisma client models:')
-const models = Object.keys(prisma).filter(k => !k.startsWith('_') && !k.startsWith('$')).sort()
-console.log(models.join(', '))
+async function checkModels() {
+  const models = Object.keys(prisma).filter(k => !k.startsWith('_') && !k.startsWith('$'));
 
-console.log('\nChecking specific models:')
-console.log('prisma.users:', typeof prisma.users)
-console.log('prisma.businessMemberships:', typeof prisma.businessMemberships)
-console.log('prisma.idFormatTemplates:', typeof prisma.idFormatTemplates)
-console.log('prisma.jobTitles:', typeof prisma.jobTitles)
+  console.log('Looking for problem models:');
+  console.log('seedDataTemplates:', models.includes('seedDataTemplates') ? 'FOUND' : 'NOT FOUND');
+  console.log('vehicleTrips:', models.includes('vehicleTrips') ? 'FOUND' : 'NOT FOUND');
+  console.log('systemSettings:', models.includes('systemSettings') ? 'FOUND' : 'NOT FOUND');
 
-prisma.$disconnect()
+  console.log('\nSeed-related models:');
+  const seedRelated = models.filter(m => m.toLowerCase().includes('seed'));
+  console.log(seedRelated);
+
+  console.log('\nVehicle-related models:');
+  const vehicleRelated = models.filter(m => m.toLowerCase().includes('vehicle'));
+  console.log(vehicleRelated);
+
+  console.log('\nSystem-related models:');
+  const systemRelated = models.filter(m => m.toLowerCase().includes('system'));
+  console.log(systemRelated);
+
+  await prisma.$disconnect();
+}
+
+checkModels();

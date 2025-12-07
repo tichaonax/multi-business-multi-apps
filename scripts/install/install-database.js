@@ -712,10 +712,10 @@ module.exports = { seedPermissionTemplates }`
         return
       }
 
-      // Create admin user
+      // Create admin user with fixed ID for consistency across fresh installs
       await prisma.users.create({
         data: {
-          id: require('crypto').randomUUID(),
+          id: 'admin-system-user-default',  // Fixed ID for system admin
           email: adminEmail,
           name: 'System Administrator',
           hashedPassword: await this.hashPassword('admin123'),

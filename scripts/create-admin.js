@@ -1,13 +1,15 @@
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
-const { randomUUID } = require('crypto');
+
+// Fixed admin user ID for consistency across all fresh installs
+const SYSTEM_ADMIN_ID = 'admin-system-user-default';
 
 async function createAdminUser() {
   const prisma = new PrismaClient();
 
   try {
     const password_hash = await bcrypt.hash('admin123', 12);
-    
+
     const adminPermissions = {
       construction: ['read', 'write', 'delete', 'reports'],
       restaurant: ['read', 'write', 'delete', 'reports', 'pos'],
@@ -26,7 +28,7 @@ async function createAdminUser() {
         permissions: adminPermissions
       },
       create: {
-        id: randomUUID(),
+        id: SYSTEM_ADMIN_ID,  // Fixed ID for system admin
         email: 'admin@business.local',
         passwordHash: password_hash,
         name: 'System Administrator',

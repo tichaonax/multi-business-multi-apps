@@ -356,10 +356,10 @@ async function createAdminUser() {
   // Hash password
   const hashedPassword = await bcrypt.hash('admin123', 12)
 
-  // Create admin user
+  // Create admin user with fixed ID for consistency across all installs
   const adminUser = await prisma.users.create({
     data: {
-      id: require('crypto').randomUUID(),
+      id: 'admin-system-user-default',  // Fixed ID for system admin
       email: adminEmail,
       name: 'System Administrator',
       passwordHash: hashedPassword,

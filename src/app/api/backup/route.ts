@@ -163,22 +163,24 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        // Calculate total processed across all models
-        const totalProcessed = Object.values(counts).reduce(
+        // Calculate total records that should be processed
+        const totalRecords = Object.values(counts).reduce(
           (sum, { total }) => sum + total,
           0
         );
 
+        // Update progress with final status
         updateProgress(progressId, {
           model: result.success ? 'completed' : 'error',
-          processed: totalProcessed,
-          total: totalProcessed
+          processed: result.processed,  // Actual records processed
+          total: totalRecords            // Total records that should be processed
         });
 
         console.log('[restore] Restore completed:', {
           progressId,
           success: result.success,
           processed: result.processed,
+          total: totalRecords,
           errors: result.errors
         });
 
