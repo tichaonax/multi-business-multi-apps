@@ -16,6 +16,14 @@ const nextConfig = {
   // Skip trailing slash and middleware URL normalization
   skipTrailingSlashRedirect: true,
   skipMiddlewareUrlNormalize: true,
+  // Configure webpack for path mapping
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname, 'src'),
+    };
+    return config;
+  },
   // Add CORS headers for cross-origin authentication
   async headers() {
     return [

@@ -3,12 +3,12 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// List of all tables to validate
+// List of all tables to validate (sessions excluded - not backed up/restored)
 const ALL_TABLES = [
   'systemSettings', 'emojiLookup', 'jobTitles', 'compensationTypes', 'benefitTypes',
   'permissionTemplates', 'idFormatTemplates', 'driverLicenseTemplates', 'projectTypes',
   'inventoryDomains', 'inventorySubcategories', 'expenseDomains', 'expenseCategories',
-  'expenseSubcategories', 'users', 'accounts', 'sessions', 'businesses', 'businessMemberships',
+  'expenseSubcategories', 'users', 'accounts', 'businesses', 'businessMemberships',
   'businessAccounts', 'businessLocations', 'businessBrands', 'persons', 'employees',
   'employeeBusinessAssignments', 'employeeContracts', 'contractBenefits', 'contractRenewals',
   'employeeBenefits', 'employeeAllowances', 'employeeBonuses', 'employeeSalaryIncreases',
@@ -24,7 +24,7 @@ const ALL_TABLES = [
   'vehicleExpenses', 'vehicleReimbursements', 'driverAuthorizations', 'projects',
   'projectStages', 'projectContractors', 'stageContractorAssignments', 'projectTransactions',
   'constructionExpenses', 'constructionProjects', 'menuItems', 'menuCombos', 'menuComboItems',
-  'menuPromotions', 'orders', 'orderItems', 'customerLayby', 'customerLaybyPayment',
+  'menuPromotions', 'orders', 'orderItems', 'customerLaybys', 'customerLaybyPayments',
   'personalBudgets', 'personalExpenses', 'fundSources', 'interBusinessLoans', 'loanTransactions',
   'conflictResolutions', 'disciplinaryActions', 'employeeAttendance', 'employeeTimeTracking',
   'dataSnapshots', 'seedDataTemplates'

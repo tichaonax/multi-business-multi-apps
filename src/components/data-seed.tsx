@@ -114,7 +114,7 @@ export function DataSeed() {
               Seed Test Data
             </h3>
             <p className="text-slate-600 dark:text-slate-400 mb-4">
-              Populate all 96 database tables with comprehensive test data. The script is re-runnable and will skip existing records.
+              Populate all 95 database tables with comprehensive test data (sessions excluded). The script is re-runnable and will skip existing records.
             </p>
 
             <button
@@ -272,7 +272,7 @@ export function DataSeed() {
                             ? 'text-green-700 dark:text-green-300'
                             : 'text-yellow-700 dark:text-yellow-300'
                         }`}>
-                          Tables Matched: {validationResult.results.tablesMatched} / 96
+                          Tables Matched: {validationResult.results.tablesMatched} / 95
                         </p>
                         <div className="mt-3">
                           <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-2">
@@ -341,7 +341,7 @@ export function DataSeed() {
           About Seed & Validate
         </h4>
         <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1 list-disc list-inside">
-          <li>The seed script populates all 96 tables with test data</li>
+          <li>The seed script populates all 95 tables with test data (sessions excluded)</li>
           <li>It's re-runnable and will skip records that already exist</li>
           <li>Validation compares backup file record counts with database</li>
           <li>Use this to ensure your backup system captures all data</li>

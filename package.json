@@ -6,6 +6,7 @@
     "dev": "next dev -p 8080",
     "build": "next build",
     "postbuild": "node scripts/mark-build-complete.js",
+    "postinstall": "prisma generate",
     "build:service": "node scripts/build-service.js",
     "start": "next start -p 8080",
     "lint": "next lint",
