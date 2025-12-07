@@ -50,11 +50,20 @@ export async function POST(request: NextRequest) {
       summary: {}
     };
 
+    // Map backup table names (plural) to Prisma model names (singular) for special cases
+    const tableNameMapping: Record<string, string> = {
+      'customerLaybys': 'customerLayby',
+      'customerLaybyPayments': 'customerLaybyPayment'
+    };
+
     // Validate each table
     for (const tableName of ALL_TABLES) {
       try {
+        // Get the Prisma model name (use mapping if exists, otherwise use tableName as-is)
+        const prismaModelName = tableNameMapping[tableName] || tableName;
+
         // Get count from database
-        const dbCount = await (prisma as any)[tableName].count();
+        const dbCount = await (prisma as any)[prismaModelName].count();
 
         // Get count from backup
         const backupRecords = backupData[tableName] || [];
