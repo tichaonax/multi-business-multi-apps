@@ -266,15 +266,8 @@ export async function createCleanBackup(
       }
     })
 
-    backupData.productBarcodes = await prisma.productBarcodes.findMany({
-      where: {
-        product_variant: {
-          business_products: {
-            businessId: { in: businessIds }
-          }
-        }
-      }
-    })
+    // Include ALL product barcodes (they're seed/system data, no isDemo flag)
+    backupData.productBarcodes = await prisma.productBarcodes.findMany()
 
     backupData.businessStockMovements = await prisma.businessStockMovements.findMany({
       where: { businessId: { in: businessIds } }
