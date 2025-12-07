@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Sprout, CheckCircle2, AlertCircle, Loader2, Database, FileCheck, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { Sprout, CheckCircle2, AlertCircle, Loader2, Database, FileCheck } from 'lucide-react';
 
 interface SeedResult {
   success: boolean;
@@ -31,45 +31,12 @@ interface ValidationResult {
   error?: string;
 }
 
-interface BackupFile {
-  name: string;
-  mtime: number;
-  size: number;
-}
-
 export function DataSeed() {
   const [seeding, setSeeding] = useState(false);
   const [validating, setValidating] = useState(false);
   const [seedResult, setSeedResult] = useState<SeedResult | null>(null);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
-  const [backupFileName, setBackupFileName] = useState('');
-  const [backupFiles, setBackupFiles] = useState<BackupFile[]>([]);
-  const [loadingBackups, setLoadingBackups] = useState(false);
-  const [useManualInput, setUseManualInput] = useState(false);
-
-  // Fetch available backup files
-  const fetchBackupFiles = async () => {
-    setLoadingBackups(true);
-    try {
-      const response = await fetch('/api/admin/backups');
-      if (response.ok) {
-        const data = await response.json();
-        setBackupFiles(data.backups || []);
-        // Auto-select the most recent backup
-        if (data.backups && data.backups.length > 0 && !backupFileName) {
-          setBackupFileName(data.backups[0].name);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch backup files:', error);
-    } finally {
-      setLoadingBackups(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBackupFiles();
-  }, []);
+  const [selectedBackupFile, setSelectedBackupFile] = useState<File | null>(null);
 
   const handleSeed = async () => {
     setSeeding(true);
@@ -93,10 +60,10 @@ export function DataSeed() {
   };
 
   const handleValidate = async () => {
-    if (!backupFileName) {
+    if (!selectedBackupFile) {
       setValidationResult({
         success: false,
-        error: 'Please enter a backup file name'
+        error: 'Please select a backup file'
       });
       return;
     }
@@ -105,12 +72,19 @@ export function DataSeed() {
     setValidationResult(null);
 
     try {
+      // Read the file content
+      const fileContent = await selectedBackupFile.text();
+      const backupData = JSON.parse(fileContent);
+
       const response = await fetch('/api/admin/validate-backup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ backupFileName })
+        body: JSON.stringify({
+          backupFileName: selectedBackupFile.name,
+          backupData
+        })
       });
 
       const result = await response.json();
@@ -118,7 +92,7 @@ export function DataSeed() {
     } catch (error: any) {
       setValidationResult({
         success: false,
-        error: error.message
+        error: error.message || 'Failed to read or parse backup file'
       });
     } finally {
       setValidating(false);
@@ -226,66 +200,36 @@ export function DataSeed() {
             </p>
 
             <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="backupFile" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Backup File
-                </label>
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={fetchBackupFiles}
-                    disabled={loadingBackups}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center"
-                  >
-                    <RefreshCw className={`h-3 w-3 mr-1 ${loadingBackups ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUseManualInput(!useManualInput)}
-                    className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                  >
-                    {useManualInput ? 'Use Dropdown' : 'Manual Input'}
-                  </button>
-                </div>
-              </div>
-
-              {useManualInput ? (
-                <input
-                  type="text"
-                  id="backupFile"
-                  value={backupFileName}
-                  onChange={(e) => setBackupFileName(e.target.value)}
-                  placeholder="complete-backup-2025-12-06T17-36-29.json"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-slate-100"
-                />
-              ) : (
-                <select
-                  id="backupFile"
-                  value={backupFileName}
-                  onChange={(e) => setBackupFileName(e.target.value)}
-                  disabled={loadingBackups}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-slate-100 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
-                >
-                  <option value="">-- Select a backup file --</option>
-                  {backupFiles.map((file) => (
-                    <option key={file.name} value={file.name}>
-                      {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB - {new Date(file.mtime).toLocaleString()})
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {backupFiles.length === 0 && !loadingBackups && !useManualInput && (
-                <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
-                  No backup files found. Use "Manual Input" to enter a filename.
+              <label htmlFor="backupFile" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Select Backup File
+              </label>
+              <input
+                type="file"
+                id="backupFile"
+                accept=".json"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setSelectedBackupFile(file || null);
+                }}
+                className="block w-full text-sm text-slate-500 dark:text-slate-400
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-md file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-blue-50 file:text-blue-700
+                  hover:file:bg-blue-100
+                  dark:file:bg-blue-900 dark:file:text-blue-300
+                  dark:hover:file:bg-blue-800"
+              />
+              {selectedBackupFile && (
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                  Selected: {selectedBackupFile.name} ({(selectedBackupFile.size / 1024 / 1024).toFixed(2)} MB)
                 </p>
               )}
             </div>
 
             <button
               onClick={handleValidate}
-              disabled={validating || !backupFileName}
+              disabled={validating || !selectedBackupFile}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed"
             >
               {validating ? (

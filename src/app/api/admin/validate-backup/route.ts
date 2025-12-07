@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import fs from 'fs';
-import path from 'path';
 
 const prisma = new PrismaClient();
 
@@ -34,26 +32,14 @@ const ALL_TABLES = [
 
 export async function POST(request: NextRequest) {
   try {
-    const { backupFileName } = await request.json();
+    const { backupFileName, backupData } = await request.json();
 
-    if (!backupFileName) {
+    if (!backupFileName || !backupData) {
       return NextResponse.json({
         success: false,
-        error: 'Backup file name is required'
+        error: 'Backup file name and data are required'
       }, { status: 400 });
     }
-
-    // Read the backup file
-    const backupPath = path.join(process.cwd(), backupFileName);
-
-    if (!fs.existsSync(backupPath)) {
-      return NextResponse.json({
-        success: false,
-        error: `Backup file not found: ${backupFileName}`
-      }, { status: 404 });
-    }
-
-    const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
 
     console.log('📊 Validating backup against database...');
 
