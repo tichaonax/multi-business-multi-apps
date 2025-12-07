@@ -261,6 +261,11 @@ async function main() {
       required: false
     },
     {
+      command: 'npx prisma generate',
+      description: 'Regenerating Prisma client before build (safety check)',
+      required: true
+    },
+    {
       command: 'npm run build',
       description: 'Building the application',
       required: true
