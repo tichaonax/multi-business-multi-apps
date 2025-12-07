@@ -287,20 +287,22 @@ export async function createCleanBackup(
       where: { businessId: { in: businessIds } }
     })
 
+    // Business categories - include business-specific ones AND all system-wide defaults
     backupData.businessCategories = await prisma.businessCategories.findMany({
       where: {
         OR: [
-          { businessId: { in: businessIds } },
-          { businessId: null, businessType: { in: businessTypes } }
+          { businessId: { in: businessIds } }, // Business-specific categories
+          { businessId: null } // All system-wide/default categories (regardless of businessType)
         ]
       }
     })
 
+    // Business suppliers - include business-specific ones AND all system-wide defaults
     backupData.businessSuppliers = await prisma.businessSuppliers.findMany({
       where: {
         OR: [
-          { businessId: { in: businessIds } },
-          { businessId: null, businessType: { in: businessTypes } }
+          { businessId: { in: businessIds } }, // Business-specific suppliers
+          { businessId: null } // All system-wide/default suppliers (regardless of businessType)
         ]
       }
     })

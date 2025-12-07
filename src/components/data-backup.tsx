@@ -86,7 +86,7 @@ export function DataBackup() {
   const [backupOptions, setBackupOptions] = useState<BackupOptions>({
     type: 'full',
     includeAuditLogs: false,
-    includeDemoData: true, // Demo data INCLUDED by default (important for test environments)
+    includeDemoData: false, // Demo data excluded by default (production setting)
     includeBusinessData: true, // Business data included by default
     selectedDemoBusinessId: undefined,
   });
