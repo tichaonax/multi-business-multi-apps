@@ -2506,6 +2506,11 @@ async function createComprehensiveTestData() {
           })
         }
       } catch (error) {
+        // Check if table doesn't exist (P2021 error code)
+        if (error.code === 'P2021') {
+          console.log(`   ⚠️  Skipping ${tableName}: table does not exist in database`)
+          continue
+        }
         console.log(`   ❌ Error creating ${tableName}: ${error.message}`)
         throw error
       }
