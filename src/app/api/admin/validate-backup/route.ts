@@ -102,11 +102,25 @@ export async function POST(request: NextRequest) {
 
     console.log(allMatched ? '✅ Validation passed!' : '❌ Validation failed!');
 
+    // Sort the summary alphabetically for easier reading
+    const sortedSummary: any = {};
+    Object.keys(results.summary)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach(key => {
+        sortedSummary[key] = results.summary[key];
+      });
+
+    // Sort mismatches alphabetically too
+    results.mismatches.sort((a: any, b: any) => a.table.localeCompare(b.table));
+
     return NextResponse.json({
       success: true,
       validated: allMatched,
       backupFile: backupFileName,
-      results,
+      results: {
+        ...results,
+        summary: sortedSummary
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
