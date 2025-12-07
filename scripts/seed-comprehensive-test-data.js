@@ -2493,7 +2493,7 @@ async function createComprehensiveTestData() {
           // Special handling for expenseAccounts - update existing or create if not exists
           for (const account of data) {
             await prisma.expenseAccounts.upsert({
-              where: { id: account.id },
+              where: { accountNumber: account.accountNumber },
               update: account,
               create: account
             })
