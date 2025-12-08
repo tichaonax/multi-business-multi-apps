@@ -736,11 +736,6 @@ export default function RestaurantPOS() {
                       isUnavailable ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                   >
-                    {/* Cart quantity (top-left) */}
-                    <div className="absolute top-1 left-1">
-                      <span className="text-sm font-bold text-primary dark:text-gray-100">{cartQuantity}</span>
-                    </div>
-
                     {/* Unavailable indicator */}
                     {isUnavailable && (
                       <div className="absolute top-1 right-1">
@@ -757,9 +752,9 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
-                    {/* Spice level indicator (move down a bit to make room for cart quantity) */}
+                    {/* Spice level indicator */}
                     {item.spiceLevel && item.spiceLevel > 0 && (
-                      <div className="absolute top-6 left-1">
+                      <div className="absolute top-1 left-1">
                         <span className="text-xs">{'🌶️'.repeat(Math.min(item.spiceLevel, 3))}</span>
                       </div>
                     )}
@@ -793,10 +788,14 @@ export default function RestaurantPOS() {
                       <p className="text-xs text-red-500 mt-1 font-medium">Unavailable</p>
                     )}
 
-                    {/* Stock quantity (bottom-left) */}
-                    <div className="absolute bottom-1 left-1">
-                      <span className="text-sm font-bold text-primary dark:text-gray-100">{stockQuantity}</span>
-                    </div>
+                    {/* Cart quantity badge - bottom right, only show when in cart */}
+                    {cartQuantity > 0 && (
+                      <div className="absolute bottom-1 right-1">
+                        <span className="inline-flex items-center justify-center bg-blue-600 text-white text-sm font-bold rounded-full w-6 h-6">
+                          {cartQuantity}
+                        </span>
+                      </div>
+                    )}
                   </button>
                 )
               })}
