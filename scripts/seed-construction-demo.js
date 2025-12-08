@@ -182,38 +182,40 @@ async function main() {
     console.log('📋 Step 4: Creating service categories...')
     
     const categories = [
-      { name: 'Structural Work', description: 'Foundation, framing, and structural components' },
-      { name: 'Exterior Services', description: 'Roofing, siding, and exterior finishes' },
-      { name: 'Electrical Systems', description: 'Electrical installation and wiring' },
-      { name: 'Plumbing Systems', description: 'Plumbing installation and fixtures' },
-      { name: 'HVAC Systems', description: 'Heating, ventilation, and air conditioning' },
-      { name: 'Interior Finishing', description: 'Drywall, painting, and interior finishes' },
-      { name: 'Flooring', description: 'Flooring installation and refinishing' },
-      { name: 'Masonry', description: 'Brick, stone, and concrete work' },
-      { name: 'Carpentry', description: 'Custom woodwork and cabinetry' },
-      { name: 'Site Work', description: 'Excavation, grading, and landscaping' },
-      { name: 'Demolition', description: 'Demolition and site clearance services' },
-      { name: 'Specialty Services', description: 'Custom and specialized construction services' }
+      { name: 'Structural Work', description: 'Foundation, framing, and structural components', domainId: null },
+      { name: 'Exterior Services', description: 'Roofing, siding, and exterior finishes', domainId: null },
+      { name: 'Electrical Systems', description: 'Electrical installation and wiring', domainId: null },
+      { name: 'Plumbing Systems', description: 'Plumbing installation and fixtures', domainId: null },
+      { name: 'HVAC Systems', description: 'Heating, ventilation, and air conditioning', domainId: null },
+      { name: 'Interior Finishing', description: 'Drywall, painting, and interior finishes', domainId: null },
+      { name: 'Flooring', description: 'Flooring installation and refinishing', domainId: null },
+      { name: 'Masonry', description: 'Brick, stone, and concrete work', domainId: null },
+      { name: 'Carpentry', description: 'Custom woodwork and cabinetry', domainId: null },
+      { name: 'Site Work', description: 'Excavation, grading, and landscaping', domainId: null },
+      { name: 'Demolition', description: 'Demolition and site clearance services', domainId: null },
+      { name: 'Specialty Services', description: 'Custom and specialized construction services', domainId: null }
     ]
 
     const createdCategories = []
     let categoriesCreated = 0
     let categoriesUpdated = 0
-    
+
     for (const cat of categories) {
       const existing = await prisma.businessCategories.findUnique({
         where: {
-          businessType_name: {
+          businessType_domainId_name: {
             businessType: 'construction',
+            domainId: cat.domainId,
             name: cat.name
           }
         }
       })
-      
+
       const category = await prisma.businessCategories.upsert({
         where: {
-          businessType_name: {
+          businessType_domainId_name: {
             businessType: 'construction',
+            domainId: cat.domainId,
             name: cat.name
           }
         },

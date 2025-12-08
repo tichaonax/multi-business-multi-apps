@@ -322,8 +322,9 @@ async function seedTypeCategories() {
         // Upsert category with NULL businessId (shared by type, not tied to specific business)
         const createdCategory = await prisma.businessCategories.upsert({
           where: {
-            businessType_name: {
+            businessType_domainId_name: {
               businessType: businessType,
+              domainId: category.domainId,
               name: category.name
             }
           },
@@ -332,7 +333,6 @@ async function seedTypeCategories() {
             emoji: category.emoji,
             color: category.color,
             displayOrder: category.displayOrder,
-            domainId: category.domainId,
             isActive: true,
             updatedAt: new Date()
           },
