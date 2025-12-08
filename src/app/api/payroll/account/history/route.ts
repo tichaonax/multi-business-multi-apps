@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
           })
         : [],
       fetchPayments
-        ? prisma.payrollPayments.findMany({
+        ? prisma.payrollAccountPayments.findMany({
             where: {
               payrollAccountId: payrollAccount.id,
               ...(Object.keys(dateFilter).length > 0 && { paymentDate: dateFilter }),

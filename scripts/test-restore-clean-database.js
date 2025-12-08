@@ -60,7 +60,7 @@ const RESTORE_ORDER = [
   'projectTransactions', 'constructionProjects', 'constructionExpenses',
   'menuItems', 'menuCombos', 'menuComboItems', 'menuPromotions',
   'orders', 'orderItems',
-  'supplierProducts', 'interBusinessLoans', 'loanTransactions'
+  'supplierProducts', 'interBusinessLoans', 'loanTransactions', 'receiptSequences'
 ];
 
 async function createSafetyBackup() {
@@ -190,6 +190,14 @@ async function restoreFromBackup(backupFileName) {
 
         totalProcessed++;
       } catch (error) {
+        const isForeignKeyError = error.code === 'P2003' || error.message.includes('Foreign key constraint');
+        
+        if (isForeignKeyError) {
+          // Skip records with missing foreign key references - they're likely from incomplete backup data
+          console.warn(`   ⚠️  Skipping ${tableName} record ${recordId} due to missing foreign key reference`);
+          continue;
+        }
+        
         totalErrors++;
         errorLog.push({
           model: tableName,

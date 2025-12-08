@@ -33,7 +33,7 @@ export async function calculatePayrollAccountBalance(payrollAccountId: string): 
   })
 
   // Sum all payments
-  const paymentsSum = await prisma.payrollPayments.aggregate({
+  const paymentsSum = await prisma.payrollAccountPayments.aggregate({
     where: { payrollAccountId },
     _sum: { amount: true },
   })
@@ -70,12 +70,12 @@ export async function getPayrollAccountBalanceSummary(payrollAccountId: string) 
       where: { payrollAccountId },
       _sum: { amount: true },
     }),
-    prisma.payrollPayments.aggregate({
+    prisma.payrollAccountPayments.aggregate({
       where: { payrollAccountId },
       _sum: { amount: true },
     }),
     prisma.payrollAccountDeposits.count({ where: { payrollAccountId } }),
-    prisma.payrollPayments.count({ where: { payrollAccountId } }),
+    prisma.payrollAccountPayments.count({ where: { payrollAccountId } }),
   ])
 
   const totalDeposits = Number(depositsSum._sum.amount || 0)
@@ -248,7 +248,7 @@ export async function getRecentDeposits(payrollAccountId: string, limit: number 
  * @param limit - Number of payments to retrieve
  */
 export async function getRecentPayments(payrollAccountId: string, limit: number = 10) {
-  return await prisma.payrollPayments.findMany({
+  return await prisma.payrollAccountPayments.findMany({
     where: { payrollAccountId },
     include: {
       employees: {
@@ -300,7 +300,7 @@ export async function getPayrollAccountStats(
       _sum: { amount: true },
       _count: true,
     }),
-    prisma.payrollPayments.aggregate({
+    prisma.payrollAccountPayments.aggregate({
       where: {
         payrollAccountId,
         ...(Object.keys(dateFilter).length > 0 && { paymentDate: dateFilter }),
@@ -308,16 +308,16 @@ export async function getPayrollAccountStats(
       _sum: { amount: true },
       _count: true,
     }),
-    prisma.payrollPayments.count({
+    prisma.payrollAccountPayments.count({
       where: { payrollAccountId, status: 'PENDING' },
     }),
   ])
 
   return {
     depositsThisPeriod: Number(depositsThisPeriod._sum.amount || 0),
-    depositsCount: depositsThisPeriod._count,
+    depositsCountThisPeriod: depositsThisPeriod._count,
     paymentsThisPeriod: Number(paymentsThisPeriod._sum.amount || 0),
-    paymentsCount: paymentsThisPeriod._count,
+    paymentsCountThisPeriod: paymentsThisPeriod._count,
     pendingPaymentsCount,
   }
 }

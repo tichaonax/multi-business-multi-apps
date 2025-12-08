@@ -1,0 +1,8 @@
+-- Add loan person relations
+-- This migration adds Prisma-level relations for loan lender/borrower persons
+-- No database schema changes are required as the foreign key columns already exist
+-- 
+-- Changes:
+-- - Added persons_lender relation to InterBusinessLoans model
+-- - Added loans_as_lender relation to Persons model
+-- - These relations use existing lenderPersonId and borrowerPersonId columns

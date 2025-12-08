@@ -58,13 +58,17 @@ async function seedPayrollAccount() {
   }
 }
 
-// Run the seed function
-seedPayrollAccount()
-  .then(() => {
-    console.log('✨ Payroll account seeding completed!')
-    process.exit(0)
-  })
-  .catch((error) => {
-    console.error('💥 Payroll account seeding failed:', error)
-    process.exit(1)
-  })
+// Run the seed function only if this file is executed directly
+if (require.main === module) {
+  seedPayrollAccount()
+    .then(() => {
+      console.log('✨ Payroll account seeding completed!')
+      process.exit(0)
+    })
+    .catch((error) => {
+      console.error('💥 Payroll account seeding failed:', error)
+      process.exit(1)
+    })
+}
+
+module.exports = { seedPayrollAccount }

@@ -65,7 +65,7 @@ export async function createPaymentVoucher(
   paymentId: string
 ): Promise<VoucherData> {
   // Get payment details with employee information
-  const payment = await prisma.payrollPayments.findUnique({
+  const payment = await prisma.payrollAccountPayments.findUnique({
     where: { id: paymentId },
     include: {
       employees: {

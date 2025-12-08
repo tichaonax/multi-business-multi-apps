@@ -762,7 +762,8 @@ async function main() {
     expenseSubcategories: 0,
     adminUsers: 0,
     defaultBusinesses: 0,
-    expenseAccounts: 0
+    expenseAccounts: 0,
+    payrollAccounts: 0
   }
 
   try {
@@ -845,6 +846,16 @@ async function main() {
     // Seed test expense accounts
     seedingStats.expenseAccounts = await seedExpenseAccounts()
 
+    // Seed payroll account
+    try {
+      const { seedPayrollAccount } = require('./seed-payroll-account.js')
+      console.log('\n🏦 Seeding payroll account...')
+      await seedPayrollAccount()
+      seedingStats.payrollAccounts = 1
+    } catch (err) {
+      console.warn('⚠️  Failed to seed payroll account:', err.message)
+    }
+
     console.log('')
     console.log('🎉 Migration data seeding completed successfully!')
     console.log('')
@@ -863,6 +874,7 @@ async function main() {
     // console.log(`   • ${seedingStats.defaultBusinesses} Default business for admin`)
     console.log('   • Expense account permissions granted to admin')
     console.log(`   • ${seedingStats.expenseAccounts} Test expense accounts (zero balance - ready for funding)`)
+    console.log(`   • ${seedingStats.payrollAccounts} Global payroll account (PAY-GLOBAL-001)`)
     console.log('')
     console.log('✅ Database is now ready for production use!')
 

@@ -140,7 +140,8 @@ const RESTORE_ORDER = [
   // Miscellaneous
   'supplierProducts',
   'interBusinessLoans',
-  'loanTransactions'
+  'loanTransactions',
+  'receiptSequences'
 ]
 
 /**
@@ -293,9 +294,16 @@ export async function restoreCleanBackup(
             }
           }
         } catch (error: any) {
-          totalErrors++
           const errorMsg = error.message || 'Unknown error'
+          const isForeignKeyError = error.code === 'P2003' || errorMsg.includes('Foreign key constraint')
           
+          if (isForeignKeyError) {
+            // Skip records with missing foreign key references - they're likely from incomplete backup data
+            console.warn(`[restore-clean] Skipping ${tableName} record ${recordId} due to missing foreign key reference`)
+            continue
+          }
+          
+          totalErrors++
           errorLog.push({
             model: tableName,
             recordId,

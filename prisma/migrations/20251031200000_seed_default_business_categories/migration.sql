@@ -19,12 +19,14 @@ DECLARE
   v_hardware_business_id UUID;
   v_grocery_business_id UUID;
   v_restaurant_business_id UUID;
+  v_service_business_id UUID;
 BEGIN
   -- Get one business ID for each type (needed for FK constraint)
   SELECT id INTO v_clothing_business_id FROM businesses WHERE type = 'clothing' LIMIT 1;
   SELECT id INTO v_hardware_business_id FROM businesses WHERE type = 'hardware' LIMIT 1;
   SELECT id INTO v_grocery_business_id FROM businesses WHERE type = 'grocery' LIMIT 1;
   SELECT id INTO v_restaurant_business_id FROM businesses WHERE type = 'restaurant' LIMIT 1;
+  SELECT id INTO v_service_business_id FROM businesses WHERE type = 'service' LIMIT 1;
 
   -- ==========================================================================
   -- CLOTHING CATEGORIES
@@ -33,27 +35,27 @@ BEGIN
   IF v_clothing_business_id IS NOT NULL THEN
     -- Men's Fashion
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_clothing_business_id, 'clothing', 'Men''s Fashion', 'Men''s clothing and accessories', '👔', '#3B82F6', 1, 'domain_clothing_mens', false, true, NOW(), NOW())
+    VALUES (NULL, 'clothing', 'Men''s Fashion', 'Men''s clothing and accessories', '👔', '#3B82F6', 1, 'domain_clothing_mens', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Women's Fashion
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_clothing_business_id, 'clothing', 'Women''s Fashion', 'Women''s clothing and accessories', '👗', '#EC4899', 2, 'domain_clothing_womens', false, true, NOW(), NOW())
+    VALUES (NULL, 'clothing', 'Women''s Fashion', 'Women''s clothing and accessories', '👗', '#EC4899', 2, 'domain_clothing_womens', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Kids Fashion
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_clothing_business_id, 'clothing', 'Kids Fashion', 'Children''s clothing and accessories', '👶', '#F59E0B', 3, 'domain_clothing_kids', false, true, NOW(), NOW())
+    VALUES (NULL, 'clothing', 'Kids Fashion', 'Children''s clothing and accessories', '👶', '#F59E0B', 3, 'domain_clothing_kids', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Footwear
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_clothing_business_id, 'clothing', 'Footwear', 'Shoes and footwear for all ages', '👟', '#10B981', 4, 'domain_clothing_footwear', false, true, NOW(), NOW())
+    VALUES (NULL, 'clothing', 'Footwear', 'Shoes and footwear for all ages', '👟', '#10B981', 4, 'domain_clothing_footwear', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Accessories
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_clothing_business_id, 'clothing', 'Accessories', 'Fashion accessories and add-ons', '👜', '#8B5CF6', 5, 'domain_universal_accessories', false, true, NOW(), NOW())
+    VALUES (NULL, 'clothing', 'Accessories', 'Fashion accessories and add-ons', '👜', '#8B5CF6', 5, 'domain_universal_accessories', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Subcategories for Men's Fashion
@@ -158,27 +160,27 @@ BEGIN
   IF v_hardware_business_id IS NOT NULL THEN
     -- Hand Tools
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_hardware_business_id, 'hardware', 'Hand Tools', 'Manual tools and equipment', '🔨', '#EF4444', 1, 'domain_hardware_hand_tools', false, true, NOW(), NOW())
+    VALUES (NULL, 'hardware', 'Hand Tools', 'Manual tools and equipment', '🔨', '#EF4444', 1, 'domain_hardware_hand_tools', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Power Tools
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_hardware_business_id, 'hardware', 'Power Tools', 'Electric and battery-powered tools', '⚡', '#F59E0B', 2, 'domain_hardware_power_tools', false, true, NOW(), NOW())
+    VALUES (NULL, 'hardware', 'Power Tools', 'Electric and battery-powered tools', '⚡', '#F59E0B', 2, 'domain_hardware_power_tools', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Building Materials
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_hardware_business_id, 'hardware', 'Building Materials', 'Construction and building supplies', '🧱', '#8B5CF6', 3, 'domain_hardware_building', false, true, NOW(), NOW())
+    VALUES (NULL, 'hardware', 'Building Materials', 'Construction and building supplies', '🧱', '#8B5CF6', 3, 'domain_hardware_building', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Plumbing
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_hardware_business_id, 'hardware', 'Plumbing', 'Pipes, fittings, and plumbing supplies', '🚰', '#06B6D4', 4, 'domain_hardware_hand_tools', false, true, NOW(), NOW())
+    VALUES (NULL, 'hardware', 'Plumbing', 'Pipes, fittings, and plumbing supplies', '🚰', '#06B6D4', 4, 'domain_hardware_building', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Electrical
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_hardware_business_id, 'hardware', 'Electrical', 'Wiring, switches, and electrical supplies', '💡', '#FBBF24', 5, 'domain_hardware_power_tools', false, true, NOW(), NOW())
+    VALUES (NULL, 'hardware', 'Electrical', 'Wiring, switches, and electrical supplies', '💡', '#FBBF24', 5, 'domain_hardware_power_tools', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Hardware Subcategories (using dynamic lookup)
@@ -214,17 +216,17 @@ BEGIN
   IF v_grocery_business_id IS NOT NULL THEN
     -- Fresh Produce
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_grocery_business_id, 'grocery', 'Fresh Produce', 'Fresh fruits, vegetables, and herbs', '🥬', '#10B981', 1, 'domain_grocery_produce', false, true, NOW(), NOW())
+    VALUES (NULL, 'grocery', 'Fresh Produce', 'Fresh fruits, vegetables, and herbs', '🥬', '#10B981', 1, 'domain_grocery_produce', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Meat & Seafood
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_grocery_business_id, 'grocery', 'Meat & Seafood', 'Fresh and frozen meats, poultry, seafood', '🥩', '#EF4444', 2, 'domain_grocery_meat', false, true, NOW(), NOW())
+    VALUES (NULL, 'grocery', 'Meat & Seafood', 'Fresh and frozen meats, poultry, seafood', '🥩', '#EF4444', 2, 'domain_grocery_meat', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Dairy Products
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_grocery_business_id, 'grocery', 'Dairy Products', 'Milk, cheese, yogurt, dairy alternatives', '🥛', '#3B82F6', 3, 'domain_grocery_dairy', false, true, NOW(), NOW())
+    VALUES (NULL, 'grocery', 'Dairy Products', 'Milk, cheese, yogurt, dairy alternatives', '🥛', '#3B82F6', 3, 'domain_grocery_dairy', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Grocery Subcategories (using dynamic lookup)
@@ -254,18 +256,49 @@ BEGIN
   END IF;
 
   -- ==========================================================================
+  -- SERVICE CATEGORIES
+  -- ==========================================================================
+  
+  IF v_service_business_id IS NOT NULL THEN
+    -- Consultation Services
+    INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
+    VALUES (NULL, 'service', 'Consultation Services', 'Professional consulting and advisory services', '💼', '#3B82F6', 1, 'domain_service_consultation', false, true, NOW(), NOW())
+    ON CONFLICT ("businessType", name) DO NOTHING;
+    
+    -- Maintenance Services
+    INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
+    VALUES (NULL, 'service', 'Maintenance Services', 'Repair and maintenance services', '🔧', '#F59E0B', 2, 'domain_service_maintenance', false, true, NOW(), NOW())
+    ON CONFLICT ("businessType", name) DO NOTHING;
+    
+    -- Service Subcategories (using dynamic lookup)
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'Legal Services', 'Lawyers and legal consultations', '⚖️', 1, true, NOW()
+    FROM business_categories WHERE "businessType" = 'service' AND name = 'Consultation Services'
+    ON CONFLICT ("categoryId", name) DO NOTHING;
+    
+    INSERT INTO inventory_subcategories ("categoryId", name, description, emoji, "displayOrder", "isDefault", "createdAt")
+    SELECT id, 'IT Support', 'Computer and technology repairs', '💻', 1, true, NOW()
+    FROM business_categories WHERE "businessType" = 'service' AND name = 'Maintenance Services'
+    ON CONFLICT ("categoryId", name) DO NOTHING;
+    
+    RAISE NOTICE 'Service categories seeded successfully';
+  ELSE
+    RAISE NOTICE 'Skipping service categories - no service business exists yet';
+  END IF;
+
+  -- ==========================================================================
   -- RESTAURANT CATEGORIES
   -- ==========================================================================
   
   IF v_restaurant_business_id IS NOT NULL THEN
     -- Appetizers
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_restaurant_business_id, 'restaurant', 'Appetizers', 'Starters, salads, and small plates', '🥗', '#10B981', 1, 'domain_restaurant_appetizers', false, true, NOW(), NOW())
+    VALUES (NULL, 'restaurant', 'Appetizers', 'Starters, salads, and small plates', '🥗', '#10B981', 1, 'domain_restaurant_appetizers', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Main Courses
     INSERT INTO business_categories ("businessId", "businessType", name, description, emoji, color, "displayOrder", "domainId", "isUserCreated", "isActive", "createdAt", "updatedAt")
-    VALUES (v_restaurant_business_id, 'restaurant', 'Main Courses', 'Entrees and main dishes', '🍽️', '#EF4444', 2, 'domain_restaurant_mains', false, true, NOW(), NOW())
+    VALUES (NULL, 'restaurant', 'Main Courses', 'Entrees and main dishes', '🍽️', '#EF4444', 2, 'domain_restaurant_mains', false, true, NOW(), NOW())
     ON CONFLICT ("businessType", name) DO NOTHING;
     
     -- Restaurant Subcategories (using dynamic lookup)
