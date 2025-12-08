@@ -596,9 +596,12 @@ async function seedExpenseCategories() {
 
 /**
  * Grant Expense Account Permissions to Admin User
+ * NOTE: This is kept for backward compatibility but admin users with role='admin'
+ * automatically get all permissions through the permission system.
+ * Individual permissions only need to be set for non-admin users.
  */
 async function grantExpensePermissionsToAdmin() {
-  console.log('💳 Granting expense account permissions to admin user...')
+  console.log('💳 Checking admin user role...')
 
   const adminEmail = 'admin@business.local'
 
@@ -612,14 +615,20 @@ async function grantExpensePermissionsToAdmin() {
     return
   }
 
-  // Check if admin already has expense permissions
-  const currentPermissions = adminUser.permissions || {}
-  if (currentPermissions.canAccessExpenseAccount) {
-    console.log('✅ Admin already has expense account permissions')
+  // Admins with role='admin' automatically get all permissions
+  if (adminUser.role === 'admin') {
+    console.log('✅ Admin user has role="admin" - automatically has all permissions (including payee management)')
     return
   }
 
-  // Grant all expense account permissions
+  // Only grant individual permissions if user is NOT an admin
+  const currentPermissions = adminUser.permissions || {}
+  if (currentPermissions.canAccessExpenseAccount) {
+    console.log('✅ User already has expense account permissions')
+    return
+  }
+
+  // Grant all expense account permissions (for non-admin users who need them)
   const expensePermissions = {
     canAccessExpenseAccount: true,
     canCreateExpenseAccount: true,
@@ -631,7 +640,7 @@ async function grantExpensePermissionsToAdmin() {
     canAdjustExpensePayments: true
   }
 
-  // Update admin user with expense permissions
+  // Update user with expense permissions
   await prisma.users.update({
     where: { email: adminEmail },
     data: {
@@ -642,7 +651,7 @@ async function grantExpensePermissionsToAdmin() {
     }
   })
 
-  console.log('✅ Granted expense account permissions to admin user')
+  console.log('✅ Granted expense account permissions to user')
 }
 
 /**

@@ -385,7 +385,7 @@ export default function HierarchyPage() {
               <select
                 value={selectedBusiness}
                 onChange={(e) => setSelectedBusiness(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="">All Businesses</option>
                 {businesses.map(business => (
@@ -517,7 +517,7 @@ export default function HierarchyPage() {
                     <select
                       value={assignmentForm.employeeId}
                       onChange={(e) => setAssignmentForm(prev => ({ ...prev, employeeId: e.target.value }))}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       required
                     >
                       <option value="">Select Employee</option>
@@ -537,7 +537,7 @@ export default function HierarchyPage() {
                   <select
                     value={assignmentForm.businessId}
                     onChange={(e) => setAssignmentForm(prev => ({ ...prev, businessId: e.target.value }))}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     required
                   >
                     <option value="">Select Business</option>
@@ -557,7 +557,7 @@ export default function HierarchyPage() {
                     type="text"
                     value={assignmentForm.role}
                     onChange={(e) => setAssignmentForm(prev => ({ ...prev, role: e.target.value }))}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     placeholder="e.g., Assistant Manager, Consultant"
                   />
                 </div>
@@ -569,7 +569,7 @@ export default function HierarchyPage() {
                   <select
                     value={assignmentForm.supervisorId}
                     onChange={(e) => setAssignmentForm(prev => ({ ...prev, supervisorId: e.target.value }))}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   >
                     <option value="">No Supervisor</option>
                     {employees

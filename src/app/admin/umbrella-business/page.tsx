@@ -148,7 +148,7 @@ export default function UmbrellaBusinessManagement() {
                       value={formData.umbrellaBusinessName}
                       onChange={handleInputChange}
                       required
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="Enter umbrella business name"
                     />
                     <p className="text-xs text-gray-500 mt-1">
@@ -165,7 +165,7 @@ export default function UmbrellaBusinessManagement() {
                       value={formData.umbrellaBusinessAddress}
                       onChange={handleInputChange}
                       rows={3}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="Enter complete business address"
                     />
                   </div>
@@ -191,7 +191,7 @@ export default function UmbrellaBusinessManagement() {
                       name="umbrellaBusinessEmail"
                       value={formData.umbrellaBusinessEmail}
                       onChange={handleInputChange}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="Enter email address"
                     />
                   </div>
@@ -205,7 +205,7 @@ export default function UmbrellaBusinessManagement() {
                       name="umbrellaBusinessRegistration"
                       value={formData.umbrellaBusinessRegistration}
                       onChange={handleInputChange}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="Enter business registration number"
                     />
                   </div>

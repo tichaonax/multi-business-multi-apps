@@ -716,6 +716,17 @@ export function Sidebar() {
           </>
         )}
 
+        {/* Payee Management - Only for users with payee permissions */}
+        {(hasUserPermission(currentUser, 'canViewPayees') || isSystemAdmin(currentUser)) && (
+          <Link
+            href="/payees"
+            className={getLinkClasses('/payees')}
+          >
+            <span className="text-lg">👥</span>
+            <span>Payee Management</span>
+          </Link>
+        )}
+
         {/* Reports - Only for managers and admins, not drivers */}
         {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canAccessFinancialData')) && (
           <Link

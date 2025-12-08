@@ -137,7 +137,7 @@ export default function AddServicePage() {
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="e.g., Plumbing Repair Service"
                     />
                   </div>
@@ -175,7 +175,7 @@ export default function AddServicePage() {
                       value={formData.description}
                       onChange={handleChange}
                       rows={3}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="Describe the service..."
                     />
                   </div>
@@ -235,7 +235,7 @@ export default function AddServicePage() {
                       name="unitOfMeasure"
                       value={formData.unitOfMeasure}
                       onChange={handleChange}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                     >
                       <option value="hour">Hour</option>
                       <option value="day">Day</option>
@@ -276,7 +276,7 @@ export default function AddServicePage() {
                       name="categoryId"
                       value={formData.categoryId}
                       onChange={handleChange}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                     >
                       <option value="">Uncategorized</option>
                       {categories.map((cat) => (

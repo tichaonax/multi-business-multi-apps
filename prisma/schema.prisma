@@ -119,7 +119,7 @@ model BusinessCategories {
   business_products         BusinessProducts[]
   inventory_subcategories   InventorySubcategories[]
 
-  @@unique([businessType, name])
+  @@unique([businessType, domainId, name])
   @@index([businessType])
   @@map("business_categories")
 }

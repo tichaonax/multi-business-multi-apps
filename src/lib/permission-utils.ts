@@ -41,8 +41,12 @@ export function getEffectivePermissions(user: SessionUser | null | undefined, bu
   }
 
   // System admins get full permissions regardless of business context
+  // Combine both user-level and core business permissions for admins
   if (user.role === 'admin') {
-    return SYSTEM_ADMIN_PERMISSIONS as BusinessPermissions
+    return {
+      ...ADMIN_USER_PERMISSIONS,
+      ...SYSTEM_ADMIN_PERMISSIONS
+    } as BusinessPermissions
   }
 
   const activeBusinessMemberships = user.businessMemberships?.filter(m => m.isActive) || []

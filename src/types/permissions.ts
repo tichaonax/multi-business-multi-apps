@@ -71,6 +71,11 @@ export interface UserLevelPermissions {
   canManageSeedTemplates: boolean;    // View, activate, delete seed templates
   canExportSeedTemplates: boolean;    // Create and export templates from businesses
   canApplySeedTemplates: boolean;     // Import and apply templates to businesses
+
+  // Payee Management (User-level - cross-business capability)
+  canViewPayees: boolean;             // View all payees (individuals, employees, users, businesses)
+  canCreatePayees: boolean;           // Create new individual payees (persons)
+  canEditPayees: boolean;             // Edit individual payees and toggle active status
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -755,6 +760,17 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canCreateSiblingAccounts', label: 'Create Sibling Accounts' },
       { key: 'canEnterHistoricalData', label: 'Enter Historical Data' },
       { key: 'canMergeSiblingAccounts', label: 'Merge Sibling Accounts' },
+    ]
+  },
+  // Payee Management
+  // Business-agnostic permissions for managing payees (individuals, employees, users, businesses)
+  payeeManagement: {
+    title: 'Payee Management',
+    description: 'View, create, and manage payees across all businesses',
+    permissions: [
+      { key: 'canViewPayees', label: 'View Payees' },
+      { key: 'canCreatePayees', label: 'Create Payees' },
+      { key: 'canEditPayees', label: 'Edit Payees' },
     ]
   }
 };
@@ -1527,6 +1543,11 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canManageSeedTemplates: false,    // Admin only
   canExportSeedTemplates: false,    // Admin only
   canApplySeedTemplates: false,     // Admin only
+
+  // Payee Management - No access by default
+  canViewPayees: false,
+  canCreatePayees: false,
+  canEditPayees: false,
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
@@ -1599,6 +1620,11 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canManageSeedTemplates: true,     // Admins can manage templates
   canExportSeedTemplates: true,     // Admins can export templates
   canApplySeedTemplates: true,      // Admins can import/apply templates
+
+  // Payee Management - Full access for admins
+  canViewPayees: true,
+  canCreatePayees: true,
+  canEditPayees: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
@@ -1672,6 +1698,11 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canManageSeedTemplates: false,
   canExportSeedTemplates: false,
   canApplySeedTemplates: false,
+
+  // Payee Management - No access for drivers
+  canViewPayees: false,
+  canCreatePayees: false,
+  canEditPayees: false,
 };
 
 // Permission presets for easy management

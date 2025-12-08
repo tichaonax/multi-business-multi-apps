@@ -463,7 +463,7 @@ export default function BenefitsPage() {
                     value={benefitSearch}
                     onChange={(e) => setBenefitSearch(e.target.value)}
                     placeholder="🔍 Search by name or description..."
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   />
                 </div>
 
@@ -474,7 +474,7 @@ export default function BenefitsPage() {
                   <select
                     value={benefitTypeFilter}
                     onChange={(e) => setBenefitTypeFilter(e.target.value)}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   >
                     <option value="">All Types</option>
                     <option value="allowance">Allowance</option>
@@ -608,7 +608,7 @@ export default function BenefitsPage() {
                     value={compensationSearch}
                     onChange={(e) => setCompensationSearch(e.target.value)}
                     placeholder="🔍 Search by name or description..."
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   />
                 </div>
 
@@ -619,7 +619,7 @@ export default function BenefitsPage() {
                   <select
                     value={compensationTypeFilter}
                     onChange={(e) => setCompensationTypeFilter(e.target.value)}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   >
                     <option value="">All Types</option>
                     <option value="salary">Salary</option>
@@ -758,7 +758,7 @@ export default function BenefitsPage() {
                     type="text"
                     value={benefitForm.name}
                     onChange={(e) => setBenefitForm(prev => ({ ...prev, name: e.target.value }))}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     required
                   />
                 </div>
@@ -770,7 +770,7 @@ export default function BenefitsPage() {
                   <select
                     value={benefitForm.type}
                     onChange={(e) => setBenefitForm(prev => ({ ...prev, type: e.target.value as any }))}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     required
                   >
                     <option value="allowance">Allowance</option>
@@ -788,7 +788,7 @@ export default function BenefitsPage() {
                     value={benefitForm.description}
                     onChange={(e) => setBenefitForm(prev => ({ ...prev, description: e.target.value }))}
                     rows={3}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   />
                 </div>
 
@@ -802,7 +802,7 @@ export default function BenefitsPage() {
                       step="0.01"
                       value={benefitForm.defaultAmount}
                       onChange={(e) => setBenefitForm(prev => ({ ...prev, defaultAmount: e.target.value }))}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                     />
                   </div>
                   
@@ -858,7 +858,7 @@ export default function BenefitsPage() {
                     type="text"
                     value={compensationForm.name}
                     onChange={(e) => setCompensationForm(prev => ({ ...prev, name: e.target.value }))}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     required
                   />
                 </div>
@@ -870,7 +870,7 @@ export default function BenefitsPage() {
                   <select
                     value={compensationForm.type}
                     onChange={(e) => setCompensationForm(prev => ({ ...prev, type: e.target.value as any }))}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     required
                   >
                     <option value="salary">Salary</option>
@@ -888,7 +888,7 @@ export default function BenefitsPage() {
                     value={compensationForm.description}
                     onChange={(e) => setCompensationForm(prev => ({ ...prev, description: e.target.value }))}
                     rows={3}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   />
                 </div>
 
@@ -902,7 +902,7 @@ export default function BenefitsPage() {
                       step="0.01"
                       value={compensationForm.baseAmount}
                       onChange={(e) => setCompensationForm(prev => ({ ...prev, baseAmount: e.target.value }))}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                     />
                   </div>
                   
@@ -915,7 +915,7 @@ export default function BenefitsPage() {
                       step="0.01"
                       value={compensationForm.commissionPercentage}
                       onChange={(e) => setCompensationForm(prev => ({ ...prev, commissionPercentage: e.target.value }))}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                     />
                   </div>
                 </div>

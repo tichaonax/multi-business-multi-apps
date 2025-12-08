@@ -185,7 +185,7 @@ export default function ServicesListPage() {
                   placeholder="Search by name, SKU, or description..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input w-full"
+                  className="input w-full px-4 py-2.5 text-base"
                 />
               </div>
               <div>
@@ -195,7 +195,7 @@ export default function ServicesListPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="input w-full"
+                  className="input w-full px-4 py-2.5 text-base"
                 >
                   <option value="all">All Services</option>
                   <option value="active">Active Only</option>
@@ -209,7 +209,7 @@ export default function ServicesListPage() {
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="input w-full"
+                  className="input w-full px-4 py-2.5 text-base"
                 >
                   <option value="all">All Categories</option>
                   {categories.map((cat) => (

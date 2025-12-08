@@ -268,7 +268,7 @@ export default function ServiceCategoriesPage() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       required
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="e.g., Plumbing Services"
                     />
                   </div>
@@ -281,7 +281,7 @@ export default function ServiceCategoriesPage() {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={3}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="Optional description..."
                     />
                   </div>

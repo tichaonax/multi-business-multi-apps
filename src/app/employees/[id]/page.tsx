@@ -1357,7 +1357,7 @@ export default function EmployeeDetailPage() {
                   <select
                     value={statusChangeData.status}
                     onChange={(e) => setStatusChangeData({ ...statusChangeData, status: e.target.value })}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   >
                     <option value="">Select status...</option>
                     <option value="suspended">Suspended</option>
@@ -1374,7 +1374,7 @@ export default function EmployeeDetailPage() {
                     type="date"
                     value={statusChangeData.endDate}
                     onChange={(e) => setStatusChangeData({ ...statusChangeData, endDate: e.target.value })}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   />
                 </div>
 
@@ -1388,7 +1388,7 @@ export default function EmployeeDetailPage() {
                       type="text"
                       value={statusChangeData.terminationReason}
                       onChange={(e) => setStatusChangeData({ ...statusChangeData, terminationReason: e.target.value })}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="e.g., Voluntary resignation, End of contract period"
                     />
                   </div>
@@ -1402,7 +1402,7 @@ export default function EmployeeDetailPage() {
                   <textarea
                     value={statusChangeData.notes}
                     onChange={(e) => setStatusChangeData({ ...statusChangeData, notes: e.target.value })}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     rows={3}
                     placeholder="Additional notes or comments"
                   />

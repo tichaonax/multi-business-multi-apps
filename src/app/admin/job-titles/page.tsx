@@ -296,7 +296,7 @@ export default function JobTitlesPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="🔍 Search by title, description..."
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               />
             </div>
 
@@ -307,7 +307,7 @@ export default function JobTitlesPage() {
               <select
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="">All Departments</option>
                 {DEPARTMENTS.map((dept) => (
@@ -323,7 +323,7 @@ export default function JobTitlesPage() {
               <select
                 value={levelFilter}
                 onChange={(e) => setLevelFilter(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="">All Levels</option>
                 {JOB_LEVELS.map((level) => (
@@ -529,7 +529,7 @@ export default function JobTitlesPage() {
                       type="text"
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       required
                     />
                   </div>
@@ -541,7 +541,7 @@ export default function JobTitlesPage() {
                     <select
                       value={formData.level}
                       onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                     >
                       <option value="">Select Level</option>
                       {JOB_LEVELS.map((level) => (
@@ -558,7 +558,7 @@ export default function JobTitlesPage() {
                   <select
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   >
                     <option value="">Select Department</option>
                     {DEPARTMENTS.map((dept) => (
@@ -575,7 +575,7 @@ export default function JobTitlesPage() {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     placeholder="Brief description of the role..."
                   />
                 </div>

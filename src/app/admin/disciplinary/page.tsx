@@ -312,7 +312,7 @@ export default function DisciplinaryPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by employee, description..."
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               />
             </div>
 
@@ -323,7 +323,7 @@ export default function DisciplinaryPage() {
               <select
                 value={employeeFilter}
                 onChange={(e) => setEmployeeFilter(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="">All Employees</option>
                 {(employees || []).map(employee => (
@@ -341,7 +341,7 @@ export default function DisciplinaryPage() {
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="">All Types</option>
                 {DISCIPLINARY_TYPES.map(type => (
@@ -357,7 +357,7 @@ export default function DisciplinaryPage() {
               <select
                 value={severityFilter}
                 onChange={(e) => setSeverityFilter(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="">All Severities</option>
                 <option value="low">Low</option>
@@ -374,7 +374,7 @@ export default function DisciplinaryPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="all">All Status</option>
                 <option value="open">Open</option>
@@ -605,7 +605,7 @@ export default function DisciplinaryPage() {
                     <select
                       value={formData.employeeId}
                       onChange={(e) => setFormData(prev => ({ ...prev, employeeId: e.target.value }))}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       required
                     >
                       <option value="">Select Employee</option>
@@ -624,7 +624,7 @@ export default function DisciplinaryPage() {
                     <select
                       value={formData.type}
                       onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       required
                     >
                       <option value="">Select Type</option>
@@ -641,7 +641,7 @@ export default function DisciplinaryPage() {
                     <select
                       value={formData.severity}
                       onChange={(e) => setFormData(prev => ({ ...prev, severity: e.target.value as any }))}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       required
                     >
                       <option value="low">Low</option>
@@ -672,7 +672,7 @@ export default function DisciplinaryPage() {
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     rows={3}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     placeholder="Detailed description of the incident or issue..."
                     required
                   />
@@ -686,7 +686,7 @@ export default function DisciplinaryPage() {
                     value={formData.actionTaken}
                     onChange={(e) => setFormData(prev => ({ ...prev, actionTaken: e.target.value }))}
                     rows={3}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     placeholder="Actions taken to address the issue..."
                     required
                   />
@@ -711,7 +711,7 @@ export default function DisciplinaryPage() {
                     value={formData.notes}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     rows={2}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     placeholder="Any additional notes or context..."
                   />
                 </div>

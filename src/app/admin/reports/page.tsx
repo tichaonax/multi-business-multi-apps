@@ -237,7 +237,7 @@ export default function ReportsPage() {
               <select
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="week">This Week</option>
                 <option value="month">This Month</option>
@@ -254,7 +254,7 @@ export default function ReportsPage() {
               <select
                 value={selectedBusiness}
                 onChange={(e) => setSelectedBusiness(e.target.value)}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="">All Businesses</option>
                 {businesses.map(business => (

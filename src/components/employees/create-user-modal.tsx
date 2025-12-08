@@ -222,7 +222,7 @@ export function CreateUserModal({
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
                 placeholder="user@example.com"
                 required
               />
@@ -240,7 +240,7 @@ export function CreateUserModal({
                 name="role"
                 value={formData.role}
                 onChange={handleInputChange}
-                className="input w-full"
+                className="input w-full px-4 py-2.5 text-base"
               >
                 <option value="user">Standard User</option>
                 <option value="manager">Manager</option>

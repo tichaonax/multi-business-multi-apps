@@ -26,8 +26,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user permissions
+    // Accept either the legacy canCreateIndividualPayees or the new canCreatePayees
     const permissions = getEffectivePermissions(session.user)
-    if (!permissions.canCreateIndividualPayees) {
+    if (!permissions.canCreateIndividualPayees && !permissions.canCreatePayees) {
       return NextResponse.json(
         { error: 'You do not have permission to create individual payees' },
         { status: 403 }

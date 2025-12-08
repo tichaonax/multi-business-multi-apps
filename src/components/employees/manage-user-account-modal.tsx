@@ -266,7 +266,7 @@ export function ManageUserAccountModal({
                   placeholder="Search users by name or email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input w-full"
+                  className="input w-full px-4 py-2.5 text-base"
                 />
               </div>
 
@@ -378,7 +378,7 @@ export function ManageUserAccountModal({
                   <select
                     value={revokeReason}
                     onChange={(e) => setRevokeReason(e.target.value)}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                   >
                     <option value="">Select a reason...</option>
                     <option value="Employee terminated">Employee terminated</option>
@@ -397,7 +397,7 @@ export function ManageUserAccountModal({
                     value={revokeNotes}
                     onChange={(e) => setRevokeNotes(e.target.value)}
                     rows={3}
-                    className="input w-full"
+                    className="input w-full px-4 py-2.5 text-base"
                     placeholder="Optional additional details..."
                   />
                 </div>

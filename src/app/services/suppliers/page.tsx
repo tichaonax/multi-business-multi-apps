@@ -309,7 +309,7 @@ export default function ServiceSuppliersPage() {
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         required
-                        className="input w-full"
+                        className="input w-full px-4 py-2.5 text-base"
                         placeholder="e.g., BuildRight Materials"
                       />
                     </div>
@@ -322,7 +322,7 @@ export default function ServiceSuppliersPage() {
                         type="text"
                         value={formData.contactPerson}
                         onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                        className="input w-full"
+                        className="input w-full px-4 py-2.5 text-base"
                         placeholder="e.g., John Doe"
                       />
                     </div>
@@ -335,7 +335,7 @@ export default function ServiceSuppliersPage() {
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="input w-full"
+                        className="input w-full px-4 py-2.5 text-base"
                         placeholder="supplier@example.com"
                       />
                     </div>
@@ -359,7 +359,7 @@ export default function ServiceSuppliersPage() {
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       rows={2}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="Street address, city, state, zip"
                     />
                   </div>
@@ -372,7 +372,7 @@ export default function ServiceSuppliersPage() {
                       value={formData.productsSupplied}
                       onChange={(e) => setFormData({ ...formData, productsSupplied: e.target.value })}
                       rows={3}
-                      className="input w-full"
+                      className="input w-full px-4 py-2.5 text-base"
                       placeholder="Lumber, Screws, Nails, Paint, Electrical supplies..."
                     />
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">

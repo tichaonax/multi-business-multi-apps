@@ -581,35 +581,40 @@ export default function ContractorsPage() {
                       </span>
                     </div>
                     
-                    {contractor.project_contractors.length > 0 ? (
+                    {contractor.projectContractors.length > 0 ? (
                       <div className="space-y-2">
-                        {contractor.project_contractors.slice(0, 3).map((assignment) => (
-                          <div key={assignment.id} className="flex items-center justify-between text-sm">
-                            <div className="flex-1">
-                              <span className="text-primary font-medium">{assignment.project.name}</span>
-                              {assignment.role && (
-                                <span className="text-secondary ml-2">• {assignment.role}</span>
-                              )}
-                              {assignment.isPrimary && (
-                                <span className="ml-2 px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                                  Primary
-                                </span>
-                              )}
+                        {contractor.projectContractors.slice(0, 3).map((assignment) => {
+                          // Skip assignments with missing project data
+                          if (!assignment.project) return null
+
+                          return (
+                            <div key={assignment.id} className="flex items-center justify-between text-sm">
+                              <div className="flex-1">
+                                <span className="text-primary font-medium">{assignment.project.name}</span>
+                                {assignment.role && (
+                                  <span className="text-secondary ml-2">• {assignment.role}</span>
+                                )}
+                                {assignment.isPrimary && (
+                                  <span className="ml-2 px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                                    Primary
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                assignment.project.status === 'active'
+                                  ? 'bg-green-100 text-green-800'
+                                  : assignment.project.status === 'completed'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {assignment.project.status}
+                              </span>
                             </div>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              assignment.project.status === 'active' 
-                                ? 'bg-green-100 text-green-800'
-                                : assignment.project.status === 'completed'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {assignment.project.status}
-                            </span>
-                          </div>
-                        ))}
-                        {contractor.project_contractors.length > 3 && (
+                          )
+                        })}
+                        {contractor.projectContractors.length > 3 && (
                           <div className="text-xs text-secondary">
-                            +{contractor.project_contractors.length - 3} more projects
+                            +{contractor.projectContractors.length - 3} more projects
                           </div>
                         )}
                       </div>

@@ -146,11 +146,22 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
           let category = categoryMap.get(categoryKey)
 
           if (!category) {
-            // Category doesn't exist - create it (businessType: 'clothing', businessId: null)
-            console.log(`Creating missing category: ${item.categoryName} in domain ${domainId}`)
-            
-            category = await prisma.businessCategories.create({
-              data: {
+            // Category doesn't exist in map - upsert it (rerunnable)
+            console.log(`Upserting category: ${item.categoryName} in domain ${domainId}`)
+
+            category = await prisma.businessCategories.upsert({
+              where: {
+                businessType_domainId_name: {
+                  businessType: 'clothing',
+                  domainId: domainId,
+                  name: item.categoryName
+                }
+              },
+              update: {
+                description: item.categoryName,
+                updatedAt: new Date()
+              },
+              create: {
                 name: item.categoryName,
                 businessType: 'clothing',
                 businessId: null, // Business type specific, not business ID specific
@@ -160,7 +171,7 @@ export async function seedClothingProducts(businessId: string): Promise<SeedProd
                 updatedAt: new Date()
               }
             })
-            
+
             // Add to map for future lookups
             categoryMap.set(categoryKey, category)
           }

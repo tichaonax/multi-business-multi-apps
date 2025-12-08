@@ -26,7 +26,8 @@ interface MenuItem {
   discountPercent?: number | null
   spiceLevel?: number | null
   preparationTime?: number | null
-  variants?: Array<{ id: string; name?: string; price?: number; isAvailable?: boolean }>
+  stockQuantity?: number
+  variants?: Array<{ id: string; name?: string; price?: number; isAvailable?: boolean; stockQuantity?: number }>
 }
 
 interface CartItem extends MenuItem {
@@ -82,6 +83,7 @@ export default function RestaurantPOS() {
         businessType: 'restaurant',
         isAvailable: 'true',
         isActive: 'true',
+        includeVariants: 'true', // Include variants to get stock quantities
         limit: '500' // High limit to get all products
       })
 
@@ -114,20 +116,29 @@ export default function RestaurantPOS() {
           // Transform universal products to menu items format
           const items = data.data
             .filter((product: any) => product.isAvailable && product.isActive)
-            .map((product: any) => ({
-              id: product.id,
-              name: product.name,
-              price: product.basePrice,
-              category: product.category?.name || 'uncategorized',
-              isAvailable: product.isAvailable,
-              isCombo: product.isCombo,
-              requiresCompanionItem: product.requiresCompanionItem,
-              originalPrice: product.originalPrice,
-              discountPercent: product.discountPercent,
-              spiceLevel: product.spiceLevel,
-              preparationTime: product.preparationTime,
-              purchaseCount: purchaseCounts[product.id] || 0
-            }))
+            .map((product: any) => {
+              // Calculate total stock from all variants
+              const totalStock = (product.variants || []).reduce((sum: number, variant: any) => {
+                return sum + (variant.stockQuantity || 0)
+              }, 0)
+
+              return {
+                id: product.id,
+                name: product.name,
+                price: product.basePrice,
+                category: product.category?.name || 'uncategorized',
+                isAvailable: product.isAvailable,
+                isCombo: product.isCombo,
+                requiresCompanionItem: product.requiresCompanionItem,
+                originalPrice: product.originalPrice,
+                discountPercent: product.discountPercent,
+                spiceLevel: product.spiceLevel,
+                preparationTime: product.preparationTime,
+                stockQuantity: totalStock,
+                variants: product.variants,
+                purchaseCount: purchaseCounts[product.id] || 0
+              }
+            })
             // Sort by: (1) items with price > 0 first, (2) most purchased, (3) name
             .sort((a: any, b: any) => {
               const aHasPrice = Number(a.price) > 0
@@ -712,6 +723,9 @@ export default function RestaurantPOS() {
               {filteredItems.map(item => {
                 const hasDiscount = item.originalPrice && Number(item.originalPrice) > Number(item.price)
                 const isUnavailable = item.isAvailable === false
+                const cartItem = cart.find(c => c.id === item.id)
+                const cartQuantity = cartItem?.quantity || 0
+                const stockQuantity = item.stockQuantity || 0
 
                 return (
                   <button
@@ -722,6 +736,11 @@ export default function RestaurantPOS() {
                       isUnavailable ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                   >
+                    {/* Cart quantity (top-left) */}
+                    <div className="absolute top-1 left-1">
+                      <span className="text-sm font-bold text-primary dark:text-gray-100">{cartQuantity}</span>
+                    </div>
+
                     {/* Unavailable indicator */}
                     {isUnavailable && (
                       <div className="absolute top-1 right-1">
@@ -738,9 +757,9 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
-                    {/* Spice level indicator */}
+                    {/* Spice level indicator (move down a bit to make room for cart quantity) */}
                     {item.spiceLevel && item.spiceLevel > 0 && (
-                      <div className="absolute top-1 left-1">
+                      <div className="absolute top-6 left-1">
                         <span className="text-xs">{'🌶️'.repeat(Math.min(item.spiceLevel, 3))}</span>
                       </div>
                     )}
@@ -773,6 +792,11 @@ export default function RestaurantPOS() {
                     {isUnavailable && (
                       <p className="text-xs text-red-500 mt-1 font-medium">Unavailable</p>
                     )}
+
+                    {/* Stock quantity (bottom-left) */}
+                    <div className="absolute bottom-1 left-1">
+                      <span className="text-sm font-bold text-primary dark:text-gray-100">{stockQuantity}</span>
+                    </div>
                   </button>
                 )
               })}
