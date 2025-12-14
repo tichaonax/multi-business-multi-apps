@@ -131,7 +131,7 @@ export default function WiFiTokensPage() {
   }, [currentBusinessId, businessLoading])
 
   useEffect(() => {
-    // Apply filters to ledger tokens
+    // Apply filters and sorting to ledger tokens
     let filtered = tokens
 
     if (searchQuery) {
@@ -144,6 +144,14 @@ export default function WiFiTokensPage() {
     if (statusFilter !== 'ALL') {
       filtered = filtered.filter(token => token.status === statusFilter)
     }
+
+    // Sort tokens: ACTIVE first, then UNUSED, then EXPIRED, then DISABLED
+    filtered = filtered.sort((a, b) => {
+      const statusOrder = { 'ACTIVE': 0, 'UNUSED': 1, 'EXPIRED': 2, 'DISABLED': 3 }
+      const aOrder = statusOrder[a.status] ?? 4
+      const bOrder = statusOrder[b.status] ?? 4
+      return aOrder - bOrder
+    })
 
     setFilteredTokens(filtered)
   }, [tokens, searchQuery, statusFilter])
@@ -188,6 +196,8 @@ export default function WiFiTokensPage() {
 
       if (response.ok) {
         const data = await response.json()
+
+        // Use the status field directly from ESP32 response
         setPortalTokens(data.tokens || [])
 
         // Update token capacity if available
@@ -802,14 +812,25 @@ export default function WiFiTokensPage() {
     return `${numValue.toFixed(0)} MB`
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, firstUsedAt?: string | Date | null) => {
+    // If token has never been used, show as unused regardless of database status
+    if (!firstUsedAt) {
+      const unusedConfig = { bg: 'bg-blue-100', darkBg: 'dark:bg-blue-900/20', text: 'text-blue-800', darkText: 'dark:text-blue-200', label: '● Unused' };
+      return (
+        <span className={`px-2 py-1 rounded text-xs font-medium ${unusedConfig.bg} ${unusedConfig.darkBg} ${unusedConfig.text} ${unusedConfig.darkText}`}>
+          {unusedConfig.label}
+        </span>
+      );
+    }
+
     const statusMap: Record<string, { bg: string; darkBg: string; text: string; darkText: string; label: string }> = {
       ACTIVE: { bg: 'bg-green-100', darkBg: 'dark:bg-green-900/20', text: 'text-green-800', darkText: 'dark:text-green-200', label: '● Active' },
       active: { bg: 'bg-green-100', darkBg: 'dark:bg-green-900/20', text: 'text-green-800', darkText: 'dark:text-green-200', label: '● Active' },
+      UNUSED: { bg: 'bg-blue-100', darkBg: 'dark:bg-blue-900/20', text: 'text-blue-800', darkText: 'dark:text-blue-200', label: '● Unused' },
+      unused: { bg: 'bg-blue-100', darkBg: 'dark:bg-blue-900/20', text: 'text-blue-800', darkText: 'dark:text-blue-200', label: '● Unused' },
       EXPIRED: { bg: 'bg-gray-100', darkBg: 'dark:bg-gray-700', text: 'text-gray-800', darkText: 'dark:text-gray-200', label: '● Expired' },
       expired: { bg: 'bg-gray-100', darkBg: 'dark:bg-gray-700', text: 'text-gray-800', darkText: 'dark:text-gray-200', label: '● Expired' },
       DISABLED: { bg: 'bg-red-100', darkBg: 'dark:bg-red-900/20', text: 'text-red-800', darkText: 'dark:text-red-200', label: '● Disabled' },
-      unused: { bg: 'bg-blue-100', darkBg: 'dark:bg-blue-900/20', text: 'text-blue-800', darkText: 'dark:text-blue-200', label: '● Unused' },
     }
 
     const config = statusMap[status] || statusMap.EXPIRED
@@ -820,12 +841,20 @@ export default function WiFiTokensPage() {
     )
   }
 
-  const filteredPortalTokens = portalTokens.filter(token => {
-    const matchesSearch = portalSearchQuery === '' ||
-      token.token.toLowerCase().includes(portalSearchQuery.toLowerCase())
-    const matchesStatus = portalStatusFilter === 'ALL' || token.status === portalStatusFilter.toLowerCase()
-    return matchesSearch && matchesStatus
-  })
+  const filteredPortalTokens = portalTokens
+    .filter(token => {
+      const matchesSearch = portalSearchQuery === '' ||
+        token.token.toLowerCase().includes(portalSearchQuery.toLowerCase())
+      const matchesStatus = portalStatusFilter === 'ALL' || token.status === portalStatusFilter.toLowerCase()
+      return matchesSearch && matchesStatus
+    })
+    .sort((a, b) => {
+      // Sort portal tokens: active first, then unused, then expired
+      const statusOrder = { 'active': 0, 'unused': 1, 'expired': 2 }
+      const aOrder = statusOrder[a.status] ?? 3
+      const bOrder = statusOrder[b.status] ?? 3
+      return aOrder - bOrder
+    })
 
   const filteredMacBlacklist = macFilters.blacklist.filter(entry =>
     macSearchQuery === '' || entry.mac.toLowerCase().includes(macSearchQuery.toLowerCase())
@@ -974,6 +1003,7 @@ export default function WiFiTokensPage() {
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="ACTIVE">Active</option>
+                  <option value="UNUSED">Unused</option>
                   <option value="EXPIRED">Expired</option>
                   <option value="DISABLED">Disabled</option>
                 </select>
@@ -1091,7 +1121,7 @@ export default function WiFiTokensPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        {getStatusBadge(token.status)}
+                        {getStatusBadge(token.status, token.firstUsedAt)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                         {formatDateTime(token.createdAt)}
@@ -1137,17 +1167,17 @@ export default function WiFiTokensPage() {
                                   )}
                                   <button
                                     onClick={() => handleMacAction(device.macAddress, 'blacklist')}
-                                    className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                                    className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/50 text-xs"
                                     title="Blacklist this MAC"
                                   >
-                                    ⛔
+                                    ⛔ Block
                                   </button>
                                   <button
                                     onClick={() => handleMacAction(device.macAddress, 'whitelist')}
-                                    className="text-xs text-green-600 dark:text-green-400 hover:underline"
-                                    title="Whitelist this MAC"
+                                    className="px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50 text-xs"
+                                    title="Whitelist this MAC (VIP access)"
                                   >
-                                    ✅
+                                    ✅ VIP
                                   </button>
                                 </div>
                               ))}
@@ -1462,7 +1492,7 @@ export default function WiFiTokensPage() {
                           </code>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
-                          {getStatusBadge(token.status)}
+                          {getStatusBadge(token.status, (token as any).firstUsedAt || (token as any).firstUse)}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                           {formatDuration(token.durationMinutes)}
@@ -1476,13 +1506,29 @@ export default function WiFiTokensPage() {
                             <div>📤 {formatBandwidth(token.bandwidthUsedUp)} / {token.bandwidthUpMb} MB</div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
+                        <td className="px-4 py-4">
                           <div className="text-xs text-gray-700 dark:text-gray-300">
                             <div>{token.deviceCount} / 2 devices</div>
                             {token.clientMacs && token.clientMacs.length > 0 && (
-                              <div className="text-gray-500 dark:text-gray-400 mt-1">
+                              <div className="mt-1 space-y-1">
                                 {token.clientMacs.map((mac, idx) => (
-                                  <div key={idx}>{mac}</div>
+                                  <div key={idx} className="flex items-center gap-2">
+                                    <code className="text-xs text-gray-600 dark:text-gray-400">{mac}</code>
+                                    <button
+                                      onClick={() => handleMacAction(mac, 'blacklist')}
+                                      className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/50 text-xs"
+                                      title="Blacklist this MAC"
+                                    >
+                                      ⛔ Block
+                                    </button>
+                                    <button
+                                      onClick={() => handleMacAction(mac, 'whitelist')}
+                                      className="px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50 text-xs"
+                                      title="Whitelist this MAC (VIP access)"
+                                    >
+                                      ✅ VIP
+                                    </button>
+                                  </div>
                                 ))}
                               </div>
                             )}
