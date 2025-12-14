@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
           expenseAccountId: expenseAccountId,
           saleAmount: saleAmount,
           paymentMethod: paymentMethod,
+          saleChannel: 'DIRECT', // Token Management UI sales
           soldBy: session.user.id,
           receiptPrinted: false,
         },

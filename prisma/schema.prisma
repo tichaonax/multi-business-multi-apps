@@ -2722,6 +2722,7 @@ model WifiTokenSales {
   expenseAccountId String
   saleAmount       Decimal         @db.Decimal(12, 2)
   paymentMethod    String
+  saleChannel      String          @default("DIRECT") // DIRECT = Token Management UI, POS = Business POS
   soldAt           DateTime        @default(now())
   soldBy           String
   receiptPrinted   Boolean         @default(false)
@@ -2734,6 +2735,7 @@ model WifiTokenSales {
   @@index([wifiTokenId])
   @@index([expenseAccountId])
   @@index([soldBy])
+  @@index([saleChannel])
   @@map("wifi_token_sales")
 }
 
@@ -2988,6 +2990,8 @@ enum InstallmentFrequency {
 
 enum WifiTokenStatus {
   ACTIVE
+  UNUSED
   EXPIRED
   DISABLED
+  SOLD
 }

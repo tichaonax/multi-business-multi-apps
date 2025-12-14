@@ -34,6 +34,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (type) updateData.type = type
     if (payload.hasOwnProperty('description')) updateData.description = description
     if (payload.hasOwnProperty('isActive')) updateData.isActive = !!payload.isActive
+    if (payload.hasOwnProperty('wifiIntegrationEnabled')) updateData.wifiIntegrationEnabled = !!payload.wifiIntegrationEnabled
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 })

@@ -10,7 +10,7 @@ import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/bus
 import { randomBytes } from 'crypto';
 // Validation schemas
 const CreateOrderItemSchema = z.object({
-  productVariantId: z.string().min(1),
+  productVariantId: z.string().min(1).nullable(), // Nullable for WiFi tokens
   quantity: z.number().min(0.001),  // Changed from int to decimal to support weight-based items
   unitPrice: z.number().min(0),
   discountAmount: z.number().min(0).default(0),
@@ -315,8 +315,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify all product variants exist and get their details
-    const variantIds = items.map(item => item.productVariantId)
+    // Separate WiFi tokens from regular products
+    const wifiTokenItems = items.filter(item => item.attributes?.wifiToken === true)
+    const regularItems = items.filter(item => item.attributes?.wifiToken !== true)
+
+    // Verify all product variants exist and get their details (for regular items only)
+    const variantIds = regularItems.map(item => item.productVariantId).filter(Boolean) as string[]
     const variants = await prisma.productVariants.findMany({
       where: {
         id: { in: variantIds },
@@ -347,9 +351,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check stock availability for physical products
+    // Check stock availability for physical products (regular items only)
     const stockIssues = []
-    for (const item of items) {
+    for (const item of regularItems) {
       const variant = variants.find(v => v.id === item.productVariantId)!
       if ((variant as any).businessProducts?.productType === 'PHYSICAL' && variant.stockQuantity < item.quantity) {
         stockIssues.push({
@@ -433,8 +437,8 @@ export async function POST(request: NextRequest) {
         )
       )
 
-      // Update stock for physical products
-      for (const item of items) {
+      // Update stock for physical products (regular items only)
+      for (const item of regularItems) {
         const variant = variants.find(v => v.id === item.productVariantId)!
         if ((variant as any).businessProducts?.productType === 'PHYSICAL') {
           await tx.product_variants.update({
@@ -466,9 +470,82 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Process WiFi token items
+      const generatedWifiTokens = []
+
+      if (wifiTokenItems.length > 0) {
+        // Fetch WiFi portal integration to get expense account ID
+        const integrationResponse = await fetch(`${request.nextUrl.origin}/api/wifi-portal/integration?businessId=${orderData.businessId}`)
+
+        if (integrationResponse.ok) {
+          const integrationData = await integrationResponse.json()
+          const expenseAccountId = integrationData.integration?.expenseAccountId
+
+          if (expenseAccountId) {
+            for (const item of wifiTokenItems) {
+              const itemPrice = item.unitPrice
+              const itemQuantity = item.quantity
+
+              // Generate WiFi token for each quantity
+              for (let i = 0; i < itemQuantity; i++) {
+                try {
+                  const tokenResponse = await fetch(`${request.nextUrl.origin}/api/wifi-portal/tokens`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Cookie': request.headers.get('cookie') || ''
+                    },
+                    body: JSON.stringify({
+                      businessId: orderData.businessId,
+                      tokenConfigId: item.attributes?.tokenConfigId,
+                      businessTokenMenuItemId: item.attributes?.businessTokenMenuItemId,
+                      recordSale: true,
+                      saleAmount: itemPrice,
+                      paymentMethod: orderData.paymentMethod || 'CASH',
+                      expenseAccountId: expenseAccountId,
+                    })
+                  })
+
+                  if (tokenResponse.ok) {
+                    const tokenData = await tokenResponse.json()
+                    generatedWifiTokens.push({
+                      itemName: item.attributes?.productName || 'WiFi Token',
+                      tokenCode: tokenData.token.token,
+                      packageName: item.attributes?.packageName || 'WiFi Access',
+                      duration: item.attributes?.duration || 0,
+                      success: true
+                    })
+                  } else {
+                    const errorData = await tokenResponse.json().catch(() => ({ error: 'Unknown error' }))
+                    console.error('Failed to generate WiFi token:', errorData)
+                    generatedWifiTokens.push({
+                      itemName: item.attributes?.productName || 'WiFi Token',
+                      success: false,
+                      error: errorData.error || 'Failed to generate token'
+                    })
+                  }
+                } catch (wifiError) {
+                  console.error('WiFi token generation error:', wifiError)
+                  generatedWifiTokens.push({
+                    itemName: item.attributes?.productName || 'WiFi Token',
+                    success: false,
+                    error: wifiError instanceof Error ? wifiError.message : 'Unknown error'
+                  })
+                }
+              }
+            }
+          } else {
+            console.error('No expense account configured for WiFi portal')
+          }
+        } else {
+          console.error('WiFi portal integration not found for business:', orderData.businessId)
+        }
+      }
+
       return {
         ...order,
-        items: createdItems
+        items: createdItems,
+        wifiTokens: generatedWifiTokens
       }
     })
 

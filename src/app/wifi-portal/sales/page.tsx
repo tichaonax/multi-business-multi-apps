@@ -316,12 +316,12 @@ export default function WiFiTokenSalesPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Token Packages */}
           <div className="lg:col-span-2">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Select WiFi Package</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Select WiFi Package</h2>
 
             {tokenConfigs.length === 0 ? (
-              <div className="bg-gray-50 border rounded-lg p-8 text-center">
-                <p className="text-gray-600">No active WiFi packages available.</p>
-                <p className="text-sm text-gray-500 mt-2">
+              <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-8 text-center">
+                <p className="text-gray-600 dark:text-gray-400">No active WiFi packages available.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                   Please configure token packages in Token Configurations.
                 </p>
               </div>
@@ -333,25 +333,25 @@ export default function WiFiTokenSalesPage() {
                     onClick={() => handleSelectPackage(config)}
                     className={`cursor-pointer border-2 rounded-lg p-5 transition-all ${
                       selectedConfig?.id === config.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 hover:shadow-md'
                     }`}
                   >
                     <div className="flex justify-between items-start mb-3">
-                      <h3 className="font-bold text-lg text-gray-900">{config.name}</h3>
+                      <h3 className="font-bold text-lg text-gray-900 dark:text-white">{config.name}</h3>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-blue-600">
                           {formatCurrency(config.basePrice)}
                         </div>
-                        <div className="text-xs text-gray-500">base price</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">base price</div>
                       </div>
                     </div>
 
                     {config.description && (
-                      <p className="text-sm text-gray-600 mb-3">{config.description}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">{config.description}</p>
                     )}
 
-                    <div className="space-y-1 text-sm text-gray-700">
+                    <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
                       <div className="flex items-center gap-2">
                         <span>⏱️</span>
                         <span>{formatDuration(config.durationMinutes)}</span>
@@ -367,8 +367,8 @@ export default function WiFiTokenSalesPage() {
                     </div>
 
                     {selectedConfig?.id === config.id && (
-                      <div className="mt-3 pt-3 border-t border-blue-300">
-                        <div className="flex items-center gap-2 text-blue-700 font-medium">
+                      <div className="mt-3 pt-3 border-t border-blue-300 dark:border-blue-600">
+                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-medium">
                           <span>✓</span>
                           <span>Selected</span>
                         </div>
@@ -382,22 +382,22 @@ export default function WiFiTokenSalesPage() {
 
           {/* Right: Payment Panel */}
           <div className="lg:col-span-1">
-            <div className="bg-white border rounded-lg p-6 sticky top-4">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Payment</h2>
+            <div className="bg-white dark:bg-gray-800 border rounded-lg p-6 sticky top-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Payment</h2>
 
               {selectedConfig ? (
                 <div className="space-y-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 mb-1">Selected Package</div>
-                    <div className="font-bold text-gray-900">{selectedConfig.name}</div>
-                    <div className="text-xs text-gray-500 mt-1">
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Selected Package</div>
+                    <div className="font-bold text-gray-900 dark:text-white">{selectedConfig.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       {formatDuration(selectedConfig.durationMinutes)}
                     </div>
                   </div>
 
                   {/* Sale Price */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Sale Price *
                     </label>
                     <input
@@ -406,17 +406,17 @@ export default function WiFiTokenSalesPage() {
                       onChange={(e) => setCustomPrice(e.target.value)}
                       min="0"
                       step="0.01"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       placeholder="Enter price"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Base price: {formatCurrency(selectedConfig.basePrice)}
                     </p>
                   </div>
 
                   {/* Payment Method */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Payment Method{parseFloat(customPrice) > 0 ? ' *' : ''}
                     </label>
                     <div className="space-y-2">
@@ -434,14 +434,14 @@ export default function WiFiTokenSalesPage() {
                             disabled={parseFloat(customPrice) <= 0}
                             className="h-4 w-4 text-blue-600"
                           />
-                          <span className="text-sm text-gray-700 capitalize">
+                          <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">
                             {method.toLowerCase()}
                           </span>
                         </label>
                       ))}
                     </div>
                     {parseFloat(customPrice) <= 0 && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Payment method not required for free tokens
                       </p>
                     )}
@@ -449,12 +449,12 @@ export default function WiFiTokenSalesPage() {
 
                   {/* Expense Account Info */}
                   {expenseAccount && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <div className="text-xs text-green-700 mb-1">Revenue Account</div>
-                      <div className="text-sm font-medium text-green-900">
+                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                      <div className="text-xs text-green-700 dark:text-green-300 mb-1">Revenue Account</div>
+                      <div className="text-sm font-medium text-green-900 dark:text-green-100">
                         {expenseAccount.accountName}
                       </div>
-                      <div className="text-xs text-green-700 mt-1">
+                      <div className="text-xs text-green-700 dark:text-green-300 mt-1">
                         Current Balance: {formatCurrency(expenseAccount.balance)}
                       </div>
                     </div>
@@ -470,7 +470,7 @@ export default function WiFiTokenSalesPage() {
                   </button>
                 </div>
               ) : (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                   <div className="text-4xl mb-2">📦</div>
                   <p>Select a package to continue</p>
                 </div>

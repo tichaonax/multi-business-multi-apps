@@ -244,14 +244,14 @@ export default function TokenConfigsPage() {
     >
       {/* Status Messages */}
       {errorMessage && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{errorMessage}</p>
+        <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-800 dark:text-red-200">{errorMessage}</p>
         </div>
       )}
 
       {successMessage && (
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-green-800">{successMessage}</p>
+        <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+          <p className="text-green-800 dark:text-green-200">{successMessage}</p>
         </div>
       )}
 
@@ -269,15 +269,15 @@ export default function TokenConfigsPage() {
 
       {/* Editor Form */}
       {showEditor && (
-        <form onSubmit={handleSubmit} className="mb-6 bg-white border rounded-lg p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               {editingConfig ? 'Edit Token Configuration' : 'Create Token Configuration'}
             </h3>
             <button
               type="button"
               onClick={() => setShowEditor(false)}
-              className="text-gray-500 hover:text-gray-700"
+              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               ✕ Cancel
             </button>
@@ -286,7 +286,7 @@ export default function TokenConfigsPage() {
           <div className="grid grid-cols-2 gap-4">
             {/* Name */}
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Package Name *
               </label>
               <input
@@ -294,14 +294,14 @@ export default function TokenConfigsPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g., 4 Hours WiFi Access"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 required
               />
             </div>
 
             {/* Description */}
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Description
               </label>
               <textarea
@@ -309,13 +309,13 @@ export default function TokenConfigsPage() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Brief description of the package"
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
 
             {/* Duration */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Duration (minutes) *
               </label>
               <input
@@ -324,15 +324,15 @@ export default function TokenConfigsPage() {
                 onChange={(e) => setFormData({ ...formData, durationMinutes: parseInt(e.target.value, 10) || 0 })}
                 min="1"
                 max="43200"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Max: 43,200 (30 days)</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Max: 43,200 (30 days)</p>
             </div>
 
             {/* Base Price */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Base Price (₱) *
               </label>
               <input
@@ -341,15 +341,15 @@ export default function TokenConfigsPage() {
                 onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
                 min="0"
                 step="0.01"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Default admin price</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Default admin price</p>
             </div>
 
             {/* Bandwidth Down */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Download (MB) *
               </label>
               <input
@@ -357,14 +357,14 @@ export default function TokenConfigsPage() {
                 value={formData.bandwidthDownMb || ''}
                 onChange={(e) => setFormData({ ...formData, bandwidthDownMb: parseInt(e.target.value, 10) || 0 })}
                 min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 required
               />
             </div>
 
             {/* Bandwidth Up */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Upload (MB) *
               </label>
               <input
@@ -372,14 +372,14 @@ export default function TokenConfigsPage() {
                 value={formData.bandwidthUpMb || ''}
                 onChange={(e) => setFormData({ ...formData, bandwidthUpMb: parseInt(e.target.value, 10) || 0 })}
                 min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 required
               />
             </div>
 
             {/* Display Order */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Display Order
               </label>
               <input
@@ -387,7 +387,7 @@ export default function TokenConfigsPage() {
                 value={formData.displayOrder}
                 onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value, 10) })}
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
 
@@ -400,13 +400,13 @@ export default function TokenConfigsPage() {
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
-              <label htmlFor="isActive" className="ml-2 text-sm text-gray-700">
+              <label htmlFor="isActive" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                 Active
               </label>
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4 border-t">
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
             <button
               type="submit"
               disabled={saving}
@@ -417,7 +417,7 @@ export default function TokenConfigsPage() {
             <button
               type="button"
               onClick={() => setShowEditor(false)}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
             >
               Cancel
             </button>
@@ -430,32 +430,32 @@ export default function TokenConfigsPage() {
         {tokenConfigs.map((config) => (
           <div
             key={config.id}
-            className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow"
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md dark:hover:shadow-lg transition-shadow"
           >
             <div className="flex justify-between items-start mb-2">
               <div>
-                <h3 className="font-semibold text-gray-900">{config.name}</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{config.name}</h3>
                 {!config.isActive && (
-                  <span className="text-xs text-gray-500">Inactive</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Inactive</span>
                 )}
               </div>
               <div className="text-right">
-                <div className="text-lg font-bold text-blue-600">₱{config.basePrice}</div>
-                <div className="text-xs text-gray-500">base price</div>
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">₱{config.basePrice}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">base price</div>
               </div>
             </div>
 
             {config.description && (
-              <p className="text-sm text-gray-600 mb-3">{config.description}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">{config.description}</p>
             )}
 
-            <div className="space-y-1 text-sm text-gray-700 mb-3">
+            <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300 mb-3">
               <div>⏱️ {formatDuration(config.durationMinutes)}</div>
               <div>📥 {config.bandwidthDownMb} MB down / 📤 {config.bandwidthUpMb} MB up</div>
             </div>
 
             {config.stats && (
-              <div className="text-xs text-gray-500 border-t pt-2 mb-3">
+              <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-600 pt-2 mb-3">
                 <div>Tokens created: {config.stats.tokensCreated}</div>
                 <div>Businesses using: {config.stats.businessesUsing}</div>
               </div>
@@ -464,14 +464,14 @@ export default function TokenConfigsPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => handleEdit(config)}
-                className="flex-1 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                className="flex-1 px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 Edit
               </button>
               <button
                 onClick={() => handleDelete(config)}
                 disabled={saving}
-                className="flex-1 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50"
               >
                 Delete
               </button>
@@ -481,11 +481,11 @@ export default function TokenConfigsPage() {
       </div>
 
       {tokenConfigs.length === 0 && !showEditor && (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
           <p>No token configurations yet.</p>
           <button
             onClick={handleCreate}
-            className="mt-4 text-blue-600 hover:text-blue-700"
+            className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
           >
             Create your first token package →
           </button>

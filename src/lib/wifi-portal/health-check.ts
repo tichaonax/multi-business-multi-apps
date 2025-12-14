@@ -3,6 +3,8 @@
  * Checks if the ESP32 portal integration is available and healthy
  */
 
+import { createPortalClient } from './api-client'
+
 export interface PortalHealthStatus {
   success: boolean
   status: 'healthy' | 'unhealthy' | 'unknown'
@@ -19,44 +21,43 @@ export interface PortalHealthStatus {
 /**
  * Check if the portal integration is healthy
  * @param portalBaseUrl - Base URL of the ESP32 portal (e.g., "http://192.168.0.100:8080")
+ * @param apiKey - API key for the ESP32 portal
  * @param timeout - Request timeout in milliseconds (default: 5000ms)
  * @returns Health status object
  */
 export async function checkPortalHealth(
   portalBaseUrl: string,
+  apiKey: string,
   timeout: number = 5000
 ): Promise<PortalHealthStatus> {
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
-
-    const response = await fetch(`${portalBaseUrl}/api/health`, {
-      method: 'GET',
-      signal: controller.signal,
+    // Use centralized API client for consistent logging and error handling
+    const portalClient = createPortalClient({
+      baseUrl: portalBaseUrl,
+      apiKey: apiKey,
+      timeout: timeout,
     })
 
-    clearTimeout(timeoutId)
+    const healthResponse = await portalClient.checkHealth()
 
-    if (!response.ok) {
+    if (!healthResponse.success) {
       return {
         success: false,
         status: 'unhealthy',
-        error: `HTTP ${response.status}: ${response.statusText}`,
+        error: healthResponse.error || 'Health check failed',
       }
     }
 
-    const data = await response.json()
-
     return {
-      success: data.success || false,
-      status: data.status === 'healthy' ? 'healthy' : 'unhealthy',
-      uptime_seconds: data.uptime_seconds,
-      time_synced: data.time_synced,
-      last_time_sync: data.last_time_sync,
-      current_time: data.current_time,
-      active_tokens: data.active_tokens,
-      max_tokens: data.max_tokens,
-      free_heap_bytes: data.free_heap_bytes,
+      success: true,
+      status: 'healthy',
+      uptime_seconds: healthResponse.uptime_seconds,
+      time_synced: healthResponse.time_synced,
+      last_time_sync: healthResponse.last_time_sync,
+      current_time: healthResponse.current_time,
+      active_tokens: healthResponse.active_tokens,
+      max_tokens: healthResponse.max_tokens,
+      free_heap_bytes: healthResponse.free_heap_bytes,
     }
   } catch (error: any) {
     // Network error, timeout, or portal unreachable

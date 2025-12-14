@@ -660,14 +660,6 @@ async function grantExpensePermissionsToAdmin() {
 async function seedExpenseAccounts() {
   console.log('💳 Seeding test expense accounts...')
 
-  // Check if expense accounts already exist
-  const existingAccounts = await prisma.expenseAccounts.count()
-
-  if (existingAccounts > 0) {
-    console.log(`✅ Expense accounts already seeded (${existingAccounts} accounts found)`)
-    return existingAccounts
-  }
-
   // Find admin user to create accounts
   const adminUser = await prisma.users.findUnique({
     where: { email: 'admin@business.local' }
@@ -678,7 +670,7 @@ async function seedExpenseAccounts() {
     return 0
   }
 
-  // Create test expense accounts
+  // Create test expense accounts - check each one individually
   const accounts = [
     {
       id: 'acc-general-expenses',
@@ -706,6 +698,15 @@ async function seedExpenseAccounts() {
       balance: 0.00,
       createdBy: adminUser.id,
       isActive: true
+    },
+    {
+      id: 'acc-wifi-tokens',
+      accountName: 'WiFi Token Sales',
+      accountNumber: 'WIFI-001',
+      description: 'Revenue account for WiFi token sales and portal services',
+      balance: 0.00,
+      createdBy: adminUser.id,
+      isActive: true
     }
   ]
 
@@ -713,6 +714,16 @@ async function seedExpenseAccounts() {
 
   for (const account of accounts) {
     try {
+      // Check if this specific account already exists
+      const existing = await prisma.expenseAccounts.findUnique({
+        where: { id: account.id }
+      })
+
+      if (existing) {
+        console.log(`⏭️  Skipping "${account.accountName}" - already exists`)
+        continue
+      }
+
       await prisma.expenseAccounts.create({
         data: account
       })

@@ -19,20 +19,24 @@ export async function GET(
 
     const { businessId, id } = params;
 
-    // Check if user has access to this business
-    const membership = await prisma.businessMemberships.findFirst({
-      where: {
-        userId: session.user.id,
-        businessId: businessId,
-        isActive: true,
-      },
-    });
+    // Check if user has access to this business (admins have access to all businesses)
+    const isAdmin = session.user.role === 'admin';
 
-    if (!membership) {
-      return NextResponse.json(
-        { error: 'You do not have access to this business' },
-        { status: 403 }
-      );
+    if (!isAdmin) {
+      const membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true,
+        },
+      });
+
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
     }
 
     const menuItem = await prisma.businessTokenMenuItems.findFirst({
@@ -102,29 +106,53 @@ export async function PUT(
     const body = await request.json();
     const { businessPrice, isActive, displayOrder } = body;
 
-    // Check if user has access to this business
-    const membership = await prisma.businessMemberships.findFirst({
-      where: {
-        userId: session.user.id,
-        businessId: businessId,
-        isActive: true,
-      },
-      include: {
-        businesses: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
+    // Check if user has access to this business (admins have access to all businesses)
+    const isAdmin = session.user.role === 'admin';
+
+    let membership = null;
+    if (!isAdmin) {
+      membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true,
+        },
+        include: {
+          businesses: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!membership) {
-      return NextResponse.json(
-        { error: 'You do not have access to this business' },
-        { status: 403 }
-      );
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
+    } else {
+      // For admins, get the business info directly
+      const business = await prisma.businesses.findUnique({
+        where: { id: businessId },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+        },
+      });
+
+      if (!business) {
+        return NextResponse.json(
+          { error: 'Business not found' },
+          { status: 404 }
+        );
+      }
+
+      membership = { businesses: business };
     }
 
     // Validate business type
@@ -221,29 +249,53 @@ export async function DELETE(
 
     const { businessId, id } = params;
 
-    // Check if user has access to this business
-    const membership = await prisma.businessMemberships.findFirst({
-      where: {
-        userId: session.user.id,
-        businessId: businessId,
-        isActive: true,
-      },
-      include: {
-        businesses: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
+    // Check if user has access to this business (admins have access to all businesses)
+    const isAdmin = session.user.role === 'admin';
+
+    let membership = null;
+    if (!isAdmin) {
+      membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true,
+        },
+        include: {
+          businesses: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!membership) {
-      return NextResponse.json(
-        { error: 'You do not have access to this business' },
-        { status: 403 }
-      );
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
+    } else {
+      // For admins, get the business info directly
+      const business = await prisma.businesses.findUnique({
+        where: { id: businessId },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+        },
+      });
+
+      if (!business) {
+        return NextResponse.json(
+          { error: 'Business not found' },
+          { status: 404 }
+        );
+      }
+
+      membership = { businesses: business };
     }
 
     // Validate business type

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission } from '@/lib/permission-utils'
+import { checkPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { WifiTokenMenuManager } from '@/components/business/wifi-token-menu-manager'
@@ -17,24 +17,28 @@ export default function RestaurantWifiTokensPage() {
   const [hasIntegration, setHasIntegration] = useState(false)
   const [integrationError, setIntegrationError] = useState<string | null>(null)
 
-  const canManage = session?.user ? hasPermission(session.user, 'canConfigureWifiTokens') : false
+  const [canManage, setCanManage] = useState(false)
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return
 
+    // Check permission
+    const hasPermission = session?.user ? checkPermission(session.user, 'canConfigureWifiTokens', currentBusinessId) : false
+    setCanManage(hasPermission)
+
     // Check business type
-    if (currentBusiness?.type !== 'restaurant') {
+    if (currentBusiness?.businessType !== 'restaurant') {
       router.push('/dashboard')
       return
     }
 
-    if (!canManage) {
+    if (!hasPermission) {
       router.push('/dashboard')
       return
     }
 
     checkIntegration()
-  }, [currentBusinessId, businessLoading])
+  }, [currentBusinessId, businessLoading, session?.user, currentBusiness])
 
   const checkIntegration = async () => {
     if (!currentBusinessId) return

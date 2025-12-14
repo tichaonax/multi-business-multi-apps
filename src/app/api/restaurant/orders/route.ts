@@ -336,6 +336,27 @@ export async function POST(req: NextRequest) {
       paymentStatus = 'PAID'
     }
 
+    // Fetch AP info for WiFi tokens (if any will be sold)
+    let apInfo = null
+    const hasWifiTokens = items.some(item => item.wifiToken === true)
+    if (hasWifiTokens) {
+      try {
+        const apResponse = await fetch(`${req.nextUrl.origin}/api/ap/info?businessId=${businessId}`, {
+          headers: {
+            'Cookie': req.headers.get('cookie') || ''
+          }
+        })
+        if (apResponse.ok) {
+          const apData = await apResponse.json()
+          if (apData.success) {
+            apInfo = apData.apInfo
+          }
+        }
+      } catch (error) {
+        console.warn('Could not fetch AP info for receipt:', error)
+      }
+    }
+
     // Create the order first using business_orders table
     const newOrder = await prisma.businessOrders.create({
       data: {
@@ -364,11 +385,133 @@ export async function POST(req: NextRequest) {
 
     // Process each order item and update inventory
     const inventoryUpdates = []
+    const generatedWifiTokens = []
+
+    // Get WiFi portal integration for expense account (needed for WiFi token sales)
+    let wifiExpenseAccountId: string | null = null
+    const portalIntegration = await prisma.portalIntegrations.findUnique({
+      where: { businessId: businessId },
+      select: { expenseAccountId: true },
+    })
+    if (portalIntegration) {
+      wifiExpenseAccountId = portalIntegration.expenseAccountId
+    }
 
     for (const item of items) {
       const itemPrice = Number(item.price);
       const itemQuantity = Number(item.quantity);
       const itemTotal = itemPrice * itemQuantity;
+
+      // Check if this is a WiFi token item
+      if (item.wifiToken === true) {
+        try {
+          // Ensure we have expense account for WiFi token sales
+          if (!wifiExpenseAccountId) {
+            console.error('WiFi portal integration not configured - missing expense account');
+            generatedWifiTokens.push({
+              itemName: item.name,
+              success: false,
+              error: 'WiFi portal integration not configured'
+            });
+            continue;
+          }
+
+          // Find available tokens for this token config and mark them as sold
+          const availableTokens = await prisma.wifiTokens.findMany({
+            where: {
+              businessId: businessId,
+              tokenConfigId: item.tokenConfigId,
+              status: 'UNUSED', // Changed from ACTIVE to UNUSED
+              businessTokenMenuItemId: item.businessTokenMenuItemId,
+            },
+            include: {
+              token_configurations: {
+                select: {
+                  name: true,
+                  durationMinutes: true,
+                  bandwidthDownMb: true,
+                  bandwidthUpMb: true,
+                },
+              },
+            },
+            take: itemQuantity,
+            orderBy: { createdAt: 'asc' }, // FIFO: sell oldest tokens first
+          });
+
+          if (availableTokens.length < itemQuantity) {
+            console.error(`Not enough tokens available. Requested: ${itemQuantity}, Available: ${availableTokens.length}`);
+            generatedWifiTokens.push({
+              itemName: item.name,
+              success: false,
+              error: `Not enough tokens available. Requested: ${itemQuantity}, Available: ${availableTokens.length}`
+            });
+            continue;
+          }
+
+          // Create sales records for each token (no status change - tokens remain UNUSED until redeemed)
+          for (const token of availableTokens) {
+            await prisma.wifiTokenSales.create({
+              data: {
+                wifiTokenId: token.id,
+                businessId: businessId,
+                expenseAccountId: wifiExpenseAccountId,
+                soldBy: session.user.id,
+                saleAmount: itemPrice,
+                paymentMethod: paymentMethod,
+                saleChannel: 'POS', // POS sales go through business POS
+                soldAt: new Date(),
+                receiptPrinted: false,
+              },
+            });
+          }
+
+          // Add sold tokens to response
+          for (const token of availableTokens) {
+            generatedWifiTokens.push({
+              itemName: item.name,
+              tokenCode: token.token,
+              packageName: token.token_configurations?.name || item.name,
+              duration: token.token_configurations?.durationMinutes || 0,
+              bandwidthDownMb: token.token_configurations?.bandwidthDownMb || 0,
+              bandwidthUpMb: token.token_configurations?.bandwidthUpMb || 0,
+              ssid: apInfo?.ssid,
+              portalUrl: apInfo?.portalUrl,
+              instructions: apInfo ? `Connect to WiFi network "${apInfo.ssid}" and visit ${apInfo.portalUrl} to redeem your token.` : undefined,
+              success: true
+            });
+          }
+
+          // Create order item for WiFi token (no variant needed)
+          await prisma.businessOrderItems.create({
+            data: {
+              orderId: newOrder.id,
+              productVariantId: null, // WiFi tokens don't have variants
+              quantity: itemQuantity,
+              unitPrice: itemPrice,
+              discountAmount: 0,
+              totalPrice: itemTotal,
+              attributes: {
+                productName: item.name,
+                category: item.category || 'wifi-access',
+                wifiToken: true,
+                tokenConfigId: item.tokenConfigId,
+                businessTokenMenuItemId: item.businessTokenMenuItemId
+              }
+            }
+          })
+
+          // Skip inventory processing for WiFi tokens
+          continue
+        } catch (wifiError) {
+          console.error('WiFi token processing error:', wifiError)
+          generatedWifiTokens.push({
+            itemName: item.name,
+            success: false,
+            error: wifiError instanceof Error ? wifiError.message : 'Unknown error'
+          })
+          continue
+        }
+      }
 
       // Find the product variant for this item
       // First check if it's a product ID and get its default variant
@@ -495,9 +638,10 @@ export async function POST(req: NextRequest) {
     const responsePayload = {
       ...newOrder,
       inventoryUpdates,
-      message: inventoryUpdates.some(u => !u.success)
-        ? 'Order created with some inventory update warnings'
-        : 'Order created and inventory updated successfully'
+      wifiTokens: generatedWifiTokens,
+      message: inventoryUpdates.some(u => !u.success) || generatedWifiTokens.some(t => !t.success)
+        ? 'Order created with some warnings'
+        : 'Order created successfully'
     }
 
     // Store idempotency result for future deduplication (ephemeral)

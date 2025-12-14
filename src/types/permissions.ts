@@ -212,6 +212,13 @@ export interface CoreBusinessPermissions {
   canCreateLocations: boolean;
   canEditLocations: boolean;
   canDeleteLocations: boolean;
+
+  // WiFi Portal Integration (Restaurant & Grocery businesses only)
+  canSetupPortalIntegration: boolean;      // Setup and configure ESP32 portal integration
+  canConfigureWifiTokens: boolean;         // Create and manage global token configurations
+  canSellWifiTokens: boolean;              // Sell tokens directly from WiFi portal module
+  canViewWifiReports: boolean;             // View WiFi sales and usage reports
+  canManageBusinessWifiMenu: boolean;      // Manage business-specific WiFi token menu with custom pricing
 }
 
 // Business-Type-Specific Permission Modules
@@ -998,6 +1005,13 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canCreateLocations: true,
   canEditLocations: true,
   canDeleteLocations: true,
+
+  // WiFi Portal Integration - Full access
+  canSetupPortalIntegration: true,
+  canConfigureWifiTokens: true,
+  canSellWifiTokens: true,
+  canViewWifiReports: true,
+  canManageBusinessWifiMenu: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1117,6 +1131,13 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canCreateLocations: true,
   canEditLocations: true,
   canDeleteLocations: false,
+
+  // WiFi Portal Integration - Manager access
+  canSetupPortalIntegration: true,
+  canConfigureWifiTokens: true,
+  canSellWifiTokens: true,
+  canViewWifiReports: true,
+  canManageBusinessWifiMenu: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -1236,6 +1257,13 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canCreateLocations: false,
   canEditLocations: false,
   canDeleteLocations: false,
+
+  // WiFi Portal Integration - Limited access (sales only)
+  canSetupPortalIntegration: false,
+  canConfigureWifiTokens: false,
+  canSellWifiTokens: true,
+  canViewWifiReports: false,
+  canManageBusinessWifiMenu: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -1353,6 +1381,13 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canCreateLocations: false,
   canEditLocations: false,
   canDeleteLocations: false,
+
+  // WiFi Portal Integration - No access
+  canSetupPortalIntegration: false,
+  canConfigureWifiTokens: false,
+  canSellWifiTokens: false,
+  canViewWifiReports: false,
+  canManageBusinessWifiMenu: false,
 };
 
 // System admin permissions (cross-business)
@@ -1470,6 +1505,13 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canCreateLocations: true,
   canEditLocations: true,
   canDeleteLocations: true,
+
+  // WiFi Portal Integration - Full access
+  canSetupPortalIntegration: true,
+  canConfigureWifiTokens: true,
+  canSellWifiTokens: true,
+  canViewWifiReports: true,
+  canManageBusinessWifiMenu: true,
 };
 
 // User-Level Permission Presets

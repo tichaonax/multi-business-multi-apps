@@ -103,23 +103,29 @@ export async function POST(
       console.log('==========================================')
 
       if (!tokenInfo.success) {
-        // Check if token was not found on ESP32 (expired and removed)
+        // Check if token was not found on ESP32 (never synced or removed)
         if (tokenInfo.error?.toLowerCase().includes('token not found') ||
             tokenInfo.error?.toLowerCase().includes('not found')) {
-          // Mark token as expired in our database
+          // Differentiate based on current status:
+          // - ACTIVE tokens that go missing were in use, so mark as EXPIRED
+          // - UNUSED tokens that go missing may never have been synced, so mark as DISABLED
+          const newStatus = token.status === 'ACTIVE' ? 'EXPIRED' : 'DISABLED'
+
           await prisma.wifiTokens.update({
             where: { id: id },
             data: {
-              status: 'EXPIRED',
+              status: newStatus,
               lastSyncedAt: new Date(),
             },
           });
 
-          // Return error to UI but with context that token was marked as expired
+          // Return error to UI but with context that token was marked accordingly
           return NextResponse.json({
-            error: 'Token not found on ESP32 Portal - marked as EXPIRED',
-            tokenStatus: 'EXPIRED',
-            message: 'This token has been removed from the ESP32 Portal and marked as expired in the database.',
+            error: `Token not found on ESP32 Portal - marked as ${newStatus}`,
+            tokenStatus: newStatus,
+            message: newStatus === 'EXPIRED'
+              ? 'This token was in use but has been removed from the ESP32 Portal and marked as expired.'
+              : 'This token does not exist on the ESP32 Portal and has been marked as disabled.',
           }, { status: 404 });
         }
 
@@ -135,20 +141,26 @@ export async function POST(
           errorMessage.includes('404') ||
           errorMessage.includes('invalid json response') ||
           (error instanceof PortalAPIError && error.statusCode === 404)) {
-        // Mark token as expired in our database (align with batch sync behavior)
+        // Differentiate based on current status:
+        // - ACTIVE tokens that go missing were in use, so mark as EXPIRED
+        // - UNUSED tokens that go missing may never have been synced, so mark as DISABLED
+        const newStatus = token.status === 'ACTIVE' ? 'EXPIRED' : 'DISABLED'
+
         await prisma.wifiTokens.update({
           where: { id: id },
           data: {
-            status: 'EXPIRED',
+            status: newStatus,
             lastSyncedAt: new Date(),
           },
         });
 
-        // Return error to UI but with context that token was marked as expired
+        // Return error to UI but with context that token was marked accordingly
         return NextResponse.json({
-          error: 'Token not found on ESP32 Portal - marked as EXPIRED',
-          tokenStatus: 'EXPIRED',
-          message: 'This token has been removed from the ESP32 Portal and marked as expired in the database.',
+          error: `Token not found on ESP32 Portal - marked as ${newStatus}`,
+          tokenStatus: newStatus,
+          message: newStatus === 'EXPIRED'
+            ? 'This token was in use but has been removed from the ESP32 Portal and marked as expired.'
+            : 'This token does not exist on the ESP32 Portal and has been marked as disabled.',
         }, { status: 404 });
       }
 
@@ -237,9 +249,21 @@ export async function POST(
         'expired': 'EXPIRED',
         'unused': 'UNUSED',
       };
-      updateData.status = statusMap[tokenInfo.status] || 'ACTIVE';
+
+      const newStatus = statusMap[tokenInfo.status] || 'ACTIVE';
+
+      // CRITICAL RULE: UNUSED tokens can NEVER become EXPIRED
+      // Expiration ONLY applies to tokens that have been redeemed (ACTIVE → EXPIRED)
+      // If ESP32 says "expired" but token was never used, mark as DISABLED instead
+      if (newStatus === 'EXPIRED' && !token.firstUsedAt && !tokenInfo.firstUsedAt) {
+        // Token expired before ever being used - mark as DISABLED
+        updateData.status = 'DISABLED';
+      } else {
+        updateData.status = newStatus;
+      }
     } else {
       // Determine status from expiration if portal doesn't provide status
+      // Only ACTIVE tokens can expire (tokens that have been redeemed)
       const now = new Date();
       const expiresAt = new Date(token.expiresAt);
       if (now > expiresAt && token.status === 'ACTIVE') {

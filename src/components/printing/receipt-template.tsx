@@ -112,6 +112,37 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
         )}
       </div>
 
+      {/* WiFi Tokens Section */}
+      {data.wifiTokens && data.wifiTokens.length > 0 && (
+        <div className="border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2.5 mt-4 mb-4">
+          <div className="text-center font-bold text-xs mb-2">📶 WiFi ACCESS TOKENS</div>
+          {data.wifiTokens.map((token, index) => (
+            <div key={index} className="mb-3 p-2 border border-gray-300 dark:border-gray-600 rounded">
+              {token.success ? (
+                <>
+                  <div className="text-[11px] font-bold mb-1">{token.packageName}</div>
+                  <div className="text-center my-2">
+                    <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded font-mono text-base font-bold">
+                      {token.tokenCode}
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-center">
+                    <div>Duration: {Math.floor(token.duration / 60)}h {token.duration % 60}m</div>
+                    <div className="mt-1 text-gray-600 dark:text-gray-400">
+                      Connect to WiFi and enter this code
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-[10px] text-red-600 dark:text-red-400 text-center">
+                  ❌ Token generation failed: {token.error || 'Unknown error'}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {showFooter && (
         <div className="text-center text-[10px] border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2.5 mt-4">
           <div className="mb-1">Thank you for your business!</div>

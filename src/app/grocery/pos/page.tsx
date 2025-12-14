@@ -117,7 +117,12 @@ function GroceryPOSContent() {
 
       setProductsLoading(true)
       try {
-        const response = await fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true`)
+        // Fetch both products and WiFi tokens
+        const [response, wifiTokensResponse] = await Promise.all([
+          fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true`),
+          fetch(`/api/business/${currentBusinessId}/wifi-tokens`)
+        ])
+
         if (response.ok) {
           const result = await response.json()
           if (result.success) {
@@ -164,6 +169,33 @@ function GroceryPOSContent() {
                 })
               }
             })
+
+            // Add WiFi tokens if available
+            if (wifiTokensResponse.ok) {
+              const wifiData = await wifiTokensResponse.json()
+              if (wifiData.success && wifiData.menuItems) {
+                const wifiTokenItems = wifiData.menuItems
+                  .filter((item: any) => item.isActive)
+                  .map((item: any) => ({
+                    id: `wifi-token-${item.id}`,
+                    name: `📶 ${item.tokenConfig.name}`,
+                    barcode: `WIFI-${item.id}`,
+                    pluCode: `WIFI-${item.id}`,
+                    category: 'WiFi Access',
+                    unitType: 'each' as const,
+                    price: item.businessPrice,
+                    unit: 'each',
+                    taxable: false,
+                    weightRequired: false,
+                    wifiToken: true, // Flag to identify WiFi tokens
+                    businessTokenMenuItemId: item.id,
+                    tokenConfigId: item.tokenConfigId,
+                    tokenConfig: item.tokenConfig,
+                  }))
+                posItems.push(...wifiTokenItems)
+              }
+            }
+
             setProducts(posItems)
           }
         }
@@ -230,7 +262,23 @@ function GroceryPOSContent() {
     return products.find(p => p.pluCode === plu)
   }
 
-  const addToCart = (product: POSItem, quantity = 1, weight?: number) => {
+  const addToCart = async (product: POSItem, quantity = 1, weight?: number) => {
+    // Check portal health before adding WiFi tokens
+    if ((product as any).wifiToken) {
+      try {
+        const healthResponse = await fetch(`/api/wifi-portal/integration/health?businessId=${currentBusinessId}`)
+        const healthData = await healthResponse.json()
+
+        if (!healthData.success || healthData.health?.status !== 'healthy') {
+          void customAlert({ title: 'WiFi Portal Unavailable', description: 'WiFi Portal is currently unavailable. Cannot add WiFi tokens to cart.' })
+          return
+        }
+      } catch (error) {
+        void customAlert({ title: 'Connection Error', description: 'Failed to verify WiFi Portal status. Please try again.' })
+        return
+      }
+    }
+
     const existingItem = cart.find(item => item.id === product.id)
     const actualQuantity = product.weightRequired ? (weight || currentWeight) : quantity
     const subtotal = product.price * actualQuantity
@@ -427,7 +475,7 @@ function GroceryPOSContent() {
         },
         notes: selectedCustomer ? `Customer: ${selectedCustomer.name}` : customer ? `Loyalty member: ${customer.loyaltyNumber}` : 'Walk-in customer',
         items: cart.map(item => ({
-          productVariantId: item.id, // Using item ID as variant ID for now
+          productVariantId: item.wifiToken ? null : item.id, // WiFi tokens don't have variants
           quantity: item.quantity,
           unitPrice: item.price,
           discountAmount: item.discountAmount || 0,
@@ -438,7 +486,14 @@ function GroceryPOSContent() {
             barcode: item.barcode,
             pluCode: item.pluCode,
             organicCertified: item.organicCertified,
-            snapEligible: item.snapEligible
+            snapEligible: item.snapEligible,
+            // WiFi token specific attributes
+            wifiToken: item.wifiToken || false,
+            tokenConfigId: item.tokenConfigId,
+            businessTokenMenuItemId: item.businessTokenMenuItemId,
+            productName: item.name,
+            packageName: item.tokenConfig?.name,
+            duration: item.tokenConfig?.durationMinutes
           }
         }))
       }
@@ -507,7 +562,8 @@ function GroceryPOSContent() {
             }
           ),
           businessId: currentBusinessId || '',
-          businessType: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery'
+          businessType: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery',
+          wifiTokens: result.data.wifiTokens || [] // Include WiFi tokens from API response
         }
 
         // Show receipt preview modal (or auto-print if enabled)

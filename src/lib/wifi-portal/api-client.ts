@@ -479,7 +479,34 @@ export class WifiPortalAPIClient {
     }
 
     const url = `/api/tokens/list?${queryParams.toString()}`;
-    return this.request<TokenListResponse>('GET', url);
+    const response = await this.request<any>('GET', url);
+
+    // Map the API response to match TokenListResponse interface
+    if (response.success && response.tokens) {
+      const mappedTokens = response.tokens.map((apiToken: any) => ({
+        token: apiToken.token,
+        status: apiToken.status,
+        durationMinutes: apiToken.duration_minutes || 0,
+        firstUse: apiToken.first_use || 0,
+        expiresAt: apiToken.expires_at || 0,
+        remainingSeconds: apiToken.remaining_seconds || 0,
+        bandwidthDownMb: apiToken.bandwidth_down_mb || 0,
+        bandwidthUpMb: apiToken.bandwidth_up_mb || 0,
+        bandwidthUsedDown: apiToken.bandwidth_used_down || 0,
+        bandwidthUsedUp: apiToken.bandwidth_used_up || 0,
+        usageCount: apiToken.usage_count || 0,
+        deviceCount: apiToken.device_count || 0,
+        clientMacs: apiToken.client_macs || [],
+      }));
+
+      return {
+        success: true,
+        count: response.count || mappedTokens.length,
+        tokens: mappedTokens,
+      };
+    }
+
+    return response;
   }
 
   /**
@@ -692,19 +719,43 @@ export class WifiPortalAPIClient {
         const response = await fetch(url, options);
         clearTimeout(timeoutId);
 
-        // Parse response
-        const contentType = response.headers.get('content-type');
+        // Log raw response for debugging ESP32 issues
+        const responseText = await response.text();
+        const responseClone = new Response(responseText);
+
+        console.log(`ESP32 API Response [${response.status}] for ${method} ${url}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          body: responseText.substring(0, 1000) // Log first 1000 chars
+        });
+
+        // Parse response using cloned response
+        const contentType = responseClone.headers.get('content-type');
         let data: any;
 
         if (contentType?.includes('application/json')) {
-          data = await response.json();
+          try {
+            data = await responseClone.json();
+          } catch (jsonError) {
+            // JSON parsing failed, fall back to text parsing
+            console.error('ESP32 JSON parsing failed:', {
+              error: jsonError.message,
+              responseText: responseText.substring(0, 500),
+              position: jsonError.message.match(/position (\d+)/)?.[1]
+            });
+            throw new PortalAPIError(
+              `Invalid JSON response from ESP32 portal: ${jsonError.message}`,
+              'INVALID_JSON_RESPONSE',
+              { responseText: responseText.substring(0, 500) } // Include first 500 chars for debugging
+            );
+          }
         } else {
-          const text = await response.text();
           // Try to parse as JSON anyway
           try {
-            data = JSON.parse(text);
+            data = JSON.parse(responseText);
           } catch {
-            data = { success: response.ok, message: text };
+            data = { success: responseClone.ok, message: responseText };
           }
         }
 

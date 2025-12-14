@@ -275,6 +275,7 @@ export async function POST(request: NextRequest) {
             expenseAccountId: expenseAccountId,
             saleAmount: saleAmount,
             paymentMethod: paymentMethod || 'FREE',
+            saleChannel: 'DIRECT', // Token Management UI sales
             soldBy: session.user.id,
             receiptPrinted: false,
           },

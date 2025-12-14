@@ -4,7 +4,7 @@ import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { canAccessModule, hasPermission, hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { canAccessModule, hasPermission, checkPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useNavigation } from '@/contexts/navigation-context'
 import { BusinessRevenueBreakdownModal } from '@/components/dashboard/business-revenue-breakdown-modal'
@@ -348,7 +348,7 @@ export function Sidebar() {
         </Link>
 
         {/* Business Revenue Breakdown - Only for users with financial data access */}
-        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canAccessFinancialData')) && (
+        {checkPermission(currentUser, 'canAccessFinancialData') && (
           <button
             onClick={() => setShowRevenueModal(true)}
             className="sidebar-link flex items-center space-x-3 w-full text-left"
@@ -448,6 +448,18 @@ export function Sidebar() {
                   <span className="text-lg">📋</span>
                   <span>Menu Management</span>
                 </Link>
+                {checkPermission(currentUser, 'canConfigureWifiTokens') && (
+                  <Link href="/restaurant/wifi-tokens" className={getLinkClasses('/restaurant/wifi-tokens')}>
+                    <span className="text-lg">📶</span>
+                    <span>WiFi Menu Config</span>
+                  </Link>
+                )}
+                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                  <Link href="/wifi-portal/tokens" className={getLinkClasses('/wifi-portal/tokens')}>
+                    <span className="text-lg">📡</span>
+                    <span>WiFi Tokens</span>
+                  </Link>
+                )}
               </>
             )}
 
@@ -466,6 +478,18 @@ export function Sidebar() {
                   <span className="text-lg">📦</span>
                   <span>Products</span>
                 </Link>
+                {checkPermission(currentUser, 'canConfigureWifiTokens') && (
+                  <Link href="/restaurant/wifi-tokens" className={getLinkClasses('/restaurant/wifi-tokens')}>
+                    <span className="text-lg">📶</span>
+                    <span>WiFi Menu Config</span>
+                  </Link>
+                )}
+                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                  <Link href="/wifi-portal/tokens" className={getLinkClasses('/wifi-portal/tokens')}>
+                    <span className="text-lg">📡</span>
+                    <span>WiFi Tokens</span>
+                  </Link>
+                )}
               </>
             )}
 
@@ -549,7 +573,7 @@ export function Sidebar() {
         )}
 
         {/* Business and Personal Finances - User-level permissions (business-agnostic) */}
-  {(hasUserPermission(currentUser, 'canAccessPersonalFinance') || isSystemAdmin(currentUser)) && (
+  {checkPermission(currentUser, 'canAccessPersonalFinance') && (
           <div className="pt-2">
             <button
               onClick={() => navigateTo('/personal')}
@@ -562,7 +586,7 @@ export function Sidebar() {
         )}
 
         {/* Fleet Management - User-level permissions (business-agnostic) */}
-  {(hasUserPermission(currentUser, 'canAccessVehicles') || hasUserPermission(currentUser, 'canLogDriverTrips') || hasUserPermission(currentUser, 'canLogDriverMaintenance') || isSystemAdmin(currentUser)) && (
+  {(checkPermission(currentUser, 'canAccessVehicles') || checkPermission(currentUser, 'canLogDriverTrips') || checkPermission(currentUser, 'canLogDriverMaintenance')) && (
           <div className="pt-1">
             <button
               onClick={() => {
@@ -584,7 +608,7 @@ export function Sidebar() {
         )}
 
         {/* Contractor Management - User-level permissions (business-agnostic) */}
-  {(hasUserPermission(currentUser, 'canManagePersonalContractors') || isSystemAdmin(currentUser)) && (
+  {checkPermission(currentUser, 'canManagePersonalContractors') && (
           <div className="pt-1">
             <button
               onClick={() => navigateTo('/contractors')}
@@ -599,7 +623,7 @@ export function Sidebar() {
         {/* Individual Access Items - Only for actual managers and system admins, NOT promoted drivers */}
 
         {/* Employees - Only for users with management permissions, not just viewing */}
-        {(hasPermission(currentUser, 'canManageEmployees') || hasPermission(currentUser, 'canEditEmployees') || hasPermission(currentUser, 'canManageBusinessUsers') || isSystemAdmin(currentUser)) && (
+        {(checkPermission(currentUser, 'canManageEmployees') || checkPermission(currentUser, 'canEditEmployees') || checkPermission(currentUser, 'canManageBusinessUsers')) && (
           <Link
             href="/employees"
             className="sidebar-link flex items-center space-x-3"
@@ -610,7 +634,7 @@ export function Sidebar() {
         )}
 
         {/* Payroll - Only for users with payroll permissions */}
-        {(hasPermission(currentUser, 'canAccessPayroll') || isSystemAdmin(currentUser)) && (
+        {checkPermission(currentUser, 'canAccessPayroll') && (
           <Link
             href="/payroll"
             className={getLinkClasses('/payroll')}
@@ -621,7 +645,7 @@ export function Sidebar() {
         )}
 
         {/* Payroll Account - Only for users with payroll account permissions */}
-        {(hasUserPermission(currentUser, 'canAccessPayrollAccount') || isSystemAdmin(currentUser)) && (
+        {checkPermission(currentUser, 'canAccessPayrollAccount') && (
           <>
             <Link
               href="/payroll/account"
@@ -634,7 +658,7 @@ export function Sidebar() {
             {/* Payroll Account Sub-menu - Show when on payroll account pages */}
             {pathname.startsWith('/payroll/account') && (
               <div className="ml-8 space-y-1 mt-1">
-                {(hasUserPermission(currentUser, 'canMakePayrollDeposits') || isSystemAdmin(currentUser)) && (
+                {checkPermission(currentUser, 'canMakePayrollDeposits') && (
                   <Link
                     href="/payroll/account/deposits"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -644,7 +668,7 @@ export function Sidebar() {
                   </Link>
                 )}
 
-                {(hasUserPermission(currentUser, 'canMakePayrollPayments') || isSystemAdmin(currentUser)) && (
+                {checkPermission(currentUser, 'canMakePayrollPayments') && (
                   <>
                     <Link
                       href="/payroll/account/payments"
@@ -664,7 +688,7 @@ export function Sidebar() {
                   </>
                 )}
 
-                {(hasUserPermission(currentUser, 'canViewPayrollHistory') || isSystemAdmin(currentUser)) && (
+                {checkPermission(currentUser, 'canViewPayrollHistory') && (
                   <Link
                     href="/payroll/account/payments/history"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -679,7 +703,7 @@ export function Sidebar() {
         )}
 
         {/* Expense Accounts - Only for users with expense account permissions */}
-        {(hasUserPermission(currentUser, 'canAccessExpenseAccount') || isSystemAdmin(currentUser)) && (
+        {checkPermission(currentUser, 'canAccessExpenseAccount') && (
           <>
             <Link
               href="/expense-accounts"
@@ -692,7 +716,7 @@ export function Sidebar() {
             {/* Expense Accounts Sub-menu - Show when on expense account pages */}
             {pathname.startsWith('/expense-accounts') && (
               <div className="ml-8 space-y-1 mt-1">
-                {(hasUserPermission(currentUser, 'canCreateExpenseAccount') || isSystemAdmin(currentUser)) && (
+                {checkPermission(currentUser, 'canCreateExpenseAccount') && (
                   <Link
                     href="/expense-accounts/new"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -702,7 +726,7 @@ export function Sidebar() {
                   </Link>
                 )}
 
-                {(hasUserPermission(currentUser, 'canViewExpenseReports') || isSystemAdmin(currentUser)) && (
+                {checkPermission(currentUser, 'canViewExpenseReports') && (
                   <Link
                     href="/expense-accounts/reports"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -717,7 +741,7 @@ export function Sidebar() {
         )}
 
         {/* Payee Management - Only for users with payee permissions */}
-        {(hasUserPermission(currentUser, 'canViewPayees') || isSystemAdmin(currentUser)) && (
+        {checkPermission(currentUser, 'canViewPayees') && (
           <Link
             href="/payees"
             className={getLinkClasses('/payees')}
@@ -727,8 +751,20 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* WiFi Portal - For restaurant/grocery businesses (always visible to admins) */}
+        {(currentBusiness?.businessType === 'restaurant' || currentBusiness?.businessType === 'grocery') &&
+         (isSystemAdmin(currentUser) || (currentBusiness?.wifiIntegrationEnabled && checkPermission(currentUser, 'canSetupPortalIntegration'))) && (
+          <Link
+            href="/wifi-portal"
+            className={getLinkClasses('/wifi-portal')}
+          >
+            <span className="text-lg">📡</span>
+            <span>WiFi Portal</span>
+          </Link>
+        )}
+
         {/* Reports - Only for managers and admins, not drivers */}
-        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canAccessFinancialData')) && (
+        {(checkPermission(currentUser, 'canManageBusinessUsers') || checkPermission(currentUser, 'canAccessFinancialData')) && (
           <Link
             href="/reports"
             className="sidebar-link flex items-center space-x-3"
@@ -739,7 +775,7 @@ export function Sidebar() {
         )}
 
         {/* HR Reports - Only for users with actual employee management permissions */}
-        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageEmployees') || hasPermission(currentUser, 'canEditEmployees')) && (
+        {(checkPermission(currentUser, 'canManageEmployees') || checkPermission(currentUser, 'canEditEmployees')) && (
           <Link
             href="/admin/reports"
             className="sidebar-link flex items-center space-x-3"
@@ -754,10 +790,9 @@ export function Sidebar() {
         </div>
 
         {/* Business Categories - Cross-business functionality */}
-        {(isSystemAdmin(currentUser) ||
-          hasUserPermission(currentUser, 'canCreateBusinessCategories') ||
-          hasUserPermission(currentUser, 'canEditBusinessCategories') ||
-          hasUserPermission(currentUser, 'canDeleteBusinessCategories')) && (
+        {(checkPermission(currentUser, 'canCreateBusinessCategories') ||
+          checkPermission(currentUser, 'canEditBusinessCategories') ||
+          checkPermission(currentUser, 'canDeleteBusinessCategories')) && (
           <Link
             href="/business/categories"
             className={getLinkClasses('/business/categories')}
@@ -768,10 +803,9 @@ export function Sidebar() {
         )}
 
         {/* Inventory Categories - Business-specific inventory category management */}
-        {(isSystemAdmin(currentUser) ||
-          hasUserPermission(currentUser, 'canCreateInventoryCategories') ||
-          hasUserPermission(currentUser, 'canEditInventoryCategories') ||
-          hasUserPermission(currentUser, 'canDeleteInventoryCategories')) && (
+        {(checkPermission(currentUser, 'canCreateInventoryCategories') ||
+          checkPermission(currentUser, 'canEditInventoryCategories') ||
+          checkPermission(currentUser, 'canDeleteInventoryCategories')) && (
           <Link
             href="/business/inventory-categories"
             className={getLinkClasses('/business/inventory-categories')}
@@ -782,10 +816,9 @@ export function Sidebar() {
         )}
 
         {/* Supplier Management - Business-specific supplier management */}
-        {(isSystemAdmin(currentUser) ||
-          hasBusinessPermission('canViewSuppliers') ||
-          hasBusinessPermission('canCreateSuppliers') ||
-          hasBusinessPermission('canEditSuppliers')) && (
+        {(checkPermission(currentUser, 'canViewSuppliers') ||
+          checkPermission(currentUser, 'canCreateSuppliers') ||
+          checkPermission(currentUser, 'canEditSuppliers')) && (
           <Link
             href="/business/suppliers"
             className={getLinkClasses('/business/suppliers')}
@@ -796,10 +829,9 @@ export function Sidebar() {
         )}
 
         {/* Location Management - Business-specific location management */}
-        {(isSystemAdmin(currentUser) ||
-          hasBusinessPermission('canViewLocations') ||
-          hasBusinessPermission('canCreateLocations') ||
-          hasBusinessPermission('canEditLocations')) && (
+        {(checkPermission(currentUser, 'canViewLocations') ||
+          checkPermission(currentUser, 'canCreateLocations') ||
+          checkPermission(currentUser, 'canEditLocations')) && (
           <Link
             href="/business/locations"
             className={getLinkClasses('/business/locations')}
@@ -810,7 +842,7 @@ export function Sidebar() {
         )}
 
         {/* Customer Management - Cross-business functionality */}
-        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canAccessCustomers') || hasPermission(currentUser, 'canManageCustomers')) && (
+        {(checkPermission(currentUser, 'canAccessCustomers') || checkPermission(currentUser, 'canManageCustomers')) && (
           <Link
             href="/customers"
             className={getLinkClasses('/customers')}
@@ -821,7 +853,7 @@ export function Sidebar() {
         )}
 
         {/* Layby Management - Cross-business functionality */}
-        {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')) && (
+        {checkPermission(currentUser, 'canManageLaybys') && (
           <Link
             href="/business/laybys"
             className={getLinkClasses('/business/laybys')}
@@ -832,7 +864,7 @@ export function Sidebar() {
         )}
 
         {/* Project Management - Cross-business functionality */}
-  {(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canViewProjects') || hasUserPermission(currentUser, 'canAccessPersonalFinance')) && (
+  {(checkPermission(currentUser, 'canViewProjects') || checkPermission(currentUser, 'canAccessPersonalFinance')) && (
           <Link
             href="/projects"
             className={getLinkClasses('/projects')}
@@ -851,19 +883,18 @@ export function Sidebar() {
         </Link>
 
         {/* Employee Management Section - Only for users with actual management permissions */}
-        {(hasPermission(currentUser, 'canManageEmployees') ||
-          hasPermission(currentUser, 'canManageJobTitles') ||
-          hasPermission(currentUser, 'canEditEmployees') ||
-          hasPermission(currentUser, 'canManageBenefitTypes') ||
-          hasPermission(currentUser, 'canManageCompensationTypes') ||
-          hasPermission(currentUser, 'canManageDisciplinaryActions') ||
-          isSystemAdmin(currentUser)) && (
+        {(checkPermission(currentUser, 'canManageEmployees') ||
+          checkPermission(currentUser, 'canManageJobTitles') ||
+          checkPermission(currentUser, 'canEditEmployees') ||
+          checkPermission(currentUser, 'canManageBenefitTypes') ||
+          checkPermission(currentUser, 'canManageCompensationTypes') ||
+          checkPermission(currentUser, 'canManageDisciplinaryActions')) && (
           <>
             <div className="pt-4 pb-2">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Employee Management</h3>
             </div>
 
-            {hasPermission(currentUser, 'canManageJobTitles') && (
+            {checkPermission(currentUser, 'canManageJobTitles') && (
               <Link
                 href="/admin/job-titles"
                 className="sidebar-link flex items-center space-x-3"
@@ -873,7 +904,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {hasPermission(currentUser, 'canEditEmployees') && (
+            {checkPermission(currentUser, 'canEditEmployees') && (
               <Link
                 href="/admin/hierarchy"
                 className="sidebar-link flex items-center space-x-3"
@@ -883,7 +914,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {(hasPermission(currentUser, 'canManageBenefitTypes') || hasPermission(currentUser, 'canManageCompensationTypes')) && (
+            {(checkPermission(currentUser, 'canManageBenefitTypes') || checkPermission(currentUser, 'canManageCompensationTypes')) && (
               <Link
                 href="/admin/benefits"
                 className="sidebar-link flex items-center space-x-3"
@@ -893,7 +924,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {hasPermission(currentUser, 'canManageDisciplinaryActions') && (
+            {checkPermission(currentUser, 'canManageDisciplinaryActions') && (
               <Link
                 href="/admin/disciplinary"
                 className="sidebar-link flex items-center space-x-3"
@@ -905,7 +936,7 @@ export function Sidebar() {
           </>
         )}
         
-  {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers') || hasPermission(currentUser, 'canManageBusinessSettings')) && (
+  {(checkPermission(currentUser, 'canManageBusinessUsers') || checkPermission(currentUser, 'canManageBusinessSettings')) && (
           <>
             <div className="pt-4 pb-2">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</h3>
@@ -941,7 +972,7 @@ export function Sidebar() {
               </Link>
             )}
             
-            {hasPermission(currentUser, 'canManageBusinessUsers') && (
+            {checkPermission(currentUser, 'canManageBusinessUsers') && (
               <Link 
                 href="/admin/users" 
                 className="sidebar-link flex items-center space-x-3"
@@ -951,7 +982,7 @@ export function Sidebar() {
               </Link>
             )}
             
-            {hasPermission(currentUser, 'canManageBusinessSettings') && (
+            {checkPermission(currentUser, 'canManageBusinessSettings') && (
               <Link 
                 href="/admin/settings" 
                 className="sidebar-link flex items-center space-x-3"
@@ -961,7 +992,7 @@ export function Sidebar() {
               </Link>
             )}
             
-            {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessUsers')) && (
+            {checkPermission(currentUser, 'canManageBusinessUsers') && (
               <Link 
                 href="/business/manage" 
                 className="sidebar-link flex items-center space-x-3"
@@ -971,7 +1002,7 @@ export function Sidebar() {
               </Link>
             )}
             
-            {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canAccessFinancialData')) && (
+            {checkPermission(currentUser, 'canAccessFinancialData') && (
               <Link
                 href="/business/manage/loans"
                 className="sidebar-link flex items-center space-x-3"
@@ -981,7 +1012,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {(isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageBusinessSettings')) && (
+            {checkPermission(currentUser, 'canManageBusinessSettings') && (
               <Link
                 href="/admin/umbrella-business"
                 className="sidebar-link flex items-center space-x-3"

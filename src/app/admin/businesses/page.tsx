@@ -13,6 +13,7 @@ interface Business {
   type: string
   description: string | null
   isActive: boolean
+  wifiIntegrationEnabled: boolean
   createdAt: string
   createdBy: string
 }
@@ -30,7 +31,8 @@ export default function AdminBusinessesPage() {
   const [formData, setFormData] = useState({
     name: '',
     type: 'retail',
-    description: ''
+    description: '',
+    wifiIntegrationEnabled: false
   })
   const [creating, setCreating] = useState(false)
   const [updating, setUpdating] = useState(false)
@@ -90,7 +92,8 @@ export default function AdminBusinessesPage() {
     setFormData({
       name: business.name,
       type: business.type,
-      description: business.description || ''
+      description: business.description || '',
+      wifiIntegrationEnabled: business.wifiIntegrationEnabled || false
     })
     setShowEditModal(true)
   }
@@ -363,6 +366,27 @@ export default function AdminBusinessesPage() {
                   />
                 </div>
 
+                {/* WiFi Integration Toggle - Only for restaurant and grocery */}
+                {(formData.type === 'restaurant' || formData.type === 'grocery') && (
+                  <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
+                    <div className="flex-1">
+                      <label htmlFor="wifiIntegration" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Enable WiFi Integration
+                      </label>
+                      <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        Allow this {formData.type} to sell WiFi access tokens and manage WiFi portal integration
+                      </span>
+                    </div>
+                    <input
+                      id="wifiIntegration"
+                      type="checkbox"
+                      checked={formData.wifiIntegrationEnabled}
+                      onChange={(e) => setFormData({...formData, wifiIntegrationEnabled: e.target.checked})}
+                      className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                  </div>
+                )}
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
@@ -452,6 +476,27 @@ export default function AdminBusinessesPage() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+
+                {/* WiFi Integration Toggle - Only for restaurant and grocery */}
+                {(formData.type === 'restaurant' || formData.type === 'grocery') && (
+                  <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
+                    <div className="flex-1">
+                      <label htmlFor="wifiIntegrationEdit" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Enable WiFi Integration
+                      </label>
+                      <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        Allow this {formData.type} to sell WiFi access tokens and manage WiFi portal integration
+                      </span>
+                    </div>
+                    <input
+                      id="wifiIntegrationEdit"
+                      type="checkbox"
+                      checked={formData.wifiIntegrationEnabled}
+                      onChange={(e) => setFormData({...formData, wifiIntegrationEnabled: e.target.checked})}
+                      className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-4">
                   <button

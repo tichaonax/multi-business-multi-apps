@@ -116,11 +116,15 @@ export async function POST(request: NextRequest) {
         if (!tokenInfo.success &&
             (tokenInfo.error?.toLowerCase().includes('token not found') ||
              tokenInfo.error?.toLowerCase().includes('not found'))) {
-          // Mark as expired
+          // For missing tokens, differentiate based on current status:
+          // - ACTIVE tokens that go missing were in use, so mark as EXPIRED
+          // - UNUSED tokens that go missing may never have been synced, so mark as DISABLED
+          const newStatus = dbToken.status === 'ACTIVE' ? 'EXPIRED' : 'DISABLED'
+
           return await prisma.wifiTokens.update({
             where: { id: dbToken.id },
             data: {
-              status: 'EXPIRED',
+              status: newStatus,
               lastSyncedAt: new Date(),
             },
           })
@@ -132,7 +136,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Update token with device information
-        const updateData = {
+        const updateData: any = {
           bandwidthUsedDown: tokenInfo.bandwidthUsedDown || 0,
           bandwidthUsedUp: tokenInfo.bandwidthUsedUp || 0,
           usageCount: tokenInfo.usageCount || 0,
@@ -146,6 +150,37 @@ export async function POST(request: NextRequest) {
           primaryMac: tokenInfo.devices && tokenInfo.devices.length > 0
             ? tokenInfo.devices[0].mac
             : null,
+        }
+
+        // Update status based on ESP32 portal response
+        if (tokenInfo.status) {
+          const statusMap: Record<string, 'ACTIVE' | 'UNUSED' | 'EXPIRED' | 'DISABLED'> = {
+            'active': 'ACTIVE',
+            'expired': 'EXPIRED',
+            'unused': 'UNUSED',
+          }
+
+          const newStatus = statusMap[tokenInfo.status] || 'ACTIVE'
+
+          // CRITICAL RULE: UNUSED tokens can NEVER become EXPIRED
+          // Expiration ONLY applies to tokens that have been redeemed (ACTIVE → EXPIRED)
+          // If ESP32 says "expired" but token was never used, mark as DISABLED instead
+          if (newStatus === 'EXPIRED' && !dbToken.firstUsedAt && !tokenInfo.firstUsedAt) {
+            // Token expired before ever being used - mark as DISABLED
+            updateData.status = 'DISABLED'
+          } else {
+            updateData.status = newStatus
+          }
+        }
+
+        // Update firstUsedAt if token was redeemed
+        if (tokenInfo.firstUsedAt && !dbToken.firstUsedAt) {
+          updateData.firstUsedAt = new Date(tokenInfo.firstUsedAt)
+        }
+
+        // Update expiresAt if available from portal
+        if (tokenInfo.expiresAt) {
+          updateData.expiresAt = new Date(tokenInfo.expiresAt * 1000)
         }
 
         console.log(`Updating token ${tokenInfo.token} with data:`, JSON.stringify(updateData, null, 2))
@@ -192,7 +227,7 @@ export async function POST(request: NextRequest) {
 
     // Handle tokens that were requested but not found in the batch response
     // When ESP32 returns {"success":true,"tokens":[],"total_requested":3,"total_found":0},
-    // it means all requested tokens are missing and should be marked as EXPIRED
+    // it means all requested tokens are missing and should be marked as EXPIRED or DISABLED
     const foundTokens = new Set(batchResult.tokens.map(t => t.token).filter(Boolean))
     const missingTokens = tokens.filter(token => !foundTokens.has(token))
 
@@ -212,11 +247,15 @@ export async function POST(request: NextRequest) {
           return null
         }
 
-        // Mark missing tokens as EXPIRED
+        // For missing tokens, differentiate based on current status:
+        // - ACTIVE tokens that go missing were in use, so mark as EXPIRED
+        // - UNUSED tokens that go missing may never have been synced, so mark as DISABLED
+        const newStatus = dbToken.status === 'ACTIVE' ? 'EXPIRED' : 'DISABLED'
+
         return await prisma.wifiTokens.update({
           where: { id: dbToken.id },
           data: {
-            status: 'EXPIRED',
+            status: newStatus,
             lastSyncedAt: new Date(),
           },
         })

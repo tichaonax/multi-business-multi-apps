@@ -83,6 +83,16 @@ export interface PrintJobQueueOptions {
 // Receipt Types
 // ============================================================================
 
+export interface WifiTokenInfo {
+  token: string; // The 8-character token code
+  durationMinutes: number;
+  bandwidthDownMb: number;
+  bandwidthUpMb: number;
+  ssid?: string; // WiFi network name
+  portalUrl?: string; // URL to access the portal
+  instructions?: string; // How to connect
+}
+
 export interface ReceiptSequence {
   id: string;
   businessId: string;
@@ -129,6 +139,9 @@ export interface ReceiptData {
   amountPaid?: number;
   changeDue?: number;
 
+  // WiFi tokens (if any were purchased)
+  wifiTokens?: WifiTokenInfo[];
+
   // Business-specific data (varies by type)
   businessSpecificData?: RestaurantReceiptData | ClothingReceiptData | GroceryReceiptData |
     HardwareReceiptData | ConstructionReceiptData | VehiclesReceiptData | ConsultingReceiptData |
@@ -137,6 +150,18 @@ export interface ReceiptData {
   // Footer
   footerMessage?: string;
   returnPolicy?: string;
+
+  // WiFi Tokens (if any)
+  wifiTokens?: WifiTokenInfo[];
+}
+
+export interface WifiTokenInfo {
+  itemName: string;
+  tokenCode: string;
+  packageName: string;
+  duration: number; // minutes
+  success: boolean;
+  error?: string;
 }
 
 export interface ReceiptItem {

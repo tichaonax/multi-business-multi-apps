@@ -73,7 +73,7 @@ export default function RestaurantPOS() {
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
 
-  const categories = ['all', 'combos', 'appetizers', 'mains', 'desserts', 'beverages']
+  const categories = ['all', 'combos', 'appetizers', 'mains', 'desserts', 'beverages', 'wifi-access']
 
   // Load menu items (defined early so hooks order is stable).
   const loadMenuItems = async () => {
@@ -92,10 +92,11 @@ export default function RestaurantPOS() {
         queryParams.set('businessId', currentBusinessId)
       }
 
-      // Fetch products and purchase statistics in parallel
-      const [productsResponse, statsResponse] = await Promise.all([
+      // Fetch products, purchase statistics, and WiFi tokens in parallel
+      const [productsResponse, statsResponse, wifiTokensResponse] = await Promise.all([
         fetch(`/api/universal/products?${queryParams.toString()}`),
-        fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId || ''}`)
+        fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId || ''}`),
+        currentBusinessId ? fetch(`/api/business/${currentBusinessId}/wifi-tokens`) : Promise.resolve({ ok: false })
       ])
 
       if (productsResponse.ok) {
@@ -158,7 +159,55 @@ export default function RestaurantPOS() {
               return a.name.localeCompare(b.name)
             })
 
-          setMenuItems(items)
+          // Add WiFi tokens to menu if available
+          let wifiTokenItems: any[] = []
+          if (wifiTokensResponse.ok) {
+            const wifiData = await wifiTokensResponse.json()
+            if (wifiData.success && wifiData.menuItems) {
+              // Fetch available quantities for all token configs
+              const tokenConfigIds = wifiData.menuItems.map((item: any) => item.tokenConfigId)
+              let quantityMap: Record<string, number> = {}
+              
+              if (tokenConfigIds.length > 0) {
+                try {
+                  const quantitiesResponse = await fetch(`/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=ACTIVE&limit=1000`)
+                  if (quantitiesResponse.ok) {
+                    const quantitiesData = await quantitiesResponse.json()
+                    const tokens = quantitiesData.tokens || []
+                    
+                    // Count tokens by tokenConfigId
+                    quantityMap = tokens.reduce((acc: Record<string, number>, token: any) => {
+                      const configId = token.tokenConfig?.id
+                      if (configId && tokenConfigIds.includes(configId)) {
+                        acc[configId] = (acc[configId] || 0) + 1
+                      }
+                      return acc
+                    }, {})
+                  }
+                } catch (error) {
+                  console.error('Failed to fetch token quantities:', error)
+                }
+              }
+
+              wifiTokenItems = wifiData.menuItems
+                .filter((item: any) => item.isActive)
+                .map((item: any) => ({
+                  id: `wifi-token-${item.id}`,
+                  name: `📶 ${item.tokenConfig.name}`,
+                  price: item.businessPrice,
+                  category: 'wifi-access',
+                  isAvailable: true,
+                  wifiToken: true, // Flag to identify WiFi tokens
+                  businessTokenMenuItemId: item.id,
+                  tokenConfigId: item.tokenConfigId,
+                  tokenConfig: item.tokenConfig,
+                  availableQuantity: quantityMap[item.tokenConfigId] || 0,
+                }))
+            }
+          }
+
+          // Merge regular items and WiFi tokens
+          setMenuItems([...items, ...wifiTokenItems])
         }
       }
     } catch (error) {
@@ -388,8 +437,37 @@ export default function RestaurantPOS() {
 
   
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = async (item: MenuItem) => {
     console.log('➕ Adding to cart:', item.name, 'Price:', item.price)
+
+    // Check portal health before adding WiFi tokens
+    if ((item as any).wifiToken) {
+      try {
+        const healthResponse = await fetch(`/api/wifi-portal/integration/health?businessId=${currentBusinessId}`)
+        const healthData = await healthResponse.json()
+
+        if (!healthData.success || healthData.health?.status !== 'healthy') {
+          toast.push(`⚠️ WiFi Portal is currently unavailable. Cannot add WiFi tokens to cart.`)
+          return
+        }
+      } catch (error) {
+        toast.push(`⚠️ Failed to verify WiFi Portal status. Please try again.`)
+        return
+      }
+
+      // Check available quantity for WiFi tokens
+      const availableQuantity = (item as any).availableQuantity || 0
+      const currentCartQuantity = cart.find(c => c.id === item.id)?.quantity || 0
+
+      if (availableQuantity <= currentCartQuantity) {
+        if (availableQuantity === 0) {
+          toast.push(`⚠️ No WiFi tokens available for "${item.name}". Please create more tokens in the WiFi Portal.`)
+        } else {
+          toast.push(`⚠️ Only ${availableQuantity} WiFi token${availableQuantity === 1 ? '' : 's'} available for "${item.name}".`)
+        }
+        return
+      }
+    }
 
     // Check if item requires a companion item (e.g., side dish that needs a main)
     if (item.requiresCompanionItem) {
@@ -541,7 +619,8 @@ export default function RestaurantPOS() {
           paymentMethod: paymentMethod,
           amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
           change: paymentMethod === 'CASH' ? parseFloat(amountReceived) - total : 0,
-          date: formatDateTime(new Date())
+          date: formatDateTime(new Date()),
+          wifiTokens: result.wifiTokens || [] // Capture WiFi tokens from API response
         }
 
         setCompletedOrder(orderForReceipt)
@@ -776,6 +855,15 @@ export default function RestaurantPOS() {
                         </p>
                       )}
                     </div>
+
+                    {/* WiFi token quantity indicator */}
+                    {item.wifiToken && (
+                      <div className="mt-1">
+                        <span className={`text-xs font-medium ${item.availableQuantity === 0 ? 'text-red-500' : item.availableQuantity < 5 ? 'text-orange-500' : 'text-green-600'}`}>
+                          📦 {item.availableQuantity || 0} available
+                        </span>
+                      </div>
+                    )}
 
                     {/* Preparation time */}
                     {item.preparationTime && item.preparationTime > 0 && (
@@ -1056,6 +1144,37 @@ export default function RestaurantPOS() {
                   </>
                 )}
               </div>
+
+              {/* WiFi Tokens Section */}
+              {completedOrder.wifiTokens && completedOrder.wifiTokens.length > 0 && (
+                <div className="border-t-2 border-dashed border-gray-300 dark:border-gray-600 pt-4 mt-4 mb-4">
+                  <div className="text-center font-bold text-sm mb-3">📶 WiFi ACCESS TOKENS</div>
+                  {completedOrder.wifiTokens.map((token: any, index: number) => (
+                    <div key={index} className="mb-3 p-3 border-2 border-blue-300 dark:border-blue-600 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                      {token.success ? (
+                        <>
+                          <div className="text-sm font-bold mb-2 text-center">{token.packageName}</div>
+                          <div className="text-center my-3">
+                            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg font-mono text-xl font-bold border-2 border-gray-300 dark:border-gray-600">
+                              {token.tokenCode}
+                            </div>
+                          </div>
+                          <div className="text-xs text-center space-y-1">
+                            <div className="font-semibold">Duration: {Math.floor(token.duration / 60)}h {token.duration % 60}m</div>
+                            <div className="text-gray-600 dark:text-gray-400 mt-2">
+                              Connect to WiFi and enter this code at the login portal
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-red-600 dark:text-red-400 text-center font-semibold">
+                          ❌ Token generation failed: {token.error || 'Unknown error'}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="text-center mt-6 pt-4 border-t border-gray-300 dark:border-gray-600">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Thank you for your order!</p>

@@ -173,15 +173,53 @@ async function main() {
   console.log('🧹 Cleaning Prisma cache to avoid file lock issues...\n')
   const prismaClientPath = path.join(ROOT_DIR, 'node_modules', '.prisma')
   if (fs.existsSync(prismaClientPath)) {
-    try {
-      if (process.platform === 'win32') {
-        execSync(`rmdir /s /q "${prismaClientPath}"`, { stdio: 'inherit' })
-      } else {
-        execSync(`rm -rf "${prismaClientPath}"`, { stdio: 'inherit' })
+    let cleaned = false
+    const maxRetries = 3
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (process.platform === 'win32') {
+          // Try multiple cleanup methods for Windows
+          try {
+            execSync(`rmdir /s /q "${prismaClientPath}"`, { stdio: 'pipe' })
+          } catch {
+            // If rmdir fails, try del
+            execSync(`del /f /s /q "${prismaClientPath}\\*.*"`, { stdio: 'pipe' })
+            execSync(`rmdir /s /q "${prismaClientPath}"`, { stdio: 'pipe' })
+          }
+        } else {
+          execSync(`rm -rf "${prismaClientPath}"`, { stdio: 'inherit' })
+        }
+        console.log('✅ Cleaned .prisma cache\n')
+        cleaned = true
+        break
+      } catch (error) {
+        if (attempt === maxRetries) {
+          console.warn(`⚠️  Could not clean .prisma cache after ${maxRetries} attempts: ${error.message}\n`)
+          console.warn('⚠️  This may cause issues with Prisma client generation\n')
+        } else {
+          console.log(`⚠️  Cleanup attempt ${attempt} failed, retrying in 2 seconds...\n`)
+          // Wait 2 seconds before retry
+          execSync('timeout /t 2 /nobreak > nul', { stdio: 'pipe' })
+        }
       }
-      console.log('✅ Cleaned .prisma cache\n')
-    } catch (error) {
-      console.warn('⚠️  Could not clean .prisma cache (continuing anyway)\n')
+    }
+
+    if (!cleaned) {
+      // Last resort: try to remove just the client files
+      try {
+        const clientPath = path.join(prismaClientPath, 'client')
+        if (fs.existsSync(clientPath)) {
+          if (process.platform === 'win32') {
+            execSync(`rmdir /s /q "${clientPath}"`, { stdio: 'pipe' })
+          } else {
+            execSync(`rm -rf "${clientPath}"`, { stdio: 'inherit' })
+          }
+          console.log('✅ Cleaned .prisma/client cache\n')
+        }
+      } catch (error) {
+        console.warn('⚠️  Could not clean .prisma/client either\n')
+      }
     }
   }
 

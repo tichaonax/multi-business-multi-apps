@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only system administrators can create businesses' }, { status: 403 })
     }
 
-    const { name, type, description } = await req.json()
+    const { name, type, description, wifiIntegrationEnabled = false } = await req.json()
 
     if (!name || !type) {
       return NextResponse.json({ error: 'Business name and type are required' }, { status: 400 })
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
         description: description?.trim() || null,
         shortName,
         isActive: true,
+        wifiIntegrationEnabled: wifiIntegrationEnabled,
         settings: {},
         createdBy: creatorId
       } as any)

@@ -405,40 +405,32 @@ export function hasPermissionInAnyBusiness(user: SessionUser | null | undefined,
  */
 
 /**
- * Check if user has a specific user-level permission (stored in User.permissions)
+ * Unified permission checking function that automatically handles admin access
+ * and determines whether a permission is user-level or business-level
  */
-// Type-safe wrapper to convert string literals to PermissionKey at call sites
-export function asUserPermission(permission: string): PermissionKey | null {
-  const allowedKeys = Object.keys(DEFAULT_USER_PERMISSIONS) as string[]
-  return allowedKeys.includes(permission) ? (permission as PermissionKey) : null
-}
-
-export function hasUserPermission(user: SessionUser | null | undefined, permission: string | keyof UserLevelPermissions): boolean {
+export function checkPermission(
+  user: SessionUser | null | undefined,
+  permission: string,
+  businessId?: string
+): boolean {
   // Handle undefined/null user
   if (!user) {
     return false
   }
 
-  // Normalize permission: if a string is provided, try to map to PermissionKey
-  let key: PermissionKey | null
-  if (typeof permission === 'string') {
-    key = asUserPermission(permission)
-    if (!key) {
-      // Unknown permission string - be conservative and return false
-      return false
-    }
-  } else {
-    key = permission
-  }
-
-  // System admins always have full user-level permissions
+  // System admins always have full access to all permissions
   if (user.role === 'admin') {
-    return ADMIN_USER_PERMISSIONS[key] === true
+    return true
   }
 
-  // Check user-level permissions directly from User.permissions
-  const userPermissions = user.permissions as Partial<UserLevelPermissions>
-  return userPermissions[key] === true
+  // Check if it's a user-level permission
+  const userLevelKey = asUserPermission(permission)
+  if (userLevelKey) {
+    return hasUserPermission(user, userLevelKey)
+  }
+
+  // Otherwise, treat it as a business-level permission
+  return hasPermission(user, permission, businessId)
 }
 
 /**
@@ -456,6 +448,33 @@ export function getUserLevelPermissions(user: SessionUser | null | undefined): U
     ...DEFAULT_USER_PERMISSIONS,
     ...userPermissions,
   }
+}
+
+/**
+ * Check if a permission string is a valid user-level permission key
+ */
+export function asUserPermission(permission: string): keyof UserLevelPermissions | null {
+  // Check if the permission exists in the UserLevelPermissions type
+  const userLevelPermissions = {} as UserLevelPermissions
+  return (permission in userLevelPermissions) ? (permission as keyof UserLevelPermissions) : null
+}
+
+/**
+ * Check if user has a specific user-level permission
+ */
+export function hasUserPermission(user: SessionUser | null | undefined, permission: keyof UserLevelPermissions): boolean {
+  // Handle undefined/null user
+  if (!user) {
+    return false
+  }
+
+  // System admins always have all user-level permissions
+  if (user.role === 'admin') {
+    return true
+  }
+
+  const userPermissions = getUserLevelPermissions(user)
+  return userPermissions[permission] === true
 }
 
 /**

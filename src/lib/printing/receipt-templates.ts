@@ -167,6 +167,38 @@ function generateRestaurantReceipt(data: ReceiptData): string {
     }
   }
 
+  // WiFi Tokens (if any)
+  if (data.wifiTokens && data.wifiTokens.length > 0) {
+    receipt += LF;
+    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
+    receipt += centerText('WiFi ACCESS TOKENS') + LF;
+    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
+
+    data.wifiTokens.forEach(token => {
+      receipt += `Token: ${token.token}` + LF;
+      receipt += `Duration: ${formatDuration(token.durationMinutes)}` + LF;
+      if (token.bandwidthDownMb && token.bandwidthUpMb) {
+        receipt += `Speed: ${token.bandwidthDownMb}MB↓/${token.bandwidthUpMb}MB↑` + LF;
+      }
+      receipt += LF;
+
+      if (token.ssid && token.portalUrl) {
+        receipt += `WiFi Network: "${token.ssid}"` + LF;
+        receipt += `Portal: ${token.portalUrl}` + LF;
+        receipt += LF;
+      }
+
+      if (token.instructions) {
+        // Word wrap instructions
+        const wrappedInstructions = wrapText(token.instructions, RECEIPT_WIDTH - 2).split('\n');
+        wrappedInstructions.forEach(line => {
+          receipt += `  ${line}` + LF;
+        });
+        receipt += LF;
+      }
+    });
+  }
+
   // Footer - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += LF;
@@ -1130,4 +1162,19 @@ function wrapText(text: string, width: number = RECEIPT_WIDTH): string {
   if (currentLine) lines.push(currentLine.trim());
 
   return lines.join('\n');
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  if (mins === 0) {
+    return `${hours} hour${hours > 1 ? 's' : ''}`;
+  }
+
+  return `${hours}h ${mins}m`;
 }

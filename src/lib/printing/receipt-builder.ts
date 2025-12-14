@@ -37,6 +37,18 @@ interface OrderData {
   employeeName?: string
   employeeId?: string
   notes?: string
+  wifiTokens?: Array<{
+    itemName: string
+    tokenCode: string
+    packageName: string
+    duration: number
+    bandwidthDownMb: number
+    bandwidthUpMb: number
+    ssid?: string
+    portalUrl?: string
+    instructions?: string
+    success: boolean
+  }>
   items: Array<{
     name: string
     quantity: number
@@ -145,6 +157,15 @@ export function buildReceiptData(
     paymentMethod: order.paymentMethod || 'cash',
     amountPaid: order.paymentStatus === 'PAID' ? order.totalAmount : undefined,
     changeDue: undefined,
+    wifiTokens: order.wifiTokens?.filter(token => token.success).map(token => ({
+      token: token.tokenCode,
+      durationMinutes: token.duration,
+      bandwidthDownMb: token.bandwidthDownMb,
+      bandwidthUpMb: token.bandwidthUpMb,
+      ssid: token.ssid,
+      portalUrl: token.portalUrl,
+      instructions: token.instructions
+    })),
     businessSpecificData: buildBusinessSpecificData(order, business.type),
     footerMessage: settings.receiptFooter || config.footerMessage,
     returnPolicy: settings.returnPolicy

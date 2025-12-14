@@ -142,6 +142,16 @@ export default function WiFiTokensPage() {
     loadInitialData()
   }, [currentBusinessId, businessLoading])
 
+  // Auto-sync when switching to Database Ledger tab
+  useEffect(() => {
+    if (activeTab === 'ledger' && !batchSyncing && tokens.length > 0 && currentBusinessId) {
+      // Small delay to ensure tokens are loaded
+      setTimeout(() => {
+        handleBatchSync()
+      }, 500)
+    }
+  }, [activeTab, tokens.length, currentBusinessId])
+
   useEffect(() => {
     // Apply filters and sorting to ledger tokens
     let filtered = tokens
@@ -288,10 +298,10 @@ export default function WiFiTokensPage() {
         setSuccessMessage('Token usage synced successfully!')
         fetchTokens()
       } else {
-        // Check if token was marked as EXPIRED (not found on portal)
-        if (response.status === 404 && data.tokenStatus === 'EXPIRED') {
+        // Check if token was marked as EXPIRED or DISABLED (not found on portal)
+        if (response.status === 404 && (data.tokenStatus === 'EXPIRED' || data.tokenStatus === 'DISABLED')) {
           setErrorMessage(data.message || data.error)
-          // Refresh to show updated EXPIRED status
+          // Refresh to show updated status
           fetchTokens()
         } else {
           // General sync error (network, API down, etc.)
@@ -315,15 +325,15 @@ export default function WiFiTokensPage() {
 
       // Only sync ACTIVE and UNUSED tokens (skip EXPIRED/DISABLED)
       // UNUSED tokens might exist on ESP32 and need device data sync
-      const activeTokens = tokens.filter(t => t.status === 'ACTIVE' || t.status === 'UNUSED')
-      if (activeTokens.length === 0) {
-        setErrorMessage('No active tokens to sync')
+      const syncableTokens = tokens.filter(t => t.status === 'ACTIVE' || t.status === 'UNUSED')
+      if (syncableTokens.length === 0) {
+        setErrorMessage('No active or unused tokens to sync')
         setBatchSyncing(false)
         return
       }
 
       // Batch in groups of 50 (ESP32 API limit)
-      const tokensToSync = activeTokens.map(t => t.token)
+      const tokensToSync = syncableTokens.map(t => t.token)
       const batches = []
       for (let i = 0; i < tokensToSync.length; i += 50) {
         batches.push(tokensToSync.slice(i, i + 50))
@@ -533,6 +543,44 @@ export default function WiFiTokensPage() {
       await alert({
         title: 'Invalid Quantity',
         description: 'Please enter a quantity between 1 and 100.',
+      })
+      return
+    }
+
+    // Check available ESP32 slots before proceeding
+    try {
+      setErrorMessage(null)
+      const slotsResponse = await fetch(`/api/wifi-portal/integration/slots?businessId=${currentBusinessId}`)
+
+      if (!slotsResponse.ok) {
+        await alert({
+          title: 'Slot Check Failed',
+          description: 'Unable to check available ESP32 slots. Please try again.',
+        })
+        return
+      }
+
+      const slotsData = await slotsResponse.json()
+
+      if (!slotsData.success) {
+        await alert({
+          title: 'Portal Unavailable',
+          description: slotsData.error || 'ESP32 portal is currently unavailable.',
+        })
+        return
+      }
+
+      if (slotsData.availableSlots < bulkQuantity) {
+        await alert({
+          title: 'Insufficient Slots',
+          description: `Only ${slotsData.availableSlots} slots available on ESP32 device (${slotsData.activeTokens}/${slotsData.maxSlots} in use). Cannot create ${bulkQuantity} tokens.`,
+        })
+        return
+      }
+    } catch (error) {
+      await alert({
+        title: 'Slot Check Error',
+        description: 'Failed to check ESP32 slot availability. Please try again.',
       })
       return
     }
@@ -1204,9 +1252,13 @@ export default function WiFiTokensPage() {
                       <td className="px-4 py-4 whitespace-nowrap text-right text-sm space-x-2">
                         <button
                           onClick={() => handleSyncToken(token.id)}
-                          disabled={syncing === token.id || token.status !== 'ACTIVE'}
+                          disabled={syncing === token.id || token.status === 'EXPIRED' || token.status === 'DISABLED'}
                           className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={token.status !== 'ACTIVE' ? 'Token is not active on portal' : 'Sync usage from portal'}
+                          title={
+                            token.status === 'EXPIRED' ? 'Token has expired - cannot sync' :
+                            token.status === 'DISABLED' ? 'Token is disabled - cannot sync' :
+                            'Sync usage from portal'
+                          }
                         >
                           {syncing === token.id ? '⏳' : '🔄'}
                         </button>
