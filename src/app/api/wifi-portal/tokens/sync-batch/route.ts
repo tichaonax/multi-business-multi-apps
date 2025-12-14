@@ -79,6 +79,12 @@ export async function POST(request: NextRequest) {
     // Batch fetch token info from ESP32 portal
     const batchResult = await portalClient.batchGetTokenInfo({ tokens })
 
+    // LOG RAW ESP32 RESPONSE
+    console.log('=== ESP32 BATCH SYNC RAW RESPONSE ===')
+    console.log('Request tokens:', tokens)
+    console.log('Response:', JSON.stringify(batchResult, null, 2))
+    console.log('=====================================')
+
     if (!batchResult.success) {
       return NextResponse.json(
         { error: batchResult.error || 'Failed to fetch token info from portal' },
@@ -103,7 +109,6 @@ export async function POST(request: NextRequest) {
 
         // Skip tokens that are already EXPIRED or DISABLED - no point syncing
         if (dbToken.status === 'EXPIRED' || dbToken.status === 'DISABLED') {
-          console.log(`Skipping ${dbToken.status} token: ${tokenInfo.token}`)
           return null
         }
 
@@ -123,28 +128,31 @@ export async function POST(request: NextRequest) {
 
         // Skip if token info fetch failed for other reasons
         if (!tokenInfo.success) {
-          console.error(`Failed to get info for token ${tokenInfo.token}:`, tokenInfo.error)
           return null
         }
 
         // Update token with device information
+        const updateData = {
+          bandwidthUsedDown: tokenInfo.bandwidthUsedDown || 0,
+          bandwidthUsedUp: tokenInfo.bandwidthUsedUp || 0,
+          usageCount: tokenInfo.usageCount || 0,
+          lastSyncedAt: new Date(),
+          // Device tracking fields (v3.4)
+          hostname: tokenInfo.hostname || null,
+          deviceType: tokenInfo.deviceType || null,
+          firstSeen: tokenInfo.firstSeen ? new Date(tokenInfo.firstSeen * 1000) : null,
+          lastSeen: tokenInfo.lastSeen ? new Date(tokenInfo.lastSeen * 1000) : null,
+          deviceCount: tokenInfo.deviceCount || 0,
+          primaryMac: tokenInfo.devices && tokenInfo.devices.length > 0
+            ? tokenInfo.devices[0].mac
+            : null,
+        }
+
+        console.log(`Updating token ${tokenInfo.token} with data:`, JSON.stringify(updateData, null, 2))
+
         const updated = await prisma.wifiTokens.update({
           where: { id: dbToken.id },
-          data: {
-            bandwidthUsedDown: tokenInfo.bandwidthUsedDown || 0,
-            bandwidthUsedUp: tokenInfo.bandwidthUsedUp || 0,
-            usageCount: tokenInfo.usageCount || 0,
-            lastSyncedAt: new Date(),
-            // Device tracking fields (v3.4)
-            hostname: tokenInfo.hostname || null,
-            deviceType: tokenInfo.deviceType || null,
-            firstSeen: tokenInfo.firstSeen ? new Date(tokenInfo.firstSeen * 1000) : null,
-            lastSeen: tokenInfo.lastSeen ? new Date(tokenInfo.lastSeen * 1000) : null,
-            deviceCount: tokenInfo.deviceCount || 0,
-            primaryMac: tokenInfo.devices && tokenInfo.devices.length > 0
-              ? tokenInfo.devices[0].mac
-              : null,
-          },
+          data: updateData,
         })
 
         // Update or create device records
@@ -178,12 +186,46 @@ export async function POST(request: NextRequest) {
 
         return updated
       } catch (error: any) {
-        console.error(`Error updating token ${tokenInfo.token}:`, error)
         return null
       }
     })
 
-    await Promise.all(updatePromises)
+    // Handle tokens that were requested but not found in the batch response
+    // When ESP32 returns {"success":true,"tokens":[],"total_requested":3,"total_found":0},
+    // it means all requested tokens are missing and should be marked as EXPIRED
+    const foundTokens = new Set(batchResult.tokens.map(t => t.token).filter(Boolean))
+    const missingTokens = tokens.filter(token => !foundTokens.has(token))
+
+    const missingTokenPromises = missingTokens.map(async (token) => {
+      try {
+        const dbToken = await prisma.wifiTokens.findFirst({
+          where: {
+            token: token,
+            businessId: businessId,
+          },
+        })
+
+        if (!dbToken) return null
+
+        // Skip tokens that are already EXPIRED or DISABLED
+        if (dbToken.status === 'EXPIRED' || dbToken.status === 'DISABLED') {
+          return null
+        }
+
+        // Mark missing tokens as EXPIRED
+        return await prisma.wifiTokens.update({
+          where: { id: dbToken.id },
+          data: {
+            status: 'EXPIRED',
+            lastSyncedAt: new Date(),
+          },
+        })
+      } catch (error: any) {
+        return null
+      }
+    })
+
+    await Promise.all([...updatePromises, ...missingTokenPromises])
 
     // Fetch updated tokens from database
     const updatedTokens = await prisma.wifiTokens.findMany({
@@ -205,7 +247,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Error in batch token sync:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to sync tokens' },
       { status: 500 }

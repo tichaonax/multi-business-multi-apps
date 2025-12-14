@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { createPortalClient } from '@/lib/wifi-portal/api-client';
+import { createPortalClient, PortalAPIError } from '@/lib/wifi-portal/api-client';
 
 /**
  * POST /api/wifi-portal/tokens/[id]/sync
@@ -96,6 +96,12 @@ export async function POST(
         token: token.token,
       });
 
+      // LOG RAW ESP32 RESPONSE
+      console.log('=== ESP32 INDIVIDUAL SYNC RAW RESPONSE ===')
+      console.log('Request token:', token.token)
+      console.log('Response:', JSON.stringify(tokenInfo, null, 2))
+      console.log('==========================================')
+
       if (!tokenInfo.success) {
         // Check if token was not found on ESP32 (expired and removed)
         if (tokenInfo.error?.toLowerCase().includes('token not found') ||
@@ -121,6 +127,31 @@ export async function POST(
       }
     } catch (error: any) {
       console.error('ESP32 token info fetch error:', error);
+
+      // Check if the error indicates token not found (similar to batch sync behavior)
+      const errorMessage = error.message?.toLowerCase() || '';
+      if (errorMessage.includes('token not found') ||
+          errorMessage.includes('not found') ||
+          errorMessage.includes('404') ||
+          errorMessage.includes('invalid json response') ||
+          (error instanceof PortalAPIError && error.statusCode === 404)) {
+        // Mark token as expired in our database (align with batch sync behavior)
+        await prisma.wifiTokens.update({
+          where: { id: id },
+          data: {
+            status: 'EXPIRED',
+            lastSyncedAt: new Date(),
+          },
+        });
+
+        // Return error to UI but with context that token was marked as expired
+        return NextResponse.json({
+          error: 'Token not found on ESP32 Portal - marked as EXPIRED',
+          tokenStatus: 'EXPIRED',
+          message: 'This token has been removed from the ESP32 Portal and marked as expired in the database.',
+        }, { status: 404 });
+      }
+
       return NextResponse.json(
         {
           error: 'Failed to fetch token info from portal server',
@@ -134,6 +165,21 @@ export async function POST(
     const updateData: any = {
       lastSyncedAt: new Date(),
     };
+
+    console.log('ESP32 tokenInfo fields:', {
+      status: tokenInfo.status,
+      bandwidthUsedDown: tokenInfo.bandwidthUsedDown,
+      bandwidthUsedUp: tokenInfo.bandwidthUsedUp,
+      usageCount: tokenInfo.usageCount,
+      hostname: tokenInfo.hostname,
+      deviceType: tokenInfo.deviceType,
+      firstSeen: tokenInfo.firstSeen,
+      lastSeen: tokenInfo.lastSeen,
+      deviceCount: tokenInfo.deviceCount,
+      firstUsedAt: tokenInfo.firstUsedAt,
+      expiresAt: tokenInfo.expiresAt,
+      created: tokenInfo.created,
+    })
 
     // Update bandwidth usage if available
     if (tokenInfo.bandwidthUsedDown !== undefined) {
@@ -186,10 +232,10 @@ export async function POST(
     // Update status based on portal response
     if (tokenInfo.status) {
       // Map portal status values to Prisma enum values
-      const statusMap: Record<string, 'ACTIVE' | 'EXPIRED' | 'DISABLED'> = {
+      const statusMap: Record<string, 'ACTIVE' | 'UNUSED' | 'EXPIRED' | 'DISABLED'> = {
         'active': 'ACTIVE',
         'expired': 'EXPIRED',
-        'unused': 'ACTIVE', // Treat unused as active (not yet used)
+        'unused': 'UNUSED',
       };
       updateData.status = statusMap[tokenInfo.status] || 'ACTIVE';
     } else {
@@ -202,10 +248,14 @@ export async function POST(
     }
 
     // Update token in database
+    console.log('Updating database with:', JSON.stringify(updateData, null, 2))
+
     const updatedToken = await prisma.wifiTokens.update({
       where: { id: id },
       data: updateData,
     });
+
+    console.log('Database updated. Token status:', updatedToken.status)
 
     // Update or create device records (v3.4)
     if (tokenInfo.devices && tokenInfo.devices.length > 0) {

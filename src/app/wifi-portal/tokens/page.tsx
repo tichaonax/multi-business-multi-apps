@@ -306,22 +306,23 @@ export default function WiFiTokensPage() {
   }
 
   const handleBatchSync = async () => {
-    if (!currentBusinessId || filteredTokens.length === 0) return
+    if (!currentBusinessId || tokens.length === 0) return
 
     try {
       setBatchSyncing(true)
       setErrorMessage(null)
       setSuccessMessage(null)
 
-      // Only sync ACTIVE tokens (skip expired ones that were removed from ESP32)
-      const activeTokens = filteredTokens.filter(t => t.status === 'ACTIVE')
+      // Only sync ACTIVE and UNUSED tokens (skip EXPIRED/DISABLED)
+      // UNUSED tokens might exist on ESP32 and need device data sync
+      const activeTokens = tokens.filter(t => t.status === 'ACTIVE' || t.status === 'UNUSED')
       if (activeTokens.length === 0) {
         setErrorMessage('No active tokens to sync')
         setBatchSyncing(false)
         return
       }
 
-      // Batch in groups of 50
+      // Batch in groups of 50 (ESP32 API limit)
       const tokensToSync = activeTokens.map(t => t.token)
       const batches = []
       for (let i = 0; i < tokensToSync.length; i += 50) {
@@ -1040,11 +1041,11 @@ export default function WiFiTokensPage() {
                 )}
                 <button
                   onClick={handleBatchSync}
-                  disabled={batchSyncing || filteredTokens.filter(t => t.status === 'ACTIVE').length === 0}
+                  disabled={batchSyncing || tokens.filter(t => t.status === 'ACTIVE' || t.status === 'UNUSED').length === 0}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Sync all active tokens with ESP32 Portal"
+                  title="Sync all active/unused tokens with ESP32 Portal (up to 50 per batch)"
                 >
-                  {batchSyncing ? '⏳ Syncing...' : `⚡ Batch Sync (${filteredTokens.filter(t => t.status === 'ACTIVE').length})`}
+                  {batchSyncing ? '⏳ Syncing...' : `⚡ Batch Sync (${tokens.filter(t => t.status === 'ACTIVE' || t.status === 'UNUSED').length})`}
                 </button>
                 <button
                   onClick={fetchTokens}
