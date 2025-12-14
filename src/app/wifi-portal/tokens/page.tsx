@@ -126,8 +126,20 @@ export default function WiFiTokensPage() {
       return
     }
 
-    fetchTokens()
-    fetchTokenConfigs()
+    const loadInitialData = async () => {
+      await fetchTokens()
+      await fetchTokenConfigs()
+
+      // Auto-sync on initial load if on Database Ledger tab
+      if (activeTab === 'ledger' && !batchSyncing) {
+        // Small delay to let tokens load first
+        setTimeout(() => {
+          handleBatchSync()
+        }, 500)
+      }
+    }
+
+    loadInitialData()
   }, [currentBusinessId, businessLoading])
 
   useEffect(() => {
