@@ -97,16 +97,12 @@ export async function POST(
             },
           });
 
+          // Return error to UI but with context that token was marked as expired
           return NextResponse.json({
-            success: true,
-            message: 'Token has expired and been removed from portal',
-            token: {
-              id: token.id,
-              token: token.token,
-              status: 'EXPIRED',
-              lastSyncedAt: new Date(),
-            },
-          });
+            error: 'Token not found on ESP32 Portal - marked as EXPIRED',
+            tokenStatus: 'EXPIRED',
+            message: 'This token has been removed from the ESP32 Portal and marked as expired in the database.',
+          }, { status: 404 });
         }
 
         throw new Error(tokenInfo.error || 'Failed to get token info from portal');

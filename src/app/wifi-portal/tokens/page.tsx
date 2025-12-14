@@ -266,7 +266,15 @@ export default function WiFiTokensPage() {
         setSuccessMessage('Token usage synced successfully!')
         fetchTokens()
       } else {
-        setErrorMessage(data.error || 'Failed to sync token')
+        // Check if token was marked as EXPIRED (not found on portal)
+        if (response.status === 404 && data.tokenStatus === 'EXPIRED') {
+          setErrorMessage(data.message || data.error)
+          // Refresh to show updated EXPIRED status
+          fetchTokens()
+        } else {
+          // General sync error (network, API down, etc.)
+          setErrorMessage(data.error || 'Failed to sync token')
+        }
       }
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to sync token')
