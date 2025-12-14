@@ -108,10 +108,31 @@ export interface TokenListItem {
   clientMacs: string[];
 }
 
+export interface TokenListParams {
+  status?: 'unused' | 'active' | 'expired' | 'all';
+  minAgeMinutes?: number;
+  maxAgeMinutes?: number;
+  usedOnly?: boolean;
+  unusedOnly?: boolean;
+}
+
 export interface TokenListResponse {
   success: boolean;
   count: number;
   tokens: TokenListItem[];
+  error?: string;
+}
+
+export interface PurgeTokensParams {
+  unusedOnly?: boolean;
+  maxAgeMinutes?: number;
+  expiredOnly?: boolean;
+}
+
+export interface PurgeTokensResponse {
+  success: boolean;
+  purgedCount: number;
+  purgedTokens: string[];
   error?: string;
 }
 
@@ -430,14 +451,71 @@ export class WifiPortalAPIClient {
   }
 
   /**
-   * Get a complete list of all active tokens with metadata
+   * Get a complete list of all active tokens with metadata (v3.5 enhanced filtering)
    *
+   * @param params Optional filtering parameters
    * @returns List of all tokens with status and usage information
    * @throws PortalAPIError, PortalNetworkError, PortalValidationError
    */
-  async listTokens(): Promise<TokenListResponse> {
-    const url = `/api/tokens/list?api_key=${encodeURIComponent(this.config.apiKey)}`;
+  async listTokens(params?: TokenListParams): Promise<TokenListResponse> {
+    const queryParams = new URLSearchParams({
+      api_key: this.config.apiKey,
+    });
+
+    if (params?.status) {
+      queryParams.append('status', params.status);
+    }
+    if (params?.minAgeMinutes !== undefined) {
+      queryParams.append('min_age_minutes', params.minAgeMinutes.toString());
+    }
+    if (params?.maxAgeMinutes !== undefined) {
+      queryParams.append('max_age_minutes', params.maxAgeMinutes.toString());
+    }
+    if (params?.usedOnly !== undefined) {
+      queryParams.append('used_only', params.usedOnly.toString());
+    }
+    if (params?.unusedOnly !== undefined) {
+      queryParams.append('unused_only', params.unusedOnly.toString());
+    }
+
+    const url = `/api/tokens/list?${queryParams.toString()}`;
     return this.request<TokenListResponse>('GET', url);
+  }
+
+  /**
+   * Purge tokens based on age and usage criteria (v3.5)
+   *
+   * @param params Purge filtering parameters
+   * @returns Purge result with count and list of purged tokens
+   * @throws PortalAPIError, PortalNetworkError, PortalValidationError
+   */
+  async purgeTokens(params?: PurgeTokensParams): Promise<PurgeTokensResponse> {
+    const formData = new URLSearchParams({
+      api_key: this.config.apiKey,
+    });
+
+    if (params?.unusedOnly !== undefined) {
+      formData.append('unused_only', params.unusedOnly.toString());
+    }
+    if (params?.maxAgeMinutes !== undefined) {
+      formData.append('max_age_minutes', params.maxAgeMinutes.toString());
+    }
+    if (params?.expiredOnly !== undefined) {
+      formData.append('expired_only', params.expiredOnly.toString());
+    }
+
+    const response = await this.request<any>('POST', '/api/tokens/purge', formData);
+
+    // Map the API response
+    if (response.success) {
+      return {
+        success: true,
+        purgedCount: response.purged_count || 0,
+        purgedTokens: response.purged_tokens || [],
+      };
+    }
+
+    return response;
   }
 
   /**

@@ -67,7 +67,29 @@ export async function GET(request: NextRequest) {
       timeout: 10000,
     })
 
-    const result = await portalClient.listTokens()
+    // Build filter params from query string
+    const filterParams: any = {}
+
+    // Check for v3.5 filter parameters
+    const unusedOnly = searchParams.get('unusedOnly')
+    const status = searchParams.get('status')
+    const minAgeMinutes = searchParams.get('minAgeMinutes')
+    const maxAgeMinutes = searchParams.get('maxAgeMinutes')
+
+    if (unusedOnly === 'true') {
+      filterParams.unusedOnly = true
+    }
+    if (status) {
+      filterParams.status = status
+    }
+    if (minAgeMinutes) {
+      filterParams.minAgeMinutes = parseInt(minAgeMinutes)
+    }
+    if (maxAgeMinutes) {
+      filterParams.maxAgeMinutes = parseInt(maxAgeMinutes)
+    }
+
+    const result = await portalClient.listTokens(filterParams)
 
     if (!result.success) {
       return NextResponse.json(
@@ -115,6 +137,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       count: result.count,
+      total: result.total || result.count, // Total capacity usage
       tokens: enrichedTokens,
     })
 

@@ -82,6 +82,11 @@ export default function WiFiTokensPage() {
   const [portalSearchQuery, setPortalSearchQuery] = useState('')
   const [portalStatusFilter, setPortalStatusFilter] = useState<string>('ALL')
   const [selectedPortalTokens, setSelectedPortalTokens] = useState<Set<string>>(new Set())
+  const [showUnredeemedOnly, setShowUnredeemedOnly] = useState(false)
+  const [purgeAgeMinutes, setPurgeAgeMinutes] = useState<number>(1440) // 24 hours default
+  const [showPurgeDialog, setShowPurgeDialog] = useState(false)
+  const [purging, setPurging] = useState(false)
+  const [tokenCapacity, setTokenCapacity] = useState({ current: 0, max: 500 })
 
   // Bulk Create Tab
   const [bulkConfigs, setBulkConfigs] = useState<TokenConfig[]>([])
@@ -166,18 +171,31 @@ export default function WiFiTokensPage() {
     }
   }
 
-  const fetchPortalTokens = async () => {
+  const fetchPortalTokens = async (filterUnredeemed = showUnredeemedOnly) => {
     if (!currentBusinessId) return
 
     try {
       setPortalLoading(true)
       setErrorMessage(null)
 
-      const response = await fetch(`/api/wifi-portal/integration/tokens/list?businessId=${currentBusinessId}`)
+      // Build query params with filters
+      const params = new URLSearchParams({ businessId: currentBusinessId })
+      if (filterUnredeemed) {
+        params.append('unusedOnly', 'true')
+      }
+
+      const response = await fetch(`/api/wifi-portal/integration/tokens/list?${params.toString()}`)
 
       if (response.ok) {
         const data = await response.json()
         setPortalTokens(data.tokens || [])
+
+        // Update token capacity if available
+        if (data.total !== undefined) {
+          setTokenCapacity({ current: data.total, max: 500 })
+        } else {
+          setTokenCapacity({ current: data.tokens?.length || 0, max: 500 })
+        }
       } else {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to fetch portal tokens')
@@ -687,6 +705,61 @@ export default function WiFiTokensPage() {
     }
   }
 
+  const handlePurgeTokens = async () => {
+    if (!currentBusinessId) return
+
+    // Calculate how many tokens will be affected
+    const unredeemedTokens = portalTokens.filter(t => t.status === 'unused')
+    const affectedCount = unredeemedTokens.length
+
+    if (affectedCount === 0) {
+      await alert({
+        title: 'No Tokens to Purge',
+        description: 'There are no unredeemed tokens to purge.',
+      })
+      return
+    }
+
+    const confirmed = await confirm({
+      title: 'Purge Unredeemed Tokens',
+      description: `This will permanently purge ${affectedCount} unredeemed token(s) that are older than ${purgeAgeMinutes / 60} hour(s). This action cannot be undone.\n\nPurged tokens will be marked as EXPIRED in the database.`,
+      confirmText: `Purge ${affectedCount} Token${affectedCount > 1 ? 's' : ''}`,
+      cancelText: 'Cancel',
+    })
+
+    if (!confirmed) return
+
+    try {
+      setPurging(true)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+
+      const response = await fetch(`/api/wifi-portal/integration/tokens/purge?businessId=${currentBusinessId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unusedOnly: true,
+          maxAgeMinutes: purgeAgeMinutes,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setSuccessMessage(`Successfully purged ${data.purgedCount} token(s) from ESP32 Portal!`)
+        setShowPurgeDialog(false)
+        fetchPortalTokens()
+        fetchTokens() // Also refresh database ledger
+      } else {
+        setErrorMessage(data.error || 'Failed to purge tokens')
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to purge tokens')
+    } finally {
+      setPurging(false)
+    }
+  }
+
   const formatDuration = (minutes: number): string => {
     if (!minutes || isNaN(minutes) || minutes <= 0) return 'N/A'
     if (minutes < 60) return `${Math.round(minutes)}m`
@@ -1115,11 +1188,119 @@ export default function WiFiTokensPage() {
       {/* Portal Tokens Tab */}
       {activeTab === 'portal-tokens' && (
         <>
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-            <p className="text-blue-800 dark:text-blue-200 text-sm">
-              📡 These are live tokens from your ESP32 Portal. This list shows all tokens currently active on the portal device.
-            </p>
+          {/* Token Capacity Alert */}
+          <div className={`border rounded-lg p-4 mb-6 ${
+            tokenCapacity.current >= 450
+              ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+              : tokenCapacity.current >= 300
+              ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+              : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+          }`}>
+            <div className="flex justify-between items-center">
+              <div>
+                <p className={`text-sm font-medium ${
+                  tokenCapacity.current >= 450
+                    ? 'text-red-800 dark:text-red-200'
+                    : tokenCapacity.current >= 300
+                    ? 'text-yellow-800 dark:text-yellow-200'
+                    : 'text-blue-800 dark:text-blue-200'
+                }`}>
+                  📡 ESP32 Portal Token Capacity: {tokenCapacity.current} / {tokenCapacity.max}
+                </p>
+                <p className={`text-xs mt-1 ${
+                  tokenCapacity.current >= 450
+                    ? 'text-red-700 dark:text-red-300'
+                    : tokenCapacity.current >= 300
+                    ? 'text-yellow-700 dark:text-yellow-300'
+                    : 'text-blue-700 dark:text-blue-300'
+                }`}>
+                  {portalTokens.filter(t => t.status === 'unused').length} unredeemed tokens • {portalTokens.filter(t => t.status === 'active').length} active • {portalTokens.filter(t => t.status === 'expired').length} expired
+                </p>
+              </div>
+              {tokenCapacity.current >= 300 && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPurgeDialog(true)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      tokenCapacity.current >= 450
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                    }`}
+                  >
+                    🧹 Purge Unredeemed
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Purge Dialog */}
+          {showPurgeDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                  🧹 Purge Unredeemed Tokens
+                </h3>
+
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      This will remove all unredeemed tokens (tokens that have never been used) from the ESP32 Portal.
+                    </p>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        📊 Current unredeemed tokens: <strong>{portalTokens.filter(t => t.status === 'unused').length}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Minimum Token Age
+                    </label>
+                    <select
+                      value={purgeAgeMinutes}
+                      onChange={(e) => setPurgeAgeMinutes(parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={60}>1 hour</option>
+                      <option value={360}>6 hours</option>
+                      <option value={720}>12 hours</option>
+                      <option value={1440}>24 hours (1 day)</option>
+                      <option value={2880}>48 hours (2 days)</option>
+                      <option value={10080}>7 days (1 week)</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Only tokens older than this age will be purged
+                    </p>
+                  </div>
+
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-3">
+                    <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                      ⚠️ This action cannot be undone. Purged tokens will be marked as EXPIRED in the database.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPurgeDialog(false)}
+                    disabled={purging}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePurgeTokens}
+                    disabled={purging}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {purging ? '⏳ Purging...' : '🧹 Purge Now'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4 mb-6">
@@ -1147,11 +1328,28 @@ export default function WiFiTokensPage() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="ALL">All Statuses</option>
-                  <option value="unused">Unused</option>
+                  <option value="unused">Unused (Unredeemed)</option>
                   <option value="active">Active</option>
                   <option value="expired">Expired</option>
                 </select>
               </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showUnredeemedOnly}
+                  onChange={(e) => {
+                    setShowUnredeemedOnly(e.target.checked)
+                    fetchPortalTokens(e.target.checked)
+                  }}
+                  className="rounded border-gray-300 dark:border-gray-600"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Show unredeemed tokens only (never been used)
+                </span>
+              </label>
             </div>
 
             <div className="mt-4 flex justify-between items-center">
@@ -1171,7 +1369,7 @@ export default function WiFiTokensPage() {
                   </button>
                 )}
                 <button
-                  onClick={fetchPortalTokens}
+                  onClick={() => fetchPortalTokens()}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                 >
                   🔄 Refresh
