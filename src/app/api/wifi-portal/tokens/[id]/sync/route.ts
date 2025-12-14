@@ -36,6 +36,18 @@ export async function POST(
       return NextResponse.json({ error: 'WiFi token not found' }, { status: 404 });
     }
 
+    // Check if token is already EXPIRED or DISABLED - don't attempt sync
+    if (token.status === 'EXPIRED' || token.status === 'DISABLED') {
+      return NextResponse.json(
+        {
+          error: `Token is ${token.status} - sync not allowed`,
+          tokenStatus: token.status,
+          message: `This token is ${token.status.toLowerCase()} and cannot be synced with the portal.`,
+        },
+        { status: 400 }
+      );
+    }
+
     // Check if user has access to this business
     const user = await prisma.users.findUnique({
       where: { id: session.user.id },

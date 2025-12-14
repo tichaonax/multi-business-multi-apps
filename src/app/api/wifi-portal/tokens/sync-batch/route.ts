@@ -101,6 +101,12 @@ export async function POST(request: NextRequest) {
 
         if (!dbToken) return null
 
+        // Skip tokens that are already EXPIRED or DISABLED - no point syncing
+        if (dbToken.status === 'EXPIRED' || dbToken.status === 'DISABLED') {
+          console.log(`Skipping ${dbToken.status} token: ${tokenInfo.token}`)
+          return null
+        }
+
         // Check if token was not found on ESP32 (expired and removed)
         if (!tokenInfo.success &&
             (tokenInfo.error?.toLowerCase().includes('token not found') ||
