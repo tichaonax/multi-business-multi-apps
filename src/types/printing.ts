@@ -150,9 +150,6 @@ export interface ReceiptData {
   // Footer
   footerMessage?: string;
   returnPolicy?: string;
-
-  // WiFi Tokens (if any)
-  wifiTokens?: WifiTokenInfo[];
 }
 
 export interface WifiTokenInfo {
