@@ -52,6 +52,75 @@ export default function TokenConfigsPage() {
     displayOrder: 0,
   })
 
+  // Duration options with bandwidth defaults
+  const durationOptions = [
+    { value: 30, label: '30 minutes', bandwidthDownMb: 1024, bandwidthUpMb: 200 },
+    { value: 60, label: '1 hour', bandwidthDownMb: 3072, bandwidthUpMb: 512 },
+    { value: 120, label: '2 hours', bandwidthDownMb: 6144, bandwidthUpMb: 1024 },
+    { value: 240, label: '4 hours', bandwidthDownMb: 12288, bandwidthUpMb: 2048 },
+    { value: 720, label: '12 hours', bandwidthDownMb: 25600, bandwidthUpMb: 5120 },
+    { value: 1440, label: '24 hours', bandwidthDownMb: 51200, bandwidthUpMb: 10240 },
+    { value: 10080, label: '1 week', bandwidthDownMb: 204800, bandwidthUpMb: 51200 },
+    { value: 20160, label: '2 weeks', bandwidthDownMb: 409600, bandwidthUpMb: 102400 },
+    { value: 43200, label: '30 days', bandwidthDownMb: 1024000, bandwidthUpMb: 204800 },
+  ]
+
+  // Generate package name based on duration
+  const generatePackageName = (minutes: number): string => {
+    const option = durationOptions.find(opt => opt.value === minutes)
+    if (!option) return `Custom ${minutes}min Package`
+    
+    switch (minutes) {
+      case 30: return 'Quick Connect'
+      case 60: return 'Hour Pass'
+      case 120: return 'Afternoon Pass'
+      case 240: return 'Evening Pass'
+      case 720: return 'Half Day Pass'
+      case 1440: return 'Day Pass'
+      case 10080: return 'Week Pass'
+      case 20160: return 'Fortnight Pass'
+      case 43200: return 'Month Pass'
+      default: return `${option.label} Pass`
+    }
+  }
+
+  // Generate description based on duration
+  const generateDescription = (minutes: number): string => {
+    const option = durationOptions.find(opt => opt.value === minutes)
+    if (!option) return `Custom ${minutes} minute WiFi access package`
+    
+    switch (minutes) {
+      case 30: return 'Perfect for quick browsing and checking emails'
+      case 60: return 'Great for short work sessions or casual browsing'
+      case 120: return 'Ideal for extended work sessions or streaming'
+      case 240: return 'Excellent for full afternoon productivity'
+      case 720: return 'Half day access for focused work or entertainment'
+      case 1440: return 'Full day unlimited WiFi access'
+      case 10080: return 'Week-long WiFi access for regular visitors'
+      case 20160: return 'Two weeks of continuous WiFi connectivity'
+      case 43200: return 'Month-long WiFi access for frequent users'
+      default: return `${option.label} of high-speed WiFi access`
+    }
+  }
+
+  // Handle duration change with auto-population
+  const handleDurationChange = (minutes: number) => {
+    const option = durationOptions.find(opt => opt.value === minutes)
+    if (!option) return
+
+    const newName = generatePackageName(minutes)
+    const newDescription = generateDescription(minutes)
+    
+    setFormData({
+      ...formData,
+      durationMinutes: minutes,
+      name: newName,
+      description: newDescription,
+      bandwidthDownMb: option.bandwidthDownMb,
+      bandwidthUpMb: option.bandwidthUpMb,
+    })
+  }
+
   const canConfigure = session?.user ? hasPermission(session.user, 'canConfigureWifiTokens') : false
 
   useEffect(() => {
@@ -93,12 +162,15 @@ export default function TokenConfigsPage() {
 
   const handleCreate = () => {
     setEditingConfig(null)
+    const defaultDuration = 60
+    const defaultOption = durationOptions.find(opt => opt.value === defaultDuration)
+    
     setFormData({
-      name: '',
-      description: '',
-      durationMinutes: 60,
-      bandwidthDownMb: 10,
-      bandwidthUpMb: 5,
+      name: generatePackageName(defaultDuration),
+      description: generateDescription(defaultDuration),
+      durationMinutes: defaultDuration,
+      bandwidthDownMb: defaultOption?.bandwidthDownMb || 3072,
+      bandwidthUpMb: defaultOption?.bandwidthUpMb || 512,
       basePrice: 50,
       isActive: true,
       displayOrder: 0,
@@ -318,15 +390,18 @@ export default function TokenConfigsPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Duration (minutes) *
               </label>
-              <input
-                type="number"
-                value={formData.durationMinutes || ''}
-                onChange={(e) => setFormData({ ...formData, durationMinutes: parseInt(e.target.value, 10) || 0 })}
-                min="1"
-                max="43200"
+              <select
+                value={formData.durationMinutes}
+                onChange={(e) => handleDurationChange(parseInt(e.target.value, 10))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 required
-              />
+              >
+                {durationOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Max: 43,200 (30 days)</p>
             </div>
 

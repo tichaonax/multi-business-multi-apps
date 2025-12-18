@@ -10,10 +10,10 @@ import {
   PortalAPIError,
   PortalNetworkError,
   PortalValidationError,
-  type PortalConfig,
-  type CreateTokenParams,
-  type TokenResponse,
-  type TokenInfoResponse,
+  PortalConfig,
+  CreateTokenParams,
+  TokenResponse,
+  TokenInfoResponse,
 } from './api-client';
 
 // ============================================================================

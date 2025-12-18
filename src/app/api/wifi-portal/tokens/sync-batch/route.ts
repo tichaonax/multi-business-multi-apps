@@ -96,6 +96,10 @@ export async function POST(request: NextRequest) {
     const updatePromises = batchResult.tokens.map(async (tokenInfo) => {
       if (!tokenInfo.token) return null
 
+      console.log(`\n🔄 [SYNC] Processing token: ${tokenInfo.token}`)
+      console.log(`   ESP32 status: ${tokenInfo.status}`)
+      console.log(`   ESP32 success: ${tokenInfo.success}`)
+
       try {
         // Find the token in our database
         const dbToken = await prisma.wifiTokens.findFirst({
@@ -105,10 +109,16 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        if (!dbToken) return null
+        if (!dbToken) {
+          console.log(`   ❌ Token not found in database`)
+          return null
+        }
+
+        console.log(`   DB status before: ${dbToken.status}`)
 
         // Skip tokens that are already EXPIRED or DISABLED - no point syncing
         if (dbToken.status === 'EXPIRED' || dbToken.status === 'DISABLED') {
+          console.log(`   ⏭️  Skipping - already ${dbToken.status}`)
           return null
         }
 
@@ -120,6 +130,7 @@ export async function POST(request: NextRequest) {
           // - ACTIVE tokens that go missing were in use, so mark as EXPIRED
           // - UNUSED tokens that go missing may never have been synced, so mark as DISABLED
           const newStatus = dbToken.status === 'ACTIVE' ? 'EXPIRED' : 'DISABLED'
+          console.log(`   🚫 Token not found on ESP32 - marking as ${newStatus}`)
 
           return await prisma.wifiTokens.update({
             where: { id: dbToken.id },
@@ -132,6 +143,7 @@ export async function POST(request: NextRequest) {
 
         // Skip if token info fetch failed for other reasons
         if (!tokenInfo.success) {
+          console.log(`   ⚠️  Skipping - ESP32 fetch failed: ${tokenInfo.error}`)
           return null
         }
 
@@ -160,15 +172,19 @@ export async function POST(request: NextRequest) {
             'unused': 'UNUSED',
           }
 
-          const newStatus = statusMap[tokenInfo.status] || 'ACTIVE'
+          // Convert to lowercase for mapping (API client returns uppercase)
+          const newStatus = statusMap[tokenInfo.status.toLowerCase()] || 'ACTIVE'
+          console.log(`   📊 Status mapping: ESP32 '${tokenInfo.status}' → '${newStatus}'`)
 
           // CRITICAL RULE: UNUSED tokens can NEVER become EXPIRED
           // Expiration ONLY applies to tokens that have been redeemed (ACTIVE → EXPIRED)
           // If ESP32 says "expired" but token was never used, mark as DISABLED instead
           if (newStatus === 'EXPIRED' && !dbToken.firstUsedAt && !tokenInfo.firstUsedAt) {
             // Token expired before ever being used - mark as DISABLED
+            console.log(`   ⚠️  Token expired but never used - marking as DISABLED`)
             updateData.status = 'DISABLED'
           } else {
+            console.log(`   ✅ Setting status to: ${newStatus}`)
             updateData.status = newStatus
           }
         }
@@ -183,12 +199,14 @@ export async function POST(request: NextRequest) {
           updateData.expiresAt = new Date(tokenInfo.expiresAt * 1000)
         }
 
-        console.log(`Updating token ${tokenInfo.token} with data:`, JSON.stringify(updateData, null, 2))
+        console.log(`   💾 Updating token ${tokenInfo.token} - New status will be: ${updateData.status || 'unchanged'}`)
 
         const updated = await prisma.wifiTokens.update({
           where: { id: dbToken.id },
           data: updateData,
         })
+
+        console.log(`   ✅ Token ${tokenInfo.token} updated successfully to status: ${updated.status}`)
 
         // Update or create device records
         if (tokenInfo.devices && tokenInfo.devices.length > 0) {

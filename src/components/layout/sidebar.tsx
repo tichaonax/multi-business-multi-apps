@@ -455,7 +455,7 @@ export function Sidebar() {
                   </Link>
                 )}
                 {checkPermission(currentUser, 'canSellWifiTokens') && (
-                  <Link href="/wifi-portal/tokens" className={getLinkClasses('/wifi-portal/tokens')}>
+                  <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">📡</span>
                     <span>WiFi Tokens</span>
                   </Link>
@@ -479,13 +479,14 @@ export function Sidebar() {
                   <span>Products</span>
                 </Link>
                 {checkPermission(currentUser, 'canConfigureWifiTokens') && (
-                  <Link href="/restaurant/wifi-tokens" className={getLinkClasses('/restaurant/wifi-tokens')}>
+                  <Link href="/grocery/wifi-tokens" className={getLinkClasses('/grocery/wifi-tokens')}>
                     <span className="text-lg">📶</span>
                     <span>WiFi Menu Config</span>
                   </Link>
                 )}
+                {/* WiFi Tokens - Grocery adds WiFi packages as products in inventory */}
                 {checkPermission(currentUser, 'canSellWifiTokens') && (
-                  <Link href="/wifi-portal/tokens" className={getLinkClasses('/wifi-portal/tokens')}>
+                  <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">📡</span>
                     <span>WiFi Tokens</span>
                   </Link>

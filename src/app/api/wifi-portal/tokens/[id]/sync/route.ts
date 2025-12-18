@@ -250,7 +250,8 @@ export async function POST(
         'unused': 'UNUSED',
       };
 
-      const newStatus = statusMap[tokenInfo.status] || 'ACTIVE';
+      // Convert to lowercase for mapping (API client returns uppercase)
+      const newStatus = statusMap[tokenInfo.status.toLowerCase()] || 'ACTIVE';
 
       // CRITICAL RULE: UNUSED tokens can NEVER become EXPIRED
       // Expiration ONLY applies to tokens that have been redeemed (ACTIVE → EXPIRED)

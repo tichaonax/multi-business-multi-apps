@@ -56,8 +56,6 @@ export async function GET(request: NextRequest) {
         portalPort: true,
         apiKey: true,
         isActive: true,
-        ssid: true, // WiFi network name
-        portalUrl: true, // Public portal URL if configured
       },
     });
 
@@ -75,42 +73,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try to get additional AP info from ESP32 if available
+    // Initialize AP info with defaults
     let apInfo = {
-      ssid: integration.ssid || 'WiFi Portal',
-      portalUrl: integration.portalUrl || `http://${integration.portalIpAddress}:${integration.portalPort}`,
+      ssid: 'Guest WiFi', // Default, will be overwritten by ESP32 response
+      portalUrl: `http://${integration.portalIpAddress}:${integration.portalPort}`,
       ipAddress: integration.portalIpAddress,
       port: integration.portalPort,
     };
 
-    // Try to get system info from ESP32 for additional details
+    // Fetch actual SSID from ESP32 /api/ap/info endpoint
     try {
-      const systemUrl = `http://${integration.portalIpAddress}:${integration.portalPort}/api/health?api_key=${encodeURIComponent(integration.apiKey)}`;
+      const apInfoUrl = `http://${integration.portalIpAddress}:${integration.portalPort}/api/ap/info?api_key=${encodeURIComponent(integration.apiKey)}`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout
 
-      const systemResponse = await fetch(systemUrl, {
+      const esp32Response = await fetch(apInfoUrl, {
         method: 'GET',
         signal: controller.signal,
       });
 
       clearTimeout(timeout);
 
-      if (systemResponse.ok) {
-        const systemData = await systemResponse.json();
+      if (esp32Response.ok) {
+        const esp32Data = await esp32Response.json();
 
-        // Add any additional AP info from system response
-        if (systemData.ssid) {
-          apInfo.ssid = systemData.ssid;
+        // Update SSID from ESP32 response
+        if (esp32Data.success && esp32Data.ap_ssid) {
+          apInfo.ssid = esp32Data.ap_ssid;
         }
-        if (systemData.portal_url) {
-          apInfo.portalUrl = systemData.portal_url;
+        if (esp32Data.portal_url) {
+          apInfo.portalUrl = esp32Data.portal_url;
         }
       }
     } catch (error) {
-      // Ignore errors - use database info as fallback
-      console.log('Could not fetch additional AP info from ESP32:', error);
+      // Ignore errors - use default 'Guest WiFi' as fallback
+      console.log('Could not fetch AP info from ESP32, using default:', error);
     }
 
     return NextResponse.json({

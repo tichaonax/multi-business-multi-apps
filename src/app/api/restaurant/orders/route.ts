@@ -416,13 +416,13 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
-          // Find available tokens for this token config and mark them as sold
+          // Find available tokens for this token config that have NOT been sold yet
           const availableTokens = await prisma.wifiTokens.findMany({
             where: {
               businessId: businessId,
               tokenConfigId: item.tokenConfigId,
-              status: 'UNUSED', // Changed from ACTIVE to UNUSED
-              businessTokenMenuItemId: item.businessTokenMenuItemId,
+              status: 'UNUSED', // Only unused tokens
+              wifi_token_sales: { none: {} }, // NOT sold yet
             },
             include: {
               token_configurations: {
@@ -439,13 +439,47 @@ export async function POST(req: NextRequest) {
           });
 
           if (availableTokens.length < itemQuantity) {
-            console.error(`Not enough tokens available. Requested: ${itemQuantity}, Available: ${availableTokens.length}`);
-            generatedWifiTokens.push({
-              itemName: item.name,
-              success: false,
-              error: `Not enough tokens available. Requested: ${itemQuantity}, Available: ${availableTokens.length}`
-            });
-            continue;
+            throw new Error(`Insufficient WiFi tokens: Need ${itemQuantity}, found ${availableTokens.length} available. Please reduce quantity or contact support.`);
+          }
+
+          // CRITICAL: Verify each token exists on ESP32 device before sale
+          const portalIntegrationForVerify = await prisma.portalIntegrations.findUnique({
+            where: { businessId: businessId },
+            select: {
+              portalIpAddress: true,
+              portalPort: true,
+              apiKey: true,
+              isActive: true
+            },
+          });
+
+          if (!portalIntegrationForVerify || !portalIntegrationForVerify.isActive) {
+            throw new Error('WiFi Portal integration not active');
+          }
+
+          // Verify all tokens exist on ESP32 before proceeding
+          for (const token of availableTokens) {
+            try {
+              const esp32VerifyResponse = await fetch(
+                `http://${portalIntegrationForVerify.portalIpAddress}:${portalIntegrationForVerify.portalPort}/api/token/info?token=${token.token}&api_key=${portalIntegrationForVerify.apiKey}`,
+                {
+                  method: 'GET',
+                  signal: AbortSignal.timeout(5000) // 5 second timeout
+                }
+              );
+
+              if (!esp32VerifyResponse.ok) {
+                throw new Error(`ESP32 verification failed for token ${token.token}: ${esp32VerifyResponse.status}`);
+              }
+
+              const esp32TokenInfo = await esp32VerifyResponse.json();
+              if (!esp32TokenInfo.success) {
+                throw new Error(`Token ${token.token} not found on ESP32 device`);
+              }
+            } catch (esp32Error) {
+              const errorMessage = esp32Error instanceof Error ? esp32Error.message : 'ESP32 verification failed';
+              throw new Error(`WiFi Portal integration error: ${errorMessage}. Please ensure ESP32 device is online and token exists.`);
+            }
           }
 
           // Create sales records for each token (no status change - tokens remain UNUSED until redeemed)
@@ -503,13 +537,37 @@ export async function POST(req: NextRequest) {
           // Skip inventory processing for WiFi tokens
           continue
         } catch (wifiError) {
-          console.error('WiFi token processing error:', wifiError)
-          generatedWifiTokens.push({
-            itemName: item.name,
+          console.error('❌ WiFi token processing error - rolling back order:', wifiError)
+
+          // CRITICAL: Rollback the entire order if WiFi token fails
+          // Delete the order that was just created
+          await prisma.businessOrderItems.deleteMany({
+            where: { orderId: newOrder.id }
+          });
+          await prisma.businessOrders.delete({
+            where: { id: newOrder.id }
+          });
+
+          const errorMessage = wifiError instanceof Error ? wifiError.message : 'Unknown error';
+
+          // Provide specific error message based on error type
+          let userMessage = errorMessage;
+          if (errorMessage.includes('Insufficient WiFi tokens')) {
+            userMessage = `${errorMessage}\n\nTransaction has been cancelled. Please try again or contact support.`;
+          } else if (errorMessage.includes('ESP32 verification failed') || errorMessage.includes('WiFi Portal integration error')) {
+            userMessage = `${errorMessage}\n\nThe WiFi device is currently unreachable. Please check the connection and try again.`;
+          } else if (errorMessage.includes('not found on ESP32')) {
+            userMessage = `Token validation failed: ${errorMessage}\n\nPlease contact support to resolve this issue.`;
+          } else {
+            userMessage = `WiFi Token Error: ${errorMessage}\n\nTransaction cancelled. Please try again or contact support.`;
+          }
+
+          return NextResponse.json({
+            error: userMessage,
             success: false,
-            error: wifiError instanceof Error ? wifiError.message : 'Unknown error'
-          })
-          continue
+            rollback: true,
+            wifiTokenError: errorMessage
+          }, { status: 400 });
         }
       }
 

@@ -9,7 +9,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const businessId = params.businessId;
+    const { businessId } = await params;
 
     // Check if user has access to this business (admins have access to all businesses)
     const isAdmin = session.user.role === 'admin';
@@ -109,6 +109,7 @@ export async function GET(
       },
       menuItems: menuItems.map((item) => ({
         id: item.id,
+        tokenConfigId: item.token_configurations.id, // Direct access for POS cross-reference
         businessPrice: item.businessPrice,
         isActive: item.isActive,
         displayOrder: item.displayOrder,

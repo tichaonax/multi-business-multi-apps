@@ -12,8 +12,26 @@ import { randomBytes } from 'crypto';
 const CreateOrderItemSchema = z.object({
   productVariantId: z.string().min(1).nullable(), // Nullable for WiFi tokens
   quantity: z.number().min(0.001),  // Changed from int to decimal to support weight-based items
-  unitPrice: z.number().min(0),
-  discountAmount: z.number().min(0).default(0),
+  unitPrice: z.union([z.number(), z.string()]).transform((val) => {
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val);
+      if (isNaN(parsed)) {
+        throw new Error('Invalid unit price: must be a valid number');
+      }
+      return parsed;
+    }
+    return val;
+  }).refine((val) => val >= 0, 'Unit price must be non-negative'),
+  discountAmount: z.union([z.number(), z.string()]).transform((val) => {
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val);
+      if (isNaN(parsed)) {
+        throw new Error('Invalid discount amount: must be a valid number');
+      }
+      return parsed;
+    }
+    return val;
+  }).refine((val) => val >= 0, 'Discount amount must be non-negative').default(0),
   attributes: z.record(z.string(), z.any()).optional() // Business-specific order item data
 })
 
@@ -24,8 +42,26 @@ const CreateOrderSchema = z.object({
   employeeId: z.string().nullable().optional(),
   orderType: z.enum(['SALE', 'RETURN', 'EXCHANGE', 'SERVICE', 'RENTAL', 'SUBSCRIPTION']).default('SALE'),
   paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK']).optional(),
-  discountAmount: z.number().min(0).default(0),
-  taxAmount: z.number().min(0).default(0),
+  discountAmount: z.union([z.number(), z.string()]).transform((val) => {
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val);
+      if (isNaN(parsed)) {
+        throw new Error('Invalid discount amount: must be a valid number');
+      }
+      return parsed;
+    }
+    return val;
+  }).refine((val) => val >= 0, 'Discount amount must be non-negative').default(0),
+  taxAmount: z.union([z.number(), z.string()]).transform((val) => {
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val);
+      if (isNaN(parsed)) {
+        throw new Error('Invalid tax amount: must be a valid number');
+      }
+      return parsed;
+    }
+    return val;
+  }).refine((val) => val >= 0, 'Tax amount must be non-negative').default(0),
   businessType: z.string().min(1),
   attributes: z.record(z.string(), z.any()).optional(), // Business-specific order data
   notes: z.string().optional(),
@@ -250,6 +286,13 @@ export async function GET(request: NextRequest) {
 // POST - Create new order
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = session.user as SessionUser
+
     const body = await request.json()
     const validatedData = CreateOrderSchema.parse(body)
 
@@ -393,8 +436,8 @@ export async function POST(request: NextRequest) {
 
     // Create order with items in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create the order
-  const order = await tx.businessOrders.create({
+      // Create the order with nested items
+      const order = await tx.businessOrders.create({
         data: {
           businessId: orderData.businessId,
           customerId: orderData.customerId,
@@ -411,31 +454,40 @@ export async function POST(request: NextRequest) {
           totalAmount,
           status: 'PENDING',
           paymentStatus: 'PENDING',
-          updatedAt: new Date()
-        },
-          include: {
-            businesses: { select: { name: true, type: true } },
-            business_customers: { select: { id: true, name: true, customerNumber: true } },
-            employees: { select: { id: true, fullName: true, employeeNumber: true } }
+          updatedAt: new Date(),
+          business_order_items: {
+            create: orderItems.map(item => {
+              const orderItem: any = {
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discountAmount: item.discountAmount,
+                totalPrice: item.totalPrice,
+                attributes: item.attributes
+              };
+
+              // For regular products: use connect (Prisma sets productVariantId automatically)
+              // For virtual items (WiFi tokens): don't set productVariantId at all
+              if (item.productVariantId) {
+                orderItem.product_variants = {
+                  connect: { id: item.productVariantId }
+                };
+              }
+              // If productVariantId is null, don't set anything - let Prisma handle it
+
+              return orderItem;
+            })
           }
+        },
+        include: {
+          businesses: { select: { name: true, type: true } },
+          business_customers: { select: { id: true, name: true, customerNumber: true } },
+          employees: { select: { id: true, fullName: true, employeeNumber: true } },
+          business_order_items: true
+        }
       })
 
-      // Create order items
-      const createdItems = await Promise.all(
-        orderItems.map(item =>
-          tx.businessOrderItems.create({
-            data: {
-              orderId: order.id,
-              productVariantId: item.productVariantId,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discountAmount: item.discountAmount,
-              totalPrice: item.totalPrice,
-              attributes: item.attributes
-            }
-          })
-        )
-      )
+      // Get the created items from the order
+      const createdItems = order.business_order_items
 
       // Update stock for physical products (regular items only)
       for (const item of regularItems) {
@@ -470,75 +522,154 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Process WiFi token items
+      // Process WiFi token items - USE EXISTING TOKENS from database
       const generatedWifiTokens = []
 
       if (wifiTokenItems.length > 0) {
         // Fetch WiFi portal integration to get expense account ID
-        const integrationResponse = await fetch(`${request.nextUrl.origin}/api/wifi-portal/integration?businessId=${orderData.businessId}`)
+        const integration = await tx.portalIntegrations.findUnique({
+          where: { businessId: orderData.businessId }
+        })
 
-        if (integrationResponse.ok) {
-          const integrationData = await integrationResponse.json()
-          const expenseAccountId = integrationData.integration?.expenseAccountId
+        if (integration && integration.expenseAccountId) {
+          const expenseAccountId = integration.expenseAccountId
 
-          if (expenseAccountId) {
-            for (const item of wifiTokenItems) {
-              const itemPrice = item.unitPrice
-              const itemQuantity = item.quantity
-
-              // Generate WiFi token for each quantity
-              for (let i = 0; i < itemQuantity; i++) {
-                try {
-                  const tokenResponse = await fetch(`${request.nextUrl.origin}/api/wifi-portal/tokens`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Cookie': request.headers.get('cookie') || ''
-                    },
-                    body: JSON.stringify({
-                      businessId: orderData.businessId,
-                      tokenConfigId: item.attributes?.tokenConfigId,
-                      businessTokenMenuItemId: item.attributes?.businessTokenMenuItemId,
-                      recordSale: true,
-                      saleAmount: itemPrice,
-                      paymentMethod: orderData.paymentMethod || 'CASH',
-                      expenseAccountId: expenseAccountId,
-                    })
-                  })
-
-                  if (tokenResponse.ok) {
-                    const tokenData = await tokenResponse.json()
-                    generatedWifiTokens.push({
-                      itemName: item.attributes?.productName || 'WiFi Token',
-                      tokenCode: tokenData.token.token,
-                      packageName: item.attributes?.packageName || 'WiFi Access',
-                      duration: item.attributes?.duration || 0,
-                      success: true
-                    })
-                  } else {
-                    const errorData = await tokenResponse.json().catch(() => ({ error: 'Unknown error' }))
-                    console.error('Failed to generate WiFi token:', errorData)
-                    generatedWifiTokens.push({
-                      itemName: item.attributes?.productName || 'WiFi Token',
-                      success: false,
-                      error: errorData.error || 'Failed to generate token'
-                    })
-                  }
-                } catch (wifiError) {
-                  console.error('WiFi token generation error:', wifiError)
-                  generatedWifiTokens.push({
-                    itemName: item.attributes?.productName || 'WiFi Token',
-                    success: false,
-                    error: wifiError instanceof Error ? wifiError.message : 'Unknown error'
-                  })
-                }
+          // Fetch SSID from ESP32 Access Point
+          let esp32Ssid = 'Guest WiFi'
+          try {
+            const apInfoResponse = await fetch(`http://${integration.portalIpAddress}:${integration.portalPort}/api/ap/info`)
+            if (apInfoResponse.ok) {
+              const apInfo = await apInfoResponse.json()
+              if (apInfo.success && apInfo.ap_ssid) {
+                esp32Ssid = apInfo.ap_ssid
+                console.log('Fetched ESP32 SSID:', esp32Ssid)
               }
             }
-          } else {
-            console.error('No expense account configured for WiFi portal')
+          } catch (apError) {
+            console.warn('Failed to fetch ESP32 SSID, using default:', apError)
+          }
+
+          for (const item of wifiTokenItems) {
+            const itemPrice = item.unitPrice
+            const itemQuantity = item.quantity
+            const tokenConfigId = item.attributes?.tokenConfigId
+
+            if (!tokenConfigId) {
+              console.error('Missing tokenConfigId in WiFi token item attributes')
+              generatedWifiTokens.push({
+                itemName: item.attributes?.productName || 'WiFi Token',
+                success: false,
+                error: 'Missing token configuration ID'
+              })
+              continue
+            }
+
+            // Get token configuration
+            const tokenConfig = await tx.tokenConfigurations.findUnique({
+              where: { id: tokenConfigId }
+            })
+
+            if (!tokenConfig) {
+              console.error('Token configuration not found:', tokenConfigId)
+              generatedWifiTokens.push({
+                itemName: item.attributes?.productName || 'WiFi Token',
+                success: false,
+                error: 'Token configuration not found'
+              })
+              continue
+            }
+
+            // Find available tokens (ACTIVE status, not yet sold)
+            for (let i = 0; i < itemQuantity; i++) {
+              try {
+                // Find an UNUSED token that hasn't been sold yet
+                const availableToken = await tx.wifiTokens.findFirst({
+                  where: {
+                    businessId: orderData.businessId,
+                    tokenConfigId: tokenConfigId,
+                    status: 'UNUSED',
+                    wifi_token_sales: {
+                      none: {} // No sales records = not sold
+                    }
+                  },
+                  include: {
+                    token_configurations: true
+                  }
+                })
+
+                if (!availableToken) {
+                  throw new Error('No available tokens. Please create more tokens in WiFi Portal.')
+                }
+
+                // CRITICAL: Verify token exists on ESP32 before completing sale
+                try {
+                  const esp32VerifyResponse = await fetch(
+                    `http://${integration.portalIpAddress}:${integration.portalPort}/api/token/info?token=${availableToken.token}&api_key=${integration.apiKey}`
+                  )
+
+                  if (!esp32VerifyResponse.ok) {
+                    throw new Error(`ESP32 verification failed: ${esp32VerifyResponse.status}`)
+                  }
+
+                  const esp32TokenInfo = await esp32VerifyResponse.json()
+
+                  if (!esp32TokenInfo.success) {
+                    throw new Error('Token not found on ESP32 device')
+                  }
+
+                  console.log('✅ ESP32 verified token:', availableToken.token)
+                } catch (esp32Error) {
+                  console.error('❌ ESP32 verification failed for token:', availableToken.token, esp32Error)
+                  throw new Error(`WiFi Portal integration error: ${esp32Error instanceof Error ? esp32Error.message : 'Cannot verify token'}`)
+                }
+
+                // Create sale record to mark token as sold
+                await tx.wifiTokenSales.create({
+                  data: {
+                    businessId: orderData.businessId,
+                    wifiTokenId: availableToken.id,
+                    expenseAccountId: expenseAccountId,
+                    saleAmount: itemPrice,
+                    paymentMethod: orderData.paymentMethod || 'CASH',
+                    saleChannel: 'POS',
+                    soldBy: user.id,
+                    soldAt: new Date(),
+                    receiptPrinted: false
+                  }
+                })
+
+                // Add to response with ESP32 SSID
+                generatedWifiTokens.push({
+                  itemName: item.attributes?.productName || 'WiFi Token',
+                  tokenCode: availableToken.token,
+                  packageName: tokenConfig.name,
+                  duration: tokenConfig.durationMinutes,
+                  ssid: esp32Ssid,
+                  success: true
+                })
+
+              } catch (tokenError) {
+                const errorMessage = tokenError instanceof Error ? tokenError.message : 'Unknown error'
+                console.error('❌ WiFi token processing error:', errorMessage)
+
+                // WiFi token errors should rollback the entire transaction
+                // User needs to retry without WiFi token or fix ESP32 integration
+                throw new Error(`WiFi Token Error: ${errorMessage}. Transaction cancelled - please remove WiFi tokens from order or fix WiFi Portal connection.`)
+              }
+            }
           }
         } else {
-          console.error('WiFi portal integration not found for business:', orderData.businessId)
+          console.error('No WiFi portal integration or expense account configured for business:', orderData.businessId)
+          // Add error tokens for all requested quantities
+          for (const item of wifiTokenItems) {
+            for (let i = 0; i < item.quantity; i++) {
+              generatedWifiTokens.push({
+                itemName: item.attributes?.productName || 'WiFi Token',
+                success: false,
+                error: 'WiFi Portal not configured for this business'
+              })
+            }
+          }
         }
       }
 

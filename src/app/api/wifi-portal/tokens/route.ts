@@ -208,6 +208,7 @@ export async function POST(request: NextRequest) {
     let tokenResponse;
     try {
       console.log('Calling portalClient.createToken with params:', {
+        businessId: businessId,
         durationMinutes: tokenConfig.durationMinutes,
         bandwidthDownMb: tokenConfig.bandwidthDownMb,
         bandwidthUpMb: tokenConfig.bandwidthUpMb,
@@ -215,6 +216,7 @@ export async function POST(request: NextRequest) {
       });
 
       tokenResponse = await portalClient.createToken({
+        businessId: businessId, // REQUIRED: Multi-business ESP32 sharing
         durationMinutes: tokenConfig.durationMinutes,
         bandwidthDownMb: tokenConfig.bandwidthDownMb,
         bandwidthUpMb: tokenConfig.bandwidthUpMb,
@@ -340,6 +342,7 @@ export async function POST(request: NextRequest) {
           expiresAt: tokenResponse.expiresAt,
           bandwidthDownMb: tokenResponse.bandwidthDownMb,
           bandwidthUpMb: tokenResponse.bandwidthUpMb,
+          ap_ssid: tokenResponse.ap_ssid,
         },
       },
       { status: 201 }
@@ -367,6 +370,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get('businessId');
     const status = searchParams.get('status');
+    const excludeSold = searchParams.get('excludeSold') === 'true'; // New parameter to exclude sold tokens
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
@@ -403,6 +407,13 @@ export async function GET(request: NextRequest) {
     const whereClause: any = { businessId: businessId };
     if (status) {
       whereClause.status = status;
+    }
+
+    // Filter out sold tokens if requested
+    if (excludeSold) {
+      whereClause.wifi_token_sales = {
+        none: {} // No sales records = not sold
+      };
     }
 
     const [tokens, total] = await Promise.all([
@@ -444,6 +455,7 @@ export async function GET(request: NextRequest) {
       tokens: tokens.map((t) => ({
         id: t.id,
         token: t.token,
+        tokenConfigId: t.tokenConfigId,
         status: t.status,
         createdAt: t.createdAt,
         expiresAt: t.expiresAt,

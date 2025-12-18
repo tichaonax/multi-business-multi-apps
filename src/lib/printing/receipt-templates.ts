@@ -79,15 +79,12 @@ function generateRestaurantReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Receipt type
   receipt += centerText(isKitchenReceipt ? '*** KITCHEN COPY ***' : 'CUSTOMER RECEIPT') + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -104,7 +101,7 @@ function generateRestaurantReceipt(data: ReceiptData): string {
     receipt += `Server: ${restaurantData.serverName}` + LF;
   }
 
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
+  receipt += LF; // Spacing before items section
 
   // Items
   if (isKitchenReceipt && restaurantData?.items) {
@@ -143,9 +140,6 @@ function generateRestaurantReceipt(data: ReceiptData): string {
       }
     });
   }
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Totals (customer receipt only)
   if (!isKitchenReceipt) {
     receipt += formatTotal('Subtotal', data.subtotal);
@@ -153,9 +147,7 @@ function generateRestaurantReceipt(data: ReceiptData): string {
     if (data.discount) {
       receipt += formatTotal('Discount', -data.discount);
     }
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
     receipt += formatTotal('TOTAL', data.total, true);
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
     // Payment
     receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
@@ -170,9 +162,7 @@ function generateRestaurantReceipt(data: ReceiptData): string {
   // WiFi Tokens (if any)
   if (data.wifiTokens && data.wifiTokens.length > 0) {
     receipt += LF;
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
     receipt += centerText('WiFi ACCESS TOKENS') + LF;
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
     data.wifiTokens.forEach(token => {
       receipt += `Token: ${token.token}` + LF;
@@ -234,11 +224,9 @@ function generateClothingReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -247,7 +235,6 @@ function generateClothingReceipt(data: ReceiptData): string {
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
   receipt += `Salesperson: ${data.salespersonName}` + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Items with size/color
   data.items.forEach((item, index) => {
@@ -271,18 +258,13 @@ function generateClothingReceipt(data: ReceiptData): string {
       receipt += `  Brand: ${clothingItem.brand}` + LF;
     }
   });
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
   if (data.discount) {
     receipt += formatTotal('Discount', -data.discount);
   }
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
@@ -291,7 +273,6 @@ function generateClothingReceipt(data: ReceiptData): string {
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += 'RETURN POLICY' + LF;
-  receipt += '-'.repeat(RECEIPT_WIDTH) + LF;
   const returnPolicy = clothingData?.returnPolicy || 'Returns accepted within 30 days with receipt';
   receipt += wrapText(returnPolicy) + LF;
 
@@ -328,10 +309,8 @@ function generateGroceryReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -340,7 +319,6 @@ function generateGroceryReceipt(data: ReceiptData): string {
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
   receipt += `Cashier: ${data.salespersonName}` + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Items with weight/unit pricing
   data.items.forEach((item, index) => {
@@ -362,18 +340,13 @@ function generateGroceryReceipt(data: ReceiptData): string {
       receipt += `  Exp: ${formatDate(groceryItem.expirationDate)}` + LF;
     }
   });
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
   if (data.discount) {
     receipt += formatTotal('Savings', -data.discount);
   }
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
@@ -420,11 +393,9 @@ function generateHardwareReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -436,7 +407,6 @@ function generateHardwareReceipt(data: ReceiptData): string {
   if (hardwareData?.projectReference) {
     receipt += `Project: ${hardwareData.projectReference}` + LF;
   }
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Items with dimensions and bulk pricing
   data.items.forEach((item, index) => {
@@ -464,18 +434,13 @@ function generateHardwareReceipt(data: ReceiptData): string {
       receipt += `  Special Order ETA: ${formatDate(hardwareItem.specialOrderETA)}` + LF;
     }
   });
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
   if (data.discount) {
     receipt += formatTotal('Discount', -data.discount);
   }
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
@@ -515,13 +480,10 @@ function generateConstructionReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText('*** INVOICE ***') + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -535,21 +497,18 @@ function generateConstructionReceipt(data: ReceiptData): string {
     receipt += `Code: ${constructionData.projectCode}` + LF;
     receipt += `Contractor: ${constructionData.contractorName}` + LF;
     receipt += `Contact: ${constructionData.contractorContact}` + LF;
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
     // Project timeline
     receipt += 'Project Timeline:' + LF;
     receipt += `  Start: ${formatDate(constructionData.projectTimeline.startDate)}` + LF;
     receipt += `  End: ${formatDate(constructionData.projectTimeline.endDate)}` + LF;
     receipt += `  Phase: ${constructionData.projectTimeline.currentPhase}` + LF;
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
     // Budget tracking
     receipt += 'Budget Status:' + LF;
     receipt += formatTotal('Total Budget', constructionData.budgetTotal);
     receipt += formatTotal('Spent', constructionData.budgetSpent);
     receipt += formatTotal('Remaining', constructionData.budgetTotal - constructionData.budgetSpent);
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   }
 
   // Line items
@@ -561,9 +520,6 @@ function generateConstructionReceipt(data: ReceiptData): string {
       receipt += `  SKU: ${item.sku}` + LF;
     }
   });
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Cost breakdown
   if (constructionData?.laborCost || constructionData?.materialsCost) {
     if (constructionData.materialsCost) {
@@ -572,15 +528,12 @@ function generateConstructionReceipt(data: ReceiptData): string {
     if (constructionData.laborHours && constructionData.laborCost) {
       receipt += formatTotal(`Labor (${constructionData.laborHours}hrs)`, constructionData.laborCost);
     }
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   }
 
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment terms
   if (constructionData?.paymentTerms) {
@@ -622,13 +575,10 @@ function generateVehiclesReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText('SERVICE RECEIPT') + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -637,7 +587,6 @@ function generateVehiclesReceipt(data: ReceiptData): string {
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
   receipt += `Technician: ${vehiclesData?.technicianName || data.salespersonName}` + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Vehicle info
   if (vehiclesData?.vehicleInfo) {
@@ -649,7 +598,6 @@ function generateVehiclesReceipt(data: ReceiptData): string {
       receipt += `  VIN: ${v.vin}` + LF;
     }
     receipt += `  Mileage: ${vehiclesData.currentMileage.toLocaleString()}` + LF;
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   }
 
   // Services performed
@@ -658,7 +606,6 @@ function generateVehiclesReceipt(data: ReceiptData): string {
     vehiclesData.servicesPerformed.forEach(service => {
       receipt += `  • ${service}` + LF;
     });
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   }
 
   // Parts used
@@ -672,22 +619,18 @@ function generateVehiclesReceipt(data: ReceiptData): string {
         part.price * part.quantity
       );
     });
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   }
 
   // Labor
   if (vehiclesData?.laborHours && vehiclesData?.laborRate) {
     receipt += formatTotal(`Labor (${vehiclesData.laborHours}hrs @ $${vehiclesData.laborRate}/hr)`,
       vehiclesData.laborHours * vehiclesData.laborRate);
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   }
 
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
@@ -741,13 +684,10 @@ function generateConsultingReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText('CONSULTING INVOICE') + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -757,14 +697,12 @@ function generateConsultingReceipt(data: ReceiptData): string {
     receipt += `Invoice: ${consultingData.invoiceNumber}` + LF;
     receipt += `Date: ${formatDate(consultingData.invoiceDate)}` + LF;
     receipt += `Consultant: ${data.salespersonName}` + LF;
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
     // Client info
     receipt += 'Client:' + LF;
     receipt += `  ${consultingData.clientName}` + LF;
     receipt += `  ${consultingData.clientContact}` + LF;
     receipt += LF + `Project: ${consultingData.projectName}` + LF;
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
     // Service hours breakdown
     if (consultingData.serviceHours && consultingData.serviceHours.length > 0) {
@@ -776,7 +714,7 @@ function generateConsultingReceipt(data: ReceiptData): string {
         receipt += formatTotal('  Total', entry.hours * entry.hourlyRate);
         receipt += LF;
       });
-      receipt += '='.repeat(RECEIPT_WIDTH) + LF;
+      
     }
   }
 
@@ -789,15 +727,10 @@ function generateConsultingReceipt(data: ReceiptData): string {
       receipt += `  SKU: ${item.sku}` + LF;
     }
   });
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment terms
   if (consultingData?.paymentTerms) {
@@ -839,11 +772,9 @@ function generateRetailReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -852,7 +783,6 @@ function generateRetailReceipt(data: ReceiptData): string {
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
   receipt += `Associate: ${data.salespersonName}` + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Items
   data.items.forEach(item => {
@@ -863,18 +793,13 @@ function generateRetailReceipt(data: ReceiptData): string {
       receipt += `  SKU: ${item.sku}` + LF;
     }
   });
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
   if (data.discount) {
     receipt += formatTotal('Discount', -data.discount);
   }
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
@@ -934,13 +859,10 @@ function generateServicesReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText('SERVICE RECEIPT') + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -952,13 +874,11 @@ function generateServicesReceipt(data: ReceiptData): string {
   if (servicesData?.technicianId) {
     receipt += `Tech ID: ${servicesData.technicianId}` + LF;
   }
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Service description
   if (servicesData?.serviceDescription) {
     receipt += 'Service:' + LF;
     receipt += wrapText(servicesData.serviceDescription) + LF;
-    receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   }
 
   // Labor
@@ -976,15 +896,10 @@ function generateServicesReceipt(data: ReceiptData): string {
     });
     receipt += LF;
   }
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
@@ -1032,11 +947,9 @@ function generateGenericReceipt(data: ReceiptData): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
   if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
@@ -1046,7 +959,6 @@ function generateGenericReceipt(data: ReceiptData): string {
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
   receipt += `Transaction: ${data.transactionId}` + LF;
   receipt += `Salesperson: ${data.salespersonName}` + LF;
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Items
   data.items.forEach(item => {
@@ -1060,18 +972,13 @@ function generateGenericReceipt(data: ReceiptData): string {
       receipt += `  ${item.notes}` + LF;
     }
   });
-
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
-
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
   receipt += formatTotal('Tax', data.tax);
   if (data.discount) {
     receipt += formatTotal('Discount', -data.discount);
   }
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
   receipt += formatTotal('TOTAL', data.total, true);
-  receipt += '='.repeat(RECEIPT_WIDTH) + LF;
 
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;

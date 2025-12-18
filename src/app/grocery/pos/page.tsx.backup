@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider, useBusinessContext, BarcodeScanner } from '@/components/universal'
@@ -110,17 +110,18 @@ function GroceryPOSContent() {
   // Check if current business is a grocery business
   const isGroceryBusiness = currentBusiness?.businessType === 'grocery'
 
-  // Extract fetchProducts as a callable function for reuse
-  const fetchProducts = useCallback(async () => {
-    if (!currentBusinessId) return
+  // Fetch products when business changes
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (!currentBusinessId) return
 
-    setProductsLoading(true)
-    try {
-      // Fetch both products and WiFi tokens
-      const [response, wifiTokensResponse] = await Promise.all([
-        fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true`),
-        fetch(`/api/business/${currentBusinessId}/wifi-tokens`)
-      ])
+      setProductsLoading(true)
+      try {
+        // Fetch both products and WiFi tokens
+        const [response, wifiTokensResponse] = await Promise.all([
+          fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true`),
+          fetch(`/api/business/${currentBusinessId}/wifi-tokens`)
+        ])
 
         if (response.ok) {
           const result = await response.json()
@@ -174,94 +175,29 @@ function GroceryPOSContent() {
               const wifiData = await wifiTokensResponse.json()
               if (wifiData.success && wifiData.menuItems) {
                 // Fetch available quantities for all token configs
-                console.log('🔍 [WiFi Menu Items]:', wifiData.menuItems)
                 const tokenConfigIds = wifiData.menuItems.map((item: any) => item.tokenConfigId)
-                console.log('🔍 [Extracted Token Config IDs]:', tokenConfigIds)
                 let quantityMap: Record<string, number> = {}
 
                 if (tokenConfigIds.length > 0) {
                   try {
-                    console.log('🔍 [WiFi Token Availability] Starting cross-reference check...')
-                    console.log('   Business ID:', currentBusinessId)
-                    console.log('   Token Config IDs to check:', tokenConfigIds)
+                    // Fetch only unsold UNUSED tokens for availability count
+                    const quantitiesResponse = await fetch(`/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=UNUSED&excludeSold=true&limit=1000`)
+                    if (quantitiesResponse.ok) {
+                      const quantitiesData = await quantitiesResponse.json()
+                      const tokens = quantitiesData.tokens || []
 
-                    // CRITICAL: Cross-reference ESP32 API with Database Ledger
-                    // Step 1: Get ESP32 sellable tokens (source of truth)
-                    const esp32Url = `/api/wifi-portal/integration/tokens/list?businessId=${currentBusinessId}&status=unused&limit=1000`
-                    console.log('   ESP32 API URL:', esp32Url)
-
-                    const esp32Response = await fetch(esp32Url)
-                    console.log('   ESP32 Response:', esp32Response.status, esp32Response.statusText)
-
-                    if (esp32Response.ok) {
-                      const esp32Data = await esp32Response.json()
-                      console.log('   ESP32 Tokens Count:', esp32Data.tokens?.length || 0)
-
-                      if (esp32Data.tokens && esp32Data.tokens.length > 0) {
-                        console.log('   First 5 ESP32 tokens:', esp32Data.tokens.slice(0, 5).map((t: any) => t.token))
-                      }
-
-                      // Create Set for O(1) lookup performance
-                      const esp32TokenSet = new Set(
-                        (esp32Data.tokens || []).map((t: any) => t.token)
-                      )
-                      console.log('   ESP32 Token Set size:', esp32TokenSet.size)
-
-                      // Step 2: Get Database Ledger tokens (unsold only)
-                      const dbUrl = `/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=UNUSED&excludeSold=true&limit=1000`
-                      console.log('   Database API URL:', dbUrl)
-
-                      const dbResponse = await fetch(dbUrl)
-                      console.log('   Database Response:', dbResponse.status, dbResponse.statusText)
-
-                      if (dbResponse.ok) {
-                        const dbData = await dbResponse.json()
-                        const dbTokens = dbData.tokens || []
-                        console.log('   Database Tokens Count:', dbTokens.length)
-
-                        if (dbTokens.length > 0) {
-                          console.log('   First 5 DB tokens:', dbTokens.slice(0, 5).map((t: any) => t.token))
-                          console.log('   Sample DB token details:', {
-                            token: dbTokens[0].token,
-                            status: dbTokens[0].status,
-                            configId: dbTokens[0].tokenConfigId,
-                            hasSale: !!dbTokens[0].sale
-                          })
+                      // Count tokens by tokenConfigId (only unsold tokens)
+                      quantityMap = tokens.reduce((acc: Record<string, number>, token: any) => {
+                        const configId = token.tokenConfigId
+                        if (configId && tokenConfigIds.includes(configId)) {
+                          acc[configId] = (acc[configId] || 0) + 1
                         }
-
-                        // Step 3: Cross-reference - only count tokens in BOTH lists
-                        let matchedCount = 0
-                        quantityMap = dbTokens.reduce((acc: Record<string, number>, dbToken: any) => {
-                          // Only count if token exists in ESP32 API
-                          if (esp32TokenSet.has(dbToken.token)) {
-                            matchedCount++
-                            const configId = dbToken.tokenConfigId
-                            if (configId && tokenConfigIds.includes(configId)) {
-                              acc[configId] = (acc[configId] || 0) + 1
-                              console.log(`   ✓ Matched token: ${dbToken.token} -> Config: ${configId}`)
-                            } else {
-                              console.log(`   ⚠️  Token ${dbToken.token} in both but config ${configId} not in menu`)
-                            }
-                          }
-                          return acc
-                        }, {})
-
-                        console.log('   Cross-reference results:')
-                        console.log('     - Tokens in both ESP32 & DB:', matchedCount)
-                        console.log('     - Quantity map:', quantityMap)
-                      } else {
-                        console.error('   ❌ Database API failed')
-                      }
-                    } else {
-                      console.error('   ❌ ESP32 API failed')
+                        return acc
+                      }, {})
                     }
                   } catch (error) {
-                    console.error('❌ Failed to fetch token availability (ESP32 cross-reference):', error)
-                    // Fallback: Set all counts to 0 to prevent selling unavailable tokens
-                    quantityMap = {}
+                    console.error('Failed to fetch token quantities:', error)
                   }
-
-                  console.log('🎯 [WiFi Token Availability] Final quantity map:', quantityMap)
                 }
 
                 const wifiTokenItems = wifiData.menuItems
@@ -295,12 +231,10 @@ function GroceryPOSContent() {
       } finally {
         setProductsLoading(false)
       }
-  }, [currentBusinessId])
+    }
 
-  // Fetch products when business changes
-  useEffect(() => {
     fetchProducts()
-  }, [currentBusinessId, fetchProducts])
+  }, [currentBusinessId])
 
   const sampleCustomer: Customer = {
     id: 'c1',
@@ -703,11 +637,8 @@ function GroceryPOSContent() {
         // Clear cart after successful payment
         setCart([])
         setCustomer(null)
-        // Reload daily sales and products (to update WiFi token counts) after order completion
-        setTimeout(() => {
-          loadDailySales()
-          fetchProducts() // Refresh WiFi token availability badges
-        }, 500)
+        // Reload daily sales after order completion
+        setTimeout(() => loadDailySales(), 500)
       } else {
         throw new Error(result.error || 'Failed to process order')
       }

@@ -170,22 +170,44 @@ export default function RestaurantPOS() {
               
               if (tokenConfigIds.length > 0) {
                 try {
-                  const quantitiesResponse = await fetch(`/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=ACTIVE&limit=1000`)
-                  if (quantitiesResponse.ok) {
-                    const quantitiesData = await quantitiesResponse.json()
-                    const tokens = quantitiesData.tokens || []
-                    
-                    // Count tokens by tokenConfigId
-                    quantityMap = tokens.reduce((acc: Record<string, number>, token: any) => {
-                      const configId = token.tokenConfig?.id
-                      if (configId && tokenConfigIds.includes(configId)) {
-                        acc[configId] = (acc[configId] || 0) + 1
-                      }
-                      return acc
-                    }, {})
+                  // CRITICAL: Cross-reference ESP32 API with Database Ledger
+                  // Only count tokens that exist in BOTH ESP32 and Database
+
+                  // Step 1: Get ESP32 sellable tokens (source of truth)
+                  const esp32Response = await fetch(`/api/wifi-portal/integration/tokens/list?businessId=${currentBusinessId}&status=unused&limit=1000`)
+
+                  if (esp32Response.ok) {
+                    const esp32Data = await esp32Response.json()
+
+                    // Create Set for O(1) lookup performance
+                    const esp32TokenSet = new Set(
+                      (esp32Data.tokens || []).map((t: any) => t.token)
+                    )
+
+                    // Step 2: Get Database Ledger tokens (unsold only)
+                    const dbResponse = await fetch(`/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=UNUSED&excludeSold=true&limit=1000`)
+
+                    if (dbResponse.ok) {
+                      const dbData = await dbResponse.json()
+                      const dbTokens = dbData.tokens || []
+
+                      // Step 3: Cross-reference - only count tokens in BOTH lists
+                      quantityMap = dbTokens.reduce((acc: Record<string, number>, dbToken: any) => {
+                        // Only count if token exists in ESP32 API
+                        if (esp32TokenSet.has(dbToken.token)) {
+                          const configId = dbToken.tokenConfigId
+                          if (configId && tokenConfigIds.includes(configId)) {
+                            acc[configId] = (acc[configId] || 0) + 1
+                          }
+                        }
+                        return acc
+                      }, {})
+                    }
                   }
                 } catch (error) {
-                  console.error('Failed to fetch token quantities:', error)
+                  console.error('Failed to fetch token availability (ESP32 cross-reference):', error)
+                  // Fallback: Set all counts to 0 to prevent selling unavailable tokens
+                  quantityMap = {}
                 }
               }
 
@@ -309,7 +331,7 @@ export default function RestaurantPOS() {
       // Small delay to let print dialog open
       await new Promise(resolve => setTimeout(resolve, 500))
 
-      toast.push('✅ Print ready')
+      toast.push('Print ready', { type: 'success', duration: 3000 })
 
       // Auto-close modal after print dialog
       setTimeout(() => {
@@ -354,11 +376,14 @@ export default function RestaurantPOS() {
     }
   }, [currentBusinessId, isRestaurantBusiness])
 
-  // Reload daily sales after completing an order
+  // Reload daily sales and menu items after completing an order
   useEffect(() => {
     if (completedOrder && currentBusinessId) {
-      // Reload sales data after a short delay to allow order to be processed
-      setTimeout(() => loadDailySales(), 500)
+      // Reload sales data and menu (WiFi token counts) after a short delay to allow order to be processed
+      setTimeout(() => {
+        loadDailySales()
+        loadMenuItems() // Refresh WiFi token availability badges
+      }, 500)
     }
   }, [completedOrder])
 
@@ -447,11 +472,17 @@ export default function RestaurantPOS() {
         const healthData = await healthResponse.json()
 
         if (!healthData.success || healthData.health?.status !== 'healthy') {
-          toast.push(`⚠️ WiFi Portal is currently unavailable. Cannot add WiFi tokens to cart.`)
+          toast.push(`WiFi Portal is currently unavailable. Cannot add WiFi tokens to cart.`, {
+            type: 'warning',
+            duration: 6000
+          })
           return
         }
       } catch (error) {
-        toast.push(`⚠️ Failed to verify WiFi Portal status. Please try again.`)
+        toast.push(`Failed to verify WiFi Portal status. Please try again.`, {
+          type: 'warning',
+          duration: 6000
+        })
         return
       }
 
@@ -461,9 +492,15 @@ export default function RestaurantPOS() {
 
       if (availableQuantity <= currentCartQuantity) {
         if (availableQuantity === 0) {
-          toast.push(`⚠️ No WiFi tokens available for "${item.name}". Please create more tokens in the WiFi Portal.`)
+          toast.push(`No WiFi tokens available for "${item.name}".\n\nPlease create more tokens in the WiFi Portal.`, {
+            type: 'warning',
+            duration: 7000
+          })
         } else {
-          toast.push(`⚠️ Only ${availableQuantity} WiFi token${availableQuantity === 1 ? '' : 's'} available for "${item.name}".`)
+          toast.push(`Only ${availableQuantity} WiFi token${availableQuantity === 1 ? '' : 's'} available for "${item.name}".`, {
+            type: 'warning',
+            duration: 6000
+          })
         }
         return
       }
@@ -645,11 +682,21 @@ export default function RestaurantPOS() {
         const errorData = await response.json().catch(() => null)
         const errorMessage = errorData?.error || errorData?.message || 'Failed to process order'
         console.error('Order processing failed:', errorMessage, errorData)
-        toast.push(`Failed to process order: ${errorMessage}`)
+
+        // Use error toast with longer duration for critical errors
+        const isWiFiError = errorData?.rollback === true || errorMessage.includes('WiFi Token')
+        toast.push(`Order Failed:\n\n${errorMessage}`, {
+          type: 'error',
+          duration: isWiFiError ? 0 : 8000, // WiFi errors require dismissal, others 8s
+          requireDismiss: isWiFiError
+        })
       }
     } catch (error: any) {
       console.error('Order processing error:', error)
-      toast.push(`Failed to process order: ${error.message || 'Network error'}`)
+      toast.push(`Order Failed:\n\n${error.message || 'Network error occurred. Please try again.'}`, {
+        type: 'error',
+        duration: 8000
+      })
     }
     finally {
       submitInFlightRef.current = false
@@ -1077,6 +1124,13 @@ export default function RestaurantPOS() {
                 padding: 5mm;
                 font-family: monospace;
                 font-size: 12pt;
+                color: black !important; /* Force all text to black for thermal printers */
+              }
+              #receipt-content * {
+                color: black !important; /* Ensure all child elements are black */
+                background: white !important; /* Remove any backgrounds */
+                border: none !important; /* Remove all borders for thermal printing */
+                box-shadow: none !important; /* Remove any shadows */
               }
               @page {
                 size: 80mm auto; /* Thermal paper width */
@@ -1087,24 +1141,24 @@ export default function RestaurantPOS() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
               {/* Receipt Content - Printable */}
-              <div id="receipt-content" className="p-8">
+              <div id="receipt-content" className="p-8 bg-white dark:bg-gray-800">
               <div className="text-center mb-6">
-                <h1 className="text-2xl font-bold text-primary mb-2">Restaurant Receipt</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{currentBusiness?.businessName || 'Restaurant'}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{completedOrder.date}</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Restaurant Receipt</h1>
+                <p className="text-sm text-gray-700 dark:text-gray-300">{currentBusiness?.businessName || 'Restaurant'}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{completedOrder.date}</p>
               </div>
 
-              <div className="border-t border-b border-gray-300 dark:border-gray-600 py-3 mb-4">
-                <div className="text-center font-mono text-sm">
+              <div className="border-t border-gray-300 dark:border-gray-600 py-3 mb-4">
+                <div className="text-center font-mono text-sm text-gray-900 dark:text-gray-100">
                   <p className="font-bold">Order #{completedOrder.orderNumber}</p>
                 </div>
               </div>
 
               {/* Items */}
               <div className="mb-4 space-y-2">
-                <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">Items:</h3>
+                <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100 mb-2">Items:</h3>
                 {completedOrder.items.map((item: any, index: number) => (
-                  <div key={index} className="flex justify-between text-sm">
+                  <div key={index} className="flex justify-between text-sm text-gray-900 dark:text-gray-100">
                     <div className="flex-1">
                       <span className="font-medium">{item.quantity}x</span> {item.name}
                     </div>
@@ -1115,18 +1169,18 @@ export default function RestaurantPOS() {
 
               {/* Totals */}
               <div className="border-t border-gray-300 dark:border-gray-600 pt-3 space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm text-gray-900 dark:text-gray-100">
                   <span>Subtotal:</span>
                   <span className="font-mono">${completedOrder.subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-lg">
+                <div className="flex justify-between font-bold text-lg text-gray-900 dark:text-gray-100">
                   <span>Total:</span>
                   <span className="font-mono">${completedOrder.total.toFixed(2)}</span>
                 </div>
               </div>
 
               {/* Payment Details */}
-              <div className="border-t border-gray-300 dark:border-gray-600 mt-4 pt-3 space-y-1 text-sm">
+              <div className="border-t border-gray-300 dark:border-gray-600 mt-4 pt-3 space-y-1 text-sm text-gray-900 dark:text-gray-100">
                 <div className="flex justify-between">
                   <span>Payment Method:</span>
                   <span className="font-medium">{completedOrder.paymentMethod}</span>
@@ -1137,7 +1191,7 @@ export default function RestaurantPOS() {
                       <span>Amount Received:</span>
                       <span className="font-mono">${completedOrder.amountReceived.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between font-semibold text-green-600">
+                    <div className="flex justify-between font-semibold">
                       <span>Change:</span>
                       <span className="font-mono">${completedOrder.change.toFixed(2)}</span>
                     </div>
@@ -1148,27 +1202,33 @@ export default function RestaurantPOS() {
               {/* WiFi Tokens Section */}
               {completedOrder.wifiTokens && completedOrder.wifiTokens.length > 0 && (
                 <div className="border-t-2 border-dashed border-gray-300 dark:border-gray-600 pt-4 mt-4 mb-4">
-                  <div className="text-center font-bold text-sm mb-3">📶 WiFi ACCESS TOKENS</div>
+                  <div className="text-center font-bold text-sm text-gray-900 dark:text-gray-100 mb-3">WiFi ACCESS TOKENS</div>
                   {completedOrder.wifiTokens.map((token: any, index: number) => (
-                    <div key={index} className="mb-3 p-3 border-2 border-blue-300 dark:border-blue-600 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <div key={index} className="mb-3 p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
                       {token.success ? (
                         <>
-                          <div className="text-sm font-bold mb-2 text-center">{token.packageName}</div>
+                          <div className="text-sm font-bold mb-2 text-center text-gray-900 dark:text-gray-100">{token.packageName}</div>
+                          {token.ssid && (
+                            <div className="text-xs text-center mb-2 text-gray-700 dark:text-gray-300">
+                              <span className="font-semibold">Network:</span> {token.ssid}
+                            </div>
+                          )}
                           <div className="text-center my-3">
-                            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg font-mono text-xl font-bold border-2 border-gray-300 dark:border-gray-600">
+                            <div className="border-2 border-gray-300 dark:border-gray-600 p-3 rounded-lg font-mono text-xl font-bold text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700">
                               {token.tokenCode}
                             </div>
                           </div>
-                          <div className="text-xs text-center space-y-1">
+                          <div className="text-xs text-center space-y-1 text-gray-900 dark:text-gray-100">
                             <div className="font-semibold">Duration: {Math.floor(token.duration / 60)}h {token.duration % 60}m</div>
-                            <div className="text-gray-600 dark:text-gray-400 mt-2">
-                              Connect to WiFi and enter this code at the login portal
+                            <div className="text-center mt-2">
+                              1. Connect to "{token.ssid || 'Guest WiFi'}"<br/>
+                              2. Open browser and enter code above
                             </div>
                           </div>
                         </>
                       ) : (
-                        <div className="text-xs text-red-600 dark:text-red-400 text-center font-semibold">
-                          ❌ Token generation failed: {token.error || 'Unknown error'}
+                        <div className="text-xs text-center font-semibold text-red-600 dark:text-red-400">
+                          Token generation failed: {token.error || 'Unknown error'}
                         </div>
                       )}
                     </div>
@@ -1177,7 +1237,7 @@ export default function RestaurantPOS() {
               )}
 
               <div className="text-center mt-6 pt-4 border-t border-gray-300 dark:border-gray-600">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Thank you for your order!</p>
+                <p className="text-sm text-gray-900 dark:text-gray-100">Thank you for your order!</p>
               </div>
             </div>
 

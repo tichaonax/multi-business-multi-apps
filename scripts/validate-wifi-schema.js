@@ -70,7 +70,7 @@ async function validateWifiPortalSchema() {
         businessId: createdBusinessId,
         apiKey: 'test_api_key_' + Date.now(),
         portalIpAddress: '192.168.1.100',
-        portalPort: 8080,
+        portalPort: 80,
         isActive: true,
         showTokensInPOS: true,
         createdBy: createdUserId

@@ -68,13 +68,17 @@ export async function GET(request: NextRequest) {
     })
 
     // Build filter params from query string
-    const filterParams: any = {}
+    const filterParams: any = {
+      businessId: businessId, // CRITICAL: Filter by businessId for multi-business ESP32 sharing
+    }
 
     // Check for v3.5 filter parameters
     const unusedOnly = searchParams.get('unusedOnly')
     const status = searchParams.get('status')
     const minAgeMinutes = searchParams.get('minAgeMinutes')
     const maxAgeMinutes = searchParams.get('maxAgeMinutes')
+    const offset = searchParams.get('offset')
+    const limit = searchParams.get('limit')
 
     if (unusedOnly === 'true') {
       filterParams.unusedOnly = true
@@ -87,6 +91,12 @@ export async function GET(request: NextRequest) {
     }
     if (maxAgeMinutes) {
       filterParams.maxAgeMinutes = parseInt(maxAgeMinutes)
+    }
+    if (offset) {
+      filterParams.offset = parseInt(offset)
+    }
+    if (limit) {
+      filterParams.limit = parseInt(limit)
     }
 
     const result = await portalClient.listTokens(filterParams)
@@ -139,6 +149,9 @@ export async function GET(request: NextRequest) {
       count: result.count,
       total: result.total || result.count, // Total capacity usage
       tokens: enrichedTokens,
+      offset: result.offset,
+      limit: result.limit,
+      has_more: result.hasMore,
     })
 
   } catch (error: any) {

@@ -92,7 +92,7 @@ async function testWifiPortalSchema() {
         businessId: testBusinessId,
         apiKey: 'test_api_key_' + Date.now(),
         portalIpAddress: '192.168.1.100',
-        portalPort: 8080,
+        portalPort: 80,
         isActive: true,
         showTokensInPOS: true, // Enable POS integration
         createdBy: testUserId

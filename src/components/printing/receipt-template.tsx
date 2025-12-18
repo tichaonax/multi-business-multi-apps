@@ -12,9 +12,9 @@ interface ReceiptTemplateProps {
 
 export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: ReceiptTemplateProps) {
   return (
-    <div className="receipt-template font-mono text-xs max-w-[300px] p-2.5 bg-white dark:bg-gray-800 text-black dark:text-gray-100">
+    <div className="receipt-template font-mono text-xs max-w-[300px] p-2.5 bg-white text-black">
       {showHeader && (
-        <div className="text-center mb-4 border-b-2 border-dashed border-gray-400 dark:border-gray-600 pb-2.5">
+        <div className="text-center mb-4 border-b-2 border-dashed border-black pb-2.5">
           <div className="text-base font-bold mb-1">
             {data.businessName}
           </div>
@@ -50,7 +50,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
         </div>
       </div>
 
-      <div className="border-t-2 border-b-2 border-dashed border-gray-400 dark:border-gray-600 py-2.5 mb-2.5">
+      <div className="border-t-2 border-b-2 border-dashed border-black py-2.5 mb-2.5">
         <div className="flex justify-between font-bold mb-2">
           <span className="flex-[2]">Item</span>
           <span className="flex-1 text-center">Qty</span>
@@ -78,7 +78,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           <span>${Number(data.subtotal).toFixed(2)}</span>
         </div>
         {data.discount && data.discount > 0 && (
-          <div className="flex justify-between mb-1 text-red-600 dark:text-red-400">
+          <div className="flex justify-between mb-1">
             <span>Discount:</span>
             <span>-${Number(data.discount).toFixed(2)}</span>
           </div>
@@ -87,7 +87,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           <span>Tax:</span>
           <span>${Number(data.tax).toFixed(2)}</span>
         </div>
-        <div className="flex justify-between font-bold text-sm border-t border-gray-400 dark:border-gray-600 pt-1 mt-1">
+        <div className="flex justify-between font-bold text-sm border-t border-black pt-1 mt-1">
           <span>TOTAL:</span>
           <span>${Number(data.total).toFixed(2)}</span>
         </div>
@@ -121,15 +121,21 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
               {token.success ? (
                 <>
                   <div className="text-[11px] font-bold mb-1">{token.packageName}</div>
+                  {token.ssid && (
+                    <div className="text-[10px] text-center mb-1">
+                      <span className="font-semibold">Network:</span> {token.ssid}
+                    </div>
+                  )}
                   <div className="text-center my-2">
-                    <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded font-mono text-base font-bold">
+                    <div className="p-2 font-mono text-base font-bold">
                       {token.tokenCode}
                     </div>
                   </div>
                   <div className="text-[10px] text-center">
                     <div>Duration: {Math.floor(token.duration / 60)}h {token.duration % 60}m</div>
                     <div className="mt-1 text-gray-600 dark:text-gray-400">
-                      Connect to WiFi and enter this code
+                      1. Connect to "{token.ssid || 'Guest WiFi'}"<br/>
+                      2. Open browser and enter code above
                     </div>
                   </div>
                 </>

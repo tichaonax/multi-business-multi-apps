@@ -21,11 +21,38 @@ export default function WiFiPortalLandingPage() {
   const [healthLoading, setHealthLoading] = useState(false)
   const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Database statistics state
+  const [dbStats, setDbStats] = useState<any>(null)
+  const [dbStatsLoading, setDbStatsLoading] = useState(false)
+
   // Check if user can access WiFi Portal
   const canSetup = currentUser ? (isSystemAdmin(currentUser) || hasPermission(currentUser, 'canSetupPortalIntegration')) : false
   const canConfigureTokens = currentUser ? (isSystemAdmin(currentUser) || hasPermission(currentUser, 'canConfigureWifiTokens')) : false
   const canSellTokens = currentUser ? (isSystemAdmin(currentUser) || hasPermission(currentUser, 'canSellWifiTokens')) : false
   const canViewReports = currentUser ? (isSystemAdmin(currentUser) || hasPermission(currentUser, 'canViewWifiReports')) : false
+
+  // Fetch database statistics
+  const fetchDbStats = async () => {
+    if (!currentBusinessId) return
+
+    setDbStatsLoading(true)
+    try {
+      const response = await fetch(`/api/wifi-portal/stats?businessId=${currentBusinessId}`)
+      const data = await response.json()
+
+      if (data.success && data.stats) {
+        // Include business info for display
+        setDbStats({
+          ...data.stats.summary,
+          businessName: data.stats.business?.name || currentBusiness?.name || ''
+        })
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch database stats:', error)
+    } finally {
+      setDbStatsLoading(false)
+    }
+  }
 
   // Health check function
   const checkHealth = async () => {
@@ -63,12 +90,16 @@ export default function WiFiPortalLandingPage() {
   useEffect(() => {
     if (!currentBusinessId) return
 
-    // Initial health check
+    // Initial health check and stats fetch
     checkHealth()
+    fetchDbStats()
 
-    // Set up polling interval
+    // Set up polling interval (health check every 20s, stats every 30s)
     const startPolling = () => {
-      healthCheckIntervalRef.current = setInterval(checkHealth, 20000) // 20 seconds
+      healthCheckIntervalRef.current = setInterval(() => {
+        checkHealth()
+        fetchDbStats()
+      }, 20000) // 20 seconds
     }
 
     const stopPolling = () => {
@@ -84,6 +115,7 @@ export default function WiFiPortalLandingPage() {
         stopPolling()
       } else {
         checkHealth() // Check immediately when page regains focus
+        fetchDbStats()
         startPolling()
       }
     }
@@ -102,6 +134,16 @@ export default function WiFiPortalLandingPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [currentBusinessId])
+
+  // Check if portal integration exists and redirect to setup if not (MUST be before early returns)
+  const hasPortalIntegration = healthStatus && healthStatus.success && healthStatus.status !== 'unknown'
+
+  useEffect(() => {
+    // If we have health status and no integration exists, redirect to setup
+    if (healthStatus && !hasPortalIntegration && canSetup && !businessLoading && (currentBusiness?.businessType === 'restaurant' || currentBusiness?.businessType === 'grocery')) {
+      router.push('/wifi-portal/setup')
+    }
+  }, [healthStatus, hasPortalIntegration, canSetup, router, businessLoading, currentBusiness?.businessType])
 
   if (businessLoading) {
     return (
@@ -182,9 +224,6 @@ export default function WiFiPortalLandingPage() {
     indigo: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-900 dark:text-indigo-100',
   }
 
-  // Check if portal integration exists
-  const hasPortalIntegration = healthStatus && healthStatus.success && healthStatus.status !== 'unknown'
-
   const visibleItems = menuItems.filter(item => {
     // If no portal integration exists, only show items marked for that case
     if (!hasPortalIntegration) {
@@ -225,7 +264,7 @@ export default function WiFiPortalLandingPage() {
                   ? 'text-red-900 dark:text-red-100'
                   : 'text-yellow-900 dark:text-yellow-100'
               }`}>
-                {getHealthStatusIcon(healthStatus.status)} ESP32 Portal Status
+                {getHealthStatusIcon(healthStatus.status)} WiFi Portal Status & Statistics
               </h3>
               {healthLoading && (
                 <div className="text-xs text-gray-500 dark:text-gray-400">Checking...</div>
@@ -233,32 +272,93 @@ export default function WiFiPortalLandingPage() {
             </div>
 
             {healthStatus.success && healthStatus.status === 'healthy' ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Uptime</div>
-                  <div className="font-semibold text-green-900 dark:text-green-100">
-                    {healthStatus.uptime_seconds ? formatUptime(healthStatus.uptime_seconds) : 'N/A'}
+              <>
+                {/* ESP32 Device Health */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-green-900 dark:text-green-100 mb-3">
+                    🖥️ ESP32 Device Health
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Device Uptime</div>
+                      <div className="font-semibold text-green-900 dark:text-green-100">
+                        {healthStatus.uptime_seconds ? formatUptime(healthStatus.uptime_seconds) : 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Business Active</div>
+                      <div className="font-semibold text-green-900 dark:text-green-100">
+                        {dbStats ? `${dbStats.activeTokens || 0} / ${healthStatus.max_tokens || 100}` : 'Loading...'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Time Synced</div>
+                      <div className="font-semibold text-green-900 dark:text-green-100">
+                        {healthStatus.time_synced ? '✓ Yes' : '✗ No'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Free Memory</div>
+                      <div className="font-semibold text-green-900 dark:text-green-100">
+                        {healthStatus.free_heap_bytes ? `${Math.round(healthStatus.free_heap_bytes / 1024)} KB` : 'N/A'}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Active Tokens</div>
-                  <div className="font-semibold text-green-900 dark:text-green-100">
-                    {healthStatus.active_tokens !== undefined ? `${healthStatus.active_tokens} / ${healthStatus.max_tokens}` : 'N/A'}
+
+                {/* Business Statistics - Current Business Only */}
+                {dbStats && (
+                  <div className="border-t border-green-200 dark:border-green-800 pt-4">
+                    <h4 className="text-sm font-medium text-green-900 dark:text-green-100 mb-3">
+                      📊 Business Statistics - {dbStats.businessName || currentBusiness?.name || 'Loading...'}
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Tokens</div>
+                        <div className="font-semibold text-green-900 dark:text-green-100">
+                          {dbStats.totalTokensCreated || 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Unused/Available</div>
+                        <div className="font-semibold text-green-900 dark:text-green-100">
+                          {dbStats.unusedTokens || 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Sold Tokens</div>
+                        <div className="font-semibold text-green-900 dark:text-green-100">
+                          {dbStats.totalSales || 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Active/In Use</div>
+                        <div className="font-semibold text-green-900 dark:text-green-100">
+                          {dbStats.activeTokens || 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Expired</div>
+                        <div className="font-semibold text-green-900 dark:text-green-100">
+                          {dbStats.expiredTokens || 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Revenue</div>
+                        <div className="font-semibold text-green-900 dark:text-green-100">
+                          ${Number(dbStats.totalRevenue || 0).toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Avg Sale</div>
+                        <div className="font-semibold text-green-900 dark:text-green-100">
+                          ${Number(dbStats.averageSaleAmount || 0).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Time Synced</div>
-                  <div className="font-semibold text-green-900 dark:text-green-100">
-                    {healthStatus.time_synced ? '✓ Yes' : '✗ No'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Free Memory</div>
-                  <div className="font-semibold text-green-900 dark:text-green-100">
-                    {healthStatus.free_heap_bytes ? `${Math.round(healthStatus.free_heap_bytes / 1024)} KB` : 'N/A'}
-                  </div>
-                </div>
-              </div>
+                )}
+              </>
             ) : (
               <div className={`text-sm ${
                 healthStatus.status === 'unhealthy'
@@ -280,20 +380,21 @@ export default function WiFiPortalLandingPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {visibleItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`block border-2 rounded-lg p-6 transition-all ${colorClasses[item.color as keyof typeof colorClasses]}`}
-              >
-                <div className="flex items-start space-x-4">
-                  <div className="text-4xl">{item.icon}</div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-1">{item.title}</h3>
-                    <p className="text-sm opacity-80">{item.description}</p>
+              <div key={item.href}>
+                <Link
+                  href={item.href}
+                  className={`block border-2 rounded-lg p-6 transition-all ${colorClasses[item.color as keyof typeof colorClasses]}`}
+                >
+                  <div className="flex items-start space-x-4">
+                    <div className="text-4xl">{item.icon}</div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold mb-1">{item.title}</h3>
+                      <p className="text-sm opacity-80">{item.description}</p>
+                    </div>
+                    <div className="text-2xl opacity-50">→</div>
                   </div>
-                  <div className="text-2xl opacity-50">→</div>
-                </div>
-              </Link>
+                </Link>
+              </div>
             ))}
           </div>
         )}

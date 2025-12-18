@@ -38,7 +38,7 @@ export default function WiFiPortalSetupPage() {
   // Form state
   const [apiKey, setApiKey] = useState('')
   const [portalIpAddress, setPortalIpAddress] = useState('')
-  const [portalPort, setPortalPort] = useState('8080')
+  const [portalPort, setPortalPort] = useState('80')
   const [showTokensInPOS, setShowTokensInPOS] = useState(false)
   const [isActive, setIsActive] = useState(true)
 
@@ -215,7 +215,7 @@ export default function WiFiPortalSetupPage() {
         setIntegration(null)
         setApiKey('')
         setPortalIpAddress('')
-        setPortalPort('8080')
+        setPortalPort('80')
         setShowTokensInPOS(false)
         setIsActive(true)
       } else {
@@ -265,7 +265,7 @@ export default function WiFiPortalSetupPage() {
   return (
     <ContentLayout
       title="WiFi Portal Setup"
-      description="Configure integration with your ESP32 WiFi portal server"
+      subtitle="Configure integration with your ESP32 WiFi portal server"
     >
       <div className="max-w-2xl">
         {/* Status Messages */}
@@ -291,7 +291,7 @@ export default function WiFiPortalSetupPage() {
               <ul className="list-disc list-inside ml-2 space-y-1">
                 <li>Your ESP32 portal's API key</li>
                 <li>The portal's IP address on your network</li>
-                <li>The portal's port number (usually 8080)</li>
+                <li>The portal's port number (usually 80)</li>
               </ul>
               <p className="mt-2">
                 After setup, you'll be able to create WiFi token packages and sell them through your POS system.
@@ -368,14 +368,14 @@ export default function WiFiPortalSetupPage() {
               id="port"
               value={portalPort}
               onChange={(e) => setPortalPort(e.target.value)}
-              placeholder="8080"
+              placeholder="80"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               min="1"
               max="65535"
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              The port number your ESP32 portal server is listening on (default: 8080)
+              The port number your ESP32 portal server is listening on (default: 80)
             </p>
           </div>
 

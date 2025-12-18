@@ -23,29 +23,60 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'businessId is required' }, { status: 400 });
     }
 
-    // Check if user has access to this business
-    const membership = await prisma.businessMemberships.findFirst({
-      where: {
-        userId: session.user.id,
-        businessId: businessId,
-        isActive: true,
-      },
-      include: {
-        businesses: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+    // Check permission - admins have access to all businesses
+    const user = await prisma.users.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
     });
 
-    if (!membership) {
-      return NextResponse.json(
-        { error: 'You do not have access to this business' },
-        { status: 403 }
-      );
+    const isAdmin = user?.role === 'admin';
+
+    let businessInfo;
+
+    // Check if user has access to this business (admins skip this check)
+    if (!isAdmin) {
+      const membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true,
+        },
+        include: {
+          businesses: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
+        },
+      });
+
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
+
+      businessInfo = membership.businesses;
+    } else {
+      // For admins, get business info directly
+      businessInfo = await prisma.businesses.findUnique({
+        where: { id: businessId },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+        },
+      });
+
+      if (!businessInfo) {
+        return NextResponse.json(
+          { error: 'Business not found' },
+          { status: 404 }
+        );
+      }
     }
 
     // Date range for filtering
@@ -60,6 +91,7 @@ export async function GET(request: NextRequest) {
     // Parallel queries for all stats
     const [
       totalTokens,
+      unusedTokens,
       activeTokens,
       expiredTokens,
       disabledTokens,
@@ -74,6 +106,14 @@ export async function GET(request: NextRequest) {
         where: {
           businessId: businessId,
           ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+        },
+      }),
+
+      // Unused tokens (available for sale)
+      prisma.wifiTokens.count({
+        where: {
+          businessId: businessId,
+          status: 'UNUSED',
         },
       }),
 
@@ -254,9 +294,9 @@ export async function GET(request: NextRequest) {
     // Build response
     const stats = {
       business: {
-        id: membership.businesses.id,
-        name: membership.businesses.name,
-        type: membership.businesses.type,
+        id: businessInfo.id,
+        name: businessInfo.name,
+        type: businessInfo.type,
       },
       dateRange: {
         startDate: startDate || null,
@@ -264,6 +304,7 @@ export async function GET(request: NextRequest) {
       },
       summary: {
         totalTokensCreated: totalTokens,
+        unusedTokens: unusedTokens,
         activeTokens: activeTokens,
         expiredTokens: expiredTokens,
         disabledTokens: disabledTokens,

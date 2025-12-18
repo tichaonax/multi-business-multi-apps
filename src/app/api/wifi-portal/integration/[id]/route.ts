@@ -10,7 +10,7 @@ import { createPortalClient } from '@/lib/wifi-portal/api-client';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,7 +18,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const integrationId = params.id;
+    const { id: integrationId } = await params;
     const body = await request.json();
     const { apiKey, portalIpAddress, portalPort, isActive, showTokensInPOS } = body;
 
@@ -151,7 +151,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -159,7 +159,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const integrationId = params.id;
+    const { id: integrationId } = await params;
 
     // Get existing integration
     const existingIntegration = await prisma.portalIntegrations.findUnique({
@@ -251,7 +251,7 @@ export async function DELETE(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -259,7 +259,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const integrationId = params.id;
+    const { id: integrationId } = await params;
 
     const integration = await prisma.portalIntegrations.findUnique({
       where: { id: integrationId },

@@ -15,7 +15,6 @@ export interface PortalConfig {
   timeout?: number;     // Request timeout in ms (default: 10000)
   retries?: number;     // Number of retry attempts (default: 3)
   retryDelay?: number;  // Delay between retries in ms (default: 1000)
-  onRetry?: (attempt: number, maxAttempts: number, retryAfter: number, reason: string) => void; // Callback for retry notifications
 }
 
 export interface CreateTokenParams {
@@ -393,9 +392,9 @@ export class WifiPortalAPIClient {
     // Validate all tokens
     params.tokens.forEach(token => this.validateToken(token));
 
-    // Create comma-separated list (DO NOT encode - ESP32 doesn't decode URL params properly)
+    // Create comma-separated list
     const tokenList = params.tokens.join(',');
-    const url = `/api/token/batch_info?api_key=${encodeURIComponent(this.config.apiKey)}&tokens=${tokenList}`;
+    const url = `/api/token/batch_info?api_key=${encodeURIComponent(this.config.apiKey)}&tokens=${encodeURIComponent(tokenList)}`;
 
     const response = await this.request<any>('GET', url);
 
@@ -837,49 +836,7 @@ export class WifiPortalAPIClient {
           }
         }
 
-        // Handle 503 Server Busy (semaphore concurrency control) - CRITICAL: Must retry with Retry-After
-        if (response.status === 503) {
-          const baseRetryAfter = parseInt(response.headers.get('Retry-After') || '5', 10);
-          
-          // Exponential backoff: multiply retry time by attempt number for repeated 503s
-          const exponentialMultiplier = attempt; // 1x, 2x, 3x for attempts 1, 2, 3
-          const retryAfter = baseRetryAfter * exponentialMultiplier;
-          
-          console.log(`⏳ ESP32 server busy (503), retrying in ${retryAfter}s... (Attempt ${attempt}/${maxAttempts}, backoff: ${exponentialMultiplier}x)`);
-
-          // Call retry callback if provided
-          if (this.config.onRetry) {
-            try {
-              this.config.onRetry(attempt, maxAttempts, retryAfter, 'Server Busy (503)');
-            } catch (callbackError) {
-              console.warn('onRetry callback error:', callbackError);
-            }
-          }
-
-          // If we have more attempts, wait and retry
-          if (attempt < maxAttempts) {
-            await this.delay(retryAfter * 1000); // Convert to milliseconds
-            continue; // Retry the request
-          }
-
-          // All retries exhausted
-          throw new PortalAPIError(
-            `Server busy after ${maxAttempts} attempts. Please try again later.`,
-            503,
-            { retryAfter, message: data.error || data.message || 'Server is processing other requests' }
-          );
-        }
-
-        // Handle 507 No Slots Available
-        if (response.status === 507) {
-          throw new PortalAPIError(
-            data.error || data.message || 'No token slots available on ESP32 device',
-            507,
-            data
-          );
-        }
-
-        // Handle other HTTP errors
+        // Handle HTTP errors
         if (!response.ok) {
           throw new PortalAPIError(
             data.error || data.message || `HTTP ${response.status}: ${response.statusText}`,
@@ -896,22 +853,12 @@ export class WifiPortalAPIClient {
       } catch (error: any) {
         lastError = error;
 
-        // Don't retry on validation errors
+        // Don't retry on validation errors or 4xx errors
         if (error instanceof PortalValidationError) {
           throw error;
         }
-
-        // Don't retry on 4xx errors EXCEPT 503 (Server Busy - handled above with Retry-After)
-        if (error instanceof PortalAPIError && error.statusCode) {
-          // 503 is already handled above in the response check with proper Retry-After logic
-          // Don't retry on other 4xx client errors
-          if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 503) {
-            throw error;
-          }
-          // 507 No Slots Available - don't retry (terminal error)
-          if (error.statusCode === 507) {
-            throw error;
-          }
+        if (error instanceof PortalAPIError && error.statusCode && error.statusCode < 500) {
+          throw error;
         }
 
         // Handle network errors

@@ -95,6 +95,42 @@ export function ReceiptPreview({
 
   return (
     <>
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .receipt-preview-card,
+          .receipt-preview-card * {
+            visibility: visible;
+          }
+          .receipt-preview-card {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 80mm; /* Thermal printer width */
+            max-width: 80mm;
+            margin: 0;
+            padding: 5mm;
+            font-family: monospace;
+            font-size: 12pt;
+            color: black !important; /* Force all text to black for thermal printers */
+            background: white !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          .receipt-preview-card * {
+            color: black !important; /* Ensure all child elements are black */
+            background: white !important; /* Remove any backgrounds */
+            border: none !important; /* Remove all borders for thermal printing */
+            box-shadow: none !important; /* Remove any shadows */
+          }
+          @page {
+            size: 80mm auto; /* Thermal paper width */
+            margin: 0;
+          }
+        }
+      `}</style>
       <Modal
         isOpen={isOpen}
         onClose={onClose}
@@ -104,7 +140,7 @@ export function ReceiptPreview({
         <div className="flex flex-col h-full space-y-4">
           {/* Receipt Preview Card - Scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            <Card className="p-6 bg-white dark:bg-gray-800 h-full">
+            <Card className="p-6 bg-white dark:bg-gray-800 h-full receipt-preview-card">
               <div className="font-mono text-sm space-y-2 max-w-md mx-auto">
               {/* Business Header */}
               <div className="text-center border-b-2 border-dashed border-gray-300 dark:border-gray-600 pb-3">

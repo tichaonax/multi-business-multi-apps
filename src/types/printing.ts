@@ -157,6 +157,7 @@ export interface WifiTokenInfo {
   tokenCode: string;
   packageName: string;
   duration: number; // minutes
+  ssid?: string; // WiFi network name
   success: boolean;
   error?: string;
 }

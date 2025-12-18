@@ -46,6 +46,7 @@ interface WifiToken {
     bandwidthDownMb: number
     bandwidthUpMb: number
   }
+  sale?: any | null  // Added to track if token is sold
 }
 
 interface TokenConfig {
@@ -68,6 +69,7 @@ export default function WiFiTokensPage() {
 
   const [activeTab, setActiveTab] = useState<TabType>('ledger')
   const [loading, setLoading] = useState(true)
+  const [hasPortalIntegration, setHasPortalIntegration] = useState<boolean | null>(null)
 
   // Ledger Tab
   const [tokens, setTokens] = useState<WifiToken[]>([])
@@ -108,6 +110,7 @@ export default function WiFiTokensPage() {
   const [batchSyncing, setBatchSyncing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [availableByConfig, setAvailableByConfig] = useState<Record<string, { name: string; count: number }>>({})
 
   const canManage = session?.user ? (isSystemAdmin(session.user) || hasPermission(session.user, 'canSellWifiTokens')) : false
 
@@ -167,16 +170,95 @@ export default function WiFiTokensPage() {
       filtered = filtered.filter(token => token.status === statusFilter)
     }
 
-    // Sort tokens: ACTIVE first, then UNUSED, then EXPIRED, then DISABLED
+    // Complex multi-level sort:
+    // 1. Unused Sold (latest first)
+    // 2. Unused Not Sold (latest first)
+    // 3. Used Sold Not Expired (latest first)
+    // 4. Used Sold Expired (latest first)
+    // 5. The rest (latest first)
     filtered = filtered.sort((a, b) => {
-      const statusOrder = { 'ACTIVE': 0, 'UNUSED': 1, 'EXPIRED': 2, 'DISABLED': 3 }
-      const aOrder = statusOrder[a.status] ?? 4
-      const bOrder = statusOrder[b.status] ?? 4
+      const getSortOrder = (token: typeof a) => {
+        const hasSale = !!token.sale
+        const isUnused = token.status === 'UNUSED'
+        const isActive = token.status === 'ACTIVE'
+        const isExpired = token.status === 'EXPIRED'
+
+        if (isUnused && hasSale) return 1 // Unused Sold
+        if (isUnused && !hasSale) return 2 // Unused Not Sold
+        if (isActive && hasSale && !isExpired) return 3 // Used Sold Not Expired
+        if (isExpired && hasSale) return 4 // Used Sold Expired
+        return 5 // The rest
+      }
+
+      const aOrder = getSortOrder(a)
+      const bOrder = getSortOrder(b)
+
+      // If same group, sort by createdAt (latest first)
+      if (aOrder === bOrder) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      }
+
       return aOrder - bOrder
     })
 
     setFilteredTokens(filtered)
   }, [tokens, searchQuery, statusFilter])
+
+  // Calculate availability by cross-referencing ESP32 API with Database Ledger
+  useEffect(() => {
+    if (!currentBusinessId || tokens.length === 0) {
+      setAvailableByConfig({})
+      return
+    }
+
+    const calculateAvailability = async () => {
+      try {
+        // Step 1: Get ESP32 sellable tokens (source of truth)
+        const esp32Response = await fetch(`/api/wifi-portal/integration/tokens/list?businessId=${currentBusinessId}&status=unused&limit=1000`)
+
+        if (!esp32Response.ok) {
+          console.warn('ESP32 API unavailable, showing database-only counts')
+          // Fallback to database-only counts
+          const fallback = tokens
+            .filter(t => t.status === 'UNUSED' && (!t.sale || t.sale === null))
+            .reduce((acc, token) => {
+              const configName = token.tokenConfig?.name || 'Unknown'
+              if (!acc[configName]) {
+                acc[configName] = { name: configName, count: 0 }
+              }
+              acc[configName].count++
+              return acc
+            }, {} as Record<string, { name: string; count: number }>)
+          setAvailableByConfig(fallback)
+          return
+        }
+
+        const esp32Data = await esp32Response.json()
+        const esp32TokenSet = new Set((esp32Data.tokens || []).map((t: any) => t.token))
+
+        // Step 2: Filter database tokens that also exist in ESP32
+        const available = tokens.reduce((acc, token) => {
+          // Only count if: (1) UNUSED, (2) not sold, (3) exists in ESP32
+          if (token.status === 'UNUSED' && !token.sale && esp32TokenSet.has(token.token)) {
+            const configName = token.tokenConfig?.name || 'Unknown'
+            if (!acc[configName]) {
+              acc[configName] = { name: configName, count: 0 }
+            }
+            acc[configName].count++
+          }
+          return acc
+        }, {} as Record<string, { name: string; count: number }>)
+
+        setAvailableByConfig(available)
+      } catch (error) {
+        console.error('Failed to calculate token availability:', error)
+        setAvailableByConfig({})
+      }
+    }
+
+    calculateAvailability()
+  }, [currentBusinessId, tokens])
+
 
   const fetchTokens = async () => {
     if (!currentBusinessId) return
@@ -190,8 +272,17 @@ export default function WiFiTokensPage() {
       if (response.ok) {
         const data = await response.json()
         setTokens(data.tokens || [])
+        setHasPortalIntegration(true)
       } else {
-        throw new Error('Failed to fetch tokens')
+        const errorData = await response.json().catch(() => ({}))
+
+        // Check if it's a portal integration issue (specific to this business)
+        if (response.status === 404 || response.status === 400) {
+          setHasPortalIntegration(false)
+          setErrorMessage(null)
+        } else {
+          throw new Error(errorData.error || 'Failed to fetch tokens')
+        }
       }
     } catch (error) {
       console.error('Error fetching tokens:', error)
@@ -218,6 +309,7 @@ export default function WiFiTokensPage() {
 
       if (response.ok) {
         const data = await response.json()
+        setHasPortalIntegration(true)
 
         // Use the status field directly from ESP32 response
         setPortalTokens(data.tokens || [])
@@ -230,7 +322,14 @@ export default function WiFiTokensPage() {
         }
       } else {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to fetch portal tokens')
+
+        // Check if it's a portal integration not found error (specific to this business)
+        if (response.status === 404 && errorData.error === 'Portal integration not found') {
+          setHasPortalIntegration(false)
+          setErrorMessage(null) // Clear error - we'll show setup UI instead
+        } else {
+          throw new Error(errorData.error || 'Failed to fetch portal tokens')
+        }
       }
     } catch (error: any) {
       console.error('Error fetching portal tokens:', error)
@@ -367,29 +466,41 @@ export default function WiFiTokensPage() {
   const handleMacAction = async (mac: string, action: 'blacklist' | 'whitelist') => {
     if (!currentBusinessId) return
 
-    const confirmed = await confirm({
-      title: `${action === 'blacklist' ? 'Blacklist' : 'Whitelist'} MAC Address`,
-      description: `Are you sure you want to ${action} ${mac}?`,
-      confirmText: action === 'blacklist' ? 'Blacklist' : 'Whitelist',
-      cancelText: 'Cancel',
-    })
+    // Prompt for reason/note
+    const noteLabel = action === 'blacklist' ? 'Reason' : 'Note'
+    const notePrompt = prompt(
+      `${action === 'blacklist' ? 'Blacklist' : 'Whitelist'} MAC Address: ${mac}\n\n` +
+      `Enter ${noteLabel.toLowerCase()} (optional, max 31 characters):`
+    )
 
-    if (!confirmed) return
+    // User canceled the prompt
+    if (notePrompt === null) return
+
+    const noteValue = notePrompt.trim().substring(0, 31)
 
     try {
       setErrorMessage(null)
       setSuccessMessage(null)
 
+      const body: any = { mac: mac.toUpperCase() }
+      if (noteValue) {
+        if (action === 'blacklist') {
+          body.reason = noteValue
+        } else {
+          body.note = noteValue
+        }
+      }
+
       const response = await fetch(`/api/wifi-portal/integration/mac/${action}?businessId=${currentBusinessId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mac }),
+        body: JSON.stringify(body),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        setSuccessMessage(`MAC address ${action === 'blacklist' ? 'blacklisted' : 'whitelisted'} successfully!`)
+        setSuccessMessage(`MAC address ${action === 'blacklist' ? 'blacklisted' : 'whitelisted'} successfully!${noteValue ? ` (${noteLabel}: ${noteValue})` : ''}`)
         fetchMacFilters() // Refresh the list
       } else {
         setErrorMessage(data.error || `Failed to ${action} MAC address`)
@@ -539,10 +650,10 @@ export default function WiFiTokensPage() {
       return
     }
 
-    if (bulkQuantity < 1 || bulkQuantity > 100) {
+    if (bulkQuantity < 1 || bulkQuantity > 50) {
       await alert({
         title: 'Invalid Quantity',
-        description: 'Please enter a quantity between 1 and 100.',
+        description: 'Please enter a quantity between 1 and 50.',
       })
       return
     }
@@ -602,34 +713,29 @@ export default function WiFiTokensPage() {
       const config = bulkConfigs.find(c => c.id === selectedConfig)
       if (!config) throw new Error('Configuration not found')
 
-      let successCount = 0
-      let failCount = 0
+      // Use the new bulk API for efficient creation
+      const response = await fetch('/api/wifi-portal/tokens/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          tokenConfigId: selectedConfig,
+          quantity: bulkQuantity,
+        }),
+      })
 
-      for (let i = 0; i < bulkQuantity; i++) {
-        try {
-          const response = await fetch('/api/wifi-portal/tokens', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              businessId: currentBusinessId,
-              tokenConfigId: selectedConfig,
-              isPrepaid: true, // Mark as pre-created for bulk sale
-            }),
-          })
-
-          if (response.ok) {
-            successCount++
-          } else {
-            failCount++
-          }
-
-          setBulkProgress(Math.round(((i + 1) / bulkQuantity) * 100))
-        } catch {
-          failCount++
-        }
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create bulk tokens')
       }
 
-      setSuccessMessage(`Successfully created ${successCount} token(s)${failCount > 0 ? `, ${failCount} failed` : ''}`)
+      const data = await response.json()
+
+      const message = data.tokensCreated === data.requested
+        ? `Successfully created ${data.tokensCreated} token(s)`
+        : `Created ${data.tokensCreated} out of ${data.requested} requested token(s) (slot limitation)`
+      
+      setSuccessMessage(message)
       fetchTokens()
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to bulk create tokens')
@@ -967,73 +1073,141 @@ export default function WiFiTokensPage() {
       title="WiFi Token Management"
       description="Manage WiFi access tokens, bulk operations, and MAC filtering"
     >
+      {/* Portal Integration Setup Screen */}
+      {hasPortalIntegration === false && (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="max-w-md w-full bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg p-8 text-center">
+            <div className="mb-6">
+              <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-4xl">🔌</span>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Portal Integration Not Configured
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                WiFi Portal integration has not been set up for this business yet. You need to configure the ESP32 portal connection to manage WiFi tokens.
+              </p>
+            </div>
+
+            <a
+              href="/wifi-portal/setup"
+              className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            >
+              Configure Portal Integration
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Status Messages */}
-      {errorMessage && (
+      {hasPortalIntegration !== false && errorMessage && (
         <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <p className="text-red-800 dark:text-red-200">{errorMessage}</p>
         </div>
       )}
 
-      {successMessage && (
+      {hasPortalIntegration !== false && successMessage && (
         <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
           <p className="text-green-800 dark:text-green-200">{successMessage}</p>
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex space-x-4">
-          <button
-            onClick={() => setActiveTab('ledger')}
-            className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'ledger'
-                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            📋 Database Ledger
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('portal-tokens')
-              fetchPortalTokens()
-            }}
-            className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'portal-tokens'
-                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            🌐 Portal Tokens (Live)
-          </button>
-          <button
-            onClick={() => setActiveTab('bulk-create')}
-            className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'bulk-create'
-                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            ⚡ Bulk Create
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('mac-filters')
-              fetchMacFilters()
-            }}
-            className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'mac-filters'
-                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            🛡️ MAC Filters
-          </button>
-        </nav>
-      </div>
+      {/* Token Availability Overview */}
+      {hasPortalIntegration && (
+        <div className="mb-6 bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+          <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-2">
+            📊 Token Availability Overview
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Real-time availability for sale (cross-referenced with ESP32 Portal)
+          </p>
 
-      {/* Database Ledger Tab */}
-      {activeTab === 'ledger' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(availableByConfig).length > 0 ? (
+              Object.entries(availableByConfig).map(([name, data]) => (
+                <div key={name} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow border border-gray-200 dark:border-gray-700">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {data.name}
+                  </div>
+                  <div className={`text-3xl font-bold ${
+                    data.count === 0 ? 'text-red-600 dark:text-red-500' :
+                    data.count < 5 ? 'text-orange-500' :
+                    data.count < 10 ? 'text-yellow-500' :
+                    'text-green-600 dark:text-green-500'
+                  }`}>
+                    {data.count}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    available for sale
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-8 text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <p className="text-lg font-medium mb-2">No tokens available</p>
+                <p className="text-sm">Create tokens using the Bulk Create tab below</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      {hasPortalIntegration !== false && (
+        <>
+          <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+            <nav className="flex space-x-4">
+              <button
+                onClick={() => setActiveTab('ledger')}
+                className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'ledger'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                📋 Database Ledger
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('portal-tokens')
+                  fetchPortalTokens()
+                }}
+                className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'portal-tokens'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                🌐 Portal Tokens (Live)
+              </button>
+              <button
+                onClick={() => setActiveTab('bulk-create')}
+                className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'bulk-create'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                ⚡ Bulk Create
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('mac-filters')
+                  fetchMacFilters()
+                }}
+                className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'mac-filters'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                🛡️ MAC Filters
+              </button>
+            </nav>
+          </div>
+
+          {/* Database Ledger Tab */}
+          {activeTab === 'ledger' && (
         <>
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4 mb-6">
@@ -1105,6 +1279,39 @@ export default function WiFiTokensPage() {
             </div>
           </div>
 
+          {/* Available for Sale Summary */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">📦 Available for Sale</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(() => {
+                // Use pre-calculated availability from ESP32 cross-reference
+                const entries = Object.values(availableByConfig)
+
+                if (entries.length === 0) {
+                  return (
+                    <div className="col-span-full text-center py-2 text-blue-700 dark:text-blue-300">
+                      No tokens available for sale. Create tokens using Bulk Create tab.
+                    </div>
+                  )
+                }
+
+                return entries.map((entry: any) => (
+                  <div key={entry.name} className="bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+                    <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">{entry.name}</div>
+                    <div className={`text-2xl font-bold mt-1 ${
+                      entry.count === 0 ? 'text-red-600' :
+                      entry.count < 10 ? 'text-orange-500' :
+                      'text-green-600'
+                    }`}>
+                      {entry.count}
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">tokens available</div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+
           {/* Tokens Table */}
           <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
@@ -1133,6 +1340,9 @@ export default function WiFiTokensPage() {
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Sold
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Created
@@ -1183,6 +1393,18 @@ export default function WiFiTokensPage() {
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         {getStatusBadge(token.status, token.firstUsedAt)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        {token.sale ? (
+                          <div className="inline-flex items-center gap-1" title={`Sold on ${formatDateTime(token.sale.soldAt)} via ${token.sale.saleChannel || 'POS'} for $${Number(token.sale.saleAmount).toFixed(2)}`}>
+                            <span className="text-lg">🛒</span>
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              ${Number(token.sale.saleAmount).toFixed(2)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                         {formatDateTime(token.createdAt)}
@@ -1519,7 +1741,7 @@ export default function WiFiTokensPage() {
                         Duration
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Remaining
+                        Expires
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Bandwidth Used
@@ -1563,7 +1785,7 @@ export default function WiFiTokensPage() {
                           {formatDuration(token.durationMinutes)}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                          {token.remainingSeconds > 0 ? formatDuration(Math.floor(token.remainingSeconds / 60)) : 'Expired'}
+                          {token.expiresAt === 0 ? '' : token.remainingSeconds <= 0 ? 'Expired' : new Date(token.expiresAt * 1000).toLocaleString()}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="text-xs space-y-1 text-gray-700 dark:text-gray-300">
@@ -1662,14 +1884,14 @@ export default function WiFiTokensPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Quantity (1-100)
+                  Quantity (1-50)
                 </label>
                 <input
                   type="number"
                   value={bulkQuantity}
                   onChange={(e) => setBulkQuantity(parseInt(e.target.value) || 1)}
                   min={1}
-                  max={100}
+                  max={50}
                   disabled={bulkCreating}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -1893,6 +2115,8 @@ export default function WiFiTokensPage() {
               </div>
             </div>
           )}
+        </>
+      )}
         </>
       )}
     </ContentLayout>

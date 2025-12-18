@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -46,6 +47,7 @@ interface GeneratedTokenWithSale {
     paymentMethod: string
     soldAt: string
   }
+  ap_ssid?: string
 }
 
 interface ExpenseAccount {
@@ -189,7 +191,8 @@ export default function WiFiTokenSalesPage() {
       if (response.ok) {
         setGeneratedTokenData({
           token: data.token,
-          sale: data.sale
+          sale: data.sale,
+          ap_ssid: data.portalResponse?.ap_ssid
         })
         setSuccessMessage(`Token generated successfully! Token: ${data.token.token}`)
         setSelectedConfig(null)
@@ -249,9 +252,37 @@ export default function WiFiTokenSalesPage() {
   return (
     <ContentLayout
       title="WiFi Token Sales"
-      description="Generate and sell WiFi access tokens to customers"
+      subtitle="Generate and sell WiFi access tokens to customers"
     >
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .print-receipt, .print-receipt * {
+            visibility: visible;
+          }
+          .print-receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+          }
+        }
+      `}</style>
       <div className="max-w-6xl mx-auto">
+        {/* Navigation Link */}
+        <div className="mb-6">
+          <Link
+            href="/wifi-portal"
+            className="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            <span className="mr-2">←</span>
+            <span>Back to WiFi Portal</span>
+          </Link>
+        </div>
+
         {/* Status Messages */}
         {errorMessage && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -300,14 +331,15 @@ export default function WiFiTokenSalesPage() {
             </div>
 
             {/* Receipt for Printing */}
-            <div className="hidden print:block">
+            <div className="hidden print:block print-receipt">
               <TokenReceipt
                 token={generatedTokenData.token}
                 business={{
-                  name: currentBusiness?.name || '',
+                  name: currentBusiness?.businessName || '',
                   type: currentBusiness?.businessType || ''
                 }}
                 sale={generatedTokenData.sale}
+                ap_ssid={generatedTokenData.ap_ssid}
               />
             </div>
           </>
