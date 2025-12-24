@@ -1,7 +1,14 @@
 /**
- * Receipt Templates
- * Business-specific receipt templates for all 10 business types
- * Generates formatted receipt text suitable for thermal printers
+ * Unified Receipt Templates
+ *
+ * Standardized receipt templates for all business types
+ * Uses grocery format as the base template for consistency
+ *
+ * Architecture:
+ * - generateStandardReceipt() creates consistent structure for all receipts
+ * - Each business type extends base with specific sections
+ * - Dual receipt support (business/customer) for restaurant
+ * - Consistent spacing, fonts, alignment across all types
  */
 
 import type {
@@ -20,185 +27,375 @@ import type {
   GroceryReceiptItem,
   HardwareReceiptItem
 } from '@/types/printing';
+import { addReprintWatermark } from '@/lib/receipts/watermark';
+import { formatDataAmount, formatDuration as formatDurationSmart } from './format-utils';
 
 // Thermal printer width (characters per line)
 // EPSON TM-T20III with 80mm paper = 42 characters
 // For 58mm paper, use 32 characters
 const RECEIPT_WIDTH = 42;
 
+// ESC/POS Commands (constants for readability)
+const ESC = '\x1B'; // ESC
+const GS = '\x1D'; // GS
+const LF = '\x0A'; // Line feed
+const CUT = GS + 'V' + '\x41' + String.fromCharCode(3); // Partial cut paper
+
+// Alignment commands
+const ALIGN_LEFT = ESC + 'a' + String.fromCharCode(0);
+const ALIGN_CENTER = ESC + 'a' + String.fromCharCode(1);
+const ALIGN_RIGHT = ESC + 'a' + String.fromCharCode(2);
+
+/**
+ * Strip emojis and other special characters that thermal printers can't render
+ * Thermal printers typically only support ASCII and limited extended ASCII
+ */
+function stripEmojis(text: string): string {
+  if (!text) return '';
+
+  // Remove emojis (Unicode ranges for most common emojis)
+  return text
+    // Emoticons (U+1F600 to U+1F64F)
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+    // Symbols & Pictographs (U+1F300 to U+1F5FF)
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+    // Transport & Map Symbols (U+1F680 to U+1F6FF)
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+    // Misc Symbols and Pictographs (U+2600 to U+26FF)
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')
+    // Dingbats (U+2700 to U+27BF)
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')
+    // Supplemental Symbols and Pictographs (U+1F900 to U+1F9FF)
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
+    // Symbols and Pictographs Extended-A (U+1FA70 to U+1FAFF)
+    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')
+    // Additional symbols
+    .replace(/[\u{1F000}-\u{1F02F}]/gu, '')
+    .replace(/[\u{1F0A0}-\u{1F0FF}]/gu, '')
+    // Remove zero-width characters
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    // Trim any extra whitespace created by emoji removal
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /**
  * Generate receipt based on business type
  */
 export function generateReceipt(data: ReceiptData): string {
+  let receipt = '';
+
   switch (data.businessType) {
     case 'restaurant':
-      return generateRestaurantReceipt(data);
+      receipt = generateRestaurantReceipt(data);
+      break;
     case 'clothing':
-      return generateClothingReceipt(data);
+      receipt = generateClothingReceipt(data);
+      break;
     case 'grocery':
-      return generateGroceryReceipt(data);
+      receipt = generateGroceryReceipt(data);
+      break;
     case 'hardware':
-      return generateHardwareReceipt(data);
+      receipt = generateHardwareReceipt(data);
+      break;
     case 'construction':
-      return generateConstructionReceipt(data);
+      receipt = generateConstructionReceipt(data);
+      break;
     case 'vehicles':
-      return generateVehiclesReceipt(data);
+      receipt = generateVehiclesReceipt(data);
+      break;
     case 'consulting':
-      return generateConsultingReceipt(data);
+      receipt = generateConsultingReceipt(data);
+      break;
     case 'retail':
-      return generateRetailReceipt(data);
+      receipt = generateRetailReceipt(data);
+      break;
     case 'services':
-      return generateServicesReceipt(data);
+      receipt = generateServicesReceipt(data);
+      break;
     default:
-      return generateGenericReceipt(data);
+      receipt = generateGenericReceipt(data);
   }
+
+  // Add watermark if this is a reprint
+  if (data.isReprint) {
+    receipt = addReprintWatermark(receipt, data.reprintedBy, data.originalPrintDate);
+  }
+
+  return receipt;
 }
 
 /**
- * 1. Restaurant Receipt Template
- * Supports dual receipts (kitchen + customer)
+ * ============================================================================
+ * STANDARDIZED BASE RECEIPT TEMPLATE
+ * ============================================================================
+ *
+ * All business types use this structure for consistency
+ * Based on grocery receipt format (user's preferred format)
+ *
+ * Structure:
+ * 1. Header (business name, address)
+ * 2. Receipt Type Label (BUSINESS COPY / CUSTOMER COPY)
+ * 3. Transaction Info (receipt #, date, salesperson)
+ * 4. Business-Specific Section (table, server, project, etc.)
+ * 5. Items (with business-specific details)
+ * 6. Totals (subtotal, tax, discount, total)
+ * 7. Payment (method, amount paid, change)
+ * 8. WiFi Tokens (if any)
+ * 9. Footer (phone, thank you message)
+ * 10. Paper Cut
  */
-function generateRestaurantReceipt(data: ReceiptData): string {
-  const restaurantData = data.businessSpecificData as RestaurantReceiptData;
-  const isKitchenReceipt = restaurantData?.receiptType === 'kitchen';
+interface ReceiptSections {
+  /** Optional business-specific section (table, server, project, etc.) */
+  businessSpecific?: string
+  /** Optional item details renderer (for business-specific item formatting) */
+  itemDetailsRenderer?: (item: any, index: number) => string
+  /** Optional footer additions (loyalty points, return policy, etc.) */
+  footerAdditions?: string
+}
 
-  // ESC/POS commands
-  const ESC = '\x1B'; // ESC
-  const GS = '\x1D'; // GS
-  const LF = '\x0A'; // Line feed
-  const CUT = GS + 'V' + '\x41' + String.fromCharCode(3); // Partial cut paper
-
+function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = {}): string {
   let receipt = '';
 
   // Initialize printer and reset margins
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
+  // ============================================================================
+  // 1. HEADER - Center aligned
+  // ============================================================================
+  receipt += ALIGN_CENTER;
+  receipt += centerText(stripEmojis(data.businessName)) + LF;
+  if (data.businessAddress) {
+    receipt += centerText(stripEmojis(data.businessAddress)) + LF;
+  }
+  if (data.businessPhone) {
+    receipt += centerText(stripEmojis(data.businessPhone)) + LF;
+  }
+  // Removed extra LF to save paper
 
-  // Header - center align
-  receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += centerText(data.businessName) + LF;
-  if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  // ============================================================================
+  // 2. RECEIPT TYPE LABEL (for dual receipts)
+  // ============================================================================
+  if (data.receiptType) {
+    receipt += ALIGN_CENTER;
+    const label = data.receiptType === 'business' ? '--- BUSINESS COPY ---' : '--- CUSTOMER COPY ---';
+    receipt += label + LF;
+    receipt += LF;
+  }
 
-  // Receipt type
-  receipt += centerText(isKitchenReceipt ? '*** KITCHEN COPY ***' : 'CUSTOMER RECEIPT') + LF;
-
-  // Left align for content
-  receipt += ESC + 'a' + String.fromCharCode(0);
-
-  // Receipt number and date
+  // ============================================================================
+  // 3. TRANSACTION INFO - Left aligned
+  // ============================================================================
+  receipt += ALIGN_LEFT;
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
-  receipt += `Transaction: ${data.transactionId}` + LF;
-
-  if (restaurantData?.tableNumber) {
-    receipt += `Table: ${restaurantData.tableNumber}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${stripEmojis(data.salespersonName)}` + LF;
   }
-  if (restaurantData?.serverName) {
-    receipt += `Server: ${restaurantData.serverName}` + LF;
+  receipt += LF;
+
+  // ============================================================================
+  // 4. BUSINESS-SPECIFIC SECTION (optional)
+  // ============================================================================
+  if (sections.businessSpecific) {
+    receipt += sections.businessSpecific;
+    receipt += LF;
   }
 
-  receipt += LF; // Spacing before items section
+  // ============================================================================
+  // 5. ITEMS SECTION
+  // ============================================================================
+  data.items.forEach((item, index) => {
+    // Standard item line (name, qty, price, total)
+    receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
 
-  // Items
-  if (isKitchenReceipt && restaurantData?.items) {
-    // Kitchen receipt with cooking instructions
-    restaurantData.items.forEach((item: RestaurantReceiptItem) => {
-      receipt += `${item.quantity}x ${item.name}` + LF;
+    // Business-specific item details (barcode, SKU, allergens, etc.)
+    if (sections.itemDetailsRenderer) {
+      const details = sections.itemDetailsRenderer(item, index);
+      if (details) {
+        receipt += details;
+      }
+    }
 
-      if (item.spiceLevel) {
-        receipt += `  Spice Level: ${'🌶️'.repeat(item.spiceLevel)}` + LF;
-      }
-      if (item.allergens && item.allergens.length > 0) {
-        receipt += `  ⚠️  ALLERGENS: ${item.allergens.join(', ')}` + LF;
-      }
-      if (item.dietaryRestrictions && item.dietaryRestrictions.length > 0) {
-        receipt += `  🌱 ${item.dietaryRestrictions.join(', ')}` + LF;
-      }
-      if (item.specialInstructions) {
-        receipt += `  Note: ${item.specialInstructions}` + LF;
-      }
-      if (item.preparationTime) {
-        receipt += `  Prep Time: ${item.preparationTime} min` + LF;
-      }
-      receipt += LF;
-    });
-  } else {
-    // Customer receipt with prices
-    data.items.forEach(item => {
-      receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
+    // Default: show barcode or SKU if no custom renderer
+    if (!sections.itemDetailsRenderer) {
       if (item.barcode) {
-        receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})\n`;
+        receipt += `  UPC: ${item.barcode.code}` + LF;
       } else if (item.sku) {
-        receipt += `  SKU: ${item.sku}\n`;
+        receipt += `  SKU: ${item.sku}` + LF;
       }
-      if (item.notes) {
-        receipt += `  Note: ${item.notes}` + LF;
-      }
-    });
-  }
-  // Totals (customer receipt only)
-  if (!isKitchenReceipt) {
-    receipt += formatTotal('Subtotal', data.subtotal);
-    receipt += formatTotal('Tax', data.tax);
-    if (data.discount) {
-      receipt += formatTotal('Discount', -data.discount);
     }
-    receipt += formatTotal('TOTAL', data.total, true);
+  });
 
-    // Payment
-    receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
-    if (data.amountPaid) {
-      receipt += formatTotal('Paid', data.amountPaid);
-    }
-    if (data.changeDue) {
-      receipt += formatTotal('Change', data.changeDue);
-    }
+  // ============================================================================
+  // 6. TOTALS SECTION
+  // ============================================================================
+  receipt += LF;
+  receipt += formatTotal('Subtotal', data.subtotal);
+  // Only print tax line if tax > 0 AND tax is charged separately (not included in price)
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    const taxLabel = data.taxLabel || 'Tax';
+    receipt += formatTotal(taxLabel, data.tax);
+  }
+  if (data.discount && data.discount > 0) {
+    receipt += formatTotal('Savings', -data.discount);
+  }
+  receipt += formatTotal('TOTAL', data.total, true);
+
+  // ============================================================================
+  // 7. PAYMENT SECTION
+  // ============================================================================
+  receipt += LF;
+  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
+  if (data.amountPaid) {
+    receipt += formatTotal('Amount Paid', data.amountPaid);
+  }
+  if (data.changeDue && data.changeDue > 0) {
+    receipt += formatTotal('Change', data.changeDue);
   }
 
-  // WiFi Tokens (if any)
+  // ============================================================================
+  // 8. WIFI TOKENS SECTION (if any)
+  // ============================================================================
   if (data.wifiTokens && data.wifiTokens.length > 0) {
     receipt += LF;
-    receipt += centerText('WiFi ACCESS TOKENS') + LF;
+    receipt += line('-') + LF;
+    receipt += ALIGN_CENTER;
+    receipt += 'WiFi ACCESS TOKENS' + LF;
+    receipt += ALIGN_LEFT;
+    receipt += line('-') + LF;
 
-    data.wifiTokens.forEach(token => {
-      receipt += `Token: ${token.token}` + LF;
-      receipt += `Duration: ${formatDuration(token.durationMinutes)}` + LF;
-      if (token.bandwidthDownMb && token.bandwidthUpMb) {
-        receipt += `Speed: ${token.bandwidthDownMb}MB↓/${token.bandwidthUpMb}MB↑` + LF;
+    data.wifiTokens.forEach((token) => {
+      // Check if this is an error token
+      if (token.success === false || token.error) {
+        receipt += ALIGN_CENTER;
+        receipt += `Package: ${stripEmojis(token.packageName)}` + LF;
+        receipt += `*** ERROR ***` + LF;
+        receipt += `${stripEmojis(token.error || 'Token unavailable')}` + LF;
+        receipt += ALIGN_LEFT;
+        receipt += LF;
+        return;
       }
+
+      // Success token - show full details (strip emojis from all text)
+      receipt += `Package: ${stripEmojis(token.packageName)}` + LF;
+      receipt += `Token: ${token.tokenCode}` + LF;
+      receipt += `Duration: ${formatDurationSmart(token.duration)}` + LF;
+
+      // Show bandwidth limits if available
+      if (token.bandwidthDownMb || token.bandwidthUpMb) {
+        receipt += `Data: Down ${token.bandwidthDownMb || 0}MB / Up ${token.bandwidthUpMb || 0}MB` + LF;
+      }
+
+      // Connection instructions - 3 steps
+      receipt += `1. Connect to WiFi "${stripEmojis(token.ssid || 'Guest WiFi')}"` + LF;
+      receipt += `2. Visit http://192.168.4.1` + LF;
+      receipt += `3. Enter code above to activate` + LF;
       receipt += LF;
-
-      if (token.ssid && token.portalUrl) {
-        receipt += `WiFi Network: "${token.ssid}"` + LF;
-        receipt += `Portal: ${token.portalUrl}` + LF;
-        receipt += LF;
-      }
-
-      if (token.instructions) {
-        // Word wrap instructions
-        const wrappedInstructions = wrapText(token.instructions, RECEIPT_WIDTH - 2).split('\n');
-        wrappedInstructions.forEach(line => {
-          receipt += `  ${line}` + LF;
-        });
-        receipt += LF;
-      }
     });
   }
 
-  // Footer - center align
-  receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += LF;
-  receipt += centerText(data.footerMessage || 'Thank you for dining with us!') + LF;
-  receipt += centerText('Please visit again!') + LF + LF;
+  // ============================================================================
+  // 9. FOOTER ADDITIONS (business-specific)
+  // ============================================================================
+  if (sections.footerAdditions) {
+    receipt += LF;
+    receipt += sections.footerAdditions;
+  }
 
-  // Cut paper
+  // ============================================================================
+  // 10. FOOTER - Center aligned
+  // ============================================================================
+  receipt += LF;
+  receipt += ALIGN_CENTER;
+  if (data.umbrellaPhone) {
+    receipt += centerText(`Support: ${data.umbrellaPhone}`) + LF;
+  }
+  // Return policy (always print - use default if not configured)
+  const returnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(returnPolicy), RECEIPT_WIDTH) + LF;
+  if (data.footerMessage) {
+    receipt += LF;
+    receipt += centerText(stripEmojis(data.footerMessage)) + LF;
+  }
+  receipt += LF;
+  receipt += centerText('Thank you for your business!') + LF;
+  receipt += centerText('Please come again!') + LF;
+
+  // ============================================================================
+  // 11. PAPER CUT
+  // ============================================================================
   receipt += CUT;
 
   return receipt;
+}
+
+/**
+ * ============================================================================
+ * BUSINESS-SPECIFIC RECEIPT TEMPLATES
+ * ============================================================================
+ *
+ * Each business type uses the standard template with custom sections
+ */
+
+/**
+ * 1. Restaurant Receipt Template
+ * Uses standard template with restaurant-specific sections
+ */
+function generateRestaurantReceipt(data: ReceiptData): string {
+  const restaurantData = data.businessSpecificData as RestaurantReceiptData;
+
+  // Business-specific section: Table and Server info
+  let businessSpecific = '';
+  if (restaurantData?.tableNumber) {
+    businessSpecific += `Table: ${restaurantData.tableNumber}` + LF;
+  }
+  if (restaurantData?.serverName) {
+    businessSpecific += `Server: ${restaurantData.serverName}` + LF;
+  }
+
+  // Item details renderer: Show allergens, spice level, dietary restrictions
+  const itemDetailsRenderer = (item: any, index: number) => {
+    const restaurantItem = restaurantData?.items?.[index] as RestaurantReceiptItem;
+    if (!restaurantItem) return '';
+
+    let details = '';
+
+    // Spice level
+    if (restaurantItem.spiceLevel && restaurantItem.spiceLevel > 0) {
+      details += `  Spice: ${'🌶️'.repeat(restaurantItem.spiceLevel)}` + LF;
+    }
+
+    // Allergens
+    if (restaurantItem.allergens && restaurantItem.allergens.length > 0) {
+      details += `  ⚠️  Allergens: ${restaurantItem.allergens.join(', ')}` + LF;
+    }
+
+    // Dietary restrictions
+    if (restaurantItem.dietaryRestrictions && restaurantItem.dietaryRestrictions.length > 0) {
+      details += `  🌱 ${restaurantItem.dietaryRestrictions.join(', ')}` + LF;
+    }
+
+    // Special instructions
+    if (restaurantItem.specialInstructions) {
+      details += `  Note: ${restaurantItem.specialInstructions}` + LF;
+    }
+
+    // Preparation time (for kitchen copy)
+    if (restaurantItem.preparationTime) {
+      details += `  Prep Time: ${restaurantItem.preparationTime} min` + LF;
+    }
+
+    return details;
+  };
+
+  // Use standard template
+  return generateStandardReceipt(data, {
+    businessSpecific,
+    itemDetailsRenderer,
+  });
 }
 
 /**
@@ -219,9 +416,6 @@ function generateClothingReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -234,7 +428,9 @@ function generateClothingReceipt(data: ReceiptData): string {
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
-  receipt += `Salesperson: ${data.salespersonName}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
 
   // Items with size/color
   data.items.forEach((item, index) => {
@@ -260,7 +456,11 @@ function generateClothingReceipt(data: ReceiptData): string {
   });
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    const taxLabel = data.taxLabel || 'Tax';
+    receipt += formatTotal(taxLabel, data.tax);
+  }
   if (data.discount) {
     receipt += formatTotal('Discount', -data.discount);
   }
@@ -269,16 +469,19 @@ function generateClothingReceipt(data: ReceiptData): string {
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
 
-  // Return policy - center align
+  // Return policy - center align (use business config first, then clothing data, then default)
+  const returnPolicy = data.returnPolicy || clothingData?.returnPolicy || 'All sales are final, returns not accepted';
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += 'RETURN POLICY' + LF;
-  const returnPolicy = clothingData?.returnPolicy || 'Returns accepted within 30 days with receipt';
-  receipt += wrapText(returnPolicy) + LF;
+  receipt += wrapText(stripEmojis(returnPolicy)) + LF;
 
   // Footer
   receipt += LF;
-  receipt += centerText('Thank you for shopping with us!') + LF + LF;
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
+  receipt += centerText('Thank you for shopping with us!') + LF;
 
   // Cut paper
   receipt += CUT;
@@ -304,9 +507,6 @@ function generateGroceryReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -318,7 +518,9 @@ function generateGroceryReceipt(data: ReceiptData): string {
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
-  receipt += `Cashier: ${data.salespersonName}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
 
   // Items with weight/unit pricing
   data.items.forEach((item, index) => {
@@ -342,7 +544,10 @@ function generateGroceryReceipt(data: ReceiptData): string {
   });
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
   if (data.discount) {
     receipt += formatTotal('Savings', -data.discount);
   }
@@ -358,11 +563,19 @@ function generateGroceryReceipt(data: ReceiptData): string {
     receipt += `Points Balance: ${groceryData.loyaltyBalance || 0}` + LF;
   }
 
+  // Return policy (always print - use default if not configured)
+  const returnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(returnPolicy), RECEIPT_WIDTH) + LF;
+
   // Footer - center align
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
   receipt += centerText('Thank you for shopping!') + LF;
-  receipt += centerText('Fresh savings every day!') + LF + LF;
+  receipt += centerText('Fresh savings every day!') + LF;
 
   // Cut paper
   receipt += CUT;
@@ -388,9 +601,6 @@ function generateHardwareReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -403,7 +613,9 @@ function generateHardwareReceipt(data: ReceiptData): string {
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
-  receipt += `Associate: ${data.salespersonName}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
   if (hardwareData?.projectReference) {
     receipt += `Project: ${hardwareData.projectReference}` + LF;
   }
@@ -436,7 +648,10 @@ function generateHardwareReceipt(data: ReceiptData): string {
   });
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
   if (data.discount) {
     receipt += formatTotal('Discount', -data.discount);
   }
@@ -445,11 +660,19 @@ function generateHardwareReceipt(data: ReceiptData): string {
   // Payment
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
 
+  // Return policy (always print - use default if not configured)
+  const hardwareReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(hardwareReturnPolicy), RECEIPT_WIDTH) + LF;
+
   // Footer - center align
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
   receipt += centerText('Thank you for your business!') + LF;
-  receipt += centerText('Pro contractors welcome!') + LF + LF;
+  receipt += centerText('Pro contractors welcome!') + LF;
 
   // Cut paper
   receipt += CUT;
@@ -475,9 +698,6 @@ function generateConstructionReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -491,6 +711,9 @@ function generateConstructionReceipt(data: ReceiptData): string {
   // Invoice info
   receipt += `Invoice: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
 
   if (constructionData) {
     receipt += `Project: ${constructionData.projectName}` + LF;
@@ -532,7 +755,10 @@ function generateConstructionReceipt(data: ReceiptData): string {
 
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
   receipt += formatTotal('TOTAL', data.total, true);
 
   // Payment terms
@@ -541,10 +767,18 @@ function generateConstructionReceipt(data: ReceiptData): string {
   }
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
 
+  // Return policy (always print - use default if not configured)
+  const constructionReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(constructionReturnPolicy), RECEIPT_WIDTH) + LF;
+
   // Footer - center align
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += centerText('Thank you for your business!') + LF + LF;
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
+  receipt += centerText('Thank you for your business!') + LF;
 
   // Cut paper
   receipt += CUT;
@@ -570,9 +804,6 @@ function generateVehiclesReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -586,7 +817,12 @@ function generateVehiclesReceipt(data: ReceiptData): string {
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
-  receipt += `Technician: ${vehiclesData?.technicianName || data.salespersonName}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
+  if (vehiclesData?.technicianName && vehiclesData.technicianName !== data.salespersonName) {
+    receipt += `Technician: ${vehiclesData.technicianName}` + LF;
+  }
 
   // Vehicle info
   if (vehiclesData?.vehicleInfo) {
@@ -629,7 +865,10 @@ function generateVehiclesReceipt(data: ReceiptData): string {
 
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
   receipt += formatTotal('TOTAL', data.total, true);
 
   // Payment
@@ -649,11 +888,19 @@ function generateVehiclesReceipt(data: ReceiptData): string {
     receipt += `Warranty: ${vehiclesData.warranty}` + LF;
   }
 
+  // Return policy (always print - use default if not configured)
+  const vehiclesReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(vehiclesReturnPolicy), RECEIPT_WIDTH) + LF;
+
   // Footer - center align
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
   receipt += centerText('Thank you for your business!') + LF;
-  receipt += centerText('Drive safe!') + LF + LF;
+  receipt += centerText('Drive safe!') + LF;
 
   // Cut paper
   receipt += CUT;
@@ -679,9 +926,6 @@ function generateConsultingReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -696,7 +940,9 @@ function generateConsultingReceipt(data: ReceiptData): string {
   if (consultingData) {
     receipt += `Invoice: ${consultingData.invoiceNumber}` + LF;
     receipt += `Date: ${formatDate(consultingData.invoiceDate)}` + LF;
-    receipt += `Consultant: ${data.salespersonName}` + LF;
+    if (data.salespersonName) {
+      receipt += `Salesperson: ${data.salespersonName}` + LF;
+    }
 
     // Client info
     receipt += 'Client:' + LF;
@@ -729,7 +975,10 @@ function generateConsultingReceipt(data: ReceiptData): string {
   });
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
   receipt += formatTotal('TOTAL', data.total, true);
 
   // Payment terms
@@ -738,10 +987,18 @@ function generateConsultingReceipt(data: ReceiptData): string {
   }
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
 
+  // Return policy (always print - use default if not configured)
+  const consultingReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(consultingReturnPolicy), RECEIPT_WIDTH) + LF;
+
   // Footer - center align
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += centerText('Thank you for your business!') + LF + LF;
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
+  receipt += centerText('Thank you for your business!') + LF;
 
   // Cut paper
   receipt += CUT;
@@ -767,9 +1024,6 @@ function generateRetailReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -782,7 +1036,9 @@ function generateRetailReceipt(data: ReceiptData): string {
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
-  receipt += `Associate: ${data.salespersonName}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
 
   // Items
   data.items.forEach(item => {
@@ -795,7 +1051,10 @@ function generateRetailReceipt(data: ReceiptData): string {
   });
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
   if (data.discount) {
     receipt += formatTotal('Discount', -data.discount);
   }
@@ -820,6 +1079,11 @@ function generateRetailReceipt(data: ReceiptData): string {
     });
   }
 
+  // Return policy (always print - use default if not configured)
+  const retailReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(retailReturnPolicy), RECEIPT_WIDTH) + LF;
+
   // Footer - center align
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
@@ -827,6 +1091,9 @@ function generateRetailReceipt(data: ReceiptData): string {
     receipt += centerText('Scan for Survey & Save 10%!') + LF;
     receipt += centerText('[QR CODE]') + LF;
     receipt += LF;
+  }
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
   }
   receipt += centerText('Thank you for shopping!') + LF + LF;
 
@@ -854,9 +1121,6 @@ function generateServicesReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -870,9 +1134,14 @@ function generateServicesReceipt(data: ReceiptData): string {
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
-  receipt += `Technician: ${servicesData?.technicianName || data.salespersonName}` + LF;
-  if (servicesData?.technicianId) {
-    receipt += `Tech ID: ${servicesData.technicianId}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
+  if (servicesData?.technicianName && servicesData.technicianName !== data.salespersonName) {
+    receipt += `Technician: ${servicesData.technicianName}` + LF;
+    if (servicesData?.technicianId) {
+      receipt += `Tech ID: ${servicesData.technicianId}` + LF;
+    }
   }
 
   // Service description
@@ -898,7 +1167,10 @@ function generateServicesReceipt(data: ReceiptData): string {
   }
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
   receipt += formatTotal('TOTAL', data.total, true);
 
   // Payment
@@ -915,10 +1187,18 @@ function generateServicesReceipt(data: ReceiptData): string {
     receipt += `Follow-up: ${formatDate(servicesData.followUpDate)}` + LF;
   }
 
+  // Return policy (always print - use default if not configured)
+  const servicesReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(servicesReturnPolicy), RECEIPT_WIDTH) + LF;
+
   // Footer - center align
   receipt += LF;
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += centerText('Thank you for your business!') + LF + LF;
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
+  receipt += centerText('Thank you for your business!') + LF;
 
   // Cut paper
   receipt += CUT;
@@ -942,9 +1222,6 @@ function generateGenericReceipt(data: ReceiptData): string {
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
-  // Enable emphasized mode for darker printing
-  receipt += ESC + 'G' + String.fromCharCode(1); // Double-strike ON (makes text heavier/darker)
-
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
@@ -957,8 +1234,9 @@ function generateGenericReceipt(data: ReceiptData): string {
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
-  receipt += `Transaction: ${data.transactionId}` + LF;
-  receipt += `Salesperson: ${data.salespersonName}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
 
   // Items
   data.items.forEach(item => {
@@ -974,7 +1252,10 @@ function generateGenericReceipt(data: ReceiptData): string {
   });
   // Totals
   receipt += formatTotal('Subtotal', data.subtotal);
-  receipt += formatTotal('Tax', data.tax);
+  // Only print tax line if tax > 0 AND tax is charged separately
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
   if (data.discount) {
     receipt += formatTotal('Discount', -data.discount);
   }
@@ -989,10 +1270,18 @@ function generateGenericReceipt(data: ReceiptData): string {
     receipt += formatTotal('Change', data.changeDue);
   }
 
+  // Return policy (always print - use default if not configured)
+  const genericReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(genericReturnPolicy), RECEIPT_WIDTH) + LF;
+
   // Footer - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += LF;
-  receipt += centerText(data.footerMessage || 'Thank you!') + LF + LF;
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
+  receipt += centerText(data.footerMessage || 'Thank you!') + LF;
 
   // Cut paper
   receipt += CUT;
@@ -1033,7 +1322,8 @@ function formatMoney(amount: number | undefined | null): string {
 
 function formatLineItem(name: string, qty: number, unitPrice: number, total: number): string {
   const qtyStr = qty > 1 ? `${qty}x ` : '';
-  const nameWithQty = `${qtyStr}${name}`;
+  const cleanName = stripEmojis(name); // Strip emojis from item name
+  const nameWithQty = `${qtyStr}${cleanName}`;
   const totalStr = formatMoney(total);
 
   // Try to fit on one line
@@ -1071,17 +1361,8 @@ function wrapText(text: string, width: number = RECEIPT_WIDTH): string {
   return lines.join('\n');
 }
 
+// Duration formatting now uses smart formatter from format-utils
+// Delegates to formatDurationSmart for consistent MB→GB, mins→hours/days formatting
 function formatDuration(minutes: number): string {
-  if (minutes < 60) {
-    return `${minutes} min`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-
-  if (mins === 0) {
-    return `${hours} hour${hours > 1 ? 's' : ''}`;
-  }
-
-  return `${hours}h ${mins}m`;
+  return formatDurationSmart(minutes);
 }

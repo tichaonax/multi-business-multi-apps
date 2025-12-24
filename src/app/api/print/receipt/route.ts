@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
       paymentMethod: data.paymentMethod || 'cash',
       amountPaid: data.amountPaid || data.cashTendered,
       changeDue: data.changeDue,
+      wifiTokens: data.wifiTokens || [], // WiFi tokens for restaurant receipts
       businessSpecificData: data.businessSpecificData,
       footerMessage: data.footerMessage,
       returnPolicy: data.returnPolicy
@@ -161,7 +162,8 @@ export async function POST(request: NextRequest) {
 
     // IMMEDIATELY print the receipt (don't wait for queue worker)
     try {
-      const { sendToPrinter, isPrinterAvailable } = await import('@/lib/printing/printer-service-usb');
+      const { printRawData } = await import('@/lib/printing/windows-raw-printer');
+      const { checkPrinterConnectivity } = await import('@/lib/printing/printer-service');
       const { markJobAsProcessing, markJobAsCompleted, markJobAsFailed } = await import('@/lib/printing/print-job-queue');
       const { prisma } = await import('@/lib/prisma');
 
@@ -179,11 +181,11 @@ export async function POST(request: NextRequest) {
 
       console.log(`📄 Printing to: ${printer.printerName}`);
 
-      // Check if printer is available
-      const available = await isPrinterAvailable(printer.printerName);
-      if (!available) {
+      // Check printer connectivity
+      const isOnline = await checkPrinterConnectivity(printer.id);
+      if (!isOnline) {
         console.error(`❌ Printer offline: ${printer.printerName}`);
-        throw new Error(`Printer "${printer.printerName}" is offline or not found`);
+        throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
       }
 
       // Mark job as processing
@@ -195,8 +197,8 @@ export async function POST(request: NextRequest) {
 
       console.log(`📊 Print content size: ${printContent.length} bytes`);
 
-      // Send to printer immediately
-      await sendToPrinter(printContent, {
+      // Send to printer using Windows RAW printer service
+      await printRawData(printContent, {
         printerName: printer.printerName,
         copies: printJobData.copies || 1,
       });

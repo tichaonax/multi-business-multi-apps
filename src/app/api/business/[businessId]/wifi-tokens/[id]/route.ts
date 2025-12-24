@@ -9,7 +9,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { businessId: string; id: string } }
+  { params }: { params: Promise<{ businessId: string; id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { businessId, id } = params;
+    const { businessId, id } = await params;
 
     // Check if user has access to this business (admins have access to all businesses)
     const isAdmin = session.user.role === 'admin';
@@ -94,7 +94,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { businessId: string; id: string } }
+  { params }: { params: Promise<{ businessId: string; id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -102,9 +102,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { businessId, id } = params;
+    const { businessId, id } = await params;
     const body = await request.json();
     const { businessPrice, isActive, displayOrder } = body;
+
+    console.log('PUT /wifi-tokens/[id] - Received:', { businessId, id, businessPrice, isActive, displayOrder });
 
     // Check if user has access to this business (admins have access to all businesses)
     const isAdmin = session.user.role === 'admin';
@@ -188,14 +190,18 @@ export async function PUT(
     }
 
     // Update menu item
+    const updateData = {
+      ...(businessPrice !== undefined && { businessPrice }),
+      ...(isActive !== undefined && { isActive }),
+      ...(displayOrder !== undefined && { displayOrder }),
+      updatedAt: new Date(),
+    };
+
+    console.log('Update data:', updateData);
+
     const updatedMenuItem = await prisma.businessTokenMenuItems.update({
       where: { id: id },
-      data: {
-        ...(businessPrice !== undefined && { businessPrice }),
-        ...(isActive !== undefined && { isActive }),
-        ...(displayOrder !== undefined && { displayOrder }),
-        updatedAt: new Date(),
-      },
+      data: updateData,
       include: {
         token_configurations: {
           select: {
@@ -209,6 +215,12 @@ export async function PUT(
           },
         },
       },
+    });
+
+    console.log('Updated menu item:', {
+      id: updatedMenuItem.id,
+      businessPrice: updatedMenuItem.businessPrice,
+      isActive: updatedMenuItem.isActive
     });
 
     return NextResponse.json({
@@ -239,7 +251,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { businessId: string; id: string } }
+  { params }: { params: Promise<{ businessId: string; id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -247,7 +259,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { businessId, id } = params;
+    const { businessId, id } = await params;
 
     // Check if user has access to this business (admins have access to all businesses)
     const isAdmin = session.user.role === 'admin';

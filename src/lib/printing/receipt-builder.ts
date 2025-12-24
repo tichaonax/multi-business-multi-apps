@@ -9,6 +9,12 @@ interface BusinessInfo {
   id: string
   name: string
   type: string
+  address?: string // Direct address field (from BusinessMembership)
+  phone?: string // Direct phone field (from BusinessMembership)
+  receiptReturnPolicy?: string | null
+  taxIncludedInPrice?: boolean
+  taxRate?: number | null
+  taxLabel?: string | null
   settings?: {
     address?: string
     phone?: string
@@ -67,6 +73,11 @@ interface ReceiptBuilderOptions {
   showLogo?: boolean
   showReturnPolicy?: boolean
   customFooter?: string
+  isReprint?: boolean
+  originalPrintDate?: Date
+  reprintedBy?: string
+  currentUserName?: string
+  currentUserId?: string
 }
 
 /**
@@ -135,13 +146,14 @@ export function buildReceiptData(
     businessId: business.id,
     businessType: business.type as any, // Cast to BusinessType
     businessName: (business.name && business.name.trim()) || 'Business',
-    businessAddress: settings.address || config.defaultAddress,
-    businessPhone: settings.phone || config.defaultPhone,
+    // Prioritize direct address/phone from BusinessMembership, then settings, then defaults
+    businessAddress: business.address || settings.address || config.defaultAddress,
+    businessPhone: business.phone || settings.phone || config.defaultPhone,
     businessEmail: settings.email,
     transactionId: order.id || `txn_${Date.now()}`,
     transactionDate: order.orderDate ? new Date(order.orderDate) : new Date(),
-    salespersonName: order.employeeName || 'Unknown',
-    salespersonId: order.employeeId || 'unknown',
+    salespersonName: order.employeeName || options.currentUserName || 'Unknown',
+    salespersonId: order.employeeId || options.currentUserId || 'unknown',
     items: order.items.map(item => ({
       name: item.name,
       sku: undefined, // SKU not available in current order structure
@@ -168,7 +180,15 @@ export function buildReceiptData(
     })),
     businessSpecificData: buildBusinessSpecificData(order, business.type),
     footerMessage: settings.receiptFooter || config.footerMessage,
-    returnPolicy: settings.returnPolicy
+    returnPolicy: business.receiptReturnPolicy || settings.returnPolicy,
+    // Tax Configuration - use business-level receipt config
+    taxIncludedInPrice: business.taxIncludedInPrice ?? true,
+    taxRate: business.taxRate ? Number(business.taxRate) : undefined,
+    taxLabel: business.taxLabel || undefined,
+    // Reprint fields
+    isReprint: options.isReprint,
+    originalPrintDate: options.originalPrintDate,
+    reprintedBy: options.reprintedBy
   }
 
   return receiptData
@@ -231,27 +251,46 @@ function buildBusinessSpecificData(order: OrderData, businessType: string): any 
 }
 
 /**
- * Fetch business information from API
+ * Fetch business information from database
  */
 export async function fetchBusinessInfo(businessId: string): Promise<BusinessInfo | null> {
   try {
-    const response = await fetch(`/api/businesses/${businessId}`)
-    if (!response.ok) {
-      console.error('Failed to fetch business info:', response.statusText)
+    // Import prisma dynamically to avoid issues if this is called client-side
+    const { prisma } = await import('@/lib/prisma')
+
+    const business = await prisma.businesses.findUnique({
+      where: { id: businessId },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        address: true,
+        phone: true,
+        receiptReturnPolicy: true,
+        taxIncludedInPrice: true,
+        taxRate: true,
+        taxLabel: true,
+        settings: true
+      }
+    })
+
+    if (!business) {
+      console.error('Business not found:', businessId)
       return null
     }
 
-    const data = await response.json()
-    if (data.success) {
-      return {
-        id: data.data.id,
-        name: data.data.name,
-        type: data.data.type,
-        settings: data.data.settings
-      }
+    return {
+      id: business.id,
+      name: business.name,
+      type: business.type,
+      address: business.address || undefined,
+      phone: business.phone || undefined,
+      receiptReturnPolicy: business.receiptReturnPolicy,
+      taxIncludedInPrice: business.taxIncludedInPrice,
+      taxRate: business.taxRate ? Number(business.taxRate) : null,
+      taxLabel: business.taxLabel,
+      settings: business.settings as any
     }
-
-    return null
   } catch (error) {
     console.error('Error fetching business info:', error)
     return null
@@ -271,6 +310,19 @@ export async function buildReceiptFromOrder(
   if (!businessInfo) {
     console.error('Could not fetch business information for receipt')
     return null
+  }
+
+  // Attempt to fetch umbrella phone (server-side only)
+  try {
+    if (typeof window === 'undefined') {
+      const { fetchUmbrellaPhone } = await import('@/lib/umbrella/client')
+      const umbrellaPhone = await fetchUmbrellaPhone()
+      const receipt = buildReceiptData(order, businessInfo, options)
+      if (umbrellaPhone) receipt.umbrellaPhone = umbrellaPhone
+      return receipt
+    }
+  } catch (err) {
+    console.warn('Failed to fetch umbrella phone for receipt:', err)
   }
 
   return buildReceiptData(order, businessInfo, options)

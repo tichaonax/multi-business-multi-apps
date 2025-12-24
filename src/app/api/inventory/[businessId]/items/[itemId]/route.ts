@@ -208,6 +208,20 @@ export async function PUT(
     if (body.isActive !== undefined) updateData.isActive = body.isActive
     if (body.attributes) updateData.attributes = body.attributes
 
+    // Validate price is greater than 0 (except for WiFi promotional items)
+    const finalPrice = updateData.basePrice ?? existingProduct.basePrice
+    const mergedAttributes = { ...existingProduct.attributes, ...updateData.attributes }
+    const isWiFiToken = mergedAttributes?.isWiFiToken === true ||
+                        existingProduct.name?.toLowerCase().includes('wifi') ||
+                        updateData.name?.toLowerCase().includes('wifi')
+
+    if (!isWiFiToken && updateData.basePrice !== undefined && updateData.basePrice <= 0) {
+      return NextResponse.json(
+        { error: 'Product price must be greater than $0. Use discounts or promotions for price reductions.' },
+        { status: 400 }
+      )
+    }
+
     // If SKU is being changed, ensure uniqueness within the business
     if (updateData.sku && updateData.sku !== existingProduct.sku) {
       const conflict = await prisma.businessProducts.findFirst({
@@ -239,6 +253,54 @@ export async function PUT(
         }
       }
     })
+
+    // Handle stock adjustment if provided
+    if (body._stockAdjustment && body._stockAdjustment !== 0) {
+      // Get or create default variant for this product
+      let variant = await prisma.productVariants.findFirst({
+        where: { productId: itemId }
+      })
+
+      if (!variant) {
+        // Create default variant if it doesn't exist
+        variant = await prisma.productVariants.create({
+          data: {
+            productId: itemId,
+            sku: updatedProduct.sku || `${itemId}-default`,
+            name: 'Default',
+            price: updatedProduct.basePrice || 0,
+            stockQuantity: 0
+          }
+        })
+      }
+
+      // Create stock movement for the adjustment
+      // Note: employees relation is optional - we don't track who made manual adjustments
+      await prisma.businessStockMovements.create({
+        data: {
+          product_variants: {
+            connect: { id: variant.id }
+          },
+          businesses: {
+            connect: { id: businessId }
+          },
+          businessType: updatedProduct.businessType,
+          quantity: parseInt(body._stockAdjustment),
+          movementType: 'ADJUSTMENT',
+          reason: `Stock adjustment: ${body._stockAdjustment > 0 ? '+' : ''}${body._stockAdjustment} units`
+        }
+      })
+
+      // Update variant's stockQuantity
+      const newStockQuantity = (variant.stockQuantity || 0) + parseInt(body._stockAdjustment)
+      await prisma.productVariants.update({
+        where: { id: variant.id },
+        data: {
+          stockQuantity: newStockQuantity,
+          updatedAt: new Date()
+        }
+      })
+    }
 
     // Handle barcodes if provided in the new multi-barcode format
     if (body.barcodes && Array.isArray(body.barcodes)) {

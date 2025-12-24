@@ -39,18 +39,29 @@ export async function POST(request: NextRequest) {
 
     console.log(`🖨️ Direct test print to: ${printer.printerName}`);
 
-    // Generate ESC/POS test receipt
-    const testReceipt = generateTestReceipt(printer.printerName);
+    // Check printer connectivity first
+    const { checkPrinterConnectivity } = await import('@/lib/printing/printer-service');
+    const isOnline = await checkPrinterConnectivity(printer.id);
 
-    // Send directly to printer (bypasses queue)
-    const { sendToPrinter } = await import('@/lib/printing/printer-service-usb');
+    if (!isOnline) {
+      return NextResponse.json(
+        { error: 'Printer is offline or unreachable' },
+        { status: 503 }
+      );
+    }
 
-    await sendToPrinter(testReceipt, {
+    // Generate ESC/POS test receipt with printer's configured width
+    const testReceipt = generateTestReceipt(printer.printerName, printer.receiptWidth || 48);
+
+    // Send directly to printer using Windows RAW printer service (the method that works!)
+    const { printRawData } = await import('@/lib/printing/windows-raw-printer');
+
+    await printRawData(testReceipt, {
       printerName: printer.printerName,
       copies: 1,
     });
 
-    console.log('✅ Direct test print successful');
+    console.log('✅ Direct test print successful (Windows RAW API)');
 
     return NextResponse.json({
       success: true,
@@ -70,9 +81,9 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Generate ESC/POS formatted test receipt
+ * Generate ESC/POS formatted test receipt with configurable width
  */
-function generateTestReceipt(printerName: string): string {
+function generateTestReceipt(printerName: string, width: number = 48): string {
   // ESC/POS commands
   const ESC = '\x1B';
   const GS = '\x1D';
@@ -90,21 +101,22 @@ function generateTestReceipt(printerName: string): string {
 
   // Header - center align
   receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += '='.repeat(42) + LF;
+  receipt += '='.repeat(width) + LF;
   receipt += 'DIRECT PRINTER TEST' + LF;
   receipt += 'ESC/POS Commands' + LF;
-  receipt += '='.repeat(42) + LF;
+  receipt += '='.repeat(width) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
   receipt += LF;
   receipt += `Printer: ${printerName}` + LF;
+  receipt += `Width: ${width} characters` + LF;
   receipt += `Date: ${new Date().toLocaleString()}` + LF;
-  receipt += `Method: Direct (No Queue)` + LF;
+  receipt += `Method: Windows RAW API (Direct)` + LF;
   receipt += LF;
-  receipt += '='.repeat(42) + LF;
+  receipt += '='.repeat(width) + LF;
   receipt += 'FEATURES TESTED:' + LF;
-  receipt += '='.repeat(42) + LF;
+  receipt += '='.repeat(width) + LF;
   receipt += LF;
 
   // Test features
@@ -116,26 +128,33 @@ function generateTestReceipt(printerName: string): string {
   receipt += '✓ Separator Lines' + LF;
   receipt += LF;
 
-  // Test items
-  receipt += '='.repeat(42) + LF;
+  // Test items with dynamic width
+  receipt += '='.repeat(width) + LF;
   receipt += 'TEST ITEMS:' + LF;
-  receipt += '='.repeat(42) + LF;
+  receipt += '='.repeat(width) + LF;
   receipt += LF;
-  receipt += '2x Test Item 1               $20.00' + LF;
-  receipt += '1x Test Item 2               $15.50' + LF;
-  receipt += '3x Test Item 3               $15.00' + LF;
+
+  // Format items with prices aligned to right
+  const formatLine = (label: string, price: string) => {
+    const padding = width - label.length - price.length;
+    return label + ' '.repeat(Math.max(1, padding)) + price + LF;
+  };
+
+  receipt += formatLine('2x Test Item 1', '$20.00');
+  receipt += formatLine('1x Test Item 2', '$15.50');
+  receipt += formatLine('3x Test Item 3', '$15.00');
   receipt += LF;
-  receipt += '='.repeat(42) + LF;
-  receipt += 'Subtotal                     $50.50' + LF;
-  receipt += 'Tax                           $4.04' + LF;
-  receipt += '='.repeat(42) + LF;
+  receipt += '='.repeat(width) + LF;
+  receipt += formatLine('Subtotal', '$50.50');
+  receipt += formatLine('Tax', '$4.04');
+  receipt += '='.repeat(width) + LF;
 
   // Bold total
   receipt += ESC + 'E' + String.fromCharCode(1); // Bold ON
-  receipt += 'TOTAL                        $54.54' + LF;
+  receipt += formatLine('TOTAL', '$54.54');
   receipt += ESC + 'E' + String.fromCharCode(0); // Bold OFF
 
-  receipt += '='.repeat(42) + LF;
+  receipt += '='.repeat(width) + LF;
   receipt += LF;
 
   // Payment info

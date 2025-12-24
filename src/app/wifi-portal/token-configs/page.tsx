@@ -7,6 +7,8 @@ import { hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm } from '@/components/ui/confirm-modal'
+import { formatDataAmount, formatDuration } from '@/lib/printing/format-utils'
+import { formatCurrency } from '@/lib/format-currency'
 
 interface TokenConfig {
   id: string
@@ -267,14 +269,6 @@ export default function TokenConfigsPage() {
     }
   }
 
-  const formatDuration = (minutes: number): string => {
-    if (minutes < 60) return `${minutes} minutes`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    if (mins === 0) return `${hours} hour${hours > 1 ? 's' : ''}`
-    return `${hours}h ${mins}m`
-  }
-
   if (businessLoading || loading) {
     return (
       <ContentLayout title="Token Configurations">
@@ -388,7 +382,7 @@ export default function TokenConfigsPage() {
             {/* Duration */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Duration (minutes) *
+                Duration (minutes) * <span className="text-xs text-blue-600 dark:text-blue-400">({formatDuration(formData.durationMinutes)})</span>
               </label>
               <select
                 value={formData.durationMinutes}
@@ -408,24 +402,28 @@ export default function TokenConfigsPage() {
             {/* Base Price */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Base Price (₱) *
+                Base Price ($) *
               </label>
               <input
                 type="number"
-                value={formData.basePrice || ''}
-                onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
+                value={formData.basePrice}
+                onChange={(e) => {
+                  const value = e.target.value
+                  const parsed = parseFloat(value)
+                  setFormData({ ...formData, basePrice: isNaN(parsed) ? 0 : parsed })
+                }}
                 min="0"
                 step="0.01"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 required
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Default admin price</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Default admin price (0 = free)</p>
             </div>
 
             {/* Bandwidth Down */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Download (MB) *
+                Download (MB) * <span className="text-xs text-blue-600 dark:text-blue-400">({formatDataAmount(formData.bandwidthDownMb)})</span>
               </label>
               <input
                 type="number"
@@ -440,7 +438,7 @@ export default function TokenConfigsPage() {
             {/* Bandwidth Up */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Upload (MB) *
+                Upload (MB) * <span className="text-xs text-blue-600 dark:text-blue-400">({formatDataAmount(formData.bandwidthUpMb)})</span>
               </label>
               <input
                 type="number"
@@ -515,7 +513,7 @@ export default function TokenConfigsPage() {
                 )}
               </div>
               <div className="text-right">
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">₱{config.basePrice}</div>
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(config.basePrice)}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">base price</div>
               </div>
             </div>
@@ -526,7 +524,7 @@ export default function TokenConfigsPage() {
 
             <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300 mb-3">
               <div>⏱️ {formatDuration(config.durationMinutes)}</div>
-              <div>📥 {config.bandwidthDownMb} MB down / 📤 {config.bandwidthUpMb} MB up</div>
+              <div>📥 {formatDataAmount(config.bandwidthDownMb)} down / 📤 {formatDataAmount(config.bandwidthUpMb)} up</div>
             </div>
 
             {config.stats && (

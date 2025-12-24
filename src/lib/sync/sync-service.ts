@@ -43,6 +43,11 @@ export interface SyncServiceConfig {
     interval?: number // Check interval in milliseconds (default: 60000 = 1 minute)
     autoRestart?: boolean // Automatically restart worker if not running
   }
+  wifiTokenSanitization?: {
+    enabled?: boolean // Enable WiFi token sanitization
+    url?: string // URL to trigger sanitization (e.g., http://localhost:8080/api/wifi-portal/admin/sanitize-tokens)
+    interval?: number // Check interval in milliseconds (default: 21600000 = 6 hours)
+  }
   security?: {
     enableEncryption?: boolean
     enableSignatures?: boolean
@@ -96,6 +101,7 @@ export class SyncService extends EventEmitter {
   private logger: DailyRotatingLogger | null = null
   private healthCheckTimer: NodeJS.Timeout | null = null
   private printWorkerHealthTimer: NodeJS.Timeout | null = null
+  private wifiTokenSanitizationTimer: NodeJS.Timeout | null = null
   private status: ServiceStatus
 
   constructor(config: SyncServiceConfig) {
@@ -256,6 +262,9 @@ export class SyncService extends EventEmitter {
 
       // Stop print worker health monitoring
       this.stopPrintWorkerHealthMonitoring()
+
+      // Stop WiFi token sanitization
+      this.stopWifiTokenSanitization()
 
       // Stop sync engine
       if (this.syncEngine) {
@@ -1001,6 +1010,9 @@ export class SyncService extends EventEmitter {
 
     // Start print worker health monitoring if enabled
     this.startPrintWorkerHealthMonitoring()
+
+    // Start WiFi token sanitization if enabled
+    this.startWifiTokenSanitization()
   }
 
   /**
@@ -1066,6 +1078,97 @@ export class SyncService extends EventEmitter {
       clearInterval(this.printWorkerHealthTimer)
       this.printWorkerHealthTimer = null
       this.log('info', 'Print worker health monitoring stopped')
+    }
+  }
+
+  /**
+   * Start WiFi token sanitization job
+   */
+  private startWifiTokenSanitization(): void {
+    const config = this.config.wifiTokenSanitization
+
+    if (!config?.enabled) {
+      return
+    }
+
+    const url = config.url || 'http://localhost:8080/api/wifi-portal/admin/sanitize-tokens'
+    const interval = config.interval || 21600000 // 6 hours default
+
+    this.log('info', `Starting WiFi token sanitization (${url}, interval: ${interval}ms = ${interval / 3600000} hours)`)
+
+    this.wifiTokenSanitizationTimer = setInterval(async () => {
+      try {
+        this.log('info', '🔄 Starting WiFi token sanitization...')
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 300000) // 5 minute timeout
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          this.log('error', `WiFi token sanitization failed: HTTP ${response.status}`)
+          return
+        }
+
+        const data = await response.json()
+
+        if (data.success && data.result) {
+          const { processed, disabled, businessesProcessed, errors } = data.result
+          this.log('info', `✅ WiFi token sanitization completed: ${disabled}/${processed} tokens disabled across ${businessesProcessed} businesses`)
+
+          if (errors && errors.length > 0) {
+            this.log('warn', `⚠️  Sanitization errors: ${errors.length}`)
+            errors.forEach((err: string) => this.log('warn', `   - ${err}`))
+          }
+
+          this.emit('wifi_token_sanitization_complete', data.result)
+        } else {
+          this.log('error', 'WiFi token sanitization failed:', data.error || 'Unknown error')
+        }
+      } catch (error) {
+        if ((error as any).name === 'AbortError') {
+          this.log('error', 'WiFi token sanitization timed out (exceeded 5 minutes)')
+        } else {
+          this.log('error', 'WiFi token sanitization error:', error)
+        }
+      }
+    }, interval)
+
+    // Run immediately on startup, then at interval
+    this.log('info', '🔄 Running initial WiFi token sanitization on service startup...')
+    setTimeout(async () => {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.result) {
+            this.log('info', `✅ Initial sanitization: ${data.result.disabled}/${data.result.processed} tokens disabled`)
+          }
+        }
+      } catch (error) {
+        this.log('warn', 'Initial sanitization failed (will retry on schedule):', error)
+      }
+    }, 10000) // Wait 10 seconds after service starts
+  }
+
+  /**
+   * Stop WiFi token sanitization
+   */
+  private stopWifiTokenSanitization(): void {
+    if (this.wifiTokenSanitizationTimer) {
+      clearInterval(this.wifiTokenSanitizationTimer)
+      this.wifiTokenSanitizationTimer = null
+      this.log('info', 'WiFi token sanitization stopped')
     }
   }
 

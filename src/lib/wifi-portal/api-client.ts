@@ -145,7 +145,7 @@ export interface TokenListParams {
   usedOnly?: boolean;
   unusedOnly?: boolean;
   offset?: number;              // Pagination offset (default: 0)
-  limit?: number;               // Max tokens per page (default: 100, max: 200)
+  limit?: number;               // Max tokens per page (default: 20, max: 20 - ESP32 hardware limit)
 }
 
 export interface TokenListResponse {
@@ -386,8 +386,8 @@ export class WifiPortalAPIClient {
       throw new PortalValidationError('At least one token is required', 'tokens');
     }
 
-    if (params.tokens.length > 50) {
-      throw new PortalValidationError('Maximum 50 tokens per batch request', 'tokens');
+    if (params.tokens.length > 20) {
+      throw new PortalValidationError('Maximum 20 tokens per batch request', 'tokens');
     }
 
     // Validate all tokens

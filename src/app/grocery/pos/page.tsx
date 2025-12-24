@@ -17,6 +17,7 @@ import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
+import { useToastContext } from '@/components/ui/toast'
 
 interface POSItem {
   id: string
@@ -102,13 +103,95 @@ function GroceryPOSContent() {
     loading: businessLoading
   } = useBusinessPermissionsContext()
 
+  // Toast context for notifications
+  const toast = useToastContext()
+
   // Get user info
   const { data: session, status } = useSession()
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
+  const isAdmin = sessionUser?.role === 'admin'
 
   // Check if current business is a grocery business
   const isGroceryBusiness = currentBusiness?.businessType === 'grocery'
+
+  // Background ESP32 sync function (non-blocking, progressive updates)
+  const syncESP32TokenQuantities = async (businessId: string, tokenConfigIds: string[]) => {
+    try {
+      console.log('🔄 Starting batched ESP32 sync in background...')
+
+      const BATCH_SIZE = 20
+      let offset = 0
+      let hasMore = true
+      const esp32TokenSet = new Set<string>()
+
+      // Fetch ESP32 tokens in batches
+      while (hasMore && offset < 1000) {
+        try {
+          const batchUrl = `/api/wifi-portal/esp32-tokens?businessId=${businessId}&status=unused&limit=${BATCH_SIZE}&offset=${offset}`
+          const batchResponse = await fetch(batchUrl)
+
+          if (!batchResponse.ok) {
+            console.warn(`⚠️ ESP32 batch ${Math.floor(offset / BATCH_SIZE) + 1} failed`)
+            break
+          }
+
+          const batchData = await batchResponse.json()
+          const batchTokens = batchData.tokens || []
+
+          batchTokens.forEach((t: any) => {
+            if (t.token) esp32TokenSet.add(t.token)
+          })
+
+          hasMore = batchData.hasMore === true
+          offset += BATCH_SIZE
+        } catch (batchError) {
+          console.error(`❌ ESP32 batch ${Math.floor(offset / BATCH_SIZE) + 1} error:`, batchError)
+          break
+        }
+      }
+
+      console.log(`✅ ESP32 sync complete. Total: ${esp32TokenSet.size}`)
+
+      // Get database tokens
+      const dbResponse = await fetch(`/api/wifi-portal/tokens?businessId=${businessId}&status=UNUSED&excludeSold=true&limit=1000`)
+      if (!dbResponse.ok) return
+
+      const dbData = await dbResponse.json()
+      const dbTokens = dbData.tokens || []
+
+      // Cross-reference
+      const esp32QuantityMap: Record<string, number> = {}
+      dbTokens.forEach((dbToken: any) => {
+        if (esp32TokenSet.has(dbToken.token)) {
+          const configId = dbToken.tokenConfigId
+          if (configId && tokenConfigIds.includes(configId)) {
+            esp32QuantityMap[configId] = (esp32QuantityMap[configId] || 0) + 1
+          }
+        }
+      })
+
+      console.log('✅ ESP32 quantity map:', esp32QuantityMap)
+
+      // Update products state with accurate ESP32 counts
+      setProducts(prev => prev.map(product => {
+        if ((product as any).wifiToken) {
+          const tokenConfigId = (product as any).tokenConfigId
+          const esp32Count = esp32QuantityMap[tokenConfigId]
+          if (esp32Count !== undefined) {
+            console.log(`🔄 Updating ${product.name} quantity: ${(product as any).availableQuantity} → ${esp32Count}`)
+            return {
+              ...product,
+              availableQuantity: esp32Count
+            }
+          }
+        }
+        return product
+      }))
+    } catch (error) {
+      console.error('❌ Background ESP32 sync error:', error)
+    }
+  }
 
   // Extract fetchProducts as a callable function for reuse
   const fetchProducts = useCallback(async () => {
@@ -173,95 +256,36 @@ function GroceryPOSContent() {
             if (wifiTokensResponse.ok) {
               const wifiData = await wifiTokensResponse.json()
               if (wifiData.success && wifiData.menuItems) {
-                // Fetch available quantities for all token configs
                 console.log('🔍 [WiFi Menu Items]:', wifiData.menuItems)
                 const tokenConfigIds = wifiData.menuItems.map((item: any) => item.tokenConfigId)
-                console.log('🔍 [Extracted Token Config IDs]:', tokenConfigIds)
+
+                // STEP 1: Get database counts IMMEDIATELY (non-blocking)
                 let quantityMap: Record<string, number> = {}
 
                 if (tokenConfigIds.length > 0) {
                   try {
-                    console.log('🔍 [WiFi Token Availability] Starting cross-reference check...')
-                    console.log('   Business ID:', currentBusinessId)
-                    console.log('   Token Config IDs to check:', tokenConfigIds)
+                    console.log('📊 [Step 1] Fetching database counts for immediate display...')
+                    const dbUrl = `/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=UNUSED&excludeSold=true&limit=1000`
+                    const dbResponse = await fetch(dbUrl)
 
-                    // CRITICAL: Cross-reference ESP32 API with Database Ledger
-                    // Step 1: Get ESP32 sellable tokens (source of truth)
-                    const esp32Url = `/api/wifi-portal/integration/tokens/list?businessId=${currentBusinessId}&status=unused&limit=1000`
-                    console.log('   ESP32 API URL:', esp32Url)
+                    if (dbResponse.ok) {
+                      const dbData = await dbResponse.json()
+                      const dbTokens = dbData.tokens || []
 
-                    const esp32Response = await fetch(esp32Url)
-                    console.log('   ESP32 Response:', esp32Response.status, esp32Response.statusText)
-
-                    if (esp32Response.ok) {
-                      const esp32Data = await esp32Response.json()
-                      console.log('   ESP32 Tokens Count:', esp32Data.tokens?.length || 0)
-
-                      if (esp32Data.tokens && esp32Data.tokens.length > 0) {
-                        console.log('   First 5 ESP32 tokens:', esp32Data.tokens.slice(0, 5).map((t: any) => t.token))
-                      }
-
-                      // Create Set for O(1) lookup performance
-                      const esp32TokenSet = new Set(
-                        (esp32Data.tokens || []).map((t: any) => t.token)
-                      )
-                      console.log('   ESP32 Token Set size:', esp32TokenSet.size)
-
-                      // Step 2: Get Database Ledger tokens (unsold only)
-                      const dbUrl = `/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=UNUSED&excludeSold=true&limit=1000`
-                      console.log('   Database API URL:', dbUrl)
-
-                      const dbResponse = await fetch(dbUrl)
-                      console.log('   Database Response:', dbResponse.status, dbResponse.statusText)
-
-                      if (dbResponse.ok) {
-                        const dbData = await dbResponse.json()
-                        const dbTokens = dbData.tokens || []
-                        console.log('   Database Tokens Count:', dbTokens.length)
-
-                        if (dbTokens.length > 0) {
-                          console.log('   First 5 DB tokens:', dbTokens.slice(0, 5).map((t: any) => t.token))
-                          console.log('   Sample DB token details:', {
-                            token: dbTokens[0].token,
-                            status: dbTokens[0].status,
-                            configId: dbTokens[0].tokenConfigId,
-                            hasSale: !!dbTokens[0].sale
-                          })
+                      // Count by tokenConfigId (quick estimate)
+                      quantityMap = dbTokens.reduce((acc: Record<string, number>, token: any) => {
+                        const configId = token.tokenConfigId
+                        if (configId && tokenConfigIds.includes(configId)) {
+                          acc[configId] = (acc[configId] || 0) + 1
                         }
+                        return acc
+                      }, {})
 
-                        // Step 3: Cross-reference - only count tokens in BOTH lists
-                        let matchedCount = 0
-                        quantityMap = dbTokens.reduce((acc: Record<string, number>, dbToken: any) => {
-                          // Only count if token exists in ESP32 API
-                          if (esp32TokenSet.has(dbToken.token)) {
-                            matchedCount++
-                            const configId = dbToken.tokenConfigId
-                            if (configId && tokenConfigIds.includes(configId)) {
-                              acc[configId] = (acc[configId] || 0) + 1
-                              console.log(`   ✓ Matched token: ${dbToken.token} -> Config: ${configId}`)
-                            } else {
-                              console.log(`   ⚠️  Token ${dbToken.token} in both but config ${configId} not in menu`)
-                            }
-                          }
-                          return acc
-                        }, {})
-
-                        console.log('   Cross-reference results:')
-                        console.log('     - Tokens in both ESP32 & DB:', matchedCount)
-                        console.log('     - Quantity map:', quantityMap)
-                      } else {
-                        console.error('   ❌ Database API failed')
-                      }
-                    } else {
-                      console.error('   ❌ ESP32 API failed')
+                      console.log('✅ [Step 1] Database counts displayed:', quantityMap)
                     }
                   } catch (error) {
-                    console.error('❌ Failed to fetch token availability (ESP32 cross-reference):', error)
-                    // Fallback: Set all counts to 0 to prevent selling unavailable tokens
-                    quantityMap = {}
+                    console.error('❌ Database fetch error:', error)
                   }
-
-                  console.log('🎯 [WiFi Token Availability] Final quantity map:', quantityMap)
                 }
 
                 const wifiTokenItems = wifiData.menuItems
@@ -284,6 +308,14 @@ function GroceryPOSContent() {
                     availableQuantity: quantityMap[item.tokenConfigId] || 0,
                   }))
                 posItems.push(...wifiTokenItems)
+
+                // STEP 2: Start background ESP32 sync (non-blocking, progressive updates)
+                if (tokenConfigIds.length > 0) {
+                  console.log('🔄 [Step 2] Starting background ESP32 sync...')
+                  syncESP32TokenQuantities(currentBusinessId, tokenConfigIds).catch(err => {
+                    console.error('❌ Background ESP32 sync failed:', err)
+                  })
+                }
               }
             }
 
@@ -356,6 +388,16 @@ function GroceryPOSContent() {
   }
 
   const addToCart = async (product: POSItem, quantity = 1, weight?: number) => {
+    // Prevent adding $0 items to cart (except WiFi tokens)
+    const isWiFiToken = (product as any).wifiToken === true
+    if (!isWiFiToken && (!product.price || product.price <= 0)) {
+      void customAlert({
+        title: 'Invalid Price',
+        description: `Cannot add "${product.name}" with $0 price to cart. Please set a price first or use discounts for price reductions.`
+      })
+      return
+    }
+
     // Check portal health before adding WiFi tokens
     if ((product as any).wifiToken) {
       // Check available quantity
@@ -670,7 +712,9 @@ function GroceryPOSContent() {
             {
               id: currentBusinessId || '',
               name: (currentBusiness?.businessName && currentBusiness.businessName.trim()) || 'Grocery Store',
-              type: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery'
+              type: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery',
+              address: currentBusiness?.address, // From BusinessMembership
+              phone: currentBusiness?.phone // From BusinessMembership
             }
           ),
           businessId: currentBusinessId || '',
@@ -1051,13 +1095,70 @@ function GroceryPOSContent() {
                     </div>
                     {/* WiFi token quantity indicator */}
                     {(product as any).wifiToken && (
-                      <div className="mt-1">
-                        <span className={`text-xs font-medium ${
+                      <div className="mt-1 space-y-1">
+                        <span className={`text-xs font-medium block ${
                           (product as any).availableQuantity === 0 ? 'text-red-500' :
                           (product as any).availableQuantity < 5 ? 'text-orange-500' :
                           'text-green-600'}`}>
                           📦 {(product as any).availableQuantity || 0} available
                         </span>
+                        {/* Request more tokens button - only show when quantity < 5 and user has permission */}
+                        {(product as any).availableQuantity < 5 && isAdmin && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation(); // Prevent adding to cart
+                              try {
+                                const response = await fetch('/api/wifi-portal/tokens/bulk', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    businessId: currentBusinessId,
+                                    tokenConfigId: (product as any).tokenConfigId,
+                                    quantity: 5
+                                  })
+                                });
+
+                                const result = await response.json();
+
+                                if (response.ok) {
+                                  // Optimistic UI update - immediately increment the quantity
+                                  const tokensCreated = result.tokensCreated || 0;
+                                  setProducts(prev => prev.map(prod => {
+                                    if ((prod as any).tokenConfigId === (product as any).tokenConfigId) {
+                                      return {
+                                        ...prod,
+                                        availableQuantity: ((prod as any).availableQuantity || 0) + tokensCreated
+                                      };
+                                    }
+                                    return prod;
+                                  }));
+
+                                  toast.push(`✅ Successfully created ${tokensCreated} ${(product as any).tokenConfig.name} token${tokensCreated !== 1 ? 's' : ''}!`, {
+                                    type: 'success',
+                                    duration: 5000
+                                  });
+
+                                  // Background refresh to confirm quantities
+                                  fetchProducts();
+                                } else {
+                                  toast.push(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`, {
+                                    type: 'error',
+                                    duration: 0  // Require manual dismissal for errors
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Error creating tokens:', error);
+                                toast.push('❌ Error creating tokens. Please try again.', {
+                                  type: 'error',
+                                  duration: 0  // Require manual dismissal for errors
+                                });
+                              }
+                            }}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded w-full transition-colors"
+                          >
+                            + Request 5 More
+                          </button>
+                        )}
                       </div>
                     )}
                   </button>

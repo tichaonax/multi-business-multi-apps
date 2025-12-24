@@ -464,7 +464,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
                   min="0"
                   step="0.01"
                   value={item.unitPrice}
-                  onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => updateItem(index, 'unitPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   required
                   disabled={!!item.productDetails}
                 />
@@ -487,7 +487,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
             min="0"
             max="100"
             value={formData.depositPercent}
-            onChange={(e) => setFormData({ ...formData, depositPercent: parseInt(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, depositPercent: e.target.value === '' ? 0 : parseInt(e.target.value) })}
             required
           />
         </div>
@@ -561,7 +561,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
             min="0"
             step="0.01"
             value={formData.serviceFee}
-            onChange={(e) => setFormData({ ...formData, serviceFee: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, serviceFee: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
           />
         </div>
 
@@ -573,7 +573,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
             min="0"
             step="0.01"
             value={formData.administrationFee}
-            onChange={(e) => setFormData({ ...formData, administrationFee: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, administrationFee: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
           />
         </div>
       </div>

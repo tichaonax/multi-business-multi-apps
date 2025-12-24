@@ -36,6 +36,20 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('isActive')) updateData.isActive = !!payload.isActive
     if (payload.hasOwnProperty('wifiIntegrationEnabled')) updateData.wifiIntegrationEnabled = !!payload.wifiIntegrationEnabled
 
+    // Receipt configuration fields
+    if (payload.hasOwnProperty('receiptReturnPolicy')) {
+      updateData.receiptReturnPolicy = payload.receiptReturnPolicy?.trim() || null
+    }
+    if (payload.hasOwnProperty('taxIncludedInPrice')) {
+      updateData.taxIncludedInPrice = !!payload.taxIncludedInPrice
+    }
+    if (payload.hasOwnProperty('taxRate')) {
+      updateData.taxRate = payload.taxRate ? parseFloat(payload.taxRate) : null
+    }
+    if (payload.hasOwnProperty('taxLabel')) {
+      updateData.taxLabel = payload.taxLabel?.trim() || null
+    }
+
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 })
     }

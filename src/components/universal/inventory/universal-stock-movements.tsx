@@ -714,7 +714,7 @@ export function UniversalStockMovements({
                       type="number"
                       step="0.01"
                       value={formData.quantity}
-                      onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
                       className="input-field"
                       placeholder="Enter quantity"
                       required

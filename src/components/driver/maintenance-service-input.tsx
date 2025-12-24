@@ -151,7 +151,7 @@ export function MaintenanceServiceInput({
               step="0.01"
               min="0"
               value={service.cost || ''}
-              onChange={(e) => handleCostChange(parseFloat(e.target.value) || 0)}
+              onChange={(e) => handleCostChange(e.target.value === '' ? 0 : parseFloat(e.target.value))}
               placeholder={`${category.placeholderAmount}`}
               className="text-lg"
             />

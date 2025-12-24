@@ -1767,6 +1767,8 @@ export interface BusinessMembership {
   permissions: BusinessPermissions;
   isActive: boolean;
   isDemo?: boolean; // Flag to indicate demo business
+  address?: string; // Business address for receipts
+  phone?: string; // Business phone for receipts
   joinedAt: Date;
   lastAccessedAt: Date | null;
 }

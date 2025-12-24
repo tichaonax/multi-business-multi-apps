@@ -10,9 +10,21 @@ type ConfirmOptions = {
   alertMode?: boolean // When true, shows only OK button
 }
 
+type PromptOptions = {
+  title?: string
+  description?: string | React.ReactNode
+  placeholder?: string
+  defaultValue?: string
+  inputType?: 'text' | 'number'
+  confirmText?: string
+  cancelText?: string
+  validator?: (value: string) => string | null // Returns error message or null if valid
+}
+
 type ConfirmContextValue = {
   confirm: (options: ConfirmOptions) => Promise<boolean>
   alert: (options: Omit<ConfirmOptions, 'cancelText' | 'alertMode'>) => Promise<void>
+  prompt: (options: PromptOptions) => Promise<string | null>
 }
 
 const ConfirmContext = createContext<ConfirmContextValue | null>(null)
@@ -23,6 +35,14 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     resolve?: (value: boolean) => void
   } | null>(null)
 
+  const [promptState, setPromptState] = useState<{
+    options: PromptOptions | null
+    resolve?: (value: string | null) => void
+  } | null>(null)
+
+  const [promptValue, setPromptValue] = useState('')
+  const [promptError, setPromptError] = useState<string | null>(null)
+
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
       setState({ options, resolve })
@@ -31,10 +51,18 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 
   const alert = useCallback((options: Omit<ConfirmOptions, 'cancelText' | 'alertMode'>) => {
     return new Promise<void>((resolve) => {
-      setState({ 
-        options: { ...options, alertMode: true }, 
-        resolve: () => resolve() 
+      setState({
+        options: { ...options, alertMode: true },
+        resolve: () => resolve()
       })
+    })
+  }, [])
+
+  const prompt = useCallback((options: PromptOptions) => {
+    return new Promise<string | null>((resolve) => {
+      setPromptValue(options.defaultValue || '')
+      setPromptError(null)
+      setPromptState({ options, resolve })
     })
   }, [])
 
@@ -83,9 +111,33 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [state])
 
+  // Handle prompt close
+  const handlePromptClose = (confirmed: boolean) => {
+    if (promptState?.resolve) {
+      if (confirmed) {
+        // Validate if validator provided
+        if (promptState.options?.validator) {
+          const error = promptState.options.validator(promptValue)
+          if (error) {
+            setPromptError(error)
+            return // Don't close, show error
+          }
+        }
+        promptState.resolve(promptValue)
+      } else {
+        promptState.resolve(null)
+      }
+    }
+    setPromptState(null)
+    setPromptValue('')
+    setPromptError(null)
+  }
+
   return (
-    <ConfirmContext.Provider value={{ confirm, alert }}>
+    <ConfirmContext.Provider value={{ confirm, alert, prompt }}>
       {children}
+
+      {/* Confirm/Alert Modal */}
       {state?.options && (
         <div
           role="dialog"
@@ -122,6 +174,70 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
+
+      {/* Prompt Modal */}
+      {promptState?.options && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="prompt-modal-title"
+          className="fixed inset-0 z-[100000] flex items-center justify-center"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={() => handlePromptClose(false)} />
+          <div className="relative w-full max-w-lg rounded bg-white dark:bg-gray-800 p-6 shadow-lg mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 id="prompt-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
+              {promptState.options.title || 'Input Required'}
+            </h3>
+            {promptState.options.description && (
+              <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                {promptState.options.description}
+              </div>
+            )}
+            <div className="mt-4">
+              <input
+                type={promptState.options.inputType || 'text'}
+                value={promptValue}
+                onChange={(e) => {
+                  setPromptValue(e.target.value)
+                  setPromptError(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handlePromptClose(true)
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    handlePromptClose(false)
+                  }
+                }}
+                placeholder={promptState.options.placeholder}
+                className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  promptError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                }`}
+                autoFocus
+              />
+              {promptError && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400">{promptError}</p>
+              )}
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                className="rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                onClick={() => handlePromptClose(false)}
+              >
+                {promptState.options.cancelText || 'Cancel'}
+              </button>
+              <button
+                className="rounded px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700"
+                onClick={() => handlePromptClose(true)}
+              >
+                {promptState.options.confirmText || 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ConfirmContext.Provider>
   )
 }
@@ -136,6 +252,12 @@ export function useAlert() {
   const ctx = useContext(ConfirmContext)
   if (!ctx) throw new Error('useAlert must be used within a ConfirmProvider')
   return ctx.alert
+}
+
+export function usePrompt() {
+  const ctx = useContext(ConfirmContext)
+  if (!ctx) throw new Error('usePrompt must be used within a ConfirmProvider')
+  return ctx.prompt
 }
 
 export default ConfirmProvider

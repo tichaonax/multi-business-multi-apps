@@ -4,7 +4,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { sendToPrinter, isPrinterAvailable } from './printer-service-usb';
+import { printRawData } from './windows-raw-printer';
+import { checkPrinterConnectivity } from './printer-service';
 import {
   getNextPendingJob,
   markJobAsProcessing,
@@ -206,14 +207,14 @@ async function processQueue(): Promise<void> {
       console.log(`   Content length: ${printContent.length} characters`);
     }
 
-    // Check if printer is available
-    const available = await isPrinterAvailable(printer.printerName);
-    if (!available) {
-      throw new Error(`Printer "${printer.printerName}" not found in system`);
+    // Check printer connectivity
+    const isOnline = await checkPrinterConnectivity(printer.id);
+    if (!isOnline) {
+      throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
     }
 
-    // Send to printer
-    await sendToPrinter(printContent, {
+    // Send to printer using Windows RAW printer service
+    await printRawData(printContent, {
       printerName: printer.printerName,
       copies: jobData.copies || 1,
     });

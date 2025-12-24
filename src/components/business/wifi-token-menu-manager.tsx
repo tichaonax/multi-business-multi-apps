@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatCurrency } from '@/lib/format-currency'
+import { formatDataAmount, formatDuration } from '@/lib/printing/format-utils'
 import { useConfirm } from '@/components/ui/confirm-modal'
 
 interface TokenConfig {
@@ -24,6 +25,9 @@ interface BusinessTokenMenuItem {
   businessPrice: number
   isActive: boolean
   displayOrder: number
+  durationMinutesOverride: number | null
+  bandwidthDownMbOverride: number | null
+  bandwidthUpMbOverride: number | null
   tokenConfig: TokenConfig
 }
 
@@ -37,11 +41,19 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  const [purchasing, setPurchasing] = useState<string | null>(null)
   const [tokenConfigs, setTokenConfigs] = useState<TokenConfig[]>([])
   const [businessMenuItems, setBusinessMenuItems] = useState<BusinessTokenMenuItem[]>([])
   const [editingPrices, setEditingPrices] = useState<Record<string, string>>({})
+  const [customizingTokens, setCustomizingTokens] = useState<Record<string, boolean>>({})
+  const [editingOverrides, setEditingOverrides] = useState<Record<string, {
+    durationMinutes?: string
+    bandwidthDownMb?: string
+    bandwidthUpMb?: string
+  }>>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [syncingESP32, setSyncingESP32] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -82,113 +94,186 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
 
   const fetchAvailableQuantities = async (configs: TokenConfig[]) => {
     try {
-      // Fetch all UNUSED tokens from database to check for sales
-      const dbTokensRes = await fetch(`/api/wifi-portal/tokens?businessId=${businessId}&status=UNUSED&limit=1000`)
+      // STEP 1: Quick database counts for immediate display (non-blocking)
+      console.log('📊 Step 1: Fetching database counts for quick display...')
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+
+      try {
+        const dbTokensRes = await fetch(
+          `/api/wifi-portal/tokens?businessId=${businessId}&status=UNUSED&limit=1000`,
+          { signal: controller.signal }
+        )
+        clearTimeout(timeout)
+
+        if (dbTokensRes.ok) {
+          const dbTokensData = await dbTokensRes.json()
+          const dbTokens = dbTokensData.tokens || []
+
+          // Count tokens by config (initial estimate)
+          const dbQuantityMap = dbTokens.reduce((acc: Record<string, number>, token: any) => {
+            const configId = token.tokenConfigId
+            if (configId && token.status === 'UNUSED') {
+              acc[configId] = (acc[configId] || 0) + 1
+            }
+            return acc
+          }, {})
+
+          // Set initial counts from database (immediate display)
+          setTokenConfigs(prev => prev.map(config => ({
+            ...config,
+            availableQuantity: dbQuantityMap[config.id] || 0
+          })))
+
+          console.log('✅ Database counts displayed:', dbQuantityMap)
+        } else {
+          console.warn('⚠️ Database fetch failed, showing 0 counts')
+          setTokenConfigs(prev => prev.map(config => ({ ...config, availableQuantity: 0 })))
+        }
+      } catch (fetchError) {
+        clearTimeout(timeout)
+        console.warn('⚠️ Database fetch error:', fetchError)
+        setTokenConfigs(prev => prev.map(config => ({ ...config, availableQuantity: 0 })))
+      }
+
+      // STEP 2: Progressive ESP32 sync in background (non-blocking)
+      console.log('🔄 Step 2: Starting background ESP32 sync...')
+      setSyncingESP32(true)
+
+      // Run ESP32 sync in background without blocking
+      syncESP32Counts(configs).finally(() => {
+        setSyncingESP32(false)
+        console.log('✅ ESP32 sync completed')
+      })
+
+    } catch (error) {
+      console.error('❌ Error in fetchAvailableQuantities:', error)
+      setTokenConfigs(prev => prev.map(config => ({ ...config, availableQuantity: 0 })))
+    }
+  }
+
+  const syncESP32Counts = async (configs: TokenConfig[]) => {
+    try {
+      // Get portal integration to call ESP32 API
+      const integrationRes = await fetch(`/api/business/${businessId}/portal-integration`)
+      if (!integrationRes.ok) {
+        console.warn('⚠️ No portal integration found, skipping ESP32 sync')
+        return
+      }
+
+      const integrationData = await integrationRes.json()
+      const integration = integrationData.integration
+
+      if (!integration?.isActive) {
+        console.warn('⚠️ Portal integration inactive, skipping ESP32 sync')
+        return
+      }
+
+      // Get database tokens first (needed for tokenConfigId mapping)
+      console.log('📊 Fetching database tokens for mapping...')
+      const dbTokensRes = await fetch(
+        `/api/wifi-portal/tokens?businessId=${businessId}&status=UNUSED&limit=2000`
+      )
 
       if (!dbTokensRes.ok) {
-        console.error('Failed to fetch database tokens')
+        console.warn('⚠️ Database token fetch failed, skipping ESP32 sync')
         return
       }
 
       const dbTokensData = await dbTokensRes.json()
       const dbTokens = dbTokensData.tokens || []
 
-      // Create a set of sold token IDs (from BOTH DIRECT and POS channels)
-      const soldTokenIds = new Set(
+      // Create mapping: ESP32 token code -> tokenConfigId
+      const tokenToConfigMap = new Map<string, string>()
+      dbTokens.forEach((t: any) => {
+        if (t.token && t.tokenConfigId) {
+          tokenToConfigMap.set(t.token, t.tokenConfigId)
+        }
+      })
+
+      // Create set of sold tokens (have wifi_token_sales records)
+      const soldTokenCodes = new Set(
         dbTokens
           .filter((t: any) => t.sale !== null && t.sale !== undefined)
           .map((t: any) => t.token)
       )
 
-      // Count unsold UNUSED tokens by tokenConfigId from database
-      const dbQuantityMap = dbTokens.reduce((acc: Record<string, number>, token: any) => {
-        const configId = token.tokenConfig?.id
-        // Include only UNUSED tokens that have NOT been sold (either channel)
-        if (configId && token.status === 'UNUSED' && !soldTokenIds.has(token.token)) {
-          acc[configId] = (acc[configId] || 0) + 1
-        }
-        return acc
-      }, {})
+      console.log(`📊 Database: ${dbTokens.length} tokens, ${soldTokenCodes.size} sold`)
 
-      // Get the authoritative list of available tokens from ESP32 with proper pagination
-      let esp32Tokens: any[] = []
+      // Fetch ESP32 tokens in batches (progressive updates)
+      // CRITICAL: ESP32 limit is 20 tokens per request (not 100 or 200)
+      const BATCH_SIZE = 20
       let offset = 0
-      const batchSize = 100 // Fetch in batches to respect rate limits
+      let hasMore = true
+      const esp32QuantityMap: Record<string, number> = {}
 
-      try {
-        while (true) {
-          const esp32TokensRes = await fetch(
-            `/api/wifi-portal/integration/tokens/list?businessId=${businessId}&status=unused&limit=${batchSize}&offset=${offset}`
+      console.log('📡 Starting batched ESP32 fetch...')
+
+      while (hasMore) {
+        try {
+          console.log(`📡 Batch ${Math.floor(offset / BATCH_SIZE) + 1}: Fetching tokens ${offset}-${offset + BATCH_SIZE}...`)
+
+          const batchRes = await fetch(
+            `/api/wifi-portal/esp32-tokens?businessId=${businessId}&status=unused&limit=${BATCH_SIZE}&offset=${offset}`,
+            {
+              signal: AbortSignal.timeout(10000) // 10 second timeout per batch
+            }
           )
 
-          if (!esp32TokensRes.ok) {
-            console.warn(`Failed to fetch ESP32 tokens batch at offset ${offset}:`, esp32TokensRes.status)
+          if (!batchRes.ok) {
+            console.warn(`⚠️ Batch ${Math.floor(offset / BATCH_SIZE) + 1} failed, stopping`)
             break
           }
 
-          const esp32Data = await esp32TokensRes.json()
-          if (!esp32Data.success || !esp32Data.tokens) {
-            console.warn(`Invalid ESP32 response at offset ${offset}:`, esp32Data)
+          const batchData = await batchRes.json()
+          const batchTokens = batchData.tokens || []
+
+          console.log(`✅ Batch ${Math.floor(offset / BATCH_SIZE) + 1}: Received ${batchTokens.length} tokens`)
+
+          // Process this batch
+          batchTokens.forEach((espToken: any) => {
+            // Skip sold tokens
+            if (soldTokenCodes.has(espToken.token)) {
+              return
+            }
+
+            // Get tokenConfigId from database mapping
+            const configId = tokenToConfigMap.get(espToken.token)
+            if (configId) {
+              esp32QuantityMap[configId] = (esp32QuantityMap[configId] || 0) + 1
+            }
+          })
+
+          // Progressive UI update after each batch
+          setTokenConfigs(prev => prev.map(config => ({
+            ...config,
+            availableQuantity: esp32QuantityMap[config.id] || 0
+          })))
+
+          console.log(`📊 Progressive update: ${Object.values(esp32QuantityMap).reduce((a, b) => a + b, 0)} tokens counted`)
+
+          // Check if there are more tokens
+          hasMore = batchData.hasMore === true
+          offset += BATCH_SIZE
+
+          // Safety limit: max 50 batches (1000 tokens with 20 per batch)
+          if (offset >= 1000) {
+            console.log('⚠️ Safety limit reached (1000 tokens), stopping')
             break
           }
 
-          const batchTokens = esp32Data.tokens
-          esp32Tokens = esp32Tokens.concat(batchTokens)
-
-          // Check if there are more tokens available using the API's has_more flag
-          if (!esp32Data.has_more) {
-            break
-          }
-
-          // Move to next batch
-          offset += batchSize
-
-          // Small delay to respect rate limits
-          await new Promise(resolve => setTimeout(resolve, 100))
+        } catch (batchError: any) {
+          console.error(`❌ Batch ${Math.floor(offset / BATCH_SIZE) + 1} error:`, batchError.message)
+          break
         }
-
-        console.log(`Fetched ${esp32Tokens.length} ESP32 tokens in ${Math.ceil((offset + (esp32Tokens.length % batchSize || batchSize)) / batchSize)} batches`)
-      } catch (esp32Error) {
-        console.warn('Failed to fetch ESP32 tokens:', esp32Error)
       }
 
-      // Filter ESP32 tokens: exclude those that are marked as sold in database
-      const availableTokens = esp32Tokens.filter(esp32Token => {
-        // Include token if it's not marked as sold in database
-        return !soldTokenIds.has(esp32Token.token)
-      })
+      console.log('✅ ESP32 sync completed:', esp32QuantityMap)
 
-      // Count available tokens by tokenConfigId
-      const combinedQuantityMap: Record<string, number> = {}
-      availableTokens.forEach(token => {
-        // Find matching config by duration and bandwidth
-        const matchingConfig = configs.find(config =>
-          config.durationMinutes === token.durationMinutes &&
-          config.bandwidthDownMb === token.bandwidthDownMb &&
-          config.bandwidthUpMb === token.bandwidthUpMb
-        )
-        
-        if (matchingConfig) {
-          combinedQuantityMap[matchingConfig.id] = (combinedQuantityMap[matchingConfig.id] || 0) + 1
-        }
-      })
-
-      // Update configs with available quantities
-      setTokenConfigs(prev => prev.map(config => ({
-        ...config,
-        availableQuantity: combinedQuantityMap[config.id] || 0
-      })))
-    } catch (error) {
-      console.error('Error fetching available quantities:', error)
+    } catch (error: any) {
+      console.error('❌ ESP32 sync error:', error)
+      // Don't update counts on error - keep database estimates
     }
-  }
-
-  const formatDuration = (minutes: number): string => {
-    if (minutes < 60) return `${minutes} minutes`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    if (mins === 0) return `${hours} hour${hours > 1 ? 's' : ''}`
-    return `${hours}h ${mins}m`
   }
 
   const isInMenu = (tokenConfigId: string): boolean => {
@@ -204,8 +289,19 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
     const price = parseFloat(customPrice)
 
     if (isNaN(price) || price < 0) {
-      setErrorMessage('Please enter a valid price (0 or greater)')
+      setErrorMessage('Please enter a valid price (must be 0 or greater)')
       return
+    }
+
+    // Allow $0 for free promotional tokens
+    if (price === 0) {
+      const confirmed = await confirm({
+        title: 'Free Promotional Token',
+        description: `Add "${tokenConfig.name}" as a free token (price = $0)?`,
+        confirmText: 'Add as Free',
+        cancelText: 'Cancel',
+      })
+      if (!confirmed) return
     }
 
     try {
@@ -245,14 +341,27 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
     const price = parseFloat(customPrice)
 
     if (isNaN(price) || price < 0) {
-      setErrorMessage('Please enter a valid price (0 or greater)')
+      setErrorMessage('Please enter a valid price (must be 0 or greater)')
       return
+    }
+
+    // Confirm if changing to $0
+    if (price === 0 && menuItem.businessPrice > 0) {
+      const confirmed = await confirm({
+        title: 'Change to Free',
+        description: `Change "${menuItem.tokenConfig.name}" price to $0 (free)?`,
+        confirmText: 'Make Free',
+        cancelText: 'Cancel',
+      })
+      if (!confirmed) return
     }
 
     try {
       setSaving(menuItem.tokenConfigId)
       setErrorMessage(null)
       setSuccessMessage(null)
+
+      console.log('Updating price:', { price, menuItemId: menuItem.id, businessId })
 
       const response = await fetch(`/api/business/${businessId}/wifi-tokens/${menuItem.id}`, {
         method: 'PUT',
@@ -264,15 +373,17 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
       })
 
       const data = await response.json()
+      console.log('Update response:', data)
 
       if (response.ok) {
-        setSuccessMessage('Price updated successfully!')
+        setSuccessMessage(`Price updated successfully to ${formatCurrency(price)}!`)
         fetchData()
         delete editingPrices[menuItem.tokenConfigId]
       } else {
         setErrorMessage(data.error || 'Failed to update price')
       }
     } catch (error: any) {
+      console.error('Update price error:', error)
       setErrorMessage(error.message || 'Failed to update price')
     } finally {
       setSaving(null)
@@ -340,6 +451,163 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
       setErrorMessage(error.message || 'Failed to update token status')
     } finally {
       setSaving(null)
+    }
+  }
+
+  const handleCustomizeToggle = (config: TokenConfig, menuItem?: BusinessTokenMenuItem) => {
+    const isCustomizing = customizingTokens[config.id]
+
+    if (!isCustomizing) {
+      // Entering customize mode - load current values or defaults as strings
+      setEditingOverrides({
+        ...editingOverrides,
+        [config.id]: {
+          durationMinutes: (menuItem?.durationMinutesOverride || config.durationMinutes).toString(),
+          bandwidthDownMb: (menuItem?.bandwidthDownMbOverride || config.bandwidthDownMb).toString(),
+          bandwidthUpMb: (menuItem?.bandwidthUpMbOverride || config.bandwidthUpMb).toString(),
+        },
+      })
+    }
+
+    setCustomizingTokens({
+      ...customizingTokens,
+      [config.id]: !isCustomizing,
+    })
+  }
+
+  const handleSaveOverrides = async (config: TokenConfig) => {
+    const overrides = editingOverrides[config.id]
+
+    if (!overrides) {
+      setErrorMessage('No override values to save')
+      return
+    }
+
+    // Parse string values to numbers
+    const durationMinutes = parseInt(overrides.durationMinutes || '0')
+    const bandwidthDownMb = parseInt(overrides.bandwidthDownMb || '0')
+    const bandwidthUpMb = parseInt(overrides.bandwidthUpMb || '0')
+
+    // Validate
+    if (isNaN(durationMinutes) || durationMinutes <= 0) {
+      setErrorMessage('Please enter a valid duration (greater than 0)')
+      return
+    }
+    if (isNaN(bandwidthDownMb) || bandwidthDownMb <= 0) {
+      setErrorMessage('Please enter a valid download bandwidth (greater than 0)')
+      return
+    }
+    if (isNaN(bandwidthUpMb) || bandwidthUpMb <= 0) {
+      setErrorMessage('Please enter a valid upload bandwidth (greater than 0)')
+      return
+    }
+
+    try {
+      setSaving(config.id)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+
+      const response = await fetch(`/api/wifi-portal/token-configs/${config.id}/business-override`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          durationMinutesOverride: durationMinutes,
+          bandwidthDownMbOverride: bandwidthDownMb,
+          bandwidthUpMbOverride: bandwidthUpMb,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setSuccessMessage('Custom settings saved successfully!')
+        setCustomizingTokens({ ...customizingTokens, [config.id]: false })
+        fetchData()
+      } else {
+        setErrorMessage(data.error || 'Failed to save custom settings')
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to save custom settings')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const handleResetOverrides = async (config: TokenConfig) => {
+    const confirmed = await confirm({
+      title: 'Reset to Defaults',
+      description: `Reset "${config.name}" back to default duration and bandwidth settings?`,
+      confirmText: 'Reset',
+      cancelText: 'Cancel',
+    })
+
+    if (!confirmed) return
+
+    try {
+      setSaving(config.id)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+
+      const response = await fetch(
+        `/api/wifi-portal/token-configs/${config.id}/business-override?businessId=${businessId}`,
+        { method: 'DELETE' }
+      )
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setSuccessMessage('Settings reset to defaults!')
+        delete editingOverrides[config.id]
+        setCustomizingTokens({ ...customizingTokens, [config.id]: false })
+        fetchData()
+      } else {
+        setErrorMessage(data.error || 'Failed to reset settings')
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to reset settings')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const handlePurchaseTokens = async (config: TokenConfig) => {
+    const confirmed = await confirm({
+      title: 'Purchase 20 Tokens',
+      description: `Create 20 new "${config.name}" tokens for your ${businessType}?`,
+      confirmText: 'Purchase',
+      cancelText: 'Cancel',
+    })
+
+    if (!confirmed) return
+
+    try {
+      setPurchasing(config.id)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+
+      const response = await fetch('/api/wifi-portal/tokens/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          tokenConfigId: config.id,
+          quantity: 20,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setSuccessMessage(`Successfully created ${data.tokensCreated} tokens!`)
+        fetchData() // Refresh to update available quantity
+      } else {
+        setErrorMessage(data.error || 'Failed to purchase tokens')
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to purchase tokens')
+    } finally {
+      setPurchasing(null)
     }
   }
 
@@ -425,24 +693,173 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-600 dark:text-gray-400">⏱️ Duration:</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{formatDuration(config.durationMinutes)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-600 dark:text-gray-400">📥 Download:</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{config.bandwidthDownMb} MB</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-600 dark:text-gray-400">📤 Upload:</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{config.bandwidthUpMb} MB</span>
-                      </div>
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-3 text-sm">
+                      {/* Show current/override values or editing fields */}
+                      {!customizingTokens[config.id] ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600 dark:text-gray-400">⏱️ Duration:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {formatDuration(menuItem?.durationMinutesOverride || config.durationMinutes)}
+                            </span>
+                            {menuItem?.durationMinutesOverride && (
+                              <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                                (Customized)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600 dark:text-gray-400">📥 Download:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {formatDataAmount(menuItem?.bandwidthDownMbOverride || config.bandwidthDownMb)}
+                            </span>
+                            {menuItem?.bandwidthDownMbOverride && (
+                              <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                                (Customized)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600 dark:text-gray-400">📤 Upload:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {formatDataAmount(menuItem?.bandwidthUpMbOverride || config.bandwidthUpMb)}
+                            </span>
+                            {menuItem?.bandwidthUpMbOverride && (
+                              <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                                (Customized)
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Editing mode - show input fields */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Duration - <span className="text-purple-600 dark:text-purple-400">{formatDuration(parseInt(editingOverrides[config.id]?.durationMinutes || '0') || config.durationMinutes)}</span>
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={editingOverrides[config.id]?.durationMinutes || ''}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                // Allow empty or digits only
+                                if (value === '' || /^\d+$/.test(value)) {
+                                  setEditingOverrides({
+                                    ...editingOverrides,
+                                    [config.id]: {
+                                      ...editingOverrides[config.id],
+                                      durationMinutes: value
+                                    }
+                                  })
+                                }
+                              }}
+                              onBlur={(e) => {
+                                // If empty on blur, set to default
+                                if (e.target.value === '') {
+                                  setEditingOverrides({
+                                    ...editingOverrides,
+                                    [config.id]: {
+                                      ...editingOverrides[config.id],
+                                      durationMinutes: config.durationMinutes.toString()
+                                    }
+                                  })
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-sm border border-purple-300 dark:border-purple-600 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              placeholder="Minutes"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Download - <span className="text-purple-600 dark:text-purple-400">{formatDataAmount(parseInt(editingOverrides[config.id]?.bandwidthDownMb || '0') || config.bandwidthDownMb)}</span>
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={editingOverrides[config.id]?.bandwidthDownMb || ''}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                // Allow empty or digits only
+                                if (value === '' || /^\d+$/.test(value)) {
+                                  setEditingOverrides({
+                                    ...editingOverrides,
+                                    [config.id]: {
+                                      ...editingOverrides[config.id],
+                                      bandwidthDownMb: value
+                                    }
+                                  })
+                                }
+                              }}
+                              onBlur={(e) => {
+                                // If empty on blur, set to default
+                                if (e.target.value === '') {
+                                  setEditingOverrides({
+                                    ...editingOverrides,
+                                    [config.id]: {
+                                      ...editingOverrides[config.id],
+                                      bandwidthDownMb: config.bandwidthDownMb.toString()
+                                    }
+                                  })
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-sm border border-purple-300 dark:border-purple-600 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              placeholder="MB"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Upload - <span className="text-purple-600 dark:text-purple-400">{formatDataAmount(parseInt(editingOverrides[config.id]?.bandwidthUpMb || '0') || config.bandwidthUpMb)}</span>
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={editingOverrides[config.id]?.bandwidthUpMb || ''}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                // Allow empty or digits only
+                                if (value === '' || /^\d+$/.test(value)) {
+                                  setEditingOverrides({
+                                    ...editingOverrides,
+                                    [config.id]: {
+                                      ...editingOverrides[config.id],
+                                      bandwidthUpMb: value
+                                    }
+                                  })
+                                }
+                              }}
+                              onBlur={(e) => {
+                                // If empty on blur, set to default
+                                if (e.target.value === '') {
+                                  setEditingOverrides({
+                                    ...editingOverrides,
+                                    [config.id]: {
+                                      ...editingOverrides[config.id],
+                                      bandwidthUpMb: config.bandwidthUpMb.toString()
+                                    }
+                                  })
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-sm border border-purple-300 dark:border-purple-600 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              placeholder="MB"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Available tokens - always shown */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
                         <span className="text-gray-600 dark:text-gray-400">📦 Available:</span>
                         <span className={`font-medium ${config.availableQuantity === 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                           {config.availableQuantity || 0} tokens
                         </span>
+                        {syncingESP32 && (
+                          <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                            <span className="animate-spin">🔄</span>
+                            <span>Syncing...</span>
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -491,7 +908,7 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
                             ✓ Free promotional token
                           </p>
                         )}
-                        {menuItem && parseFloat(customPrice) !== menuItem.businessPrice && (
+                        {menuItem && parseFloat(customPrice) !== Number(menuItem.businessPrice) && (
                           <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
                             Price changed - click Update to save
                           </p>
@@ -500,16 +917,37 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
                     </div>
                   </div>
 
-                  <div className="flex gap-3 pt-4 border-t">
-                    {!inMenu ? (
-                      <button
-                        onClick={() => handleAddToMenu(config)}
-                        disabled={saving === config.id}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {saving === config.id ? 'Adding...' : '+ Add to Menu'}
-                      </button>
+                  <div className="flex flex-wrap gap-3 pt-4 border-t">
+                    {customizingTokens[config.id] ? (
+                      /* Customization mode buttons */
+                      <>
+                        <button
+                          onClick={() => handleSaveOverrides(config)}
+                          disabled={saving === config.id}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                        >
+                          {saving === config.id ? 'Saving...' : '✓ Save Custom Settings'}
+                        </button>
+                        <button
+                          onClick={() => handleCustomizeToggle(config, menuItem)}
+                          className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : !inMenu ? (
+                      /* Not in menu - show Add button */
+                      <>
+                        <button
+                          onClick={() => handleAddToMenu(config)}
+                          disabled={saving === config.id}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {saving === config.id ? 'Adding...' : '+ Add to Menu'}
+                        </button>
+                      </>
                     ) : (
+                      /* In menu - show menu management buttons */
                       <>
                         {menuItem && parseFloat(customPrice) !== menuItem.businessPrice && (
                           <button
@@ -523,12 +961,43 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
 
                         {menuItem && (
                           <>
+                            {/* Purchase 20 Tokens button */}
+                            <button
+                              onClick={() => handlePurchaseTokens(config)}
+                              disabled={purchasing === config.id}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <span>🎫</span>
+                              <span>{purchasing === config.id ? 'Purchasing...' : 'Purchase 20 Tokens'}</span>
+                            </button>
+
+                            {/* Customize button */}
+                            <button
+                              onClick={() => handleCustomizeToggle(config, menuItem)}
+                              disabled={saving === config.id}
+                              className="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <span>⚙️</span>
+                              <span>Customize</span>
+                            </button>
+
+                            {/* Reset button - only show if has overrides */}
+                            {(menuItem.durationMinutesOverride || menuItem.bandwidthDownMbOverride || menuItem.bandwidthUpMbOverride) && (
+                              <button
+                                onClick={() => handleResetOverrides(config)}
+                                disabled={saving === config.id}
+                                className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 disabled:opacity-50"
+                              >
+                                {saving === config.id ? 'Resetting...' : '↺ Reset to Defaults'}
+                              </button>
+                            )}
+
                             <button
                               onClick={() => handleToggleActive(menuItem)}
                               disabled={saving === config.id}
                               className={`px-4 py-2 rounded-lg disabled:opacity-50 ${
                                 menuItem.isActive
-                                  ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                                   : 'bg-green-600 text-white hover:bg-green-700'
                               }`}
                             >

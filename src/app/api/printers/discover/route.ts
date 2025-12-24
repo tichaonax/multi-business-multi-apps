@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { canManageNetworkPrinters } from '@/lib/permission-utils';
-import { listSystemPrinters } from '@/lib/printing/printer-service-usb';
+import { listWindowsPrinters } from '@/lib/printing/windows-raw-printer';
 import type { PrinterCapability } from '@/types/printing';
 
 interface DiscoveredPrinter {
@@ -19,6 +19,7 @@ interface DiscoveredPrinter {
   printerType: 'label' | 'receipt' | 'document';
   ipAddress: string;
   port: number;
+  portName?: string; // Add port name for display
   capabilities: PrinterCapability[];
   manufacturer?: string;
   model?: string;
@@ -92,16 +93,23 @@ export async function GET(request: NextRequest) {
  */
 async function discoverLocalPrinters(): Promise<DiscoveredPrinter[]> {
   try {
-    const systemPrinters = await listSystemPrinters();
+    const systemPrinters = await listWindowsPrinters();
 
-    return systemPrinters.map(name => ({
-      printerId: `local-${name.toLowerCase().replace(/\s+/g, '-')}`,
-      printerName: name,
-      printerType: detectPrinterType(name),
-      ipAddress: 'localhost', // Local USB printer
-      port: 0, // Not applicable for USB
-      capabilities: detectCapabilities(name),
-      status: 'available' as const,
+    return systemPrinters.map(printer => ({
+      printerId: `local-${printer.name.toLowerCase().replace(/\s+/g, '-')}`,
+      printerName: printer.name,
+      printerType: detectPrinterType(printer.name),
+      ipAddress: printer.portName.match(/(USB|COM|LPT|TMUSB|RongtaUSB)/i)
+        ? '' // Direct ports (USB/COM/LPT/TMUSB/RongtaUSB)
+        : 'localhost', // Network printers on localhost
+      port: printer.portName.match(/(USB|COM|LPT|TMUSB|RongtaUSB)/i)
+        ? 0 // Not applicable for direct ports
+        : 9100, // Default network port
+      portName: printer.portName, // Include actual port name
+      capabilities: detectCapabilities(printer.name),
+      manufacturer: extractManufacturer(printer.name),
+      model: extractModel(printer.name, printer.name),
+      status: printer.status === 'Normal' || printer.status === 'Idle' ? 'available' as const : 'offline' as const,
     }));
   } catch (error) {
     console.error('Failed to discover local printers:', error);
@@ -275,4 +283,41 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Extract manufacturer from driver name
+ */
+function extractManufacturer(driverName: string): string | undefined {
+  if (!driverName) return undefined;
+
+  const lower = driverName.toLowerCase();
+
+  if (lower.includes("epson")) return "Epson";
+  if (lower.includes("hp") || lower.includes("hewlett")) return "HP";
+  if (lower.includes("canon")) return "Canon";
+  if (lower.includes("brother")) return "Brother";
+  if (lower.includes("samsung")) return "Samsung";
+  if (lower.includes("lexmark")) return "Lexmark";
+  if (lower.includes("zebra")) return "Zebra";
+  if (lower.includes("dymo")) return "Dymo";
+  if (lower.includes("star")) return "Star Micronics";
+  if (lower.includes("rongta")) return "Rongta";
+
+  return "Generic";
+}
+
+/**
+ * Extract model from printer name or driver
+ */
+function extractModel(printerName: string, driverName: string): string | undefined {
+  // Try to extract model from printer name first
+  const nameMatches = printerName.match(/(TM-[A-Z]\d+|TM\d+|TSP\d+|QL-\d+|LP\d+|MZ\d+|GK\d+)/i);
+  if (nameMatches) return nameMatches[1];
+
+  // Try to extract from driver name
+  const driverMatches = driverName.match(/(TM-[A-Z]\d+|TM\d+|TSP\d+|QL-\d+|LP\d+|MZ\d+|GK\d+)/i);
+  if (driverMatches) return driverMatches[1];
+
+  return undefined;
 }

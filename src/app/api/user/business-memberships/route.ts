@@ -28,6 +28,8 @@ export async function GET() {
           description: true,
           isActive: true,
           isDemo: true,
+          address: true,
+          phone: true,
         },
         orderBy: {
           name: 'asc',
@@ -56,9 +58,17 @@ export async function GET() {
         },
         isActive: business.isActive, // Use actual business active status
         isDemo: business.isDemo, // Include demo flag
+        address: business.address, // Business address for receipts
+        phone: business.phone, // Business phone for receipts
         joinedAt: new Date(),
         lastAccessedAt: new Date(),
       }));
+
+      console.log('🔍 [API] Admin memberships returned:', adminMemberships.map(m => ({
+        businessName: m.businessName,
+        address: m.address,
+        phone: m.phone
+      })));
 
       return NextResponse.json(adminMemberships);
     }
@@ -77,6 +87,8 @@ export async function GET() {
             description: true,
             isActive: true,
             isDemo: true,
+            address: true,
+            phone: true,
           },
         },
       },
@@ -94,9 +106,17 @@ export async function GET() {
       permissions: mergeWithBusinessPermissions(membership.permissions as any),
       isActive: membership.isActive && membership.businesses.isActive,
       isDemo: membership.businesses.isDemo, // Include demo flag
+      address: membership.businesses.address, // Business address for receipts
+      phone: membership.businesses.phone, // Business phone for receipts
       joinedAt: membership.joinedAt,
       lastAccessedAt: membership.lastAccessedAt,
     }));
+
+    console.log('🔍 [API] Regular user memberships returned:', transformedMemberships.map(m => ({
+      businessName: m.businessName,
+      address: m.address,
+      phone: m.phone
+    })));
 
     return NextResponse.json(transformedMemberships);
   } catch (error) {

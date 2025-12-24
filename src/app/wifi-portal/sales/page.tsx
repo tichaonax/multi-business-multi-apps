@@ -9,6 +9,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { formatCurrency } from '@/lib/format-currency'
+import { formatDataAmount, formatDuration } from '@/lib/printing/format-utils'
 import { TokenReceipt } from '@/components/wifi-portal/token-receipt'
 
 interface TokenConfig {
@@ -126,14 +127,6 @@ export default function WiFiTokenSalesPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const formatDuration = (minutes: number): string => {
-    if (minutes < 60) return `${minutes} minutes`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    if (mins === 0) return `${hours} hour${hours > 1 ? 's' : ''}`
-    return `${hours}h ${mins}m`
   }
 
   const handleSelectPackage = (config: TokenConfig) => {
@@ -390,11 +383,11 @@ export default function WiFiTokenSalesPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span>📥</span>
-                        <span>{config.bandwidthDownMb} MB download</span>
+                        <span>{formatDataAmount(config.bandwidthDownMb)} download</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span>📤</span>
-                        <span>{config.bandwidthUpMb} MB upload</span>
+                        <span>{formatDataAmount(config.bandwidthUpMb)} upload</span>
                       </div>
                     </div>
 

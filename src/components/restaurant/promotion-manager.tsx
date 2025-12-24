@@ -491,7 +491,7 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
                     step="0.01"
                     min="0"
                     value={formData.value}
-                    onChange={(e) => setFormData(prev => ({ ...prev, value: parseFloat(e.target.value) || 0 }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
                     required
                   />
                 </div>

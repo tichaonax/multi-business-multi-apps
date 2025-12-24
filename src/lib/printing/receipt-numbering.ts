@@ -65,7 +65,10 @@ async function getNextDailySequence(businessId: string, date: string): Promise<n
       // Increment existing sequence
       const updated = await tx.receiptSequences.update({
         where: {
-          id: existing.id,
+          businessId_date: {
+            businessId: businessId,
+            date: date,
+          },
         },
         data: {
           lastSequence: {

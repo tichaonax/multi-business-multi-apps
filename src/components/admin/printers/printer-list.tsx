@@ -137,16 +137,43 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
     setDirectTestingPrinter(printer.id)
 
     try {
-      push(`Sending direct ESC/POS test to ${printer.printerName}...`)
+      push(`Checking printer connectivity...`)
 
-      const response = await fetch('/api/printers/test-direct', {
+      // First check connectivity and update status
+      const response = await fetch(`/api/printers/${printer.id}/check-connectivity`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printerId: printer.id }),
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
+        throw new Error('Failed to check printer connectivity')
+      }
+
+      const { isOnline } = await response.json()
+
+      if (!isOnline) {
+        push(`❌ Printer "${printer.printerName}" is offline or unreachable`)
+        onRefresh() // Refresh to update status
+        return
+      }
+
+      push(`Sending direct ESC/POS test to ${printer.printerName}...`)
+
+      // If this is a USB/local printer (no ipAddress), call the USB-specific test
+      let testResponse
+      if (!printer.ipAddress) {
+        testResponse = await fetch(`/api/printers/${printer.id}/test-usb`, {
+          method: 'POST',
+        })
+      } else {
+        testResponse = await fetch('/api/printers/test-direct', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ printerId: printer.id }),
+        })
+      }
+
+      if (!testResponse.ok) {
+        const errorData = await testResponse.json()
         throw new Error(errorData.details || errorData.error || 'Direct test failed')
       }
 
@@ -308,8 +335,8 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
                   variant="outline"
                   size="sm"
                   onClick={() => handleDirectTest(printer)}
-                  disabled={!isOnline || directTestingPrinter === printer.id}
-                  title="Direct ESC/POS test (bypasses queue)"
+                  disabled={directTestingPrinter === printer.id}
+                  title="Direct ESC/POS test (checks connectivity first, bypasses queue)"
                 >
                   <TestTube className="w-4 h-4 mr-1" />
                   {directTestingPrinter === printer.id ? 'Testing...' : 'Direct Test'}

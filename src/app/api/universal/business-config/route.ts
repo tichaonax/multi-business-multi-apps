@@ -171,6 +171,12 @@ export async function GET(request: NextRequest) {
         name: true,
         type: true,
         description: true,
+        address: true,
+        phone: true,
+        receiptReturnPolicy: true,
+        taxIncludedInPrice: true,
+        taxRate: true,
+        taxLabel: true,
         settings: true,
         isActive: true
       }
@@ -337,6 +343,12 @@ export async function GET(request: NextRequest) {
       businessType: business.type,
       businessDescription: business.description,
       isActive: business.isActive,
+      address: business.address,
+      phone: business.phone,
+      receiptReturnPolicy: business.receiptReturnPolicy,
+      taxIncludedInPrice: business.taxIncludedInPrice ?? true,
+      taxRate: business.taxRate ? Number(business.taxRate) : null,
+      taxLabel: business.taxLabel,
       ...defaultConfig,
       ...currentSettings
     }

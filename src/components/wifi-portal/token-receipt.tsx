@@ -1,6 +1,7 @@
 'use client'
 
 import { formatCurrency } from '@/lib/format-currency'
+import { formatDataAmount, formatDuration } from '@/lib/printing/format-utils'
 
 interface TokenReceiptProps {
   token: {
@@ -29,14 +30,6 @@ interface TokenReceiptProps {
 }
 
 export function TokenReceipt({ token, business, sale, ap_ssid }: TokenReceiptProps) {
-  const formatDuration = (minutes: number): string => {
-    if (minutes < 60) return `${minutes} minutes`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    if (mins === 0) return `${hours} hour${hours > 1 ? 's' : ''}`
-    return `${hours}h ${mins}m`
-  }
-
   const formatDateTime = (dateStr: string): string => {
     const date = new Date(dateStr)
     return date.toLocaleString('en-US', {
@@ -88,12 +81,12 @@ export function TokenReceipt({ token, business, sale, ap_ssid }: TokenReceiptPro
 
         <div className="flex justify-between">
           <span>Download Limit:</span>
-          <span className="font-medium">{token.tokenConfig.bandwidthDownMb} MB</span>
+          <span className="font-medium">{formatDataAmount(token.tokenConfig.bandwidthDownMb)}</span>
         </div>
 
         <div className="flex justify-between">
           <span>Upload Limit:</span>
-          <span className="font-medium">{token.tokenConfig.bandwidthUpMb} MB</span>
+          <span className="font-medium">{formatDataAmount(token.tokenConfig.bandwidthUpMb)}</span>
         </div>
 
         <div className="flex justify-between border-t border-black pt-2 mt-2">

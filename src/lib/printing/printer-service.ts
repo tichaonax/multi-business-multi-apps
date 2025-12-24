@@ -57,6 +57,7 @@ export async function registerPrinter(
       capabilities: data.capabilities,
       isShareable: data.isShareable,
       isOnline: true,
+      receiptWidth: data.receiptWidth || 48, // Default to 48 characters
       lastSeen: new Date(),
     },
   });
@@ -80,6 +81,7 @@ export async function updatePrinter(
       port: data.port || null,
       capabilities: data.capabilities,
       isShareable: data.isShareable,
+      receiptWidth: data.receiptWidth,
       updatedAt: new Date(),
     },
   });
@@ -280,6 +282,100 @@ export async function markStalePrintersOffline(timeoutMinutes: number = 5): Prom
 }
 
 /**
+ * Check printer connectivity and update online status
+ * @param printerId - ID of printer to check
+ * @returns Promise<boolean> - true if printer is online
+ */
+export async function checkPrinterConnectivity(printerId: string): Promise<boolean> {
+  try {
+    const printer = await prisma.networkPrinters.findUnique({
+      where: { id: printerId },
+    });
+
+    if (!printer) {
+      return false;
+    }
+
+    // For network printers, try to connect to the IP/port
+    if (printer.ipAddress && printer.port) {
+      const isOnline = await checkNetworkPrinterConnectivity(printer.ipAddress, printer.port);
+      await updatePrinterStatus(printerId, isOnline);
+      return isOnline;
+    }
+
+    // For local printers, check if they exist in the system
+    const isOnline = await checkLocalPrinterConnectivity(printer.printerName);
+    await updatePrinterStatus(printerId, isOnline);
+    return isOnline;
+
+  } catch (error) {
+    console.error(`Error checking connectivity for printer ${printerId}:`, error);
+    await updatePrinterStatus(printerId, false);
+    return false;
+  }
+}
+
+/**
+ * Check network printer connectivity
+ */
+async function checkNetworkPrinterConnectivity(ipAddress: string, port: number): Promise<boolean> {
+  try {
+    // Use a simple TCP connection test
+    const net = require('net');
+    return new Promise((resolve) => {
+      const socket = net.createConnection(port, ipAddress);
+      socket.setTimeout(5000); // 5 second timeout
+
+      socket.on('connect', () => {
+        socket.end();
+        resolve(true);
+      });
+
+      socket.on('error', () => {
+        resolve(false);
+      });
+
+      socket.on('timeout', () => {
+        socket.end();
+        resolve(false);
+      });
+    });
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Check local printer connectivity (Windows)
+ */
+async function checkLocalPrinterConnectivity(printerName: string): Promise<boolean> {
+  try {
+    // Use the Windows RAW printer service's connectivity check
+    const { checkPrinterAvailable } = await import('./windows-raw-printer');
+    return await checkPrinterAvailable(printerName);
+  } catch (error) {
+    console.error(`Error checking local printer ${printerName}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Update printer online status
+ */
+async function updatePrinterStatus(printerId: string, isOnline: boolean): Promise<void> {
+  await prisma.networkPrinters.update({
+    where: { id: printerId },
+    data: {
+      isOnline,
+      lastSeen: new Date(),
+    },
+  });
+
+  // Audit the status change
+  await auditPrinterStatusChanged(printerId, isOnline);
+}
+
+/**
  * Get printer statistics (job counts, processing times, etc.)
  */
 export async function getPrinterStatistics(printerId: string): Promise<PrinterStatistics> {
@@ -352,6 +448,7 @@ function transformPrinterRecord(record: any): NetworkPrinter {
     capabilities: (record.capabilities || []) as PrinterCapability[],
     isShareable: record.isShareable,
     isOnline: record.isOnline,
+    receiptWidth: record.receiptWidth,
     lastSeen: new Date(record.lastSeen),
     createdAt: new Date(record.createdAt),
     updatedAt: new Date(record.updatedAt),

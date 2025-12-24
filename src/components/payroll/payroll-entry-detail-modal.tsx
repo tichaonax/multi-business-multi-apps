@@ -1608,7 +1608,7 @@ export function PayrollEntryDetailModal({
                     type="number"
                     step="0.5"
                     value={formData.standardOvertimeHours}
-                    onChange={(e) => setFormData({ ...formData, standardOvertimeHours: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, standardOvertimeHours: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                     onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
@@ -1623,7 +1623,7 @@ export function PayrollEntryDetailModal({
                     type="number"
                     step="0.5"
                     value={formData.doubleTimeOvertimeHours}
-                    onChange={(e) => setFormData({ ...formData, doubleTimeOvertimeHours: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, doubleTimeOvertimeHours: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                     onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
@@ -1636,7 +1636,7 @@ export function PayrollEntryDetailModal({
                     type="number"
                     step="0.01"
                     value={formData.commission}
-                    onChange={(e) => setFormData({ ...formData, commission: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, commission: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                     onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
@@ -1853,7 +1853,7 @@ export function PayrollEntryDetailModal({
                       type="number"
                       step="0.01"
                       value={typeof formData.miscDeductions === 'number' ? formData.miscDeductions : Number(entry.miscDeductions || 0)}
-                      onChange={(e) => setFormData({ ...formData, miscDeductions: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => setFormData({ ...formData, miscDeductions: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                       onBlur={() => flushAutosave()}
                       className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       min="0"
@@ -1961,7 +1961,7 @@ export function PayrollEntryDetailModal({
                         type="number"
                         step="0.01"
                         value={adjustmentForm.amount}
-                        onChange={(e) => setAdjustmentForm({ ...adjustmentForm, amount: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -2136,7 +2136,7 @@ export function PayrollEntryDetailModal({
                         type="number"
                         step="0.01"
                         value={benefitForm.amount}
-                        onChange={(e) => setBenefitForm({ ...benefitForm, amount: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => setBenefitForm({ ...benefitForm, amount: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') e.preventDefault()
                         }}
@@ -2515,7 +2515,7 @@ export function PayrollEntryDetailModal({
                         type="number"
                         step="0.01"
                         value={editAdjustmentForm.amount}
-                        onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, amount: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, amount: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>

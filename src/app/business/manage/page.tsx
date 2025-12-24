@@ -36,7 +36,17 @@ function BusinessManagePageContent() {
   const [showDeleteBusiness, setShowDeleteBusiness] = useState(false)
   const [showReactivateBusiness, setShowReactivateBusiness] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
-  const [editBusinessInitial, setEditBusinessInitial] = useState<{ name?: string; type?: string; description?: string } | null>(null)
+  const [editBusinessInitial, setEditBusinessInitial] = useState<{
+    name?: string
+    type?: string
+    description?: string
+    address?: string
+    phone?: string
+    receiptReturnPolicy?: string
+    taxIncludedInPrice?: boolean
+    taxRate?: string
+    taxLabel?: string
+  } | null>(null)
   const [editBusinessId, setEditBusinessId] = useState<string | null>(null)
   const { format: globalDateFormat } = useDateFormat();
   
@@ -330,7 +340,13 @@ function BusinessManagePageContent() {
                             setEditBusinessInitial({
                               name: biz?.businessName || currentBusiness?.businessName || '',
                               type: biz?.businessType || currentBusiness?.businessType || 'other',
-                              description: biz?.businessDescription || ''
+                              description: biz?.businessDescription || '',
+                              address: biz?.address || '',
+                              phone: biz?.phone || '',
+                              receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',
+                              taxIncludedInPrice: biz?.taxIncludedInPrice !== undefined ? biz.taxIncludedInPrice : true,
+                              taxRate: biz?.taxRate ? String(biz.taxRate) : '',
+                              taxLabel: biz?.taxLabel || ''
                             })
                             setEditBusinessId(id)
                             setShowEditBusiness(true)

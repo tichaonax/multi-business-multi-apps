@@ -607,7 +607,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
                 step="0.01"
                 min="0"
                 value={formData.basePrice}
-                onChange={(e) => handleInputChange('basePrice', parseFloat(e.target.value) || 0)}
+                onChange={(e) => handleInputChange('basePrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                 className={validationErrors.basePrice ? 'border-red-300' : ''}
               />
               {validationErrors.basePrice && (
@@ -897,7 +897,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
                     step="0.01"
                     min="0"
                     value={variant.price}
-                    onChange={(e) => updateVariant(index, 'price', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => updateVariant(index, 'price', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                     placeholder="Price"
                   />
                 </div>

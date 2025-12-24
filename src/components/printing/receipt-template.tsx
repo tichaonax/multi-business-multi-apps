@@ -121,11 +121,6 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
               {token.success ? (
                 <>
                   <div className="text-[11px] font-bold mb-1">{token.packageName}</div>
-                  {token.ssid && (
-                    <div className="text-[10px] text-center mb-1">
-                      <span className="font-semibold">Network:</span> {token.ssid}
-                    </div>
-                  )}
                   <div className="text-center my-2">
                     <div className="p-2 font-mono text-base font-bold">
                       {token.tokenCode}
@@ -133,9 +128,15 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                   </div>
                   <div className="text-[10px] text-center">
                     <div>Duration: {Math.floor(token.duration / 60)}h {token.duration % 60}m</div>
+                    {(token.bandwidthDownMb || token.bandwidthUpMb) && (
+                      <div className="mt-1">
+                        Data Limits: ↓{token.bandwidthDownMb || 0}MB / ↑{token.bandwidthUpMb || 0}MB
+                      </div>
+                    )}
                     <div className="mt-1 text-gray-600 dark:text-gray-400">
-                      1. Connect to "{token.ssid || 'Guest WiFi'}"<br/>
-                      2. Open browser and enter code above
+                      1. Connect to WiFi "{token.ssid || 'Guest WiFi'}"<br/>
+                      2. Visit http://192.168.4.1<br/>
+                      3. Enter code above to activate
                     </div>
                   </div>
                 </>

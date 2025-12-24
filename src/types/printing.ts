@@ -20,6 +20,7 @@ export interface NetworkPrinter {
   capabilities: PrinterCapability[];
   isShareable: boolean; // Admin configured - can other nodes use this?
   isOnline: boolean;
+  receiptWidth: number | null; // Receipt width in characters (32, 42, or 48)
   lastSeen: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -32,6 +33,7 @@ export interface PrinterFormData {
   port?: number;
   capabilities: PrinterCapability[];
   isShareable: boolean;
+  receiptWidth?: number; // Receipt width in characters (32, 42, or 48)
 }
 
 export interface PrinterDiscoveryResult {
@@ -84,13 +86,24 @@ export interface PrintJobQueueOptions {
 // ============================================================================
 
 export interface WifiTokenInfo {
-  token: string; // The 8-character token code
-  durationMinutes: number;
-  bandwidthDownMb: number;
-  bandwidthUpMb: number;
+  // Token identification
+  tokenCode: string; // The 8-character token code
+  packageName: string; // Display name of the WiFi package
+  itemName?: string; // Item name from order (if different from packageName)
+
+  // Token configuration
+  duration: number; // Duration in minutes
+  bandwidthDownMb?: number;
+  bandwidthUpMb?: number;
+
+  // Network info
   ssid?: string; // WiFi network name
   portalUrl?: string; // URL to access the portal
   instructions?: string; // How to connect
+
+  // Sale status (for order responses)
+  success?: boolean;
+  error?: string;
 }
 
 export interface ReceiptSequence {
@@ -118,6 +131,9 @@ export interface ReceiptData {
   businessPhone?: string;
   businessEmail?: string;
   businessLogo?: string; // URL or base64
+
+  // Receipt type (for dual receipt support)
+  receiptType?: 'business' | 'customer'; // Business copy (always) or customer copy (optional)
 
   // Transaction info
   transactionId: string;
@@ -150,16 +166,18 @@ export interface ReceiptData {
   // Footer
   footerMessage?: string;
   returnPolicy?: string;
-}
 
-export interface WifiTokenInfo {
-  itemName: string;
-  tokenCode: string;
-  packageName: string;
-  duration: number; // minutes
-  ssid?: string; // WiFi network name
-  success: boolean;
-  error?: string;
+  // Tax Configuration
+  taxIncludedInPrice?: boolean;
+  taxRate?: number;
+  taxLabel?: string;
+
+  // Reprint fields
+  isReprint?: boolean;
+  originalPrintDate?: Date;
+  reprintedBy?: string;
+  // Umbrella/umbrella business-level phone number (optional)
+  umbrellaPhone?: string;
 }
 
 export interface ReceiptItem {
@@ -179,7 +197,6 @@ export interface ReceiptItem {
 // Business-Specific Receipt Data
 
 export interface RestaurantReceiptData {
-  receiptType: 'kitchen' | 'customer'; // Dual receipt support
   tableNumber?: string;
   serverName?: string;
   orderTime: Date;

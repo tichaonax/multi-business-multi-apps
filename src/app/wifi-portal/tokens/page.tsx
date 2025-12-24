@@ -8,6 +8,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { formatCurrency } from '@/lib/format-currency'
+import { formatDataAmount, formatDuration } from '@/lib/printing/format-utils'
 import type { TokenListItem, MacFilterEntry } from '@/lib/wifi-portal/api-client'
 
 type TabType = 'ledger' | 'portal-tokens' | 'bulk-create' | 'mac-filters'
@@ -21,32 +22,10 @@ interface WifiTokenDevice {
   lastSeen: string | Date
 }
 
-interface WifiToken {
-  id: string
-  businessId: string
-  token: string
-  status: string
-  expiresAt: string | Date | null
-  createdAt: string | Date
-  lastSyncedAt: string | Date | null
-  bandwidthUsedDown: number | string | null
-  bandwidthUsedUp: number | string | null
-  usageCount: number | null
-  // Device tracking (v3.4)
-  hostname: string | null
-  deviceType: string | null
-  firstSeen: string | Date | null
-  lastSeen: string | Date | null
-  deviceCount: number
-  primaryMac: string | null
-  wifi_token_devices?: WifiTokenDevice[]
-  tokenConfig: {
-    name: string
-    durationMinutes: number
-    bandwidthDownMb: number
-    bandwidthUpMb: number
-  }
-  sale?: any | null  // Added to track if token is sold
+interface AvailabilityData {
+  name: string
+  count: number
+  status: 'available' | 'pending'
 }
 
 interface TokenConfig {
@@ -110,7 +89,7 @@ export default function WiFiTokensPage() {
   const [batchSyncing, setBatchSyncing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [availableByConfig, setAvailableByConfig] = useState<Record<string, { name: string; count: number }>>({})
+  const [availableByConfig, setAvailableByConfig] = useState<Record<string, AvailabilityData>>({})
 
   const canManage = session?.user ? (isSystemAdmin(session.user) || hasPermission(session.user, 'canSellWifiTokens')) : false
 
@@ -213,46 +192,88 @@ export default function WiFiTokensPage() {
 
     const calculateAvailability = async () => {
       try {
-        // Step 1: Get ESP32 sellable tokens (source of truth)
-        const esp32Response = await fetch(`/api/wifi-portal/integration/tokens/list?businessId=${currentBusinessId}&status=unused&limit=1000`)
+        // Count tokens by status and sale status
+        const statusCounts = tokens.reduce((acc, token) => {
+          const status = token.status
+          const hasSale = !!token.sale
+          const key = `${status}_${hasSale ? 'sold' : 'unsold'}`
+          acc[key] = (acc[key] || 0) + 1
+          return acc
+        }, {} as Record<string, number>)
 
-        if (!esp32Response.ok) {
-          console.warn('ESP32 API unavailable, showing database-only counts')
-          // Fallback to database-only counts
-          const fallback = tokens
-            .filter(t => t.status === 'UNUSED' && (!t.sale || t.sale === null))
-            .reduce((acc, token) => {
-              const configName = token.tokenConfig?.name || 'Unknown'
-              if (!acc[configName]) {
-                acc[configName] = { name: configName, count: 0 }
-              }
-              acc[configName].count++
-              return acc
-            }, {} as Record<string, { name: string; count: number }>)
-          setAvailableByConfig(fallback)
-          return
+        // Step 1: Get ESP32 sellable tokens (source of truth) - fetch all in batches
+        const allEsp32Tokens: any[] = []
+        let offset = 0
+        const batchSize = 20
+        let hasMore = true
+
+        while (hasMore) {
+          const esp32Response = await fetch(`/api/wifi-portal/integration/tokens/list?businessId=${currentBusinessId}&status=unused&limit=${batchSize}&offset=${offset}`)
+
+          if (!esp32Response.ok) {
+            console.warn('ESP32 API unavailable - tokens marked as pending')
+            // Mark all database tokens as pending when ESP32 is unavailable
+            const pending = tokens
+              .filter(t => t.status === 'UNUSED' && (!t.sale || t.sale === null))
+              .reduce((acc, token) => {
+                const configName = token.tokenConfig?.name || 'Unknown'
+                if (!acc[configName]) {
+                  acc[configName] = { name: configName, count: 0, status: 'pending' }
+                }
+                acc[configName].count++
+                return acc
+              }, {} as Record<string, AvailabilityData>)
+            setAvailableByConfig(pending)
+            return
+          }
+
+          const esp32Data = await esp32Response.json()
+          const batchTokens = esp32Data.tokens || []
+          allEsp32Tokens.push(...batchTokens)
+
+          hasMore = esp32Data.has_more || false
+          offset += batchSize
+
+          // Safety limit (ESP32 max is 500 tokens, so 600 is plenty)
+          if (offset > 600) {
+            console.warn('Safety limit reached - stopping token fetch at offset', offset)
+            break
+          }
         }
 
-        const esp32Data = await esp32Response.json()
-        const esp32TokenSet = new Set((esp32Data.tokens || []).map((t: any) => t.token))
+        const esp32TokenSet = new Set(allEsp32Tokens.map((t: any) => t.token))
 
-        // Step 2: Filter database tokens that also exist in ESP32
+        // Step 2: Count available tokens (must exist in both database and ESP32)
         const available = tokens.reduce((acc, token) => {
-          // Only count if: (1) UNUSED, (2) not sold, (3) exists in ESP32
-          if (token.status === 'UNUSED' && !token.sale && esp32TokenSet.has(token.token)) {
-            const configName = token.tokenConfig?.name || 'Unknown'
+          const isUnused = token.status === 'UNUSED'
+          const hasNoSale = !token.sale
+          const inEsp32 = esp32TokenSet.has(token.token)
+          const configName = token.tokenConfig?.name || 'Unknown'
+
+          if (isUnused && hasNoSale && inEsp32) {
             if (!acc[configName]) {
-              acc[configName] = { name: configName, count: 0 }
+              acc[configName] = { name: configName, count: 0, status: 'available' }
             }
             acc[configName].count++
           }
           return acc
-        }, {} as Record<string, { name: string; count: number }>)
+        }, {} as Record<string, AvailabilityData>)
 
         setAvailableByConfig(available)
       } catch (error) {
         console.error('Failed to calculate token availability:', error)
-        setAvailableByConfig({})
+        // On error, mark all tokens as pending
+        const pending = tokens
+          .filter(t => t.status === 'UNUSED' && (!t.sale || t.sale === null))
+          .reduce((acc, token) => {
+            const configName = token.tokenConfig?.name || 'Unknown'
+            if (!acc[configName]) {
+              acc[configName] = { name: configName, count: 0, status: 'pending' }
+            }
+            acc[configName].count++
+            return acc
+          }, {} as Record<string, AvailabilityData>)
+        setAvailableByConfig(pending)
       }
     }
 
@@ -303,6 +324,11 @@ export default function WiFiTokensPage() {
       const params = new URLSearchParams({ businessId: currentBusinessId })
       if (filterUnredeemed) {
         params.append('unusedOnly', 'true')
+      }
+
+      // Default to requesting 20 tokens from the portal unless explicitly overridden
+      if (!params.has('limit')) {
+        params.append('limit', '20')
       }
 
       const response = await fetch(`/api/wifi-portal/integration/tokens/list?${params.toString()}`)
@@ -431,11 +457,11 @@ export default function WiFiTokensPage() {
         return
       }
 
-      // Batch in groups of 50 (ESP32 API limit)
+      // Batch in groups of 20 (ESP32 practical limit)
       const tokensToSync = syncableTokens.map(t => t.token)
       const batches = []
-      for (let i = 0; i < tokensToSync.length; i += 50) {
-        batches.push(tokensToSync.slice(i, i + 50))
+      for (let i = 0; i < tokensToSync.length; i += 20) {
+        batches.push(tokensToSync.slice(i, i + 20))
       }
 
       for (const batch of batches) {
@@ -945,14 +971,6 @@ export default function WiFiTokensPage() {
     }
   }
 
-  const formatDuration = (minutes: number): string => {
-    if (!minutes || isNaN(minutes) || minutes <= 0) return 'N/A'
-    if (minutes < 60) return `${Math.round(minutes)}m`
-    const hours = Math.floor(minutes / 60)
-    const remainingMinutes = Math.round(minutes % 60)
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
-  }
-
   const formatDateTime = (dateStr: string | number | Date | null | undefined): string => {
     if (!dateStr) return 'N/A'
     const date = dateStr instanceof Date ? dateStr : (typeof dateStr === 'number' ? new Date(dateStr * 1000) : new Date(dateStr))
@@ -1071,7 +1089,7 @@ export default function WiFiTokensPage() {
   return (
     <ContentLayout
       title="WiFi Token Management"
-      description="Manage WiFi access tokens, bulk operations, and MAC filtering"
+      subtitle="Manage WiFi access tokens, bulk operations, and MAC filtering"
     >
       {/* Portal Integration Setup Screen */}
       {hasPortalIntegration === false && (
@@ -1130,15 +1148,16 @@ export default function WiFiTokensPage() {
                     {data.name}
                   </div>
                   <div className={`text-3xl font-bold ${
+                    data.status === 'pending' ? 'text-yellow-600 dark:text-yellow-500' :
                     data.count === 0 ? 'text-red-600 dark:text-red-500' :
                     data.count < 5 ? 'text-orange-500' :
                     data.count < 10 ? 'text-yellow-500' :
                     'text-green-600 dark:text-green-500'
                   }`}>
-                    {data.count}
+                    {data.status === 'pending' ? '⏳' : data.count}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    available for sale
+                    {data.status === 'pending' ? 'pending validation' : 'available for sale'}
                   </div>
                 </div>
               ))
@@ -1871,7 +1890,7 @@ export default function WiFiTokensPage() {
                 >
                   {bulkConfigs.map((config) => (
                     <option key={config.id} value={config.id}>
-                      {config.name} - {formatDuration(config.durationMinutes)} - {formatCurrency(config.basePrice)}
+                      {config.name} - {formatDuration(config.durationMinutes)} - {formatDataAmount(config.bandwidthDownMb)} - {formatCurrency(config.basePrice)}
                     </option>
                   ))}
                 </select>
@@ -1914,11 +1933,17 @@ export default function WiFiTokensPage() {
 
               <button
                 onClick={handleBulkCreate}
-                disabled={bulkCreating || !selectedConfig || bulkConfigs.length === 0}
+                disabled={bulkCreating || !selectedConfig || bulkConfigs.length === 0 || Object.values(availableByConfig).some(data => data.status === 'pending')}
                 className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 {bulkCreating ? '⏳ Creating...' : `⚡ Create ${bulkQuantity} Token${bulkQuantity > 1 ? 's' : ''}`}
               </button>
+
+              {Object.values(availableByConfig).some(data => data.status === 'pending') && (
+                <p className="mt-2 text-sm text-yellow-600 dark:text-yellow-400 text-center">
+                  ⏳ Cannot create tokens while ESP32 portal is unavailable. Please wait for portal validation to complete.
+                </p>
+              )}
             </div>
           </div>
         </>

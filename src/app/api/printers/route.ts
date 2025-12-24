@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import {
   registerPrinter,
   listPrinters,
@@ -108,8 +109,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get node ID from request or use default (will be enhanced with sync service)
-    const nodeId = data.nodeId || process.env.NODE_ID || 'default-node';
+    // Get or create sync node for this printer
+    let nodeId = data.nodeId || process.env.NODE_ID || 'local-node';
+
+    // Ensure sync node exists before registering printer
+    const existingNode = await prisma.syncNodes.findUnique({
+      where: { nodeId: nodeId },
+    });
+
+    if (!existingNode) {
+      // Create default sync node if it doesn't exist
+      await prisma.syncNodes.create({
+        data: {
+          nodeId: nodeId,
+          nodeName: 'Local Node',
+          capabilities: { printing: true },
+        },
+      });
+      console.log(`✅ Created sync node: ${nodeId}`);
+    }
 
     // Prepare printer data
     const printerData: PrinterFormData = {

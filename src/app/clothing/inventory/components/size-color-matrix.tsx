@@ -292,7 +292,7 @@ export function ClothingSizeColorMatrix({ businessId }: ClothingSizeColorMatrixP
                               type="number"
                               min="0"
                               value={cell.stock}
-                              onChange={(e) => updateStock(cell.variantId, parseInt(e.target.value) || 0)}
+                              onChange={(e) => updateStock(cell.variantId, e.target.value === '' ? 0 : parseInt(e.target.value))}
                               className="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                             />
                           </div>

@@ -77,7 +77,7 @@ export function MaintenanceServiceExpenseInput({
             step="0.01"
             min="0"
             value={expense.amount || ''}
-            onChange={(e) => handleChange('amount', parseFloat(e.target.value) || 0)}
+            onChange={(e) => handleChange('amount', e.target.value === '' ? 0 : parseFloat(e.target.value))}
             placeholder="0.00"
             className="pl-10"
           />

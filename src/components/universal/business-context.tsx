@@ -9,6 +9,12 @@ export interface BusinessConfig {
   businessType: string
   businessDescription?: string
   isActive: boolean
+  address?: string
+  phone?: string
+  receiptReturnPolicy?: string | null
+  taxIncludedInPrice?: boolean
+  taxRate?: number | null
+  taxLabel?: string | null
   general?: {
     currency: string
     timezone: string

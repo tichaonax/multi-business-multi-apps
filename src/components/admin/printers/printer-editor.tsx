@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useToastContext } from '@/components/ui/toast'
 import type { NetworkPrinter } from '@/types/printing'
 
 interface PrinterEditorProps {
@@ -26,7 +27,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
   const [loading, setLoading] = useState(false)
   const [discovering, setDiscovering] = useState(false)
   const [detectingPorts, setDetectingPorts] = useState(false)
-  const [systemPrinters, setSystemPrinters] = useState<Array<{ name: string; type: string }>>([])
+  const [systemPrinters, setSystemPrinters] = useState<Array<{ name: string; type: string; portName: string }>>([])
   const [availablePorts, setAvailablePorts] = useState<string[]>([])
   const [connectionType, setConnectionType] = useState<'network' | 'usb'>('network')
   const [formData, setFormData] = useState({
@@ -38,8 +39,10 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
     usbPort: '',
     capabilities: [] as string[],
     isShareable: true,
+    receiptWidth: 48,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const toast = useToastContext()
 
   // Discover system printers when modal opens
   useEffect(() => {
@@ -64,6 +67,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
         usbPort: isUSB ? printer.printerName : '',
         capabilities: printer.capabilities || [],
         isShareable: printer.isShareable,
+        receiptWidth: printer.receiptWidth || 48,
       })
     } else {
       // Reset form for new printer
@@ -77,6 +81,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
         usbPort: '',
         capabilities: [],
         isShareable: true,
+        receiptWidth: 48,
       })
     }
     setErrors({})
@@ -92,31 +97,97 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
         const printers = (data.printers || []).map((p: any) => ({
           name: p.printerName,
           type: p.printerType,
+          portName: p.portName || 'Unknown',
         }))
         setSystemPrinters(printers)
         console.log('Discovered system printers:', printers)
+
+        // Show success message if printers were found
+        if (printers.length > 0) {
+          console.log(`✅ Found ${printers.length} system printer(s)`)
+        } else {
+          console.log('⚠️ No system printers discovered')
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Discovery API error:', response.status, errorData)
+        // Show fallback message
+        console.log('⚠️ Could not discover system printers. You can still enter printer details manually.')
       }
     } catch (error) {
       console.error('Failed to discover printers:', error)
+      // Show fallback message
+      console.log('⚠️ Could not discover system printers. You can still enter printer details manually.')
     } finally {
       setDiscovering(false)
     }
   }
 
-  async function detectUSBPorts() {
-    setDetectingPorts(true)
+  async function fetchWithTimeout(url: string, timeout = 3000) {
+    const controller = new AbortController()
+    const id = setTimeout(() => controller.abort(), timeout)
     try {
-      const response = await fetch('/api/printers/detect-ports')
-      if (response.ok) {
-        const data = await response.json()
-        setAvailablePorts(data.ports || [])
-        console.log('Detected USB ports:', data.ports)
+      const res = await fetch(url, { signal: controller.signal })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res
+    } finally {
+      clearTimeout(id)
+    }
+  }
+
+  async function detectUSBPorts() {
+    // Prevent duplicate concurrent detection runs
+    if (detectingPorts) return
+
+    setDetectingPorts(true)
+
+    try {
+      // Prefer the detailed endpoint which returns real port names (TMUSB001, RongtaUSB ports, etc.)
+      try {
+        const detailedRes = await fetchWithTimeout('/api/printers/detect-ports-detailed', 3000)
+        if (detailedRes) {
+          const d = await detailedRes.json()
+          const portsFromPrinters = (d.printers || []).map((p: any) => p.portName).filter(Boolean)
+
+          // Normalise and dedupe
+          const uniq = Array.from(new Set(portsFromPrinters.map((p: string) => p.trim()))).filter(Boolean)
+
+          if (uniq.length > 0) {
+            setAvailablePorts(uniq)
+            console.log('Detected ports via Get-Printer:', uniq)
+            return
+          }
+        }
+      } catch (err) {
+        console.warn('Detailed detect-ports-detailed fetch failed:', err)
+        toast.push('⚠️ Port detection service not available (detailed)')
       }
-    } catch (error) {
-      console.error('Failed to detect USB ports:', error)
-      // Fallback to common ports if detection fails
+
+      // Fallback to the basic detector
+      try {
+        const response = await fetchWithTimeout('/api/printers/detect-ports', 3000)
+        if (response) {
+          const data = await response.json()
+          setAvailablePorts(data.ports || [])
+          console.log('Detected USB ports (fallback):', data.ports)
+          return
+        }
+      } catch (err) {
+        console.warn('Basic detect-ports fetch failed:', err)
+        toast.push('⚠️ Port detection service not available')
+      }
+
+      // Final fallback
       setAvailablePorts([
-        'USB001', 'USB002', 'USB003',
+        'TMUSB001', 'USB001', 'USB002', 'USB003',
+        'COM1', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8',
+        'LPT1', 'LPT2'
+      ])
+    } catch (error) {
+      console.error('Failed to detect USB ports (unexpected):', error)
+      toast.push('❌ Port detection failed (unexpected error)')
+      setAvailablePorts([
+        'TMUSB001', 'USB001', 'USB002', 'USB003',
         'COM1', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8',
         'LPT1', 'LPT2'
       ])
@@ -128,14 +199,17 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
   function handleSelectSystemPrinter(printerName: string) {
     const selected = systemPrinters.find(p => p.name === printerName)
     if (selected) {
+      const isDirectPort = /^(USB\d+|TMUSB\d+|RongtaUSB.*|COM\d+|LPT\d+)$/i.test(selected.portName)
+
       setFormData(prev => ({
         ...prev,
         printerName: selected.name,
         printerType: selected.type as any,
         printerId: `${selected.type}-${selected.name.toLowerCase().replace(/\s+/g, '-')}`,
-        // USB printers don't need IP/port
-        ipAddress: '',
-        port: '9100',
+        // If system printer uses a direct port, pre-fill USB port
+        ipAddress: isDirectPort ? '' : (selected.portName && selected.portName !== 'Unknown' ? 'localhost' : ''),
+        port: isDirectPort ? '9100' : '9100',
+        usbPort: isDirectPort ? selected.portName : prev.usbPort,
         capabilities: selected.type === 'receipt' ? ['esc-pos'] : selected.type === 'label' ? ['zebra-zpl'] : [],
       }))
     }
@@ -146,7 +220,11 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
 
     // Detect USB ports when switching to USB mode
     if (type === 'usb' && availablePorts.length === 0) {
-      detectUSBPorts()
+      // Call and handle errors to avoid uncaught promise rejections
+      detectUSBPorts().catch((err) => {
+        console.error('detectUSBPorts error (unhandled):', err)
+        toast.push('⚠️ Port detection failed')
+      })
     }
 
     // Clear connection-specific fields
@@ -236,6 +314,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
         port: connectionType === 'usb' ? null : (formData.port ? parseInt(formData.port) : null),
         capabilities: formData.capabilities,
         isShareable: formData.isShareable,
+        receiptWidth: formData.receiptWidth,
       }
 
       const response = await fetch(url, {
@@ -301,7 +380,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
             <Label htmlFor="usbPort">
               USB / Serial Port <span className="text-red-500">*</span>
             </Label>
-            <div className="relative">
+            <div className="relative flex gap-2">
               <select
                 id="usbPort"
                 value={formData.usbPort}
@@ -320,12 +399,39 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
                   </option>
                 ))}
               </select>
-              {detectingPorts && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 dark:border-gray-100"></div>
-                </div>
-              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!formData.usbPort) return toast.push('Select a port first');
+
+                  try {
+                    toast.push('Sending test to port...')
+                    const res = await fetch('/api/printers/test-usb-direct', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ portName: formData.usbPort }),
+                    })
+
+                    const data = await res.json();
+                    if (res.ok) {
+                      toast.push(`✅ Test sent: ${data.message || data.method || 'OK'}`)
+                    } else {
+                      toast.push(`❌ Test failed - ${data.error || data.message || 'Unknown'}`)
+                    }
+                  } catch (err) {
+                    console.error('Port test failed:', err)
+                    toast.push('❌ Test failed - see console')
+                  }
+                }}
+                disabled={!formData.usbPort || detectingPorts}
+              >
+                Test Port
+              </Button>
             </div>
+
             {errors.usbPort && (
               <p className="text-sm text-red-500 mt-1">{errors.usbPort}</p>
             )}
@@ -346,7 +452,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
               </p>
             )}
             <p className="text-xs text-gray-500 mt-1">
-              Select the port where your printer is connected (e.g., USB001, COM5)
+              Select the port where your printer is connected (e.g., USB001, COM5) or use the Test Port button to verify
             </p>
           </div>
         )}
@@ -373,24 +479,70 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
         </div>
 
         {/* System Printer Selection (for network printers only) */}
-        {!printer && connectionType === 'network' && systemPrinters.length > 0 && (
+        {!printer && connectionType === 'network' && (
           <div>
-            <Label htmlFor="systemPrinter">
-              Select System Printer
-            </Label>
-            <select
-              id="systemPrinter"
-              value={formData.printerName}
-              onChange={(e) => handleSelectSystemPrinter(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
-            >
-              <option value="">-- Choose from available printers --</option>
-              {systemPrinters.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name} ({p.type})
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="systemPrinter">
+                Select System Printer
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={discoverSystemPrinters}
+                disabled={discovering}
+                className="text-xs"
+              >
+                {discovering ? 'Discovering...' : 'Refresh List'}
+              </Button>
+            </div>
+
+            {systemPrinters.length > 0 ? (
+              <select
+                id="systemPrinter"
+                value={formData.printerName}
+                onChange={(e) => handleSelectSystemPrinter(e.target.value)}
+                className="w-full border rounded-md px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
+              >
+                <option value="">-- Choose from available printers --</option>
+                {systemPrinters.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name} ({p.type}) - Port: {p.portName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="text-sm text-gray-500 p-3 border rounded-md bg-gray-50 dark:bg-gray-800 dark:border-gray-600">
+                {discovering ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    Discovering printers...
+                  </div>
+                ) : (
+                  <div>
+                    <p className="font-medium">No printers discovered</p>
+                    <p className="text-xs mt-1">
+                      Click "Refresh List" to search again, or enter printer details manually below.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Manual Printer Entry Section */}
+            {(!discovering && systemPrinters.length === 0) && (
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <span>Manual Printer Entry</span>
+                  <span className="text-xs text-gray-500">(for undetected printers)</span>
+                </h4>
+                <div className="text-xs text-gray-600 mb-3">
+                  If your printer isn't detected automatically, you can enter its details manually.
+                  This is common for network printers or USB printers that need specific configuration.
+                </div>
+              </div>
+            )}
+
             {discovering && (
               <p className="text-xs text-gray-500 mt-1">Discovering printers...</p>
             )}
@@ -415,12 +567,17 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
           )}
           {!printer && connectionType === 'network' && systemPrinters.length === 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              No system printers found. Enter name manually or check printer connection.
+              No system printers found. Enter the printer name manually (e.g., "EPSON TM-T20III Receipt" or "Front Desk Printer").
             </p>
           )}
           {connectionType === 'usb' && (
             <p className="text-xs text-gray-500 mt-1">
-              Enter a friendly name for your printer (e.g., model name or location)
+              Enter a friendly name for your printer (e.g., model name or location like "Kitchen Printer" or "EPSON TM-T20III")
+            </p>
+          )}
+          {systemPrinters.length > 0 && !formData.printerName && (
+            <p className="text-xs text-gray-500 mt-1">
+              Choose from discovered printers above, or enter a custom name for manual configuration.
             </p>
           )}
         </div>
@@ -442,6 +599,29 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
           </select>
         </div>
 
+        {/* Receipt Width (receipt printers only) */}
+        {formData.printerType === 'receipt' && (
+          <div>
+            <Label htmlFor="receiptWidth">
+              Receipt Width (Characters) <span className="text-red-500">*</span>
+            </Label>
+            <select
+              id="receiptWidth"
+              value={formData.receiptWidth}
+              onChange={(e) => setFormData({ ...formData, receiptWidth: parseInt(e.target.value) })}
+              className="w-full border rounded-md px-3 py-2"
+            >
+              <option value="32">32 characters (58mm paper)</option>
+              <option value="42">42 characters (72mm paper)</option>
+              <option value="48">48 characters (80mm paper) - Recommended</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Select the character width that matches your printer's paper size.
+              Most 80mm thermal receipt printers (like EPSON TM-T20III) use 48 characters for full-width printing.
+            </p>
+          </div>
+        )}
+
         {/* IP Address (network printers only) */}
         {connectionType === 'network' && (
           <div>
@@ -459,7 +639,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
               <p className="text-sm text-red-500 mt-1">{errors.ipAddress}</p>
             )}
             <p className="text-xs text-gray-500 mt-1">
-              Leave blank for local USB printers
+              For network printers, enter the IP address (e.g., 192.168.1.100). Leave blank for USB printers.
             </p>
           </div>
         )}
@@ -482,7 +662,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
               <p className="text-sm text-red-500 mt-1">{errors.port}</p>
             )}
             <p className="text-xs text-gray-500 mt-1">
-              Default: 9100 for network printers
+              Most receipt printers use port 9100. Leave blank to use default (9100).
             </p>
           </div>
         )}

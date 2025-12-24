@@ -137,6 +137,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for business-specific overrides
+    const businessMenuItem = await prisma.businessTokenMenuItems.findUnique({
+      where: {
+        businessId_tokenConfigId: {
+          businessId: businessId,
+          tokenConfigId: tokenConfigId,
+        },
+      },
+    });
+
+    // Use override values if they exist, otherwise use defaults from config
+    const durationMinutes = businessMenuItem?.durationMinutesOverride ?? tokenConfig.durationMinutes;
+    const bandwidthDownMb = businessMenuItem?.bandwidthDownMbOverride ?? tokenConfig.bandwidthDownMb;
+    const bandwidthUpMb = businessMenuItem?.bandwidthUpMbOverride ?? tokenConfig.bandwidthUpMb;
+
+    console.log('Token creation values:', {
+      tokenConfigId,
+      businessId,
+      durationMinutes,
+      bandwidthDownMb,
+      bandwidthUpMb,
+      hasOverrides: !!(businessMenuItem?.durationMinutesOverride || businessMenuItem?.bandwidthDownMbOverride || businessMenuItem?.bandwidthUpMbOverride),
+    });
+
     // Create WiFi tokens via ESP32 bulk API
     const portalClient = createPortalClient({
       baseUrl: `http://${integration.portalIpAddress}:${integration.portalPort}`,
@@ -157,17 +181,17 @@ export async function POST(request: NextRequest) {
       console.log('Calling portalClient.bulkCreateTokens with params:', {
         count: quantity,
         businessId: businessId,
-        durationMinutes: tokenConfig.durationMinutes,
-        bandwidthDownMb: tokenConfig.bandwidthDownMb,
-        bandwidthUpMb: tokenConfig.bandwidthUpMb,
+        durationMinutes,
+        bandwidthDownMb,
+        bandwidthUpMb,
       });
 
       bulkResponse = await portalClient.bulkCreateTokens({
         count: quantity,
         businessId: businessId,
-        durationMinutes: tokenConfig.durationMinutes,
-        bandwidthDownMb: tokenConfig.bandwidthDownMb,
-        bandwidthUpMb: tokenConfig.bandwidthUpMb,
+        durationMinutes,
+        bandwidthDownMb,
+        bandwidthUpMb,
       });
 
       console.log('Portal bulk API response:', bulkResponse);

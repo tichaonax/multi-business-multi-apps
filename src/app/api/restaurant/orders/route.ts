@@ -298,18 +298,47 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate order number in standard format: RST-YYYYMMDD-0001
-    const todayOrderCount = await prisma.businessOrders.count({
-      where: {
-        businessId,
-        createdAt: {
-          gte: new Date(new Date().setHours(0, 0, 0, 0))
+    // Generate unique order number with retry logic to handle race conditions
+    let orderNumber: string
+    let attempts = 0
+    const maxAttempts = 5
+
+    while (attempts < maxAttempts) {
+      attempts++
+
+      // Generate order number in standard format: RST-YYYYMMDD-0001
+      const todayOrderCount = await prisma.businessOrders.count({
+        where: {
+          businessId,
+          createdAt: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0))
+          }
         }
+      })
+
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      // Add a random component to reduce collision probability
+      const counter = String(todayOrderCount + attempts).padStart(4, '0')
+      orderNumber = `RST-${date}-${counter}`
+
+      // Check if this order number already exists
+      const existing = await prisma.businessOrders.findFirst({
+        where: {
+          businessId,
+          orderNumber
+        }
+      })
+
+      if (!existing) {
+        break // We found a unique order number
       }
-    })
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const counter = String(todayOrderCount + 1).padStart(4, '0')
-    const orderNumber = `RST-${date}-${counter}`
+
+      // If we're on the last attempt and still have a collision, add timestamp
+      if (attempts === maxAttempts) {
+        const timestamp = Date.now().toString().slice(-4)
+        orderNumber = `RST-${date}-${counter}-${timestamp}`
+      }
+    }
 
     // Find employee record for the current user (if exists)
     let employeeId = null
@@ -358,30 +387,70 @@ export async function POST(req: NextRequest) {
     }
 
     // Create the order first using business_orders table
-    const newOrder = await prisma.businessOrders.create({
-      data: {
-        businessId: businessId,
-        orderNumber,
-        employeeId: employeeId, // Can be null if user is not an employee
-        orderType: 'SALE',
-        status: 'COMPLETED',
-        subtotal: total,
-        taxAmount: 0,
-        discountAmount: 0,
-        totalAmount: total,
-        paymentStatus: paymentStatus,
-        paymentMethod: paymentMethod,
-        businessType: 'restaurant',
-        attributes: {
-          ...(tableNumber ? { tableNumber } : {}),
-          employeeName: employeeName,
-          amountReceived: amountReceived || total,
-          changeDue: amountReceived ? amountReceived - total : 0
-        },
-        notes: null,
-        updatedAt: new Date()
+    // If unique constraint fails, add timestamp suffix to make it unique
+    let newOrder
+    try {
+      newOrder = await prisma.businessOrders.create({
+        data: {
+          businessId: businessId,
+          orderNumber,
+          employeeId: employeeId, // Can be null if user is not an employee
+          orderType: 'SALE',
+          status: 'COMPLETED',
+          subtotal: total,
+          taxAmount: 0,
+          discountAmount: 0,
+          totalAmount: total,
+          paymentStatus: paymentStatus,
+          paymentMethod: paymentMethod,
+          businessType: 'restaurant',
+          attributes: {
+            ...(tableNumber ? { tableNumber } : {}),
+            employeeName: employeeName,
+            amountReceived: amountReceived || total,
+            changeDue: amountReceived ? amountReceived - total : 0
+          },
+          notes: null,
+          updatedAt: new Date()
+        }
+      })
+    } catch (error: any) {
+      // If unique constraint violation on orderNumber, add timestamp to make it unique
+      if (error.code === 'P2002' && error.meta?.target?.includes('orderNumber')) {
+        const timestamp = Date.now().toString().slice(-6)
+        orderNumber = `${orderNumber}-${timestamp}`
+        console.warn(`Order number collision detected, using: ${orderNumber}`)
+
+        // Retry with unique order number
+        newOrder = await prisma.businessOrders.create({
+          data: {
+            businessId: businessId,
+            orderNumber,
+            employeeId: employeeId,
+            orderType: 'SALE',
+            status: 'COMPLETED',
+            subtotal: total,
+            taxAmount: 0,
+            discountAmount: 0,
+            totalAmount: total,
+            paymentStatus: paymentStatus,
+            paymentMethod: paymentMethod,
+            businessType: 'restaurant',
+            attributes: {
+              ...(tableNumber ? { tableNumber } : {}),
+              employeeName: employeeName,
+              amountReceived: amountReceived || total,
+              changeDue: amountReceived ? amountReceived - total : 0
+            },
+            notes: null,
+            updatedAt: new Date()
+          }
+        })
+      } else {
+        // Re-throw if it's a different error
+        throw error
       }
-    })
+    }
 
     // Process each order item and update inventory
     const inventoryUpdates = []
@@ -410,6 +479,9 @@ export async function POST(req: NextRequest) {
             console.error('WiFi portal integration not configured - missing expense account');
             generatedWifiTokens.push({
               itemName: item.name,
+              tokenCode: '', // No token generated
+              packageName: item.name,
+              duration: 0,
               success: false,
               error: 'WiFi portal integration not configured'
             });
@@ -443,6 +515,7 @@ export async function POST(req: NextRequest) {
           }
 
           // CRITICAL: Verify each token exists on ESP32 device before sale
+          // Customer will redeem token on ESP32 later, so it MUST exist there
           const portalIntegrationForVerify = await prisma.portalIntegrations.findUnique({
             where: { businessId: businessId },
             select: {
@@ -454,12 +527,19 @@ export async function POST(req: NextRequest) {
           });
 
           if (!portalIntegrationForVerify || !portalIntegrationForVerify.isActive) {
-            throw new Error('WiFi Portal integration not active');
+            throw new Error('WiFi Portal integration not active. Cannot verify tokens.');
           }
 
+          console.log(`🔍 Verifying ${availableTokens.length} tokens on ESP32 for business ${businessId}`);
+
           // Verify all tokens exist on ESP32 before proceeding
+          const verifiedTokens = [];
+          const failedTokens = [];
+
           for (const token of availableTokens) {
             try {
+              console.log(`  Checking token ${token.token} on ESP32...`);
+
               const esp32VerifyResponse = await fetch(
                 `http://${portalIntegrationForVerify.portalIpAddress}:${portalIntegrationForVerify.portalPort}/api/token/info?token=${token.token}&api_key=${portalIntegrationForVerify.apiKey}`,
                 {
@@ -469,21 +549,62 @@ export async function POST(req: NextRequest) {
               );
 
               if (!esp32VerifyResponse.ok) {
-                throw new Error(`ESP32 verification failed for token ${token.token}: ${esp32VerifyResponse.status}`);
+                console.error(`  ❌ ESP32 HTTP ${esp32VerifyResponse.status} for token ${token.token}`);
+                failedTokens.push({ token: token.token, reason: `ESP32 returned ${esp32VerifyResponse.status}` });
+                continue;
               }
 
               const esp32TokenInfo = await esp32VerifyResponse.json();
               if (!esp32TokenInfo.success) {
-                throw new Error(`Token ${token.token} not found on ESP32 device`);
+                console.error(`  ❌ Token ${token.token} not found on ESP32`);
+                failedTokens.push({ token: token.token, reason: 'Not found on ESP32 device' });
+                continue;
               }
+
+              console.log(`  ✅ Token ${token.token} verified on ESP32`);
+              verifiedTokens.push(token);
             } catch (esp32Error) {
-              const errorMessage = esp32Error instanceof Error ? esp32Error.message : 'ESP32 verification failed';
-              throw new Error(`WiFi Portal integration error: ${errorMessage}. Please ensure ESP32 device is online and token exists.`);
+              const errorMessage = esp32Error instanceof Error ? esp32Error.message : 'Unknown error';
+              console.error(`  ❌ ESP32 verification failed for token ${token.token}:`, errorMessage);
+              failedTokens.push({ token: token.token, reason: errorMessage });
             }
           }
 
-          // Create sales records for each token (no status change - tokens remain UNUSED until redeemed)
-          for (const token of availableTokens) {
+          // If any tokens failed verification, mark them as disabled to prevent future sale attempts
+          if (failedTokens.length > 0) {
+            console.warn(`⚠️ Disabling ${failedTokens.length} tokens that don't exist on ESP32:`, failedTokens);
+
+            for (const failed of failedTokens) {
+              try {
+                // Mark token as disabled/unusable in database
+                await prisma.wifiTokens.update({
+                  where: { token: failed.token },
+                  data: {
+                    status: 'DISABLED',
+                    // Log why it was disabled in attributes
+                  }
+                });
+                console.log(`  🔒 Disabled token ${failed.token} - Reason: ${failed.reason}`);
+              } catch (disableError) {
+                console.error(`  Failed to disable token ${failed.token}:`, disableError);
+              }
+            }
+          }
+
+          // Check if we have enough verified tokens
+          if (verifiedTokens.length < itemQuantity) {
+            throw new Error(
+              `Insufficient verified WiFi tokens: Need ${itemQuantity}, only ${verifiedTokens.length} available on ESP32. ` +
+              `${failedTokens.length} tokens were found in database but not on ESP32 device (now disabled). ` +
+              `Please run token sync or contact support.`
+            );
+          }
+
+          // Use only the verified tokens for sale
+          const tokensToSell = verifiedTokens.slice(0, itemQuantity);
+
+          // Create sales records for each verified token (no status change - tokens remain UNUSED until redeemed)
+          for (const token of tokensToSell) {
             await prisma.wifiTokenSales.create({
               data: {
                 wifiTokenId: token.id,
@@ -500,7 +621,7 @@ export async function POST(req: NextRequest) {
           }
 
           // Add sold tokens to response
-          for (const token of availableTokens) {
+          for (const token of tokensToSell) {
             generatedWifiTokens.push({
               itemName: item.name,
               tokenCode: token.token,
@@ -509,8 +630,8 @@ export async function POST(req: NextRequest) {
               bandwidthDownMb: token.token_configurations?.bandwidthDownMb || 0,
               bandwidthUpMb: token.token_configurations?.bandwidthUpMb || 0,
               ssid: apInfo?.ssid,
-              portalUrl: apInfo?.portalUrl,
-              instructions: apInfo ? `Connect to WiFi network "${apInfo.ssid}" and visit ${apInfo.portalUrl} to redeem your token.` : undefined,
+              portalUrl: 'http://192.168.4.1',
+              instructions: apInfo ? `Connect to WiFi network "${apInfo.ssid}" and visit http://192.168.4.1 to redeem your token.` : undefined,
               success: true
             });
           }

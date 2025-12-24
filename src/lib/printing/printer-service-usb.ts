@@ -56,7 +56,7 @@ async function printWindows(
   copies: number
 ): Promise<void> {
   // Check if printerName is a direct USB/COM port
-  const isDirectPort = /^(USB\d{3}|COM\d+|LPT\d+|\\\\\.\\(USB|COM|LPT)\d+)$/i.test(printerName);
+  const isDirectPort = /^(USB\d{3}|COM\d+|LPT\d+|TMUSB\d+|RongtaUSB.*)$/i.test(printerName);
 
   if (isDirectPort) {
     // Print directly to USB/COM port
@@ -329,7 +329,7 @@ async function printLinux(
 }
 
 /**
- * List available printers on the system
+ * List available printers on the system with port information
  */
 export async function listSystemPrinters(): Promise<string[]> {
   try {
@@ -352,6 +352,60 @@ export async function listSystemPrinters(): Promise<string[]> {
     return [];
   } catch (error) {
     console.error('Failed to list system printers:', error);
+    return [];
+  }
+}
+
+/**
+ * List available printers with detailed information including ports
+ */
+export async function listSystemPrintersDetailed(): Promise<Array<{name: string, portName: string, driverName: string, type: string}>> {
+  try {
+    if (process.platform === 'win32') {
+      const output = execSync('powershell -Command "Get-Printer | Select-Object Name, PortName, DriverName, Type | ConvertTo-Json"', {
+        encoding: 'utf8',
+      });
+
+      if (!output.trim()) return [];
+
+      const printers = JSON.parse(output);
+      if (Array.isArray(printers)) {
+        return printers.map(p => ({
+          name: p.Name,
+          portName: p.PortName,
+          driverName: p.DriverName,
+          type: p.Type
+        }));
+      } else {
+        return [{
+          name: printers.Name,
+          portName: printers.PortName,
+          driverName: printers.DriverName,
+          type: printers.Type
+        }];
+      }
+    } else if (process.platform === 'darwin') {
+      // For macOS, return basic info since port details are harder to get
+      const names = await listSystemPrinters();
+      return names.map(name => ({
+        name,
+        portName: 'Unknown',
+        driverName: 'Unknown',
+        type: 'Local'
+      }));
+    } else if (process.platform === 'linux') {
+      // For Linux, return basic info
+      const names = await listSystemPrinters();
+      return names.map(name => ({
+        name,
+        portName: 'Unknown',
+        driverName: 'Unknown',
+        type: 'Local'
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('Failed to list system printers with details:', error);
     return [];
   }
 }

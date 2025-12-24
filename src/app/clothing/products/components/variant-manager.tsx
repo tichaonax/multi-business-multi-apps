@@ -457,7 +457,7 @@ export function ClothingVariantManager({
                                   <input
                                     type="number"
                                     value={variant.stockQuantity}
-                                    onChange={(e) => updateVariant(variant.id, 'stockQuantity', parseInt(e.target.value) || 0)}
+                                    onChange={(e) => updateVariant(variant.id, 'stockQuantity', e.target.value === '' ? 0 : parseInt(e.target.value))}
                                     className="w-16 px-1 py-1 text-xs text-center border rounded"
                                     title="Stock quantity"
                                   />

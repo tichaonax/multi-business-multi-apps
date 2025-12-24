@@ -380,7 +380,7 @@ export default function ReceiveStockPage() {
                             min="0.01"
                             step="0.01"
                             value={item.quantity || ''}
-                            onChange={(e) => updateReceiveItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                            onChange={(e) => updateReceiveItem(item.id, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                             className="input-field w-full"
                             placeholder="0"
                           />
@@ -395,7 +395,7 @@ export default function ReceiveStockPage() {
                             min="0"
                             step="0.01"
                             value={item.unitCost || ''}
-                            onChange={(e) => updateReceiveItem(item.id, 'unitCost', parseFloat(e.target.value) || 0)}
+                            onChange={(e) => updateReceiveItem(item.id, 'unitCost', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                             className="input-field w-full"
                             placeholder="0.00"
                           />

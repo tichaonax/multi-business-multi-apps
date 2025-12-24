@@ -70,6 +70,7 @@ export async function printReceipt(
         paymentMethod: receiptData.paymentMethod,
         amountPaid: receiptData.amountPaid,
         changeDue: receiptData.changeDue,
+        wifiTokens: receiptData.wifiTokens, // ← WiFi token details for receipt
         businessSpecificData: receiptData.businessSpecificData,
         footerMessage: receiptData.footerMessage,
         returnPolicy: receiptData.returnPolicy,

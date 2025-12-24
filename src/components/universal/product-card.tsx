@@ -86,7 +86,8 @@ export function UniversalProductCard({
   const [showAllBarcodes, setShowAllBarcodes] = useState(false)
 
   const currentVariant = product.variants?.find(v => v.id === selectedVariant)
-  const currentPrice = currentVariant?.price ?? product.basePrice
+  // Use variant price if it exists and is greater than 0, otherwise use product basePrice
+  const currentPrice = (currentVariant?.price && currentVariant.price > 0) ? currentVariant.price : product.basePrice
   const primaryImage = product.images?.find(img => img.isPrimary)?.imageUrl
   const stockQuantity = currentVariant?.stockQuantity ?? 0
 
@@ -294,7 +295,7 @@ export function UniversalProductCard({
             >
               {product.variants.map((variant) => (
                 <option key={variant.id} value={variant.id}>
-                  {variant.name} ({formatCurrency(variant.price || product.basePrice)})
+                  {variant.name} ({formatCurrency((variant.price && variant.price > 0) ? variant.price : product.basePrice)})
                 </option>
               ))}
             </select>

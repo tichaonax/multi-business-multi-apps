@@ -24,7 +24,7 @@
 #### Test ESP32 API
 ```bash
 # Replace BUSINESS_ID with your actual business ID
-curl "http://localhost:8080/api/wifi-portal/integration/tokens/list?businessId=YOUR_BUSINESS_ID&status=unused&limit=100"
+curl "http://localhost:8080/api/wifi-portal/integration/tokens/list?businessId=YOUR_BUSINESS_ID&status=unused&limit=20"
 ```
 
 **Expected Response:**

@@ -211,8 +211,12 @@ model BusinessOrders {
   businesses           Businesses           @relation(fields: [businessId], references: [id])
   business_customers   BusinessCustomers?   @relation(fields: [customerId], references: [id])
   employees            Employees?           @relation(fields: [employeeId], references: [id])
+  reprint_logs         ReprintLog[]
 
   @@unique([businessId, orderNumber])
+  @@index([orderNumber])
+  @@index([businessId, createdAt(sort: Desc)])
+  @@index([customerId, createdAt(sort: Desc)])
   @@map("business_orders")
 }
 
@@ -383,6 +387,12 @@ model Businesses {
   shortName                                                                String?
   isDemo                                                                   Boolean                       @default(false)
   wifiIntegrationEnabled                                                   Boolean                       @default(false)
+  address                                                                  String?
+  phone                                                                    String?
+  receiptReturnPolicy                                                      String?                       @db.Text
+  taxIncludedInPrice                                                       Boolean                       @default(true)
+  taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
+  taxLabel                                                                 String?
   business_accounts                                                        BusinessAccounts?
   business_brands                                                          BusinessBrands[]
   business_categories                                                      BusinessCategories[]
@@ -423,6 +433,7 @@ model Businesses {
   vehicles                                                                 Vehicles[]
   wifi_token_sales                                                         WifiTokenSales[]
   wifi_tokens                                                              WifiTokens[]
+  reprint_logs                                                             ReprintLog[]
 
   @@map("businesses")
 }
@@ -2239,6 +2250,7 @@ model NetworkPrinters {
   capabilities Json?
   isShareable  Boolean     @default(false)
   isOnline     Boolean     @default(true)
+  receiptWidth Int?        @default(48) // Receipt width in characters (32, 42, or 48)
   lastSeen     DateTime    @default(now())
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @default(now()) @updatedAt
@@ -2353,6 +2365,7 @@ model Users {
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicles[]
   wifi_token_sales                                                WifiTokenSales[]            @relation("WifiTokenSaleSeller")
+  reprint_logs                                                    ReprintLog[]
 
   @@map("users")
 }
@@ -2665,17 +2678,20 @@ model TokenConfigurations {
 }
 
 model BusinessTokenMenuItems {
-  id                   String              @id @default(uuid())
-  businessId           String
-  tokenConfigId        String
-  businessPrice        Decimal             @db.Decimal(12, 2)
-  isActive             Boolean             @default(true)
-  displayOrder         Int                 @default(0)
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @default(now()) @updatedAt
-  businesses           Businesses          @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  token_configurations TokenConfigurations @relation(fields: [tokenConfigId], references: [id], onDelete: Cascade)
-  wifi_tokens          WifiTokens[]
+  id                     String              @id @default(uuid())
+  businessId             String
+  tokenConfigId          String
+  businessPrice          Decimal             @db.Decimal(12, 2)
+  isActive               Boolean             @default(true)
+  displayOrder           Int                 @default(0)
+  durationMinutesOverride Int?
+  bandwidthDownMbOverride Int?
+  bandwidthUpMbOverride   Int?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @default(now()) @updatedAt
+  businesses             Businesses          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  token_configurations   TokenConfigurations @relation(fields: [tokenConfigId], references: [id], onDelete: Cascade)
+  wifi_tokens            WifiTokens[]
 
   @@unique([businessId, tokenConfigId])
   @@index([businessId])
@@ -2760,6 +2776,24 @@ model WifiTokenDevices {
   @@index([macAddress])
   @@index([isOnline])
   @@map("wifi_token_devices")
+}
+
+model ReprintLog {
+  id            String         @id @default(uuid())
+  orderId       String
+  businessId    String
+  userId        String
+  receiptNumber String
+  reprintedAt   DateTime       @default(now())
+  notes         String?
+  order         BusinessOrders @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  business      Businesses     @relation(fields: [businessId], references: [id])
+  user          Users          @relation(fields: [userId], references: [id])
+
+  @@index([orderId])
+  @@index([businessId, reprintedAt])
+  @@index([userId])
+  @@map("reprint_logs")
 }
 
 enum AttributeDataType {

@@ -117,7 +117,7 @@ async function testAPIs() {
     console.log('TEST 3: ESP32 Portal API')
     console.log('─'.repeat(80))
 
-    const esp32Url = `${BASE_URL}/api/wifi-portal/integration/tokens/list?businessId=${BUSINESS_ID}&status=unused&limit=100`
+    const esp32Url = `${BASE_URL}/api/wifi-portal/integration/tokens/list?businessId=${BUSINESS_ID}&status=unused&limit=20`
     console.log(`\nURL: ${esp32Url}`)
 
     const esp32Response = await fetch(esp32Url)

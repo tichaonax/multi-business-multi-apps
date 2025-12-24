@@ -12,6 +12,10 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { usePrintPreferences } from '@/hooks/use-print-preferences'
 import Link from 'next/link'
 import { formatDateTime, formatDate } from '@/lib/date-format'
+import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
+import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
+import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
+import type { ReceiptData } from '@/types/printing'
 
 interface MenuItem {
   id: string
@@ -44,14 +48,17 @@ export default function RestaurantPOS() {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
   const [amountReceived, setAmountReceived] = useState('')
   const [showReceiptModal, setShowReceiptModal] = useState(false)
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [completedOrder, setCompletedOrder] = useState<any>(null)
   const [printerId, setPrinterId] = useState<string | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
   const [showDailySales, setShowDailySales] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { preferences, isLoaded: preferencesLoaded } = usePrintPreferences()
+  const { preferences, isLoaded: preferencesLoaded, setAutoPrint, setDefaultPrinter } = usePrintPreferences()
 
   // Use the business permissions context for proper business management
   const {
@@ -74,6 +81,84 @@ export default function RestaurantPOS() {
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
 
   const categories = ['all', 'combos', 'appetizers', 'mains', 'desserts', 'beverages', 'wifi-access']
+
+  // Background ESP32 sync function (non-blocking, progressive updates)
+  const syncESP32TokenQuantities = async (businessId: string, tokenConfigIds: string[]) => {
+    try {
+      console.log('🔄 Starting batched ESP32 sync in background...')
+
+      const BATCH_SIZE = 20
+      let offset = 0
+      let hasMore = true
+      const esp32TokenSet = new Set<string>()
+
+      // Fetch ESP32 tokens in batches
+      while (hasMore && offset < 1000) {
+        try {
+          const batchUrl = `/api/wifi-portal/esp32-tokens?businessId=${businessId}&status=unused&limit=${BATCH_SIZE}&offset=${offset}`
+          const batchResponse = await fetch(batchUrl)
+
+          if (!batchResponse.ok) {
+            console.warn(`⚠️ ESP32 batch ${Math.floor(offset / BATCH_SIZE) + 1} failed`)
+            break
+          }
+
+          const batchData = await batchResponse.json()
+          const batchTokens = batchData.tokens || []
+
+          batchTokens.forEach((t: any) => {
+            if (t.token) esp32TokenSet.add(t.token)
+          })
+
+          hasMore = batchData.hasMore === true
+          offset += BATCH_SIZE
+        } catch (batchError) {
+          console.error(`❌ ESP32 batch ${Math.floor(offset / BATCH_SIZE) + 1} error:`, batchError)
+          break
+        }
+      }
+
+      console.log(`✅ ESP32 sync complete. Total: ${esp32TokenSet.size}`)
+
+      // Get database tokens
+      const dbResponse = await fetch(`/api/wifi-portal/tokens?businessId=${businessId}&status=UNUSED&excludeSold=true&limit=1000`)
+      if (!dbResponse.ok) return
+
+      const dbData = await dbResponse.json()
+      const dbTokens = dbData.tokens || []
+
+      // Cross-reference
+      const esp32QuantityMap: Record<string, number> = {}
+      dbTokens.forEach((dbToken: any) => {
+        if (esp32TokenSet.has(dbToken.token)) {
+          const configId = dbToken.tokenConfigId
+          if (configId && tokenConfigIds.includes(configId)) {
+            esp32QuantityMap[configId] = (esp32QuantityMap[configId] || 0) + 1
+          }
+        }
+      })
+
+      console.log('✅ ESP32 quantity map:', esp32QuantityMap)
+
+      // Update menu items state with accurate ESP32 counts
+      setMenuItems(prev => prev.map(item => {
+        if ((item as any).wifiToken) {
+          const tokenConfigId = (item as any).tokenConfigId
+          const esp32Count = esp32QuantityMap[tokenConfigId]
+          if (esp32Count !== undefined) {
+            console.log(`🔄 Updating ${item.name} quantity: ${(item as any).availableQuantity} → ${esp32Count}`)
+            return {
+              ...item,
+              availableQuantity: esp32Count
+            }
+          }
+        }
+        return item
+      }))
+    } catch (error) {
+      console.error('❌ Background ESP32 sync error:', error)
+    }
+  }
 
   // Load menu items (defined early so hooks order is stable).
   const loadMenuItems = async () => {
@@ -170,44 +255,28 @@ export default function RestaurantPOS() {
               
               if (tokenConfigIds.length > 0) {
                 try {
-                  // CRITICAL: Cross-reference ESP32 API with Database Ledger
-                  // Only count tokens that exist in BOTH ESP32 and Database
+                  // STEP 1: Get database counts IMMEDIATELY (non-blocking)
+                  console.log('📊 [Step 1] Fetching database counts for immediate display...')
+                  const dbUrl = `/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=UNUSED&excludeSold=true&limit=1000`
+                  const dbResponse = await fetch(dbUrl)
 
-                  // Step 1: Get ESP32 sellable tokens (source of truth)
-                  const esp32Response = await fetch(`/api/wifi-portal/integration/tokens/list?businessId=${currentBusinessId}&status=unused&limit=1000`)
+                  if (dbResponse.ok) {
+                    const dbData = await dbResponse.json()
+                    const dbTokens = dbData.tokens || []
 
-                  if (esp32Response.ok) {
-                    const esp32Data = await esp32Response.json()
+                    // Count by tokenConfigId (quick estimate)
+                    quantityMap = dbTokens.reduce((acc: Record<string, number>, token: any) => {
+                      const configId = token.tokenConfigId
+                      if (configId && tokenConfigIds.includes(configId)) {
+                        acc[configId] = (acc[configId] || 0) + 1
+                      }
+                      return acc
+                    }, {})
 
-                    // Create Set for O(1) lookup performance
-                    const esp32TokenSet = new Set(
-                      (esp32Data.tokens || []).map((t: any) => t.token)
-                    )
-
-                    // Step 2: Get Database Ledger tokens (unsold only)
-                    const dbResponse = await fetch(`/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=UNUSED&excludeSold=true&limit=1000`)
-
-                    if (dbResponse.ok) {
-                      const dbData = await dbResponse.json()
-                      const dbTokens = dbData.tokens || []
-
-                      // Step 3: Cross-reference - only count tokens in BOTH lists
-                      quantityMap = dbTokens.reduce((acc: Record<string, number>, dbToken: any) => {
-                        // Only count if token exists in ESP32 API
-                        if (esp32TokenSet.has(dbToken.token)) {
-                          const configId = dbToken.tokenConfigId
-                          if (configId && tokenConfigIds.includes(configId)) {
-                            acc[configId] = (acc[configId] || 0) + 1
-                          }
-                        }
-                        return acc
-                      }, {})
-                    }
+                    console.log('✅ [Step 1] Database counts displayed:', quantityMap)
                   }
                 } catch (error) {
-                  console.error('Failed to fetch token availability (ESP32 cross-reference):', error)
-                  // Fallback: Set all counts to 0 to prevent selling unavailable tokens
-                  quantityMap = {}
+                  console.error('❌ Database fetch error:', error)
                 }
               }
 
@@ -225,6 +294,14 @@ export default function RestaurantPOS() {
                   tokenConfig: item.tokenConfig,
                   availableQuantity: quantityMap[item.tokenConfigId] || 0,
                 }))
+
+              // STEP 2: Start background ESP32 sync (non-blocking, progressive updates)
+              if (tokenConfigIds.length > 0 && currentBusinessId) {
+                console.log('🔄 [Step 2] Starting background ESP32 sync...')
+                syncESP32TokenQuantities(currentBusinessId, tokenConfigIds).catch(err => {
+                  console.error('❌ Background ESP32 sync failed:', err)
+                })
+              }
             }
           }
 
@@ -314,45 +391,117 @@ export default function RestaurantPOS() {
     }
   }, [preferencesLoaded, preferences.defaultPrinterId])
 
-  // Function to print receipt using browser print dialog
-  const printReceipt = async () => {
-    if (!completedOrder) {
-      toast.push('No order to print')
-      return
-    }
-
-    setIsPrinting(true)
-
+  // Handle receipt printing with unified system
+  const handlePrintReceipt = async (receiptData: ReceiptData) => {
     try {
-      // Use browser's native print dialog
-      // This works with EPSON driver in Windows Graphics mode
-      window.print()
+      setIsPrinting(true)
 
-      // Small delay to let print dialog open
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await ReceiptPrintManager.printReceipt(receiptData, 'restaurant', {
+        autoPrint: preferences.autoPrintReceipt,
+        printerId: printerId || undefined,
+        printCustomerCopy: true, // Restaurant dual receipts: business + customer
+        onSuccess: (jobId, receiptType) => {
+          console.log(`✅ ${receiptType} copy printed:`, jobId)
+          toast.push(`${receiptType} receipt sent to printer`)
+        },
+        onError: (error, receiptType) => {
+          console.error(`❌ ${receiptType} receipt print failed:`, error)
+          toast.push(`Error printing ${receiptType} receipt: ${error.message}`)
+        },
+        onShowPreview: (data, options) => {
+          // Show unified preview modal
+          setPendingReceiptData(data)
+          setShowReceiptPreview(true)
+        }
+      })
 
-      toast.push('Print ready', { type: 'success', duration: 3000 })
+      // Close completed order modal after successful print
+      if (preferences.autoPrintReceipt) {
+        setTimeout(() => {
+          setShowReceiptModal(false)
+          setCompletedOrder(null)
+        }, 1500)
+      }
 
-      // Auto-close modal after print dialog
-      setTimeout(() => {
-        setShowReceiptModal(false)
-        setCompletedOrder(null)
-      }, 1500)
     } catch (error: any) {
-      console.error('❌ Print error:', error)
-      toast.push(`❌ Print error: ${error.message || 'Unknown error'}`)
+      console.error('❌ Receipt print error:', error)
+      toast.push(`Print error: ${error.message}`)
     } finally {
       setIsPrinting(false)
     }
   }
 
-  // Auto-print receipt when modal opens (if preference enabled)
+  // Auto-print receipt when order completes (if preference enabled)
   useEffect(() => {
-    if (showReceiptModal && completedOrder && preferences.autoPrintReceipt) {
+    if (showReceiptModal && completedOrder && preferences.autoPrintReceipt && currentBusiness) {
       console.log('🖨️ Auto-printing receipt...')
-      printReceipt()
+
+      // Build receipt data from completed order
+      const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, currentBusiness)
+      handlePrintReceipt(receiptData)
     }
   }, [showReceiptModal, completedOrder])
+
+  // Helper function to convert completedOrder to ReceiptData
+  const buildReceiptDataFromCompletedOrder = (order: any, business: any): ReceiptData => {
+    // Debug logging
+    console.log('🧾 [Restaurant] Building receipt data')
+    console.log('🧾 [Restaurant] Business object:', business)
+    console.log('🧾 [Restaurant] businessName:', business?.businessName)
+    console.log('🧾 [Restaurant] address:', business?.address)
+    console.log('🧾 [Restaurant] phone:', business?.phone)
+    console.log('🧾 [Restaurant] wifiTokens count:', order.wifiTokens?.length || 0)
+
+    return {
+      receiptNumber: {
+        globalId: order.orderNumber,
+        dailySequence: order.orderNumber.split('-').pop() || '001',
+        formattedNumber: order.orderNumber
+      },
+      businessId: currentBusinessId || '',
+      businessType: 'restaurant',
+      // CRITICAL: business is BusinessMembership, use businessName/address/phone
+      businessName: business?.businessName || 'Restaurant',
+      businessAddress: business?.address || '123 Main Street',
+      businessPhone: business?.phone || '(555) 123-4567',
+      businessEmail: business?.settings?.email,
+      transactionId: order.orderNumber,
+      transactionDate: new Date(),
+      salespersonName: session?.user?.name || 'Staff',
+      salespersonId: session?.user?.id || '',
+      items: order.items.map((item: any) => ({
+        name: item.name,
+        sku: item.sku,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        totalPrice: item.price * item.quantity
+      })),
+      subtotal: order.subtotal,
+      tax: 0,
+      total: order.total,
+      paymentMethod: order.paymentMethod?.toLowerCase() || 'cash',
+      amountPaid: order.amountReceived,
+      changeDue: order.change,
+      wifiTokens: order.wifiTokens?.map((token: any) => {
+        console.log('📶 [Restaurant] Mapping WiFi token:', token)
+        const mapped = {
+          tokenCode: token.tokenCode,
+          packageName: token.packageName || token.itemName || 'WiFi Access',
+          duration: token.duration || 0,
+          bandwidthDownMb: token.bandwidthDownMb || 0,
+          bandwidthUpMb: token.bandwidthUpMb || 0,
+          ssid: token.ssid,
+          portalUrl: token.portalUrl,
+          instructions: token.instructions,
+          success: token.success,
+          error: token.error
+        }
+        console.log('📶 [Restaurant] Mapped WiFi token:', mapped)
+        return mapped
+      }),
+      footerMessage: 'Thank you for dining with us!'
+    }
+  }
 
   // Load daily sales summary
   const loadDailySales = async () => {
@@ -504,6 +653,16 @@ export default function RestaurantPOS() {
         }
         return
       }
+    }
+
+    // Prevent adding $0 items to cart (except WiFi tokens)
+    const isWiFiToken = (item as any).wifiToken === true
+    if (!isWiFiToken && (!item.price || item.price <= 0)) {
+      toast.push(`Cannot add "${item.name}" with $0 price to cart. Please set a price first or use discounts for price reductions.`, {
+        type: 'warning',
+        duration: 6000
+      })
+      return
     }
 
     // Check if item requires a companion item (e.g., side dish that needs a main)
@@ -719,6 +878,13 @@ export default function RestaurantPOS() {
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold text-primary">Point of Sale</h1>
               <div className="flex gap-2">
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                  title="POS Settings"
+                >
+                  ⚙️ Settings
+                </button>
                 <Link
                   href="/restaurant/menu"
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
@@ -905,10 +1071,67 @@ export default function RestaurantPOS() {
 
                     {/* WiFi token quantity indicator */}
                     {item.wifiToken && (
-                      <div className="mt-1">
-                        <span className={`text-xs font-medium ${item.availableQuantity === 0 ? 'text-red-500' : item.availableQuantity < 5 ? 'text-orange-500' : 'text-green-600'}`}>
+                      <div className="mt-1 space-y-1">
+                        <span className={`text-xs font-medium block ${item.availableQuantity === 0 ? 'text-red-500' : item.availableQuantity < 5 ? 'text-orange-500' : 'text-green-600'}`}>
                           📦 {item.availableQuantity || 0} available
                         </span>
+                        {/* Request more tokens button - only show when quantity < 5 and user has permission */}
+                        {item.availableQuantity < 5 && isAdmin && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation(); // Prevent adding to cart
+                              try {
+                                const response = await fetch('/api/wifi-portal/tokens/bulk', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    businessId: currentBusinessId,
+                                    tokenConfigId: item.tokenConfigId,
+                                    quantity: 5
+                                  })
+                                });
+
+                                const result = await response.json();
+
+                                if (response.ok) {
+                                  // Optimistic UI update - immediately increment the quantity
+                                  const tokensCreated = result.tokensCreated || 0;
+                                  setMenuItems(prev => prev.map(menuItem => {
+                                    if ((menuItem as any).tokenConfigId === item.tokenConfigId) {
+                                      return {
+                                        ...menuItem,
+                                        availableQuantity: ((menuItem as any).availableQuantity || 0) + tokensCreated
+                                      };
+                                    }
+                                    return menuItem;
+                                  }));
+
+                                  toast.push(`✅ Successfully created ${tokensCreated} ${item.tokenConfig.name} token${tokensCreated !== 1 ? 's' : ''}!`, {
+                                    type: 'success',
+                                    duration: 5000
+                                  });
+
+                                  // Background refresh to confirm quantities
+                                  loadMenuItems();
+                                } else {
+                                  toast.push(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`, {
+                                    type: 'error',
+                                    duration: 0  // Require manual dismissal for errors
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Error creating tokens:', error);
+                                toast.push('❌ Error creating tokens. Please try again.', {
+                                  type: 'error',
+                                  duration: 0  // Require manual dismissal for errors
+                                });
+                              }
+                            }}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded w-full transition-colors"
+                          >
+                            + Request 5 More
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -1102,167 +1325,282 @@ export default function RestaurantPOS() {
         </div>
       )}
 
-      {/* Receipt Modal */}
+      {/* Completed Order Receipt Modal */}
       {showReceiptModal && completedOrder && (
-        <>
-          <style jsx global>{`
-            @media print {
-              body * {
-                visibility: hidden;
-              }
-              #receipt-content,
-              #receipt-content * {
-                visibility: visible;
-              }
-              #receipt-content {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 80mm; /* Thermal printer width */
-                max-width: 80mm;
-                margin: 0;
-                padding: 5mm;
-                font-family: monospace;
-                font-size: 12pt;
-                color: black !important; /* Force all text to black for thermal printers */
-              }
-              #receipt-content * {
-                color: black !important; /* Ensure all child elements are black */
-                background: white !important; /* Remove any backgrounds */
-                border: none !important; /* Remove all borders for thermal printing */
-                box-shadow: none !important; /* Remove any shadows */
-              }
-              @page {
-                size: 80mm auto; /* Thermal paper width */
-                margin: 0;
-              }
-            }
-          `}</style>
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-              {/* Receipt Content - Printable */}
-              <div id="receipt-content" className="p-8 bg-white dark:bg-gray-800">
-              <div className="text-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Restaurant Receipt</h1>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{currentBusiness?.businessName || 'Restaurant'}</p>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{completedOrder.date}</p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-green-600 dark:text-green-400">✅ Order Complete!</h2>
+                <button
+                  onClick={() => {
+                    setShowReceiptModal(false)
+                    setCompletedOrder(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
               </div>
 
-              <div className="border-t border-gray-300 dark:border-gray-600 py-3 mb-4">
-                <div className="text-center font-mono text-sm text-gray-900 dark:text-gray-100">
-                  <p className="font-bold">Order #{completedOrder.orderNumber}</p>
+              <div className="space-y-4">
+                {/* Order Number */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Order Number</div>
+                  <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{completedOrder.orderNumber}</div>
                 </div>
-              </div>
 
-              {/* Items */}
-              <div className="mb-4 space-y-2">
-                <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100 mb-2">Items:</h3>
-                {completedOrder.items.map((item: any, index: number) => (
-                  <div key={index} className="flex justify-between text-sm text-gray-900 dark:text-gray-100">
-                    <div className="flex-1">
-                      <span className="font-medium">{item.quantity}x</span> {item.name}
-                    </div>
-                    <span className="font-mono">${(item.price * item.quantity).toFixed(2)}</span>
+                {/* Order Items */}
+                <div>
+                  <h3 className="font-semibold mb-2 text-gray-700 dark:text-gray-300">Items:</h3>
+                  <div className="space-y-2">
+                    {completedOrder.items.map((item: any, index: number) => (
+                      <div key={index} className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {item.quantity}x {item.name}
+                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                          ${(item.price * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-
-              {/* Totals */}
-              <div className="border-t border-gray-300 dark:border-gray-600 pt-3 space-y-2">
-                <div className="flex justify-between text-sm text-gray-900 dark:text-gray-100">
-                  <span>Subtotal:</span>
-                  <span className="font-mono">${completedOrder.subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-lg text-gray-900 dark:text-gray-100">
-                  <span>Total:</span>
-                  <span className="font-mono">${completedOrder.total.toFixed(2)}</span>
-                </div>
-              </div>
 
-              {/* Payment Details */}
-              <div className="border-t border-gray-300 dark:border-gray-600 mt-4 pt-3 space-y-1 text-sm text-gray-900 dark:text-gray-100">
-                <div className="flex justify-between">
-                  <span>Payment Method:</span>
-                  <span className="font-medium">{completedOrder.paymentMethod}</span>
-                </div>
-                {completedOrder.paymentMethod === 'CASH' && (
-                  <>
-                    <div className="flex justify-between">
-                      <span>Amount Received:</span>
-                      <span className="font-mono">${completedOrder.amountReceived.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-semibold">
-                      <span>Change:</span>
-                      <span className="font-mono">${completedOrder.change.toFixed(2)}</span>
-                    </div>
-                  </>
-                )}
-              </div>
+                {/* WiFi Tokens (if any) */}
+                {completedOrder.wifiTokens && completedOrder.wifiTokens.length > 0 && (
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border-2 border-purple-200 dark:border-purple-700">
+                    <h3 className="font-semibold mb-3 text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                      📶 WiFi Access Tokens
+                    </h3>
+                    {completedOrder.wifiTokens.map((token: any, index: number) => {
+                      // Check if this token failed
+                      const isError = token.success === false || token.error
 
-              {/* WiFi Tokens Section */}
-              {completedOrder.wifiTokens && completedOrder.wifiTokens.length > 0 && (
-                <div className="border-t-2 border-dashed border-gray-300 dark:border-gray-600 pt-4 mt-4 mb-4">
-                  <div className="text-center font-bold text-sm text-gray-900 dark:text-gray-100 mb-3">WiFi ACCESS TOKENS</div>
-                  {completedOrder.wifiTokens.map((token: any, index: number) => (
-                    <div key={index} className="mb-3 p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
-                      {token.success ? (
-                        <>
-                          <div className="text-sm font-bold mb-2 text-center text-gray-900 dark:text-gray-100">{token.packageName}</div>
-                          {token.ssid && (
-                            <div className="text-xs text-center mb-2 text-gray-700 dark:text-gray-300">
-                              <span className="font-semibold">Network:</span> {token.ssid}
+                      if (isError) {
+                        // Show error state
+                        return (
+                          <div key={index} className="mb-3 last:mb-0 bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800">
+                            <div className="text-sm font-medium text-red-700 dark:text-red-300">
+                              {token.itemName || token.packageName || 'WiFi Token'}
+                            </div>
+                            <div className="text-sm text-red-600 dark:text-red-400 mt-1">
+                              ⚠️ {token.error || 'Token unavailable'}
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      // Show success state
+                      return (
+                        <div key={index} className="mb-3 last:mb-0 bg-white dark:bg-gray-800 p-3 rounded">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">{token.packageName}</div>
+                          <div className="text-lg font-mono font-bold text-purple-600 dark:text-purple-400">
+                            {token.tokenCode}
+                          </div>
+                          {token.duration && (
+                            <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                              Duration: {token.duration} minutes
                             </div>
                           )}
-                          <div className="text-center my-3">
-                            <div className="border-2 border-gray-300 dark:border-gray-600 p-3 rounded-lg font-mono text-xl font-bold text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700">
-                              {token.tokenCode}
+                          {token.instructions && (
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
+                              {token.instructions}
                             </div>
-                          </div>
-                          <div className="text-xs text-center space-y-1 text-gray-900 dark:text-gray-100">
-                            <div className="font-semibold">Duration: {Math.floor(token.duration / 60)}h {token.duration % 60}m</div>
-                            <div className="text-center mt-2">
-                              1. Connect to "{token.ssid || 'Guest WiFi'}"<br/>
-                              2. Open browser and enter code above
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-xs text-center font-semibold text-red-600 dark:text-red-400">
-                          Token generation failed: {token.error || 'Unknown error'}
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Total */}
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                  <div className="flex justify-between text-lg font-bold">
+                    <span className="text-gray-700 dark:text-gray-300">Total:</span>
+                    <span className="text-gray-900 dark:text-gray-100">${completedOrder.total.toFixed(2)}</span>
+                  </div>
+                  {completedOrder.paymentMethod === 'CASH' && (
+                    <>
+                      <div className="flex justify-between text-sm mt-1">
+                        <span className="text-gray-600 dark:text-gray-400">Received:</span>
+                        <span className="text-gray-900 dark:text-gray-100">${completedOrder.amountReceived.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-medium">
+                        <span className="text-gray-600 dark:text-gray-400">Change:</span>
+                        <span className="text-green-600 dark:text-green-400">${completedOrder.change.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
-              )}
 
-              <div className="text-center mt-6 pt-4 border-t border-gray-300 dark:border-gray-600">
-                <p className="text-sm text-gray-900 dark:text-gray-100">Thank you for your order!</p>
+                {/* Print Button */}
+                <button
+                  onClick={() => {
+                    if (currentBusiness) {
+                      const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, currentBusiness)
+                      handlePrintReceipt(receiptData)
+                    }
+                  }}
+                  className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  🖨️ Print Receipt
+                </button>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    setShowReceiptModal(false)
+                    setCompletedOrder(null)
+                  }}
+                  className="w-full py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
               </div>
-            </div>
-
-            {/* Action Buttons - Not printed */}
-            <div className="flex gap-3 p-6 pt-0 print:hidden">
-              <button
-                onClick={() => {
-                  setShowReceiptModal(false)
-                  setCompletedOrder(null)
-                }}
-                className="flex-1 py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600"
-              >
-                Close
-              </button>
-              <button
-                onClick={printReceipt}
-                disabled={isPrinting}
-                className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isPrinting ? '⏳ Printing...' : '🖨️ Print Receipt'}
-              </button>
             </div>
           </div>
         </div>
-        </>
+      )}
+
+      {/* Unified Receipt Preview Modal */}
+      <UnifiedReceiptPreviewModal
+        isOpen={showReceiptPreview}
+        onClose={() => {
+          setShowReceiptPreview(false)
+          setPendingReceiptData(null)
+        }}
+        receiptData={pendingReceiptData}
+        businessType="restaurant"
+        onPrintConfirm={async (options) => {
+          if (!pendingReceiptData) return
+
+          try {
+            await ReceiptPrintManager.printReceipt(pendingReceiptData, 'restaurant', {
+              ...options,
+              autoPrint: true,
+              onSuccess: (jobId, receiptType) => {
+                toast.push(`${receiptType} receipt sent to printer`)
+              },
+              onError: (error, receiptType) => {
+                toast.push(`Error: ${error.message}`)
+              }
+            })
+
+            // Close preview and completed order modal
+            setShowReceiptPreview(false)
+            setPendingReceiptData(null)
+            setShowReceiptModal(false)
+            setCompletedOrder(null)
+
+          } catch (error: any) {
+            toast.push(`Print error: ${error.message}`)
+          }
+        }}
+      />
+
+      {/* POS Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">⚙️ POS Settings</h2>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Auto-Print Receipt Setting */}
+                <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        Auto-Print Receipts
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        Automatically print receipts after completing an order
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setAutoPrint(!preferences.autoPrintReceipt)
+                        toast.push(`Auto-print ${!preferences.autoPrintReceipt ? 'enabled' : 'disabled'}`)
+                      }}
+                      className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+                        preferences.autoPrintReceipt ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                          preferences.autoPrintReceipt ? 'translate-x-7' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    {preferences.autoPrintReceipt ? (
+                      <span className="text-green-600 dark:text-green-400">✅ Enabled - Receipts will print automatically</span>
+                    ) : (
+                      <span className="text-gray-500">❌ Disabled - Click "Print Receipt" button to print</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Default Printer Setting */}
+                <div className="pb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    Default Printer
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Select the default printer for receipts
+                  </p>
+                  <select
+                    value={preferences.defaultPrinterId || printerId || ''}
+                    onChange={(e) => {
+                      const newPrinterId = e.target.value || undefined
+                      setDefaultPrinter(newPrinterId)
+                      if (newPrinterId) {
+                        setPrinterId(newPrinterId)
+                        toast.push('Default printer updated')
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">No default printer</option>
+                    {printerId && (
+                      <option value={printerId}>Current Printer (EPSON TM-T20III)</option>
+                    )}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    If no printer is selected, you'll be prompted each time
+                  </p>
+                </div>
+
+                {/* Current Settings Summary */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-200 mb-2">Current Settings:</h4>
+                  <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
+                    <li>• Auto-print: <strong>{preferences.autoPrintReceipt ? 'ON' : 'OFF'}</strong></li>
+                    <li>• Default printer: <strong>{preferences.defaultPrinterId ? 'Set' : 'Not set'}</strong></li>
+                  </ul>
+                </div>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </BusinessTypeRoute>
   )

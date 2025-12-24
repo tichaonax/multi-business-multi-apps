@@ -225,7 +225,7 @@ export default function ReceiveGroceryInventoryPage() {
                               step="1"
                               placeholder="0"
                               value={selectedItems[item.id]?.quantity || ''}
-                              onChange={(e) => handleItemSelect(item.id, parseInt(e.target.value) || 0)}
+                              onChange={(e) => handleItemSelect(item.id, e.target.value === '' ? 0 : parseInt(e.target.value))}
                               className="input-field w-full"
                             />
                           </div>

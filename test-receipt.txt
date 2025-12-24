@@ -1,0 +1,31 @@
+
+# ESC/POS Test Receipt for TMUSB001
+# Initialize printer
+\x1B\x40
+# Emphasized mode on
+\x1B\x47\x01
+# Center align
+\x1B\x61\x01
+# Header
+================
+DIRECT USB TEST
+TMUSB001 PORT
+================
+\x0A
+# Left align
+\x1B\x61\x00
+Printer: EPSON TM-T20III
+Port: TMUSB001
+Time: Sun, Dec 21, 2025 12:03:58 PM
+\x0A
+Test Items:
+1x Test Item 1     $10.00
+1x Test Item 2     $15.50
+================
+Total:            $25.50
+\x0A\x0A
+Test Successful!
+\x0A\x0A
+# Cut paper
+\x1D\x56\x41\x03
+

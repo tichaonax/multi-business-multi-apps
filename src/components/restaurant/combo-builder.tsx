@@ -534,7 +534,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                             step="0.01"
                             min="0"
                             value={formData.totalPrice}
-                            onChange={(e) => setFormData(prev => ({ ...prev, totalPrice: parseFloat(e.target.value) || 0 }))}
+                            onChange={(e) => setFormData(prev => ({ ...prev, totalPrice: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
                             required
                           />
                         </div>
@@ -547,7 +547,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                             type="number"
                             min="0"
                             value={formData.preparationTime}
-                            onChange={(e) => setFormData(prev => ({ ...prev, preparationTime: parseInt(e.target.value) || 0 }))}
+                            onChange={(e) => setFormData(prev => ({ ...prev, preparationTime: e.target.value === '' ? 0 : parseInt(e.target.value) }))}
                           />
                         </div>
                       </div>

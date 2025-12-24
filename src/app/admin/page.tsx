@@ -19,7 +19,9 @@ import {
   AlertTriangle,
   Zap,
   Printer,
-  Package
+  Package,
+  Wifi,
+  RefreshCw
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -48,6 +50,11 @@ export default function AdminPage() {
   const [modalBusinessId, setModalBusinessId] = useState<string | null>(null)
   const [modalAction, setModalAction] = useState<null | { endpoint: string; label: string; method?: string; body?: any }>(null)
   const toast = useToastContext()
+
+  // WiFi Token Sanitization
+  const [sanitizingTokens, setSanitizingTokens] = useState(false)
+  const [sanitizeResult, setSanitizeResult] = useState<any>(null)
+  const [sanitizeError, setSanitizeError] = useState('')
 
   const isSysAdmin = isSystemAdmin(session?.user as any)
 
@@ -123,6 +130,34 @@ export default function AdminPage() {
     setShowAdminUserConfirm(false)
     setAdminUserConfirmText('')
     window.location.href = '/api/admin/create-admin'
+  }
+
+  const handleSanitizeTokens = async () => {
+    setSanitizingTokens(true)
+    setSanitizeError('')
+    setSanitizeResult(null)
+
+    try {
+      const response = await fetch('/api/wifi-portal/admin/sanitize-tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setSanitizeResult(data.result)
+        toast.push('Token sanitization completed')
+      } else {
+        setSanitizeError(data.error || 'Failed to sanitize tokens')
+        toast.push(`Sanitization failed: ${data.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      setSanitizeError('Network error occurred')
+      toast.push('Network error during token sanitization')
+    } finally {
+      setSanitizingTokens(false)
+    }
   }
 
   useEffect(() => {
@@ -272,6 +307,80 @@ export default function AdminPage() {
               >
                 Manage Printers
               </a>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <Wifi className="h-6 w-6 mr-2 text-purple-500" />
+                  <h3 className="text-lg font-semibold text-primary">WiFi Token Maintenance</h3>
+                </div>
+                <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-xs font-semibold rounded">
+                  CRITICAL
+                </span>
+              </div>
+              <p className="text-secondary mb-4">Verify and sanitize WiFi tokens across all businesses</p>
+              <div className="text-sm text-secondary mb-4">
+                • Verify tokens exist on ESP32 devices
+                <br />
+                • Disable tokens not found on ESP32
+                <br />
+                • Prevent selling unredeemable tokens
+                <br />
+                • Process all businesses sequentially
+              </div>
+              <button
+                onClick={handleSanitizeTokens}
+                disabled={sanitizingTokens}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {sanitizingTokens ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Sanitizing Tokens...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sanitize WiFi Tokens
+                  </>
+                )}
+              </button>
+
+              {sanitizeResult && (
+                <div className="mt-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                  <div className="flex items-center mb-2">
+                    <CheckCircle className="h-5 w-5 text-purple-500 mr-2" />
+                    <div className="font-medium text-purple-800 dark:text-purple-200">
+                      Sanitization Completed Successfully
+                    </div>
+                  </div>
+                  <div className="text-sm text-purple-700 dark:text-purple-300 space-y-1">
+                    <div>• Processed: <strong>{sanitizeResult.processed}</strong> tokens</div>
+                    <div>• Disabled: <strong>{sanitizeResult.disabled}</strong> invalid tokens</div>
+                    <div>• Businesses: <strong>{sanitizeResult.businessesProcessed}</strong> processed</div>
+                    {sanitizeResult.errors && sanitizeResult.errors.length > 0 && (
+                      <div className="mt-2 text-xs">
+                        <div className="font-medium">Errors:</div>
+                        {sanitizeResult.errors.map((err: string, idx: number) => (
+                          <div key={idx} className="text-red-600 dark:text-red-400">• {err}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {sanitizeError && (
+                <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+                    <div className="text-sm text-red-700 dark:text-red-300">{sanitizeError}</div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

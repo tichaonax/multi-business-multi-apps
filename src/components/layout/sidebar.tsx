@@ -790,6 +790,15 @@ export function Sidebar() {
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tools</h3>
         </div>
 
+        {/* Receipt History - Universal receipt search and reprint */}
+        <Link
+          href={`/universal/receipts${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
+          className={getLinkClasses('/universal/receipts')}
+        >
+          <span className="text-lg">🧾</span>
+          <span>Receipt History</span>
+        </Link>
+
         {/* Business Categories - Cross-business functionality */}
         {(checkPermission(currentUser, 'canCreateBusinessCategories') ||
           checkPermission(currentUser, 'canEditBusinessCategories') ||

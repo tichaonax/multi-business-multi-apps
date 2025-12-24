@@ -11,6 +11,7 @@ import { hasUserPermission } from '@/lib/permission-utils'
 import { LabelPreview } from '@/components/printing/label-preview'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
+import { usePrompt, useAlert } from '@/components/ui/confirm-modal'
 import type { LabelData, NetworkPrinter, BarcodeFormat, LabelFormat } from '@/types/printing'
 
 interface InventorySubcategory {
@@ -112,6 +113,10 @@ export function UniversalInventoryForm({
   const [barcodes, setBarcodes] = useState<ProductBarcode[]>([])
 
   const { data: session } = useSession()
+
+  // Modal hooks
+  const prompt = usePrompt()
+  const alert = useAlert()
 
   // Printing hooks
   const { canPrintInventoryLabels } = usePrinterPermissions()
@@ -269,7 +274,7 @@ export function UniversalInventoryForm({
 
   const handleGenerateSKU = async () => {
     if (!formData.name) {
-      await customAlert({
+      await alert({
         title: 'Name Required',
         description: 'Please enter a product name first to generate a SKU.'
       })
@@ -300,7 +305,7 @@ export function UniversalInventoryForm({
       }
     } catch (error) {
       console.error('Error generating SKU:', error)
-      await customAlert({
+      await alert({
         title: 'Generation Failed',
         description: 'Could not auto-generate SKU. Please enter one manually.'
       })
@@ -329,6 +334,22 @@ export function UniversalInventoryForm({
     e.preventDefault()
 
     if (!validateForm()) {
+      // Show alert for missing required fields
+      await alert({
+        title: 'Missing Required Fields',
+        description: 'Please fill in all required fields marked with * before submitting.'
+      })
+
+      // Scroll to first error field
+      const firstErrorField = document.querySelector('.border-red-500')
+      if (firstErrorField) {
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // Focus the field if it's an input
+        if (firstErrorField instanceof HTMLInputElement || firstErrorField instanceof HTMLTextAreaElement) {
+          firstErrorField.focus()
+        }
+      }
+
       return
     }
 
@@ -503,8 +524,8 @@ export function UniversalInventoryForm({
                 </label>
                 <input
                   type="number"
-                  value={formData.attributes?.expirationDays || ''}
-                  onChange={(e) => handleAttributeChange('expirationDays', parseInt(e.target.value) || 0)}
+                  value={formData.attributes?.expirationDays ?? ''}
+                  onChange={(e) => handleAttributeChange('expirationDays', e.target.value === '' ? undefined : parseInt(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Days until expiration"
                 />
@@ -516,8 +537,8 @@ export function UniversalInventoryForm({
                 </label>
                 <input
                   type="number"
-                  value={formData.attributes?.preparationTime || ''}
-                  onChange={(e) => handleAttributeChange('preparationTime', parseInt(e.target.value) || 0)}
+                  value={formData.attributes?.preparationTime ?? ''}
+                  onChange={(e) => handleAttributeChange('preparationTime', e.target.value === '' ? undefined : parseInt(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Prep time in minutes"
                 />
@@ -529,8 +550,8 @@ export function UniversalInventoryForm({
                 </label>
                 <input
                   type="number"
-                  value={formData.attributes?.recipeYield || ''}
-                  onChange={(e) => handleAttributeChange('recipeYield', parseInt(e.target.value) || 0)}
+                  value={formData.attributes?.recipeYield ?? ''}
+                  onChange={(e) => handleAttributeChange('recipeYield', e.target.value === '' ? undefined : parseInt(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Number of servings"
                 />
@@ -893,10 +914,10 @@ export function UniversalInventoryForm({
                 type="text"
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                className={`input-field ${errors.name ? 'border-red-300' : ''}`}
+                className={`input-field ${errors.name ? 'border-red-500 border-2' : ''}`}
                 placeholder="Enter item name"
               />
-              {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
+              {errors.name && <p className="text-red-600 text-sm mt-1 font-medium">{errors.name}</p>}
             </div>
 
             <div>
@@ -908,7 +929,7 @@ export function UniversalInventoryForm({
                   type="text"
                   value={formData.sku}
                   onChange={(e) => handleInputChange('sku', e.target.value)}
-                  className={`input-field flex-1 ${errors.sku ? 'border-red-300' : ''}`}
+                  className={`input-field flex-1 ${errors.sku ? 'border-red-500 border-2' : ''}`}
                   placeholder="Auto-generated or enter custom SKU"
                 />
                 <button
@@ -921,7 +942,7 @@ export function UniversalInventoryForm({
                   {generatingSKU ? '⏳ Generating...' : '✨ Auto-generate'}
                 </button>
               </div>
-              {errors.sku && <p className="text-red-600 text-sm mt-1">{errors.sku}</p>}
+              {errors.sku && <p className="text-red-600 text-sm mt-1 font-medium">{errors.sku}</p>}
               <p className="text-xs text-gray-500 mt-1">
                 Leave empty for automatic SKU, or click "Auto-generate" to preview before saving. Follows existing patterns in your inventory.
               </p>
@@ -986,25 +1007,93 @@ export function UniversalInventoryForm({
                 type="text"
                 value={formData.unit}
                 onChange={(e) => handleInputChange('unit', e.target.value)}
-                className={`input-field ${errors.unit ? 'border-red-300' : ''}`}
+                className={`input-field ${errors.unit ? 'border-red-500 border-2' : ''}`}
                 placeholder="lbs, each, gallons, etc."
               />
-              {errors.unit && <p className="text-red-600 text-sm mt-1">{errors.unit}</p>}
+              {errors.unit && <p className="text-red-600 text-sm mt-1 font-medium">{errors.unit}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Current Stock *
+                Current Stock {mode === 'edit' ? '(Calculated from movements)' : '*'}
               </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.currentStock}
-                onChange={(e) => handleInputChange('currentStock', parseFloat(e.target.value) || 0)}
-                className={`input-field ${errors.currentStock ? 'border-red-300' : ''}`}
-                placeholder="0.00"
-              />
-              {errors.currentStock && <p className="text-red-600 text-sm mt-1">{errors.currentStock}</p>}
+              {mode === 'edit' ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={formData.currentStock}
+                      readOnly
+                      className="input-field bg-gray-100 dark:bg-gray-700 cursor-not-allowed flex-1"
+                      placeholder="0"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const adjustment = await prompt({
+                          title: '📦 Adjust Stock',
+                          description: (
+                            <div className="space-y-2">
+                              <p>Current stock: <strong className="text-blue-600 dark:text-blue-400">{formData.currentStock} units</strong></p>
+                              <p className="text-sm">Enter adjustment amount:</p>
+                              <ul className="text-sm list-disc list-inside ml-2 space-y-1">
+                                <li>Positive number to <span className="text-green-600 dark:text-green-400">add stock</span> (e.g., 10)</li>
+                                <li>Negative number to <span className="text-red-600 dark:text-red-400">remove stock</span> (e.g., -5)</li>
+                              </ul>
+                            </div>
+                          ),
+                          placeholder: 'e.g., +10 or -5',
+                          inputType: 'number',
+                          confirmText: 'Adjust Stock',
+                          cancelText: 'Cancel',
+                          validator: (value) => {
+                            if (!value || value.trim() === '') {
+                              return 'Please enter an adjustment amount'
+                            }
+                            const num = parseInt(value)
+                            if (isNaN(num)) {
+                              return 'Please enter a valid number'
+                            }
+                            if (num === 0) {
+                              return 'Adjustment cannot be zero'
+                            }
+                            const newStock = formData.currentStock + num
+                            if (newStock < 0) {
+                              return `Cannot adjust stock below 0 (would result in ${newStock})`
+                            }
+                            return null
+                          }
+                        })
+
+                        if (adjustment !== null) {
+                          const adjustmentAmount = parseInt(adjustment)
+                          const newStock = formData.currentStock + adjustmentAmount
+                          // Store adjustment to be processed on save
+                          handleInputChange('_stockAdjustment', adjustmentAmount)
+                          handleInputChange('currentStock', newStock)
+                        }
+                      }}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 whitespace-nowrap text-sm"
+                    >
+                      📦 Adjust Stock
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">Click "Adjust Stock" to add or remove inventory. Stock is calculated from movements.</p>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="number"
+                    step="1"
+                    value={formData.currentStock === 0 ? '' : formData.currentStock}
+                    onChange={(e) => handleInputChange('currentStock', e.target.value === '' ? 0 : parseInt(e.target.value))}
+                    className={`input-field ${errors.currentStock ? 'border-red-500 border-2' : ''}`}
+                    placeholder="0"
+                  />
+                  {errors.currentStock && <p className="text-red-600 text-sm mt-1 font-medium">{errors.currentStock}</p>}
+                  <p className="text-xs text-gray-500 mt-1">Initial stock quantity when creating this product</p>
+                </>
+              )}
             </div>
 
             <div>
@@ -1014,12 +1103,12 @@ export function UniversalInventoryForm({
               <input
                 type="number"
                 step="0.01"
-                value={formData.costPrice}
-                onChange={(e) => handleInputChange('costPrice', parseFloat(e.target.value) || 0)}
-                className={`input-field ${errors.costPrice ? 'border-red-300' : ''}`}
+                value={formData.costPrice === 0 ? '' : formData.costPrice}
+                onChange={(e) => handleInputChange('costPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                className={`input-field ${errors.costPrice ? 'border-red-500 border-2' : ''}`}
                 placeholder="0.00"
               />
-              {errors.costPrice && <p className="text-red-600 text-sm mt-1">{errors.costPrice}</p>}
+              {errors.costPrice && <p className="text-red-600 text-sm mt-1 font-medium">{errors.costPrice}</p>}
             </div>
 
             <div>
@@ -1029,12 +1118,12 @@ export function UniversalInventoryForm({
               <input
                 type="number"
                 step="0.01"
-                value={formData.sellPrice}
-                onChange={(e) => handleInputChange('sellPrice', parseFloat(e.target.value) || 0)}
-                className={`input-field ${errors.sellPrice ? 'border-red-300' : ''}`}
+                value={formData.sellPrice === 0 ? '' : formData.sellPrice}
+                onChange={(e) => handleInputChange('sellPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                className={`input-field ${errors.sellPrice ? 'border-red-500 border-2' : ''}`}
                 placeholder="0.00"
               />
-              {errors.sellPrice && <p className="text-red-600 text-sm mt-1">{errors.sellPrice}</p>}
+              {errors.sellPrice && <p className="text-red-600 text-sm mt-1 font-medium">{errors.sellPrice}</p>}
             </div>
 
             <SupplierSelector

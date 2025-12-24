@@ -275,6 +275,15 @@ export async function POST(
     // Use sellPrice if basePrice not provided (UI compatibility)
     const basePrice = body.basePrice ?? body.sellPrice
 
+    // Validate price is greater than 0 (except for WiFi promotional items)
+    const isWiFiToken = body.attributes?.isWiFiToken === true || body.name?.toLowerCase().includes('wifi')
+    if (!isWiFiToken && (!basePrice || basePrice <= 0)) {
+      return NextResponse.json(
+        { error: 'Product price must be greater than $0. Use discounts or promotions for price reductions.' },
+        { status: 400 }
+      )
+    }
+
     const user = session.user as SessionUser
 
     // Verify business exists and user has access

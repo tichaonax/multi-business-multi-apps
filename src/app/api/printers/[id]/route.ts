@@ -21,7 +21,7 @@ import type { PrinterType } from '@/types/printing';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -37,7 +37,7 @@ export async function PUT(
       );
     }
 
-    const printerId = params.id;
+    const { id: printerId } = await params;
     if (!printerId) {
       return NextResponse.json(
         { error: 'Printer ID is required' },
@@ -112,7 +112,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -128,7 +128,7 @@ export async function DELETE(
       );
     }
 
-    const printerId = params.id;
+    const { id: printerId } = await params;
     if (!printerId) {
       return NextResponse.json(
         { error: 'Printer ID is required' },

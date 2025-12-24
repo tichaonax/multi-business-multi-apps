@@ -95,8 +95,12 @@ export async function GET(request: NextRequest) {
     if (offset) {
       filterParams.offset = parseInt(offset)
     }
+
+    // Default limit: if not provided by caller, request 20 tokens to avoid large defaults from the portal
     if (limit) {
       filterParams.limit = parseInt(limit)
+    } else {
+      filterParams.limit = 20
     }
 
     const result = await portalClient.listTokens(filterParams)

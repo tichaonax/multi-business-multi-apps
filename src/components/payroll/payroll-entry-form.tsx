@@ -181,7 +181,7 @@ export function PayrollEntryForm({
           <input
             type="number"
             value={formData.workDays}
-            onChange={(e) => setFormData({ ...formData, workDays: parseInt(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, workDays: e.target.value === '' ? 0 : parseInt(e.target.value) })}
             className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             min="0"
             max="31"
@@ -195,7 +195,7 @@ export function PayrollEntryForm({
           <input
             type="number"
             value={formData.sickDays}
-            onChange={(e) => setFormData({ ...formData, sickDays: parseInt(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, sickDays: e.target.value === '' ? 0 : parseInt(e.target.value) })}
             className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             min="0"
             max="31"
@@ -209,7 +209,7 @@ export function PayrollEntryForm({
           <input
             type="number"
             value={formData.leaveDays}
-            onChange={(e) => setFormData({ ...formData, leaveDays: parseInt(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, leaveDays: e.target.value === '' ? 0 : parseInt(e.target.value) })}
             className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             min="0"
             max="31"
@@ -223,7 +223,7 @@ export function PayrollEntryForm({
           <input
             type="number"
             value={formData.absenceDays}
-            onChange={(e) => setFormData({ ...formData, absenceDays: parseInt(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, absenceDays: e.target.value === '' ? 0 : parseInt(e.target.value) })}
             className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             min="0"
             max="31"
@@ -238,7 +238,7 @@ export function PayrollEntryForm({
             type="number"
             step="0.5"
             value={formData.overtimeHours}
-            onChange={(e) => setFormData({ ...formData, overtimeHours: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, overtimeHours: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
             className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             min="0"
           />
@@ -252,7 +252,7 @@ export function PayrollEntryForm({
             type="number"
             step="0.01"
             value={formData.commission}
-            onChange={(e) => setFormData({ ...formData, commission: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => setFormData({ ...formData, commission: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
             className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             min="0"
           />

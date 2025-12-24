@@ -14,6 +14,10 @@ interface Business {
   description: string | null
   isActive: boolean
   wifiIntegrationEnabled: boolean
+  receiptReturnPolicy: string | null
+  taxIncludedInPrice: boolean
+  taxRate: number | null
+  taxLabel: string | null
   createdAt: string
   createdBy: string
 }
@@ -32,7 +36,11 @@ export default function AdminBusinessesPage() {
     name: '',
     type: 'retail',
     description: '',
-    wifiIntegrationEnabled: false
+    wifiIntegrationEnabled: false,
+    receiptReturnPolicy: 'All sales are final, returns not accepted',
+    taxIncludedInPrice: true,
+    taxRate: '',
+    taxLabel: ''
   })
   const [creating, setCreating] = useState(false)
   const [updating, setUpdating] = useState(false)
@@ -74,7 +82,16 @@ export default function AdminBusinessesPage() {
 
       if (response.ok) {
         setMessage(`Business "${formData.name}" created successfully!`)
-        setFormData({ name: '', type: 'retail', description: '' })
+        setFormData({
+          name: '',
+          type: 'retail',
+          description: '',
+          wifiIntegrationEnabled: false,
+          receiptReturnPolicy: 'All sales are final, returns not accepted',
+          taxIncludedInPrice: true,
+          taxRate: '',
+          taxLabel: ''
+        })
         setShowCreateModal(false)
         fetchBusinesses() // Refresh the list
       } else {
@@ -93,7 +110,11 @@ export default function AdminBusinessesPage() {
       name: business.name,
       type: business.type,
       description: business.description || '',
-      wifiIntegrationEnabled: business.wifiIntegrationEnabled || false
+      wifiIntegrationEnabled: business.wifiIntegrationEnabled || false,
+      receiptReturnPolicy: business.receiptReturnPolicy || 'All sales are final, returns not accepted',
+      taxIncludedInPrice: business.taxIncludedInPrice ?? true,
+      taxRate: business.taxRate?.toString() || '',
+      taxLabel: business.taxLabel || ''
     })
     setShowEditModal(true)
   }
@@ -141,7 +162,16 @@ export default function AdminBusinessesPage() {
     setShowDetailsModal(false)
     setDetailsModalMode('view')
     setSelectedBusiness(null)
-    setFormData({ name: '', type: 'retail', description: '' })
+    setFormData({
+      name: '',
+      type: 'retail',
+      description: '',
+      wifiIntegrationEnabled: false,
+      receiptReturnPolicy: 'All sales are final, returns not accepted',
+      taxIncludedInPrice: true,
+      taxRate: '',
+      taxLabel: ''
+    })
   }
 
   const handleEditFromDetails = () => {
@@ -149,7 +179,12 @@ export default function AdminBusinessesPage() {
       setFormData({
         name: selectedBusiness.name,
         type: selectedBusiness.type,
-        description: selectedBusiness.description || ''
+        description: selectedBusiness.description || '',
+        wifiIntegrationEnabled: selectedBusiness.wifiIntegrationEnabled || false,
+        receiptReturnPolicy: selectedBusiness.receiptReturnPolicy || 'All sales are final, returns not accepted',
+        taxIncludedInPrice: selectedBusiness.taxIncludedInPrice ?? true,
+        taxRate: selectedBusiness.taxRate?.toString() || '',
+        taxLabel: selectedBusiness.taxLabel || ''
       })
       setDetailsModalMode('edit')
     }
@@ -387,6 +422,84 @@ export default function AdminBusinessesPage() {
                   </div>
                 )}
 
+                {/* Receipt Configuration Section */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Receipt Configuration</h3>
+
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Return Policy Message
+                    </label>
+                    <textarea
+                      value={formData.receiptReturnPolicy}
+                      onChange={(e) => setFormData({...formData, receiptReturnPolicy: e.target.value})}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="All sales are final, returns not accepted"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      This message will be printed on all receipts
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                    <div className="flex-1">
+                      <label htmlFor="taxIncluded" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Tax Included in Price
+                      </label>
+                      <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        When enabled, tax is included in product prices. When disabled, tax will be calculated separately at checkout.
+                      </span>
+                    </div>
+                    <input
+                      id="taxIncluded"
+                      type="checkbox"
+                      checked={formData.taxIncludedInPrice}
+                      onChange={(e) => setFormData({...formData, taxIncludedInPrice: e.target.checked})}
+                      className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
+                    />
+                  </div>
+
+                  {!formData.taxIncludedInPrice && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-2">
+                          Tax Rate (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={formData.taxRate}
+                          onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., 13.50"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Enter the tax percentage (e.g., 13.50 for 13.5%)
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-2">
+                          Tax Label
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.taxLabel}
+                          onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., VAT, Sales Tax, GST"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          How the tax will be labeled on receipts (optional)
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
@@ -497,6 +610,84 @@ export default function AdminBusinessesPage() {
                     />
                   </div>
                 )}
+
+                {/* Receipt Configuration Section */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Receipt Configuration</h3>
+
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Return Policy Message
+                    </label>
+                    <textarea
+                      value={formData.receiptReturnPolicy}
+                      onChange={(e) => setFormData({...formData, receiptReturnPolicy: e.target.value})}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="All sales are final, returns not accepted"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      This message will be printed on all receipts
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                    <div className="flex-1">
+                      <label htmlFor="taxIncludedEdit" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Tax Included in Price
+                      </label>
+                      <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        When enabled, tax is included in product prices. When disabled, tax will be calculated separately at checkout.
+                      </span>
+                    </div>
+                    <input
+                      id="taxIncludedEdit"
+                      type="checkbox"
+                      checked={formData.taxIncludedInPrice}
+                      onChange={(e) => setFormData({...formData, taxIncludedInPrice: e.target.checked})}
+                      className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
+                    />
+                  </div>
+
+                  {!formData.taxIncludedInPrice && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-2">
+                          Tax Rate (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={formData.taxRate}
+                          onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., 13.50"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Enter the tax percentage (e.g., 13.50 for 13.5%)
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-2">
+                          Tax Label
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.taxLabel}
+                          onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., VAT, Sales Tax, GST"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          How the tax will be labeled on receipts (optional)
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 <div className="flex gap-3 pt-4">
                   <button
@@ -649,6 +840,84 @@ export default function AdminBusinessesPage() {
                       className="input-field"
                       placeholder="Optional description"
                     />
+                  </div>
+
+                  {/* Receipt Configuration Section */}
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Receipt Configuration</h3>
+
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Return Policy Message
+                      </label>
+                      <textarea
+                        value={formData.receiptReturnPolicy}
+                        onChange={(e) => setFormData({...formData, receiptReturnPolicy: e.target.value})}
+                        rows={2}
+                        className="input-field"
+                        placeholder="All sales are final, returns not accepted"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        This message will be printed on all receipts
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                      <div className="flex-1">
+                        <label htmlFor="taxIncludedDetails" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Tax Included in Price
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          When enabled, tax is included in product prices. When disabled, tax will be calculated separately at checkout.
+                        </span>
+                      </div>
+                      <input
+                        id="taxIncludedDetails"
+                        type="checkbox"
+                        checked={formData.taxIncludedInPrice}
+                        onChange={(e) => setFormData({...formData, taxIncludedInPrice: e.target.checked})}
+                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
+                      />
+                    </div>
+
+                    {!formData.taxIncludedInPrice && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-secondary mb-2">
+                            Tax Rate (%)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            value={formData.taxRate}
+                            onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
+                            className="input-field"
+                            placeholder="e.g., 13.50"
+                          />
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Enter the tax percentage (e.g., 13.50 for 13.5%)
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-secondary mb-2">
+                            Tax Label
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.taxLabel}
+                            onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
+                            className="input-field"
+                            placeholder="e.g., VAT, Sales Tax, GST"
+                          />
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            How the tax will be labeled on receipts (optional)
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">

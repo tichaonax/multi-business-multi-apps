@@ -113,6 +113,9 @@ export async function GET(
         businessPrice: item.businessPrice,
         isActive: item.isActive,
         displayOrder: item.displayOrder,
+        durationMinutesOverride: item.durationMinutesOverride,
+        bandwidthDownMbOverride: item.bandwidthDownMbOverride,
+        bandwidthUpMbOverride: item.bandwidthUpMbOverride,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
         tokenConfig: {
@@ -145,7 +148,7 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -153,7 +156,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const businessId = params.businessId;
+    const { businessId } = await params;
     const body = await request.json();
     const { tokenConfigId, businessPrice, isActive = true, displayOrder = 0 } = body;
 

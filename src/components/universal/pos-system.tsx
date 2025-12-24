@@ -84,6 +84,13 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
     const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined
     const unitPrice = variant?.price ?? product.basePrice
 
+    // Prevent adding $0 items to cart (except WiFi tokens)
+    const isWiFiToken = product.attributes?.isWiFiToken === true || product.name?.toLowerCase().includes('wifi')
+    if (!isWiFiToken && (!unitPrice || unitPrice <= 0)) {
+      alert('Cannot add product with $0 price to cart. Please set a price first or use discounts for price reductions.')
+      return
+    }
+
     setCart(currentCart => {
       const existingItemIndex = currentCart.findIndex(
         item => item.productId === product.id && item.variantId === variantId
@@ -296,14 +303,14 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
       }
 
       if (result.success) {
-        // Create receipt data
+        // Create receipt data with business configuration
         const receiptData: ReceiptData = {
           receiptNumber: result.data.orderNumber || 'N/A',
           globalId: result.data.id,
           businessName: config?.businessName || 'Business',
           businessType: config?.businessType as any || 'retail',
-          businessAddress: config?.general?.address,
-          businessPhone: config?.general?.phone,
+          businessAddress: config?.address || config?.general?.address,
+          businessPhone: config?.phone || config?.general?.phone,
           businessTaxId: config?.general?.taxId,
           items: cart.map(item => ({
             name: item.product?.name || 'Item',
@@ -322,6 +329,11 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           customerPhone: customerInfo.phone,
           date: new Date(),
           cashierName: employeeId ? 'Employee' : undefined,
+          // Receipt configuration from business
+          returnPolicy: config?.receiptReturnPolicy || undefined,
+          taxIncludedInPrice: config?.taxIncludedInPrice ?? true,
+          taxRate: config?.taxRate ? Number(config.taxRate) : undefined,
+          taxLabel: config?.taxLabel || undefined,
           businessSpecificData: {
             orderType: orderData.orderType
           }
@@ -487,7 +499,7 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
                     max={subtotal}
                     step="0.01"
                     value={discountAmount}
-                    onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setDiscountAmount(e.target.value === '' ? 0 : parseFloat(e.target.value))}
                     className="w-28 px-3 py-1.5 text-right border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-semibold"
                   />
                 </div>

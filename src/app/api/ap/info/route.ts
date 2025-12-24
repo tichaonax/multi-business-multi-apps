@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     // Initialize AP info with defaults
     let apInfo = {
       ssid: 'Guest WiFi', // Default, will be overwritten by ESP32 response
-      portalUrl: `http://${integration.portalIpAddress}:${integration.portalPort}`,
+      portalUrl: 'http://192.168.4.1', // ESP32 internal AP address for token redemption
       ipAddress: integration.portalIpAddress,
       port: integration.portalPort,
     };
@@ -102,9 +102,9 @@ export async function GET(request: NextRequest) {
         if (esp32Data.success && esp32Data.ap_ssid) {
           apInfo.ssid = esp32Data.ap_ssid;
         }
-        if (esp32Data.portal_url) {
-          apInfo.portalUrl = esp32Data.portal_url;
-        }
+        // Always use ESP32 internal AP address (192.168.4.1) for token redemption
+        // Users connect to the WiFi and visit this address to redeem tokens
+        apInfo.portalUrl = 'http://192.168.4.1';
       }
     } catch (error) {
       // Ignore errors - use default 'Guest WiFi' as fallback

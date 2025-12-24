@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 
 interface BusinessCreationModalProps {
   onClose: () => void
@@ -9,7 +10,17 @@ interface BusinessCreationModalProps {
   onSuccess: (result: { message?: string; business?: any }) => void
   onError: (error: string) => void
   // Optional: initial values for edit mode
-  initial?: { name?: string; type?: string; description?: string }
+  initial?: {
+    name?: string
+    type?: string
+    description?: string
+    address?: string
+    phone?: string
+    receiptReturnPolicy?: string
+    taxIncludedInPrice?: boolean
+    taxRate?: string
+    taxLabel?: string
+  }
   // Optional: HTTP method override for the form (default POST). Use 'PUT' for edit.
   method?: 'POST' | 'PUT'
   // Optional: resource id when using PUT
@@ -32,7 +43,13 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
   const [formData, setFormData] = useState({
     name: initial?.name || '',
     type: initial?.type || 'other',
-    description: initial?.description || ''
+    description: initial?.description || '',
+    address: initial?.address || '',
+    phone: initial?.phone || '',
+    receiptReturnPolicy: initial?.receiptReturnPolicy || 'All sales are final, returns not accepted',
+    taxIncludedInPrice: initial?.taxIncludedInPrice !== undefined ? initial.taxIncludedInPrice : true,
+    taxRate: initial?.taxRate || '',
+    taxLabel: initial?.taxLabel || ''
   })
   const [loading, setLoading] = useState(false)
 
@@ -128,6 +145,107 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Brief description of the business"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-primary mb-2">
+              Business Address (Optional)
+            </label>
+            <input
+              type="text"
+              className="input-field"
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              placeholder="Enter business address"
+            />
+          </div>
+
+          <div>
+            <PhoneNumberInput
+              value={formData.phone}
+              onChange={(full) => setFormData({ ...formData, phone: full })}
+              label="Business Phone (Optional)"
+              placeholder="77 123 4567"
+              className="w-full"
+            />
+          </div>
+
+          {/* Receipt Configuration Section */}
+          <div className="pt-4 border-t border-gray-200 dark:border-neutral-700 space-y-4">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100">Receipt Configuration</h3>
+
+            <div>
+              <label className="block text-sm font-medium text-primary mb-2">
+                Return Policy Message
+              </label>
+              <textarea
+                value={formData.receiptReturnPolicy}
+                onChange={(e) => setFormData({...formData, receiptReturnPolicy: e.target.value})}
+                rows={2}
+                className="input-field"
+                placeholder="All sales are final, returns not accepted"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                This message will be printed on all receipts
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-800 rounded-md border border-gray-200 dark:border-neutral-700">
+              <div className="flex-1">
+                <label htmlFor="taxIncluded" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                  Tax Included in Price
+                </label>
+                <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  When enabled, tax is included in product prices. When disabled, tax will be calculated separately at checkout.
+                </span>
+              </div>
+              <input
+                id="taxIncluded"
+                type="checkbox"
+                checked={formData.taxIncludedInPrice}
+                onChange={(e) => setFormData({...formData, taxIncludedInPrice: e.target.checked})}
+                className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
+              />
+            </div>
+
+            {!formData.taxIncludedInPrice && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-primary mb-2">
+                    Tax Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={formData.taxRate}
+                    onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
+                    className="input-field"
+                    placeholder="e.g., 13.50"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Enter the tax percentage (e.g., 13.50 for 13.5%)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-primary mb-2">
+                    Tax Label
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.taxLabel}
+                    onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
+                    className="input-field"
+                    placeholder="e.g., VAT, Sales Tax, GST"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    How the tax will be labeled on receipts (optional)
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

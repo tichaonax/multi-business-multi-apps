@@ -134,6 +134,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for business-specific overrides
+    const businessMenuItem = await prisma.businessTokenMenuItems.findUnique({
+      where: {
+        businessId_tokenConfigId: {
+          businessId: businessId,
+          tokenConfigId: tokenConfigId,
+        },
+      },
+    });
+
+    // Use override values if they exist, otherwise use defaults from config
+    const durationMinutes = businessMenuItem?.durationMinutesOverride ?? tokenConfig.durationMinutes;
+    const bandwidthDownMb = businessMenuItem?.bandwidthDownMbOverride ?? tokenConfig.bandwidthDownMb;
+    const bandwidthUpMb = businessMenuItem?.bandwidthUpMbOverride ?? tokenConfig.bandwidthUpMb;
+
+    console.log('Single token creation values:', {
+      tokenConfigId,
+      businessId,
+      durationMinutes,
+      bandwidthDownMb,
+      bandwidthUpMb,
+      hasOverrides: !!(businessMenuItem?.durationMinutesOverride || businessMenuItem?.bandwidthDownMbOverride || businessMenuItem?.bandwidthUpMbOverride),
+    });
+
     // Validate sale fields if recording sale
     if (recordSale) {
       if (saleAmount === undefined || saleAmount === null || !expenseAccountId) {
@@ -209,17 +233,17 @@ export async function POST(request: NextRequest) {
     try {
       console.log('Calling portalClient.createToken with params:', {
         businessId: businessId,
-        durationMinutes: tokenConfig.durationMinutes,
-        bandwidthDownMb: tokenConfig.bandwidthDownMb,
-        bandwidthUpMb: tokenConfig.bandwidthUpMb,
+        durationMinutes,
+        bandwidthDownMb,
+        bandwidthUpMb,
         maxDevices: 2,
       });
 
       tokenResponse = await portalClient.createToken({
         businessId: businessId, // REQUIRED: Multi-business ESP32 sharing
-        durationMinutes: tokenConfig.durationMinutes,
-        bandwidthDownMb: tokenConfig.bandwidthDownMb,
-        bandwidthUpMb: tokenConfig.bandwidthUpMb,
+        durationMinutes,
+        bandwidthDownMb,
+        bandwidthUpMb,
         maxDevices: 2,
       });
 
