@@ -1,8 +1,8 @@
 /**
  * R710 Direct Token Sale API
  *
- * Sell an R710 token directly (not through POS)
- * Finds an available token matching the config and marks it as sold
+ * Generate and sell an R710 token on-the-fly (not from pool)
+ * Creates token directly on R710 device and saves to database
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -11,6 +11,11 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
+import { R710SessionManager } from '@/lib/r710-session-manager'
+import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
+import { decrypt } from '@/lib/encryption'
+
+const sessionManager = new R710SessionManager()
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,14 +53,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify token config exists
+    // Verify token config exists and get WLAN details
     const tokenConfig = await prisma.r710TokenConfigs.findUnique({
       where: { id: tokenConfigId },
       include: {
         r710_wlans: {
           select: {
             id: true,
-            ssid: true
+            ssid: true,
+            wlanId: true
           }
         }
       }
@@ -68,48 +74,97 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Get R710 integration for device connection
+    const r710Integration = await prisma.r710BusinessIntegrations.findFirst({
+      where: {
+        businessId,
+        isActive: true
+      },
+      include: {
+        device_registry: true
+      }
+    })
+
+    if (!r710Integration) {
+      return NextResponse.json(
+        { error: 'No active R710 integration found for this business' },
+        { status: 404 }
+      )
+    }
+
+    // Get device credentials from registry (already included)
+    const deviceRegistry = r710Integration.device_registry
+
+    if (!deviceRegistry) {
+      return NextResponse.json(
+        { error: 'R710 device not found in registry' },
+        { status: 404 }
+      )
+    }
+
     // Get or create R710 expense account for this business
     const r710ExpenseAccount = await getOrCreateR710ExpenseAccount(businessId, user.id)
 
-    // Use Prisma transaction to ensure atomic operation
-    const result = await prisma.$transaction(async (tx) => {
-      // Find an AVAILABLE token
-      const availableToken = await tx.r710Tokens.findFirst({
-        where: {
-          businessId,
-          tokenConfigId,
-          status: 'AVAILABLE',
-          r710_token_sales: {
-            none: {} // No sales records = not sold
-          }
-        },
-        include: {
-          r710_token_configs: {
-            select: {
-              name: true,
-              durationValue: true,
-              durationUnit: true,
-              deviceLimit: true
-            }
-          }
-        }
-      })
+    // Generate custom username for direct sale
+    const customUsername = generateDirectSaleUsername()
 
-      if (!availableToken) {
-        throw new Error('No available tokens for this configuration. Please generate tokens first.')
+    console.log(`[R710 Direct Sale] Generating token on-the-fly: ${customUsername}`)
+    console.log(`[R710 Direct Sale] WLAN: ${tokenConfig.r710_wlans?.wlanId}`)
+    console.log(`[R710 Direct Sale] Duration: ${tokenConfig.durationValue} ${tokenConfig.durationUnit}`)
+
+    // Decrypt the device password
+    const decryptedPassword = decrypt(deviceRegistry.encryptedAdminPassword)
+
+    // Generate token on R710 device using session manager
+    const tokenResult = await sessionManager.withSession(
+      {
+        ipAddress: deviceRegistry.ipAddress,
+        adminUsername: deviceRegistry.adminUsername,
+        adminPassword: decryptedPassword
+      },
+      async (r710Service) => {
+        return await r710Service.generateSingleGuestPass({
+          wlanName: tokenConfig.r710_wlans?.wlanId || '',
+          username: customUsername,
+          duration: tokenConfig.durationValue,
+          durationUnit: tokenConfig.durationUnit,
+          deviceLimit: tokenConfig.deviceLimit || 2
+        })
       }
+    )
 
-      // Mark token as SOLD
-      const updatedToken = await tx.r710Tokens.update({
-        where: { id: availableToken.id },
-        data: { status: 'SOLD' }
+    if (!tokenResult.success || !tokenResult.token) {
+      return NextResponse.json(
+        { error: 'Failed to generate token on R710 device', details: tokenResult.error },
+        { status: 500 }
+      )
+    }
+
+    console.log(`[R710 Direct Sale] Token generated successfully!`)
+    console.log(`[R710 Direct Sale] Username: ${tokenResult.token.username}`)
+    console.log(`[R710 Direct Sale] Password: ${tokenResult.token.password}`)
+
+    // Use Prisma transaction to save token and sale to database
+    const result = await prisma.$transaction(async (tx) => {
+      // Create token record in database
+      const newToken = await tx.r710Tokens.create({
+        data: {
+          businessId,
+          wlanId: tokenConfig.r710_wlans!.id,
+          tokenConfigId,
+          username: tokenResult.token!.username,
+          password: tokenResult.token!.password,
+          status: 'SOLD', // Immediately sold
+          expiresAtR710: tokenResult.token!.expiresAt,
+          createdAt: new Date()
+        }
       })
 
       // Create sale record
       const sale = await tx.r710TokenSales.create({
         data: {
           businessId,
-          tokenId: availableToken.id,
+          tokenId: newToken.id,
           expenseAccountId: r710ExpenseAccount.id,
           saleAmount: saleAmount || 0,
           paymentMethod: paymentMethod || 'CASH',
@@ -128,22 +183,51 @@ export async function POST(request: NextRequest) {
             sourceBusinessId: businessId,
             amount: saleAmount,
             depositDate: new Date(),
-            autoGeneratedNote: `R710 WiFi Token Sale - ${availableToken.r710_token_configs?.name || 'Token'}`,
+            autoGeneratedNote: `R710 WiFi Token Sale - ${tokenConfig.name} [${newToken.username}]`,
             transactionType: 'SALE',
             createdBy: user.id
           }
+        })
+
+        // Update expense account balance
+        const depositsSum = await tx.expenseAccountDeposits.aggregate({
+          where: { expenseAccountId: r710ExpenseAccount.id },
+          _sum: { amount: true },
+        })
+
+        const paymentsSum = await tx.expenseAccountPayments.aggregate({
+          where: {
+            expenseAccountId: r710ExpenseAccount.id,
+            status: 'SUBMITTED',
+          },
+          _sum: { amount: true },
+        })
+
+        const totalDeposits = Number(depositsSum._sum.amount || 0)
+        const totalPayments = Number(paymentsSum._sum.amount || 0)
+        const newBalance = totalDeposits - totalPayments
+
+        await tx.expenseAccounts.update({
+          where: { id: r710ExpenseAccount.id },
+          data: { balance: newBalance, updatedAt: new Date() },
         })
       }
 
       return {
         token: {
-          id: updatedToken.id,
-          username: updatedToken.username,
-          password: updatedToken.password,
-          tokenConfigId: updatedToken.tokenConfigId,
-          status: updatedToken.status,
-          createdAt: updatedToken.createdAt,
-          tokenConfig: availableToken.r710_token_configs
+          id: newToken.id,
+          username: newToken.username,
+          password: newToken.password,
+          tokenConfigId: newToken.tokenConfigId,
+          status: newToken.status,
+          expiresAt: newToken.expiresAtR710,
+          createdAt: newToken.createdAt,
+          tokenConfig: {
+            name: tokenConfig.name,
+            durationValue: tokenConfig.durationValue,
+            durationUnit: tokenConfig.durationUnit,
+            deviceLimit: tokenConfig.deviceLimit
+          }
         },
         sale: {
           id: sale.id,

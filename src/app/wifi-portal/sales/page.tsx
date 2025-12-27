@@ -9,8 +9,11 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { formatCurrency } from '@/lib/format-currency'
+import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
+import type { ReceiptData } from '@/types/printing'
+import { useToastContext } from '@/components/ui/toast'
+import { formatDateTime } from '@/lib/date-format'
 import { formatDataAmount, formatDuration } from '@/lib/printing/format-utils'
-import { TokenReceipt } from '@/components/wifi-portal/token-receipt'
 
 interface TokenConfig {
   id: string
@@ -77,6 +80,13 @@ export default function WiFiTokenSalesPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [amountReceived, setAmountReceived] = useState('')
 
+  // Thermal printing state
+  const [printerId, setPrinterId] = useState<string | null>(null)
+  const [isPrinting, setIsPrinting] = useState(false)
+  const [printCustomerCopy, setPrintCustomerCopy] = useState(false)
+  const [businessDetails, setBusinessDetails] = useState<any>(null)
+  const toast = useToastContext()
+
   const canSell = session?.user ? hasPermission(session.user, 'canSellWifiTokens') : false
 
   useEffect(() => {
@@ -104,10 +114,11 @@ export default function WiFiTokenSalesPage() {
       setLoading(true)
       setErrorMessage(null)
 
-      // Fetch token configs and integration
-      const [configsRes, integrationRes] = await Promise.all([
+      // Fetch token configs, integration, and business details
+      const [configsRes, integrationRes, businessRes] = await Promise.all([
         fetch('/api/wifi-portal/token-configs'),
-        fetch(`/api/wifi-portal/integration?businessId=${currentBusinessId}`)
+        fetch(`/api/wifi-portal/integration?businessId=${currentBusinessId}`),
+        fetch(`/api/business/${currentBusinessId}`)
       ])
 
       if (configsRes.ok) {
@@ -122,6 +133,34 @@ export default function WiFiTokenSalesPage() {
         }
       } else if (integrationRes.status === 404) {
         setErrorMessage('Please setup WiFi portal integration first')
+      }
+
+      if (businessRes.ok) {
+        const businessData = await businessRes.json()
+        console.log('📍 [WiFi Portal Sales] Business data fetched:', businessData)
+        setBusinessDetails(businessData.business)
+      } else {
+        console.error('❌ [WiFi Portal Sales] Failed to fetch business details:', businessRes.status)
+      }
+
+      // Fetch default printer
+      try {
+        const printersResponse = await fetch(`/api/printers?businessId=${currentBusinessId}`)
+        if (printersResponse.ok) {
+          const printersData = await printersResponse.json()
+          const defaultPrinter = printersData.printers?.find((p: any) => p.isDefault)
+          if (defaultPrinter) {
+            setPrinterId(defaultPrinter.id)
+            console.log('🖨️ [WiFi Portal Sales] Default printer found:', defaultPrinter.id)
+          } else if (printersData.printers?.length > 0) {
+            setPrinterId(printersData.printers[0].id)
+            console.log('🖨️ [WiFi Portal Sales] Using first available printer:', printersData.printers[0].id)
+          } else {
+            console.log('⚠️ [WiFi Portal Sales] No printers found for this business')
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ [WiFi Portal Sales] Error fetching printers:', error)
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -211,9 +250,99 @@ export default function WiFiTokenSalesPage() {
     }
   }
 
-  const handlePrintReceipt = () => {
-    // This will be implemented in Task 5.2
-    window.print()
+  // Calculate expiration date based on duration
+  const calculateExpirationDate = (durationMinutes: number): Date => {
+    const expirationDate = new Date()
+    expirationDate.setMinutes(expirationDate.getMinutes() + durationMinutes)
+    return expirationDate
+  }
+
+  // Handle receipt printing with unified thermal system
+  const handlePrintReceipt = async () => {
+    if (!generatedTokenData) {
+      toast.push('No token data available')
+      return
+    }
+
+    if (!businessDetails) {
+      toast.push('Business information not loaded')
+      return
+    }
+
+    if (!printerId) {
+      toast.push('No printer configured for this business')
+      return
+    }
+
+    try {
+      setIsPrinting(true)
+
+      // Calculate expiration date
+      const expiresAt = calculateExpirationDate(generatedTokenData.token.tokenConfig.durationMinutes)
+
+      // Build receipt data matching proper ReceiptData format
+      const receiptData: ReceiptData = {
+        receiptNumber: {
+          globalId: generatedTokenData.sale.id,
+          dailySequence: '001',
+          formattedNumber: `ESP32-${generatedTokenData.sale.id.substring(0, 8)}`
+        },
+        businessId: currentBusinessId || '',
+        businessType: currentBusiness?.businessType || 'restaurant',
+        businessName: businessDetails.name || 'Business',
+        businessAddress: businessDetails.address || currentBusiness?.umbrellaBusinessAddress || '',
+        businessPhone: businessDetails.phone || currentBusiness?.umbrellaBusinessPhone || '',
+        transactionId: generatedTokenData.sale.id,
+        transactionDate: new Date(generatedTokenData.sale.soldAt),
+        salespersonName: session?.user?.name || 'Staff',
+        salespersonId: session?.user?.id || '',
+        items: [{
+          name: generatedTokenData.token.tokenConfig.name,
+          sku: 'ESP32-TOKEN',
+          quantity: 1,
+          unitPrice: Number(generatedTokenData.sale.saleAmount),
+          totalPrice: Number(generatedTokenData.sale.saleAmount)
+        }],
+        subtotal: Number(generatedTokenData.sale.saleAmount),
+        tax: 0,
+        discount: 0,
+        total: Number(generatedTokenData.sale.saleAmount),
+        paymentMethod: generatedTokenData.sale.paymentMethod,
+        amountPaid: Number(generatedTokenData.sale.saleAmount),
+        changeDue: 0,
+        wifiTokens: [{
+          tokenCode: generatedTokenData.token.token,
+          packageName: generatedTokenData.token.tokenConfig.name,
+          duration: generatedTokenData.token.tokenConfig.durationMinutes,
+          bandwidthDownMb: generatedTokenData.token.tokenConfig.bandwidthDownMb,
+          bandwidthUpMb: generatedTokenData.token.tokenConfig.bandwidthUpMb,
+          ssid: generatedTokenData.ap_ssid || 'Guest WiFi',
+          success: true
+        }],
+        footerMessage: 'Enjoy your WiFi access!'
+      }
+
+      console.log('📄 [WiFi Portal Direct Sale] Printing receipt:', receiptData)
+
+      await ReceiptPrintManager.printReceipt(receiptData, (currentBusiness?.businessType as any) || 'restaurant', {
+        autoPrint: true,
+        printerId: printerId,
+        printCustomerCopy: printCustomerCopy,
+        onSuccess: (jobId, receiptType) => {
+          console.log(`✅ ${receiptType} copy printed:`, jobId)
+          toast.push(`${receiptType === 'business' ? 'Business' : 'Customer'} receipt sent to printer`)
+        },
+        onError: (error, receiptType) => {
+          console.error(`❌ Receipt print failed:`, error)
+          toast.push(`Error printing receipt: ${error.message}`)
+        }
+      })
+    } catch (error: any) {
+      console.error('❌ Error printing receipt:', error)
+      toast.push(`Failed to print receipt: ${error.message}`)
+    } finally {
+      setIsPrinting(false)
+    }
   }
 
   if (businessLoading || loading) {
@@ -258,29 +387,12 @@ export default function WiFiTokenSalesPage() {
       title="WiFi Token Sales"
       subtitle="Generate and sell WiFi access tokens to customers"
     >
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .print-receipt, .print-receipt * {
-            visibility: visible;
-          }
-          .print-receipt {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-          }
-        }
-      `}</style>
       <div className="max-w-6xl mx-auto">
         {/* Navigation Link */}
         <div className="mb-6">
           <Link
             href="/wifi-portal"
-            className="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+            className="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
           >
             <span className="mr-2">←</span>
             <span>Back to WiFi Portal</span>
@@ -289,62 +401,76 @@ export default function WiFiTokenSalesPage() {
 
         {/* Status Messages */}
         {errorMessage && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800">{errorMessage}</p>
+          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-red-800 dark:text-red-200">{errorMessage}</p>
           </div>
         )}
 
         {successMessage && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-green-800">{successMessage}</p>
+          <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <p className="text-green-800 dark:text-green-200">{successMessage}</p>
           </div>
         )}
 
         {/* Generated Token Display */}
         {generatedTokenData && (
           <>
-            <div className="mb-6 bg-blue-50 border-2 border-blue-500 rounded-lg p-6 no-print">
+            <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 dark:border-blue-600 rounded-lg p-6 no-print relative">
+              <button
+                onClick={() => setGeneratedTokenData(null)}
+                className="absolute top-4 right-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl font-bold leading-none"
+                title="Close"
+              >
+                ×
+              </button>
               <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-blue-900 mb-4">✅ Token Generated!</h3>
+                <div className="flex-1 pr-8">
+                  <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-4">✅ Token Generated!</h3>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-blue-700">Token:</span>
-                      <code className="px-3 py-1 bg-white border border-blue-300 rounded text-lg font-mono text-blue-900">
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Token:</span>
+                      <code className="px-3 py-1 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-600 rounded text-lg font-mono text-blue-900 dark:text-blue-100">
                         {generatedTokenData.token.token}
                       </code>
                     </div>
-                    <div className="text-sm text-blue-800">
+                    <div className="text-sm text-blue-800 dark:text-blue-200">
                       <strong>Package:</strong> {generatedTokenData.token.tokenConfig.name}
                     </div>
-                    <div className="text-sm text-blue-800">
+                    <div className="text-sm text-blue-800 dark:text-blue-200">
                       <strong>Duration:</strong> {formatDuration(generatedTokenData.token.tokenConfig.durationMinutes)}
                     </div>
-                    <div className="text-sm text-blue-800">
+                    <div className="text-sm text-blue-800 dark:text-blue-200">
                       <strong>Expires:</strong> {new Date(generatedTokenData.token.expiresAt).toLocaleString()}
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={handlePrintReceipt}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  🖨️ Print Receipt
-                </button>
-              </div>
-            </div>
+                <div className="flex flex-col gap-3 items-end mt-8">
+                  {/* Print Customer Copy Checkbox */}
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={printCustomerCopy}
+                      onChange={(e) => setPrintCustomerCopy(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 rounded"
+                    />
+                    <span className="text-sm text-blue-800 dark:text-blue-200">
+                      Print customer copy
+                    </span>
+                  </label>
 
-            {/* Receipt for Printing */}
-            <div className="hidden print:block print-receipt">
-              <TokenReceipt
-                token={generatedTokenData.token}
-                business={{
-                  name: currentBusiness?.businessName || '',
-                  type: currentBusiness?.businessType || ''
-                }}
-                sale={generatedTokenData.sale}
-                ap_ssid={generatedTokenData.ap_ssid}
-              />
+                  <button
+                    onClick={handlePrintReceipt}
+                    disabled={isPrinting}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isPrinting
+                        ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {isPrinting ? '⏳ Printing...' : '🖨️ Print Receipt'}
+                  </button>
+                </div>
+              </div>
             </div>
           </>
         )}
@@ -614,7 +740,7 @@ export default function WiFiTokenSalesPage() {
                   disabled={paymentMethod === 'CASH' && (!amountReceived || parseFloat(amountReceived) < parseFloat(customPrice || '0'))}
                   className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Generate Token
+                  Complete Sale
                 </button>
               </div>
             </div>

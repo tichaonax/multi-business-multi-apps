@@ -516,6 +516,128 @@ while ((match = tokenRegex.exec(responseText)) !== null) {
 
 ---
 
+### Alternative: Create Single Guest Pass (On-the-Fly Generation)
+
+For direct sales or individual token creation scenarios, tokens can be generated on-the-fly without using a pre-generated pool.
+
+**Use Cases:**
+- Direct sales at point-of-sale
+- Custom username requirements
+- Real-time token generation
+- One-off guest access provisioning
+
+#### Step 1: Get Session Key
+
+**Same as batch generation** - `POST /admin/mon_guestdata.jsp` (see above)
+
+#### Step 2: Create Single Guest Pass
+
+**Endpoint:** `POST /admin/mon_createguest.jsp`
+
+**Request (Form Data):**
+```
+POST /admin/mon_createguest.jsp HTTP/1.1
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+Accept: text/javascript, text/html, application/xml, text/xml, */*
+X-CSRF-Token: {csrf_token}
+X-Requested-With: XMLHttpRequest
+
+gentype=single&
+fullname={custom_username}&
+remarks=&
+duration=4&
+duration-unit=day_Days&
+key={session_key}&
+createToNum=&
+batchpass=&
+guest-wlan={wlan_name}&
+shared=true&
+reauth=false&
+reauth-time=&
+reauth-unit=min&
+email=&
+countrycode=&
+phonenumber=&
+limitnumber=2&
+_=
+```
+
+**CRITICAL DIFFERENCES from Batch Generation:**
+- `gentype=single` (not `multiple`)
+- `fullname={custom_username}` - This becomes the actual username/identifier
+- `createToNum=` - Empty (not used for single)
+- Response format is different
+
+**Response:**
+```json
+{
+  "result": "DONE",
+  "errorMsg": "~~",
+  "key": "IEGNT-DPXCC",
+  "fullname": "DS-251227-070010-D04",
+  "expiretime": "1767962222",
+  "wlan": "API-Test-2025-12-25T10-43-13",
+  "emailaddr": "null",
+  "phonenumber": "null",
+  "newnum": "null",
+  "totalnum": "null",
+  "duration": "4",
+  "duration_unit": "days",
+  "ids": ""
+}
+```
+
+**Response Attributes:**
+
+| Attribute | Description | Type | Notes |
+|-----------|-------------|------|-------|
+| `result` | Operation Result | string | `"DONE"` for single token (vs `"OK"` for batch) |
+| `errorMsg` | Error Message | string | `"~~"` indicates success |
+| `key` | Password | string | The generated token password |
+| `fullname` | Username | string | The username you provided in request |
+| `expiretime` | Expiration Time | timestamp | Unix timestamp (seconds) |
+| `wlan` | WLAN Name | string | Associated WLAN |
+| `duration` | Duration Value | string | Number value |
+| `duration_unit` | Duration Unit | string | `"hours"`, `"days"`, or `"weeks"` |
+
+**Extract Token:**
+```javascript
+if (response.data.result === 'DONE') {
+  const token = {
+    username: response.data.fullname,
+    password: response.data.key,
+    wlan: response.data.wlan,
+    expiresAt: new Date(parseInt(response.data.expiretime) * 1000),
+    duration: response.data.duration,
+    durationUnit: response.data.duration_unit
+  };
+}
+```
+
+**Custom Username Format Example:**
+
+For direct sales tracking, use a timestamp-based format:
+
+```javascript
+function generateDirectSaleUsername() {
+  const now = new Date();
+  const year = now.getFullYear().toString().slice(-2);
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const random = Math.floor(Math.random() * 4096).toString(16).toUpperCase().padStart(3, '0');
+
+  return `DS-${year}${month}${day}-${hours}${minutes}${seconds}-${random}`;
+  // Example: DS-251227-143052-A3F
+}
+```
+
+**Testing Script:** `scripts/ruckus-api-discovery/test-single-token-generation.js`
+
+---
+
 ## Query Guest Pass Tokens
 
 ### Query All Guest Tokens
@@ -1216,6 +1338,13 @@ Reference implementations available in:
 ---
 
 ## Version History
+
+- **v1.1** - Single token generation (2025-12-27)
+  - Added single guest pass creation (on-the-fly generation)
+  - Custom username format support for direct sales
+  - Documented `gentype=single` vs `gentype=multiple` differences
+  - Response format differences (`DONE` vs `OK`)
+  - Test script: `test-single-token-generation.js`
 
 - **v1.0** - Initial API specification (2025-12-25)
   - Complete WLAN management APIs (Create, Read, Update, Delete, Disable, Enable)

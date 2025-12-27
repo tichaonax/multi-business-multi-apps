@@ -24,7 +24,6 @@ interface R710TokenConfig {
   basePrice: number
   isActive: boolean
   displayOrder: number
-  availableCount: number // Number of AVAILABLE tokens for this config
 }
 
 interface GeneratedR710TokenSale {
@@ -123,31 +122,8 @@ export default function R710SalesPage() {
       const configsData = await configsResponse.json()
       const activeConfigs = configsData.configs || []
 
-      // For each config, count available tokens
-      const configsWithCounts = await Promise.all(
-        activeConfigs.map(async (config: any) => {
-          try {
-            const tokensResponse = await fetch(
-              `/api/r710/tokens?businessId=${currentBusinessId}&tokenConfigId=${config.id}&status=AVAILABLE`
-            )
-            if (tokensResponse.ok) {
-              const tokensData = await tokensResponse.json()
-              return {
-                ...config,
-                availableCount: tokensData.tokens?.length || 0
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching tokens for config ${config.id}:`, error)
-          }
-          return {
-            ...config,
-            availableCount: 0
-          }
-        })
-      )
-
-      setTokenConfigs(configsWithCounts)
+      // No need to count tokens - we generate on-the-fly
+      setTokenConfigs(activeConfigs)
 
       // Fetch expense account (optional, for display only)
       try {
@@ -190,11 +166,6 @@ export default function R710SalesPage() {
   }
 
   const handleSelectPackage = (config: R710TokenConfig) => {
-    if (config.availableCount === 0) {
-      setErrorMessage('No tokens available for this configuration. Please generate tokens first.')
-      return
-    }
-
     // Toggle selection: if already selected, deselect it
     if (selectedConfig?.id === config.id) {
       setSelectedConfig(null)
@@ -567,69 +538,6 @@ export default function R710SalesPage() {
                       <div className="flex items-center gap-2">
                         <span>📱</span>
                         <span>{config.deviceLimit} device{config.deviceLimit > 1 ? 's' : ''}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <div className={`flex items-center gap-2 ${config.availableCount > 0 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-red-600 dark:text-red-400 font-medium'}`}>
-                          <span>{config.availableCount > 0 ? '✓' : '⚠️'}</span>
-                          <span>{config.availableCount} token{config.availableCount !== 1 ? 's' : ''} available</span>
-                        </div>
-                        {config.availableCount < 5 && (
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation(); // Prevent card selection
-
-                              try {
-                                const response = await fetch('/api/r710/tokens', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    businessId: currentBusinessId,
-                                    tokenConfigId: config.id,
-                                    quantity: 5
-                                  })
-                                });
-
-                                const result = await response.json();
-
-                                if (response.ok) {
-                                  // Optimistic UI update
-                                  const tokensCreated = result.tokensCreated || result.tokensGenerated || 5;
-                                  setTokenConfigs(prev => prev.map(c => {
-                                    if (c.id === config.id) {
-                                      return {
-                                        ...c,
-                                        availableCount: c.availableCount + tokensCreated
-                                      };
-                                    }
-                                    return c;
-                                  }));
-
-                                  toast.push(`✅ Successfully created ${tokensCreated} ${config.name} token${tokensCreated !== 1 ? 's' : ''}!`, {
-                                    type: 'success',
-                                    duration: 5000
-                                  });
-
-                                  // Background refresh to confirm quantities
-                                  await fetchData();
-                                } else {
-                                  toast.push(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`, {
-                                    type: 'error',
-                                    duration: 0  // Require manual dismissal for errors
-                                  });
-                                }
-                              } catch (error) {
-                                console.error('Error creating tokens:', error);
-                                toast.push('❌ Error creating tokens. Please try again.', {
-                                  type: 'error',
-                                  duration: 0  // Require manual dismissal for errors
-                                });
-                              }
-                            }}
-                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors"
-                          >
-                            + Request 5 More
-                          </button>
-                        )}
                       </div>
                     </div>
 

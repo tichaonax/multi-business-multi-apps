@@ -233,17 +233,19 @@ export class RuckusR710ApiService {
         validateStatus: () => true
       });
 
-      // Check for successful login (302 redirect)
-      if (loginResponse.status === 302) {
-        const csrfToken = loginResponse.headers['http_x_csrf_token'];
-        this.csrfToken = csrfToken || null;
+      // Check for CSRF token (indicates successful login)
+      const csrfToken = loginResponse.headers['http_x_csrf_token'];
+
+      // Accept both 302 (redirect) and 200 (already authenticated or followed redirect)
+      if ((loginResponse.status === 302 || loginResponse.status === 200) && csrfToken) {
+        this.csrfToken = csrfToken;
         this.isAuthenticated = true;
 
-        console.log(`[R710] Login successful! CSRF Token: ${csrfToken ? 'received' : 'not received'}`);
+        console.log(`[R710] Login successful! Status: ${loginResponse.status}, CSRF Token: ${csrfToken}`);
         return { success: true, csrfToken: this.csrfToken };
       } else {
-        console.error(`[R710] Login failed. Status: ${loginResponse.status}`);
-        return { success: false, csrfToken: null, error: `Login failed with status ${loginResponse.status}` };
+        console.error(`[R710] Login failed. Status: ${loginResponse.status}, CSRF Token: ${csrfToken ? 'present' : 'missing'}`);
+        return { success: false, csrfToken: null, error: `Login failed - status ${loginResponse.status}, CSRF token ${csrfToken ? 'present' : 'missing'}` };
       }
     } catch (error) {
       const axiosError = error as AxiosError;
@@ -604,6 +606,103 @@ export class RuckusR710ApiService {
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('[R710] Token generation error:', axiosError.message);
+      return { success: false, error: axiosError.message };
+    }
+  }
+
+  /**
+   * Generate a single guest pass on-the-fly (direct sales)
+   *
+   * CRITICAL DIFFERENCES from batch generation:
+   * - gentype='single' instead of 'multiple'
+   * - fullname={custom_username} becomes the actual username
+   * - createToNum is empty
+   * - Response has result='DONE' instead of 'OK'
+   * - Password comes from 'key' field in response
+   */
+  async generateSingleGuestPass(config: {
+    wlanName: string;
+    username: string;
+    duration: number;
+    durationUnit: string;
+    deviceLimit?: number;
+  }): Promise<{ success: boolean; token?: { username: string; password: string; expiresAt: Date }; error?: string }> {
+    try {
+      if (!this.isAuthenticated) {
+        const loginResult = await this.login();
+        if (!loginResult.success) {
+          throw new Error('Authentication failed');
+        }
+        await this.initializeSession();
+      }
+
+      const sessionKey = await this.getSessionKey();
+      if (!sessionKey) {
+        throw new Error('Failed to get session key');
+      }
+
+      console.log(`[R710] Generating single guest pass for WLAN: ${config.wlanName}`);
+      console.log(`[R710] Username: ${config.username}`);
+      console.log(`[R710] Duration: ${config.duration} ${config.durationUnit}`);
+
+      // Build form data for SINGLE token creation
+      const formParams = new URLSearchParams();
+      formParams.append('gentype', 'single'); // ← CRITICAL: 'single' not 'multiple'
+      formParams.append('fullname', config.username); // ← This becomes the username
+      formParams.append('remarks', '');
+      formParams.append('duration', config.duration.toString());
+      formParams.append('duration-unit', `${config.durationUnit}_${config.durationUnit.charAt(0).toUpperCase() + config.durationUnit.slice(1)}s`);
+      formParams.append('key', sessionKey);
+      formParams.append('createToNum', ''); // ← Empty for single
+      formParams.append('batchpass', '');
+      formParams.append('guest-wlan', config.wlanName);
+      formParams.append('shared', 'true');
+      formParams.append('reauth', 'false');
+      formParams.append('reauth-time', '');
+      formParams.append('reauth-unit', 'min');
+      formParams.append('email', '');
+      formParams.append('countrycode', '');
+      formParams.append('phonenumber', '');
+      formParams.append('limitnumber', (config.deviceLimit || 2).toString());
+      formParams.append('_', '');
+
+      const response = await this.client.post('/admin/mon_createguest.jsp', formParams, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'Accept': 'text/javascript, text/html, application/xml, text/xml, */*',
+          'X-CSRF-Token': this.csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': `${this.baseUrl}/admin/dashboard.jsp`
+        }
+      });
+
+      if (response.status === 200 && response.data) {
+        const jsonData = response.data;
+
+        if (jsonData.result === 'DONE') { // ← Note: 'DONE' for single, 'OK' for batch
+          console.log(`[R710] Single guest pass created successfully!`);
+          console.log(`[R710] Username: ${jsonData.fullname}`);
+          console.log(`[R710] Password: ${jsonData.key}`);
+          console.log(`[R710] Expiration: ${new Date(parseInt(jsonData.expiretime) * 1000).toISOString()}`);
+
+          return {
+            success: true,
+            token: {
+              username: jsonData.fullname || config.username,
+              password: jsonData.key, // ← Password is in 'key' field
+              expiresAt: new Date(parseInt(jsonData.expiretime) * 1000)
+            }
+          };
+        } else {
+          console.error(`[R710] Single guest pass creation failed: ${jsonData.errorMsg}`);
+          return { success: false, error: jsonData.errorMsg || 'Token creation failed' };
+        }
+      }
+
+      return { success: false, error: 'Invalid response from R710' };
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('[R710] Single token generation error:', axiosError.message);
       return { success: false, error: axiosError.message };
     }
   }

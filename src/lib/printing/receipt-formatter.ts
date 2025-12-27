@@ -116,20 +116,24 @@ export function formatReceipt(data: ReceiptData, options?: FormattingOptions): s
     data.wifiTokens.forEach((token) => {
       receipt += `Package: ${token.packageName}` + LF;
       receipt += `Token: ${token.tokenCode}` + LF;
-      receipt += `Duration: ${formatDuration(token.duration)}` + LF;
 
-      // Show bandwidth for ESP32 tokens (convert to GB if needed)
-      if (token.bandwidthDownMb || token.bandwidthUpMb) {
-        const downBw = formatDataAmount(token.bandwidthDownMb || 0);
-        const upBw = formatDataAmount(token.bandwidthUpMb || 0);
-        receipt += `Bandwidth: ${downBw}/${upBw}` + LF;
-      }
+      // Only show duration and bandwidth on customer copy
+      if (data.receiptType === 'customer') {
+        receipt += `Duration: ${formatDuration(token.duration)}` + LF;
 
-      if (token.ssid) {
-        receipt += `Network: ${token.ssid}` + LF;
+        // Show bandwidth for ESP32 tokens (convert to GB if needed)
+        if (token.bandwidthDownMb || token.bandwidthUpMb) {
+          const downBw = formatDataAmount(token.bandwidthDownMb || 0);
+          const upBw = formatDataAmount(token.bandwidthUpMb || 0);
+          receipt += `Bandwidth: ${downBw}/${upBw}` + LF;
+        }
+
+        if (token.ssid) {
+          receipt += `Network: ${token.ssid}` + LF;
+        }
+        receipt += LF;
+        receipt += wrapText('To connect: Join WiFi network and enter this token when prompted.', width) + LF;
       }
-      receipt += LF;
-      receipt += wrapText('To connect: Join WiFi network and enter this token when prompted.', width) + LF;
       receipt += LF;
     });
   }

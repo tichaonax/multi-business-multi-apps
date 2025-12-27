@@ -129,19 +129,21 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                       {token.tokenCode}
                     </div>
                   </div>
-                  <div className="text-[10px] text-center">
-                    <div>Duration: {formatDuration(token.duration)}</div>
-                    {(token.bandwidthDownMb || token.bandwidthUpMb) && (
-                      <div className="mt-1">
-                        Data Limits: ↓{formatDataAmount(token.bandwidthDownMb || 0)} / ↑{formatDataAmount(token.bandwidthUpMb || 0)}
+                  {data.receiptType === 'customer' && (
+                    <div className="text-[10px] text-center">
+                      <div>Duration: {formatDuration(token.duration)}</div>
+                      {(token.bandwidthDownMb || token.bandwidthUpMb) && (
+                        <div className="mt-1">
+                          Data Limits: ↓{formatDataAmount(token.bandwidthDownMb || 0)} / ↑{formatDataAmount(token.bandwidthUpMb || 0)}
+                        </div>
+                      )}
+                      <div className="mt-1 text-gray-600 dark:text-gray-400">
+                        1. Connect to WiFi "{token.ssid || 'Guest WiFi'}"<br/>
+                        2. Visit http://192.168.4.1<br/>
+                        3. Enter code above to activate
                       </div>
-                    )}
-                    <div className="mt-1 text-gray-600 dark:text-gray-400">
-                      1. Connect to WiFi "{token.ssid || 'Guest WiFi'}"<br/>
-                      2. Visit http://192.168.4.1<br/>
-                      3. Enter code above to activate
                     </div>
-                  </div>
+                  )}
                 </>
               ) : (
                 <div className="text-[10px] text-red-600 dark:text-red-400 text-center">
