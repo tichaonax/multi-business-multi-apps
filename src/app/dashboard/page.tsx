@@ -16,6 +16,7 @@ import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-
 import HealthIndicator from '@/components/ui/health-indicator'
 import { LaybyAlertsWidget } from '@/components/laybys/layby-alerts-widget'
 import { LowBalanceAlert } from '@/components/expense-account/low-balance-alert'
+import { R710AlertsWidget } from '@/components/r710/r710-alerts-widget'
 import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
 import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -717,6 +718,11 @@ function DashboardContent() {
         {/* Layby Alerts Widget */}
         <div className="mt-6">
           <LaybyAlertsWidget businessId={businessId} />
+        </div>
+
+        {/* R710 WiFi Portal Alerts */}
+        <div className="mt-6">
+          <R710AlertsWidget />
         </div>
 
         {/* Business Balance & Loans Section */}

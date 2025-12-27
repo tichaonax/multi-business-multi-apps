@@ -455,9 +455,21 @@ export function Sidebar() {
                   </Link>
                 )}
                 {checkPermission(currentUser, 'canSellWifiTokens') && (
-                  <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
+                  <Link href="/restaurant/r710-tokens" className={getLinkClasses('/restaurant/r710-tokens')}>
                     <span className="text-lg">📡</span>
-                    <span>WiFi Tokens</span>
+                    <span>R710 WiFi Menu</span>
+                  </Link>
+                )}
+                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                  <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
+                    <span className="text-lg">🎫</span>
+                    <span>ESP32 WiFi Sales</span>
+                  </Link>
+                )}
+                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                  <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
+                    <span className="text-lg">💵</span>
+                    <span>R710 WiFi Sales</span>
                   </Link>
                 )}
               </>
@@ -484,11 +496,22 @@ export function Sidebar() {
                     <span>WiFi Menu Config</span>
                   </Link>
                 )}
-                {/* WiFi Tokens - Grocery adds WiFi packages as products in inventory */}
+                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                  <Link href="/grocery/r710-tokens" className={getLinkClasses('/grocery/r710-tokens')}>
+                    <span className="text-lg">📡</span>
+                    <span>R710 WiFi Menu</span>
+                  </Link>
+                )}
                 {checkPermission(currentUser, 'canSellWifiTokens') && (
                   <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
-                    <span className="text-lg">📡</span>
-                    <span>WiFi Tokens</span>
+                    <span className="text-lg">🎫</span>
+                    <span>ESP32 WiFi Sales</span>
+                  </Link>
+                )}
+                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                  <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
+                    <span className="text-lg">💵</span>
+                    <span>R710 WiFi Sales</span>
                   </Link>
                 )}
               </>
@@ -760,8 +783,73 @@ export function Sidebar() {
             className={getLinkClasses('/wifi-portal')}
           >
             <span className="text-lg">📡</span>
-            <span>WiFi Portal</span>
+            <span>ESP32 WiFi</span>
           </Link>
+        )}
+
+        {/* R710 Portal - Enterprise WiFi Management (Admin or businesses with R710 integration) */}
+        {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canManageWifiPortal')) && (
+          <>
+            <Link
+              href="/r710-portal"
+              className={getLinkClasses('/r710-portal')}
+            >
+              <span className="text-lg">📶</span>
+              <span className="flex items-center space-x-2">
+                <span>R710 WiFi</span>
+                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded">
+                  Enterprise
+                </span>
+              </span>
+            </Link>
+
+            {/* R710 Portal Sub-menu - Show when on R710 portal pages */}
+            {pathname.startsWith('/r710-portal') && (
+              <div className="ml-8 space-y-1 mt-1">
+                <Link
+                  href="/r710-portal/setup"
+                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                >
+                  <span>⚙️</span>
+                  <span>Integration Setup</span>
+                </Link>
+
+                {isSystemAdmin(currentUser) && (
+                  <Link
+                    href="/r710-portal/devices"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>🖥️</span>
+                    <span>Device Registry</span>
+                  </Link>
+                )}
+
+                <Link
+                  href="/r710-portal/token-configs"
+                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                >
+                  <span>🎫</span>
+                  <span>Token Packages</span>
+                </Link>
+
+                <Link
+                  href="/r710-portal/tokens"
+                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                >
+                  <span>📦</span>
+                  <span>Token Inventory</span>
+                </Link>
+
+                <Link
+                  href="/r710-portal/sales"
+                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                >
+                  <span>💵</span>
+                  <span>Sales History</span>
+                </Link>
+              </div>
+            )}
+          </>
         )}
 
         {/* Reports - Only for managers and admins, not drivers */}

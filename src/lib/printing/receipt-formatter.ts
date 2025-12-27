@@ -6,6 +6,7 @@
  */
 
 import type { ReceiptData } from '@/types/printing';
+import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils';
 
 export interface FormattingOptions {
   width: number; // Characters per line (32, 42, or 48)
@@ -101,11 +102,12 @@ export function formatReceipt(data: ReceiptData, options?: FormattingOptions): s
   }
 
   // WiFi Tokens (if any)
+  // ESP32 WiFi Tokens Section
   if (data.wifiTokens && data.wifiTokens.length > 0) {
     receipt += LF;
     receipt += line('=', width) + LF;
     receipt += ALIGN_CENTER;
-    receipt += centerText('WiFi Access Purchased', width) + LF;
+    receipt += centerText('ESP32 WiFi Access', width) + LF;
     receipt += ALIGN_LEFT;
     receipt += line('=', width) + LF;
 
@@ -113,11 +115,54 @@ export function formatReceipt(data: ReceiptData, options?: FormattingOptions): s
       receipt += `Package: ${token.packageName}` + LF;
       receipt += `Token: ${token.tokenCode}` + LF;
       receipt += `Duration: ${formatDuration(token.duration)}` + LF;
+
+      // Show bandwidth for ESP32 tokens (convert to GB if needed)
+      if (token.bandwidthDownMb || token.bandwidthUpMb) {
+        const downBw = formatDataAmount(token.bandwidthDownMb || 0);
+        const upBw = formatDataAmount(token.bandwidthUpMb || 0);
+        receipt += `Bandwidth: ${downBw}/${upBw}` + LF;
+      }
+
       if (token.ssid) {
         receipt += `Network: ${token.ssid}` + LF;
       }
       receipt += LF;
       receipt += wrapText('To connect: Join WiFi network and enter this token when prompted.', width) + LF;
+      receipt += LF;
+    });
+  }
+
+  // R710 WiFi Tokens Section
+  if (data.r710Tokens && data.r710Tokens.length > 0) {
+    receipt += LF;
+    receipt += line('=', width) + LF;
+    receipt += ALIGN_CENTER;
+    receipt += centerText('R710 WiFi Access', width) + LF;
+    receipt += ALIGN_LEFT;
+    receipt += line('=', width) + LF;
+
+    data.r710Tokens.forEach((token: any) => {
+      receipt += `Package: ${token.packageName}` + LF;
+      receipt += `Password: ${token.password}` + LF;
+
+      // Duration from durationValue + durationUnit (e.g., "4 Days")
+      if (token.durationValue && token.durationUnit) {
+        const durationUnit = token.durationUnit.split('_')[1] || '';
+        receipt += `Duration: ${token.durationValue} ${durationUnit}` + LF;
+      }
+
+      // Expiration date if available
+      if (token.expiresAt) {
+        const expiryDate = new Date(token.expiresAt);
+        receipt += `Expires: ${expiryDate.toLocaleDateString()} ${expiryDate.toLocaleTimeString()}` + LF;
+      }
+
+      // Network SSID/VLAN
+      if (token.ssid) {
+        receipt += `Network: ${token.ssid}` + LF;
+      }
+      receipt += LF;
+      receipt += wrapText('To connect: Join the WiFi network above and use password to log in.', width) + LF;
       receipt += LF;
     });
   }
@@ -228,13 +273,9 @@ function formatDate(date: Date): string {
 }
 
 /**
- * Format duration
+ * Note: formatDuration and formatDataAmount are imported from format-utils
+ * to avoid code duplication across the codebase
  */
-function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes} minutes`;
-  if (minutes < 1440) return `${Math.floor(minutes / 60)} hours`;
-  return `${Math.floor(minutes / 1440)} days`;
-}
 
 /**
  * Wrap text to fit within width

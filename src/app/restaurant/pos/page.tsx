@@ -16,6 +16,7 @@ import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 import type { ReceiptData } from '@/types/printing'
+import { formatDuration } from '@/lib/printing/format-utils'
 
 interface MenuItem {
   id: string
@@ -51,6 +52,7 @@ export default function RestaurantPOS() {
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [completedOrder, setCompletedOrder] = useState<any>(null)
+  const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [printerId, setPrinterId] = useState<string | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
@@ -80,7 +82,22 @@ export default function RestaurantPOS() {
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
 
-  const categories = ['all', 'combos', 'appetizers', 'mains', 'desserts', 'beverages', 'wifi-access']
+  const categories = ['all', 'combos', 'appetizers', 'mains', 'desserts', 'beverages', 'esp32-wifi', 'r710-wifi']
+
+  // Category label formatter
+  const getCategoryLabel = (category: string) => {
+    const labels: Record<string, string> = {
+      'all': 'All',
+      'combos': 'Combos',
+      'appetizers': 'Appetizers',
+      'mains': 'Mains',
+      'desserts': 'Desserts',
+      'beverages': 'Beverages',
+      'esp32-wifi': '📡 ESP32 WiFi',
+      'r710-wifi': '📶 R710 WiFi'
+    }
+    return labels[category] || category.charAt(0).toUpperCase() + category.slice(1)
+  }
 
   // Background ESP32 sync function (non-blocking, progressive updates)
   const syncESP32TokenQuantities = async (businessId: string, tokenConfigIds: string[]) => {
@@ -142,7 +159,7 @@ export default function RestaurantPOS() {
 
       // Update menu items state with accurate ESP32 counts
       setMenuItems(prev => prev.map(item => {
-        if ((item as any).wifiToken) {
+        if ((item as any).esp32Token) {
           const tokenConfigId = (item as any).tokenConfigId
           const esp32Count = esp32QuantityMap[tokenConfigId]
           if (esp32Count !== undefined) {
@@ -284,11 +301,12 @@ export default function RestaurantPOS() {
                 .filter((item: any) => item.isActive)
                 .map((item: any) => ({
                   id: `wifi-token-${item.id}`,
-                  name: `📶 ${item.tokenConfig.name}`,
+                  name: `📡 ${item.tokenConfig.name}`,
                   price: item.businessPrice,
-                  category: 'wifi-access',
+                  category: 'esp32-wifi',
                   isAvailable: true,
-                  wifiToken: true, // Flag to identify WiFi tokens
+                  wifiToken: true, // Flag to identify ESP32 WiFi tokens
+                  esp32Token: true, // Flag for ESP32 tokens
                   businessTokenMenuItemId: item.id,
                   tokenConfigId: item.tokenConfigId,
                   tokenConfig: item.tokenConfig,
@@ -305,8 +323,83 @@ export default function RestaurantPOS() {
             }
           }
 
-          // Merge regular items and WiFi tokens
-          setMenuItems([...items, ...wifiTokenItems])
+          // Add R710 WiFi tokens to menu if integration exists
+          let r710TokenItems: any[] = []
+          try {
+            const r710IntegrationResponse = await fetch(`/api/r710/integration?businessId=${currentBusinessId}`, {
+              credentials: 'include'
+            })
+
+            if (r710IntegrationResponse.ok) {
+              const r710Integration = await r710IntegrationResponse.json()
+
+              if (r710Integration.hasIntegration) {
+                // Fetch R710 token menu items for this business (only enabled items)
+                const r710MenuResponse = await fetch(`/api/business/${currentBusinessId}/r710-tokens`, {
+                  credentials: 'include'
+                })
+
+                if (r710MenuResponse.ok) {
+                  const r710MenuData = await r710MenuResponse.json()
+                  const r710MenuItems = r710MenuData.menuItems || []
+
+                  if (r710MenuItems.length > 0) {
+                    console.log('🔍 [R710 Menu Items]:', r710MenuItems)
+
+                    // For each menu item, count truly available tokens
+                    let r710AvailabilityMap: Record<string, number> = {}
+
+                    for (const menuItem of r710MenuItems) {
+                      try {
+                        // Fetch available tokens for this specific config
+                        const tokensResponse = await fetch(
+                          `/api/r710/tokens?businessId=${currentBusinessId}&tokenConfigId=${menuItem.tokenConfigId}&status=AVAILABLE`,
+                          { credentials: 'include' }
+                        )
+
+                        if (tokensResponse.ok) {
+                          const tokensData = await tokensResponse.json()
+                          // Filter out tokens that have been sold
+                          const availableTokens = (tokensData.tokens || []).filter((token: any) => {
+                            return token.status === 'AVAILABLE'
+                          })
+                          r710AvailabilityMap[menuItem.tokenConfigId] = availableTokens.length
+                        }
+                      } catch (err) {
+                        console.error(`Error fetching tokens for config ${menuItem.tokenConfigId}:`, err)
+                        r710AvailabilityMap[menuItem.tokenConfigId] = 0
+                      }
+                    }
+
+                    console.log('✅ R710 availability map:', r710AvailabilityMap)
+
+                    r710TokenItems = r710MenuItems
+                      .filter((item: any) => item.isActive)
+                      .map((item: any) => ({
+                        id: `r710-token-${item.id}`,
+                        name: `📶 ${item.tokenConfig.name}`,
+                        price: item.businessPrice, // Use business price, not base price
+                        category: 'r710-wifi',
+                        isAvailable: true,
+                        r710Token: true, // Flag to identify R710 WiFi tokens
+                        businessTokenMenuItemId: item.id,
+                        tokenConfigId: item.tokenConfigId,
+                        tokenConfig: item.tokenConfig,
+                        availableQuantity: r710AvailabilityMap[item.tokenConfigId] || 0,
+                      }))
+
+                    console.log(`✅ Loaded ${r710TokenItems.length} R710 token menu items`)
+                  }
+                }
+              }
+            }
+          } catch (r710Error) {
+            console.error('Error loading R710 tokens:', r710Error)
+            // Don't fail if R710 tokens fail to load
+          }
+
+          // Merge regular items, ESP32 WiFi tokens, and R710 WiFi tokens
+          setMenuItems([...items, ...wifiTokenItems, ...r710TokenItems])
         }
       }
     } catch (error) {
@@ -322,6 +415,26 @@ export default function RestaurantPOS() {
       router.push('/auth/signin')
     }
   }, [session, status, router])
+
+  // Fetch actual business details (with address/phone from businesses table)
+  useEffect(() => {
+    if (!currentBusinessId) return
+
+    const fetchBusinessDetails = async () => {
+      try {
+        const response = await fetch(`/api/business/${currentBusinessId}`)
+        if (response.ok) {
+          const data = await response.json()
+          console.log('📍 [Business Details] Fetched:', data)
+          setBusinessDetails(data)
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch business details:', error)
+      }
+    }
+
+    fetchBusinessDetails()
+  }, [currentBusinessId])
 
   // Reset submit ref on mount to prevent stuck state
   useEffect(() => {
@@ -437,7 +550,7 @@ export default function RestaurantPOS() {
       console.log('🖨️ Auto-printing receipt...')
 
       // Build receipt data from completed order
-      const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, currentBusiness)
+      const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, businessDetails || currentBusiness)
       handlePrintReceipt(receiptData)
     }
   }, [showReceiptModal, completedOrder])
@@ -446,11 +559,29 @@ export default function RestaurantPOS() {
   const buildReceiptDataFromCompletedOrder = (order: any, business: any): ReceiptData => {
     // Debug logging
     console.log('🧾 [Restaurant] Building receipt data')
-    console.log('🧾 [Restaurant] Business object:', business)
-    console.log('🧾 [Restaurant] businessName:', business?.businessName)
-    console.log('🧾 [Restaurant] address:', business?.address)
-    console.log('🧾 [Restaurant] phone:', business?.phone)
-    console.log('🧾 [Restaurant] wifiTokens count:', order.wifiTokens?.length || 0)
+    console.log('🧾 [Restaurant] Order object:', order)
+    console.log('🧾 [Restaurant] Business object FULL:', JSON.stringify(business, null, 2))
+    console.log('🧾 [Restaurant] business?.businessName:', business?.businessName)
+    console.log('🧾 [Restaurant] business?.businesses?.name:', business?.businesses?.name)
+    console.log('🧾 [Restaurant] business?.address:', business?.address)
+    console.log('🧾 [Restaurant] business?.businesses?.address:', business?.businesses?.address)
+    console.log('🧾 [Restaurant] business?.phone:', business?.phone)
+    console.log('🧾 [Restaurant] business?.businesses?.phone:', business?.businesses?.phone)
+    console.log('🧾 [Restaurant] ESP32 wifiTokens:', order.wifiTokens)
+    console.log('🧾 [Restaurant] R710 tokens:', order.r710Tokens)
+    console.log('🧾 [Restaurant] ESP32 wifiTokens count:', order.wifiTokens?.length || 0)
+    console.log('🧾 [Restaurant] R710 tokens count:', order.r710Tokens?.length || 0)
+
+    // Use businessInfo from order (API response), fallback to businessDetails or business (membership)
+    const actualBusiness = order.businessInfo || businessDetails || business
+    const businessName = actualBusiness?.name || actualBusiness?.businessName || 'Restaurant'
+    const businessAddress = actualBusiness?.address || '123 Main Street'
+    const businessPhone = actualBusiness?.phone || '(555) 123-4567'
+
+    console.log('🏢 [Receipt Builder] actualBusiness:', actualBusiness)
+    console.log('🏢 [Receipt Builder] Using business name:', businessName)
+    console.log('📍 [Receipt Builder] Using address:', businessAddress)
+    console.log('📞 [Receipt Builder] Using phone:', businessPhone)
 
     return {
       receiptNumber: {
@@ -460,11 +591,10 @@ export default function RestaurantPOS() {
       },
       businessId: currentBusinessId || '',
       businessType: 'restaurant',
-      // CRITICAL: business is BusinessMembership, use businessName/address/phone
-      businessName: business?.businessName || 'Restaurant',
-      businessAddress: business?.address || '123 Main Street',
-      businessPhone: business?.phone || '(555) 123-4567',
-      businessEmail: business?.settings?.email,
+      businessName: businessName,
+      businessAddress: businessAddress,
+      businessPhone: businessPhone,
+      businessEmail: actualBusiness?.email || actualBusiness?.settings?.email,
       transactionId: order.orderNumber,
       transactionDate: new Date(),
       salespersonName: session?.user?.name || 'Staff',
@@ -483,7 +613,7 @@ export default function RestaurantPOS() {
       amountPaid: order.amountReceived,
       changeDue: order.change,
       wifiTokens: order.wifiTokens?.map((token: any) => {
-        console.log('📶 [Restaurant] Mapping WiFi token:', token)
+        console.log('📡 [Restaurant] Mapping ESP32 WiFi token:', token)
         const mapped = {
           tokenCode: token.tokenCode,
           packageName: token.packageName || token.itemName || 'WiFi Access',
@@ -496,7 +626,22 @@ export default function RestaurantPOS() {
           success: token.success,
           error: token.error
         }
-        console.log('📶 [Restaurant] Mapped WiFi token:', mapped)
+        console.log('📡 [Restaurant] Mapped ESP32 token:', mapped)
+        return mapped
+      }),
+      r710Tokens: order.r710Tokens?.map((token: any) => {
+        console.log('📶 [Restaurant] Mapping R710 WiFi token:', token)
+        const mapped = {
+          password: token.password,
+          packageName: token.packageName || token.itemName || 'R710 WiFi Access',
+          durationValue: token.durationValue || 0,
+          durationUnit: token.durationUnit || 'hour_Hours',
+          expiresAt: token.expiresAt,
+          ssid: token.ssid,
+          success: token.success,
+          error: token.error
+        }
+        console.log('📶 [Restaurant] Mapped R710 token:', mapped)
         return mapped
       }),
       footerMessage: 'Thank you for dining with us!'
@@ -614,39 +759,46 @@ export default function RestaurantPOS() {
   const addToCart = async (item: MenuItem) => {
     console.log('➕ Adding to cart:', item.name, 'Price:', item.price)
 
-    // Check portal health before adding WiFi tokens
-    if ((item as any).wifiToken) {
+    const isESP32Token = (item as any).esp32Token === true
+    const isR710Token = (item as any).r710Token === true
+    const isAnyWiFiToken = isESP32Token || isR710Token
+
+    // Check portal health before adding ESP32 WiFi tokens
+    if (isESP32Token) {
       try {
         const healthResponse = await fetch(`/api/wifi-portal/integration/health?businessId=${currentBusinessId}`)
         const healthData = await healthResponse.json()
 
         if (!healthData.success || healthData.health?.status !== 'healthy') {
-          toast.push(`WiFi Portal is currently unavailable. Cannot add WiFi tokens to cart.`, {
+          toast.push(`ESP32 WiFi Portal is currently unavailable. Cannot add ESP32 WiFi tokens to cart.`, {
             type: 'warning',
             duration: 6000
           })
           return
         }
       } catch (error) {
-        toast.push(`Failed to verify WiFi Portal status. Please try again.`, {
+        toast.push(`Failed to verify ESP32 WiFi Portal status. Please try again.`, {
           type: 'warning',
           duration: 6000
         })
         return
       }
+    }
 
-      // Check available quantity for WiFi tokens
+    // Check available quantity for WiFi tokens (both ESP32 and R710)
+    if (isAnyWiFiToken) {
       const availableQuantity = (item as any).availableQuantity || 0
       const currentCartQuantity = cart.find(c => c.id === item.id)?.quantity || 0
 
       if (availableQuantity <= currentCartQuantity) {
+        const tokenType = isR710Token ? 'R710 WiFi' : 'ESP32 WiFi'
         if (availableQuantity === 0) {
-          toast.push(`No WiFi tokens available for "${item.name}".\n\nPlease create more tokens in the WiFi Portal.`, {
+          toast.push(`No ${tokenType} tokens available for "${item.name}".\n\nPlease create more tokens in the portal.`, {
             type: 'warning',
             duration: 7000
           })
         } else {
-          toast.push(`Only ${availableQuantity} WiFi token${availableQuantity === 1 ? '' : 's'} available for "${item.name}".`, {
+          toast.push(`Only ${availableQuantity} ${tokenType} token${availableQuantity === 1 ? '' : 's'} available for "${item.name}".`, {
             type: 'warning',
             duration: 6000
           })
@@ -656,7 +808,7 @@ export default function RestaurantPOS() {
     }
 
     // Prevent adding $0 items to cart (except WiFi tokens)
-    const isWiFiToken = (item as any).wifiToken === true
+    const isWiFiToken = isAnyWiFiToken
     if (!isWiFiToken && (!item.price || item.price <= 0)) {
       toast.push(`Cannot add "${item.name}" with $0 price to cart. Please set a price first or use discounts for price reductions.`, {
         type: 'warning',
@@ -806,6 +958,12 @@ export default function RestaurantPOS() {
       if (response.ok) {
         const result = await response.json()
 
+        // DEBUG: Log API response to see token data
+        console.log('🔍 [API Response - Full Result]:', result)
+        console.log('📡 [ESP32 Tokens]:', result.wifiTokens)
+        console.log('📶 [R710 Tokens]:', result.r710Tokens)
+        console.log('🏢 [Business Info]:', result.businessInfo)
+
         // Store completed order with all details for receipt
         const orderForReceipt = {
           orderNumber: result.orderNumber,
@@ -816,7 +974,9 @@ export default function RestaurantPOS() {
           amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
           change: paymentMethod === 'CASH' ? parseFloat(amountReceived) - total : 0,
           date: formatDateTime(new Date()),
-          wifiTokens: result.wifiTokens || [] // Capture WiFi tokens from API response
+          wifiTokens: result.wifiTokens || [], // ESP32 tokens
+          r710Tokens: result.r710Tokens || [],  // R710 tokens
+          businessInfo: result.businessInfo     // Business details (address, phone)
         }
 
         setCompletedOrder(orderForReceipt)
@@ -1006,7 +1166,7 @@ export default function RestaurantPOS() {
                       : 'card text-primary dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                  {getCategoryLabel(category)}
                 </button>
               ))}
             </div>
@@ -1020,12 +1180,11 @@ export default function RestaurantPOS() {
                 const stockQuantity = item.stockQuantity || 0
 
                 return (
-                  <button
+                  <div
                     key={item.id}
-                    onClick={() => addToCart(item)}
-                    disabled={isUnavailable}
+                    onClick={() => !isUnavailable && addToCart(item)}
                       className={`card bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-left min-h-[80px] touch-manipulation relative ${
-                      isUnavailable ? 'opacity-50 cursor-not-allowed' : ''
+                      isUnavailable ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                     }`}
                   >
                     {/* Unavailable indicator */}
@@ -1070,18 +1229,25 @@ export default function RestaurantPOS() {
                     </div>
 
                     {/* WiFi token quantity indicator */}
-                    {item.wifiToken && (
+                    {((item as any).esp32Token || (item as any).r710Token) && (() => {
+                      const remaining = (item.availableQuantity || 0) - cartQuantity;
+                      return (
                       <div className="mt-1 space-y-1">
-                        <span className={`text-xs font-medium block ${item.availableQuantity === 0 ? 'text-red-500' : item.availableQuantity < 5 ? 'text-orange-500' : 'text-green-600'}`}>
-                          📦 {item.availableQuantity || 0} available
+                        <span className={`text-xs font-medium block ${remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'}`}>
+                          📦 {remaining} available
                         </span>
                         {/* Request more tokens button - only show when quantity < 5 and user has permission */}
                         {item.availableQuantity < 5 && isAdmin && (
                           <button
                             onClick={async (e) => {
                               e.stopPropagation(); // Prevent adding to cart
+                              const isR710 = (item as any).r710Token === true;
                               try {
-                                const response = await fetch('/api/wifi-portal/tokens/bulk', {
+                                const apiUrl = isR710
+                                  ? '/api/r710/tokens'
+                                  : '/api/wifi-portal/tokens/bulk';
+
+                                const response = await fetch(apiUrl, {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
@@ -1095,7 +1261,7 @@ export default function RestaurantPOS() {
 
                                 if (response.ok) {
                                   // Optimistic UI update - immediately increment the quantity
-                                  const tokensCreated = result.tokensCreated || 0;
+                                  const tokensCreated = result.tokensCreated || result.tokensGenerated || 5;
                                   setMenuItems(prev => prev.map(menuItem => {
                                     if ((menuItem as any).tokenConfigId === item.tokenConfigId) {
                                       return {
@@ -1106,7 +1272,8 @@ export default function RestaurantPOS() {
                                     return menuItem;
                                   }));
 
-                                  toast.push(`✅ Successfully created ${tokensCreated} ${item.tokenConfig.name} token${tokensCreated !== 1 ? 's' : ''}!`, {
+                                  const tokenType = isR710 ? 'R710' : 'ESP32';
+                                  toast.push(`✅ Successfully created ${tokensCreated} ${tokenType} ${item.tokenConfig?.name || item.name} token${tokensCreated !== 1 ? 's' : ''}!`, {
                                     type: 'success',
                                     duration: 5000
                                   });
@@ -1133,7 +1300,8 @@ export default function RestaurantPOS() {
                           </button>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Preparation time */}
                     {item.preparationTime && item.preparationTime > 0 && (
@@ -1154,7 +1322,7 @@ export default function RestaurantPOS() {
                         </span>
                       </div>
                     )}
-                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -1326,6 +1494,13 @@ export default function RestaurantPOS() {
       )}
 
       {/* Completed Order Receipt Modal */}
+      {showReceiptModal && completedOrder && (() => {
+        // DEBUG: Log what's actually in completedOrder when modal opens
+        console.log('🔍 [Order Complete Modal] completedOrder:', completedOrder)
+        console.log('🔍 [Order Complete Modal] wifiTokens:', completedOrder.wifiTokens)
+        console.log('🔍 [Order Complete Modal] r710Tokens:', completedOrder.r710Tokens)
+        return null;
+      })()}
       {showReceiptModal && completedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -1400,12 +1575,59 @@ export default function RestaurantPOS() {
                           </div>
                           {token.duration && (
                             <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                              Duration: {token.duration} minutes
+                              Duration: {formatDuration(token.duration)}
                             </div>
                           )}
                           {token.instructions && (
                             <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
                               {token.instructions}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* R710 WiFi Tokens (if any) */}
+                {completedOrder.r710Tokens && completedOrder.r710Tokens.length > 0 && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border-2 border-blue-200 dark:border-blue-700">
+                    <h3 className="font-semibold mb-3 text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                      📶 R710 WiFi Access
+                    </h3>
+                    {completedOrder.r710Tokens.map((token: any, index: number) => {
+                      // Check if this token failed
+                      const isError = token.success === false || token.error
+
+                      if (isError) {
+                        // Show error state
+                        return (
+                          <div key={index} className="mb-3 last:mb-0 bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800">
+                            <div className="text-sm font-medium text-red-700 dark:text-red-300">
+                              {token.itemName || token.packageName || 'R710 WiFi Token'}
+                            </div>
+                            <div className="text-sm text-red-600 dark:text-red-400 mt-1">
+                              ⚠️ {token.error || 'Token unavailable'}
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      // Show success state
+                      return (
+                        <div key={index} className="mb-3 last:mb-0 bg-white dark:bg-gray-800 p-3 rounded">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">{token.packageName}</div>
+                          <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">
+                            {token.password}
+                          </div>
+                          {token.durationValue && token.durationUnit && (
+                            <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                              Duration: {token.durationValue} {token.durationUnit.split('_')[1] || token.durationUnit}
+                            </div>
+                          )}
+                          {token.ssid && (
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
+                              Connect to WiFi "{token.ssid}" and use password above to log in
                             </div>
                           )}
                         </div>
@@ -1437,8 +1659,8 @@ export default function RestaurantPOS() {
                 {/* Print Button */}
                 <button
                   onClick={() => {
-                    if (currentBusiness) {
-                      const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, currentBusiness)
+                    if (currentBusiness || businessDetails) {
+                      const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, businessDetails || currentBusiness)
                       handlePrintReceipt(receiptData)
                     }
                   }}

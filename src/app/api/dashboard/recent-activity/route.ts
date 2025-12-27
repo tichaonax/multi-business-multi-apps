@@ -617,6 +617,115 @@ export async function GET(req: NextRequest) {
       console.log('👤 User Activities: Skipped due to user/business filtering')
     }
 
+    // 9. R710 WiFi Portal Sync Events (Admin and Business Owners)
+    if (isSystemAdmin(user) || hasUserPermission(user, 'canManageWifiPortal')) {
+      try {
+        const whereClause: any = {
+          syncedAt: { gte: sevenDaysAgo }
+        }
+
+        // Apply business filtering based on target
+        if (targetBusinessIds && targetBusinessIds.length > 0) {
+          whereClause.businessId = { in: targetBusinessIds }
+        } else if (!isSystemAdmin(user)) {
+          // Show only sync logs for businesses user has access to
+          whereClause.businessId = { in: userBusinessIds }
+        }
+
+        console.log('📡 R710 Sync Activities Filter:')
+        console.log('  - whereClause:', JSON.stringify(whereClause, null, 2))
+        console.log('  - targetBusinessIds applied:', targetBusinessIds)
+
+        const recentSyncLogs = await safePrisma.findMany('r710SyncLogs', {
+          where: whereClause,
+          select: {
+            id: true,
+            businessId: true,
+            syncType: true,
+            status: true,
+            tokensChecked: true,
+            tokensUpdated: true,
+            errorMessage: true,
+            syncDurationMs: true,
+            syncedAt: true,
+            businesses: {
+              select: {
+                name: true,
+                type: true
+              }
+            },
+            device_registry: {
+              select: {
+                ipAddress: true
+              }
+            }
+          },
+          orderBy: {
+            syncedAt: 'desc'
+          },
+          take: 10
+        })
+
+        console.log(`📡 Found ${recentSyncLogs.length} R710 sync logs matching filter`)
+
+        recentSyncLogs.forEach(log => {
+          const hasBusinessAccess = isSystemAdmin(user) || userBusinessIds.includes(log.businessId)
+          const syncTypeLabel = log.syncType === 'TOKEN_SYNC' ? 'Token Sync' :
+                                log.syncType === 'AUTO_GENERATION' ? 'Auto-Generate' : 'Health Check'
+
+          let icon = '📡'
+          let statusLabel = log.status
+
+          if (log.status === 'ERROR') {
+            icon = '❌'
+            statusLabel = 'Failed'
+          } else if (log.status === 'DEVICE_UNREACHABLE') {
+            icon = '⚠️'
+            statusLabel = 'Device Unreachable'
+          } else {
+            icon = '✅'
+            statusLabel = 'Success'
+          }
+
+          activities.push({
+            id: `r710-sync-${log.id}`,
+            type: 'r710_sync',
+            title: `R710 ${syncTypeLabel}`,
+            description: log.status === 'SUCCESS'
+              ? `${log.tokensUpdated}/${log.tokensChecked} tokens updated`
+              : log.errorMessage || `${statusLabel}`,
+            createdAt: log.syncedAt,
+            module: `r710(${log.businesses.name})`,
+            icon,
+            status: log.status,
+            entityId: log.id,
+            link: hasBusinessAccess ? '/r710-portal' : null,
+            businessInfo: {
+              businessId: log.businessId,
+              businessName: log.businesses.name.length > 20
+                ? log.businesses.name.substring(0, 20) + '...'
+                : log.businesses.name,
+              businessType: log.businesses.type,
+              userHasAccess: hasBusinessAccess
+            },
+            metadata: {
+              deviceIp: log.device_registry.ipAddress,
+              syncType: log.syncType,
+              tokensChecked: log.tokensChecked,
+              tokensUpdated: log.tokensUpdated,
+              duration: log.syncDurationMs ? `${log.syncDurationMs}ms` : null
+            },
+            linkAccess: {
+              hasAccess: hasBusinessAccess,
+              reason: !hasBusinessAccess ? 'No access to this business' : undefined
+            }
+          })
+        })
+      } catch (error) {
+        console.warn('Failed to fetch R710 sync activities:', error)
+      }
+    }
+
     // Sort all activities by creation date (most recent first)
     activities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 

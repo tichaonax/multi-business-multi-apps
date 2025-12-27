@@ -199,10 +199,11 @@ function GroceryPOSContent() {
 
     setProductsLoading(true)
     try {
-      // Fetch both products and WiFi tokens
-      const [response, wifiTokensResponse] = await Promise.all([
+      // Fetch products, ESP32 WiFi tokens, and R710 WiFi tokens
+      const [response, wifiTokensResponse, r710IntegrationResponse] = await Promise.all([
         fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true`),
-        fetch(`/api/business/${currentBusinessId}/wifi-tokens`)
+        fetch(`/api/business/${currentBusinessId}/wifi-tokens`),
+        fetch(`/api/r710/integration?businessId=${currentBusinessId}`)
       ])
 
         if (response.ok) {
@@ -292,10 +293,10 @@ function GroceryPOSContent() {
                   .filter((item: any) => item.isActive)
                   .map((item: any) => ({
                     id: `wifi-token-${item.id}`,
-                    name: `📶 ${item.tokenConfig.name}`,
+                    name: `📡 ${item.tokenConfig.name}`,
                     barcode: `WIFI-${item.id}`,
                     pluCode: `WIFI-${item.id}`,
-                    category: 'WiFi Access',
+                    category: 'ESP32 WiFi',
                     unitType: 'each' as const,
                     price: item.businessPrice,
                     unit: 'each',
@@ -316,6 +317,80 @@ function GroceryPOSContent() {
                     console.error('❌ Background ESP32 sync failed:', err)
                   })
                 }
+              }
+            }
+
+            // Add R710 WiFi tokens if integration exists
+            if (r710IntegrationResponse.ok) {
+              try {
+                const r710Integration = await r710IntegrationResponse.json()
+
+                if (r710Integration.hasIntegration) {
+                  // Fetch R710 token menu items for this business
+                  const r710MenuResponse = await fetch(`/api/business/${currentBusinessId}/r710-tokens`)
+
+                  if (r710MenuResponse.ok) {
+                    const r710MenuData = await r710MenuResponse.json()
+                    const r710MenuItems = r710MenuData.menuItems || []
+
+                    if (r710MenuItems.length > 0) {
+                      console.log('🔍 [R710 Menu Items]:', r710MenuItems)
+
+                      // For each menu item, count truly available tokens
+                      let r710AvailabilityMap: Record<string, number> = {}
+
+                      for (const menuItem of r710MenuItems) {
+                        try {
+                          // Fetch available tokens for this specific config
+                          const tokensResponse = await fetch(
+                            `/api/r710/tokens?businessId=${currentBusinessId}&tokenConfigId=${menuItem.tokenConfigId}&status=AVAILABLE`
+                          )
+
+                          if (tokensResponse.ok) {
+                            const tokensData = await tokensResponse.json()
+                            // Filter out tokens that have been sold (have sale records)
+                            const availableTokens = (tokensData.tokens || []).filter((token: any) => {
+                              // Token must be AVAILABLE and not have any sales
+                              return token.status === 'AVAILABLE'
+                            })
+                            r710AvailabilityMap[menuItem.tokenConfigId] = availableTokens.length
+                          }
+                        } catch (err) {
+                          console.error(`Error fetching tokens for config ${menuItem.tokenConfigId}:`, err)
+                          r710AvailabilityMap[menuItem.tokenConfigId] = 0
+                        }
+                      }
+
+                      console.log('✅ R710 availability map:', r710AvailabilityMap)
+
+                      const r710TokenPOSItems = r710MenuItems
+                        .filter((item: any) => item.isActive)
+                        .map((item: any) => ({
+                          id: `r710-token-${item.id}`,
+                          name: `📶 ${item.tokenConfig.name}`,
+                          barcode: `R710-${item.id}`,
+                          pluCode: `R710-${item.id}`,
+                          category: 'R710 WiFi',
+                          unitType: 'each' as const,
+                          price: item.businessPrice,
+                          unit: 'each',
+                          taxable: false,
+                          weightRequired: false,
+                          r710Token: true, // Flag to identify R710 tokens
+                          businessTokenMenuItemId: item.id,
+                          tokenConfigId: item.tokenConfigId,
+                          tokenConfig: item.tokenConfig,
+                          availableQuantity: r710AvailabilityMap[item.tokenConfigId] || 0,
+                        }))
+
+                      posItems.push(...r710TokenPOSItems)
+                      console.log(`✅ Added ${r710TokenPOSItems.length} R710 token menu items`)
+                    }
+                  }
+                }
+              } catch (r710Error) {
+                console.error('❌ Error loading R710 tokens:', r710Error)
+                // Don't fail if R710 fails to load
               }
             }
 
@@ -390,7 +465,10 @@ function GroceryPOSContent() {
   const addToCart = async (product: POSItem, quantity = 1, weight?: number) => {
     // Prevent adding $0 items to cart (except WiFi tokens)
     const isWiFiToken = (product as any).wifiToken === true
-    if (!isWiFiToken && (!product.price || product.price <= 0)) {
+    const isR710Token = (product as any).r710Token === true
+    const isAnyToken = isWiFiToken || isR710Token
+
+    if (!isAnyToken && (!product.price || product.price <= 0)) {
       void customAlert({
         title: 'Invalid Price',
         description: `Cannot add "${product.name}" with $0 price to cart. Please set a price first or use discounts for price reductions.`
@@ -398,8 +476,8 @@ function GroceryPOSContent() {
       return
     }
 
-    // Check portal health before adding WiFi tokens
-    if ((product as any).wifiToken) {
+    // Check portal health and availability before adding WiFi tokens (ESP32)
+    if (isWiFiToken) {
       // Check available quantity
       const availableQuantity = (product as any).availableQuantity || 0
       const currentCartQuantity = cart.find(c => c.id === product.id)?.quantity || 0
@@ -429,6 +507,27 @@ function GroceryPOSContent() {
         }
       } catch (error) {
         void customAlert({ title: 'Connection Error', description: 'Failed to verify WiFi Portal status. Please try again.' })
+        return
+      }
+    }
+
+    // Check availability before adding R710 tokens
+    if (isR710Token) {
+      const availableQuantity = (product as any).availableQuantity || 0
+      const currentCartQuantity = cart.find(c => c.id === product.id)?.quantity || 0
+
+      if (availableQuantity <= currentCartQuantity) {
+        if (availableQuantity === 0) {
+          void customAlert({
+            title: '⚠️ No R710 WiFi Tokens Available',
+            description: `No R710 WiFi tokens available for "${product.name}". Please create more tokens in the R710 Portal.`
+          })
+        } else {
+          void customAlert({
+            title: '⚠️ Insufficient R710 Tokens',
+            description: `Only ${availableQuantity} R710 WiFi token(s) available for "${product.name}". You already have ${currentCartQuantity} in cart.`
+          })
+        }
         return
       }
     }
@@ -629,7 +728,7 @@ function GroceryPOSContent() {
         },
         notes: selectedCustomer ? `Customer: ${selectedCustomer.name}` : customer ? `Loyalty member: ${customer.loyaltyNumber}` : 'Walk-in customer',
         items: cart.map(item => ({
-          productVariantId: item.wifiToken ? null : item.id, // WiFi tokens don't have variants
+          productVariantId: (item.wifiToken || item.r710Token) ? null : item.id, // WiFi/R710 tokens don't have variants
           quantity: item.quantity,
           unitPrice: item.price,
           discountAmount: item.discountAmount || 0,
@@ -641,13 +740,15 @@ function GroceryPOSContent() {
             pluCode: item.pluCode,
             organicCertified: item.organicCertified,
             snapEligible: item.snapEligible,
-            // WiFi token specific attributes
+            // WiFi token specific attributes (ESP32)
             wifiToken: item.wifiToken || false,
+            // R710 token specific attributes
+            r710Token: item.r710Token || false,
             tokenConfigId: item.tokenConfigId,
             businessTokenMenuItemId: item.businessTokenMenuItemId,
             productName: item.name,
             packageName: item.tokenConfig?.name,
-            duration: item.tokenConfig?.durationMinutes
+            duration: item.tokenConfig?.durationMinutes || item.tokenConfig?.durationValue
           }
         }))
       }
@@ -719,7 +820,8 @@ function GroceryPOSContent() {
           ),
           businessId: currentBusinessId || '',
           businessType: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery',
-          wifiTokens: result.data.wifiTokens || [] // Include WiFi tokens from API response
+          wifiTokens: result.data.wifiTokens || [], // Include ESP32 WiFi tokens from API response
+          r710Tokens: result.data.r710Tokens || [] // Include R710 WiFi tokens from API response
         }
 
         // Show receipt preview modal (or auto-print if enabled)
@@ -1077,13 +1179,13 @@ function GroceryPOSContent() {
                 </div>
               ) : (
                 products.slice(0, 4).map((product) => (
-                  <button
+                  <div
                     key={product.id}
                     onClick={() => product.weightRequired ?
                       (currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })) :
                       addToCart(product)
                     }
-                    className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm text-primary min-w-0"
+                    className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm text-primary min-w-0 cursor-pointer"
                   >
                     <div className="font-medium">{product.name}</div>
                     <div className="text-secondary">
@@ -1161,7 +1263,7 @@ function GroceryPOSContent() {
                         )}
                       </div>
                     )}
-                  </button>
+                  </div>
                 ))
               )}
             </div>

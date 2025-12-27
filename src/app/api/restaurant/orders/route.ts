@@ -454,7 +454,8 @@ export async function POST(req: NextRequest) {
 
     // Process each order item and update inventory
     const inventoryUpdates = []
-    const generatedWifiTokens = []
+    const generatedESP32Tokens = []
+    const generatedR710Tokens = []
 
     // Get WiFi portal integration for expense account (needed for WiFi token sales)
     let wifiExpenseAccountId: string | null = null
@@ -477,7 +478,7 @@ export async function POST(req: NextRequest) {
           // Ensure we have expense account for WiFi token sales
           if (!wifiExpenseAccountId) {
             console.error('WiFi portal integration not configured - missing expense account');
-            generatedWifiTokens.push({
+            generatedESP32Tokens.push({
               itemName: item.name,
               tokenCode: '', // No token generated
               packageName: item.name,
@@ -620,9 +621,9 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Add sold tokens to response
+          // Add sold ESP32 tokens to response
           for (const token of tokensToSell) {
-            generatedWifiTokens.push({
+            generatedESP32Tokens.push({
               itemName: item.name,
               tokenCode: token.token,
               packageName: token.token_configurations?.name || item.name,
@@ -688,6 +689,134 @@ export async function POST(req: NextRequest) {
             success: false,
             rollback: true,
             wifiTokenError: errorMessage
+          }, { status: 400 });
+        }
+      } else if ((item as any).r710Token === true) {
+        // Handle R710 WiFi token sales
+        try {
+          // Verify R710 integration exists and is active
+          const r710Integration = await prisma.r710BusinessIntegrations.findFirst({
+            where: {
+              businessId: businessId,
+              isActive: true
+            }
+          });
+
+          if (!r710Integration) {
+            throw new Error('R710 integration not configured or not active');
+          }
+
+          // Ensure we have expense account for R710 token sales
+          if (!wifiExpenseAccountId) {
+            throw new Error('WiFi expense account not configured. Please configure WiFi portal integration.');
+          }
+
+          // Find available R710 tokens for this config
+          const availableTokens = await prisma.r710Tokens.findMany({
+            where: {
+              businessId: businessId,
+              tokenConfigId: item.tokenConfigId,
+              status: 'AVAILABLE',
+              r710_token_sales: { none: {} } // Not sold yet
+            },
+            include: {
+              r710_token_configs: {
+                select: {
+                  name: true,
+                  durationValue: true,
+                  durationUnit: true,
+                  deviceLimit: true
+                }
+              },
+              r710_wlans: {
+                select: {
+                  ssid: true
+                }
+              }
+            },
+            take: itemQuantity,
+            orderBy: { createdAt: 'asc' }
+          });
+
+          if (availableTokens.length < itemQuantity) {
+            throw new Error(`Insufficient R710 tokens: Need ${itemQuantity}, found ${availableTokens.length} available`);
+          }
+
+          const tokensToSell = availableTokens.slice(0, itemQuantity);
+
+          // Create sales records and mark tokens as SOLD
+          for (const token of tokensToSell) {
+            // Mark token as SOLD
+            await prisma.r710Tokens.update({
+              where: { id: token.id },
+              data: { status: 'SOLD' }
+            });
+
+            // Create sale record
+            await prisma.r710TokenSales.create({
+              data: {
+                businessId: businessId,
+                tokenId: token.id,
+                expenseAccountId: wifiExpenseAccountId,
+                saleAmount: itemPrice,
+                paymentMethod: paymentMethod,
+                saleChannel: 'POS',
+                soldBy: session.user.id,
+                soldAt: new Date()
+              }
+            });
+
+            // Add to generatedR710Tokens for receipt (R710 format)
+            generatedR710Tokens.push({
+              itemName: item.name,
+              password: token.password, // R710 password/passcode only
+              packageName: token.r710_token_configs?.name || item.name,
+              durationValue: token.r710_token_configs?.durationValue || 0,
+              durationUnit: token.r710_token_configs?.durationUnit || 'hour_Hours',
+              expiresAt: token.expiresAtR710, // R710 expiration date
+              ssid: token.r710_wlans?.ssid, // VLAN name to connect to
+              success: true
+            });
+          }
+
+          // Create order item for R710 token
+          await prisma.businessOrderItems.create({
+            data: {
+              orderId: newOrder.id,
+              productVariantId: null,
+              quantity: itemQuantity,
+              unitPrice: itemPrice,
+              discountAmount: 0,
+              totalPrice: itemTotal,
+              attributes: {
+                productName: item.name,
+                category: item.category || 'r710-wifi',
+                r710Token: true,
+                tokenConfigId: item.tokenConfigId,
+                businessTokenMenuItemId: item.businessTokenMenuItemId
+              }
+            }
+          });
+
+          // Skip inventory processing for R710 tokens
+          continue;
+        } catch (r710Error) {
+          console.error('❌ R710 token processing error - rolling back order:', r710Error);
+
+          // Rollback the order
+          await prisma.businessOrderItems.deleteMany({
+            where: { orderId: newOrder.id }
+          });
+          await prisma.businessOrders.delete({
+            where: { id: newOrder.id }
+          });
+
+          const errorMessage = r710Error instanceof Error ? r710Error.message : 'Unknown error';
+          return NextResponse.json({
+            error: `R710 Token Error: ${errorMessage}\n\nTransaction cancelled. Please try again or contact support.`,
+            success: false,
+            rollback: true,
+            r710TokenError: errorMessage
           }, { status: 400 });
         }
       }
@@ -814,11 +943,44 @@ export async function POST(req: NextRequest) {
       console.warn('Audit log failed for order creation', auditErr)
     }
 
+    // Fetch business details (address, phone) to include in response for receipt
+    let businessInfo = null
+    try {
+      const business = await prisma.businesses.findUnique({
+        where: { id: businessId },
+        select: {
+          name: true,
+          address: true,
+          phone: true,
+          email: true,
+          umbrellaBusinessId: true,
+          umbrellaBusinessName: true,
+          umbrellaBusinessAddress: true,
+          umbrellaBusinessPhone: true,
+          umbrellaBusinessEmail: true
+        }
+      })
+      if (business) {
+        // Use business address/phone if available, otherwise use umbrella business fallback
+        businessInfo = {
+          name: business.name,
+          address: business.address || business.umbrellaBusinessAddress || '123 Main Street',
+          phone: business.phone || business.umbrellaBusinessPhone || '(555) 123-4567',
+          email: business.email || business.umbrellaBusinessEmail
+        }
+        console.log('📍 [Order API] Business info:', businessInfo)
+      }
+    } catch (err) {
+      console.warn('Failed to fetch business info for receipt:', err)
+    }
+
     const responsePayload = {
       ...newOrder,
       inventoryUpdates,
-      wifiTokens: generatedWifiTokens,
-      message: inventoryUpdates.some(u => !u.success) || generatedWifiTokens.some(t => !t.success)
+      wifiTokens: generatedESP32Tokens,
+      r710Tokens: generatedR710Tokens,
+      businessInfo, // Include business details for receipt
+      message: inventoryUpdates.some(u => !u.success) || generatedESP32Tokens.some(t => !t.success) || generatedR710Tokens.some(t => !t.success)
         ? 'Order created with some warnings'
         : 'Order created successfully'
     }

@@ -358,9 +358,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Separate WiFi tokens from regular products
+    // Separate WiFi tokens (ESP32), R710 tokens, and regular products
     const wifiTokenItems = items.filter(item => item.attributes?.wifiToken === true)
-    const regularItems = items.filter(item => item.attributes?.wifiToken !== true)
+    const r710TokenItems = items.filter(item => item.attributes?.r710Token === true)
+    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true)
 
     // Verify all product variants exist and get their details (for regular items only)
     const variantIds = regularItems.map(item => item.productVariantId).filter(Boolean) as string[]
@@ -673,10 +674,125 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Process R710 token items
+      const generatedR710Tokens = []
+
+      if (r710TokenItems.length > 0) {
+        // Fetch R710 integration
+        const r710Integration = await tx.r710Integrations.findFirst({
+          where: { businessId: orderData.businessId, isActive: true }
+        })
+
+        if (r710Integration) {
+          for (const item of r710TokenItems) {
+            const itemPrice = item.unitPrice
+            const itemQuantity = item.quantity
+            const tokenConfigId = item.attributes?.tokenConfigId
+
+            if (!tokenConfigId) {
+              console.error('Missing tokenConfigId in R710 token item attributes')
+              generatedR710Tokens.push({
+                itemName: item.attributes?.productName || 'R710 WiFi Token',
+                success: false,
+                error: 'Missing token configuration ID'
+              })
+              continue
+            }
+
+            // Get R710 token configuration
+            const r710Config = await tx.r710TokenConfigs.findUnique({
+              where: { id: tokenConfigId }
+            })
+
+            if (!r710Config) {
+              generatedR710Tokens.push({
+                itemName: item.attributes?.productName || 'R710 WiFi Token',
+                success: false,
+                error: 'Token configuration not found'
+              })
+              continue
+            }
+
+            // Find available R710 tokens (AVAILABLE status, not yet sold)
+            for (let i = 0; i < itemQuantity; i++) {
+              try {
+                const availableR710Token = await tx.r710Tokens.findFirst({
+                  where: {
+                    businessId: orderData.businessId,
+                    tokenConfigId: tokenConfigId,
+                    status: 'AVAILABLE',
+                    r710_token_sales: {
+                      none: {} // No sales records = not sold
+                    }
+                  }
+                })
+
+                if (!availableR710Token) {
+                  throw new Error('No available R710 tokens. Please create more tokens in R710 Portal.')
+                }
+
+                // Mark token as USED and create sale record
+                await tx.r710Tokens.update({
+                  where: { id: availableR710Token.id },
+                  data: { status: 'USED' }
+                })
+
+                // Create R710 sale record
+                await tx.r710TokenSales.create({
+                  data: {
+                    businessId: orderData.businessId,
+                    r710TokenId: availableR710Token.id,
+                    saleAmount: itemPrice,
+                    paymentMethod: orderData.paymentMethod || 'CASH',
+                    saleChannel: 'POS',
+                    soldBy: user.id,
+                    soldAt: new Date()
+                  }
+                })
+
+                // Add to response
+                generatedR710Tokens.push({
+                  itemName: item.attributes?.productName || 'R710 WiFi Token',
+                  username: availableR710Token.username,
+                  password: availableR710Token.password,
+                  packageName: r710Config.name,
+                  durationValue: r710Config.durationValue,
+                  durationUnit: r710Config.durationUnit,
+                  deviceLimit: r710Config.deviceLimit,
+                  success: true
+                })
+
+                console.log(`✅ R710 token sold: ${availableR710Token.username}`)
+              } catch (tokenError) {
+                console.error('Error processing R710 token:', tokenError)
+                generatedR710Tokens.push({
+                  itemName: item.attributes?.productName || 'R710 WiFi Token',
+                  success: false,
+                  error: tokenError instanceof Error ? tokenError.message : 'Failed to process R710 token'
+                })
+              }
+            }
+          }
+        } else {
+          console.error('No R710 integration configured for business:', orderData.businessId)
+          // Add error tokens for all requested quantities
+          for (const item of r710TokenItems) {
+            for (let i = 0; i < item.quantity; i++) {
+              generatedR710Tokens.push({
+                itemName: item.attributes?.productName || 'R710 WiFi Token',
+                success: false,
+                error: 'R710 integration not configured for this business'
+              })
+            }
+          }
+        }
+      }
+
       return {
         ...order,
         items: createdItems,
-        wifiTokens: generatedWifiTokens
+        wifiTokens: generatedWifiTokens,
+        r710Tokens: generatedR710Tokens
       }
     })
 

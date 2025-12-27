@@ -106,6 +106,28 @@ export interface WifiTokenInfo {
   error?: string;
 }
 
+export interface R710TokenInfo {
+  // Token identification
+  username: string; // R710 username for authentication
+  password: string; // R710 password for authentication
+  packageName: string; // Display name of the WiFi package
+  itemName?: string; // Item name from order (if different from packageName)
+
+  // Token configuration
+  durationValue: number; // Duration value (e.g., 1, 2, 24)
+  durationUnit: string; // Duration unit (e.g., "hour_Hours", "day_Days")
+  deviceLimit: number; // Maximum concurrent devices
+
+  // Network info
+  ssid?: string; // WiFi network name (if available)
+  portalUrl?: string; // URL to access the R710 portal
+  instructions?: string; // How to connect
+
+  // Sale status (for order responses)
+  success?: boolean;
+  error?: string;
+}
+
 export interface ReceiptSequence {
   id: string;
   businessId: string;
@@ -157,6 +179,7 @@ export interface ReceiptData {
 
   // WiFi tokens (if any were purchased)
   wifiTokens?: WifiTokenInfo[];
+  r710Tokens?: R710TokenInfo[];
 
   // Business-specific data (varies by type)
   businessSpecificData?: RestaurantReceiptData | ClothingReceiptData | GroceryReceiptData |

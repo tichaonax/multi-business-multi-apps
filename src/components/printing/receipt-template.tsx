@@ -3,6 +3,7 @@
 import React from 'react'
 
 import type { ReceiptData } from '@/types/printing'
+import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 
 interface ReceiptTemplateProps {
   data: ReceiptData
@@ -112,7 +113,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
         )}
       </div>
 
-      {/* WiFi Tokens Section */}
+      {/* WiFi Tokens Section (ESP32) */}
       {data.wifiTokens && data.wifiTokens.length > 0 && (
         <div className="border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2.5 mt-4 mb-4">
           <div className="text-center font-bold text-xs mb-2">📶 WiFi ACCESS TOKENS</div>
@@ -127,10 +128,10 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                     </div>
                   </div>
                   <div className="text-[10px] text-center">
-                    <div>Duration: {Math.floor(token.duration / 60)}h {token.duration % 60}m</div>
+                    <div>Duration: {formatDuration(token.duration)}</div>
                     {(token.bandwidthDownMb || token.bandwidthUpMb) && (
                       <div className="mt-1">
-                        Data Limits: ↓{token.bandwidthDownMb || 0}MB / ↑{token.bandwidthUpMb || 0}MB
+                        Data Limits: ↓{formatDataAmount(token.bandwidthDownMb || 0)} / ↑{formatDataAmount(token.bandwidthUpMb || 0)}
                       </div>
                     )}
                     <div className="mt-1 text-gray-600 dark:text-gray-400">
@@ -138,6 +139,41 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                       2. Visit http://192.168.4.1<br/>
                       3. Enter code above to activate
                     </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-[10px] text-red-600 dark:text-red-400 text-center">
+                  ❌ Token generation failed: {token.error || 'Unknown error'}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* R710 WiFi Tokens Section */}
+      {data.r710Tokens && data.r710Tokens.length > 0 && (
+        <div className="border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2.5 mt-4 mb-4">
+          <div className="text-center font-bold text-xs mb-2">📶 R710 WiFi ACCESS</div>
+          {data.r710Tokens.map((token, index) => (
+            <div key={index} className="mb-3 p-2 border border-gray-300 dark:border-gray-600 rounded">
+              {token.success ? (
+                <>
+                  <div className="text-[11px] font-bold mb-1">{token.packageName}</div>
+                  <div className="text-center my-2">
+                    <div className="text-[10px] font-bold mb-1">Password:</div>
+                    <div className="p-1.5 font-mono text-sm font-bold bg-gray-100 dark:bg-gray-700 rounded">
+                      {token.password}
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-center">
+                    <div>Duration: {token.durationValue} {token.durationUnit.split('_')[1]?.toLowerCase() || token.durationUnit}</div>
+                    {token.ssid && (
+                      <div className="mt-2 text-gray-600 dark:text-gray-400">
+                        1. Connect to WiFi "{token.ssid}"<br/>
+                        2. Use password above to log in
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (

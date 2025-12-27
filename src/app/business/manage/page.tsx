@@ -233,7 +233,7 @@ function BusinessManagePageContent() {
                 <div>
                   <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300">System Administrator</h3>
                   <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                    {inactiveBusinessCount > 0 
+                    {inactiveBusinessCount > 0
                       ? `Access administrative functions (${inactiveBusinessCount} inactive business${inactiveBusinessCount !== 1 ? 'es' : ''})`
                       : 'Access administrative functions (no inactive businesses)'}
                   </p>
@@ -249,6 +249,37 @@ function BusinessManagePageContent() {
                 >
                   🗃️ View Inactive Businesses
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* WiFi Integration */}
+          {(currentBusiness?.businessType === 'restaurant' || currentBusiness?.businessType === 'grocery') && currentBusiness?.isActive && (
+            <div className="card p-4 mb-6 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-indigo-900 dark:text-indigo-300 mb-1">
+                    📶 WiFi Integration
+                  </h3>
+                  <p className="text-xs text-indigo-700 dark:text-indigo-400 mb-3">
+                    Sell WiFi tokens to customers through your POS system
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => router.push('/wifi-portal/setup')}
+                      className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                    >
+                      📡 ESP32 WiFi Setup
+                    </button>
+                    <button
+                      onClick={() => router.push('/r710-portal/setup')}
+                      className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      📶 R710 WiFi Setup
+                      <span className="text-[10px] bg-indigo-500 px-1 py-0.5 rounded">Enterprise</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

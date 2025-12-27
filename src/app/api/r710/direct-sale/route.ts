@@ -1,0 +1,147 @@
+/**
+ * R710 Direct Token Sale API
+ *
+ * Sell an R710 token directly (not through POS)
+ * Finds an available token matching the config and marks it as sold
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { businessId, tokenConfigId, saleAmount, paymentMethod } = body
+
+    if (!businessId || !tokenConfigId) {
+      return NextResponse.json(
+        { error: 'businessId and tokenConfigId are required' },
+        { status: 400 }
+      )
+    }
+
+    const user = session.user as SessionUser
+
+    // Check if user has access to this business (admins have access to all businesses)
+    if (!isSystemAdmin(user)) {
+      // Verify business membership for non-admin users
+      const membership = await prisma.businessMemberships.findFirst({
+        where: {
+          businessId,
+          userId: user.id,
+          isActive: true
+        }
+      })
+
+      if (!membership) {
+        return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
+      }
+    }
+
+    // Verify token config exists
+    const tokenConfig = await prisma.r710TokenConfigs.findUnique({
+      where: { id: tokenConfigId },
+      include: {
+        r710_wlans: {
+          select: {
+            id: true,
+            ssid: true
+          }
+        }
+      }
+    })
+
+    if (!tokenConfig || tokenConfig.businessId !== businessId) {
+      return NextResponse.json(
+        { error: 'Token configuration not found' },
+        { status: 404 }
+      )
+    }
+
+    // Use Prisma transaction to ensure atomic operation
+    const result = await prisma.$transaction(async (tx) => {
+      // Find an AVAILABLE token
+      const availableToken = await tx.r710Tokens.findFirst({
+        where: {
+          businessId,
+          tokenConfigId,
+          status: 'AVAILABLE',
+          r710_token_sales: {
+            none: {} // No sales records = not sold
+          }
+        },
+        include: {
+          r710_token_configs: {
+            select: {
+              name: true,
+              durationValue: true,
+              durationUnit: true,
+              deviceLimit: true
+            }
+          }
+        }
+      })
+
+      if (!availableToken) {
+        throw new Error('No available tokens for this configuration. Please generate tokens first.')
+      }
+
+      // Mark token as USED
+      const updatedToken = await tx.r710Tokens.update({
+        where: { id: availableToken.id },
+        data: { status: 'USED' }
+      })
+
+      // Create sale record
+      const sale = await tx.r710TokenSales.create({
+        data: {
+          businessId,
+          tokenId: availableToken.id,
+          expenseAccountId: tokenConfig.wlanId, // Using wlanId as placeholder, update if you have proper expense account
+          saleAmount: saleAmount || 0,
+          paymentMethod: paymentMethod || 'CASH',
+          saleChannel: 'DIRECT',
+          soldBy: user.id,
+          soldAt: new Date()
+        }
+      })
+
+      return {
+        token: {
+          id: updatedToken.id,
+          username: updatedToken.username,
+          password: updatedToken.password,
+          tokenConfigId: updatedToken.tokenConfigId,
+          status: updatedToken.status,
+          createdAt: updatedToken.createdAt,
+          tokenConfig: availableToken.r710_token_configs
+        },
+        sale: {
+          id: sale.id,
+          saleAmount: sale.saleAmount,
+          paymentMethod: sale.paymentMethod,
+          soldAt: sale.soldAt
+        },
+        wlanSsid: tokenConfig.r710_wlans?.ssid
+      }
+    })
+
+    return NextResponse.json(result, { status: 200 })
+
+  } catch (error) {
+    console.error('[R710 Direct Sale] POST error:', error)
+    return NextResponse.json(
+      { error: 'Failed to complete sale', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
