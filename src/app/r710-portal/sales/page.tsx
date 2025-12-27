@@ -192,8 +192,16 @@ export default function R710SalesPage() {
       setErrorMessage('No tokens available for this configuration. Please generate tokens first.')
       return
     }
-    setSelectedConfig(config)
-    setCustomPrice(config.basePrice.toString())
+
+    // Toggle selection: if already selected, deselect it
+    if (selectedConfig?.id === config.id) {
+      setSelectedConfig(null)
+      setCustomPrice('')
+    } else {
+      setSelectedConfig(config)
+      setCustomPrice(config.basePrice.toString())
+    }
+
     setErrorMessage(null)
     setSuccessMessage(null)
   }
