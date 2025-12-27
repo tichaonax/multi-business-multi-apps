@@ -139,6 +139,22 @@ export async function GET(
         description = `Deposit from ${deposit.sourceBusiness.name}`
       }
 
+      // Add pseudo-category based on sourceType for deposits
+      let category = null
+      if (deposit.sourceType === 'R710_TOKEN_SALE') {
+        category = {
+          id: 'r710-wifi-category',
+          name: 'R710 WiFi',
+          emoji: '📶'
+        }
+      } else if (deposit.sourceType === 'WIFI_TOKEN_SALE') {
+        category = {
+          id: 'wifi-category',
+          name: 'WiFi Portal',
+          emoji: '📡'
+        }
+      }
+
       transactions.push({
         id: deposit.id,
         type: 'DEPOSIT',
@@ -148,6 +164,7 @@ export async function GET(
         sourceType: deposit.sourceType,
         sourceBusiness: deposit.sourceBusiness,
         transactionType: deposit.transactionType,
+        category, // Add category for display
         createdBy: deposit.creator,
         createdAt: deposit.createdAt,
       })
