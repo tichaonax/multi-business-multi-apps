@@ -87,6 +87,20 @@ export async function GET(request: NextRequest) {
               }
             }
           }
+        },
+        r710_token_sales: {
+          select: {
+            id: true,
+            saleAmount: true,
+            paymentMethod: true,
+            saleChannel: true,
+            soldAt: true,
+            soldBy: true
+          },
+          orderBy: {
+            soldAt: 'desc'
+          },
+          take: 1 // Get most recent sale
         }
       },
       orderBy: [
@@ -140,17 +154,28 @@ export async function GET(request: NextRequest) {
     });
 
     // Format response
-    const formattedTokens = tokens.map(token => ({
-      id: token.id,
-      username: token.username,
-      password: token.password,
-      status: token.status,
-      createdAt: token.createdAt,
-      expiresAt: token.expiresAtR710,
-      activatedAt: token.firstUsedAt,
-      tokenConfig: token.r710_token_configs,
-      wlan: token.r710_wlans
-    }));
+    const formattedTokens = tokens.map(token => {
+      const mostRecentSale = token.r710_token_sales?.[0]; // Get first (most recent) sale
+
+      return {
+        id: token.id,
+        username: token.username,
+        password: token.password,
+        status: token.status,
+        createdAt: token.createdAt,
+        expiresAt: token.expiresAtR710,
+        activatedAt: token.firstUsedAt,
+        tokenConfig: token.r710_token_configs,
+        wlan: token.r710_wlans,
+        sale: mostRecentSale ? {
+          saleAmount: mostRecentSale.saleAmount,
+          paymentMethod: mostRecentSale.paymentMethod,
+          saleChannel: mostRecentSale.saleChannel,
+          soldAt: mostRecentSale.soldAt,
+          soldBy: mostRecentSale.soldBy
+        } : null
+      };
+    });
 
     return NextResponse.json({
       tokens: formattedTokens,
