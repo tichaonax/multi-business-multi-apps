@@ -68,7 +68,7 @@ export default function R710SalesPage() {
   const [loading, setLoading] = useState(true)
   const [tokenConfigs, setTokenConfigs] = useState<R710TokenConfig[]>([])
   const [selectedConfig, setSelectedConfig] = useState<R710TokenConfig | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
   const [customPrice, setCustomPrice] = useState<string>('')
   const [generatingToken, setGeneratingToken] = useState(false)
   const [generatedTokenData, setGeneratedTokenData] = useState<GeneratedR710TokenSale | null>(null)
@@ -79,6 +79,8 @@ export default function R710SalesPage() {
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [printCustomerCopy, setPrintCustomerCopy] = useState(true)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [amountReceived, setAmountReceived] = useState('')
 
   const canSell = session?.user ? hasPermission(session.user, 'canSellWifiTokens') : false
 
@@ -237,6 +239,8 @@ export default function R710SalesPage() {
         setSuccessMessage(`R710 WiFi token sold successfully!`)
         setSelectedConfig(null)
         setCustomPrice('')
+        setShowPaymentModal(false)
+        setAmountReceived('')
 
         // Refresh configs to update available counts
         await fetchData()
@@ -728,7 +732,7 @@ export default function R710SalesPage() {
 
                   {/* Complete Sale Button */}
                   <button
-                    onClick={handleCompleteSale}
+                    onClick={() => setShowPaymentModal(true)}
                     disabled={generatingToken || parseFloat(customPrice) < 0}
                     className={`w-full py-3 rounded-lg font-medium transition-colors ${
                       generatingToken || parseFloat(customPrice) < 0
@@ -736,7 +740,7 @@ export default function R710SalesPage() {
                         : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
-                    {generatingToken ? 'Processing Sale...' : 'Complete Sale'}
+                    {generatingToken ? 'Processing Sale...' : 'Proceed to Payment'}
                   </button>
                 </div>
               ) : (
@@ -749,6 +753,112 @@ export default function R710SalesPage() {
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedConfig && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold text-blue-900 dark:text-blue-100 mb-4">💳 Payment</h2>
+
+            <div className="space-y-4">
+              {/* Sale Total */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-medium text-blue-900 dark:text-blue-100">Total Amount:</span>
+                  <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">${parseFloat(customPrice || '0').toFixed(2)}</span>
+                </div>
+                <div className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                  {selectedConfig.name}
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Method</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setPaymentMethod('CASH')}
+                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                      paymentMethod === 'CASH'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    💵 Cash
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('CARD')}
+                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                      paymentMethod === 'CARD'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    💳 Card
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('MOBILE')}
+                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                      paymentMethod === 'MOBILE'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    📱 Mobile
+                  </button>
+                </div>
+              </div>
+
+              {/* Amount Received (for Cash) */}
+              {paymentMethod === 'CASH' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Amount Received</label>
+                  <input
+                    type="number"
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value)}
+                    step="0.01"
+                    min="0"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
+                    placeholder="Enter amount received"
+                    autoFocus
+                  />
+                  {amountReceived && parseFloat(amountReceived) >= parseFloat(customPrice || '0') && (
+                    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded text-green-800 dark:text-green-200 font-medium">
+                      💵 Change: ${(parseFloat(amountReceived) - parseFloat(customPrice || '0')).toFixed(2)}
+                    </div>
+                  )}
+                  {amountReceived && parseFloat(amountReceived) < parseFloat(customPrice || '0') && (
+                    <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
+                      ⚠️ Amount received is less than total (${parseFloat(customPrice || '0').toFixed(2)})
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false)
+                    setAmountReceived('')
+                  }}
+                  className="flex-1 py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCompleteSale}
+                  disabled={paymentMethod === 'CASH' && (!amountReceived || parseFloat(amountReceived) < parseFloat(customPrice || '0'))}
+                  className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Complete Sale
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </ContentLayout>
   )
 }
