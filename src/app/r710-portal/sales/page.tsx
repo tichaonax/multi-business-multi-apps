@@ -325,7 +325,7 @@ export default function R710SalesPage() {
           ssid: generatedTokenData.wlanSsid,
           success: true
         }],
-        footerMessage: 'Thank you for your business!'
+        footerMessage: 'Enjoy your WiFi access!'
       }
 
       console.log('📄 [R710 Direct Sale] Printing receipt:', receiptData)
@@ -556,7 +556,7 @@ export default function R710SalesPage() {
                               e.stopPropagation(); // Prevent card selection
 
                               try {
-                                const response = await fetch('/api/r710/generate-tokens', {
+                                const response = await fetch('/api/r710/tokens', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
