@@ -473,6 +473,17 @@ export default function R710SalesPage() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-3">
+                  {/* Close button */}
+                  <button
+                    onClick={() => setGeneratedTokenData(null)}
+                    className="self-end text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                    title="Close"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+
                   {/* Customer Copy Checkbox */}
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
