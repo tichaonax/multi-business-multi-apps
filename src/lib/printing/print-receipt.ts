@@ -1,4 +1,6 @@
 import type { ReceiptData } from '@/types/printing'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { formatDateTime } from '@/lib/date-format'
 
 interface PrintReceiptOptions {
   printerId?: string
@@ -53,6 +55,7 @@ export async function printReceipt(
         printerId,
         businessId,
         businessType,
+        receiptType: receiptData.receiptType, // ← Receipt type (business/customer)
         receiptNumber: receiptData.receiptNumber,
         transactionId: receiptData.transactionId,
         transactionDate: receiptData.transactionDate,
@@ -71,6 +74,7 @@ export async function printReceipt(
         amountPaid: receiptData.amountPaid,
         changeDue: receiptData.changeDue,
         wifiTokens: receiptData.wifiTokens, // ← WiFi token details for receipt
+        r710Tokens: receiptData.r710Tokens, // ← R710 token details for receipt
         businessSpecificData: receiptData.businessSpecificData,
         footerMessage: receiptData.footerMessage,
         returnPolicy: receiptData.returnPolicy,
@@ -191,7 +195,7 @@ export function printReceiptBrowser(receiptData: ReceiptData): void {
       <div class="header">
         <div class="business-name">${receiptData.businessName}</div>
         ${receiptData.businessAddress ? `<div style="font-size: 10px;">${receiptData.businessAddress}</div>` : ''}
-        ${receiptData.businessPhone ? `<div style="font-size: 10px;">Tel: ${receiptData.businessPhone}</div>` : ''}
+        ${receiptData.businessPhone ? `<div style="font-size: 10px;">Tel: ${formatPhoneNumberForDisplay(receiptData.businessPhone)}</div>` : ''}
       </div>
 
       <div>
@@ -201,7 +205,7 @@ export function printReceiptBrowser(receiptData: ReceiptData): void {
         </div>
         <div class="info-line">
           <span>Date:</span>
-          <span>${receiptData.transactionDate.toLocaleString()}</span>
+          <span>${formatDateTime(receiptData.transactionDate)}</span>
         </div>
         <div class="info-line">
           <span>Transaction:</span>

@@ -85,35 +85,35 @@ interface ReceiptBuilderOptions {
  */
 const BUSINESS_CONFIGS = {
   grocery: {
-    defaultAddress: '123 Main Street, City, State 12345',
-    defaultPhone: '(555) 123-4567',
+    defaultAddress: '',
+    defaultPhone: '',
     showLoyaltyInfo: true,
     showSnapEligible: true,
     footerMessage: 'Thank you for shopping with us!'
   },
   restaurant: {
-    defaultAddress: '456 Food Avenue, City, State 12345',
-    defaultPhone: '(555) 234-5678',
+    defaultAddress: '',
+    defaultPhone: '',
     showTableNumber: true,
     showServerInfo: true,
     footerMessage: 'Thank you for dining with us!'
   },
   hardware: {
-    defaultAddress: '789 Tool Street, City, State 12345',
-    defaultPhone: '(555) 345-6789',
+    defaultAddress: '',
+    defaultPhone: '',
     showProjectReference: true,
     footerMessage: 'Thank you for your business!'
   },
   clothing: {
-    defaultAddress: '321 Fashion Blvd, City, State 12345',
-    defaultPhone: '(555) 456-7890',
+    defaultAddress: '',
+    defaultPhone: '',
     showSizeColor: true,
     returnPolicy: 'Returns accepted within 30 days with receipt',
     footerMessage: 'Thank you for shopping with us!'
   },
   default: {
-    defaultAddress: '123 Business Street, City, State 12345',
-    defaultPhone: '(555) 000-0000',
+    defaultAddress: '',
+    defaultPhone: '',
     footerMessage: 'Thank you for your business!'
   }
 }

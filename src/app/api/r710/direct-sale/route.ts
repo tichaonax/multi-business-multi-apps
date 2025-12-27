@@ -10,6 +10,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
+import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,6 +68,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Get or create R710 expense account for this business
+    const r710ExpenseAccount = await getOrCreateR710ExpenseAccount(businessId, user.id)
+
     // Use Prisma transaction to ensure atomic operation
     const result = await prisma.$transaction(async (tx) => {
       // Find an AVAILABLE token
@@ -95,10 +99,10 @@ export async function POST(request: NextRequest) {
         throw new Error('No available tokens for this configuration. Please generate tokens first.')
       }
 
-      // Mark token as USED
+      // Mark token as SOLD
       const updatedToken = await tx.r710Tokens.update({
         where: { id: availableToken.id },
-        data: { status: 'USED' }
+        data: { status: 'SOLD' }
       })
 
       // Create sale record
@@ -106,7 +110,7 @@ export async function POST(request: NextRequest) {
         data: {
           businessId,
           tokenId: availableToken.id,
-          expenseAccountId: tokenConfig.wlanId, // Using wlanId as placeholder, update if you have proper expense account
+          expenseAccountId: r710ExpenseAccount.id,
           saleAmount: saleAmount || 0,
           paymentMethod: paymentMethod || 'CASH',
           saleChannel: 'DIRECT',

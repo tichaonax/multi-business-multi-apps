@@ -273,7 +273,6 @@ export default function RestaurantPOS() {
               if (tokenConfigIds.length > 0) {
                 try {
                   // STEP 1: Get database counts IMMEDIATELY (non-blocking)
-                  console.log('📊 [Step 1] Fetching database counts for immediate display...')
                   const dbUrl = `/api/wifi-portal/tokens?businessId=${currentBusinessId}&status=UNUSED&excludeSold=true&limit=1000`
                   const dbResponse = await fetch(dbUrl)
 
@@ -289,8 +288,6 @@ export default function RestaurantPOS() {
                       }
                       return acc
                     }, {})
-
-                    console.log('✅ [Step 1] Database counts displayed:', quantityMap)
                   }
                 } catch (error) {
                   console.error('❌ Database fetch error:', error)
@@ -512,7 +509,7 @@ export default function RestaurantPOS() {
       await ReceiptPrintManager.printReceipt(receiptData, 'restaurant', {
         autoPrint: preferences.autoPrintReceipt,
         printerId: printerId || undefined,
-        printCustomerCopy: true, // Restaurant dual receipts: business + customer
+        printCustomerCopy: false, // Default: only business copy. Set to true to print customer copy
         onSuccess: (jobId, receiptType) => {
           console.log(`✅ ${receiptType} copy printed:`, jobId)
           toast.push(`${receiptType} receipt sent to printer`)
@@ -557,31 +554,11 @@ export default function RestaurantPOS() {
 
   // Helper function to convert completedOrder to ReceiptData
   const buildReceiptDataFromCompletedOrder = (order: any, business: any): ReceiptData => {
-    // Debug logging
-    console.log('🧾 [Restaurant] Building receipt data')
-    console.log('🧾 [Restaurant] Order object:', order)
-    console.log('🧾 [Restaurant] Business object FULL:', JSON.stringify(business, null, 2))
-    console.log('🧾 [Restaurant] business?.businessName:', business?.businessName)
-    console.log('🧾 [Restaurant] business?.businesses?.name:', business?.businesses?.name)
-    console.log('🧾 [Restaurant] business?.address:', business?.address)
-    console.log('🧾 [Restaurant] business?.businesses?.address:', business?.businesses?.address)
-    console.log('🧾 [Restaurant] business?.phone:', business?.phone)
-    console.log('🧾 [Restaurant] business?.businesses?.phone:', business?.businesses?.phone)
-    console.log('🧾 [Restaurant] ESP32 wifiTokens:', order.wifiTokens)
-    console.log('🧾 [Restaurant] R710 tokens:', order.r710Tokens)
-    console.log('🧾 [Restaurant] ESP32 wifiTokens count:', order.wifiTokens?.length || 0)
-    console.log('🧾 [Restaurant] R710 tokens count:', order.r710Tokens?.length || 0)
-
     // Use businessInfo from order (API response), fallback to businessDetails or business (membership)
     const actualBusiness = order.businessInfo || businessDetails || business
     const businessName = actualBusiness?.name || actualBusiness?.businessName || 'Restaurant'
-    const businessAddress = actualBusiness?.address || '123 Main Street'
-    const businessPhone = actualBusiness?.phone || '(555) 123-4567'
-
-    console.log('🏢 [Receipt Builder] actualBusiness:', actualBusiness)
-    console.log('🏢 [Receipt Builder] Using business name:', businessName)
-    console.log('📍 [Receipt Builder] Using address:', businessAddress)
-    console.log('📞 [Receipt Builder] Using phone:', businessPhone)
+    const businessAddress = actualBusiness?.address || actualBusiness?.umbrellaBusinessAddress || ''
+    const businessPhone = actualBusiness?.phone || actualBusiness?.umbrellaBusinessPhone || ''
 
     return {
       receiptNumber: {
@@ -631,12 +608,35 @@ export default function RestaurantPOS() {
       }),
       r710Tokens: order.r710Tokens?.map((token: any) => {
         console.log('📶 [Restaurant] Mapping R710 WiFi token:', token)
+
+        // Calculate expiration date if not provided
+        let expiresAt = token.expiresAt
+        if (!expiresAt && token.durationValue && token.durationUnit) {
+          const now = new Date()
+          const expirationDate = new Date(now)
+          const unit = token.durationUnit.toLowerCase()
+
+          if (unit.includes('hour')) {
+            expirationDate.setHours(expirationDate.getHours() + token.durationValue)
+          } else if (unit.includes('day')) {
+            expirationDate.setDate(expirationDate.getDate() + token.durationValue)
+          } else if (unit.includes('week')) {
+            expirationDate.setDate(expirationDate.getDate() + (token.durationValue * 7))
+          } else if (unit.includes('month')) {
+            expirationDate.setMonth(expirationDate.getMonth() + token.durationValue)
+          } else if (unit.includes('year')) {
+            expirationDate.setFullYear(expirationDate.getFullYear() + token.durationValue)
+          }
+
+          expiresAt = expirationDate.toISOString()
+        }
+
         const mapped = {
           password: token.password,
           packageName: token.packageName || token.itemName || 'R710 WiFi Access',
           durationValue: token.durationValue || 0,
           durationUnit: token.durationUnit || 'hour_Hours',
-          expiresAt: token.expiresAt,
+          expiresAt: expiresAt,
           ssid: token.ssid,
           success: token.success,
           error: token.error

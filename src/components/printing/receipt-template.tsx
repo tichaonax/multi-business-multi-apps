@@ -4,6 +4,8 @@ import React from 'react'
 
 import type { ReceiptData } from '@/types/printing'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { formatDateTime } from '@/lib/date-format'
 
 interface ReceiptTemplateProps {
   data: ReceiptData
@@ -26,7 +28,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           )}
           {data.businessPhone && (
             <div className="text-[10px]">
-              Tel: {data.businessPhone}
+              Tel: {formatPhoneNumberForDisplay(data.businessPhone)}
             </div>
           )}
         </div>
@@ -39,7 +41,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
         </div>
         <div className="flex justify-between mb-0.5">
           <span>Date:</span>
-          <span>{data.transactionDate.toLocaleString()}</span>
+          <span>{formatDateTime(data.transactionDate)}</span>
         </div>
         <div className="flex justify-between mb-0.5">
           <span>Transaction:</span>
@@ -115,15 +117,15 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
 
       {/* WiFi Tokens Section (ESP32) */}
       {data.wifiTokens && data.wifiTokens.length > 0 && (
-        <div className="border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2.5 mt-4 mb-4">
-          <div className="text-center font-bold text-xs mb-2">📶 WiFi ACCESS TOKENS</div>
+        <div className="border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2 mt-2 mb-2">
+          <div className="text-center font-bold text-xs mb-1.5">📶 WiFi ACCESS TOKENS</div>
           {data.wifiTokens.map((token, index) => (
-            <div key={index} className="mb-3 p-2 border border-gray-300 dark:border-gray-600 rounded">
+            <div key={index} className="mb-2 p-1.5 border border-gray-300 dark:border-gray-600 rounded">
               {token.success ? (
                 <>
-                  <div className="text-[11px] font-bold mb-1">{token.packageName}</div>
-                  <div className="text-center my-2">
-                    <div className="p-2 font-mono text-base font-bold">
+                  <div className="text-[11px] font-bold mb-0.5">{token.packageName}</div>
+                  <div className="text-center my-1">
+                    <div className="p-1.5 font-mono text-base font-bold">
                       {token.tokenCode}
                     </div>
                   </div>
@@ -153,16 +155,15 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
 
       {/* R710 WiFi Tokens Section */}
       {data.r710Tokens && data.r710Tokens.length > 0 && (
-        <div className="border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2.5 mt-4 mb-4">
-          <div className="text-center font-bold text-xs mb-2">📶 R710 WiFi ACCESS</div>
+        <div className="border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2 mt-2 mb-2">
+          <div className="text-center font-bold text-xs mb-1.5">📶 R710 WiFi ACCESS</div>
           {data.r710Tokens.map((token, index) => (
-            <div key={index} className="mb-3 p-2 border border-gray-300 dark:border-gray-600 rounded">
+            <div key={index} className="mb-2 p-1.5 border border-gray-300 dark:border-gray-600 rounded">
               {token.success ? (
                 <>
-                  <div className="text-[11px] font-bold mb-1">{token.packageName}</div>
-                  <div className="text-center my-2">
-                    <div className="text-[10px] font-bold mb-1">Password:</div>
-                    <div className="p-1.5 font-mono text-sm font-bold bg-gray-100 dark:bg-gray-700 rounded">
+                  <div className="text-[11px] font-bold mb-0.5">{token.packageName}</div>
+                  <div className="text-center my-1">
+                    <div className="p-1.5 font-mono text-base font-bold">
                       {token.password}
                     </div>
                   </div>
@@ -187,7 +188,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
       )}
 
       {showFooter && (
-        <div className="text-center text-[10px] border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2.5 mt-4">
+        <div className="text-center text-[10px] border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2 mt-2">
           <div className="mb-1">Thank you for your business!</div>
           <div>Please come again</div>
         </div>

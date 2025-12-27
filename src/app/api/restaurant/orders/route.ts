@@ -964,8 +964,8 @@ export async function POST(req: NextRequest) {
         // Use business address/phone if available, otherwise use umbrella business fallback
         businessInfo = {
           name: business.name,
-          address: business.address || business.umbrellaBusinessAddress || '123 Main Street',
-          phone: business.phone || business.umbrellaBusinessPhone || '(555) 123-4567',
+          address: business.address || business.umbrellaBusinessAddress || '',
+          phone: business.phone || business.umbrellaBusinessPhone || '',
           email: business.email || business.umbrellaBusinessEmail
         }
         console.log('📍 [Order API] Business info:', businessInfo)

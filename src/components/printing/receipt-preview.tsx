@@ -141,7 +141,7 @@ export function ReceiptPreview({
           {/* Receipt Preview Card - Scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
             <Card className="p-6 bg-white dark:bg-gray-800 h-full receipt-preview-card">
-              <div className="font-mono text-sm space-y-2 max-w-md mx-auto">
+              <div className="font-mono text-sm space-y-2 max-w-lg mx-auto">
               {/* Business Header */}
               <div className="text-center border-b-2 border-dashed border-gray-300 dark:border-gray-600 pb-3">
                 <h2 className="font-bold text-lg text-gray-900 dark:text-gray-100">{receiptData.businessName}</h2>

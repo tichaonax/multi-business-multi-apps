@@ -105,7 +105,7 @@ export class ReceiptPrintManager {
       const businessReceiptData = {
         ...receiptData,
         receiptType: 'business' as const,
-        // Business copy gets full details
+        // Business copy is condensed (no phone, instructions, footer) to save paper
       }
 
       result.businessCopy = await printReceipt(businessReceiptData, {
@@ -132,7 +132,7 @@ export class ReceiptPrintManager {
         const customerReceiptData = {
           ...receiptData,
           receiptType: 'customer' as const,
-          // Customer copy can have simplified details if needed
+          // Customer copy has full details (phone, WiFi instructions, footer)
         }
 
         result.customerCopy = await printReceipt(customerReceiptData, {

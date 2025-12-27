@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
+import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 
 import { randomBytes } from 'crypto';
 // Validation schemas
@@ -678,6 +679,9 @@ export async function POST(request: NextRequest) {
       const generatedR710Tokens = []
 
       if (r710TokenItems.length > 0) {
+        // Get or create R710 expense account for this business
+        const r710ExpenseAccount = await getOrCreateR710ExpenseAccount(orderData.businessId, user.id)
+
         // Fetch R710 integration
         const r710Integration = await tx.r710Integrations.findFirst({
           where: { businessId: orderData.businessId, isActive: true }
@@ -713,6 +717,33 @@ export async function POST(request: NextRequest) {
               continue
             }
 
+            // Get WLAN SSID for display
+            const wlan = await tx.r710Wlans.findUnique({
+              where: { id: r710Config.wlanId },
+              select: { ssid: true }
+            })
+
+            // Calculate expiration date based on duration
+            const calculateR710Expiration = (durationValue: number, durationUnit: string): Date => {
+              const now = new Date()
+              const expirationDate = new Date(now)
+              const unit = durationUnit.toLowerCase()
+
+              if (unit.includes('hour')) {
+                expirationDate.setHours(expirationDate.getHours() + durationValue)
+              } else if (unit.includes('day')) {
+                expirationDate.setDate(expirationDate.getDate() + durationValue)
+              } else if (unit.includes('week')) {
+                expirationDate.setDate(expirationDate.getDate() + (durationValue * 7))
+              } else if (unit.includes('month')) {
+                expirationDate.setMonth(expirationDate.getMonth() + durationValue)
+              } else if (unit.includes('year')) {
+                expirationDate.setFullYear(expirationDate.getFullYear() + durationValue)
+              }
+
+              return expirationDate
+            }
+
             // Find available R710 tokens (AVAILABLE status, not yet sold)
             for (let i = 0; i < itemQuantity; i++) {
               try {
@@ -731,17 +762,18 @@ export async function POST(request: NextRequest) {
                   throw new Error('No available R710 tokens. Please create more tokens in R710 Portal.')
                 }
 
-                // Mark token as USED and create sale record
+                // Mark token as SOLD and create sale record
                 await tx.r710Tokens.update({
                   where: { id: availableR710Token.id },
-                  data: { status: 'USED' }
+                  data: { status: 'SOLD' }
                 })
 
                 // Create R710 sale record
                 await tx.r710TokenSales.create({
                   data: {
                     businessId: orderData.businessId,
-                    r710TokenId: availableR710Token.id,
+                    tokenId: availableR710Token.id,
+                    expenseAccountId: r710ExpenseAccount.id,
                     saleAmount: itemPrice,
                     paymentMethod: orderData.paymentMethod || 'CASH',
                     saleChannel: 'POS',
@@ -749,6 +781,9 @@ export async function POST(request: NextRequest) {
                     soldAt: new Date()
                   }
                 })
+
+                // Calculate expiration date
+                const expiresAt = calculateR710Expiration(r710Config.durationValue, r710Config.durationUnit)
 
                 // Add to response
                 generatedR710Tokens.push({
@@ -759,6 +794,8 @@ export async function POST(request: NextRequest) {
                   durationValue: r710Config.durationValue,
                   durationUnit: r710Config.durationUnit,
                   deviceLimit: r710Config.deviceLimit,
+                  expiresAt: expiresAt.toISOString(),
+                  ssid: wlan?.ssid,
                   success: true
                 })
 

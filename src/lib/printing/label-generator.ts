@@ -13,6 +13,7 @@ import type {
   VehiclesLabelData,
   LabelFormat
 } from '@/types/printing';
+import { formatDate as formatDateOnly } from '@/lib/date-format';
 
 // Label dimensions (for thermal label printers)
 const LABEL_WIDTH = 48; // characters per line for text labels
@@ -219,14 +220,14 @@ function generateGroceryLabel(data: LabelData): string {
 
   // Pack date
   if (groceryData?.packDate) {
-    label += `Packed: ${formatDate(groceryData.packDate)}\n`;
+    label += `Packed: ${formatDateOnly(groceryData.packDate)}\n`;
   }
 
   // Expiration date (prominently displayed)
   if (groceryData?.expirationDate) {
     label += '\n';
     label += centerText('EXPIRES', LABEL_WIDTH) + '\n';
-    label += centerText(formatDate(groceryData.expirationDate), LABEL_WIDTH) + '\n';
+    label += centerText(formatDateOnly(groceryData.expirationDate), LABEL_WIDTH) + '\n';
     label += '\n';
   }
 
@@ -316,7 +317,7 @@ function generateConstructionLabel(data: LabelData): string {
 
   // Delivery date
   if (constructionData?.deliveryDate) {
-    label += `Delivery: ${formatDate(constructionData.deliveryDate)}\n`;
+    label += `Delivery: ${formatDateOnly(constructionData.deliveryDate)}\n`;
   }
 
   // Location (job site)
@@ -352,7 +353,7 @@ function generateVehiclesLabel(data: LabelData): string {
 
   // Next service info
   if (vehiclesData?.nextServiceDate) {
-    label += `Service: ${formatDate(vehiclesData.nextServiceDate)}\n`;
+    label += `Service: ${formatDateOnly(vehiclesData.nextServiceDate)}\n`;
   }
   if (vehiclesData?.nextServiceMileage) {
     label += `@ ${vehiclesData.nextServiceMileage.toLocaleString()} mi\n`;
@@ -505,13 +506,7 @@ function line(char: string, width: number): string {
   return char.repeat(width);
 }
 
-function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
+// Note: formatDateOnly is imported from @/lib/date-format for consistent global formatting
 
 function wrapText(text: string, width: number): string {
   const words = text.split(' ');

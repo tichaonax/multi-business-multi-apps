@@ -29,6 +29,8 @@ import type {
 } from '@/types/printing';
 import { addReprintWatermark } from '@/lib/receipts/watermark';
 import { formatDataAmount, formatDuration as formatDurationSmart } from './format-utils';
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes';
+import { formatDateTime, formatDate as formatDateOnly } from '@/lib/date-format';
 
 // Thermal printer width (characters per line)
 // EPSON TM-T20III with 80mm paper = 42 characters
@@ -161,6 +163,12 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   receipt += ESC + '@';  // Initialize printer (reset all settings)
   receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
 
+  // Determine if this is a business copy (condensed) or customer copy (detailed)
+  // Default to business copy if receiptType is not specified
+  console.log(`📄 [Receipt Template] receiptType="${data.receiptType}" (business=${data.receiptType !== 'customer'}, customer=${data.receiptType === 'customer'})`)
+  const isBusinessCopy = data.receiptType !== 'customer'; // business or undefined = business copy
+  const isCustomerCopy = data.receiptType === 'customer'; // only true when explicitly 'customer'
+
   // ============================================================================
   // 1. HEADER - Center aligned
   // ============================================================================
@@ -169,38 +177,42 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   if (data.businessAddress) {
     receipt += centerText(stripEmojis(data.businessAddress)) + LF;
   }
-  if (data.businessPhone) {
+  // Phone number - only on customer copy
+  if (isCustomerCopy && data.businessPhone) {
     receipt += centerText(stripEmojis(data.businessPhone)) + LF;
   }
-  // Removed extra LF to save paper
 
   // ============================================================================
   // 2. RECEIPT TYPE LABEL (for dual receipts)
   // ============================================================================
-  if (data.receiptType) {
-    receipt += ALIGN_CENTER;
-    const label = data.receiptType === 'business' ? '--- BUSINESS COPY ---' : '--- CUSTOMER COPY ---';
-    receipt += label + LF;
-    receipt += LF;
-  }
+  // Always show label to distinguish business vs customer copy
+  receipt += ALIGN_CENTER;
+  const label = isBusinessCopy ? '--- BUSINESS COPY ---' : '--- CUSTOMER COPY ---';
+  receipt += label + LF;
 
   // ============================================================================
   // 3. TRANSACTION INFO - Left aligned
   // ============================================================================
   receipt += ALIGN_LEFT;
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${stripEmojis(data.salespersonName)}` + LF;
   }
-  receipt += LF;
+  // Blank line only for customer copy
+  if (isCustomerCopy) {
+    // receipt += LF;
+  }
 
   // ============================================================================
   // 4. BUSINESS-SPECIFIC SECTION (optional)
   // ============================================================================
   if (sections.businessSpecific) {
     receipt += sections.businessSpecific;
-    receipt += LF;
+    // Blank line only for customer copy
+    if (isCustomerCopy) {
+      // receipt += LF;
+    }
   }
 
   // ============================================================================
@@ -231,7 +243,10 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   // ============================================================================
   // 6. TOTALS SECTION
   // ============================================================================
-  receipt += LF;
+  // Blank line only for customer copy
+  if (isCustomerCopy) {
+    // receipt += LF;
+  }
   receipt += formatTotal('Subtotal', data.subtotal);
   // Only print tax line if tax > 0 AND tax is charged separately (not included in price)
   if (data.tax > 0 && !data.taxIncludedInPrice) {
@@ -246,7 +261,10 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   // ============================================================================
   // 7. PAYMENT SECTION
   // ============================================================================
-  receipt += LF;
+  // Blank line only for customer copy
+  if (isCustomerCopy) {
+    // receipt += LF;
+  }
   receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
   if (data.amountPaid) {
     receipt += formatTotal('Amount Paid', data.amountPaid);
@@ -259,7 +277,10 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   // 8. WIFI TOKENS SECTION (if any)
   // ============================================================================
   if (data.wifiTokens && data.wifiTokens.length > 0) {
-    receipt += LF;
+    // Blank line only for customer copy
+    if (isCustomerCopy) {
+      // receipt += LF;
+    }
     receipt += line('-') + LF;
     receipt += ALIGN_CENTER;
     receipt += 'WiFi ACCESS TOKENS' + LF;
@@ -274,7 +295,9 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
         receipt += `*** ERROR ***` + LF;
         receipt += `${stripEmojis(token.error || 'Token unavailable')}` + LF;
         receipt += ALIGN_LEFT;
-        receipt += LF;
+        if (isCustomerCopy) {
+         //  receipt += LF;
+        }
         return;
       }
 
@@ -288,11 +311,70 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
         receipt += `Data: Down ${token.bandwidthDownMb || 0}MB / Up ${token.bandwidthUpMb || 0}MB` + LF;
       }
 
-      // Connection instructions - 3 steps
-      receipt += `1. Connect to WiFi "${stripEmojis(token.ssid || 'Guest WiFi')}"` + LF;
-      receipt += `2. Visit http://192.168.4.1` + LF;
-      receipt += `3. Enter code above to activate` + LF;
-      receipt += LF;
+      // Connection instructions - 3 steps (customer copy only)
+      if (isCustomerCopy) {
+        receipt += `1. Connect to WiFi "${stripEmojis(token.ssid || 'Guest WiFi')}"` + LF;
+        receipt += `2. Visit http://192.168.4.1` + LF;
+        receipt += `3. Enter code above to activate` + LF;
+        //  receipt += LF;
+      }
+    });
+  }
+
+  // ============================================================================
+  // 8b. R710 WIFI TOKENS SECTION (if any)
+  // ============================================================================
+  if (data.r710Tokens && data.r710Tokens.length > 0) {
+    // Blank line only for customer copy
+    if (isCustomerCopy) {
+     // receipt += LF;
+    }
+    receipt += line('-') + LF;
+    receipt += ALIGN_CENTER;
+    receipt += 'R710 WiFi ACCESS' + LF;
+    receipt += ALIGN_LEFT;
+    receipt += line('-') + LF;
+
+    data.r710Tokens.forEach((token: any) => {
+      // Check if this is an error token
+      if (token.success === false || token.error) {
+        receipt += ALIGN_CENTER;
+        receipt += `Package: ${stripEmojis(token.packageName)}` + LF;
+        receipt += `*** ERROR ***` + LF;
+        receipt += `${stripEmojis(token.error || 'Token unavailable')}` + LF;
+        receipt += ALIGN_LEFT;
+        if (isCustomerCopy) {
+          // receipt += LF;
+        }
+        return;
+      }
+
+      // Success token - show full details (strip emojis from all text)
+      receipt += `Package: ${stripEmojis(token.packageName)}` + LF;
+      receipt += `Password: ${token.password}` + LF;
+
+      // Duration from durationValue + durationUnit (e.g., "4 Days")
+      if (token.durationValue && token.durationUnit) {
+        const durationUnit = token.durationUnit.split('_')[1] || token.durationUnit;
+        receipt += `Duration: ${token.durationValue} ${durationUnit}` + LF;
+      }
+
+      // Expiration date with time (both business and customer copy)
+      if (token.expiresAt) {
+        receipt += `Expires: ${formatDateTime(new Date(token.expiresAt))}` + LF;
+      }
+
+      // Network SSID (customer copy only)
+      if (isCustomerCopy && token.ssid) {
+        receipt += `Network: ${stripEmojis(token.ssid)}` + LF;
+      }
+
+      // Connection instructions - 2 steps (customer copy only)
+      if (isCustomerCopy) {
+        receipt += `1. Connect to WiFi network above` + LF;
+        receipt += `2. Use password to log in` + LF;
+        // receipt += LF;
+      }
     });
   }
 
@@ -300,29 +382,35 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   // 9. FOOTER ADDITIONS (business-specific)
   // ============================================================================
   if (sections.footerAdditions) {
-    receipt += LF;
+    // Blank line only for customer copy
+    if (isCustomerCopy) {
+      // receipt += LF;
+    }
     receipt += sections.footerAdditions;
   }
 
   // ============================================================================
   // 10. FOOTER - Center aligned
   // ============================================================================
-  receipt += LF;
-  receipt += ALIGN_CENTER;
-  if (data.umbrellaPhone) {
-    receipt += centerText(`Support: ${data.umbrellaPhone}`) + LF;
-  }
-  // Return policy (always print - use default if not configured)
-  const returnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
-  receipt += LF;
-  receipt += wrapText(stripEmojis(returnPolicy), RECEIPT_WIDTH) + LF;
-  if (data.footerMessage) {
+  // Customer copy only: support phone, return policy, and thank you messages
+  if (isCustomerCopy) {
     receipt += LF;
-    receipt += centerText(stripEmojis(data.footerMessage)) + LF;
+    receipt += ALIGN_CENTER;
+    if (data.umbrellaPhone) {
+      receipt += centerText(`Support: ${data.umbrellaPhone}`) + LF;
+    }
+    // Return policy (always print - use default if not configured)
+    const returnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+    // receipt += LF;
+    receipt += wrapText(stripEmojis(returnPolicy), RECEIPT_WIDTH) + LF;
+    if (data.footerMessage) {
+      // receipt += LF;
+      receipt += centerText(stripEmojis(data.footerMessage)) + LF;
+    }
+    // receipt += LF;
+    receipt += centerText('Thank you for your business!') + LF;
+    receipt += centerText('Please come again!') + LF;
   }
-  receipt += LF;
-  receipt += centerText('Thank you for your business!') + LF;
-  receipt += centerText('Please come again!') + LF;
 
   // ============================================================================
   // 11. PAPER CUT
@@ -420,14 +508,14 @@ function generateClothingReceipt(data: ReceiptData): string {
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
 
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -517,7 +605,7 @@ function generateGroceryReceipt(data: ReceiptData): string {
 
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -539,7 +627,7 @@ function generateGroceryReceipt(data: ReceiptData): string {
     }
 
     if (groceryItem?.expirationDate) {
-      receipt += `  Exp: ${formatDate(groceryItem.expirationDate)}` + LF;
+      receipt += `  Exp: ${formatDateOnly(groceryItem.expirationDate)}` + LF;
     }
   });
   // Totals
@@ -605,14 +693,14 @@ function generateHardwareReceipt(data: ReceiptData): string {
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
 
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -643,7 +731,7 @@ function generateHardwareReceipt(data: ReceiptData): string {
       receipt += `  Bulk: ${hardwareItem.bulkQuantity} @ $${hardwareItem.bulkPricePerUnit.toFixed(2)}` + LF;
     }
     if (hardwareItem?.specialOrderETA) {
-      receipt += `  Special Order ETA: ${formatDate(hardwareItem.specialOrderETA)}` + LF;
+      receipt += `  Special Order ETA: ${formatDateOnly(hardwareItem.specialOrderETA)}` + LF;
     }
   });
   // Totals
@@ -702,7 +790,7 @@ function generateConstructionReceipt(data: ReceiptData): string {
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
   receipt += centerText('*** INVOICE ***') + LF;
 
   // Left align for content
@@ -710,7 +798,7 @@ function generateConstructionReceipt(data: ReceiptData): string {
 
   // Invoice info
   receipt += `Invoice: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -723,8 +811,8 @@ function generateConstructionReceipt(data: ReceiptData): string {
 
     // Project timeline
     receipt += 'Project Timeline:' + LF;
-    receipt += `  Start: ${formatDate(constructionData.projectTimeline.startDate)}` + LF;
-    receipt += `  End: ${formatDate(constructionData.projectTimeline.endDate)}` + LF;
+    receipt += `  Start: ${formatDateOnly(constructionData.projectTimeline.startDate)}` + LF;
+    receipt += `  End: ${formatDateOnly(constructionData.projectTimeline.endDate)}` + LF;
     receipt += `  Phase: ${constructionData.projectTimeline.currentPhase}` + LF;
 
     // Budget tracking
@@ -808,7 +896,7 @@ function generateVehiclesReceipt(data: ReceiptData): string {
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
   receipt += centerText('SERVICE RECEIPT') + LF;
 
   // Left align for content
@@ -816,7 +904,7 @@ function generateVehiclesReceipt(data: ReceiptData): string {
 
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -879,7 +967,7 @@ function generateVehiclesReceipt(data: ReceiptData): string {
     receipt += LF;
     receipt += 'Next Service Due:' + LF;
     receipt += `  @ ${vehiclesData.nextServiceDue.mileage.toLocaleString()} miles` + LF;
-    receipt += `  or ${formatDate(vehiclesData.nextServiceDue.date)}` + LF;
+    receipt += `  or ${formatDateOnly(vehiclesData.nextServiceDue.date)}` + LF;
   }
 
   // Warranty
@@ -930,7 +1018,7 @@ function generateConsultingReceipt(data: ReceiptData): string {
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
   receipt += centerText('CONSULTING INVOICE') + LF;
 
   // Left align for content
@@ -939,7 +1027,7 @@ function generateConsultingReceipt(data: ReceiptData): string {
   // Invoice info
   if (consultingData) {
     receipt += `Invoice: ${consultingData.invoiceNumber}` + LF;
-    receipt += `Date: ${formatDate(consultingData.invoiceDate)}` + LF;
+    receipt += `Date: ${formatDateOnly(consultingData.invoiceDate)}` + LF;
     if (data.salespersonName) {
       receipt += `Salesperson: ${data.salespersonName}` + LF;
     }
@@ -954,7 +1042,7 @@ function generateConsultingReceipt(data: ReceiptData): string {
     if (consultingData.serviceHours && consultingData.serviceHours.length > 0) {
       receipt += 'Hours Breakdown:' + LF;
       consultingData.serviceHours.forEach(entry => {
-        receipt += `${formatDate(entry.date)}:` + LF;
+        receipt += `${formatDateOnly(entry.date)}:` + LF;
         receipt += `  ${entry.hours}hrs @ $${entry.hourlyRate}/hr` + LF;
         receipt += `  ${entry.description}` + LF;
         receipt += formatTotal('  Total', entry.hours * entry.hourlyRate);
@@ -1028,14 +1116,14 @@ function generateRetailReceipt(data: ReceiptData): string {
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
 
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -1125,7 +1213,7 @@ function generateServicesReceipt(data: ReceiptData): string {
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
   receipt += centerText('SERVICE RECEIPT') + LF;
 
   // Left align for content
@@ -1133,7 +1221,7 @@ function generateServicesReceipt(data: ReceiptData): string {
 
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -1184,7 +1272,7 @@ function generateServicesReceipt(data: ReceiptData): string {
 
   // Follow-up
   if (servicesData?.followUpDate) {
-    receipt += `Follow-up: ${formatDate(servicesData.followUpDate)}` + LF;
+    receipt += `Follow-up: ${formatDateOnly(servicesData.followUpDate)}` + LF;
   }
 
   // Return policy (always print - use default if not configured)
@@ -1226,14 +1314,14 @@ function generateGenericReceipt(data: ReceiptData): string {
   receipt += ESC + 'a' + String.fromCharCode(1);
   receipt += centerText(data.businessName) + LF;
   if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(data.businessPhone) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
 
   // Left align for content
   receipt += ESC + 'a' + String.fromCharCode(0);
 
   // Receipt info
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -1305,15 +1393,7 @@ function line(char: string = '='): string {
   return char.repeat(RECEIPT_WIDTH);
 }
 
-function formatDate(date: Date): string {
-  return new Date(date).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+// Note: formatDateTime and formatDateOnly are now imported from @/lib/date-format for consistent global formatting
 
 function formatMoney(amount: number | undefined | null): string {
   const safeAmount = typeof amount === 'number' ? amount : 0;

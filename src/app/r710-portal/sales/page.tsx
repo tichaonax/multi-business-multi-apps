@@ -9,6 +9,10 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { formatCurrency } from '@/lib/format-currency'
+import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
+import type { ReceiptData } from '@/types/printing'
+import { useToastContext } from '@/components/ui/toast'
+import { formatDateTime } from '@/lib/date-format'
 
 interface R710TokenConfig {
   id: string
@@ -59,6 +63,7 @@ export default function R710SalesPage() {
   const router = useRouter()
   const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
   const confirm = useConfirm()
+  const toast = useToastContext()
 
   const [loading, setLoading] = useState(true)
   const [tokenConfigs, setTokenConfigs] = useState<R710TokenConfig[]>([])
@@ -70,6 +75,10 @@ export default function R710SalesPage() {
   const [expenseAccount, setExpenseAccount] = useState<ExpenseAccount | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [printerId, setPrinterId] = useState<string | null>(null)
+  const [businessDetails, setBusinessDetails] = useState<any>(null)
+  const [isPrinting, setIsPrinting] = useState(false)
+  const [printCustomerCopy, setPrintCustomerCopy] = useState(true)
 
   const canSell = session?.user ? hasPermission(session.user, 'canSellWifiTokens') : false
 
@@ -96,6 +105,14 @@ export default function R710SalesPage() {
 
     try {
       setLoading(true)
+
+      // Fetch business details
+      const businessResponse = await fetch(`/api/business/${currentBusinessId}`)
+      if (businessResponse.ok) {
+        const businessData = await businessResponse.json()
+        console.log('📄 [R710 Sales] Business data:', businessData)
+        setBusinessDetails(businessData.business || businessData)
+      }
 
       // Fetch R710 token configurations for this business
       const configsResponse = await fetch(`/api/r710/token-configs?businessId=${currentBusinessId}`)
@@ -145,6 +162,22 @@ export default function R710SalesPage() {
         }
       } catch (error) {
         console.log('No expense account configured')
+      }
+
+      // Fetch default printer
+      try {
+        const printersResponse = await fetch(`/api/printers?businessId=${currentBusinessId}`)
+        if (printersResponse.ok) {
+          const printersData = await printersResponse.json()
+          const defaultPrinter = printersData.printers?.find((p: any) => p.isDefault)
+          if (defaultPrinter) {
+            setPrinterId(defaultPrinter.id)
+          } else if (printersData.printers?.length > 0) {
+            setPrinterId(printersData.printers[0].id)
+          }
+        }
+      } catch (error) {
+        console.log('No printer configured')
       }
 
     } catch (error: any) {
@@ -214,8 +247,109 @@ export default function R710SalesPage() {
     return `${value} ${value === 1 ? unitDisplay.slice(0, -1) : unitDisplay}`
   }
 
-  const handlePrintReceipt = () => {
-    window.print()
+  // Calculate R710 token expiration date based on duration
+  const calculateExpirationDate = (durationValue: number, durationUnit: string): Date => {
+    const now = new Date()
+    const expirationDate = new Date(now)
+
+    // Parse duration unit (format: "duration_Days", "duration_Hours", etc.)
+    const unit = durationUnit.toLowerCase()
+
+    if (unit.includes('hour')) {
+      expirationDate.setHours(expirationDate.getHours() + durationValue)
+    } else if (unit.includes('day')) {
+      expirationDate.setDate(expirationDate.getDate() + durationValue)
+    } else if (unit.includes('week')) {
+      expirationDate.setDate(expirationDate.getDate() + (durationValue * 7))
+    } else if (unit.includes('month')) {
+      expirationDate.setMonth(expirationDate.getMonth() + durationValue)
+    } else if (unit.includes('year')) {
+      expirationDate.setFullYear(expirationDate.getFullYear() + durationValue)
+    }
+
+    return expirationDate
+  }
+
+  // Handle receipt printing with unified thermal system
+  const handlePrintReceipt = async () => {
+    if (!generatedTokenData || !businessDetails || !printerId) {
+      toast.push('Missing printer or business information')
+      return
+    }
+
+    try {
+      setIsPrinting(true)
+
+      // Calculate expiration date
+      const expiresAt = calculateExpirationDate(
+        generatedTokenData.token.tokenConfig.durationValue,
+        generatedTokenData.token.tokenConfig.durationUnit
+      )
+
+      // Build receipt data matching restaurant POS format
+      const receiptData: ReceiptData = {
+        receiptNumber: {
+          globalId: generatedTokenData.sale.id,
+          dailySequence: '001',
+          formattedNumber: `R710-${generatedTokenData.sale.id.substring(0, 8)}`
+        },
+        businessId: currentBusinessId || '',
+        businessType: currentBusiness?.businessType || 'restaurant',
+        businessName: businessDetails.name || businessDetails.businessName || 'Business',
+        businessAddress: businessDetails.address || businessDetails.umbrellaBusinessAddress || '',
+        businessPhone: businessDetails.phone || businessDetails.umbrellaBusinessPhone || '',
+        transactionId: generatedTokenData.sale.id,
+        transactionDate: new Date(generatedTokenData.sale.soldAt),
+        salespersonName: session?.user?.name || 'Staff',
+        salespersonId: session?.user?.id || '',
+        items: [{
+          name: generatedTokenData.token.tokenConfig.name,
+          sku: 'R710-TOKEN',
+          quantity: 1,
+          unitPrice: Number(generatedTokenData.sale.saleAmount),
+          totalPrice: Number(generatedTokenData.sale.saleAmount)
+        }],
+        subtotal: Number(generatedTokenData.sale.saleAmount),
+        tax: 0,
+        discount: 0,
+        total: Number(generatedTokenData.sale.saleAmount),
+        paymentMethod: generatedTokenData.sale.paymentMethod,
+        amountPaid: Number(generatedTokenData.sale.saleAmount),
+        changeDue: 0,
+        r710Tokens: [{
+          password: generatedTokenData.token.password,
+          packageName: generatedTokenData.token.tokenConfig.name,
+          durationValue: generatedTokenData.token.tokenConfig.durationValue,
+          durationUnit: generatedTokenData.token.tokenConfig.durationUnit,
+          expiresAt: expiresAt.toISOString(),
+          ssid: generatedTokenData.wlanSsid,
+          success: true
+        }],
+        footerMessage: 'Thank you for your business!'
+      }
+
+      console.log('📄 [R710 Direct Sale] Printing receipt:', receiptData)
+
+      await ReceiptPrintManager.printReceipt(receiptData, (currentBusiness?.businessType as any) || 'restaurant', {
+        autoPrint: true,
+        printerId: printerId,
+        printCustomerCopy: printCustomerCopy,
+        onSuccess: (jobId, receiptType) => {
+          console.log(`✅ ${receiptType} copy printed:`, jobId)
+          toast.push(`${receiptType === 'business' ? 'Business' : 'Customer'} receipt sent to printer`)
+        },
+        onError: (error, receiptType) => {
+          console.error(`❌ Receipt print failed:`, error)
+          toast.push(`Error printing receipt: ${error.message}`)
+        }
+      })
+
+    } catch (error: any) {
+      console.error('❌ Print receipt error:', error)
+      toast.push(error.message || 'Failed to print receipt')
+    } finally {
+      setIsPrinting(false)
+    }
   }
 
   if (businessLoading || loading) {
@@ -260,23 +394,6 @@ export default function R710SalesPage() {
       title="R710 WiFi Token Sales"
       subtitle="Sell R710 WiFi access tokens to customers"
     >
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .print-receipt, .print-receipt * {
-            visibility: visible;
-          }
-          .print-receipt {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-          }
-        }
-      `}</style>
       <div className="max-w-6xl mx-auto">
         {/* Navigation Link */}
         <div className="mb-6">
@@ -299,6 +416,15 @@ export default function R710SalesPage() {
         {successMessage && (
           <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <p className="text-green-800 dark:text-green-200">{successMessage}</p>
+          </div>
+        )}
+
+        {/* Printer Warning */}
+        {!printerId && (
+          <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <p className="text-yellow-800 dark:text-yellow-200">
+              ⚠️ No printer configured. Receipts cannot be printed. Please configure a printer in Business Settings.
+            </p>
           </div>
         )}
 
@@ -338,72 +464,32 @@ export default function R710SalesPage() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={handlePrintReceipt}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  🖨️ Print Receipt
-                </button>
-              </div>
-            </div>
+                <div className="flex flex-col gap-3">
+                  {/* Customer Copy Checkbox */}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={printCustomerCopy}
+                      onChange={(e) => setPrintCustomerCopy(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 rounded"
+                    />
+                    <span className="text-sm text-blue-800 dark:text-blue-200">
+                      Print customer copy
+                    </span>
+                  </label>
 
-            {/* Receipt for Printing */}
-            <div className="hidden print:block print-receipt">
-              <div className="p-8 font-mono text-sm">
-                <div className="text-center mb-6">
-                  <h1 className="text-2xl font-bold mb-2">{currentBusiness?.businessName}</h1>
-                  <p className="text-gray-600">R710 WiFi Access Receipt</p>
-                  <p className="text-xs text-gray-500">{new Date(generatedTokenData.sale.soldAt).toLocaleString()}</p>
-                </div>
-
-                <div className="border-t-2 border-b-2 border-dashed border-gray-400 py-4 my-4">
-                  <h2 className="font-bold mb-3">WiFi Credentials</h2>
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-gray-600">Username:</span>
-                      <div className="text-xl font-bold mt-1">{generatedTokenData.token.username}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Password:</span>
-                      <div className="text-xl font-bold mt-1">{generatedTokenData.token.password}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1 mb-4">
-                  <div className="flex justify-between">
-                    <span>Package:</span>
-                    <span className="font-bold">{generatedTokenData.token.tokenConfig.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Duration:</span>
-                    <span>{formatDuration(generatedTokenData.token.tokenConfig.durationValue, generatedTokenData.token.tokenConfig.durationUnit)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Device Limit:</span>
-                    <span>{generatedTokenData.token.tokenConfig.deviceLimit}</span>
-                  </div>
-                  {generatedTokenData.wlanSsid && (
-                    <div className="flex justify-between">
-                      <span>WiFi Network:</span>
-                      <span className="font-bold">{generatedTokenData.wlanSsid}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t-2 border-gray-400 pt-3 mt-3">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Amount Paid:</span>
-                    <span>{formatCurrency(generatedTokenData.sale.saleAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-gray-600">
-                    <span>Payment Method:</span>
-                    <span>{generatedTokenData.sale.paymentMethod}</span>
-                  </div>
-                </div>
-
-                <div className="text-center mt-6 text-xs text-gray-500">
-                  <p>Thank you for your business!</p>
+                  <button
+                    onClick={handlePrintReceipt}
+                    disabled={isPrinting || !printerId}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isPrinting || !printerId
+                        ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                    title={!printerId ? 'No printer configured' : ''}
+                  >
+                    {isPrinting ? '⏳ Printing...' : '🖨️ Print Receipt'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -459,9 +545,68 @@ export default function R710SalesPage() {
                         <span>📱</span>
                         <span>{config.deviceLimit} device{config.deviceLimit > 1 ? 's' : ''}</span>
                       </div>
-                      <div className={`flex items-center gap-2 ${config.availableCount > 0 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-red-600 dark:text-red-400 font-medium'}`}>
-                        <span>{config.availableCount > 0 ? '✓' : '⚠️'}</span>
-                        <span>{config.availableCount} token{config.availableCount !== 1 ? 's' : ''} available</span>
+                      <div className="flex flex-col gap-1">
+                        <div className={`flex items-center gap-2 ${config.availableCount > 0 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-red-600 dark:text-red-400 font-medium'}`}>
+                          <span>{config.availableCount > 0 ? '✓' : '⚠️'}</span>
+                          <span>{config.availableCount} token{config.availableCount !== 1 ? 's' : ''} available</span>
+                        </div>
+                        {config.availableCount < 5 && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation(); // Prevent card selection
+
+                              try {
+                                const response = await fetch('/api/r710/generate-tokens', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    businessId: currentBusinessId,
+                                    tokenConfigId: config.id,
+                                    quantity: 5
+                                  })
+                                });
+
+                                const result = await response.json();
+
+                                if (response.ok) {
+                                  // Optimistic UI update
+                                  const tokensCreated = result.tokensCreated || result.tokensGenerated || 5;
+                                  setTokenConfigs(prev => prev.map(c => {
+                                    if (c.id === config.id) {
+                                      return {
+                                        ...c,
+                                        availableCount: c.availableCount + tokensCreated
+                                      };
+                                    }
+                                    return c;
+                                  }));
+
+                                  toast.push(`✅ Successfully created ${tokensCreated} ${config.name} token${tokensCreated !== 1 ? 's' : ''}!`, {
+                                    type: 'success',
+                                    duration: 5000
+                                  });
+
+                                  // Background refresh to confirm quantities
+                                  await fetchData();
+                                } else {
+                                  toast.push(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`, {
+                                    type: 'error',
+                                    duration: 0  // Require manual dismissal for errors
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Error creating tokens:', error);
+                                toast.push('❌ Error creating tokens. Please try again.', {
+                                  type: 'error',
+                                  duration: 0  // Require manual dismissal for errors
+                                });
+                              }
+                            }}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors"
+                          >
+                            + Request 5 More
+                          </button>
+                        )}
                       </div>
                     </div>
 

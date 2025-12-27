@@ -7,6 +7,8 @@
 
 import type { ReceiptData } from '@/types/printing';
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils';
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes';
+import { formatDateTime, formatDate as formatDateOnly } from '@/lib/date-format';
 
 export interface FormattingOptions {
   width: number; // Characters per line (32, 42, or 48)
@@ -41,7 +43,7 @@ export function formatReceipt(data: ReceiptData, options?: FormattingOptions): s
     receipt += centerText(data.businessAddress, width) + LF;
   }
   if (data.businessPhone) {
-    receipt += centerText(data.businessPhone, width) + LF;
+    receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`, width) + LF;
   }
   receipt += LF;
 
@@ -55,7 +57,7 @@ export function formatReceipt(data: ReceiptData, options?: FormattingOptions): s
   // Transaction Info - Left aligned
   receipt += ALIGN_LEFT;
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDate(data.transactionDate)}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
     receipt += `Salesperson: ${data.salespersonName}` + LF;
   }
@@ -153,8 +155,7 @@ export function formatReceipt(data: ReceiptData, options?: FormattingOptions): s
 
       // Expiration date if available
       if (token.expiresAt) {
-        const expiryDate = new Date(token.expiresAt);
-        receipt += `Expires: ${expiryDate.toLocaleDateString()} ${expiryDate.toLocaleTimeString()}` + LF;
+        receipt += `Expires: ${formatDateTime(token.expiresAt)}` + LF;
       }
 
       // Network SSID/VLAN
@@ -171,7 +172,7 @@ export function formatReceipt(data: ReceiptData, options?: FormattingOptions): s
   receipt += LF;
   receipt += ALIGN_CENTER;
   if (data.umbrellaPhone) {
-    receipt += centerText(`Support: ${data.umbrellaPhone}`, width) + LF;
+    receipt += centerText(`Support: ${formatPhoneNumberForDisplay(data.umbrellaPhone)}`, width) + LF;
   }
   if (data.footerMessage) {
     receipt += centerText(data.footerMessage, width) + LF;
@@ -259,18 +260,7 @@ function formatMoney(amount: number | undefined | null): string {
   return `$${safeAmount.toFixed(2)}`;
 }
 
-/**
- * Format date
- */
-function formatDate(date: Date): string {
-  return new Date(date).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+// Note: formatDateTime is now imported from @/lib/date-format for consistent global formatting
 
 /**
  * Note: formatDuration and formatDataAmount are imported from format-utils

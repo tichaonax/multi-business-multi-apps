@@ -36,6 +36,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('isActive')) updateData.isActive = !!payload.isActive
     if (payload.hasOwnProperty('wifiIntegrationEnabled')) updateData.wifiIntegrationEnabled = !!payload.wifiIntegrationEnabled
 
+    // Business contact information
+    if (payload.hasOwnProperty('address')) {
+      updateData.address = payload.address?.trim() || null
+    }
+    if (payload.hasOwnProperty('phone')) {
+      updateData.phone = payload.phone?.trim() || null
+    }
+
     // Receipt configuration fields
     if (payload.hasOwnProperty('receiptReturnPolicy')) {
       updateData.receiptReturnPolicy = payload.receiptReturnPolicy?.trim() || null
