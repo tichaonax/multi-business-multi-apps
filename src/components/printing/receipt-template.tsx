@@ -169,15 +169,22 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                       {token.password}
                     </div>
                   </div>
-                  <div className="text-[10px] text-center">
-                    <div>Duration: {token.durationValue} {token.durationUnit.split('_')[1]?.toLowerCase() || token.durationUnit}</div>
-                    {token.ssid && (
-                      <div className="mt-2 text-gray-600 dark:text-gray-400">
-                        1. Connect to WiFi "{token.ssid}"<br/>
-                        2. Use password above to log in
-                      </div>
-                    )}
-                  </div>
+                  {data.receiptType === 'customer' && (
+                    <div className="text-[10px] text-center">
+                      <div>Duration: {token.durationValue} {token.durationUnit.split('_')[1]?.toLowerCase() || token.durationUnit}</div>
+                      {token.expiresAt && (
+                        <div className="mt-1">
+                          Expires: {formatDateTime(new Date(token.expiresAt))}
+                        </div>
+                      )}
+                      {token.ssid && (
+                        <div className="mt-2 text-gray-600 dark:text-gray-400">
+                          1. Connect to WiFi "{token.ssid}"<br/>
+                          2. Use password above to log in
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-[10px] text-red-600 dark:text-red-400 text-center">

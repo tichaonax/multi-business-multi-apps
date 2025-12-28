@@ -125,8 +125,8 @@ export class ReceiptPrintManager {
         options.onSuccess(result.businessCopy.jobId!, 'business')
       }
 
-      // RESTAURANT ONLY: Print customer copy if requested
-      if (businessType === 'restaurant' && options.printCustomerCopy) {
+      // RESTAURANT & GROCERY: Print customer copy if requested
+      if ((businessType === 'restaurant' || businessType === 'grocery') && options.printCustomerCopy) {
         console.log('🖨️  [ReceiptPrintManager] Printing CUSTOMER copy')
 
         const customerReceiptData = {

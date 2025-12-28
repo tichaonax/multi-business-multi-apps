@@ -66,6 +66,8 @@ export function Sidebar() {
   const [expandedBusinessTypes, setExpandedBusinessTypes] = useState<Set<string>>(new Set())
   const [loadingBusinesses, setLoadingBusinesses] = useState(false)
   const [showRevenueModal, setShowRevenueModal] = useState(false)
+  const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
+  const [r710IntegrationEnabled, setR710IntegrationEnabled] = useState(false)
 
   // Get business context
   const {
@@ -115,6 +117,37 @@ export function Sidebar() {
       setLoadingBusinesses(false)
     }
   }, [session?.user, businessMemberships])
+
+  // Check WiFi integrations for current business
+  useEffect(() => {
+    const checkWiFiIntegrations = async () => {
+      if (!currentBusinessId) {
+        setEsp32IntegrationEnabled(false)
+        setR710IntegrationEnabled(false)
+        return
+      }
+
+      try {
+        // Check ESP32 integration
+        const esp32Response = await fetch(`/api/business/${currentBusinessId}/wifi-tokens`)
+        if (esp32Response.ok) {
+          const esp32Data = await esp32Response.json()
+          setEsp32IntegrationEnabled(esp32Data.success && esp32Data.menuItems && esp32Data.menuItems.length > 0)
+        }
+
+        // Check R710 integration
+        const r710Response = await fetch(`/api/r710/integration?businessId=${currentBusinessId}`)
+        if (r710Response.ok) {
+          const r710Data = await r710Response.json()
+          setR710IntegrationEnabled(r710Data.hasIntegration || false)
+        }
+      } catch (error) {
+        console.error('Failed to check WiFi integrations:', error)
+      }
+    }
+
+    checkWiFiIntegrations()
+  }, [currentBusinessId])
 
   // Helper function to group businesses by type - DYNAMIC with "Other" category
   const groupBusinessesByType = (businessList: Business[]) => {
@@ -448,25 +481,25 @@ export function Sidebar() {
                   <span className="text-lg">📋</span>
                   <span>Menu Management</span>
                 </Link>
-                {checkPermission(currentUser, 'canConfigureWifiTokens') && (
+                {checkPermission(currentUser, 'canConfigureWifiTokens') && esp32IntegrationEnabled && (
                   <Link href="/restaurant/wifi-tokens" className={getLinkClasses('/restaurant/wifi-tokens')}>
                     <span className="text-lg">📶</span>
                     <span>WiFi Menu Config</span>
                   </Link>
                 )}
-                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                {checkPermission(currentUser, 'canSellWifiTokens') && r710IntegrationEnabled && (
                   <Link href="/restaurant/r710-tokens" className={getLinkClasses('/restaurant/r710-tokens')}>
                     <span className="text-lg">📡</span>
                     <span>R710 WiFi Menu</span>
                   </Link>
                 )}
-                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                {checkPermission(currentUser, 'canSellWifiTokens') && esp32IntegrationEnabled && (
                   <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">🎫</span>
                     <span>ESP32 WiFi Sales</span>
                   </Link>
                 )}
-                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                {checkPermission(currentUser, 'canSellWifiTokens') && r710IntegrationEnabled && (
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
@@ -490,25 +523,25 @@ export function Sidebar() {
                   <span className="text-lg">📦</span>
                   <span>Products</span>
                 </Link>
-                {checkPermission(currentUser, 'canConfigureWifiTokens') && (
+                {checkPermission(currentUser, 'canConfigureWifiTokens') && esp32IntegrationEnabled && (
                   <Link href="/grocery/wifi-tokens" className={getLinkClasses('/grocery/wifi-tokens')}>
                     <span className="text-lg">📶</span>
                     <span>WiFi Menu Config</span>
                   </Link>
                 )}
-                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                {checkPermission(currentUser, 'canSellWifiTokens') && r710IntegrationEnabled && (
                   <Link href="/grocery/r710-tokens" className={getLinkClasses('/grocery/r710-tokens')}>
                     <span className="text-lg">📡</span>
                     <span>R710 WiFi Menu</span>
                   </Link>
                 )}
-                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                {checkPermission(currentUser, 'canSellWifiTokens') && esp32IntegrationEnabled && (
                   <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">🎫</span>
                     <span>ESP32 WiFi Sales</span>
                   </Link>
                 )}
-                {checkPermission(currentUser, 'canSellWifiTokens') && (
+                {checkPermission(currentUser, 'canSellWifiTokens') && r710IntegrationEnabled && (
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
@@ -824,29 +857,34 @@ export function Sidebar() {
                   </Link>
                 )}
 
-                <Link
-                  href="/r710-portal/token-configs"
-                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
-                >
-                  <span>🎫</span>
-                  <span>Token Packages</span>
-                </Link>
+                {/* Only show business-specific features if integrated */}
+                {r710IntegrationEnabled && (
+                  <>
+                    <Link
+                      href="/r710-portal/token-configs"
+                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    >
+                      <span>🎫</span>
+                      <span>Token Packages</span>
+                    </Link>
 
-                <Link
-                  href="/r710-portal/tokens"
-                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
-                >
-                  <span>📦</span>
-                  <span>Token Inventory</span>
-                </Link>
+                    <Link
+                      href="/r710-portal/tokens"
+                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    >
+                      <span>📦</span>
+                      <span>Token Inventory</span>
+                    </Link>
 
-                <Link
-                  href="/r710-portal/sales"
-                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
-                >
-                  <span>💵</span>
-                  <span>Sales History</span>
-                </Link>
+                    <Link
+                      href="/r710-portal/sales"
+                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    >
+                      <span>💵</span>
+                      <span>Sales History</span>
+                    </Link>
+                  </>
+                )}
               </div>
             )}
           </>

@@ -131,3 +131,255 @@ export async function GET(
     );
   }
 }
+
+/**
+ * POST /api/business/[businessId]/r710-tokens
+ * Add a R710 token config to business menu
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ businessId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { businessId } = await params;
+    const user = session.user as SessionUser;
+    const body = await request.json();
+    const { tokenConfigId, businessPrice, isActive, displayOrder } = body;
+
+    // Validate required fields
+    if (!tokenConfigId || businessPrice === undefined) {
+      return NextResponse.json(
+        { error: 'Missing required fields: tokenConfigId, businessPrice' },
+        { status: 400 }
+      );
+    }
+
+    // Check if user has access to this business
+    const isAdmin = isSystemAdmin(user);
+    if (!isAdmin) {
+      const membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true,
+        },
+      });
+
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Verify token config exists
+    const tokenConfig = await prisma.r710TokenConfigs.findUnique({
+      where: { id: tokenConfigId },
+    });
+
+    if (!tokenConfig) {
+      return NextResponse.json(
+        { error: 'Token config not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if already exists
+    const existing = await prisma.r710BusinessTokenMenuItems.findFirst({
+      where: {
+        businessId,
+        tokenConfigId,
+      },
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'Token config already added to menu' },
+        { status: 409 }
+      );
+    }
+
+    // Create menu item
+    const menuItem = await prisma.r710BusinessTokenMenuItems.create({
+      data: {
+        businessId,
+        tokenConfigId,
+        businessPrice: parseFloat(businessPrice),
+        isActive: isActive !== undefined ? isActive : true,
+        displayOrder: displayOrder !== undefined ? displayOrder : 0,
+      },
+      include: {
+        r710_token_configs: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      menuItem: {
+        id: menuItem.id,
+        tokenConfigId: menuItem.tokenConfigId,
+        businessPrice: menuItem.businessPrice,
+        isActive: menuItem.isActive,
+        displayOrder: menuItem.displayOrder,
+        tokenConfig: menuItem.r710_token_configs,
+      },
+    }, { status: 201 });
+
+  } catch (error) {
+    console.error('[R710 Business Tokens API] POST Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to add token to menu' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/business/[businessId]/r710-tokens
+ * Update a R710 menu item
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ businessId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { businessId } = await params;
+    const user = session.user as SessionUser;
+    const body = await request.json();
+    const { menuItemId, businessPrice, isActive, displayOrder } = body;
+
+    if (!menuItemId) {
+      return NextResponse.json(
+        { error: 'Missing required field: menuItemId' },
+        { status: 400 }
+      );
+    }
+
+    // Check if user has access to this business
+    const isAdmin = isSystemAdmin(user);
+    if (!isAdmin) {
+      const membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true,
+        },
+      });
+
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Update menu item
+    const updateData: any = {};
+    if (businessPrice !== undefined) updateData.businessPrice = parseFloat(businessPrice);
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (displayOrder !== undefined) updateData.displayOrder = displayOrder;
+
+    const menuItem = await prisma.r710BusinessTokenMenuItems.update({
+      where: { id: menuItemId },
+      data: updateData,
+      include: {
+        r710_token_configs: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      menuItem: {
+        id: menuItem.id,
+        tokenConfigId: menuItem.tokenConfigId,
+        businessPrice: menuItem.businessPrice,
+        isActive: menuItem.isActive,
+        displayOrder: menuItem.displayOrder,
+        tokenConfig: menuItem.r710_token_configs,
+      },
+    });
+
+  } catch (error) {
+    console.error('[R710 Business Tokens API] PATCH Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update menu item' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/business/[businessId]/r710-tokens
+ * Remove a R710 token config from business menu
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ businessId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { businessId } = await params;
+    const user = session.user as SessionUser;
+    const { searchParams } = new URL(request.url);
+    const menuItemId = searchParams.get('menuItemId');
+
+    if (!menuItemId) {
+      return NextResponse.json(
+        { error: 'Missing required parameter: menuItemId' },
+        { status: 400 }
+      );
+    }
+
+    // Check if user has access to this business
+    const isAdmin = isSystemAdmin(user);
+    if (!isAdmin) {
+      const membership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          businessId: businessId,
+          isActive: true,
+        },
+      });
+
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'You do not have access to this business' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Delete menu item
+    await prisma.r710BusinessTokenMenuItems.delete({
+      where: { id: menuItemId },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Menu item removed successfully',
+    });
+
+  } catch (error) {
+    console.error('[R710 Business Tokens API] DELETE Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to remove menu item' },
+      { status: 500 }
+    );
+  }
+}

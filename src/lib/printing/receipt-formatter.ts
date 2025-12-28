@@ -151,23 +151,26 @@ export function formatReceipt(data: ReceiptData, options?: FormattingOptions): s
       receipt += `Package: ${token.packageName}` + LF;
       receipt += `Password: ${token.password}` + LF;
 
-      // Duration from durationValue + durationUnit (e.g., "4 Days")
-      if (token.durationValue && token.durationUnit) {
-        const durationUnit = token.durationUnit.split('_')[1] || '';
-        receipt += `Duration: ${token.durationValue} ${durationUnit}` + LF;
-      }
+      // Only show duration, expiration, SSID, and instructions on customer copy
+      if (data.receiptType === 'customer') {
+        // Duration from durationValue + durationUnit (e.g., "4 Days")
+        if (token.durationValue && token.durationUnit) {
+          const durationUnit = token.durationUnit.split('_')[1] || '';
+          receipt += `Duration: ${token.durationValue} ${durationUnit}` + LF;
+        }
 
-      // Expiration date if available
-      if (token.expiresAt) {
-        receipt += `Expires: ${formatDateTime(token.expiresAt)}` + LF;
-      }
+        // Expiration date if available
+        if (token.expiresAt) {
+          receipt += `Expires: ${formatDateTime(token.expiresAt)}` + LF;
+        }
 
-      // Network SSID/VLAN
-      if (token.ssid) {
-        receipt += `Network: ${token.ssid}` + LF;
+        // Network SSID/VLAN
+        if (token.ssid) {
+          receipt += `Network: ${token.ssid}` + LF;
+        }
+        receipt += LF;
+        receipt += wrapText('To connect: Join the WiFi network above and use password to log in.', width) + LF;
       }
-      receipt += LF;
-      receipt += wrapText('To connect: Join the WiFi network above and use password to log in.', width) + LF;
       receipt += LF;
     });
   }

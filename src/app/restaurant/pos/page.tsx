@@ -16,7 +16,7 @@ import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 import type { ReceiptData } from '@/types/printing'
-import { formatDuration } from '@/lib/printing/format-utils'
+import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 
 interface MenuItem {
   id: string
@@ -177,6 +177,36 @@ export default function RestaurantPOS() {
     }
   }
 
+  // Background R710 WLAN sync function (non-blocking)
+  const syncR710Wlan = async (businessId: string) => {
+    try {
+      console.log('🔄 Starting R710 WLAN sync in background...')
+
+      const response = await fetch('/api/r710/integration/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ businessId })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.changed) {
+          console.log(`✅ R710 WLAN synced: ${data.previousSsid} → ${data.currentSsid}`)
+        } else {
+          console.log('✅ R710 WLAN already up to date')
+        }
+      } else {
+        const errorData = await response.json()
+        // Silently log errors - don't disrupt POS operation
+        console.log('ℹ️ R710 WLAN sync skipped:', errorData.error)
+      }
+    } catch (error) {
+      // Silently catch errors - sync is non-critical for POS operation
+      console.log('ℹ️ R710 WLAN sync not available')
+    }
+  }
+
   // Load menu items (defined early so hooks order is stable).
   const loadMenuItems = async () => {
     try {
@@ -331,6 +361,13 @@ export default function RestaurantPOS() {
               const r710Integration = await r710IntegrationResponse.json()
 
               if (r710Integration.hasIntegration) {
+                // Start background R710 WLAN sync (non-blocking)
+                if (currentBusinessId) {
+                  syncR710Wlan(currentBusinessId).catch(() => {
+                    // Silently ignore - already handled in function
+                  })
+                }
+
                 // Fetch R710 token menu items for this business (only enabled items)
                 const r710MenuResponse = await fetch(`/api/business/${currentBusinessId}/r710-tokens`, {
                   credentials: 'include'
@@ -1227,6 +1264,25 @@ export default function RestaurantPOS() {
                         </p>
                       )}
                     </div>
+
+                    {/* WiFi token details - Duration and Bandwidth (ESP32 only) */}
+                    {(item as any).esp32Token && (item as any).tokenConfig && (
+                      <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 space-y-0.5">
+                        <div>⏱️ {formatDuration((item as any).tokenConfig.durationMinutes || 0)}</div>
+                        {((item as any).tokenConfig.bandwidthDownMb || (item as any).tokenConfig.bandwidthUpMb) && (
+                          <div>
+                            📊 ↓{formatDataAmount((item as any).tokenConfig.bandwidthDownMb || 0)} / ↑{formatDataAmount((item as any).tokenConfig.bandwidthUpMb || 0)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* R710 token details - Duration only */}
+                    {(item as any).r710Token && (item as any).tokenConfig && (
+                      <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                        ⏱️ {(item as any).tokenConfig.durationValue} {(item as any).tokenConfig.durationUnit?.split('_')[1] || (item as any).tokenConfig.durationUnit}
+                      </div>
+                    )}
 
                     {/* WiFi token quantity indicator */}
                     {((item as any).esp32Token || (item as any).r710Token) && (() => {

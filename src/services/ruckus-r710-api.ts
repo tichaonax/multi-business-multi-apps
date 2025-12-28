@@ -446,13 +446,57 @@ export class RuckusR710ApiService {
         await this.initializeSession();
       }
 
-      // WLAN listing logic would go here
       console.log('[R710] Listing WLANs');
+
+      // Create unique updater ID
+      const updater = `wlansvc-list.${Date.now()}.${Math.floor(Math.random() * 10000)}`;
+
+      // Build XML request
+      const xmlPayload = `<ajax-request action='getconf' DECRYPT_X='true' caller='unleashed_web' updater='${updater}' comp='wlansvc-list'/>`;
+
+      const response = await this.client.post('/admin/_conf.jsp', xmlPayload, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-CSRF-Token': this.csrfToken || '',
+          'Referer': `${this.baseUrl}/admin/dashboard.jsp`
+        }
+      });
+
+      // Parse XML response
+      const xml2js = require('xml2js');
+      const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
+      const result = await parser.parseStringPromise(response.data);
+
+      // Extract WLANs from response
+      if (result && result['ajax-response'] && result['ajax-response'].response) {
+        const responseObj = result['ajax-response'].response;
+        if (responseObj['wlansvc-list'] && responseObj['wlansvc-list'].wlansvc) {
+          const wlansvcs = responseObj['wlansvc-list'].wlansvc;
+          // Ensure it's an array
+          const wlansArray = Array.isArray(wlansvcs) ? wlansvcs : [wlansvcs];
+          console.log(`[R710] Found ${wlansArray.length} WLANs`);
+          return wlansArray;
+        }
+      }
 
       return [];
     } catch (error) {
       console.error('[R710] Failed to list WLANs:', error);
       return [];
+    }
+  }
+
+  async getWlanById(wlanId: string): Promise<any | null> {
+    try {
+      const wlans = await this.listWlans();
+      const wlan = wlans.find(w => w.id === wlanId || w.name === wlanId);
+      if (wlan) {
+        console.log(`[R710] Found WLAN: ${wlan.name} (${wlan.ssid})`);
+      }
+      return wlan || null;
+    } catch (error) {
+      console.error('[R710] Failed to get WLAN by ID:', error);
+      return null;
     }
   }
 

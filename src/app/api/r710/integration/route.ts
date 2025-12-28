@@ -263,29 +263,74 @@ export async function POST(request: NextRequest) {
 
     console.log(`[R710 Integration] WLAN created: ${wlanResult.wlanId}`);
 
-    // Create business integration and WLAN record in database
-    const integration = await prisma.r710BusinessIntegrations.create({
-      data: {
-        businessId,
-        deviceRegistryId,
-        isActive: true
-      }
-    });
+    // Create business integration and WLAN record in database (atomic transaction)
+    // If any database operation fails, both integration and WLAN records will be rolled back
+    let integration;
+    let wlan;
 
-    const wlan = await prisma.r710Wlans.create({
-      data: {
-        businessId,
-        deviceRegistryId,
-        wlanId: wlanResult.wlanId!,
-        ssid: wlanSsid,
-        guestServiceId: 'guest-default',
-        logoType: logoType || 'none',
-        title: title || 'Welcome to Guest WiFi !',
-        validDays: validDays || 1,
-        enableFriendlyKey: enableFriendlyKey || false,
-        isActive: true
-      }
-    });
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        // Create integration record
+        const newIntegration = await tx.r710BusinessIntegrations.create({
+          data: {
+            businessId,
+            deviceRegistryId,
+            isActive: true
+          }
+        });
+
+        // Use upsert in case WLAN record exists from previous integration
+        const newWlan = await tx.r710Wlans.upsert({
+          where: {
+            deviceRegistryId_wlanId: {
+              deviceRegistryId,
+              wlanId: wlanResult.wlanId!
+            }
+          },
+          update: {
+            businessId,
+            ssid: wlanSsid,
+            guestServiceId: 'guest-default',
+            logoType: logoType || 'none',
+            title: title || 'Welcome to Guest WiFi !',
+            validDays: validDays || 1,
+            enableFriendlyKey: enableFriendlyKey || false,
+            isActive: true
+          },
+          create: {
+            businessId,
+            deviceRegistryId,
+            wlanId: wlanResult.wlanId!,
+            ssid: wlanSsid,
+            guestServiceId: 'guest-default',
+            logoType: logoType || 'none',
+            title: title || 'Welcome to Guest WiFi !',
+            validDays: validDays || 1,
+            enableFriendlyKey: enableFriendlyKey || false,
+            isActive: true
+          }
+        });
+
+        return { integration: newIntegration, wlan: newWlan };
+      });
+
+      integration = result.integration;
+      wlan = result.wlan;
+
+      console.log(`[R710 Integration] Database records created successfully`);
+    } catch (dbError) {
+      console.error('[R710 Integration] Database transaction failed:', dbError);
+      // Note: R710 WLAN was created but database failed.
+      // Admin should manually delete WLAN from R710 device or retry integration
+      return NextResponse.json(
+        {
+          error: 'Failed to create integration records in database',
+          details: dbError instanceof Error ? dbError.message : 'Unknown error',
+          note: 'WLAN was created on R710 device but database transaction failed. Please contact administrator.'
+        },
+        { status: 500 }
+      );
+    }
 
     // Create R710 expense account for this business
     console.log(`[R710 Integration] Creating expense account for ${business.name}...`);

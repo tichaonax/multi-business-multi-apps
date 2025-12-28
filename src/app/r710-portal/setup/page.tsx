@@ -173,9 +173,12 @@ function R710SetupContent() {
     const selectedDevice = availableDevices.find(d => d.id === selectedDeviceId)
     if (!selectedDevice) return
 
+    // Generate SSID preview (same logic as backend)
+    const wlanName = `${currentBusiness?.businessName || 'Business'} Guest WiFi`
+
     const confirmed = await confirm({
       title: 'Create R710 Integration',
-      description: `Create R710 WiFi integration for this business using device ${selectedDevice.ipAddress}?\n\nThis will:\n• Create a dedicated WLAN for your business\n• Auto-generate SSID\n• Enable WiFi token sales in your POS`,
+      description: `Create R710 WiFi integration for this business using device ${selectedDevice.ipAddress}?\n\nWLAN Name (SSID): ${wlanName}\n\nThis will:\n• Create a dedicated WLAN for your business\n• Enable WiFi token sales in your POS`,
       confirmText: 'Create Integration',
       cancelText: 'Cancel'
     })
@@ -266,6 +269,46 @@ function R710SetupContent() {
     } catch (error) {
       console.error('Error updating configuration:', error)
       setErrorMessage('Failed to update configuration. Please try again.')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleSyncWlan = async () => {
+    try {
+      setUpdating(true)
+      setErrorMessage(null)
+
+      const response = await fetch('/api/r710/integration/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          businessId: currentBusinessId
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        if (data.changed) {
+          await alert({
+            title: 'WLAN Configuration Synced',
+            description: `WLAN configuration has been synced from the R710 device.\n\nPrevious SSID: ${data.previousSsid}\nCurrent SSID: ${data.currentSsid}\n\nReceipts will now show the correct network name.`
+          })
+        } else {
+          await alert({
+            title: 'WLAN Already Up to Date',
+            description: 'The WLAN configuration is already synchronized with the R710 device.'
+          })
+        }
+        await loadData()
+      } else {
+        setErrorMessage(data.error || 'Failed to sync WLAN configuration')
+      }
+    } catch (error) {
+      console.error('Error syncing WLAN:', error)
+      setErrorMessage('Failed to sync WLAN configuration. Please try again.')
     } finally {
       setUpdating(false)
     }
@@ -455,6 +498,13 @@ function R710SetupContent() {
                   Edit Configuration
                 </button>
                 <button
+                  onClick={handleSyncWlan}
+                  disabled={updating}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                >
+                  {updating ? 'Syncing...' : '🔄 Sync from Device'}
+                </button>
+                <button
                   onClick={() => router.push('/r710-portal/token-configs')}
                   className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
                 >
@@ -509,6 +559,21 @@ function R710SetupContent() {
                   Select an R710 device to integrate with this business
                 </p>
               </div>
+
+              {/* WLAN Name Preview */}
+              {selectedDeviceId && currentBusiness && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                    📶 WLAN Name (SSID) Preview
+                  </h3>
+                  <p className="text-lg font-mono font-bold text-blue-900 dark:text-blue-100">
+                    {currentBusiness.businessName} Guest WiFi
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                    This will be the network name visible to guests
+                  </p>
+                </div>
+              )}
 
               {/* WLAN Configuration */}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">

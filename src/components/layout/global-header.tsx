@@ -202,7 +202,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
                 {/* Business hover menu */}
                 {showBusinessMenu && (
-                  <div 
+                  <div
                     className="absolute top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
                     onMouseEnter={handleBusinessMenuEnter}
                     onMouseLeave={handleBusinessMenuLeave}
@@ -230,6 +230,25 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             <span>{link.label}</span>
                           </Link>
                         ))}
+
+                        {/* Business address and phone - non-clickable info at bottom */}
+                        {(currentBusiness.address || currentBusiness.phone) && (
+                          <>
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                            <div className="px-4 py-2 pointer-events-none">
+                              {currentBusiness.address && (
+                                <p className="text-xs text-blue-600 dark:text-blue-400">
+                                  📍 {currentBusiness.address}
+                                </p>
+                              )}
+                              {currentBusiness.phone && (
+                                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                  📞 {currentBusiness.phone}
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

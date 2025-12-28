@@ -10,14 +10,16 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { printReceipt } from '@/lib/printing/print-receipt'
-import type { ReceiptData } from '@/components/printing/receipt-template'
-import { ReceiptPreviewModal } from '@/components/printing/receipt-preview-modal'
+import type { ReceiptData } from '@/types/printing'
+import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 import { usePrintPreferences } from '@/hooks/use-print-preferences'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
+import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 import { useToastContext } from '@/components/ui/toast'
+import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 
 interface POSItem {
   id: string
@@ -73,11 +75,14 @@ function GroceryPOSContent() {
   const [products, setProducts] = useState<POSItem[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
+  const [completedOrder, setCompletedOrder] = useState<any>(null)
   const [showCashTenderModal, setShowCashTenderModal] = useState(false)
   const [cashTendered, setCashTendered] = useState('')
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
+  const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [isAutoAdding, setIsAutoAdding] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<{
     id: string
@@ -87,6 +92,11 @@ function GroceryPOSContent() {
     phone?: string
     customerType: string
   } | null>(null)
+
+  // WiFi integration states
+  const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
+  const [r710IntegrationEnabled, setR710IntegrationEnabled] = useState(false)
+  const [activeWiFiTab, setActiveWiFiTab] = useState<'esp32' | 'r710'>('esp32')
 
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const pluInputRef = useRef<HTMLInputElement>(null)
@@ -190,6 +200,36 @@ function GroceryPOSContent() {
       }))
     } catch (error) {
       console.error('❌ Background ESP32 sync error:', error)
+    }
+  }
+
+  // Background R710 WLAN sync function (non-blocking)
+  const syncR710Wlan = async (businessId: string) => {
+    try {
+      console.log('🔄 Starting R710 WLAN sync in background...')
+
+      const response = await fetch('/api/r710/integration/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ businessId })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.changed) {
+          console.log(`✅ R710 WLAN synced: ${data.previousSsid} → ${data.currentSsid}`)
+        } else {
+          console.log('✅ R710 WLAN already up to date')
+        }
+      } else {
+        const errorData = await response.json()
+        // Silently log errors - don't disrupt POS operation
+        console.log('ℹ️ R710 WLAN sync skipped:', errorData.error)
+      }
+    } catch (error) {
+      // Silently catch errors - sync is non-critical for POS operation
+      console.log('ℹ️ R710 WLAN sync not available')
     }
   }
 
@@ -310,6 +350,11 @@ function GroceryPOSContent() {
                   }))
                 posItems.push(...wifiTokenItems)
 
+                // Set ESP32 integration as enabled
+                if (wifiTokenItems.length > 0) {
+                  setEsp32IntegrationEnabled(true)
+                }
+
                 // STEP 2: Start background ESP32 sync (non-blocking, progressive updates)
                 if (tokenConfigIds.length > 0) {
                   console.log('🔄 [Step 2] Starting background ESP32 sync...')
@@ -326,6 +371,16 @@ function GroceryPOSContent() {
                 const r710Integration = await r710IntegrationResponse.json()
 
                 if (r710Integration.hasIntegration) {
+                  // Set R710 integration as enabled (show tab even if no menu items yet)
+                  setR710IntegrationEnabled(true)
+
+                  // Start background R710 WLAN sync (non-blocking)
+                  if (currentBusinessId) {
+                    syncR710Wlan(currentBusinessId).catch(() => {
+                      // Silently ignore - already handled in function
+                    })
+                  }
+
                   // Fetch R710 token menu items for this business
                   const r710MenuResponse = await fetch(`/api/business/${currentBusinessId}/r710-tokens`)
 
@@ -384,6 +439,7 @@ function GroceryPOSContent() {
                         }))
 
                       posItems.push(...r710TokenPOSItems)
+
                       console.log(`✅ Added ${r710TokenPOSItems.length} R710 token menu items`)
                     }
                   }
@@ -408,6 +464,37 @@ function GroceryPOSContent() {
   useEffect(() => {
     fetchProducts()
   }, [currentBusinessId, fetchProducts])
+
+  // Set default active WiFi tab based on enabled integrations
+  useEffect(() => {
+    if (esp32IntegrationEnabled && !r710IntegrationEnabled) {
+      setActiveWiFiTab('esp32')
+    } else if (r710IntegrationEnabled && !esp32IntegrationEnabled) {
+      setActiveWiFiTab('r710')
+    } else if (esp32IntegrationEnabled && r710IntegrationEnabled) {
+      // Both enabled, default to ESP32
+      setActiveWiFiTab('esp32')
+    }
+  }, [esp32IntegrationEnabled, r710IntegrationEnabled])
+
+  // Fetch business details for receipts
+  useEffect(() => {
+    if (!currentBusinessId) return
+
+    const fetchBusinessDetails = async () => {
+      try {
+        const response = await fetch(`/api/business/${currentBusinessId}`)
+        if (response.ok) {
+          const data = await response.json()
+          setBusinessDetails(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch business details:', error)
+      }
+    }
+
+    fetchBusinessDetails()
+  }, [currentBusinessId])
 
   const sampleCustomer: Customer = {
     id: 'c1',
@@ -769,86 +856,33 @@ function GroceryPOSContent() {
       const result = await response.json()
 
       if (result.success) {
-        // Payment processed successfully
-        await customAlert({ title: 'Payment processed', description: `Payment processed: ${formatCurrency(totals.total)} via ${paymentMethod.toUpperCase()}\nOrder #: ${result.data.orderNumber}` })
-
-        // Build receipt data using universal builder
-        const receiptData = {
-          ...buildReceiptWithBusinessInfo(
-            {
-              id: result.data.id,
-              orderNumber: result.data.orderNumber,
-              orderDate: new Date().toISOString(),
-              orderType: 'SALE',
-              status: result.data.status,
-              subtotal: totals.subtotal,
-              taxAmount: totals.tax,
-              discountAmount: 0,
-              totalAmount: totals.total,
-              paymentMethod: paymentMethod.toUpperCase(),
-              paymentStatus: result.data.paymentStatus,
-              customerName: selectedCustomer?.name || customer?.name,
-              customerInfo: selectedCustomer ? {
-                name: selectedCustomer.name,
-                phone: selectedCustomer.phone
-              } : customer ? {
-                name: customer.name,
-                loyaltyNumber: customer.loyaltyNumber,
-                tier: customer.loyaltyTier
-              } : undefined,
-              employeeName: sessionUser?.name || 'Unknown',
-              employeeId: employeeId,
-              items: Array.isArray(cart)
-                ? cart.map(item => ({
-                    name: item.name,
-                    quantity: item.quantity,
-                    unitPrice: item.price,
-                    totalPrice: item.subtotal
-                  }))
-                : [],
-              attributes: {
-                snapUsed: paymentMethod === 'snap'
-              }
-            },
-            {
-              id: currentBusinessId || '',
-              name: (currentBusiness?.businessName && currentBusiness.businessName.trim()) || 'Grocery Store',
-              type: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery',
-              address: currentBusiness?.address, // From BusinessMembership
-              phone: currentBusiness?.phone // From BusinessMembership
-            }
-          ),
-          businessId: currentBusinessId || '',
-          businessType: (currentBusiness?.businessType && currentBusiness.businessType.trim()) || 'grocery',
-          wifiTokens: result.data.wifiTokens || [], // Include ESP32 WiFi tokens from API response
-          r710Tokens: result.data.r710Tokens || [] // Include R710 WiFi tokens from API response
+        // Set completed order for display
+        const orderSummary = {
+          orderNumber: result.data.orderNumber,
+          total: totals.total,
+          paymentMethod: paymentMethod.toUpperCase(),
+          amountReceived: paymentMethod === 'cash' ? parseFloat(cashTendered) : totals.total,
+          change: paymentMethod === 'cash' ? (parseFloat(cashTendered) - totals.total) : 0,
+          items: cart.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price
+          })),
+          wifiTokens: result.data.wifiTokens || [],
+          r710Tokens: result.data.r710Tokens || []
         }
 
-        // Show receipt preview modal (or auto-print if enabled)
-        if (printPreferences.autoPrintReceipt) {
-          // Auto-print without preview
-          try {
-            await handlePrintReceipt(receiptData)
-          } catch (printError) {
-            console.error('Receipt printing error:', printError)
-            // Show preview as fallback if auto-print fails
-            setPendingReceiptData(receiptData)
-            setShowReceiptPreview(true)
-          }
-        } else {
-          // Show preview modal
-          setPendingReceiptData(receiptData)
-          setShowReceiptPreview(true)
-        }
-
-        // Add loyalty points if customer is logged in
-        if (customer) {
-          await customAlert({ title: 'Loyalty Points', description: `${totals.loyaltyPoints} loyalty points added to your account!` })
-        }
+        setCompletedOrder(orderSummary)
 
         // Clear cart after successful payment
         setCart([])
         setCustomer(null)
+        setSelectedCustomer(null)
+        setShowCashTenderModal(false)
+        setCashTendered('')
+
+        // Show receipt modal
+        setShowReceiptModal(true)
         // Reload daily sales and products (to update WiFi token counts) after order completion
         setTimeout(() => {
           loadDailySales()
@@ -863,22 +897,111 @@ function GroceryPOSContent() {
     }
   }
 
+  // Build receipt data from completed order
+  const buildReceiptDataFromCompletedOrder = (order: any, business: any): ReceiptData => {
+    // Use businessInfo from order (API response), fallback to businessDetails or business (membership)
+    const actualBusiness = order.businessInfo || businessDetails || business
+    const businessName = actualBusiness?.name || actualBusiness?.businessName || 'Grocery Store'
+    const businessAddress = actualBusiness?.address || actualBusiness?.umbrellaBusinessAddress || ''
+    const businessPhone = actualBusiness?.phone || actualBusiness?.umbrellaBusinessPhone || ''
+
+    return {
+      receiptNumber: {
+        globalId: order.orderNumber,
+        dailySequence: order.orderNumber.split('-').pop() || '001',
+        formattedNumber: order.orderNumber
+      },
+      businessId: currentBusinessId || '',
+      businessType: 'grocery',
+      businessName: businessName,
+      businessAddress: businessAddress,
+      businessPhone: businessPhone,
+      businessEmail: actualBusiness?.email || actualBusiness?.settings?.email,
+      transactionId: order.orderNumber,
+      transactionDate: new Date(),
+      salespersonName: sessionUser?.name || 'Staff',
+      salespersonId: sessionUser?.id || '',
+      items: order.items.map((item: any) => ({
+        name: item.name,
+        sku: item.sku, // Only grocery items have SKU, tokens don't
+        quantity: item.quantity,
+        unitPrice: Number(item.price),
+        totalPrice: Number(item.price) * item.quantity
+      })),
+      subtotal: order.total,
+      tax: 0,
+      discount: 0,
+      total: order.total,
+      paymentMethod: order.paymentMethod?.toLowerCase() || 'cash',
+      amountPaid: order.amountReceived || order.total,
+      changeDue: order.change || 0,
+      wifiTokens: order.wifiTokens?.map((token: any) => {
+        console.log('📡 [Grocery] Mapping ESP32 WiFi token:', token)
+        const mapped = {
+          tokenCode: token.tokenCode,
+          packageName: token.packageName || token.itemName || 'WiFi Access',
+          duration: token.duration || 0,
+          bandwidthDownMb: token.bandwidthDownMb || 0,
+          bandwidthUpMb: token.bandwidthUpMb || 0,
+          ssid: token.ssid,
+          portalUrl: token.portalUrl,
+          instructions: token.instructions,
+          success: token.success,
+          error: token.error
+        }
+        console.log('📡 [Grocery] Mapped ESP32 token:', mapped)
+        return mapped
+      }),
+      r710Tokens: order.r710Tokens?.map((token: any) => {
+        console.log('📶 [Grocery] Mapping R710 WiFi token:', token)
+
+        // Calculate expiration date if not provided
+        let expiresAt = token.expiresAt
+        if (!expiresAt && token.durationValue && token.durationUnit) {
+          const now = new Date()
+          const expirationDate = new Date(now)
+          const unit = token.durationUnit.toLowerCase()
+
+          if (unit.includes('hour')) {
+            expirationDate.setHours(expirationDate.getHours() + token.durationValue)
+          } else if (unit.includes('day')) {
+            expirationDate.setDate(expirationDate.getDate() + token.durationValue)
+          } else if (unit.includes('week')) {
+            expirationDate.setDate(expirationDate.getDate() + (token.durationValue * 7))
+          } else if (unit.includes('month')) {
+            expirationDate.setMonth(expirationDate.getMonth() + token.durationValue)
+          } else if (unit.includes('year')) {
+            expirationDate.setFullYear(expirationDate.getFullYear() + token.durationValue)
+          }
+
+          expiresAt = expirationDate.toISOString()
+        }
+
+        const mapped = {
+          password: token.password,
+          packageName: token.packageName || token.itemName || 'R710 WiFi Access',
+          durationValue: token.durationValue || 0,
+          durationUnit: token.durationUnit || 'hour_Hours',
+          expiresAt: expiresAt,
+          ssid: token.ssid,
+          success: token.success,
+          error: token.error
+        }
+        console.log('📶 [Grocery] Mapped R710 token:', mapped)
+        return mapped
+      }),
+      footerMessage: 'Thank you for shopping with us!'
+    }
+  }
+
   // Handle printing receipt to configured printer
-  const handlePrintReceipt = async (receiptData: ReceiptData, printerId?: string) => {
+  const handlePrintReceipt = async (receiptData: ReceiptData) => {
     try {
-      const result = await printReceipt(receiptData, {
-        printerId,
-        autoPrint: true
-      })
-
-      if (!result.success) {
-        throw new Error(result.error || 'Print failed')
-      }
-
-      console.log('Receipt printed successfully, job ID:', result.jobId)
+      setPendingReceiptData(receiptData)
+      setShowReceiptPreview(true)
     } catch (error) {
       console.error('Print error:', error)
-      throw error
+      toast.push('Failed to open receipt preview')
     }
   }
 
@@ -988,15 +1111,219 @@ function GroceryPOSContent() {
         </div>
       )}
 
-      <ReceiptPreviewModal
+      {/* Completed Order Receipt Modal */}
+      {showReceiptModal && completedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-green-600 dark:text-green-400">✅ Order Complete!</h2>
+                <button
+                  onClick={() => {
+                    setShowReceiptModal(false)
+                    setCompletedOrder(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Order Number */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Order Number</div>
+                  <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{completedOrder.orderNumber}</div>
+                </div>
+
+                {/* Order Items */}
+                <div>
+                  <h3 className="font-semibold mb-2 text-gray-700 dark:text-gray-300">Items:</h3>
+                  <div className="space-y-2">
+                    {completedOrder.items.map((item: any, index: number) => (
+                      <div key={index} className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {item.quantity}x {item.name}
+                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                          ${(item.price * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* WiFi Tokens (if any) */}
+                {completedOrder.wifiTokens && completedOrder.wifiTokens.length > 0 && (
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border-2 border-purple-200 dark:border-purple-700">
+                    <h3 className="font-semibold mb-3 text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                      📶 WiFi Access Tokens
+                    </h3>
+                    {completedOrder.wifiTokens.map((token: any, index: number) => {
+                      const isError = token.success === false || token.error
+
+                      if (isError) {
+                        return (
+                          <div key={index} className="mb-3 last:mb-0 bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800">
+                            <div className="text-sm font-medium text-red-700 dark:text-red-300">
+                              {token.itemName || token.packageName || 'WiFi Token'}
+                            </div>
+                            <div className="text-sm text-red-600 dark:text-red-400 mt-1">
+                              ⚠️ {token.error || 'Token unavailable'}
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div key={index} className="mb-3 last:mb-0 bg-white dark:bg-gray-800 p-3 rounded">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">{token.packageName}</div>
+                          <div className="text-lg font-mono font-bold text-purple-600 dark:text-purple-400">
+                            {token.tokenCode}
+                          </div>
+                          {token.duration && (
+                            <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                              Duration: {formatDuration(token.duration)}
+                            </div>
+                          )}
+                          {token.instructions && (
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
+                              {token.instructions}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* R710 WiFi Tokens (if any) */}
+                {completedOrder.r710Tokens && completedOrder.r710Tokens.length > 0 && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border-2 border-blue-200 dark:border-blue-700">
+                    <h3 className="font-semibold mb-3 text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                      📶 R710 WiFi Access
+                    </h3>
+                    {completedOrder.r710Tokens.map((token: any, index: number) => {
+                      const isError = token.success === false || token.error
+
+                      if (isError) {
+                        return (
+                          <div key={index} className="mb-3 last:mb-0 bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800">
+                            <div className="text-sm font-medium text-red-700 dark:text-red-300">
+                              {token.itemName || token.packageName || 'R710 WiFi Token'}
+                            </div>
+                            <div className="text-sm text-red-600 dark:text-red-400 mt-1">
+                              ⚠️ {token.error || 'Token unavailable'}
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div key={index} className="mb-3 last:mb-0 bg-white dark:bg-gray-800 p-3 rounded">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">{token.packageName}</div>
+                          <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">
+                            {token.password}
+                          </div>
+                          {token.durationValue && token.durationUnit && (
+                            <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                              Duration: {token.durationValue} {token.durationUnit.split('_')[1] || token.durationUnit}
+                            </div>
+                          )}
+                          {token.ssid && (
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
+                              Connect to WiFi "{token.ssid}" and use password above to log in
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Total */}
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                  <div className="flex justify-between text-lg font-bold">
+                    <span className="text-gray-700 dark:text-gray-300">Total:</span>
+                    <span className="text-gray-900 dark:text-gray-100">${completedOrder.total.toFixed(2)}</span>
+                  </div>
+                  {completedOrder.paymentMethod === 'CASH' && (
+                    <>
+                      <div className="flex justify-between text-sm mt-1">
+                        <span className="text-gray-600 dark:text-gray-400">Received:</span>
+                        <span className="text-gray-900 dark:text-gray-100">${completedOrder.amountReceived.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-medium">
+                        <span className="text-gray-600 dark:text-gray-400">Change:</span>
+                        <span className="text-green-600 dark:text-green-400">${completedOrder.change.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Print Button */}
+                <button
+                  onClick={() => {
+                    if (currentBusiness || businessDetails) {
+                      const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, businessDetails || currentBusiness)
+                      handlePrintReceipt(receiptData)
+                    }
+                  }}
+                  className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  🖨️ Print Receipt
+                </button>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    setShowReceiptModal(false)
+                    setCompletedOrder(null)
+                  }}
+                  className="w-full py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unified Receipt Preview Modal */}
+      <UnifiedReceiptPreviewModal
         isOpen={showReceiptPreview}
         onClose={() => {
           setShowReceiptPreview(false)
           setPendingReceiptData(null)
         }}
         receiptData={pendingReceiptData}
-        onPrint={handlePrintReceipt}
         businessType="grocery"
+        onPrintConfirm={async (options) => {
+          if (!pendingReceiptData) return
+
+          try {
+            await ReceiptPrintManager.printReceipt(pendingReceiptData, 'grocery', {
+              ...options,
+              autoPrint: true,
+              onSuccess: (jobId, receiptType) => {
+                toast.push(`${receiptType} receipt sent to printer`)
+              },
+              onError: (error, receiptType) => {
+                toast.push(`Error: ${error.message}`)
+              }
+            })
+
+            // Close preview and completed order modal
+            setShowReceiptPreview(false)
+            setPendingReceiptData(null)
+            setShowReceiptModal(false)
+            setCompletedOrder(null)
+
+          } catch (error: any) {
+            toast.push(`Print error: ${error.message}`)
+          }
+        }}
       />
 
       {/* Add Customer Modal */}
@@ -1168,6 +1495,36 @@ function GroceryPOSContent() {
             </div>
 
             {/* Quick Add Buttons for Common Items */}
+            {/* WiFi Token Tabs - Only show if at least one integration is enabled */}
+            {(esp32IntegrationEnabled || r710IntegrationEnabled) && (
+              <div className="mb-3 flex gap-2 border-b border-gray-200 dark:border-gray-700">
+                {esp32IntegrationEnabled && (
+                  <button
+                    onClick={() => setActiveWiFiTab('esp32')}
+                    className={`px-4 py-2 font-medium text-sm transition-colors ${
+                      activeWiFiTab === 'esp32'
+                        ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    📡 ESP32 WiFi
+                  </button>
+                )}
+                {r710IntegrationEnabled && (
+                  <button
+                    onClick={() => setActiveWiFiTab('r710')}
+                    className={`px-4 py-2 font-medium text-sm transition-colors ${
+                      activeWiFiTab === 'r710'
+                        ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    📶 R710 WiFi
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {productsLoading ? (
                 <div className="col-span-full text-center py-4 text-secondary">
@@ -1178,7 +1535,29 @@ function GroceryPOSContent() {
                   No products available
                 </div>
               ) : (
-                products.slice(0, 4).map((product) => (
+                (() => {
+                  // Filter products based on active WiFi tab
+                  let filteredProducts = products
+
+                  // If WiFi integration is enabled, filter by active tab
+                  if (esp32IntegrationEnabled || r710IntegrationEnabled) {
+                    filteredProducts = products.filter((product) => {
+                      const isESP32Token = (product as any).wifiToken === true
+                      const isR710Token = (product as any).r710Token === true
+
+                      // Show WiFi tokens matching the active tab
+                      if (activeWiFiTab === 'esp32') {
+                        return isESP32Token
+                      } else if (activeWiFiTab === 'r710') {
+                        return isR710Token
+                      }
+
+                      return false
+                    })
+                  }
+
+                  // Display first 4 filtered products
+                  return filteredProducts.slice(0, 4).map((product) => (
                   <div
                     key={product.id}
                     onClick={() => product.weightRequired ?
@@ -1188,13 +1567,34 @@ function GroceryPOSContent() {
                     className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm text-primary min-w-0 cursor-pointer"
                   >
                     <div className="font-medium">{product.name}</div>
-                    <div className="text-secondary">
-                      {product.pluCode && `PLU: ${product.pluCode}`}
-                      {product.barcode && !product.pluCode && `Barcode`}
-                    </div>
+                    {/* Only show PLU/Barcode for non-WiFi products */}
+                    {!(product as any).wifiToken && !(product as any).r710Token && (
+                      <div className="text-secondary">
+                        {product.pluCode && `PLU: ${product.pluCode}`}
+                        {product.barcode && !product.pluCode && `Barcode`}
+                      </div>
+                    )}
                     <div className="font-semibold text-green-600">
                       {formatCurrency(product.price)}/{product.unit}
                     </div>
+                    {/* WiFi token details - Duration and Bandwidth (ESP32 only) */}
+                    {(product as any).wifiToken && (product as any).tokenConfig && (
+                      <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 space-y-0.5">
+                        <div>⏱️ {formatDuration((product as any).tokenConfig.durationMinutes || 0)}</div>
+                        {((product as any).tokenConfig.bandwidthDownMb || (product as any).tokenConfig.bandwidthUpMb) && (
+                          <div>
+                            📊 ↓{formatDataAmount((product as any).tokenConfig.bandwidthDownMb || 0)} / ↑{formatDataAmount((product as any).tokenConfig.bandwidthUpMb || 0)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* R710 token details - Duration only */}
+                    {(product as any).r710Token && (product as any).tokenConfig && (
+                      <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                        ⏱️ {(product as any).tokenConfig.durationValue} {(product as any).tokenConfig.durationUnit?.split('_')[1] || (product as any).tokenConfig.durationUnit}
+                      </div>
+                    )}
                     {/* WiFi token quantity indicator */}
                     {(product as any).wifiToken && (
                       <div className="mt-1 space-y-1">
@@ -1263,8 +1663,20 @@ function GroceryPOSContent() {
                         )}
                       </div>
                     )}
+                    {/* R710 token quantity indicator */}
+                    {(product as any).r710Token && (
+                      <div className="mt-1">
+                        <span className={`text-xs font-medium block ${
+                          (product as any).availableQuantity === 0 ? 'text-red-500' :
+                          (product as any).availableQuantity < 5 ? 'text-orange-500' :
+                          'text-green-600'}`}>
+                          📦 {(product as any).availableQuantity || 0} available
+                        </span>
+                      </div>
+                    )}
                   </div>
-                ))
+                  ))
+                })()
               )}
             </div>
           </div>
@@ -1348,33 +1760,68 @@ function GroceryPOSContent() {
           <div className="card p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
 
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span>{formatCurrency(totals.subtotal)}</span>
+            {cart.length === 0 ? (
+              <div className="text-secondary text-center py-8 text-sm">
+                Cart is empty
               </div>
-              <div className="flex justify-between">
-                <span>Tax:</span>
-                <span>{formatCurrency(totals.tax)}</span>
-              </div>
-              {totals.snapEligibleAmount > 0 && (
-                <div className="flex justify-between text-blue-600">
-                  <span>SNAP Eligible:</span>
-                  <span>{formatCurrency(totals.snapEligibleAmount)}</span>
+            ) : (
+              <>
+                {/* Cart Items */}
+                <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                  {cart.map((item, index) => (
+                    <div key={`summary-${item.id}-${index}`} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{item.name}</div>
+                        <div className="text-xs text-secondary">
+                          {item.quantity.toFixed(item.weightRequired ? 2 : 0)} × {formatCurrency(item.price)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        <span className="font-semibold text-sm whitespace-nowrap">
+                          {formatCurrency(item.subtotal)}
+                        </span>
+                        <button
+                          onClick={() => removeFromCart(item.id)}
+                          className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-xs"
+                          title="Remove item"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-              <div className="border-t pt-2">
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Total:</span>
-                  <span>{formatCurrency(totals.total)}</span>
+
+                {/* Totals */}
+                <div className="space-y-2 border-t pt-3">
+                  <div className="flex justify-between text-sm">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(totals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Tax:</span>
+                    <span>{formatCurrency(totals.tax)}</span>
+                  </div>
+                  {totals.snapEligibleAmount > 0 && (
+                    <div className="flex justify-between text-sm text-blue-600">
+                      <span>SNAP Eligible:</span>
+                      <span>{formatCurrency(totals.snapEligibleAmount)}</span>
+                    </div>
+                  )}
+                  <div className="border-t pt-2">
+                    <div className="flex justify-between font-bold text-lg">
+                      <span>Total:</span>
+                      <span>{formatCurrency(totals.total)}</span>
+                    </div>
+                  </div>
+                  {customer && totals.loyaltyPoints > 0 && (
+                    <div className="text-sm text-green-600">
+                      Earning {totals.loyaltyPoints} loyalty points
+                    </div>
+                  )}
                 </div>
-              </div>
-              {customer && totals.loyaltyPoints > 0 && (
-                <div className="text-sm text-green-600">
-                  Earning {totals.loyaltyPoints} loyalty points
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
 
           {/* Payment Methods */}

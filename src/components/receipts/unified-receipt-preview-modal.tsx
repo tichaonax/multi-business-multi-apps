@@ -51,6 +51,9 @@ export function UnifiedReceiptPreviewModal({
   useEffect(() => {
     if (isOpen) {
       loadPrinters()
+      // Reset copies to 1 when modal opens (don't persist from previous session)
+      setCopies(1)
+      setPrintCustomerCopy(true)
     }
   }, [isOpen])
 
@@ -70,9 +73,21 @@ export function UnifiedReceiptPreviewModal({
 
       setPrinters(availablePrinters)
 
-      // Auto-select first online printer if none selected
-      if (!selectedPrinterId && availablePrinters.length > 0) {
-        setSelectedPrinterId(availablePrinters[0].id)
+      // Auto-select last used printer if available
+      try {
+        const lastPrinterId = localStorage.getItem('lastSelectedPrinterId')
+        if (lastPrinterId && availablePrinters.length > 0) {
+          // Check if the saved printer is in the available list and is online
+          const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
+          if (savedPrinter && savedPrinter.isOnline) {
+            setSelectedPrinterId(lastPrinterId)
+            console.log('✓ Auto-selected last used printer:', savedPrinter.printerName)
+          } else if (savedPrinter && !savedPrinter.isOnline) {
+            console.log('⚠️ Last used printer is offline:', savedPrinter.printerName)
+          }
+        }
+      } catch (storageError) {
+        console.warn('Failed to load saved printer preference:', storageError)
       }
 
       // Check if no printers available
@@ -116,6 +131,7 @@ export function UnifiedReceiptPreviewModal({
 
   const selectedPrinter = printers.find(p => p.id === selectedPrinterId)
   const isRestaurant = businessType === 'restaurant'
+  const supportsCustomerCopy = businessType === 'restaurant' || businessType === 'grocery'
 
   return (
     <Modal
@@ -136,7 +152,7 @@ export function UnifiedReceiptPreviewModal({
               <ReceiptTemplate
                 data={{
                   ...receiptData,
-                  receiptType: 'business' // Always show business copy in preview
+                  receiptType: 'customer' // Show customer copy in preview to verify WiFi token details
                 }}
               />
             </div>
@@ -152,7 +168,7 @@ export function UnifiedReceiptPreviewModal({
           {/* Printer Selection */}
           <div>
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-              Select Printer
+              Select Printer <span className="text-red-500">*</span>
             </label>
 
             {printersLoading ? (
@@ -175,15 +191,36 @@ export function UnifiedReceiptPreviewModal({
             ) : (
               <select
                 value={selectedPrinterId || ''}
-                onChange={(e) => setSelectedPrinterId(e.target.value)}
+                onChange={(e) => {
+                  const printerId = e.target.value
+                  setSelectedPrinterId(printerId)
+
+                  // Save selected printer to localStorage for future use
+                  if (printerId) {
+                    try {
+                      localStorage.setItem('lastSelectedPrinterId', printerId)
+                      console.log('✓ Saved printer preference:', printerId)
+                    } catch (storageError) {
+                      console.warn('Failed to save printer preference:', storageError)
+                    }
+                  }
+                }}
                 className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
               >
+                <option value="">-- Select a printer --</option>
                 {printers.map((printer) => (
                   <option key={printer.id} value={printer.id}>
                     {printer.printerName} {printer.isOnline ? '(Online)' : '(Offline)'}
                   </option>
                 ))}
               </select>
+            )}
+
+            {!selectedPrinterId && printers.length > 0 && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                <AlertCircle className="w-4 h-4" />
+                Please select a printer to continue
+              </div>
             )}
 
             {selectedPrinter && (
@@ -203,26 +240,28 @@ export function UnifiedReceiptPreviewModal({
             )}
           </div>
 
-          {/* Number of Copies */}
-          <div>
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-              Number of Copies
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="5"
-              value={copies}
-              onChange={(e) => setCopies(parseInt(e.target.value) || 1)}
-              className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Business copy will print {copies} time{copies > 1 ? 's' : ''}
-            </p>
-          </div>
+          {/* Number of Copies (for Customer Copy only) */}
+          {supportsCustomerCopy && (
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                Customer Copy Quantity
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={copies}
+                onChange={(e) => setCopies(parseInt(e.target.value) || 1)}
+                className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                How many customer copies to print (business copy is always 1)
+              </p>
+            </div>
+          )}
 
-          {/* Customer Copy Toggle (Restaurant Only) */}
-          {isRestaurant && (
+          {/* Customer Copy Toggle (Restaurant & Grocery) */}
+          {supportsCustomerCopy && (
             <div className="flex items-center justify-between p-3 border rounded-lg dark:border-gray-600">
               <div>
                 <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -250,11 +289,11 @@ export function UnifiedReceiptPreviewModal({
               Print Summary
             </div>
             <ul className="space-y-1 text-blue-800 dark:text-blue-200">
-              <li>• Business Copy: {copies} {copies > 1 ? 'copies' : 'copy'}</li>
-              {isRestaurant && printCustomerCopy && (
-                <li>• Customer Copy: 1 copy</li>
+              <li>• Business Copy: 1 copy (always)</li>
+              {supportsCustomerCopy && printCustomerCopy && (
+                <li>• Customer Copy: {copies} {copies > 1 ? 'copies' : 'copy'}</li>
               )}
-              {isRestaurant && !printCustomerCopy && (
+              {supportsCustomerCopy && !printCustomerCopy && (
                 <li className="text-blue-600 dark:text-blue-400">• Customer Copy: Disabled</li>
               )}
             </ul>
@@ -275,6 +314,13 @@ export function UnifiedReceiptPreviewModal({
           <Button
             onClick={handlePrint}
             disabled={loading || !selectedPrinterId || !selectedPrinter?.isOnline}
+            title={
+              !selectedPrinterId
+                ? 'Please select a printer first'
+                : !selectedPrinter?.isOnline
+                ? 'Selected printer is offline'
+                : 'Print receipt'
+            }
           >
             <Printer className="w-4 h-4 mr-2" />
             {loading ? 'Printing...' : 'Print Receipt'}

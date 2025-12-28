@@ -46,19 +46,42 @@ export async function GET(request: NextRequest) {
       where: { expenseAccountId: { in: accountIds } },
       _sum: { amount: true },
       _count: { id: true },
+      _max: { depositDate: true }, // Get most recent deposit date
     })
     const paymentGroups = await prisma.expenseAccountPayments.groupBy({
       by: ['expenseAccountId'],
       where: { expenseAccountId: { in: accountIds } },
       _sum: { amount: true },
-      _max: { amount: true },
+      _max: { amount: true, paymentDate: true }, // Get most recent payment date
       _count: { id: true },
     })
 
     const depositMap = new Map(depositGroups.map((g) => [g.expenseAccountId, Number(g._sum?.amount ?? 0)]))
     const depositCountMap = new Map(depositGroups.map((g) => [g.expenseAccountId, Number(g._count?.id ?? 0)]))
+    const lastDepositDateMap = new Map(depositGroups.map((g) => [g.expenseAccountId, g._max?.depositDate]))
     const paymentMap = new Map(paymentGroups.map((g) => [g.expenseAccountId, Number(g._sum?.amount ?? 0)]))
     const paymentCountMap = new Map(paymentGroups.map((g) => [g.expenseAccountId, Number(g._count?.id ?? 0)]))
+    const lastPaymentDateMap = new Map(paymentGroups.map((g) => [g.expenseAccountId, g._max?.paymentDate]))
+
+    // Calculate last activity date for each account (most recent deposit or payment)
+    const lastActivityMap = new Map<string, Date>()
+    accountIds.forEach((accountId) => {
+      const lastDeposit = lastDepositDateMap.get(accountId)
+      const lastPayment = lastPaymentDateMap.get(accountId)
+
+      let lastActivity: Date | null = null
+      if (lastDeposit && lastPayment) {
+        lastActivity = new Date(lastDeposit) > new Date(lastPayment) ? new Date(lastDeposit) : new Date(lastPayment)
+      } else if (lastDeposit) {
+        lastActivity = new Date(lastDeposit)
+      } else if (lastPayment) {
+        lastActivity = new Date(lastPayment)
+      }
+
+      if (lastActivity) {
+        lastActivityMap.set(accountId, lastActivity)
+      }
+    })
 
     // Find the largest payment amount for each account and the payee for that payment
     const payments = await prisma.expenseAccountPayments.findMany({
@@ -82,10 +105,36 @@ export async function GET(request: NextRequest) {
         largestPaymentMap.set(aid, { id: p.id, amount: amt, payeeName, paymentDate: p.paymentDate })
       }
     }
+
+    // Sort accounts by most recent activity (deposits or payments)
+    // Accounts with recent activity appear first, accounts with no activity appear last (sorted by createdAt)
+    const sortedAccounts = accounts.sort((a, b) => {
+      const aLastActivity = lastActivityMap.get(a.id)
+      const bLastActivity = lastActivityMap.get(b.id)
+
+      // Both have activity - compare activity dates (most recent first)
+      if (aLastActivity && bLastActivity) {
+        return bLastActivity.getTime() - aLastActivity.getTime()
+      }
+
+      // Only a has activity - a comes first
+      if (aLastActivity && !bLastActivity) {
+        return -1
+      }
+
+      // Only b has activity - b comes first
+      if (!aLastActivity && bLastActivity) {
+        return 1
+      }
+
+      // Neither has activity - sort by createdAt (newest first)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+
     return NextResponse.json({
       success: true,
       data: {
-        accounts: accounts.map((account) => ({
+        accounts: sortedAccounts.map((account) => ({
           id: account.id,
           accountNumber: account.accountNumber,
           accountName: account.accountName,

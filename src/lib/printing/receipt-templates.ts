@@ -174,12 +174,22 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   // ============================================================================
   receipt += ALIGN_CENTER;
   receipt += centerText(stripEmojis(data.businessName)) + LF;
-  if (data.businessAddress) {
-    receipt += centerText(stripEmojis(data.businessAddress)) + LF;
+
+  // Business copy: Only show address (no phone to save paper)
+  if (isBusinessCopy) {
+    if (data.businessAddress) {
+      receipt += centerText(stripEmojis(data.businessAddress)) + LF;
+    }
   }
-  // Phone number - only on customer copy
-  if (isCustomerCopy && data.businessPhone) {
-    receipt += centerText(stripEmojis(data.businessPhone)) + LF;
+
+  // Customer copy: Always show BOTH address and phone
+  if (isCustomerCopy) {
+    if (data.businessAddress) {
+      receipt += centerText(stripEmojis(data.businessAddress)) + LF;
+    }
+    if (data.businessPhone) {
+      receipt += centerText(stripEmojis(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`)) + LF;
+    }
   }
 
   // ============================================================================
@@ -583,92 +593,47 @@ function generateClothingReceipt(data: ReceiptData): string {
 function generateGroceryReceipt(data: ReceiptData): string {
   const groceryData = data.businessSpecificData as GroceryReceiptData;
 
-  // ESC/POS commands
-  const ESC = '\x1B'; // ESC
-  const GS = '\x1D'; // GS
-  const LF = '\x0A'; // Line feed
-  const CUT = GS + 'V' + '\x41' + String.fromCharCode(3); // Partial cut paper
-
-  let receipt = '';
-
-  // Initialize printer and reset margins
-  receipt += ESC + '@';  // Initialize printer (reset all settings)
-  receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
-
-  // Header - center align
-  receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += centerText(data.businessName) + LF;
-  if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-
-  // Left align for content
-  receipt += ESC + 'a' + String.fromCharCode(0);
-
-  // Receipt info
-  receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
-  if (data.salespersonName) {
-    receipt += `Salesperson: ${data.salespersonName}` + LF;
-  }
-
-  // Items with weight/unit pricing
-  data.items.forEach((item, index) => {
-    const groceryItem = groceryData?.items?.[index] as GroceryReceiptItem;
-
-    let itemLine = item.name;
-    if (groceryItem?.weight && groceryItem?.unitPricing) {
-      itemLine += ` (${groceryItem.weight}${item.unit || 'lb'} @ ${groceryItem.unitPricing})`;
-    }
-
-    receipt += formatLineItem(itemLine, item.quantity, item.unitPrice, item.totalPrice);
-    if (item.barcode) {
-      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})` + LF;
-    } else if (item.sku) {
-      receipt += `  SKU: ${item.sku}` + LF;
-    }
-
-    if (groceryItem?.expirationDate) {
-      receipt += `  Exp: ${formatDateOnly(groceryItem.expirationDate)}` + LF;
-    }
-  });
-  // Totals
-  receipt += formatTotal('Subtotal', data.subtotal);
-  // Only print tax line if tax > 0 AND tax is charged separately
-  if (data.tax > 0 && !data.taxIncludedInPrice) {
-    receipt += formatTotal('Tax', data.tax);
-  }
-  if (data.discount) {
-    receipt += formatTotal('Savings', -data.discount);
-  }
-  receipt += formatTotal('TOTAL', data.total, true);
-
-  // Payment
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
-
-  // Loyalty points
+  // Business-specific section: Loyalty points
+  let businessSpecific = '';
   if (groceryData?.loyaltyPoints) {
-    receipt += LF;
-    receipt += `Points Earned: ${groceryData.loyaltyPoints}` + LF;
-    receipt += `Points Balance: ${groceryData.loyaltyBalance || 0}` + LF;
+    businessSpecific += `Points Earned: ${groceryData.loyaltyPoints}` + LF;
+    businessSpecific += `Points Balance: ${groceryData.loyaltyBalance || 0}` + LF;
   }
 
-  // Return policy (always print - use default if not configured)
-  const returnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
-  receipt += LF;
-  receipt += wrapText(stripEmojis(returnPolicy), RECEIPT_WIDTH) + LF;
+  // Item details renderer: Show weight/unit pricing and expiration
+  const itemDetailsRenderer = (item: any, index: number) => {
+    const groceryItem = groceryData?.items?.[index] as GroceryReceiptItem;
+    if (!groceryItem) return '';
 
-  // Footer - center align
-  receipt += LF;
-  receipt += ESC + 'a' + String.fromCharCode(1);
-  if (data.umbrellaPhone) {
-    receipt += centerText(data.umbrellaPhone) + LF;
-  }
-  receipt += centerText('Thank you for shopping!') + LF;
-  receipt += centerText('Fresh savings every day!') + LF;
+    let details = '';
 
-  // Cut paper
-  receipt += CUT;
+    // Weight and unit pricing for weighed items
+    if (groceryItem.weight && groceryItem.unitPricing) {
+      details += `  (${groceryItem.weight}${item.unit || 'lb'} @ ${groceryItem.unitPricing})` + LF;
+    }
 
-  return receipt;
+    // Expiration date
+    if (groceryItem.expirationDate) {
+      details += `  Exp: ${formatDateOnly(groceryItem.expirationDate)}` + LF;
+    }
+
+    return details;
+  };
+
+  // Footer additions: Return policy
+  let footerAdditions = '';
+  // const returnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  // footerAdditions += wrapText(stripEmojis(returnPolicy), RECEIPT_WIDTH) + LF;
+  // footerAdditions += LF;
+  // footerAdditions += ALIGN_CENTER;
+  // footerAdditions += centerText('Thank you for shopping!') + LF;
+  // footerAdditions += centerText('Fresh savings every day!') + LF;
+
+  return generateStandardReceipt(data, {
+    businessSpecific,
+    itemDetailsRenderer,
+    footerAdditions,
+  });
 }
 
 /**

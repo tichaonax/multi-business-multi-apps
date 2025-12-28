@@ -50,10 +50,36 @@ export default function R710PortalPage() {
 
 function R710PortalContent() {
   const { data: session } = useSession()
-  const { currentBusiness } = useBusinessPermissionsContext()
+  const { currentBusiness, currentBusinessId } = useBusinessPermissionsContext()
   const user = session?.user as any
   const [stats, setStats] = useState<R710Stats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [hasIntegration, setHasIntegration] = useState(false)
+  const [checkingIntegration, setCheckingIntegration] = useState(true)
+
+  // Check if current business has R710 integration
+  useEffect(() => {
+    const checkIntegration = async () => {
+      if (!currentBusinessId) {
+        setCheckingIntegration(false)
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/r710/integration?businessId=${currentBusinessId}`)
+        if (response.ok) {
+          const data = await response.json()
+          setHasIntegration(data.hasIntegration || false)
+        }
+      } catch (error) {
+        console.error('Failed to check R710 integration:', error)
+      } finally {
+        setCheckingIntegration(false)
+      }
+    }
+
+    checkIntegration()
+  }, [currentBusinessId])
 
   useEffect(() => {
     loadStats()
@@ -116,6 +142,32 @@ function R710PortalContent() {
         </div>
       </div>
 
+      {/* Integration Status Alert */}
+      {!checkingIntegration && currentBusinessId && !hasIntegration && (
+        <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex items-start">
+            <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
+                Integration Setup Required
+              </h3>
+              <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                The current business is not integrated with R710. Please complete the integration setup to access token management and sales features.
+              </p>
+              <Link
+                href="/r710-portal/setup"
+                className="inline-flex items-center mt-3 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md text-sm font-medium transition-colors"
+              >
+                <span className="mr-2">⚙️</span>
+                Start Integration Setup
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Navigation */}
       <div className="mb-8">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
@@ -136,29 +188,44 @@ function R710PortalContent() {
               Device Registry
             </Link>
 
-            <Link
-              href="/r710-portal/token-configs"
-              className="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md text-sm font-medium text-gray-900 dark:text-white transition-colors"
+            <button
+              disabled={!hasIntegration && !!currentBusinessId}
+              onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/token-configs'}
+              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                !hasIntegration && currentBusinessId
+                  ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
+                  : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white cursor-pointer'
+              }`}
             >
               <span className="mr-2">🎫</span>
               Token Packages
-            </Link>
+            </button>
 
-            <Link
-              href="/r710-portal/tokens"
-              className="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md text-sm font-medium text-gray-900 dark:text-white transition-colors"
+            <button
+              disabled={!hasIntegration && !!currentBusinessId}
+              onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/tokens'}
+              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                !hasIntegration && currentBusinessId
+                  ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
+                  : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white cursor-pointer'
+              }`}
             >
               <span className="mr-2">📦</span>
               Token Inventory
-            </Link>
+            </button>
 
-            <Link
-              href="/r710-portal/sales"
-              className="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md text-sm font-medium text-gray-900 dark:text-white transition-colors"
+            <button
+              disabled={!hasIntegration && !!currentBusinessId}
+              onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/sales'}
+              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                !hasIntegration && currentBusinessId
+                  ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
+                  : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white cursor-pointer'
+              }`}
             >
               <span className="mr-2">💵</span>
               Sales History
-            </Link>
+            </button>
           </div>
         </div>
       </div>
@@ -175,7 +242,7 @@ function R710PortalContent() {
       {!loading && stats && (
         <>
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 ${!hasIntegration && currentBusinessId ? 'opacity-50' : ''}`}>
             {/* Devices */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
@@ -286,9 +353,13 @@ function R710PortalContent() {
                 </div>
               </Link>
 
-              <Link
-                href="/r710-portal/token-configs"
-                className="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              <div
+                className={`flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors ${
+                  !hasIntegration && currentBusinessId
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
+                }`}
+                onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/token-configs'}
               >
                 <svg className="w-8 h-8 text-purple-600 dark:text-purple-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
@@ -297,11 +368,15 @@ function R710PortalContent() {
                   <p className="font-medium text-gray-900 dark:text-white">Token Packages</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Configure pricing & duration</p>
                 </div>
-              </Link>
+              </div>
 
-              <Link
-                href="/r710-portal/sales"
-                className="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              <div
+                className={`flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors ${
+                  !hasIntegration && currentBusinessId
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
+                }`}
+                onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/sales'}
               >
                 <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 0a3 3 0 110 6H9l3 3m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -310,7 +385,7 @@ function R710PortalContent() {
                   <p className="font-medium text-gray-900 dark:text-white">Sales History</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Revenue & analytics</p>
                 </div>
-              </Link>
+              </div>
             </div>
           </div>
 

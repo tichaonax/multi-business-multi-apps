@@ -496,11 +496,19 @@ export default function R710SalesPage() {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Select R710 WiFi Package</h2>
 
             {tokenConfigs.length === 0 ? (
-              <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-8 text-center">
-                <p className="text-gray-600 dark:text-gray-400">No active R710 WiFi packages available.</p>
-                <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-                  Please configure token packages in R710 Token Configurations.
+              <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-8 text-center">
+                <div className="text-5xl mb-4">📦</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Token Packages Yet</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  You need to create token packages before you can sell R710 WiFi tokens.
                 </p>
+                <Link
+                  href="/r710-portal/token-configs"
+                  className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  <span className="mr-2">🎫</span>
+                  <span>Create Token Packages</span>
+                </Link>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -641,14 +649,14 @@ export default function R710SalesPage() {
                   {/* Complete Sale Button */}
                   <button
                     onClick={() => setShowPaymentModal(true)}
-                    disabled={generatingToken || parseFloat(customPrice) < 0}
+                    disabled={generatingToken || parseFloat(customPrice) < 0 || tokenConfigs.length === 0}
                     className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                      generatingToken || parseFloat(customPrice) < 0
+                      generatingToken || parseFloat(customPrice) < 0 || tokenConfigs.length === 0
                         ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                         : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
-                    {generatingToken ? 'Processing Sale...' : 'Proceed to Payment'}
+                    {generatingToken ? 'Processing Sale...' : tokenConfigs.length === 0 ? 'No Packages Available' : 'Proceed to Payment'}
                   </button>
                 </div>
               ) : (

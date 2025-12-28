@@ -606,7 +606,10 @@ export async function POST(request: NextRequest) {
                 // CRITICAL: Verify token exists on ESP32 before completing sale
                 try {
                   const esp32VerifyResponse = await fetch(
-                    `http://${integration.portalIpAddress}:${integration.portalPort}/api/token/info?token=${availableToken.token}&api_key=${integration.apiKey}`
+                    `http://${integration.portalIpAddress}:${integration.portalPort}/api/token/info?token=${availableToken.token}&api_key=${integration.apiKey}`,
+                    {
+                      signal: AbortSignal.timeout(3000) // 3 second timeout
+                    }
                   )
 
                   if (!esp32VerifyResponse.ok) {
@@ -622,6 +625,16 @@ export async function POST(request: NextRequest) {
                   console.log('✅ ESP32 verified token:', availableToken.token)
                 } catch (esp32Error) {
                   console.error('❌ ESP32 verification failed for token:', availableToken.token, esp32Error)
+
+                  // More specific error messages
+                  if (esp32Error instanceof Error) {
+                    if (esp32Error.name === 'AbortError' || esp32Error.message.includes('timeout')) {
+                      throw new Error(`WiFi Portal not responding. Please check ESP32 device is online at ${integration.portalIpAddress}:${integration.portalPort}`)
+                    } else if (esp32Error.message.includes('ECONNREFUSED') || esp32Error.message.includes('fetch failed')) {
+                      throw new Error(`Cannot connect to WiFi Portal at ${integration.portalIpAddress}:${integration.portalPort}. Please check device is powered on.`)
+                    }
+                  }
+
                   throw new Error(`WiFi Portal integration error: ${esp32Error instanceof Error ? esp32Error.message : 'Cannot verify token'}`)
                 }
 
@@ -683,7 +696,7 @@ export async function POST(request: NextRequest) {
         const r710ExpenseAccount = await getOrCreateR710ExpenseAccount(orderData.businessId, user.id)
 
         // Fetch R710 integration
-        const r710Integration = await tx.r710Integrations.findFirst({
+        const r710Integration = await tx.r710BusinessIntegrations.findFirst({
           where: { businessId: orderData.businessId, isActive: true }
         })
 
@@ -717,9 +730,12 @@ export async function POST(request: NextRequest) {
               continue
             }
 
-            // Get WLAN SSID for display
-            const wlan = await tx.r710Wlans.findUnique({
-              where: { id: r710Config.wlanId },
+            // Get WLAN SSID for display from business integration
+            const wlan = await tx.r710Wlans.findFirst({
+              where: {
+                businessId: orderData.businessId,
+                deviceRegistryId: r710Integration.deviceRegistryId
+              },
               select: { ssid: true }
             })
 
