@@ -174,11 +174,22 @@ export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenu
 
   const handleUpdatePrice = async (menuItemId: string, configId: string) => {
     try {
-      const newPrice = parseFloat(editingPrices[configId] || '0')
+      const priceString = editingPrices[configId]?.trim()
+
+      // Check for empty or invalid input
+      if (!priceString || priceString === '') {
+        await alert({
+          title: 'Invalid Price',
+          description: 'Please enter a price'
+        })
+        return
+      }
+
+      const newPrice = parseFloat(priceString)
       if (isNaN(newPrice) || newPrice < 0) {
         await alert({
           title: 'Invalid Price',
-          description: 'Please enter a valid price'
+          description: 'Please enter a valid price (must be 0 or greater)'
         })
         return
       }
@@ -356,16 +367,23 @@ export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenu
                           <div className="flex items-center space-x-2">
                             <span className="text-gray-500 dark:text-gray-400">$</span>
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={editingPrices[config.id]}
-                              onChange={(e) => setEditingPrices(prev => ({
-                                ...prev,
-                                [config.id]: e.target.value
-                              }))}
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={editingPrices[config.id] || ''}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                // Allow empty string, numbers, and decimal point
+                                if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                                  setEditingPrices(prev => ({
+                                    ...prev,
+                                    [config.id]: value
+                                  }))
+                                }
+                              }}
                               className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white"
                               disabled={isSaving}
+                              autoFocus
                             />
                             <button
                               onClick={() => handleUpdatePrice(menuItem!.id, config.id)}

@@ -28,6 +28,7 @@ interface R710Wlan {
   title: string
   validDays: number
   enableFriendlyKey: boolean
+  enableZeroIt: boolean
   isActive: boolean
   createdAt: string
 }
@@ -76,6 +77,7 @@ function R710SetupContent() {
   const [title, setTitle] = useState('Welcome to Guest WiFi !')
   const [validDays, setValidDays] = useState(1)
   const [enableFriendlyKey, setEnableFriendlyKey] = useState(false)
+  const [enableZeroIt, setEnableZeroIt] = useState(true)
 
   // Edit mode state
   const [editMode, setEditMode] = useState(false)
@@ -83,6 +85,7 @@ function R710SetupContent() {
   const [editTitle, setEditTitle] = useState('Welcome to Guest WiFi !')
   const [editValidDays, setEditValidDays] = useState(1)
   const [editEnableFriendlyKey, setEditEnableFriendlyKey] = useState(false)
+  const [editEnableZeroIt, setEditEnableZeroIt] = useState(true)
   const [updating, setUpdating] = useState(false)
 
   const canSetup = session?.user ? (isSystemAdmin(session.user) || hasPermission(session.user, 'canSetupPortalIntegration')) : false
@@ -199,7 +202,8 @@ function R710SetupContent() {
           logoType: logoType,
           title: title,
           validDays: validDays,
-          enableFriendlyKey: enableFriendlyKey
+          enableFriendlyKey: enableFriendlyKey,
+          enableZeroIt: enableZeroIt
         })
       })
 
@@ -229,6 +233,7 @@ function R710SetupContent() {
       setEditTitle(wlan.title)
       setEditValidDays(wlan.validDays)
       setEditEnableFriendlyKey(wlan.enableFriendlyKey)
+      setEditEnableZeroIt(wlan.enableZeroIt)
       setEditMode(true)
     }
   }
@@ -251,7 +256,8 @@ function R710SetupContent() {
           logoType: editLogoType,
           title: editTitle,
           validDays: editValidDays,
-          enableFriendlyKey: editEnableFriendlyKey
+          enableFriendlyKey: editEnableFriendlyKey,
+          enableZeroIt: editEnableZeroIt
         })
       })
 
@@ -457,6 +463,20 @@ function R710SetupContent() {
                     </label>
                   ) : (integration.wlans[0].enableFriendlyKey ? 'Enabled' : 'Disabled')}</span>
                 </div>
+                <div className="flex items-start">
+                  <span className="font-medium text-gray-700 dark:text-gray-300 w-32">Zero-IT Onboarding:</span>
+                  <span className="text-gray-900 dark:text-white">{editMode ? (
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={editEnableZeroIt}
+                        onChange={(e) => setEditEnableZeroIt(e.target.checked)}
+                        className="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm">Enabled</span>
+                    </label>
+                  ) : (integration.wlans[0].enableZeroIt ? 'Enabled' : 'Disabled')}</span>
+                </div>
               </>
             )}
             <div className="flex items-start">
@@ -650,6 +670,26 @@ function R710SetupContent() {
                         </span>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           Generate human-readable access keys for tokens
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Enable Zero-IT Onboarding */}
+                  <div>
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={enableZeroIt}
+                        onChange={(e) => setEnableZeroIt(e.target.checked)}
+                        className="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Enable Zero-IT Device Registration
+                        </span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Required for clients to connect to the guest WiFi network
                         </p>
                       </div>
                     </label>

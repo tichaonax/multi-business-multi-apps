@@ -808,86 +808,32 @@ export function Sidebar() {
           </Link>
         )}
 
-        {/* WiFi Portal - For restaurant/grocery businesses (always visible to admins) */}
-        {(currentBusiness?.businessType === 'restaurant' || currentBusiness?.businessType === 'grocery') &&
-         (isSystemAdmin(currentUser) || (currentBusiness?.wifiIntegrationEnabled && checkPermission(currentUser, 'canSetupPortalIntegration'))) && (
+        {/* ESP32 WiFi Portal - ESP32-based WiFi token system */}
+        {(isSystemAdmin(currentUser) ||
+          checkPermission(currentUser, 'canManageWifiPortal') ||
+          checkPermission(currentUser, 'canSetupPortalIntegration') ||
+          checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
           <Link
             href="/wifi-portal"
             className={getLinkClasses('/wifi-portal')}
           >
             <span className="text-lg">📡</span>
-            <span>ESP32 WiFi</span>
+            <span>ESP32 WiFi Portal</span>
           </Link>
         )}
 
-        {/* R710 Portal - Enterprise WiFi Management (Admin or businesses with R710 integration) */}
-        {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canManageWifiPortal')) && (
-          <>
-            <Link
-              href="/r710-portal"
-              className={getLinkClasses('/r710-portal')}
-            >
-              <span className="text-lg">📶</span>
-              <span className="flex items-center space-x-2">
-                <span>R710 WiFi</span>
-                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded">
-                  Enterprise
-                </span>
-              </span>
-            </Link>
-
-            {/* R710 Portal Sub-menu - Show when on R710 portal pages */}
-            {pathname.startsWith('/r710-portal') && (
-              <div className="ml-8 space-y-1 mt-1">
-                <Link
-                  href="/r710-portal/setup"
-                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
-                >
-                  <span>⚙️</span>
-                  <span>Integration Setup</span>
-                </Link>
-
-                {isSystemAdmin(currentUser) && (
-                  <Link
-                    href="/r710-portal/devices"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
-                  >
-                    <span>🖥️</span>
-                    <span>Device Registry</span>
-                  </Link>
-                )}
-
-                {/* Only show business-specific features if integrated */}
-                {r710IntegrationEnabled && (
-                  <>
-                    <Link
-                      href="/r710-portal/token-configs"
-                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
-                    >
-                      <span>🎫</span>
-                      <span>Token Packages</span>
-                    </Link>
-
-                    <Link
-                      href="/r710-portal/tokens"
-                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
-                    >
-                      <span>📦</span>
-                      <span>Token Inventory</span>
-                    </Link>
-
-                    <Link
-                      href="/r710-portal/sales"
-                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
-                    >
-                      <span>💵</span>
-                      <span>Sales History</span>
-                    </Link>
-                  </>
-                )}
-              </div>
-            )}
-          </>
+        {/* R710 WiFi Portal - Ruckus R710-based WiFi token system */}
+        {(isSystemAdmin(currentUser) ||
+          checkPermission(currentUser, 'canManageWifiPortal') ||
+          checkPermission(currentUser, 'canSetupPortalIntegration') ||
+          checkPermission(currentUser, 'canConfigureWifiTokens')) && r710IntegrationEnabled && (
+          <Link
+            href="/r710-portal"
+            className={getLinkClasses('/r710-portal')}
+          >
+            <span className="text-lg">📶</span>
+            <span>R710 WiFi Portal</span>
+          </Link>
         )}
 
         {/* Reports - Only for managers and admins, not drivers */}
@@ -1085,6 +1031,22 @@ export function Sidebar() {
               >
                 <span className="text-lg">🛠️</span>
                 <span>System Administration</span>
+              </Link>
+            )}
+
+            {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canManageWifiPortal')) && (
+              <Link
+                href={
+                  pathname.startsWith('/r710-portal')
+                    ? '/admin/connected-clients?system=R710'
+                    : pathname.startsWith('/wifi-portal')
+                    ? '/admin/connected-clients?system=ESP32'
+                    : '/admin/connected-clients'
+                }
+                className="sidebar-link flex items-center space-x-3"
+              >
+                <span className="text-lg">📡</span>
+                <span>Connected Clients</span>
               </Link>
             )}
 

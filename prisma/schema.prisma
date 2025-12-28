@@ -441,6 +441,13 @@ model Businesses {
   r710_token_sales                                                         R710TokenSales[]              @relation("R710TokenSaleToBusiness")
   r710_business_token_menu_items                                           R710BusinessTokenMenuItems[]
   r710_sync_logs                                                           R710SyncLogs[]
+  device_registry_first_seen                                               DeviceRegistry[]              @relation("DeviceFirstSeenBusiness")
+  device_registry_last_seen                                                DeviceRegistry[]              @relation("DeviceLastSeenBusiness")
+  device_connection_history                                                DeviceConnectionHistory[]
+  mac_acl_entries                                                          MacAclEntry[]
+  r710_connected_clients                                                   R710ConnectedClients[]
+  esp32_connected_clients                                                  ESP32ConnectedClients[]
+  wifi_usage_analytics                                                     WiFiUsageAnalytics[]
 
   @@map("businesses")
 }
@@ -2376,6 +2383,8 @@ model Users {
   reprint_logs                                                    ReprintLog[]
   r710_device_registry                                            R710DeviceRegistry[]        @relation("R710DeviceCreator")
   r710_token_sales                                                R710TokenSales[]            @relation("R710TokenSaleSeller")
+  mac_acl_entries_created                                         MacAclEntry[]               @relation("MacAclCreator")
+  mac_acl_entries_approved                                        MacAclEntry[]               @relation("MacAclApprover")
 
   @@map("users")
 }
@@ -2734,6 +2743,7 @@ model WifiTokens {
   businesses                Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   business_token_menu_items BusinessTokenMenuItems? @relation(fields: [businessTokenMenuItemId], references: [id])
   token_configurations      TokenConfigurations     @relation(fields: [tokenConfigId], references: [id])
+  esp32_connected_clients   ESP32ConnectedClients[]
 
   @@index([businessId])
   @@index([status])
@@ -3075,6 +3085,11 @@ enum R710SyncStatus {
   ERROR
 }
 
+enum MacAclListType {
+  BLACKLIST
+  WHITELIST
+}
+
 // Ruckus R710 Captive Portal Integration Models
 
 // Global R710 Device Registry - Admin manages R710 devices here
@@ -3104,6 +3119,7 @@ model R710DeviceRegistry {
   r710_business_integrations R710BusinessIntegrations[]
   r710_wlans               R710Wlans[]
   r710_sync_logs           R710SyncLogs[]
+  r710_connected_clients   R710ConnectedClients[]
 
   @@index([ipAddress])
   @@index([connectionStatus])
@@ -3140,6 +3156,7 @@ model R710Wlans {
   title                    String              @default("Welcome to Guest WiFi !") @db.VarChar(255)
   validDays                Int                 @default(1)
   enableFriendlyKey        Boolean             @default(false)
+  enableZeroIt             Boolean             @default(true)
   isActive                 Boolean             @default(true)
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @default(now()) @updatedAt
@@ -3147,6 +3164,8 @@ model R710Wlans {
   device_registry          R710DeviceRegistry  @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
   r710_token_configs       R710TokenConfigs[]
   r710_tokens              R710Tokens[]
+  r710_connected_clients   R710ConnectedClients[]
+  mac_acl_entries          MacAclEntry[]
 
   @@unique([deviceRegistryId, wlanId])
   @@index([businessId])
@@ -3299,3 +3318,292 @@ model R710SyncLogs {
   @@index([syncType])
   @@map("r710_sync_logs")
 }
+
+// ==================================================
+// WiFi Admin Monitoring & Analytics Models (MBM-121)
+// ==================================================
+
+// Unified device registry across ESP32 and R710 systems
+// Tracks unique devices by MAC address with first/last connection details
+model DeviceRegistry {
+  id                  String   @id @default(uuid())
+  macAddress          String   @unique @db.VarChar(17) // Normalized MAC (lowercase with colons: aa:bb:cc:dd:ee:ff)
+
+  // Device Identification
+  hostname            String?  @db.VarChar(255)
+  deviceType          String?  @db.VarChar(100) // iOS, Android, Windows, Linux, etc.
+  manufacturer        String?  @db.VarChar(100) // Derived from MAC OUI lookup
+
+  // First Connection Tracking
+  firstSeenAt         DateTime
+  firstSeenSystem     String   @db.VarChar(10) // "ESP32" or "R710"
+  firstSeenBusinessId String?
+
+  // Last Connection Tracking
+  lastSeenAt          DateTime
+  lastSeenSystem      String   @db.VarChar(10) // "ESP32" or "R710"
+  lastSeenBusinessId  String?
+
+  // Connection Statistics
+  totalConnections    Int      @default(0)
+  esp32Connections    Int      @default(0)
+  r710Connections     Int      @default(0)
+
+  // Admin Notes & Tags
+  notes               String?  @db.Text
+  tags                String[] // ["VIP", "Blocked", "Employee", "Suspicious", etc.]
+
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  firstSeenBusiness   Businesses? @relation("DeviceFirstSeenBusiness", fields: [firstSeenBusinessId], references: [id])
+  lastSeenBusiness    Businesses? @relation("DeviceLastSeenBusiness", fields: [lastSeenBusinessId], references: [id])
+  aclEntries          MacAclEntry[]
+  connectionHistory   DeviceConnectionHistory[]
+
+  @@index([macAddress])
+  @@index([firstSeenAt])
+  @@index([lastSeenAt])
+  @@index([deviceType])
+  @@index([firstSeenBusinessId])
+  @@index([lastSeenBusinessId])
+  @@index([firstSeenSystem])
+  @@index([lastSeenSystem])
+  @@map("device_registry")
+}
+
+// Historical connection records for devices
+// Enables connection timeline and analytics
+model DeviceConnectionHistory {
+  id              String   @id @default(uuid())
+  deviceId        String
+
+  // Connection Details
+  system          String   @db.VarChar(10) // "ESP32" or "R710"
+  businessId      String?
+  tokenId         String?  // Reference to WifiTokens.id or R710Tokens.id (polymorphic)
+  wlanSsid        String?  @db.VarChar(255)
+
+  // Connection Metadata
+  ipAddress       String?  @db.VarChar(45) // Supports IPv6
+  signalStrength  Int?     // RSSI for R710 (e.g., -65 dBm)
+  radioBand       String?  @db.VarChar(10) // "2.4g" or "5g" for R710
+  channel         String?  @db.VarChar(10)
+
+  // Bandwidth Usage (captured at disconnect for ESP32)
+  bandwidthUsedDown Decimal? @db.Decimal(12, 2) // MB
+  bandwidthUsedUp   Decimal? @db.Decimal(12, 2) // MB
+
+  // Timestamps
+  connectedAt     DateTime
+  disconnectedAt  DateTime?
+  duration        Int?     // Seconds (calculated from connected/disconnected)
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  device          DeviceRegistry @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  business        Businesses?    @relation(fields: [businessId], references: [id])
+
+  @@index([deviceId])
+  @@index([businessId])
+  @@index([connectedAt])
+  @@index([system])
+  @@index([tokenId])
+  @@map("device_connection_history")
+}
+
+// Unified MAC address access control list for both ESP32 and R710
+// Supports blacklist (deny) and whitelist (allow) modes
+model MacAclEntry {
+  id            String   @id @default(uuid())
+
+  // MAC Address
+  macAddress    String   @db.VarChar(17) // Normalized format
+  deviceId      String?  // Link to DeviceRegistry if device has been seen
+
+  // ACL Configuration
+  listType      MacAclListType // "BLACKLIST" or "WHITELIST"
+  system        String   @db.VarChar(10) // "ESP32", "R710", or "BOTH"
+  businessId    String?  // Null = applies globally, otherwise business-specific
+
+  // R710-Specific (Optional)
+  r710WlanId    String?  // Restrict to specific WLAN
+  r710AclId     String?  @db.VarChar(50) // R710 internal ACL list ID
+
+  // Metadata
+  reason        String?  @db.VarChar(255) // "Abuse", "VIP", "Employee", etc.
+  notes         String?  @db.Text
+  createdBy     String
+  approvedBy    String?  // For approval workflow
+
+  // Auto-Expiry (Optional)
+  expiresAt     DateTime?
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  device        DeviceRegistry? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  business      Businesses?     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator       Users           @relation("MacAclCreator", fields: [createdBy], references: [id])
+  approver      Users?          @relation("MacAclApprover", fields: [approvedBy], references: [id])
+  r710Wlan      R710Wlans?      @relation(fields: [r710WlanId], references: [id], onDelete: Cascade)
+
+  @@unique([macAddress, system, businessId, listType]) // Prevent duplicates
+  @@index([macAddress])
+  @@index([listType])
+  @@index([system])
+  @@index([businessId])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@map("mac_acl_entries")
+}
+
+// Real-time snapshot of connected clients on R710 devices
+// Refreshed periodically by background sync job
+model R710ConnectedClients {
+  id              String   @id @default(uuid())
+
+  // Device & WLAN Association
+  deviceRegistryId String
+  wlanId          String
+  businessId      String
+
+  // Client Identification
+  macAddress      String   @db.VarChar(17)
+  ipAddress       String?  @db.VarChar(45)
+  hostname        String?  @db.VarChar(255)
+  deviceType      String?  @db.VarChar(100)
+
+  // Connection Details
+  tokenUsername   String?  @db.VarChar(50) // Guest-XX from R710Tokens
+  connectedAt     DateTime
+  signalStrength  Int?     // RSSI in dBm
+  radioBand       String?  @db.VarChar(10) // "2.4g" or "5g"
+  channel         String?  @db.VarChar(10)
+
+  // Traffic Statistics (from R710 API)
+  rxBytes         BigInt   @default(0)
+  txBytes         BigInt   @default(0)
+  rxPackets       Int      @default(0)
+  txPackets       Int      @default(0)
+
+  // Metadata
+  lastSyncedAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  deviceRegistry  R710DeviceRegistry @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
+  wlan            R710Wlans          @relation(fields: [wlanId], references: [id], onDelete: Cascade)
+  business        Businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceRegistryId, macAddress]) // One entry per MAC per device
+  @@index([deviceRegistryId])
+  @@index([wlanId])
+  @@index([businessId])
+  @@index([macAddress])
+  @@index([connectedAt])
+  @@index([lastSyncedAt])
+  @@map("r710_connected_clients")
+}
+
+// Real-time snapshot of connected clients on ESP32 devices
+// Refreshed periodically by querying ESP32 /api/tokens/list with status=active
+model ESP32ConnectedClients {
+  id              String   @id @default(uuid())
+
+  // Client Identification
+  macAddress      String   @db.VarChar(17)
+  ipAddress       String?  @db.VarChar(15) // IPv4 only for ESP32
+  hostname        String?  @db.VarChar(255)
+  deviceType      String?  @db.VarChar(100)
+
+  // Token Association
+  wifiTokenId     String   // WifiTokens.id
+  businessId      String
+
+  // Connection Details
+  connectedAt     DateTime
+  isOnline        Boolean  @default(true)
+
+  // Bandwidth Usage (from ESP32 API)
+  bandwidthUsedDown Decimal @default(0) @db.Decimal(12, 2) // MB
+  bandwidthUsedUp   Decimal @default(0) @db.Decimal(12, 2) // MB
+
+  // Metadata
+  lastSyncedAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  wifiToken       WifiTokens @relation(fields: [wifiTokenId], references: [id], onDelete: Cascade)
+  business        Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([wifiTokenId, macAddress]) // One entry per MAC per token
+  @@index([wifiTokenId])
+  @@index([businessId])
+  @@index([macAddress])
+  @@index([connectedAt])
+  @@index([lastSyncedAt])
+  @@index([isOnline])
+  @@map("esp32_connected_clients")
+}
+
+// Aggregated usage analytics for WiFi systems
+// Pre-calculated metrics for faster dashboard loading
+model WiFiUsageAnalytics {
+  id              String   @id @default(uuid())
+
+  // Time Period
+  periodType      String   @db.VarChar(10) // "HOURLY", "DAILY", "WEEKLY", "MONTHLY"
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  // System & Business
+  system          String   @db.VarChar(10) // "ESP32", "R710", or "BOTH"
+  businessId      String?  // Null = global analytics
+
+  // Connection Metrics
+  uniqueDevices   Int      @default(0)
+  totalConnections Int     @default(0)
+  avgConnectionDuration Decimal? @db.Decimal(12, 2) // Minutes
+
+  // Token Metrics
+  tokensGenerated Int      @default(0)
+  tokensSold      Int      @default(0)
+  tokensUsed      Int      @default(0)
+  tokensExpired   Int      @default(0)
+
+  // Revenue Metrics
+  totalRevenue    Decimal  @default(0) @db.Decimal(12, 2)
+  esp32Revenue    Decimal  @default(0) @db.Decimal(12, 2)
+  r710Revenue     Decimal  @default(0) @db.Decimal(12, 2)
+
+  // Bandwidth Metrics (ESP32 only)
+  totalBandwidthDown Decimal @default(0) @db.Decimal(12, 2) // MB
+  totalBandwidthUp   Decimal @default(0) @db.Decimal(12, 2) // MB
+
+  // Device Type Breakdown (JSON)
+  deviceTypeStats Json?    // {"iOS": 45, "Android": 30, "Windows": 15, ...}
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  business        Businesses? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([periodType, periodStart, system, businessId]) // Prevent duplicates for same period
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@index([system])
+  @@index([businessId])
+  @@index([periodType])
+  @@map("wifi_usage_analytics")
+}
+

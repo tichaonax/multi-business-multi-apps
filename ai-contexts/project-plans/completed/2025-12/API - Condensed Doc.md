@@ -3,6 +3,77 @@
 ## Overview
 The ESP32 Portal provides a captive portal with token-based WiFi access control. Third-party applications can generate guest access tokens via REST API.
 
+## ⚠️ CRITICAL: ESP32 Batch Size Limitation
+
+**MAXIMUM BATCH SIZE: 20 ITEMS**
+
+The ESP32 has strict memory constraints. **ALL batch operations are limited to 20 items maximum:**
+
+- ✅ **Token bulk creation:** Max 20 tokens per request
+- ✅ **Token batch info:** Max 20 tokens per query
+- ✅ **Token disable (bulk):** Max 20 tokens per request
+- ✅ **Token list pagination:** Max 20 tokens per page
+- ✅ **Any array/list operations:** Max 20 items
+
+**⚠️ EXCEEDING 20 ITEMS WILL CRASH THE ESP32 DEVICE**
+
+### Implementation Strategy
+
+When working with large datasets (>20 items), **you MUST use batching:**
+
+```javascript
+// Example: Disable 100 tokens
+async function disableTokensBatch(tokens) {
+  const BATCH_SIZE = 20;
+  const results = [];
+
+  for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+    const batch = tokens.slice(i, i + BATCH_SIZE);
+    const response = await fetch('/api/token/disable', {
+      method: 'POST',
+      body: new URLSearchParams({
+        api_key: API_KEY,
+        tokens: batch.join(',')
+      })
+    });
+    results.push(await response.json());
+
+    // Small delay between batches to prevent overwhelming ESP32
+    if (i + BATCH_SIZE < tokens.length) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+
+  return results;
+}
+```
+
+```python
+# Example: Get info for 100 tokens
+def get_tokens_batch(token_list, api_key):
+    BATCH_SIZE = 20
+    all_results = []
+
+    for i in range(0, len(token_list), BATCH_SIZE):
+        batch = token_list[i:i + BATCH_SIZE]
+        response = requests.get(
+            "http://192.168.0.100/api/token/batch_info",
+            params={
+                "api_key": api_key,
+                "tokens": ",".join(batch)
+            }
+        )
+        all_results.extend(response.json()["tokens"])
+
+        # Small delay between batches
+        if i + BATCH_SIZE < len(token_list):
+            time.sleep(0.5)
+
+    return all_results
+```
+
+**Always check response for `has_more` flag when paginating!**
+
 ## Base URL
 `http://[uplink-ip]` (Find IP in admin dashboard at `http://192.168.4.1/admin`)
 
@@ -33,13 +104,17 @@ Create new access token.
 #### POST /api/tokens/bulk_create
 Create multiple tokens at once.
 
+**⚠️ CRITICAL: Maximum 20 tokens per request. Exceeding this will crash the ESP32.**
+
 **Parameters:**
 - `api_key` (string, required): Your API key
-- `count` (int, required): Number of tokens (1-50)
+- `count` (int, required): Number of tokens **(1-20 MAX)**
 - `duration` (int, required): Minutes per token (1-43200)
 - `bandwidth_down` (int, optional): MB download limit per token (0=unlimited)
 - `bandwidth_up` (int, optional): MB upload limit per token (0=unlimited)
 - `businessId` (string, optional): Business identifier (max 36 chars)
+
+**For >20 tokens:** Use multiple requests with 500ms delay between batches.
 
 **Response:** 
 ```json
@@ -137,11 +212,15 @@ Get token status and usage.
 ```
 
 #### GET /api/token/batch_info
-Query multiple tokens (up to 50).
+Query multiple tokens at once.
+
+**⚠️ CRITICAL: Maximum 20 tokens per request. Exceeding this will crash the ESP32.**
 
 **Parameters:**
 - `api_key` (string, required)
-- `tokens` (string, required): Comma-separated token list
+- `tokens` (string, required): Comma-separated token list **(max 20 tokens)**
+
+**For >20 tokens:** Use multiple requests with 500ms delay between batches.
 
 #### POST /api/token/extend
 Renew existing token.
@@ -360,10 +439,11 @@ curl "http://192.168.0.100/api/token/info?api_key=YOUR_API_KEY&token=ABC123"
   - **NEW:** Mutex-based concurrency control for token operations
   - **NEW:** 503 Server Busy responses for concurrent requests
   - **NEW:** `GET /api/tokens/available_slots` - Check available token slots before creation
-  - **ENHANCED:** `POST /api/token/disable` - Now supports bulk operations (up to 50 tokens)
+  - **ENHANCED:** `POST /api/token/disable` - Now supports bulk operations (up to 20 tokens)
   - **OPTIMIZED:** Bulk token creation with single NVS write (prevents watchdog reset)
   - **CRITICAL:** Clients must implement 503 retry logic (see Error Codes section)
-  - Performance: 50 bulk tokens now complete in 1-3 seconds reliably
+  - **CRITICAL:** Maximum batch size is 20 items for ALL operations (exceeding will crash ESP32)
+  - Performance: 20 bulk tokens now complete in 1-2 seconds reliably
   - All token modification endpoints protected with mutex
 
 - **v3.5** (2025-12-13): Token purge API, enhanced filtering

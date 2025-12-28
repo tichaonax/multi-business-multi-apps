@@ -1431,14 +1431,14 @@ curl -X GET "http://192.168.0.100/api/tokens/list?api_key=abcd1234efgh5678ijkl90
 
 **Pagination Examples:**
 
-**Get first 50 unused tokens:**
+**Get first 20 unused tokens:**
 ```bash
-curl -X GET "http://192.168.0.100/api/tokens/list?api_key=abcd1234efgh5678ijkl9012mnop3456&status=unused&limit=50"
+curl -X GET "http://192.168.0.100/api/tokens/list?api_key=abcd1234efgh5678ijkl9012mnop3456&status=unused&limit=20"
 ```
 
-**Get next 50 unused tokens (after first page):**
+**Get next 20 unused tokens (after first page):**
 ```bash
-curl -X GET "http://192.168.0.100/api/tokens/list?api_key=abcd1234efgh5678ijkl9012mnop3456&status=unused&offset=50&limit=50"
+curl -X GET "http://192.168.0.100/api/tokens/list?api_key=abcd1234efgh5678ijkl9012mnop3456&status=unused&offset=20&limit=20"
 ```
 
 **Python script to fetch all unused tokens:**
@@ -1448,8 +1448,8 @@ import requests
 def get_all_unused_tokens(base_url, api_key):
     all_tokens = []
     offset = 0
-    limit = 100
-    
+    limit = 20  # CRITICAL: Max 20 tokens per request (ESP32 limitation)
+
     while True:
         params = {
             "api_key": api_key,
@@ -1457,20 +1457,24 @@ def get_all_unused_tokens(base_url, api_key):
             "offset": offset,
             "limit": limit
         }
-        
+
         response = requests.get(f"{base_url}/api/tokens/list", params=params)
         data = response.json()
-        
+
         if not data["success"]:
             raise Exception(f"API error: {data}")
-        
+
         all_tokens.extend(data["tokens"])
-        
+
         if not data["has_more"]:
             break
-            
+
         offset += limit
-    
+
+        # Small delay between batches to prevent overwhelming ESP32
+        import time
+        time.sleep(0.5)
+
     return all_tokens
 
 # Usage
@@ -1489,9 +1493,9 @@ print(f"Found {len(unused_tokens)} unused tokens")
     "success": true,
     "available_slots": 85,
     "total_count": 250,
-    "returned_count": 100,
+    "returned_count": 20,
     "offset": 0,
-    "limit": 100,
+    "limit": 20,
     "has_more": true,
     "tokens": [
         {

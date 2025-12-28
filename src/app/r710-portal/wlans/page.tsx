@@ -8,16 +8,23 @@ import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { useConfirm } from '@/components/ui/confirm-modal'
+import { useAlert } from '@/hooks/use-alert'
+import { WLANDiscoveryModal } from '@/components/r710/wlan-discovery-modal'
 import Link from 'next/link'
 
 interface WLAN {
   id: string
   wlanId: string
   ssid: string
-  vlanId: number
   guestServiceId: string | null
+  title: string
+  validDays: number
+  enableFriendlyKey: boolean
   isActive: boolean
-  createdAt: Date
+  logoType: string
+  tokenPackages: number
+  createdAt: string
+  updatedAt: string
   businesses: {
     id: string
     name: string
@@ -48,9 +55,11 @@ function R710WLANsContent() {
   const { currentBusiness, activeBusinesses } = useBusinessPermissionsContext()
   const user = session?.user as any
   const confirm = useConfirm()
+  const alert = useAlert()
   const [wlans, setWlans] = useState<WLAN[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('all')
+  const [showDiscovery, setShowDiscovery] = useState(false)
 
   useEffect(() => {
     loadWLANs()
@@ -95,12 +104,13 @@ function R710WLANsContent() {
 
       if (response.ok) {
         await loadWLANs() // Refresh list
+        alert.showSuccess('WLAN status updated successfully')
       } else {
-        alert('Failed to update WLAN status')
+        alert.showError('Failed to update WLAN status')
       }
     } catch (error) {
       console.error('Failed to toggle WLAN status:', error)
-      alert('Failed to update WLAN status')
+      alert.showError('Failed to update WLAN status')
     }
   }
 
@@ -122,15 +132,15 @@ function R710WLANsContent() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to delete WLAN' }))
-        alert(`Error: ${errorData.error || 'Failed to delete WLAN'}`)
+        alert.showError(errorData.error || 'Failed to delete WLAN')
         return
       }
 
-      alert(`WLAN "${ssid}" deleted successfully!`)
+      alert.showSuccess(`WLAN "${ssid}" deleted successfully!`)
       await loadWLANs() // Refresh list
     } catch (error) {
       console.error('Error deleting WLAN:', error)
-      alert('Failed to delete WLAN. The device may be unreachable.')
+      alert.showError('Failed to delete WLAN. The device may be unreachable.')
     }
   }
 
@@ -188,6 +198,17 @@ function R710WLANsContent() {
           </div>
 
           <div className="flex items-center space-x-3">
+            {isSystemAdmin(user) && (
+              <button
+                onClick={() => setShowDiscovery(true)}
+                className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 text-sm font-medium"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Discover WLANs
+              </button>
+            )}
             <Link
               href="/r710-portal/wlans/overview"
               className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
@@ -269,7 +290,10 @@ function R710WLANsContent() {
                           {wlan.ssid}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          VLAN {wlan.vlanId} • ID: {wlan.wlanId}
+                          {wlan.title}
+                        </div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                          {wlan.tokenPackages} token package{wlan.tokenPackages !== 1 ? 's' : ''} • {wlan.validDays} day{wlan.validDays !== 1 ? 's' : ''} validity
                         </div>
                       </div>
                     </div>
@@ -345,6 +369,13 @@ function R710WLANsContent() {
           </p>
         </div>
       )}
+
+      {/* WLAN Discovery Modal */}
+      <WLANDiscoveryModal
+        isOpen={showDiscovery}
+        onClose={() => setShowDiscovery(false)}
+        onWLANRegistered={loadWLANs}
+      />
     </div>
   )
 }

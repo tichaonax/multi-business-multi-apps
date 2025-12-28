@@ -109,11 +109,20 @@ export async function POST(request: NextRequest) {
     const customUsername = generateDirectSaleUsername()
 
     console.log(`[R710 Direct Sale] Generating token on-the-fly: ${customUsername}`)
-    console.log(`[R710 Direct Sale] WLAN: ${tokenConfig.r710_wlans?.wlanId}`)
+    console.log(`[R710 Direct Sale] WLAN SSID: ${tokenConfig.r710_wlans?.ssid}`)
+    console.log(`[R710 Direct Sale] WLAN ID: ${tokenConfig.r710_wlans?.wlanId}`)
     console.log(`[R710 Direct Sale] Duration: ${tokenConfig.durationValue} ${tokenConfig.durationUnit}`)
 
     // Decrypt the device password
     const decryptedPassword = decrypt(deviceRegistry.encryptedAdminPassword)
+
+    // Convert durationUnit from "hour_Hours" format to "hour" format
+    const durationUnitMap: { [key: string]: 'hour' | 'day' | 'week' } = {
+      'hour_Hours': 'hour',
+      'day_Days': 'day',
+      'week_Weeks': 'week'
+    }
+    const apiDurationUnit = durationUnitMap[tokenConfig.durationUnit] || 'hour'
 
     // Generate token on R710 device using session manager
     const tokenResult = await sessionManager.withSession(
@@ -123,11 +132,12 @@ export async function POST(request: NextRequest) {
         adminPassword: decryptedPassword
       },
       async (r710Service) => {
+        // CRITICAL: Use SSID (wlanName), not numeric wlanId
         return await r710Service.generateSingleGuestPass({
-          wlanName: tokenConfig.r710_wlans?.wlanId || '',
+          wlanName: tokenConfig.r710_wlans?.ssid || '',
           username: customUsername,
           duration: tokenConfig.durationValue,
-          durationUnit: tokenConfig.durationUnit,
+          durationUnit: apiDurationUnit,
           deviceLimit: tokenConfig.deviceLimit || 2
         })
       }

@@ -1,0 +1,50 @@
+Sent bypass-cna: false
+Actual bypass-cna: false
+✅ TEST 1 PASSED: enableZeroIt=true correctly set bypass-cna=false
+
+TEST 2: Creating WLAN with enableZeroIt=false
+Expected: bypass-cna="true" (Zero-IT disabled)
+✅ WLAN 2 created with ID: 10
+Sent bypass-cna: true
+Actual bypass-cna: true
+✅ TEST 2 PASSED: enableZeroIt=false correctly set bypass-cna=true
+```
+
+### Files Modified
+
+**Modified:**
+- `prisma/schema.prisma` - Added `enableZeroIt Boolean @default(true)` to R710Wlans model
+- `src/services/ruckus-r710-api.ts` - Fixed `createWlan()`, `updateWlan()`, and `updateGuestService()`
+- `src/app/api/r710/integration/route.ts` - Added `enableZeroIt` to POST/PATCH, removed from Guest Service
+- `src/app/api/r710/wlans/[id]/route.ts` - Removed `enableZeroIt` from Guest Service update call
+- `src/app/r710-portal/setup/page.tsx` - Added checkbox to both creation and edit forms
+- `src/app/r710-portal/wlans/[id]/page.tsx` - Added checkbox to WLAN detail edit form
+
+**Created:**
+- `scripts/test-wlan-onboarding-create.js` - Discovery script for attribute mapping
+- `scripts/verify-enablezero-it-fix.js` - Verification script to confirm fix works
+
+### Key Learnings
+
+1. **Guest Service vs WLAN Attributes:**
+   - Guest Service controls portal features (onboarding portal, self-service, etc.)
+   - WLAN controls network features (Zero-IT device registration, authentication, etc.)
+
+2. **Inverted Logic Pattern:**
+   - User-facing checkbox: "Enable Zero-IT" (positive framing)
+   - Device attribute: `bypass-cna` (negative framing - bypass = skip)
+   - Mapping: `bypass-cna = !enableZeroIt`
+
+3. **Test-Driven Fix:**
+   - Created test script to discover actual behavior
+   - Verified fix with comprehensive test cases
+   - Ensured both true and false cases work correctly
+
+### Testing Verified
+- ✅ `enableZeroIt=true` → `bypass-cna="false"` on device (Zero-IT enabled)
+- ✅ `enableZeroIt=false` → `bypass-cna="true"` on device (Zero-IT disabled)
+- ✅ UI checkboxes added to all WLAN creation/edit workflows
+- ✅ Database field properly stored and retrieved
+- ✅ User confirmed: "Seems to be working"
+
+---

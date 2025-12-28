@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
         title: true,
         validDays: true,
         enableFriendlyKey: true,
+        enableZeroIt: true,
         isActive: true,
         createdAt: true
       }
@@ -149,7 +150,8 @@ export async function POST(request: NextRequest) {
       logoType,
       title,
       validDays,
-      enableFriendlyKey
+      enableFriendlyKey,
+      enableZeroIt
     } = body;
 
     // Validate required fields
@@ -170,16 +172,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if integration already exists
+    // CRITICAL: Business can only have ONE R710 integration maximum
     const existingIntegration = await prisma.r710BusinessIntegrations.findFirst({
-      where: { businessId, deviceRegistryId }
+      where: { businessId },
+      include: {
+        device_registry: {
+          select: {
+            id: true,
+            ipAddress: true,
+            description: true
+          }
+        }
+      }
     });
 
     if (existingIntegration) {
       return NextResponse.json(
         {
-          error: 'Integration already exists',
-          integrationId: existingIntegration.id
+          error: 'Business already has an R710 integration',
+          details: `This business is already integrated with R710 device at ${existingIntegration.device_registry.ipAddress}. A business can only have ONE R710 integration.`,
+          existingDevice: {
+            id: existingIntegration.device_registry.id,
+            ipAddress: existingIntegration.device_registry.ipAddress,
+            description: existingIntegration.device_registry.description
+          }
         },
         { status: 409 }
       );
@@ -240,15 +256,90 @@ export async function POST(request: NextRequest) {
       adminPassword
     });
 
+    // CRITICAL: Check if WLAN with same SSID already exists on device
+    console.log(`[R710 Integration] Checking for duplicate WLAN with SSID "${wlanSsid}"...`);
+    const discoveryResult = await r710Service.discoverWlans();
+
+    if (!discoveryResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Failed to discover WLANs on device',
+          details: discoveryResult.error
+        },
+        { status: 500 }
+      );
+    }
+
+    // Check if SSID already exists
+    const existingWlan = discoveryResult.wlans.find(w => w.ssid === wlanSsid && w.isGuest);
+
+    if (existingWlan) {
+      console.log(`[R710 Integration] WLAN with SSID "${wlanSsid}" already exists on device (ID: ${existingWlan.id})`);
+
+      // Check if this WLAN is already associated with another business
+      const wlanInDb = await prisma.r710Wlans.findFirst({
+        where: {
+          deviceRegistryId,
+          wlanId: existingWlan.id
+        },
+        include: {
+          businesses: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      if (wlanInDb) {
+        return NextResponse.json(
+          {
+            error: 'WLAN SSID already in use',
+            type: 'DUPLICATE_SSID_ASSOCIATED',
+            details: `A WLAN with SSID "${wlanSsid}" already exists on this device and is associated with business "${wlanInDb.businesses.name}".`,
+            suggestion: 'Please choose a different SSID name for your business.',
+            existingWlan: {
+              id: existingWlan.id,
+              ssid: existingWlan.ssid,
+              associatedBusiness: wlanInDb.businesses.name
+            }
+          },
+          { status: 409 }
+        );
+      } else {
+        // WLAN exists on device but not in database - offer to associate
+        return NextResponse.json(
+          {
+            error: 'WLAN SSID already exists on device',
+            type: 'DUPLICATE_SSID_UNASSOCIATED',
+            details: `A WLAN with SSID "${wlanSsid}" already exists on this R710 device but is not associated with any business in the system.`,
+            suggestion: 'You can either: (1) Choose a different SSID name, or (2) Associate your business with the existing WLAN.',
+            existingWlan: {
+              id: existingWlan.id,
+              ssid: existingWlan.ssid,
+              name: existingWlan.name
+            },
+            canAssociate: true
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    console.log(`[R710 Integration] No duplicate WLAN found. Proceeding with creation...`);
+
     // Create WLAN on R710 device
+    // CRITICAL: R710 uses numeric guest service IDs (e.g., '1'), not string IDs
     const wlanResult = await r710Service.createWlan({
       ssid: wlanSsid,
-      guestServiceId: 'guest-default',
+      guestServiceId: '1', // R710 default guest service ID (was 'guest-default')
       vlanId: wlanVlanId,
       logoType: logoType || 'none',
       title: title || 'Welcome to Guest WiFi !',
       validDays: validDays || 1,
-      enableFriendlyKey: enableFriendlyKey || false
+      enableFriendlyKey: enableFriendlyKey || false,
+      enableZeroIt: enableZeroIt !== undefined ? enableZeroIt : true
     });
 
     if (!wlanResult.success) {
@@ -290,11 +381,12 @@ export async function POST(request: NextRequest) {
           update: {
             businessId,
             ssid: wlanSsid,
-            guestServiceId: 'guest-default',
+            guestServiceId: '1', // R710 numeric guest service ID
             logoType: logoType || 'none',
             title: title || 'Welcome to Guest WiFi !',
             validDays: validDays || 1,
             enableFriendlyKey: enableFriendlyKey || false,
+            enableZeroIt: enableZeroIt !== undefined ? enableZeroIt : true,
             isActive: true
           },
           create: {
@@ -302,11 +394,12 @@ export async function POST(request: NextRequest) {
             deviceRegistryId,
             wlanId: wlanResult.wlanId!,
             ssid: wlanSsid,
-            guestServiceId: 'guest-default',
+            guestServiceId: '1', // R710 numeric guest service ID
             logoType: logoType || 'none',
             title: title || 'Welcome to Guest WiFi !',
             validDays: validDays || 1,
             enableFriendlyKey: enableFriendlyKey || false,
+            enableZeroIt: enableZeroIt !== undefined ? enableZeroIt : true,
             isActive: true
           }
         });
@@ -504,7 +597,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { logoType, title, validDays, enableFriendlyKey } = body;
+    const { logoType, title, validDays, enableFriendlyKey, enableZeroIt } = body;
 
     const user = session.user as SessionUser;
 
@@ -546,13 +639,15 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Update database only - WLAN device configuration is handled by wlans/[id] endpoint
     const updatedWlan = await prisma.r710Wlans.update({
       where: { id: wlan.id },
       data: {
         logoType: logoType !== undefined ? logoType : wlan.logoType,
         title: title !== undefined ? title : wlan.title,
         validDays: validDays !== undefined ? validDays : wlan.validDays,
-        enableFriendlyKey: enableFriendlyKey !== undefined ? enableFriendlyKey : wlan.enableFriendlyKey
+        enableFriendlyKey: enableFriendlyKey !== undefined ? enableFriendlyKey : wlan.enableFriendlyKey,
+        enableZeroIt: enableZeroIt !== undefined ? enableZeroIt : wlan.enableZeroIt
       }
     });
 
@@ -566,7 +661,8 @@ export async function PATCH(request: NextRequest) {
         logoType: updatedWlan.logoType,
         title: updatedWlan.title,
         validDays: updatedWlan.validDays,
-        enableFriendlyKey: updatedWlan.enableFriendlyKey
+        enableFriendlyKey: updatedWlan.enableFriendlyKey,
+        enableZeroIt: updatedWlan.enableZeroIt
       }
     });
 

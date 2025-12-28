@@ -48,6 +48,16 @@ export interface SyncServiceConfig {
     url?: string // URL to trigger sanitization (e.g., http://localhost:8080/api/wifi-portal/admin/sanitize-tokens)
     interval?: number // Check interval in milliseconds (default: 21600000 = 6 hours)
   }
+  r710ConnectedClientsSync?: {
+    enabled?: boolean // Enable R710 connected clients synchronization
+    url?: string // URL to trigger sync (e.g., http://localhost:8080/api/r710/connected-clients/sync)
+    interval?: number // Check interval in milliseconds (default: 300000 = 5 minutes)
+  }
+  esp32ConnectedClientsSync?: {
+    enabled?: boolean // Enable ESP32 connected clients synchronization
+    url?: string // URL to trigger sync (e.g., http://localhost:8080/api/esp32/connected-clients/sync)
+    interval?: number // Check interval in milliseconds (default: 300000 = 5 minutes)
+  }
   security?: {
     enableEncryption?: boolean
     enableSignatures?: boolean
@@ -102,6 +112,8 @@ export class SyncService extends EventEmitter {
   private healthCheckTimer: NodeJS.Timeout | null = null
   private printWorkerHealthTimer: NodeJS.Timeout | null = null
   private wifiTokenSanitizationTimer: NodeJS.Timeout | null = null
+  private r710ConnectedClientsSyncTimer: NodeJS.Timeout | null = null
+  private esp32ConnectedClientsSyncTimer: NodeJS.Timeout | null = null
   private status: ServiceStatus
 
   constructor(config: SyncServiceConfig) {
@@ -265,6 +277,12 @@ export class SyncService extends EventEmitter {
 
       // Stop WiFi token sanitization
       this.stopWifiTokenSanitization()
+
+      // Stop R710 connected clients sync
+      this.stopR710ConnectedClientsSync()
+
+      // Stop ESP32 connected clients sync
+      this.stopESP32ConnectedClientsSync()
 
       // Stop sync engine
       if (this.syncEngine) {
@@ -1013,6 +1031,12 @@ export class SyncService extends EventEmitter {
 
     // Start WiFi token sanitization if enabled
     this.startWifiTokenSanitization()
+
+    // Start R710 connected clients sync if enabled
+    this.startR710ConnectedClientsSync()
+
+    // Start ESP32 connected clients sync if enabled
+    this.startESP32ConnectedClientsSync()
   }
 
   /**
@@ -1169,6 +1193,166 @@ export class SyncService extends EventEmitter {
       clearInterval(this.wifiTokenSanitizationTimer)
       this.wifiTokenSanitizationTimer = null
       this.log('info', 'WiFi token sanitization stopped')
+    }
+  }
+
+  /**
+   * Start R710 connected clients synchronization job
+   */
+  private startR710ConnectedClientsSync(): void {
+    const config = this.config.r710ConnectedClientsSync
+
+    if (!config?.enabled) {
+      return
+    }
+
+    const url = config.url || 'http://localhost:8080/api/r710/connected-clients/sync'
+    const interval = config.interval || 300000 // 5 minutes default
+
+    this.log('info', `Starting R710 connected clients sync (${url}, interval: ${interval}ms = ${interval / 60000} minutes)`)
+
+    // Run immediately on start
+    this.runR710Sync(url)
+
+    // Then run on interval
+    this.r710ConnectedClientsSyncTimer = setInterval(async () => {
+      await this.runR710Sync(url)
+    }, interval)
+  }
+
+  /**
+   * Execute R710 connected clients sync
+   */
+  private async runR710Sync(url: string): Promise<void> {
+    try {
+      this.log('info', '📶 Starting R710 connected clients sync...')
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minute timeout
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        this.log('error', `❌ R710 sync failed: ${response.status} ${errorText}`)
+        return
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        this.log(
+          'info',
+          `✅ R710 sync completed: ${result.synced} clients synced from ${result.devices} devices`
+        )
+      } else {
+        this.log('error', `❌ R710 sync failed: ${result.error}`)
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          this.log('error', '❌ R710 sync timed out after 2 minutes')
+        } else {
+          this.log('error', `❌ R710 sync error: ${error.message}`)
+        }
+      }
+    }
+  }
+
+  /**
+   * Stop R710 connected clients synchronization
+   */
+  private stopR710ConnectedClientsSync(): void {
+    if (this.r710ConnectedClientsSyncTimer) {
+      clearInterval(this.r710ConnectedClientsSyncTimer)
+      this.r710ConnectedClientsSyncTimer = null
+      this.log('info', 'R710 connected clients sync stopped')
+    }
+  }
+
+  /**
+   * Start ESP32 connected clients synchronization job
+   */
+  private startESP32ConnectedClientsSync(): void {
+    const config = this.config.esp32ConnectedClientsSync
+
+    if (!config?.enabled) {
+      return
+    }
+
+    const url = config.url || 'http://localhost:8080/api/esp32/connected-clients/sync'
+    const interval = config.interval || 300000 // 5 minutes default
+
+    this.log('info', `Starting ESP32 connected clients sync (${url}, interval: ${interval}ms = ${interval / 60000} minutes)`)
+
+    // Run immediately on start
+    this.runESP32Sync(url)
+
+    // Then run on interval
+    this.esp32ConnectedClientsSyncTimer = setInterval(async () => {
+      await this.runESP32Sync(url)
+    }, interval)
+  }
+
+  /**
+   * Execute ESP32 connected clients sync
+   */
+  private async runESP32Sync(url: string): Promise<void> {
+    try {
+      this.log('info', '📡 Starting ESP32 connected clients sync...')
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minute timeout
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        this.log('error', `❌ ESP32 sync failed: ${response.status} ${errorText}`)
+        return
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        this.log(
+          'info',
+          `✅ ESP32 sync completed: ${result.synced} clients synced from ${result.devices} devices`
+        )
+      } else {
+        this.log('error', `❌ ESP32 sync failed: ${result.error}`)
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          this.log('error', '❌ ESP32 sync timed out after 2 minutes')
+        } else {
+          this.log('error', `❌ ESP32 sync error: ${error.message}`)
+        }
+      }
+    }
+  }
+
+  /**
+   * Stop ESP32 connected clients synchronization
+   */
+  private stopESP32ConnectedClientsSync(): void {
+    if (this.esp32ConnectedClientsSyncTimer) {
+      clearInterval(this.esp32ConnectedClientsSyncTimer)
+      this.esp32ConnectedClientsSyncTimer = null
+      this.log('info', 'ESP32 connected clients sync stopped')
     }
   }
 

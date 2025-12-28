@@ -180,13 +180,33 @@ function R710PortalContent() {
               Integration Setup
             </Link>
 
+            {isSystemAdmin(user) && (
+              <Link
+                href="/r710-portal/devices"
+                className="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md text-sm font-medium text-gray-900 dark:text-white transition-colors"
+              >
+                <span className="mr-2">🖥️</span>
+                Device Registry
+              </Link>
+            )}
+
             <Link
-              href="/r710-portal/devices"
-              className="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md text-sm font-medium text-gray-900 dark:text-white transition-colors"
+              href="/r710-portal/wlans"
+              className="inline-flex items-center px-4 py-2 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 rounded-md text-sm font-medium text-green-900 dark:text-green-100 transition-colors"
             >
-              <span className="mr-2">🖥️</span>
-              Device Registry
+              <span className="mr-2">📡</span>
+              WLAN Networks
             </Link>
+
+            {(isSystemAdmin(user) || hasIntegration) && (
+              <Link
+                href="/admin/connected-clients"
+                className="inline-flex items-center px-4 py-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 rounded-md text-sm font-medium text-blue-900 dark:text-blue-100 transition-colors"
+              >
+                <span className="mr-2">📡</span>
+                Connected Clients
+              </Link>
+            )}
 
             <button
               disabled={!hasIntegration && !!currentBusinessId}
@@ -225,6 +245,19 @@ function R710PortalContent() {
             >
               <span className="mr-2">💵</span>
               Sales History
+            </button>
+
+            <button
+              disabled={!hasIntegration && !!currentBusinessId}
+              onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/acl'}
+              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                !hasIntegration && currentBusinessId
+                  ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
+                  : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white cursor-pointer'
+              }`}
+            >
+              <span className="mr-2">🛡️</span>
+              MAC Access Control
             </button>
           </div>
         </div>
@@ -325,7 +358,7 @@ function R710PortalContent() {
           {/* Quick Actions */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Link
                 href="/r710-portal/setup"
                 className="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -340,18 +373,35 @@ function R710PortalContent() {
                 </div>
               </Link>
 
-              <Link
-                href="/r710-portal/devices"
-                className="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                <svg className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">Manage Devices</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">R710 device registry</p>
-                </div>
-              </Link>
+              {isSystemAdmin(user) && (
+                <Link
+                  href="/r710-portal/devices"
+                  className="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                  </svg>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Manage Devices</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">R710 device registry</p>
+                  </div>
+                </Link>
+              )}
+
+              {(isSystemAdmin(user) || hasIntegration) && (
+                <Link
+                  href="/admin/connected-clients"
+                  className="flex items-center p-4 border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                >
+                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                  </svg>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Connected Clients</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">View active WiFi connections</p>
+                  </div>
+                </Link>
+              )}
 
               <div
                 className={`flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors ${
@@ -384,6 +434,23 @@ function R710PortalContent() {
                 <div>
                   <p className="font-medium text-gray-900 dark:text-white">Sales History</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Revenue & analytics</p>
+                </div>
+              </div>
+
+              <div
+                className={`flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors ${
+                  !hasIntegration && currentBusinessId
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
+                }`}
+                onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/acl'}
+              >
+                <svg className="w-8 h-8 text-red-600 dark:text-red-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">MAC Access Control</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Manage device whitelist/blacklist</p>
                 </div>
               </div>
             </div>
