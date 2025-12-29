@@ -97,6 +97,7 @@ function GroceryPOSContent() {
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
   const [r710IntegrationEnabled, setR710IntegrationEnabled] = useState(false)
   const [activeWiFiTab, setActiveWiFiTab] = useState<'esp32' | 'r710'>('esp32')
+  const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
 
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const pluInputRef = useRef<HTMLInputElement>(null)
@@ -1609,13 +1610,18 @@ function GroceryPOSContent() {
                           <button
                             onClick={async (e) => {
                               e.stopPropagation(); // Prevent adding to cart
+                              const tokenConfigId = (product as any).tokenConfigId;
+
+                              // Add to requesting set to disable button
+                              setRequestingMore(prev => new Set(prev).add(tokenConfigId));
+
                               try {
                                 const response = await fetch('/api/wifi-portal/tokens/bulk', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
                                     businessId: currentBusinessId,
-                                    tokenConfigId: (product as any).tokenConfigId,
+                                    tokenConfigId: tokenConfigId,
                                     quantity: 5
                                   })
                                 });
@@ -1626,7 +1632,7 @@ function GroceryPOSContent() {
                                   // Optimistic UI update - immediately increment the quantity
                                   const tokensCreated = result.tokensCreated || 0;
                                   setProducts(prev => prev.map(prod => {
-                                    if ((prod as any).tokenConfigId === (product as any).tokenConfigId) {
+                                    if ((prod as any).tokenConfigId === tokenConfigId) {
                                       return {
                                         ...prod,
                                         availableQuantity: ((prod as any).availableQuantity || 0) + tokensCreated
@@ -1654,24 +1660,102 @@ function GroceryPOSContent() {
                                   type: 'error',
                                   duration: 0  // Require manual dismissal for errors
                                 });
+                              } finally {
+                                // Remove from requesting set to re-enable button
+                                setRequestingMore(prev => {
+                                  const next = new Set(prev);
+                                  next.delete(tokenConfigId);
+                                  return next;
+                                });
                               }
                             }}
-                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded w-full transition-colors"
+                            disabled={requestingMore.has((product as any).tokenConfigId)}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-2 py-1 rounded w-full transition-colors"
                           >
-                            + Request 5 More
+                            {requestingMore.has((product as any).tokenConfigId) ? '⏳ Requesting...' : '+ Request 5 More'}
                           </button>
                         )}
                       </div>
                     )}
                     {/* R710 token quantity indicator */}
                     {(product as any).r710Token && (
-                      <div className="mt-1">
+                      <div className="mt-1 space-y-1">
                         <span className={`text-xs font-medium block ${
                           (product as any).availableQuantity === 0 ? 'text-red-500' :
                           (product as any).availableQuantity < 5 ? 'text-orange-500' :
                           'text-green-600'}`}>
                           📦 {(product as any).availableQuantity || 0} available
                         </span>
+                        {/* Request more tokens button - only show when quantity < 5 and user has permission */}
+                        {(product as any).availableQuantity < 5 && isAdmin && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation(); // Prevent adding to cart
+                              const tokenConfigId = (product as any).tokenConfigId;
+
+                              // Add to requesting set to disable button
+                              setRequestingMore(prev => new Set(prev).add(tokenConfigId));
+
+                              try {
+                                const response = await fetch('/api/r710/tokens', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    businessId: currentBusinessId,
+                                    tokenConfigId: tokenConfigId,
+                                    quantity: 5
+                                  })
+                                });
+
+                                const result = await response.json();
+
+                                if (response.ok) {
+                                  // Optimistic UI update - immediately increment the quantity
+                                  const tokensCreated = result.tokensCreated || result.tokensGenerated || 5;
+                                  setProducts(prev => prev.map(prod => {
+                                    if ((prod as any).tokenConfigId === tokenConfigId) {
+                                      return {
+                                        ...prod,
+                                        availableQuantity: ((prod as any).availableQuantity || 0) + tokensCreated
+                                      };
+                                    }
+                                    return prod;
+                                  }));
+
+                                  toast.push(`✅ Successfully created ${tokensCreated} R710 ${(product as any).tokenConfig.name} token${tokensCreated !== 1 ? 's' : ''}!`, {
+                                    type: 'success',
+                                    duration: 5000
+                                  });
+
+                                  // Background refresh to confirm quantities
+                                  fetchProducts();
+                                } else {
+                                  toast.push(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`, {
+                                    type: 'error',
+                                    duration: 0  // Require manual dismissal for errors
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Error creating tokens:', error);
+                                toast.push('❌ Error creating tokens. Please try again.', {
+                                  type: 'error',
+                                  duration: 0  // Require manual dismissal for errors
+                                });
+                              } finally {
+                                // Remove from requesting set to re-enable button
+                                setRequestingMore(prev => {
+                                  const next = new Set(prev);
+                                  next.delete(tokenConfigId);
+                                  return next;
+                                });
+                              }
+                            }}
+                            disabled={requestingMore.has((product as any).tokenConfigId)}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-2 py-1 rounded w-full transition-colors"
+                          >
+                            {requestingMore.has((product as any).tokenConfigId) ? '⏳ Requesting...' : '+ Request 5 More'}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

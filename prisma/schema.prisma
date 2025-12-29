@@ -3206,8 +3206,8 @@ model R710Tokens {
   businessId               String
   wlanId                   String
   tokenConfigId            String
-  username                 String              @unique @db.VarChar(50)
-  password                 String              @unique @db.VarChar(50)
+  username                 String              @db.VarChar(50)
+  password                 String              @db.VarChar(50)
   createdAtR710            DateTime?
   expiresAtR710            DateTime?
   validTimeSeconds         Int?
@@ -3223,6 +3223,7 @@ model R710Tokens {
   r710_token_sales         R710TokenSales[]
   r710_device_tokens       R710DeviceTokens[]
 
+  @@unique([username, password], name: "r710_tokens_username_password_unique")
   @@index([businessId])
   @@index([wlanId])
   @@index([tokenConfigId])

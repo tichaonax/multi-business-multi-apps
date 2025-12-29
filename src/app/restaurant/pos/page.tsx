@@ -58,6 +58,7 @@ export default function RestaurantPOS() {
   const [dailySales, setDailySales] = useState<any>(null)
   const [showDailySales, setShowDailySales] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
   const { data: session, status } = useSession()
   const router = useRouter()
   const { preferences, isLoaded: preferencesLoaded, setAutoPrint, setDefaultPrinter } = usePrintPreferences()
@@ -1297,7 +1298,12 @@ export default function RestaurantPOS() {
                           <button
                             onClick={async (e) => {
                               e.stopPropagation(); // Prevent adding to cart
+                              const tokenConfigId = (item as any).tokenConfigId;
                               const isR710 = (item as any).r710Token === true;
+
+                              // Add to requesting set to disable button
+                              setRequestingMore(prev => new Set(prev).add(tokenConfigId));
+
                               try {
                                 const apiUrl = isR710
                                   ? '/api/r710/tokens'
@@ -1308,7 +1314,7 @@ export default function RestaurantPOS() {
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
                                     businessId: currentBusinessId,
-                                    tokenConfigId: item.tokenConfigId,
+                                    tokenConfigId: tokenConfigId,
                                     quantity: 5
                                   })
                                 });
@@ -1319,7 +1325,7 @@ export default function RestaurantPOS() {
                                   // Optimistic UI update - immediately increment the quantity
                                   const tokensCreated = result.tokensCreated || result.tokensGenerated || 5;
                                   setMenuItems(prev => prev.map(menuItem => {
-                                    if ((menuItem as any).tokenConfigId === item.tokenConfigId) {
+                                    if ((menuItem as any).tokenConfigId === tokenConfigId) {
                                       return {
                                         ...menuItem,
                                         availableQuantity: ((menuItem as any).availableQuantity || 0) + tokensCreated
@@ -1348,11 +1354,19 @@ export default function RestaurantPOS() {
                                   type: 'error',
                                   duration: 0  // Require manual dismissal for errors
                                 });
+                              } finally {
+                                // Remove from requesting set to re-enable button
+                                setRequestingMore(prev => {
+                                  const next = new Set(prev);
+                                  next.delete(tokenConfigId);
+                                  return next;
+                                });
                               }
                             }}
-                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded w-full transition-colors"
+                            disabled={requestingMore.has((item as any).tokenConfigId)}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-2 py-1 rounded w-full transition-colors"
                           >
-                            + Request 5 More
+                            {requestingMore.has((item as any).tokenConfigId) ? '⏳ Requesting...' : '+ Request 5 More'}
                           </button>
                         )}
                       </div>
