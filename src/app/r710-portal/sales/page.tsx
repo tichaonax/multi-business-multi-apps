@@ -144,7 +144,7 @@ export default function R710SalesPage() {
 
       // Fetch default printer
       try {
-        const printersResponse = await fetch(`/api/printers?businessId=${currentBusinessId}`)
+        const printersResponse = await fetch(`/api/printers?businessId=${currentBusinessId}&printerType=receipt&isOnline=true`)
         if (printersResponse.ok) {
           const printersData = await printersResponse.json()
           const defaultPrinter = printersData.printers?.find((p: any) => p.isDefault)

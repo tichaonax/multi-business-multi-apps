@@ -11,6 +11,10 @@ import {
   markJobAsProcessing,
   markJobAsCompleted,
   markJobAsFailed,
+  getNextPendingBarcodeJob,
+  markBarcodeJobAsPrinting,
+  markBarcodeJobAsCompleted,
+  markBarcodeJobAsFailed,
 } from './print-job-queue';
 import type { LabelData } from '@/types/printing';
 
@@ -132,6 +136,154 @@ export function ensureWorkerRunning(): boolean {
 }
 
 /**
+ * Process a barcode print job
+ */
+async function processBarcodeJob(job: any): Promise<void> {
+  try {
+    if (ENABLE_LOGGING) {
+      console.log(`\n🏷️  Processing barcode job: ${job.id}`);
+      console.log(`   Item: ${job.itemName || 'Unknown'}`);
+      console.log(`   Template: ${job.template?.name || 'Unknown'}`);
+      console.log(`   Quantity: ${job.requestedQuantity}`);
+      console.log(`   Business: ${job.business?.name || 'Unknown'}`);
+    }
+
+    // Mark as printing
+    await markBarcodeJobAsPrinting(job.id);
+
+    // Get printer details
+    if (!job.printer) {
+      throw new Error('No printer assigned to this job');
+    }
+
+    const printer = job.printer;
+
+    if (ENABLE_LOGGING) {
+      console.log(`   Printer: ${printer.printerName} (${printer.printerType})`);
+    }
+
+    // Extract barcode parameters from print settings
+    const printSettings = job.printSettings as any;
+    const barcodeParams = printSettings?.barcodeParams;
+
+    if (!barcodeParams) {
+      throw new Error('No barcode parameters found in print settings');
+    }
+
+    // Check printer connectivity (but don't fail - try to print anyway)
+    const isOnline = await checkPrinterConnectivity(printer.id);
+    if (!isOnline) {
+      console.warn(`   ⚠️  Printer "${printer.printerName}" appears offline, but will attempt to print anyway`);
+    }
+
+    // Print based on printer type
+    const copies = job.requestedQuantity || 1;
+
+    if (printer.printerType === 'label' || printer.printerType === 'document') {
+      // For laser/inkjet/document printers, generate multi-label page
+      const { generateMultiLabelPage } = await import('../barcode-image-generator');
+
+      // Generate batch number from job ID (last 3 characters)
+      const batchNumber = job.id.slice(-3).toUpperCase();
+
+      if (ENABLE_LOGGING) {
+        console.log(`   Generating multi-label page for ${printer.printerType} printer...`);
+        console.log(`   Batch number: ${batchNumber}`);
+      }
+
+      const imagePath = await generateMultiLabelPage({
+        ...barcodeParams,
+        batchNumber,
+      }, copies);
+
+      if (ENABLE_LOGGING) {
+        console.log(`   Multi-label page generated: ${imagePath}`);
+        console.log(`   Labels per page: ${Math.min(copies, 18)}`);
+      }
+
+      // Print the image file using Windows default image printing
+      const { printImageFile } = await import('./print-spooler');
+
+      // Calculate how many pages we need
+      const labelsPerPage = 18; // Updated to match new layout (3x6 instead of 3x8)
+      const pagesNeeded = Math.ceil(copies / labelsPerPage);
+
+      await printImageFile(imagePath, printer.printerName, pagesNeeded);
+
+      // Clean up temp file
+      const { unlinkSync } = await import('fs');
+      try {
+        unlinkSync(imagePath);
+      } catch (error) {
+        console.warn(`   Could not delete temp image file: ${error}`);
+      }
+
+      if (ENABLE_LOGGING) {
+        console.log(`   Print method: Multi-label page via Windows Print Spooler`);
+        console.log(`   Pages printed: ${pagesNeeded}`);
+      }
+    } else if (printer.printerType === 'receipt') {
+      // For thermal receipt printers, use ESC/POS commands
+      const { generateBarcodeLabel } = await import('../barcode-label-generator');
+
+      // Generate batch number from job ID (last 3 characters)
+      const batchNumber = job.id.slice(-3).toUpperCase();
+
+      const labelText = generateBarcodeLabel({
+        ...barcodeParams,
+        batchNumber,
+      });
+
+      await printRawData(labelText, {
+        printerName: printer.printerName,
+        copies,
+      });
+
+      if (ENABLE_LOGGING) {
+        console.log(`   Print method: ESC/POS via RAW API (thermal printer)`);
+        console.log(`   Batch number: ${batchNumber}`);
+      }
+    } else {
+      // Fallback: generate image for unknown printer types
+      const { generateBarcodeImage } = await import('../barcode-image-generator');
+      const imagePath = await generateBarcodeImage(barcodeParams);
+
+      const { printImageFile } = await import('./print-spooler');
+      await printImageFile(imagePath, printer.printerName, copies);
+
+      const { unlinkSync } = await import('fs');
+      try {
+        unlinkSync(imagePath);
+      } catch (error) {
+        console.warn(`   Could not delete temp image file: ${error}`);
+      }
+
+      if (ENABLE_LOGGING) {
+        console.log(`   Print method: Image file (fallback)`);
+      }
+    }
+
+    // Mark as completed
+    await markBarcodeJobAsCompleted(job.id, copies);
+
+    if (ENABLE_LOGGING) {
+      console.log(`   ✅ Barcode job completed successfully`);
+    }
+
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`   ❌ Barcode job failed: ${errorMsg}`);
+
+    // Mark job as failed
+    try {
+      await markBarcodeJobAsFailed(job.id, errorMsg);
+    } catch (markError) {
+      console.error('   Failed to mark barcode job as failed:', markError);
+    }
+  }
+}
+
+/**
  * Process the print queue (called by interval)
  */
 async function processQueue(): Promise<void> {
@@ -145,7 +297,15 @@ async function processQueue(): Promise<void> {
   try {
     state.isProcessing = true;
 
-    // Get next pending job
+    // Check for barcode jobs first (priority)
+    const barcodeJob = await getNextPendingBarcodeJob();
+
+    if (barcodeJob) {
+      await processBarcodeJob(barcodeJob);
+      return;
+    }
+
+    // Get next pending receipt job
     const job = await getNextPendingJob();
 
     if (!job) {
@@ -178,29 +338,33 @@ async function processQueue(): Promise<void> {
 
     // Extract print content
     let printContent = '';
-    const jobData = job.jobData as any;
+    const printSettings = job.printSettings as any;
+    const jobType = printSettings?.jobType || 'label'; // Default to label for barcode jobs
 
-    if (job.jobType === 'receipt') {
-      const receiptText = jobData.receiptText || '';
+    if (jobType === 'receipt') {
+      const receiptText = printSettings?.receiptText || '';
       // Decode from base64 if it's encoded
       printContent = receiptText.startsWith('data:') || receiptText.length > 100
         ? Buffer.from(receiptText, 'base64').toString('binary')
         : receiptText;
-    } else if (job.jobType === 'label') {
+    } else if (jobType === 'label') {
       // For label jobs, check if we have pre-formatted content or need to generate it
-      if (jobData.labelText || jobData.formattedLabel) {
+      if (printSettings?.labelText) {
+        // Use the labelText from printSettings
+        printContent = printSettings.labelText;
+      } else if (printSettings?.formattedLabel) {
         // Legacy format with pre-formatted content
-        printContent = jobData.labelText || jobData.formattedLabel || '';
+        printContent = printSettings.formattedLabel;
       } else {
         // New format: generate label text from LabelData
         const { generateLabel } = await import('./label-generator');
-        const labelData = jobData as LabelData;
+        const labelData = printSettings as LabelData;
         printContent = generateLabel(labelData);
       }
     }
 
     if (!printContent) {
-      throw new Error('No print content found in job data');
+      throw new Error('No print content found in print settings');
     }
 
     if (ENABLE_LOGGING) {
@@ -213,11 +377,26 @@ async function processQueue(): Promise<void> {
       throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
     }
 
-    // Send to printer using Windows RAW printer service
-    await printRawData(printContent, {
-      printerName: printer.printerName,
-      copies: jobData.copies || 1,
-    });
+    // Send to printer using appropriate method based on printer type
+    const copies = job.requestedQuantity || 1; // Use requestedQuantity from the job
+
+    if (printer.printerType === 'receipt') {
+      // Receipt printers use RAW printing (ESC/POS)
+      await printRawData(printContent, {
+        printerName: printer.printerName,
+        copies,
+      });
+      if (ENABLE_LOGGING) {
+        console.log(`   Print method: Windows RAW API (ESC/POS)`);
+      }
+    } else {
+      // Label and document printers use Windows Print Spooler
+      const { printViaSpooler } = await import('./print-spooler');
+      await printViaSpooler(printContent, printer.printerName, copies);
+      if (ENABLE_LOGGING) {
+        console.log(`   Print method: Windows Print Spooler (${printer.printerType})`);
+      }
+    }
 
     // Mark as completed
     await markJobAsCompleted(job.id);

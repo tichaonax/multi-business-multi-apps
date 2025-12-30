@@ -448,6 +448,9 @@ model Businesses {
   r710_connected_clients                                                   R710ConnectedClients[]
   esp32_connected_clients                                                  ESP32ConnectedClients[]
   wifi_usage_analytics                                                     WiFiUsageAnalytics[]
+  barcode_templates                                                        BarcodeTemplates[]
+  barcode_print_jobs                                                       BarcodePrintJobs[]
+  barcode_inventory_items                                                  BarcodeInventoryItems[]
 
   @@map("businesses")
 }
@@ -2271,6 +2274,7 @@ model NetworkPrinters {
   updatedAt    DateTime    @default(now()) @updatedAt
   sync_nodes   SyncNodes   @relation(fields: [nodeId], references: [nodeId])
   print_jobs   PrintJobs[]
+  barcode_print_jobs BarcodePrintJobs[]
 
   @@index([nodeId])
   @@index([printerType])
@@ -2385,6 +2389,10 @@ model Users {
   r710_token_sales                                                R710TokenSales[]            @relation("R710TokenSaleSeller")
   mac_acl_entries_created                                         MacAclEntry[]               @relation("MacAclCreator")
   mac_acl_entries_approved                                        MacAclEntry[]               @relation("MacAclApprover")
+  userPermissions                                                 UserPermissions[]
+  barcode_templates                                               BarcodeTemplates[]
+  barcode_print_jobs                                              BarcodePrintJobs[]
+  barcode_inventory_items                                         BarcodeInventoryItems[]
 
   @@map("users")
 }
@@ -3606,5 +3614,136 @@ model WiFiUsageAnalytics {
   @@index([businessId])
   @@index([periodType])
   @@map("wifi_usage_analytics")
+}
+
+// =============================================================================
+// BARCODE MANAGEMENT SYSTEM
+// =============================================================================
+
+model BarcodeTemplates {
+  id                String           @id @default(cuid())
+  name              String           // Template name (required)
+  barcodeValue      String           // Barcode value (no longer globally unique)
+  type              String           // 'grocery', 'hardware', 'clothing', etc.
+  description       String
+  extraInfo         Json?            // Flexible metadata storage
+  symbology         String           @default("CODE128") // CODE128, QR, EAN13, etc.
+  width             Int?             @db.SmallInt // Barcode width in pixels (1-500)
+  height            Int?             @db.SmallInt // Barcode height in pixels (1-500)
+  margin            Int?             @db.SmallInt // Barcode margin (0-50)
+  displayValue      Boolean?         @default(true) // Show text below barcode
+  fontSize          Int?             @db.SmallInt // Font size (8-72)
+  backgroundColor   String?          // Background color
+  lineColor         String?          // Barcode line color
+  dpi               Int              @default(300)
+  quietZone         Int              @default(10)
+  paperSize         String           @default("A6") // A6, CR80, receipt, etc.
+  orientation       String           @default("portrait") // portrait, landscape
+  layoutTemplate    Json             // Field positioning and styling
+  businessId        String
+  business          Businesses       @relation(fields: [businessId], references: [id])
+  createdById       String           // User who created the template
+  createdBy         Users            @relation(fields: [createdById], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedBy         String?
+  updatedAt         DateTime         @updatedAt
+  printJobs         BarcodePrintJobs[]
+  inventoryItems    BarcodeInventoryItems[]
+
+  @@unique([businessId, barcodeValue], name: "barcode_templates_business_value_unique")
+  @@map("barcode_templates")
+}
+
+model BarcodePrintJobs {
+  id                String                @id @default(cuid())
+  templateId        String
+  template          BarcodeTemplates      @relation(fields: [templateId], references: [id])
+  itemId            String?               // Reference to product/inventory item
+  itemType          String?               // INVENTORY_ITEM, PRODUCT, CUSTOM
+  barcodeData       String?               // Generated barcode value
+  itemName          String?               // Item name for display
+  customData        Json?                 // Custom metadata for CUSTOM type
+  requestedQuantity Int
+  printedQuantity   Int                   @default(0)
+  status            BarcodePrintJobStatus @default(QUEUED)
+  printerId         String?
+  printer           NetworkPrinters?      @relation(fields: [printerId], references: [id])
+  printSettings     Json                  // Snapshot of print configuration
+  printedAt         DateTime?
+  userNotes         String?
+  errorMessage      String?               // Error message for failed jobs
+  inventoryItemId   String?               // FK to BarcodeInventoryItems
+  inventoryItem     BarcodeInventoryItems? @relation(fields: [inventoryItemId], references: [id])
+  businessId        String
+  business          Businesses            @relation(fields: [businessId], references: [id])
+  createdById       String                // User who created the job
+  createdBy         Users                 @relation(fields: [createdById], references: [id])
+  createdAt         DateTime              @default(now())
+
+  @@map("barcode_print_jobs")
+}
+
+enum BarcodePrintJobStatus {
+  QUEUED
+  PRINTING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model BarcodeInventoryItems {
+  id                String          @id @default(cuid())
+  inventoryItemId   String          // Reference to existing inventory
+  name              String
+  sku               String?
+  category          String?
+  barcodeData       String?         // Barcode data value
+  customLabel       String?         // Custom label for this item
+  batchNumber       String?         // Batch/lot number
+  expiryDate        DateTime?       // Expiration date
+  quantity          Int             @default(1) // Quantity for this barcode
+  isActive          Boolean         @default(true) // Soft delete flag
+  barcodeTemplateId String
+  barcodeTemplate   BarcodeTemplates @relation(fields: [barcodeTemplateId], references: [id])
+  location          String?
+  stockQuantity     Int             @default(0)
+  businessId        String
+  business          Businesses      @relation(fields: [businessId], references: [id])
+  createdById       String          // User who created the linkage
+  createdBy         Users           @relation(fields: [createdById], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  printJobs         BarcodePrintJobs[] // Back relation to print jobs
+
+  @@map("barcode_inventory_items")
+}
+
+// Permission System Models
+model Permissions {
+  id                 String             @id @default(uuid())
+  name               String             @unique
+  description        String?
+  category           String?
+  isSystemPermission Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  userPermissions    UserPermissions[]
+
+  @@map("permissions")
+}
+
+model UserPermissions {
+  id           String      @id @default(uuid())
+  userId       String
+  permissionId String
+  granted      Boolean     @default(true)
+  grantedAt    DateTime    @default(now())
+  grantedBy    String?
+  expiresAt    DateTime?
+  users        Users       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permissions @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
 }
 

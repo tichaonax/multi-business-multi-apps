@@ -8,6 +8,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { writeFileSync, unlinkSync } from 'fs';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { join } from 'path';
+import { tmpdir } from 'os';
+
+const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,7 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🖨️ Direct test print to: ${printer.printerName}`);
+    console.log(`🖨️ Direct test print to: ${printer.printerName} (Type: ${printer.printerType})`);
 
     // Check printer connectivity first
     const { checkPrinterConnectivity } = await import('@/lib/printing/printer-service');
@@ -50,22 +57,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate ESC/POS test receipt with printer's configured width
-    const testReceipt = generateTestReceipt(printer.printerName, printer.receiptWidth || 48);
+    // Generate appropriate test output based on printer type
+    let testData: string;
+    let testMethod: string;
 
-    // Send directly to printer using Windows RAW printer service (the method that works!)
-    const { printRawData } = await import('@/lib/printing/windows-raw-printer');
+    if (printer.printerType === 'receipt') {
+      // Generate ESC/POS test receipt for thermal printers
+      testData = generateTestReceipt(printer.printerName, printer.receiptWidth || 48);
+      testMethod = 'ESC/POS (Thermal Receipt)';
 
-    await printRawData(testReceipt, {
-      printerName: printer.printerName,
-      copies: 1,
-    });
+      // Send to thermal printer using RAW
+      const { printRawData } = await import('@/lib/printing/windows-raw-printer');
+      await printRawData(testData, {
+        printerName: printer.printerName,
+        copies: 1,
+      });
+    } else if (printer.printerType === 'label') {
+      // Generate label test output
+      testData = generateLabelTest(printer.printerName);
+      testMethod = 'Label Test (Plain Text)';
 
-    console.log('✅ Direct test print successful (Windows RAW API)');
+      // Send to label printer via Windows spooler
+      await printViaSpooler(testData, printer.printerName);
+    } else {
+      // Generate plain document test for regular printers
+      testData = generateDocumentTest(printer.printerName);
+      testMethod = 'Document Test (Plain Text)';
+
+      // Send to document printer via Windows spooler
+      await printViaSpooler(testData, printer.printerName);
+    }
+
+    const printMethod = printer.printerType === 'receipt' ? 'Windows RAW API' : 'Windows Print Spooler';
+    console.log(`✅ Direct test print successful (${testMethod} via ${printMethod})`);
 
     return NextResponse.json({
       success: true,
-      message: `Test print sent directly to ${printer.printerName}`,
+      message: `Test print sent to ${printer.printerName} (${testMethod} via ${printMethod})`,
     });
 
   } catch (error) {
@@ -78,6 +106,150 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Print text via Windows print spooler (for non-thermal printers)
+ * Uses PowerShell Out-Printer which properly formats text for laser/inkjet printers
+ */
+async function printViaSpooler(text: string, printerName: string): Promise<void> {
+  const tempFile = join(tmpdir(), `test-print-${Date.now()}.txt`);
+
+  try {
+    console.log(`[PrintSpooler] Writing test to temp file: ${tempFile}`);
+    writeFileSync(tempFile, text, 'utf-8');
+
+    // Use PowerShell Get-Content | Out-Printer to print through Windows spooler
+    const command = `powershell -Command "Get-Content '${tempFile}' | Out-Printer -Name '${printerName}'"`;
+
+    console.log(`[PrintSpooler] Sending to printer via Windows spooler...`);
+    await execAsync(command);
+
+    console.log(`[PrintSpooler] ✅ Print job sent successfully via spooler`);
+  } catch (error) {
+    console.error(`[PrintSpooler] ❌ Error:`, error);
+    throw new Error(`Failed to print via spooler: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } finally {
+    // Clean up temp file
+    try {
+      unlinkSync(tempFile);
+      console.log(`[PrintSpooler] Cleaned up temp file`);
+    } catch (cleanupError) {
+      console.warn(`[PrintSpooler] Could not delete temp file:`, cleanupError);
+    }
+  }
+}
+
+/**
+ * Generate label test output (plain text format for A4/Letter printers)
+ */
+function generateLabelTest(printerName: string): string {
+  const timestamp = new Date().toLocaleString();
+
+  return `
+╔══════════════════════════════════════════════════════════════╗
+║                   LABEL PRINTER TEST PAGE                    ║
+╚══════════════════════════════════════════════════════════════╝
+
+Printer: ${printerName}
+Test Type: Label Printer Test
+Date/Time: ${timestamp}
+Method: Windows RAW API (Direct Print)
+
+═══════════════════════════════════════════════════════════════
+
+TEST BARCODE LABEL:
+
+┌──────────────────────────────────────────────────────────────┐
+│                                                              │
+│  Product: Test Item                                          │
+│  SKU: TEST-12345                                             │
+│  Price: $19.99                                               │
+│                                                              │
+│  |||||| |||| |||| |||||| |||| |||| |||||| ||||              │
+│             *TEST-12345*                                     │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+
+FEATURES TESTED:
+  ✓ Printer Connectivity
+  ✓ Plain Text Rendering
+  ✓ Border/Box Characters
+  ✓ Label Layout Formatting
+  ✓ Multi-line Text Alignment
+
+NOTE: This is a plain text test. For actual barcode printing,
+      the system will use PDF or ZPL format depending on the
+      printer's capabilities.
+
+═══════════════════════════════════════════════════════════════
+
+If this page prints clearly with proper alignment,
+your label printer is ready for production use!
+
+Test Status: SUCCESS
+═══════════════════════════════════════════════════════════════
+`;
+}
+
+/**
+ * Generate document test output (plain text for regular office printers)
+ */
+function generateDocumentTest(printerName: string): string {
+  const timestamp = new Date().toLocaleString();
+
+  return `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+               DOCUMENT PRINTER TEST PAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Printer Information:
+  Name: ${printerName}
+  Test Type: Document Printer Test
+  Date/Time: ${timestamp}
+  Method: Windows RAW API (Direct Print)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FEATURES TESTED:
+
+  ✓ Printer Connectivity & Communication
+  ✓ Plain Text Document Rendering
+  ✓ Character Encoding (UTF-8)
+  ✓ Line Breaks and Formatting
+  ✓ Special Characters and Symbols
+  ✓ Multiple Font Styles (if supported)
+
+SAMPLE DOCUMENT CONTENT:
+
+  Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+  This printer is configured as a standard document printer
+  and will be used for printing reports, invoices, and other
+  business documents.
+
+  Common Use Cases:
+    • Sales Reports
+    • Invoices and Receipts
+    • Purchase Orders
+    • Business Documents
+    • Labels (on plain paper)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ALIGNMENT TEST:
+
+Left Aligned Text
+              Center Aligned Text
+                                   Right Aligned Text
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If this page printed successfully with proper formatting and
+alignment, your printer is ready for document printing tasks!
+
+Test Status: SUCCESS ✓
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
 }
 
 /**

@@ -101,12 +101,15 @@
     "@prisma/client": "^6.15.0",
     "@tailwindcss/postcss": "^4.1.14",
     "@types/bcryptjs": "^3.0.0",
+    "@types/jsbarcode": "^3.11.4",
     "@types/pg": "^8.15.5",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "autoprefixer": "^10.4.21",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
+    "bwip-js": "^4.8.0",
+    "canvas": "^3.2.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
@@ -115,6 +118,7 @@
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "html2canvas": "^1.4.1",
+    "jsbarcode": "^3.12.1",
     "jspdf": "^3.0.2",
     "lucide-react": "^0.544.0",
     "next": "^15.5.4",
@@ -139,7 +143,7 @@
     "uuid": "^9.0.1",
     "winston": "^3.17.0",
     "xlsx": "^0.18.5",
-    "zod": "^4.1.5"
+    "zod": "^4.2.1"
   },
   "prisma": {
     "seed": "node scripts/post-migration-seed.js"

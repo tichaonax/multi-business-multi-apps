@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import { Printer, Edit, Trash2, Circle, Wifi, WifiOff, Server, TestTube, Share2 } from 'lucide-react'
+import { Printer, Edit, Trash2, Circle, Wifi, WifiOff, Server, TestTube, Share2, Tag, Receipt, FileText } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -156,7 +156,14 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
         return
       }
 
-      push(`Sending direct ESC/POS test to ${printer.printerName}...`)
+      // Show appropriate message based on printer type
+      const testType = printer.printerType === 'receipt'
+        ? 'ESC/POS (Thermal Receipt)'
+        : printer.printerType === 'label'
+        ? 'Label Test (Plain Text)'
+        : 'Document Test (Plain Text)';
+
+      push(`Sending ${testType} test to ${printer.printerName}...`)
 
       // If this is a USB/local printer (no ipAddress), call the USB-specific test
       let testResponse
@@ -286,8 +293,20 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
                     </h3>
 
                     <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                      {/* Printer Type */}
-                      <Badge variant="secondary">
+                      {/* Printer Type with Icon */}
+                      <Badge
+                        variant="secondary"
+                        className={`flex items-center gap-1 ${
+                          printer.printerType === 'receipt'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                            : printer.printerType === 'label'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                        }`}
+                      >
+                        {printer.printerType === 'receipt' && <Receipt className="w-3 h-3" />}
+                        {printer.printerType === 'label' && <Tag className="w-3 h-3" />}
+                        {printer.printerType === 'document' && <FileText className="w-3 h-3" />}
                         {printer.printerType.charAt(0).toUpperCase() + printer.printerType.slice(1)}
                       </Badge>
 
@@ -336,7 +355,7 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
                   size="sm"
                   onClick={() => handleDirectTest(printer)}
                   disabled={directTestingPrinter === printer.id}
-                  title="Direct ESC/POS test (checks connectivity first, bypasses queue)"
+                  title={`Direct ${printer.printerType} test (checks connectivity first, bypasses queue)`}
                 >
                   <TestTube className="w-4 h-4 mr-1" />
                   {directTestingPrinter === printer.id ? 'Testing...' : 'Direct Test'}

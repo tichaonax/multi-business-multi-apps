@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Printer, Check, Circle, Wifi, WifiOff, Server, Filter } from 'lucide-react'
+import { Printer, Check, Circle, Wifi, WifiOff, Server, Filter, Tag, Receipt, FileText } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -193,8 +193,20 @@ export function PrinterSelector({
                       </div>
 
                       <div className="flex items-center gap-2 mt-1 text-sm text-gray-600 dark:text-gray-400">
-                        {/* Printer Type */}
-                        <Badge variant="secondary" className="text-xs">
+                        {/* Printer Type with Icon */}
+                        <Badge
+                          variant="secondary"
+                          className={`flex items-center gap-1 text-xs ${
+                            printer.printerType === 'receipt'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                              : printer.printerType === 'label'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                              : 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                          }`}
+                        >
+                          {printer.printerType === 'receipt' && <Receipt className="w-3 h-3" />}
+                          {printer.printerType === 'label' && <Tag className="w-3 h-3" />}
+                          {printer.printerType === 'document' && <FileText className="w-3 h-3" />}
                           {printer.printerType.charAt(0).toUpperCase() + printer.printerType.slice(1)}
                         </Badge>
 

@@ -17,11 +17,18 @@ const nextConfig = {
   skipTrailingSlashRedirect: true,
   skipMiddlewareUrlNormalize: true,
   // Configure webpack for path mapping
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@': require('path').resolve(__dirname, 'src'),
     };
+
+    // Mark sharp as external for server-side to prevent webpack bundling issues
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push('sharp');
+    }
+
     return config;
   },
   // Add CORS headers for cross-origin authentication

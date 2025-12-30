@@ -897,6 +897,18 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* Barcode Management - Universal barcode template and print job management */}
+        {(checkPermission(currentUser, 'canViewBarcodeTemplates') ||
+          checkPermission(currentUser, 'canManageBarcodeTemplates')) && (
+          <Link
+            href={`/universal/barcode-management${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
+            className={getLinkClasses('/universal/barcode-management')}
+          >
+            <span className="text-lg">🏷️</span>
+            <span>Barcode Management</span>
+          </Link>
+        )}
+
         {/* Supplier Management - Business-specific supplier management */}
         {(checkPermission(currentUser, 'canViewSuppliers') ||
           checkPermission(currentUser, 'canCreateSuppliers') ||
@@ -1119,6 +1131,7 @@ export function Sidebar() {
                 <span>Umbrella Business</span>
               </Link>
             )}
+
           </>
         )}
       </nav>

@@ -74,6 +74,27 @@ export async function getNextPendingJob(): Promise<PrintJob | null> {
 }
 
 /**
+ * Get next pending barcode job for processing (FIFO)
+ */
+export async function getNextPendingBarcodeJob(): Promise<any | null> {
+  const job = await prisma.barcodePrintJobs.findFirst({
+    where: {
+      status: 'QUEUED',
+    },
+    orderBy: {
+      createdAt: 'asc', // FIFO order
+    },
+    include: {
+      printer: true,
+      business: true,
+      template: true,
+    },
+  });
+
+  return job;
+}
+
+/**
  * Mark job as processing
  */
 export async function markJobAsProcessing(jobId: string): Promise<PrintJob> {
@@ -119,6 +140,54 @@ export async function markJobAsFailed(
   });
 
   return transformJobRecord(job);
+}
+
+/**
+ * Mark barcode job as printing
+ */
+export async function markBarcodeJobAsPrinting(jobId: string): Promise<any> {
+  const job = await prisma.barcodePrintJobs.update({
+    where: { id: jobId },
+    data: {
+      status: 'PRINTING',
+    },
+  });
+
+  return job;
+}
+
+/**
+ * Mark barcode job as completed
+ */
+export async function markBarcodeJobAsCompleted(jobId: string, printedQuantity: number): Promise<any> {
+  const job = await prisma.barcodePrintJobs.update({
+    where: { id: jobId },
+    data: {
+      status: 'COMPLETED',
+      printedQuantity,
+      printedAt: new Date(),
+    },
+  });
+
+  return job;
+}
+
+/**
+ * Mark barcode job as failed with error message
+ */
+export async function markBarcodeJobAsFailed(
+  jobId: string,
+  errorMessage: string
+): Promise<any> {
+  const job = await prisma.barcodePrintJobs.update({
+    where: { id: jobId },
+    data: {
+      status: 'FAILED',
+      errorMessage,
+    },
+  });
+
+  return job;
 }
 
 /**
