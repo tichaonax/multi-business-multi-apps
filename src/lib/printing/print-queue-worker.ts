@@ -234,8 +234,8 @@ async function processBarcodeJob(job: any): Promise<void> {
       // For laser/inkjet/document printers, generate multi-label page
       const { generateMultiLabelPage } = await import('../barcode-image-generator');
 
-      // Generate batch number from job ID (last 3 characters)
-      const batchNumber = job.id.slice(-3).toUpperCase();
+      // Use template's batchId if defined, otherwise generate from job ID (last 3 characters)
+      const batchNumber = job.template?.batchId || job.id.slice(-3).toUpperCase();
 
       if (ENABLE_LOGGING) {
         console.log(`   Generating multi-label page for ${printer.printerType} printer...`);
@@ -278,8 +278,8 @@ async function processBarcodeJob(job: any): Promise<void> {
       // For thermal receipt printers, use ESC/POS commands
       const { generateBarcodeLabel } = await import('../barcode-label-generator');
 
-      // Generate batch number from job ID (last 3 characters)
-      const batchNumber = job.id.slice(-3).toUpperCase();
+      // Use template's batchId if defined, otherwise generate from job ID (last 3 characters)
+      const batchNumber = job.template?.batchId || job.id.slice(-3).toUpperCase();
 
       const labelText = generateBarcodeLabel({
         ...barcodeParams,

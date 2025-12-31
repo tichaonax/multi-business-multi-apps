@@ -113,6 +113,7 @@ export async function GET(request: NextRequest) {
               name: true,
               symbology: true,
               businessId: true,
+              batchId: true,
             },
           },
           business: {

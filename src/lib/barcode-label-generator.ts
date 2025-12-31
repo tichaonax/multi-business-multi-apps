@@ -56,7 +56,7 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
   // Top fold line markers (vertical bars at 30% and 113% positions)
   // For 58mm thermal (32 chars wide): 30%=10 chars, 113%=36 chars
   label += '\x1B\x61\x00'; // Left alignment
-  label += '          |                          |\n'; // Vertical fold markers at ~30% and ~113%
+  label += '      |   |                          |   |\n'; // Vertical fold markers at ~30% and ~113%
 
   // Print business name if provided (centered, emphasized)
   if (businessName) {
@@ -155,7 +155,7 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
 
   // Bottom fold line markers (vertical bars at 30% and 113% positions)
   label += '\x1B\x61\x00'; // Left alignment
-  label += '          |                          |\n'; // Vertical fold markers at ~30% and ~113%
+  label += '      |   |                          |   |\n'; // Vertical fold markers at ~30% and ~113%
 
   // Add extra feed before cut to ensure all content prints
   label += '\n\n\n';
@@ -244,13 +244,15 @@ function generateBarcodeCommand(data: string, symbology: string): string {
     case 'code128':
     default:
       barcodeType = 73; // CODE128 (GS k 73)
+      // ✅ FIX: Add mandatory subset B prefix for alphanumeric
+      formattedData = '{B' + data;
       break;
   }
 
   // Add barcode type
   command += String.fromCharCode(barcodeType);
 
-  // Add data length (for CODE128 and some others)
+  // Add data length (for CODE128 only)
   if (barcodeType === 73) {
     command += String.fromCharCode(formattedData.length);
   }
@@ -258,8 +260,8 @@ function generateBarcodeCommand(data: string, symbology: string): string {
   // Add barcode data
   command += formattedData;
 
-  // Add null terminator for some barcode types
-  if (barcodeType < 20) {
+  // ✅ FIX: Add null terminator for linear barcode types only (0-6)
+  if ([0, 1, 2, 3, 4, 5, 6].includes(barcodeType)) {
     command += '\x00';
   }
 
@@ -325,8 +327,9 @@ export function validateBarcodeData(data: string, symbology: string): {
       return { valid: true, formatted: ean13Digits };
 
     case 'code39':
-      if (!/^[A-Z0-9\-\.\$\/\+\% ]+$/.test(data)) {
-        return { valid: false, error: 'CODE39 only supports A-Z, 0-9, and -.$/ +%' };
+      // ✅ FIX: Full CODE39 character set (A-Z0-9 + -.$/+% * /)
+      if (!/^[A-Z0-9\-.\$\\/\+% *]+$/.test(data)) {
+        return { valid: false, error: 'CODE39 only supports A-Z, 0-9, -.$/+ % * /' };
       }
       return { valid: true, formatted: data };
 

@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAlert, useConfirm, usePrompt } from '@/components/ui/confirm-modal';
+import { fitTemplateName } from '@/lib/text-abbreviation';
+import { Barcode, X } from 'lucide-react';
+import { globalBarcodeService } from '@/lib/services/global-barcode-service';
 
 interface PrintJob {
   id: string;
@@ -18,6 +21,7 @@ interface PrintJob {
     id: string;
     name: string;
     symbology: string;
+    batchId?: string;
   };
   business: {
     id: string;
@@ -56,10 +60,106 @@ export default function PrintJobsPage() {
   const [selectedPrinterId, setSelectedPrinterId] = useState<string>('');
   const [currentReprintJob, setCurrentReprintJob] = useState<PrintJob | null>(null);
 
+  // Barcode scanner support (same as templates page)
+  const barcodeBufferRef = useRef<string>('');
+  const lastKeypressTimeRef = useRef<number>(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     fetchBusinesses();
     // Scroll to top when page loads (especially after creating a new print job)
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Disable global barcode service when on this page
+    // Save the current state so we can restore it
+    const wasEnabled = globalBarcodeService.isEnabled();
+    globalBarcodeService.disable();
+
+    return () => {
+      // Re-enable global barcode service when leaving this page
+      if (wasEnabled) {
+        globalBarcodeService.enable();
+      }
+    };
+  }, []);
+
+  // Barcode scanner detection (same as templates page)
+  useEffect(() => {
+    const processScan = () => {
+      if (barcodeBufferRef.current.length >= 4) {
+        console.log('📊 Barcode scanned on print jobs page:', barcodeBufferRef.current);
+        setSearchTerm(barcodeBufferRef.current);
+      }
+      barcodeBufferRef.current = '';
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+        scanTimeoutRef.current = null;
+      }
+    };
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      const now = Date.now();
+      const timeDiff = now - lastKeypressTimeRef.current;
+
+      // If search input is focused, let normal typing work
+      if (document.activeElement === searchInputRef.current) {
+        return;
+      }
+
+      // Prevent the global barcode service from processing this
+      const target = e.target as HTMLElement | null;
+      const isTypingInInput = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        (target as any).isContentEditable
+      );
+
+      if (!isTypingInInput) {
+        // We want to handle this scan on the print jobs page
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+
+      // Barcode scanners type very fast (typically < 50ms between characters)
+      // and end with Enter key
+      if (e.key === 'Enter') {
+        if (!isTypingInInput) {
+          e.preventDefault();
+        }
+        processScan();
+      } else if (e.key.length === 1) {
+        // Check if this is fast typing (scanner) or slow typing (human)
+        if (timeDiff < 80 || barcodeBufferRef.current.length > 0) {
+          // Fast typing or continuing a scan - add to buffer
+          barcodeBufferRef.current += e.key;
+          lastKeypressTimeRef.current = now;
+
+          // Clear existing timeout
+          if (scanTimeoutRef.current) {
+            clearTimeout(scanTimeoutRef.current);
+          }
+
+          // Set timeout to process scan if no more keys come
+          scanTimeoutRef.current = setTimeout(() => {
+            processScan();
+          }, 150);
+        } else {
+          // Slow typing - reset buffer
+          barcodeBufferRef.current = e.key;
+          lastKeypressTimeRef.current = now;
+        }
+      }
+    };
+
+    // Add event listener with capture phase to intercept before global service
+    window.addEventListener('keydown', handleKeyPress, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress, true);
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Read print mode from localStorage on mount (client-side only)
@@ -387,10 +487,12 @@ export default function PrintJobsPage() {
   // Filter jobs based on search term
   const filteredJobs = printJobs.filter((job) => {
     if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
+    // Trim whitespace and normalize for barcode scanner input
+    const search = searchTerm.trim().toLowerCase();
     return (
       job.itemName?.toLowerCase().includes(search) ||
       job.barcodeData?.toLowerCase().includes(search) ||
+      job.barcodeData?.toLowerCase().trim() === search || // Exact match for barcode
       job.template.name?.toLowerCase().includes(search) ||
       job.business.name?.toLowerCase().includes(search) ||
       job.id?.toLowerCase().includes(search)
@@ -473,14 +575,39 @@ export default function PrintJobsPage() {
               <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Search
               </label>
-              <input
-                id="search"
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by name, SKU, or job ID..."
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
-              />
+              <div className="relative">
+                <input
+                  ref={searchInputRef}
+                  id="search"
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="Search by name, SKU, barcode, or job ID..."
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3 pr-20"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      searchInputRef.current?.focus();
+                    }}
+                    className="absolute right-10 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => searchInputRef.current?.focus()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                  title="Scan barcode to search"
+                >
+                  <Barcode className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -576,6 +703,9 @@ export default function PrintJobsPage() {
                     Template SKU
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Batch
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -593,8 +723,8 @@ export default function PrintJobsPage() {
                 {filteredJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {job.itemName || 'Unknown Item'}
+                      <div className="text-sm font-medium text-gray-900 dark:text-white" title={job.itemName || 'Unknown Item'}>
+                        {job.itemName ? fitTemplateName(job.itemName, 40) : 'Unknown Item'}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         ID: {job.id.substring(0, 8)}...
@@ -613,6 +743,11 @@ export default function PrintJobsPage() {
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {job.template.name}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-mono text-gray-900 dark:text-white">
+                        {job.requestedQuantity}-{job.template.batchId || job.id.slice(-3).toUpperCase()}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
