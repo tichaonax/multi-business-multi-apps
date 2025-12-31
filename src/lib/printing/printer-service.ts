@@ -262,15 +262,23 @@ export async function updatePrinterHeartbeat(printerId: string): Promise<void> {
 /**
  * Mark printers as offline if not seen recently
  * @param timeoutMinutes - Minutes since last seen before marking offline
+ *
+ * NOTE: Only applies to network printers with IP addresses.
+ * Local USB/LPT printers stay online unless explicitly checked and fail.
  */
 export async function markStalePrintersOffline(timeoutMinutes: number = 5): Promise<number> {
   const cutoffTime = new Date(Date.now() - timeoutMinutes * 60 * 1000);
 
+  // Only mark network printers as stale (those with IP addresses)
+  // Local printers (USB, LPT) don't need periodic pinging - they stay online
   const result = await prisma.networkPrinters.updateMany({
     where: {
       isOnline: true,
       lastSeen: {
         lt: cutoffTime,
+      },
+      ipAddress: {
+        not: null,
       },
     },
     data: {

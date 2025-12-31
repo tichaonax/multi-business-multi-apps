@@ -26,8 +26,8 @@ interface PrintJob {
   };
   printer: {
     id: string;
-    name: string;
-    type: string;
+    printerName: string;
+    printerType: string;
   } | null;
   createdBy: {
     name: string;
@@ -47,11 +47,27 @@ export default function PrintJobsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
+  const [printToPdf, setPrintToPdf] = useState(false); // Default to printer mode
+  const [showPrinterSelect, setShowPrinterSelect] = useState(false);
+  const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
+  const [selectedPrinterId, setSelectedPrinterId] = useState<string>('');
+  const [currentReprintJob, setCurrentReprintJob] = useState<PrintJob | null>(null);
 
   useEffect(() => {
     fetchBusinesses();
+    // Scroll to top when page loads (especially after creating a new print job)
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Read print mode from localStorage on mount (client-side only)
+  useEffect(() => {
+    const savedMode = localStorage.getItem('barcodePrintToPdf');
+    if (savedMode === 'true') {
+      setPrintToPdf(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -189,14 +205,79 @@ export default function PrintJobsPage() {
     const job = printJobs.find(j => j.id === jobId);
     if (!job) return;
 
+    setCurrentReprintJob(job);
+
+    // Ask which printer format to use if in PDF mode
+    let printerType = 'document'; // Default
+
+    if (printToPdf) {
+      const useReceiptFormat = await confirm({
+        title: 'Select Label Format',
+        description: 'Which format would you like?\n\n• Receipt Format: Single column, vertical strip (for receipt printers)\n• Document Format: 3x6 grid with cut lines (for laser/inkjet printers)',
+        confirmText: 'Receipt Format',
+        cancelText: 'Document Format',
+      });
+
+      printerType = useReceiptFormat ? 'receipt' : 'document';
+
+      // Continue with PDF generation
+      await handleReprintWithOptions(jobId, job, null, printerType);
+    } else {
+      // Regular print mode - fetch and show printer selector
+      try {
+        const printersResponse = await fetch('/api/network-printers?onlineOnly=true');
+        if (printersResponse.ok) {
+          const printersData = await printersResponse.json();
+          const printers = printersData.printers || [];
+
+          if (printers.length === 0) {
+            await alert({
+              title: 'No Printers Available',
+              description: 'No online printers found. Please check printer connectivity.',
+            });
+            return;
+          }
+
+          setAvailablePrinters(printers);
+
+          // Set default to original printer if available
+          const defaultPrinter = printers.find((p: any) => p.id === job.printer?.id);
+          setSelectedPrinterId(defaultPrinter?.id || printers[0].id);
+
+          setShowPrinterSelect(true);
+        }
+      } catch (error) {
+        console.error('Error fetching printers:', error);
+        await alert({
+          title: 'Error',
+          description: 'Failed to fetch available printers.',
+        });
+      }
+    }
+  };
+
+  const handlePrinterSelectConfirm = async () => {
+    if (!currentReprintJob || !selectedPrinterId) return;
+
+    setShowPrinterSelect(false);
+    await handleReprintWithOptions(currentReprintJob.id, currentReprintJob, selectedPrinterId, 'document');
+  };
+
+  const handleReprintWithOptions = async (jobId: string, job: PrintJob, printerId: string | null, printerType: string) => {
+
+    // Check current PDF mode preference
+    const modeText = printToPdf
+      ? '📄 PDF MODE: Labels will be downloaded as PNG file'
+      : '🖨️ PRINTER MODE: Labels will be sent to printer';
+
     // Ask user for quantity (default to original quantity)
     const quantityInput = await prompt({
       title: 'Reprint Barcode Labels',
-      description: `Original quantity: ${job.requestedQuantity}. How many labels would you like to print?`,
+      description: `${modeText}\n\nOriginal quantity: ${job.requestedQuantity}. How many labels would you like to print?`,
       placeholder: 'Enter quantity',
       defaultValue: job.requestedQuantity.toString(),
       inputType: 'number',
-      confirmText: 'Print',
+      confirmText: printToPdf ? 'Download PNG' : 'Print',
       cancelText: 'Cancel',
       validator: (value) => {
         const num = parseInt(value);
@@ -211,9 +292,7 @@ export default function PrintJobsPage() {
     const quantity = parseInt(quantityInput) || job.requestedQuantity;
 
     try {
-      // Check if Print to PDF mode is enabled
-      const printToPdf = localStorage.getItem('barcodePrintToPdf') === 'true';
-
+      // Check if Print to PDF mode is enabled - use state variable
       if (printToPdf) {
         // Generate and download PNG file instead of creating a print job
         const response = await fetch('/api/universal/barcode-management/print-jobs/generate-pdf', {
@@ -223,6 +302,7 @@ export default function PrintJobsPage() {
             templateId: job.templateId,
             quantity,
             customData: job.customData,
+            printerType, // Use selected printer type
           }),
         });
 
@@ -253,7 +333,10 @@ export default function PrintJobsPage() {
         const response = await fetch(`/api/universal/barcode-management/print-jobs/${jobId}/reprint`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ quantity }),
+          body: JSON.stringify({
+            quantity,
+            printerId: printerId, // Include selected printer ID
+          }),
         });
 
         if (response.ok) {
@@ -301,38 +384,53 @@ export default function PrintJobsPage() {
     return date.toLocaleString();
   };
 
+  // Filter jobs based on search term
+  const filteredJobs = printJobs.filter((job) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      job.itemName?.toLowerCase().includes(search) ||
+      job.barcodeData?.toLowerCase().includes(search) ||
+      job.template.name?.toLowerCase().includes(search) ||
+      job.business.name?.toLowerCase().includes(search) ||
+      job.id?.toLowerCase().includes(search)
+    );
+  });
+
   const groupedJobs = {
-    QUEUED: printJobs.filter((j) => j.status === 'QUEUED'),
-    PRINTING: printJobs.filter((j) => j.status === 'PRINTING'),
-    COMPLETED: printJobs.filter((j) => j.status === 'COMPLETED'),
-    FAILED: printJobs.filter((j) => j.status === 'FAILED'),
-    CANCELLED: printJobs.filter((j) => j.status === 'CANCELLED'),
+    QUEUED: filteredJobs.filter((j) => j.status === 'QUEUED'),
+    PRINTING: filteredJobs.filter((j) => j.status === 'PRINTING'),
+    COMPLETED: filteredJobs.filter((j) => j.status === 'COMPLETED'),
+    FAILED: filteredJobs.filter((j) => j.status === 'FAILED'),
+    CANCELLED: filteredJobs.filter((j) => j.status === 'CANCELLED'),
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Print Queue
-            </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">
-              Manage and monitor barcode print jobs
-            </p>
-          </div>
+        <div className="mb-8">
           <Link
             href="/universal/barcode-management"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 mb-4"
           >
-            Back to Barcode Management
+            ← Back to Barcode Management
           </Link>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Print Queue
+              </h1>
+              <p className="mt-2 text-gray-600 dark:text-gray-400">
+                Manage and monitor barcode print jobs
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Filters */}
         <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label htmlFor="business-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Business
@@ -370,10 +468,51 @@ export default function PrintJobsPage() {
                 <option value="CANCELLED">Cancelled</option>
               </select>
             </div>
+
+            <div>
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Search
+              </label>
+              <input
+                id="search"
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, SKU, or job ID..."
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+              />
+            </div>
+          </div>
+
+          {/* PDF/Printer Mode Toggle */}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  id="globalPrintToPdf"
+                  type="checkbox"
+                  checked={printToPdf}
+                  onChange={(e) => {
+                    const newValue = e.target.checked;
+                    setPrintToPdf(newValue);
+                    localStorage.setItem('barcodePrintToPdf', newValue.toString());
+                  }}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="globalPrintToPdf" className="ml-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {printToPdf
+                    ? '📄 PDF Mode: Reprint will download PNG files'
+                    : '🖨️ Printer Mode: Reprint will send to printer'}
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                This setting applies to all reprints and new print jobs
+              </p>
+            </div>
           </div>
 
           <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-            Showing {printJobs.length} of {pagination.total} print jobs
+            Showing {filteredJobs.length} {searchTerm && `(filtered from ${printJobs.length})`} of {pagination.total} print jobs
           </div>
         </div>
 
@@ -406,9 +545,19 @@ export default function PrintJobsPage() {
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400">Loading print jobs...</p>
           </div>
-        ) : printJobs.length === 0 ? (
+        ) : filteredJobs.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">No print jobs found</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              {searchTerm ? `No print jobs found matching "${searchTerm}"` : 'No print jobs found'}
+            </p>
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+              >
+                Clear search
+              </button>
+            )}
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -416,19 +565,21 @@ export default function PrintJobsPage() {
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Job ID / Item
+                    Item Name
                   </th>
+                  {selectedBusinessId === 'all' && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Business
+                    </th>
+                  )}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Template
+                    Template SKU
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Quantity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Printer
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Created
@@ -439,22 +590,29 @@ export default function PrintJobsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {printJobs.map((job) => (
+                {filteredJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {job.itemName || 'Unknown Item'}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {job.id.substring(0, 8)}...
+                        ID: {job.id.substring(0, 8)}...
                       </div>
                     </td>
+                    {selectedBusinessId === 'all' && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {job.business.name}
+                        </div>
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">
-                        {job.template.name}
+                      <div className="text-sm font-mono text-gray-900 dark:text-white">
+                        {job.barcodeData}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {job.template.symbology}
+                        {job.template.name}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -468,20 +626,11 @@ export default function PrintJobsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {job.printedQuantity} / {job.requestedQuantity}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {job.printer?.name || 'Not assigned'}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {formatDateTime(job.createdAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        <Link
-                          href={`/universal/barcode-management/print-jobs/${job.id}`}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
-                          View
-                        </Link>
                         {(job.status === 'QUEUED' || job.status === 'PRINTING') && (
                           <button
                             onClick={() => handleCancelJob(job.id)}
@@ -538,6 +687,59 @@ export default function PrintJobsPage() {
           </div>
         )}
       </div>
+
+      {/* Printer Selection Modal */}
+      {showPrinterSelect && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Select Printer
+            </h3>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Choose a printer for this print job:
+              </label>
+              <select
+                value={selectedPrinterId}
+                onChange={(e) => setSelectedPrinterId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {availablePrinters.map((printer) => (
+                  <option key={printer.id} value={printer.id}>
+                    {printer.name} ({printer.type}) - {printer.status}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {currentReprintJob && (
+              <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                <p>Original printer: {currentReprintJob.printer?.printerName || 'Unknown'}</p>
+                <p>Quantity: {currentReprintJob.requestedQuantity}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowPrinterSelect(false);
+                  setCurrentReprintJob(null);
+                }}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePrinterSelectConfirm}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

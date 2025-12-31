@@ -213,9 +213,24 @@ class GlobalBarcodeService {
         return
       }
 
+      // Check if paste is happening in an input field
+      const target = e.target as HTMLElement | null
+      if (target) {
+        const tag = target.tagName
+        const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (target as any).isContentEditable
+        if (isInput) {
+          // Allow normal paste operation in input fields
+          console.log('✅ GlobalBarcodeService: Allowing paste into input field')
+          return
+        }
+      }
+
+      // Only intercept paste if NOT in an input field (barcode scanner pasting to document)
       const pasted = (e.clipboardData || (window as any).clipboardData)?.getData('text') || ''
       if (pasted && pasted.trim().length >= 4) {
         e.preventDefault() // Prevent the paste from going to focused element
+
+        console.log('📋 GlobalBarcodeService: Intercepting paste as barcode:', pasted.trim())
 
         this.emitBarcodeEvent({
           barcode: pasted.trim(),

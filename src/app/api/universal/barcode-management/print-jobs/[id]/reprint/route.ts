@@ -19,9 +19,10 @@ export async function POST(
 
     const { id } = await params;
 
-    // Get quantity from request body (optional)
+    // Get quantity and printerId from request body (optional)
     const body = await request.json().catch(() => ({}));
     const customQuantity = body.quantity;
+    const customPrinterId = body.printerId;
 
     // Get the original print job
     const originalJob = await prisma.barcodePrintJobs.findUnique({
@@ -39,6 +40,9 @@ export async function POST(
     // Use custom quantity if provided, otherwise use original quantity
     const quantity = customQuantity && customQuantity > 0 ? customQuantity : originalJob.requestedQuantity;
 
+    // Use custom printer if provided, otherwise use original printer
+    const printerId = customPrinterId || originalJob.printerId;
+
     // Create a new job with the same settings
     const newJob = await prisma.barcodePrintJobs.create({
       data: {
@@ -51,7 +55,7 @@ export async function POST(
         requestedQuantity: quantity,
         printedQuantity: 0,
         status: 'QUEUED',
-        printerId: originalJob.printerId,
+        printerId: printerId,
         printSettings: originalJob.printSettings,
         userNotes: originalJob.userNotes ? `Reprint of job ${id} (${quantity}x). ${originalJob.userNotes}` : `Reprint of job ${id} (${quantity}x)`,
         businessId: originalJob.businessId,

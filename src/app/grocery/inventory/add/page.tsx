@@ -1,16 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import SKUGenerator from '@/components/products/sku-generator'
+import { trackTemplateUsage } from '@/lib/barcode-lookup'
 
 export default function AddGroceryInventoryPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { currentBusinessId } = useBusinessPermissionsContext()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fromTemplate, setFromTemplate] = useState(false)
+  const [templateId, setTemplateId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -40,6 +47,28 @@ export default function AddGroceryInventoryPage() {
     { value: 'refrigerated', label: 'Refrigerated' },
     { value: 'frozen', label: 'Frozen' }
   ]
+
+  // Pre-populate form from template data (Phase 6)
+  useEffect(() => {
+    const templateDataParam = searchParams?.get('templateData')
+    if (templateDataParam) {
+      try {
+        const templateData = JSON.parse(decodeURIComponent(templateDataParam))
+        setFormData(prev => ({
+          ...prev,
+          name: templateData.name || '',
+          description: templateData.description || '',
+          sku: templateData.sku || templateData.barcode || '',
+          basePrice: templateData.basePrice?.toString() || '',
+          category: templateData.category || prev.category,
+        }))
+        setFromTemplate(templateData.fromTemplate || false)
+        setTemplateId(templateData.templateId || null)
+      } catch (err) {
+        console.error('Error parsing template data:', err)
+      }
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,6 +103,25 @@ export default function AddGroceryInventoryPage() {
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to create inventory item')
+      }
+
+      // Track template usage if product was created from template (Phase 6)
+      const result = await response.json()
+      if (fromTemplate && templateId && session?.user?.id && result?.id) {
+        try {
+          await fetch('/api/universal/barcode-management/track-template-usage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              templateId,
+              productId: result.id,
+              userId: session.user.id
+            })
+          })
+        } catch (trackError) {
+          // Non-critical - don't fail product creation if tracking fails
+          console.error('Failed to track template usage:', trackError)
+        }
       }
 
       // Use replace instead of push to prevent back button from returning to form
@@ -127,16 +175,13 @@ export default function AddGroceryInventoryPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">
-                        SKU/Barcode
-                      </label>
-                      <input
-                        type="text"
+                    <div className="md:col-span-2">
+                      <SKUGenerator
+                        businessId={currentBusinessId || ''}
+                        categoryName={formData.category}
                         value={formData.sku}
-                        onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                        className="input-field w-full"
-                        placeholder="e.g., ORG-BAN-001"
+                        onChange={(sku) => setFormData(prev => ({ ...prev, sku }))}
+                        disabled={loading || !currentBusinessId}
                       />
                     </div>
                   </div>

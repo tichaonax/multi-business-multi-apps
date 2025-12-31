@@ -4,11 +4,18 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { Decimal } from '@prisma/client/runtime/library';
 
 // Validation schema for updating templates
 const updateTemplateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   barcodeValue: z.string().min(1).max(255).optional(),
+  sku: z.string().max(20).optional().nullable(),
+  batchId: z.string().max(10).optional().nullable(),
+  defaultPrice: z.union([z.string(), z.number()]).optional().nullable(),
+  productName: z.string().max(50).optional().nullable(),
+  defaultColor: z.string().max(30).optional().nullable(),
+  defaultSize: z.string().max(20).optional().nullable(),
   type: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
   extraInfo: z.any().optional(),
@@ -151,6 +158,12 @@ export async function PUT(
     const {
       name,
       barcodeValue,
+      sku,
+      batchId,
+      defaultPrice,
+      productName,
+      defaultColor,
+      defaultSize,
       type,
       description,
       extraInfo,
@@ -193,6 +206,12 @@ export async function PUT(
     const dataToValidate = {
       name,
       barcodeValue,
+      sku,
+      batchId,
+      defaultPrice,
+      productName,
+      defaultColor,
+      defaultSize,
       type,
       description,
       extraInfo,
@@ -302,13 +321,36 @@ export async function PUT(
       }
     }
 
+    // Convert defaultPrice to Decimal if provided
+    let priceToUpdate: Decimal | null | undefined = undefined;
+    if (validatedData.defaultPrice !== undefined) {
+      if (validatedData.defaultPrice === null) {
+        priceToUpdate = null;
+      } else {
+        const priceValue = typeof validatedData.defaultPrice === 'string'
+          ? parseFloat(validatedData.defaultPrice)
+          : validatedData.defaultPrice;
+        if (!isNaN(priceValue)) {
+          priceToUpdate = new Decimal(priceValue);
+        }
+      }
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      ...validatedData,
+      updatedBy: session.user.id,
+    };
+
+    // Only update defaultPrice if it was provided
+    if (priceToUpdate !== undefined) {
+      updateData.defaultPrice = priceToUpdate;
+    }
+
     // Update the template
     const template = await prisma.barcodeTemplates.update({
       where: { id },
-      data: {
-        ...validatedData,
-        updatedBy: session.user.id,
-      },
+      data: updateData,
       include: {
         business: {
           select: {

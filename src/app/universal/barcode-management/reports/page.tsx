@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 
 export default function ReportsPage() {
   const { data: session } = useSession();
@@ -74,6 +75,12 @@ export default function ReportsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
+          <Link
+            href="/universal/barcode-management"
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 mb-4"
+          >
+            ← Back to Barcode Management
+          </Link>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Barcode Reports
           </h1>

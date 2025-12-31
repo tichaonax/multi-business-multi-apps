@@ -269,6 +269,7 @@ model BusinessProducts {
   product_images           ProductImages[]
   product_variants         ProductVariants[]
   supplier_products        SupplierProducts[]
+  product_price_changes    product_price_changes[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -393,6 +394,9 @@ model Businesses {
   taxIncludedInPrice                                                       Boolean                       @default(true)
   taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
   taxLabel                                                                 String?
+  sku_format                                                               String?                       @default("{BUSINESS}-{SEQ}") @db.VarChar(50)
+  sku_prefix                                                               String?                       @db.VarChar(20)
+  sku_digits                                                               Int?                          @default(5)
   business_accounts                                                        BusinessAccounts?
   business_brands                                                          BusinessBrands[]
   business_categories                                                      BusinessCategories[]
@@ -451,6 +455,7 @@ model Businesses {
   barcode_templates                                                        BarcodeTemplates[]
   barcode_print_jobs                                                       BarcodePrintJobs[]
   barcode_inventory_items                                                  BarcodeInventoryItems[]
+  sku_sequences                                                            sku_sequences[]
 
   @@map("businesses")
 }
@@ -2393,6 +2398,7 @@ model Users {
   barcode_templates                                               BarcodeTemplates[]
   barcode_print_jobs                                              BarcodePrintJobs[]
   barcode_inventory_items                                         BarcodeInventoryItems[]
+  product_price_changes                                           product_price_changes[]
 
   @@map("users")
 }
@@ -3623,7 +3629,13 @@ model WiFiUsageAnalytics {
 model BarcodeTemplates {
   id              String                  @id @default(cuid())
   name            String // Template name (required)
-  barcodeValue    String // Barcode value (no longer globally unique)
+  barcodeValue    String // Barcode value (what gets scanned)
+  sku             String? // Human-readable SKU/product code
+  batchId         String? // Batch identifier (max 10 chars, auto-generated if not provided)
+  defaultPrice    Decimal? @db.Decimal(10, 2) // Default price for this template (can be overridden per print job)
+  productName     String? // Default product name that appears on label (can be overridden per print job)
+  defaultColor    String? // Default color/descriptor that appears on label (can be overridden per print job)
+  defaultSize     String? // Default size/variant that appears on label (can be overridden per print job)
   type            String // 'grocery', 'hardware', 'clothing', etc.
   description     String
   extraInfo       Json? // Flexible metadata storage
@@ -3679,6 +3691,7 @@ model BarcodePrintJobs {
   createdById       String // User who created the job
   createdBy         Users                  @relation(fields: [createdById], references: [id])
   createdAt         DateTime               @default(now())
+  product_price_changes product_price_changes[]
 
   @@map("barcode_print_jobs")
 }
@@ -3716,6 +3729,46 @@ model BarcodeInventoryItems {
   printJobs         BarcodePrintJobs[] // Back relation to print jobs
 
   @@map("barcode_inventory_items")
+}
+
+// SKU Auto-Generation Models
+model sku_sequences {
+  id              String     @id @default(uuid())
+  businessId      String
+  prefix          String     @db.VarChar(20)
+  currentSequence Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @default(now())
+  business        Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, prefix])
+  @@index([businessId])
+  @@index([businessId, prefix])
+  @@map("sku_sequences")
+}
+
+// Price Change Audit Log
+model product_price_changes {
+  id             String            @id @default(uuid())
+  productId      String
+  variantId      String?
+  oldPrice       Decimal?          @db.Decimal(10, 2)
+  newPrice       Decimal           @db.Decimal(10, 2)
+  changedBy      String?
+  changedAt      DateTime          @default(now())
+  changeReason   String            @default("MANUAL_EDIT") @db.VarChar(100)
+  barcodeJobId   String?
+  notes          String?           @db.Text
+  product        BusinessProducts  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user           Users?            @relation(fields: [changedBy], references: [id], onDelete: SetNull)
+  barcodeJob     BarcodePrintJobs? @relation(fields: [barcodeJobId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([changedAt(sort: Desc)])
+  @@index([changedBy])
+  @@index([variantId])
+  @@index([changeReason])
+  @@map("product_price_changes")
 }
 
 // Permission System Models

@@ -53,6 +53,11 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
   // ESC @ - Initialize printer
   label += '\x1B\x40';
 
+  // Top fold line markers (vertical bars at 30% and 113% positions)
+  // For 58mm thermal (32 chars wide): 30%=10 chars, 113%=36 chars
+  label += '\x1B\x61\x00'; // Left alignment
+  label += '          |                          |\n'; // Vertical fold markers at ~30% and ~113%
+
   // Print business name if provided (centered, emphasized)
   if (businessName) {
     label += '\x1B\x61\x01'; // Center alignment
@@ -127,7 +132,8 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
   if (customData?.price) {
     label += '\x1B\x61\x01'; // Center alignment
     label += '\x1B\x21\x30'; // Double width and height
-    label += '$ ' + customData.price + '\n';
+    const formattedPrice = parseFloat(customData.price).toFixed(2);
+    label += '$ ' + formattedPrice + '\n';
     label += '\x1B\x21\x00'; // Reset size
   }
 
@@ -141,10 +147,15 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
   // Print template name at bottom (centered, fine print, 40-char abbreviation)
   if (templateName) {
     label += '\x1B\x61\x01'; // Center alignment
-    label += '\x1B\x21\x00'; // Normal size
+    label += '\x1B\x21\x01'; // Font B (smaller than normal)
     const abbreviatedName = fitTemplateName(templateName, 40);
     label += abbreviatedName + '\n';
+    label += '\x1B\x21\x00'; // Reset to normal size
   }
+
+  // Bottom fold line markers (vertical bars at 30% and 113% positions)
+  label += '\x1B\x61\x00'; // Left alignment
+  label += '          |                          |\n'; // Vertical fold markers at ~30% and ~113%
 
   // Add extra feed before cut to ensure all content prints
   label += '\n\n\n';
@@ -162,12 +173,17 @@ function generateBarcodeCommand(data: string, symbology: string): string {
   // Set barcode height (GS h n) - 97 dots (about 12mm) - reduced by 40% from 162
   command += '\x1D\x68\x61';
 
-  // Set barcode width (GS w n) - 3 (moderate width)
-  command += '\x1D\x77\x03';
+  // Set barcode width (GS w n) - auto-scale based on data length
+  // For 58mm thermal printers (~384 dots width):
+  // - Short barcodes (≤10 chars): width 3 (moderate)
+  // - Long barcodes (>10 chars): width 2 (narrow) to fit on paper
+  const barcodeWidth = data.length <= 10 ? 3 : 2;
+  command += '\x1D\x77' + String.fromCharCode(barcodeWidth);
 
   // Set HRI (Human Readable Interpretation) position (GS H n)
   // 0 = not printed, 1 = above, 2 = below, 3 = both
-  command += '\x1D\x48\x02'; // Below barcode
+  // Set to 0 since we manually print the barcode value
+  command += '\x1D\x48\x00'; // No HRI (we print it manually)
 
   // Select barcode type and print (GS k m d1...dk NUL)
   command += '\x1D\x6B';

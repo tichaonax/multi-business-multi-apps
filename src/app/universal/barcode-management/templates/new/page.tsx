@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import ProductSelector from '@/components/barcode-management/product-selector';
+import ProductSearchModal from '@/components/barcode-management/product-search-modal';
 import { useToastContext } from '@/components/ui/toast';
+import { Package } from 'lucide-react';
 
 interface SKUPattern {
   prefix: string;
@@ -24,10 +25,19 @@ export default function NewTemplatePage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [creationMode, setCreationMode] = useState<'product' | 'custom'>('product');
+  const [showProductSearch, setShowProductSearch] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProductVariant, setSelectedProductVariant] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     name: '',
     barcodeValue: '',
+    sku: '',
+    batchId: '',
+    defaultPrice: '',
+    productName: '',
+    defaultColor: '',
+    defaultSize: '',
     type: 'custom',
     description: '',
     symbology: 'code128',
@@ -50,6 +60,8 @@ export default function NewTemplatePage() {
     loading: false,
     pattern: null as SKUPattern | null,
   });
+
+  const [barcodeWarning, setBarcodeWarning] = useState<string>('');
 
   useEffect(() => {
     fetchBusinesses();
@@ -132,17 +144,29 @@ export default function NewTemplatePage() {
     }
   };
 
-  const handleProductSelect = (product: { name: string; sku: string; category: string; type: string }) => {
+  const handleProductSelect = (product: any, variant?: any) => {
+    setSelectedProduct(product);
+    setSelectedProductVariant(variant || null);
+
+    // Use variant data if variant was selected, otherwise use product data
+    const sku = variant ? variant.sku : product.sku;
+    const barcode = product.primaryBarcode?.code || sku;
+
+    // Use the suggested template name from the API (includes hierarchy)
+    const templateName = product.suggestedTemplateName || product.name;
+
     setFormData(prev => ({
       ...prev,
-      name: product.name,
-      barcodeValue: product.sku,
-      type: product.type || 'custom',
-      description: `Barcode template for ${product.name}`,
+      name: templateName,
+      barcodeValue: barcode,
+      type: product.business?.type || 'custom',
+      description: product.description || `Barcode template for ${product.name}`,
     }));
 
     // Disable auto-generation when selecting from product
     setBarcodeGeneration(prev => ({ ...prev, mode: 'manual' }));
+
+    toast.push(`Template loaded from: ${product.name}${variant ? ` - ${variant.name}` : ''}`, { type: 'success' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -162,11 +186,11 @@ export default function NewTemplatePage() {
 
         // Check if template already existed
         if (data.isExisting) {
-          toast.success(data.message || 'Template already exists. Redirecting...');
+          toast.push(data.message || 'Template already exists. Redirecting...', { type: 'success' });
           // Redirect to the existing template
           router.push(`/universal/barcode-management/templates/${data.template.id}`);
         } else {
-          toast.success('Barcode template created successfully');
+          toast.push('Barcode template created successfully', { type: 'success' });
           router.push('/universal/barcode-management/templates');
         }
       } else {
@@ -177,14 +201,14 @@ export default function NewTemplatePage() {
             fieldErrors[detail.field] = detail.message;
           });
           setErrors(fieldErrors);
-          toast.error('Please correct the validation errors');
+          toast.push('Please correct the validation errors', { type: 'error' });
         } else {
-          toast.error(data.error || 'Failed to create template');
+          toast.push(data.error || 'Failed to create template', { type: 'error' });
         }
       }
     } catch (error) {
       console.error('Error creating template:', error);
-      toast.error('Failed to create template. Please try again.');
+      toast.push('Failed to create template. Please try again.', { type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -198,6 +222,17 @@ export default function NewTemplatePage() {
     }));
   };
 
+  const validateBarcodeValue = (value: string) => {
+    // Pattern for SKU-like values: contains letters and dashes (e.g., CMQ-7838, SKS-122, CNI-9987)
+    const skuPattern = /[A-Z]{2,}-\d+/i;
+
+    if (skuPattern.test(value)) {
+      setBarcodeWarning('⚠️ This looks like a SKU (product code). Please enter it in the "SKU / Product Code" field above. The Barcode Number field should contain only the digits from scanning the physical barcode.');
+    } else {
+      setBarcodeWarning('');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -205,7 +240,7 @@ export default function NewTemplatePage() {
         <div className="mb-8">
           <Link
             href="/universal/barcode-management/templates"
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mb-4 inline-block"
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 mb-4"
           >
             ← Back to Templates
           </Link>
@@ -294,10 +329,63 @@ export default function NewTemplatePage() {
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 Select Product
               </h2>
-              <ProductSelector
-                businessId={formData.businessId}
-                onSelect={handleProductSelect}
-              />
+
+              {/* Product Search Button */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      💡 Search Product Inventory
+                    </h3>
+                    <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                      Find a product to create a barcode template automatically
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductSearch(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Package className="w-4 h-4" />
+                    Search Products
+                  </button>
+                </div>
+
+                {selectedProduct && (
+                  <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border border-blue-200 dark:border-blue-700">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          ✓ Selected: {selectedProduct.name}
+                          {selectedProductVariant && ` - ${selectedProductVariant.name}`}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          SKU: {selectedProductVariant?.sku || selectedProduct.sku}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                          Template Name: {formData.name}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedProduct(null);
+                          setSelectedProductVariant(null);
+                          setFormData(prev => ({
+                            ...prev,
+                            name: '',
+                            barcodeValue: '',
+                            description: '',
+                          }));
+                        }}
+                        className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -318,6 +406,7 @@ export default function NewTemplatePage() {
                       name="name"
                       type="text"
                       required
+                      maxLength={20}
                       value={formData.name}
                       onChange={handleChange}
                       className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
@@ -326,9 +415,28 @@ export default function NewTemplatePage() {
                   </div>
 
                   <div>
+                    <label htmlFor="sku" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      SKU / Product Code
+                    </label>
+                    <input
+                      id="sku"
+                      name="sku"
+                      type="text"
+                      maxLength={20}
+                      value={formData.sku || ''}
+                      onChange={handleChange}
+                      placeholder="e.g., CNI-9987"
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Human-readable product code (shown on labels, invoices)
+                    </p>
+                  </div>
+
+                  <div>
                     <div className="flex items-center justify-between mb-2">
                       <label htmlFor="barcodeValue" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Barcode Value *
+                        Barcode Number (What Scanner Reads) *
                       </label>
                       {creationMode === 'custom' && (
                         <div className="flex items-center space-x-3">
@@ -362,17 +470,131 @@ export default function NewTemplatePage() {
                       name="barcodeValue"
                       type="text"
                       required
+                      maxLength={20}
                       value={formData.barcodeValue}
-                      onChange={handleChange}
+                      onChange={(e) => {
+                        handleChange(e);
+                        validateBarcodeValue(e.target.value);
+                      }}
                       disabled={creationMode === 'custom' && barcodeGeneration.mode === 'auto' && barcodeGeneration.loading}
+                      placeholder="Scan barcode or enter number (e.g., 000000099875)"
                       className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 py-2.5 px-3"
                     />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Scan the physical barcode or enter the encoded number (UPC/EAN)
+                    </p>
+                    {barcodeWarning && (
+                      <p className="mt-2 text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
+                        {barcodeWarning}
+                      </p>
+                    )}
                     {barcodeGeneration.pattern && creationMode === 'custom' && (
                       <p className="mt-1 text-xs text-green-600 dark:text-green-400">
                         ✓ Following pattern: {barcodeGeneration.pattern.sample}
                       </p>
                     )}
                     {errors.barcodeValue && <p className="mt-1 text-sm text-red-600">{errors.barcodeValue}</p>}
+                  </div>
+
+                  <div>
+                    <label htmlFor="batchId" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Batch ID
+                    </label>
+                    <input
+                      id="batchId"
+                      name="batchId"
+                      type="text"
+                      maxLength={10}
+                      value={formData.batchId || ''}
+                      onChange={handleChange}
+                      placeholder="e.g., A01 (auto-generated if empty)"
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Max 10 characters. Leave empty to auto-generate 3-char ID
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="defaultPrice" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Default Price
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-gray-500 dark:text-gray-400">$</span>
+                      </div>
+                      <input
+                        id="defaultPrice"
+                        name="defaultPrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.defaultPrice || ''}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className="block w-full pl-7 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Can be overridden when printing individual labels
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="productName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Product Name
+                    </label>
+                    <input
+                      id="productName"
+                      name="productName"
+                      type="text"
+                      maxLength={50}
+                      value={formData.productName || ''}
+                      onChange={handleChange}
+                      placeholder="e.g., Premium Cotton T-Shirt"
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Default product name that appears on the label. Can be overridden when printing.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="defaultColor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Color / Descriptor
+                    </label>
+                    <input
+                      id="defaultColor"
+                      name="defaultColor"
+                      type="text"
+                      maxLength={30}
+                      value={formData.defaultColor || ''}
+                      onChange={handleChange}
+                      placeholder="e.g., Red, Blue, Large"
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Default color or descriptor that appears on the label. Can be overridden when printing.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="defaultSize" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Size / Variant
+                    </label>
+                    <input
+                      id="defaultSize"
+                      name="defaultSize"
+                      type="text"
+                      maxLength={20}
+                      value={formData.defaultSize || ''}
+                      onChange={handleChange}
+                      placeholder="e.g., Large, XL, 500ml"
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Default size or variant that appears on the label. Can be overridden when printing.
+                    </p>
                   </div>
 
                   <div>
@@ -405,6 +627,7 @@ export default function NewTemplatePage() {
                       name="description"
                       required
                       rows={3}
+                      maxLength={20}
                       value={formData.description}
                       onChange={handleChange}
                       className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
@@ -422,7 +645,7 @@ export default function NewTemplatePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label htmlFor="symbology" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Symbology
+                      Symbology (Barcode Type)
                     </label>
                     <select
                       id="symbology"
@@ -431,16 +654,19 @@ export default function NewTemplatePage() {
                       onChange={handleChange}
                       className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
                     >
-                      <option value="code128">CODE128</option>
-                      <option value="ean13">EAN13</option>
-                      <option value="ean8">EAN8</option>
-                      <option value="code39">CODE39</option>
-                      <option value="upca">UPC</option>
-                      <option value="itf14">ITF</option>
-                      <option value="msi">MSI</option>
-                      <option value="pharmacode">Pharmacode</option>
-                      <option value="codabar">Codabar</option>
+                      <option value="code128">CODE128 (Recommended - Letters & Numbers)</option>
+                      <option value="ean13">EAN13 (Numbers only)</option>
+                      <option value="ean8">EAN8 (Numbers only)</option>
+                      <option value="code39">CODE39 (Letters & Numbers)</option>
+                      <option value="upca">UPC (Numbers only)</option>
+                      <option value="itf14">ITF (Numbers only)</option>
+                      <option value="msi">MSI (Numbers only)</option>
+                      <option value="pharmacode">Pharmacode (Specialized)</option>
+                      <option value="codabar">Codabar (Specialized)</option>
                     </select>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      💡 <strong>Code128</strong> works for both manufacturer UPC numbers and custom SKUs (e.g., CMQ-7838)
+                    </p>
                   </div>
 
                   <div>
@@ -632,6 +858,17 @@ export default function NewTemplatePage() {
             </button>
           </div>
         </form>
+
+        {/* Product Search Modal */}
+        {formData.businessId && (
+          <ProductSearchModal
+            isOpen={showProductSearch}
+            onClose={() => setShowProductSearch(false)}
+            businessId={formData.businessId}
+            onSelectProduct={handleProductSelect}
+            scope="current"
+          />
+        )}
       </div>
     </div>
   );

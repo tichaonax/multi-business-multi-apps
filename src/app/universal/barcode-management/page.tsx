@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 
 interface DashboardStats {
   totalTemplates: number;
@@ -21,11 +22,19 @@ interface RecentActivity {
   description: string;
   timestamp: string;
   businessName?: string;
+  itemName?: string;
+  barcodeData?: string;
+  templateName?: string;
+  requestedQuantity?: number;
+  printedQuantity?: number;
+  fullBusinessName?: string;
 }
 
 export default function BarcodeManagementDashboard() {
   const { data: session } = useSession();
   const router = useRouter();
+  const alert = useAlert();
+  const confirm = useConfirm();
   const [stats, setStats] = useState<DashboardStats>({
     totalTemplates: 0,
     totalPrintJobs: 0,
@@ -38,6 +47,7 @@ export default function BarcodeManagementDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('all');
   const [businesses, setBusinesses] = useState<any[]>([]);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
 
   useEffect(() => {
     fetchBusinesses();
@@ -98,7 +108,7 @@ export default function BarcodeManagementDashboard() {
         activeInventoryItems: (inventoryData.inventoryItems || []).filter((i: any) => i.isActive).length,
       });
 
-      // Build recent activity from print jobs
+      // Build recent activity from print jobs with full details
       const activity: RecentActivity[] = printJobs.slice(0, 10).map((job: any) => ({
         id: job.id,
         type: 'print_job',
@@ -106,6 +116,12 @@ export default function BarcodeManagementDashboard() {
         description: `${job.itemName || 'Item'} - ${job.requestedQuantity} labels`,
         timestamp: job.createdAt,
         businessName: job.business?.shortName || job.business?.name,
+        itemName: job.itemName,
+        barcodeData: job.barcodeData,
+        templateName: job.template?.name,
+        requestedQuantity: job.requestedQuantity,
+        printedQuantity: job.printedQuantity,
+        fullBusinessName: job.business?.name,
       }));
 
       setRecentActivity(activity);
@@ -146,6 +162,50 @@ export default function BarcodeManagementDashboard() {
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
+  };
+
+  const handleCleanup = async () => {
+    const confirmed = await confirm({
+      title: 'Delete Old Print Jobs',
+      description: 'This will permanently delete all print jobs older than 4 months. This action cannot be undone.',
+      confirmText: 'Yes, delete',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsCleaningUp(true);
+    try {
+      const response = await fetch('/api/universal/barcode-management/cleanup', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await alert({
+          title: 'Cleanup Complete',
+          description: `Successfully purged ${data.deletedCount} print jobs older than 4 months.`,
+        });
+        // Refresh dashboard data
+        fetchDashboardData();
+      } else {
+        await alert({
+          title: 'Error',
+          description: data.error || 'Failed to cleanup print jobs',
+        });
+      }
+    } catch (error) {
+      console.error('Error cleaning up print jobs:', error);
+      await alert({
+        title: 'Error',
+        description: 'Failed to cleanup print jobs. Please try again.',
+      });
+    } finally {
+      setIsCleaningUp(false);
+    }
   };
 
   return (
@@ -259,7 +319,7 @@ export default function BarcodeManagementDashboard() {
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <Link
               href="/universal/barcode-management/templates/new"
               className="flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-colors"
@@ -288,50 +348,100 @@ export default function BarcodeManagementDashboard() {
               <span className="mr-2">📊</span>
               View Reports
             </Link>
+            <button
+              onClick={handleCleanup}
+              disabled={isCleaningUp}
+              className="flex items-center justify-center px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="mr-2">🗑️</span>
+              {isCleaningUp ? 'Cleaning...' : 'Cleanup Old Jobs'}
+            </button>
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        {/* Recent Print Jobs */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Recent Activity</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Recent Print Jobs</h2>
           </div>
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {loading ? (
-              <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                Loading...
-              </div>
-            ) : recentActivity.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                No recent activity
-              </div>
-            ) : (
-              recentActivity.map((activity) => (
-                <div key={activity.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
+          {loading ? (
+            <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+              Loading...
+            </div>
+          ) : recentActivity.length === 0 ? (
+            <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+              No recent print jobs
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Item Name
+                    </th>
+                    {selectedBusinessId === 'all' && (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Business
+                      </th>
+                    )}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Template SKU
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Quantity
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Created
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {recentActivity.map((activity) => (
+                    <tr key={activity.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {activity.itemName || 'Unknown Item'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          ID: {activity.id.substring(0, 8)}...
+                        </div>
+                      </td>
+                      {selectedBusinessId === 'all' && (
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 dark:text-white">
+                            {activity.fullBusinessName}
+                          </div>
+                        </td>
+                      )}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-mono text-gray-900 dark:text-white">
+                          {activity.barcodeData}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {activity.templateName}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(activity.action)}`}>
                           {activity.action}
                         </span>
-                        {activity.businessName && (
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
-                            {activity.businessName}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-sm text-gray-900 dark:text-white">{activity.description}</p>
-                    </div>
-                    <div className="ml-4 flex-shrink-0">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {activity.printedQuantity} / {activity.requestedQuantity}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {formatTimestamp(activity.timestamp)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -24,6 +24,7 @@ const prisma = new PrismaClient();
 const POLL_INTERVAL = 3000; // Check queue every 3 seconds
 const MAX_CONCURRENT_JOBS = 1; // Process one job at a time
 const ENABLE_LOGGING = true; // Set to false to reduce console noise
+const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // Run cleanup once per day (24 hours)
 
 // Use global to prevent hot-reload from resetting state in dev mode
 const globalForWorker = global as typeof globalThis & {
@@ -32,6 +33,7 @@ const globalForWorker = global as typeof globalThis & {
     isProcessing: boolean;
     isRunning: boolean;
     startTime: Date;
+    lastCleanup: Date | null;
   };
 };
 
@@ -45,6 +47,7 @@ function getWorkerState() {
       isProcessing: false,
       isRunning: false,
       startTime: new Date(),
+      lastCleanup: null,
     };
   }
   return globalForWorker.printQueueWorker;
@@ -136,6 +139,54 @@ export function ensureWorkerRunning(): boolean {
 }
 
 /**
+ * Purge print jobs older than 4 months
+ */
+async function purgeOldPrintJobs(): Promise<void> {
+  try {
+    // Calculate date 4 months ago
+    const fourMonthsAgo = new Date();
+    fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4);
+
+    // Delete old jobs
+    const deleteResult = await prisma.printJobs.deleteMany({
+      where: {
+        createdAt: {
+          lt: fourMonthsAgo,
+        },
+      },
+    });
+
+    if (deleteResult.count > 0) {
+      console.log(`🗑️  Purged ${deleteResult.count} print jobs older than 4 months`);
+    }
+
+    // Update last cleanup time
+    const state = getWorkerState();
+    state.lastCleanup = new Date();
+  } catch (error) {
+    console.error('Error purging old print jobs:', error);
+  }
+}
+
+/**
+ * Check if cleanup should run and execute if needed
+ */
+async function checkAndRunCleanup(): Promise<void> {
+  const state = getWorkerState();
+  const now = new Date();
+
+  // Run cleanup if:
+  // 1. Never run before, OR
+  // 2. Last cleanup was more than CLEANUP_INTERVAL ago
+  const shouldRunCleanup = !state.lastCleanup ||
+    (now.getTime() - state.lastCleanup.getTime()) >= CLEANUP_INTERVAL;
+
+  if (shouldRunCleanup) {
+    await purgeOldPrintJobs();
+  }
+}
+
+/**
  * Process a barcode print job
  */
 async function processBarcodeJob(job: any): Promise<void> {
@@ -194,6 +245,7 @@ async function processBarcodeJob(job: any): Promise<void> {
       const imagePath = await generateMultiLabelPage({
         ...barcodeParams,
         batchNumber,
+        quantity: copies, // Pass quantity for batch formatting (e.g., "50-A01")
       }, copies);
 
       if (ENABLE_LOGGING) {
@@ -232,6 +284,7 @@ async function processBarcodeJob(job: any): Promise<void> {
       const labelText = generateBarcodeLabel({
         ...barcodeParams,
         batchNumber,
+        quantity: copies, // Pass quantity for batch formatting (e.g., "50-A01")
       });
 
       await printRawData(labelText, {
@@ -296,6 +349,9 @@ async function processQueue(): Promise<void> {
 
   try {
     state.isProcessing = true;
+
+    // Check if we need to run cleanup (once per day)
+    await checkAndRunCleanup();
 
     // Check for barcode jobs first (priority)
     const barcodeJob = await getNextPendingBarcodeJob();
@@ -445,6 +501,13 @@ export function getWorkerStatus(): {
  */
 export async function triggerQueueProcessing(): Promise<void> {
   await processQueue();
+}
+
+/**
+ * Manually trigger cleanup of old print jobs
+ */
+export async function triggerCleanup(): Promise<void> {
+  await purgeOldPrintJobs();
 }
 
 /**

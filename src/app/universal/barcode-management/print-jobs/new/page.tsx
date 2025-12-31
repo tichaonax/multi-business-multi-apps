@@ -5,6 +5,11 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useToastContext } from '@/components/ui/toast';
+import ProductSearchModal from '@/components/barcode-management/product-search-modal';
+import PriceOverrideDialog from '@/components/barcode-management/price-override-dialog';
+import BarcodePreview from '@/components/barcode-management/barcode-preview';
+import CompleteLabelPreview from '@/components/barcode-management/complete-label-preview';
+import { Package } from 'lucide-react';
 
 export default function NewPrintJobPage() {
   const { data: session } = useSession();
@@ -19,6 +24,11 @@ export default function NewPrintJobPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [printToPdf, setPrintToPdf] = useState(false);
+  const [showProductSearch, setShowProductSearch] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProductVariant, setSelectedProductVariant] = useState<any>(null);
+  const [showPriceOverride, setShowPriceOverride] = useState(false);
+  const [originalPrice, setOriginalPrice] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     templateId: templateId || '',
@@ -26,9 +36,11 @@ export default function NewPrintJobPage() {
     requestedQuantity: 1,
     itemName: '',
     barcodeData: '',
+    batchId: '', // Batch ID from template
     userNotes: '',
     // Label field data
     productName: '',
+    description: '',
     price: '',
     size: '',
     color: '',
@@ -58,6 +70,13 @@ export default function NewPrintJobPage() {
           ...prev,
           itemName: data.name,
           barcodeData: data.barcodeValue,
+          // Pre-fill all default fields from template (can be overridden)
+          batchId: data.batchId || '',
+          productName: data.productName || '',
+          description: data.description || '',
+          price: data.defaultPrice ? parseFloat(data.defaultPrice).toFixed(2) : '',
+          size: data.defaultSize || '',
+          color: data.defaultColor || '',
         }));
       } else {
         toast.push('Template not found', { type: 'error' });
@@ -116,8 +135,26 @@ export default function NewPrintJobPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setErrors({});
+
+    // Check for price changes if a product was selected
+    if (selectedProduct && originalPrice !== null && formData.price) {
+      // Parse the current price from the form
+      const currentPrice = parseFloat(formData.price);
+
+      // If price has changed, show override dialog
+      if (!isNaN(currentPrice) && currentPrice !== originalPrice) {
+        setShowPriceOverride(true);
+        return; // Don't proceed with submission yet
+      }
+    }
+
+    // If no price change or no product selected, proceed with normal submission
+    await submitPrintJob();
+  };
+
+  const submitPrintJob = async () => {
+    setSubmitting(true);
 
     if (!formData.templateId) {
       toast.push('Please select a template', { type: 'error' });
@@ -128,16 +165,22 @@ export default function NewPrintJobPage() {
     try {
       // If Print to PDF is enabled, generate and download PDF instead
       if (printToPdf) {
+        // Get printer type from selected printer
+        const selectedPrinter = printers.find(p => p.id === formData.printerId);
+        const printerType = selectedPrinter?.type || 'document';
+
         const response = await fetch('/api/universal/barcode-management/print-jobs/generate-pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             templateId: formData.templateId,
             quantity: formData.requestedQuantity,
+            printerType, // Pass printer type for correct layout
             customData: {
               name: formData.itemName,
               barcodeValue: formData.barcodeData,
               productName: formData.productName,
+              description: formData.description, // Phase 7: Description field
               price: formData.price,
               size: formData.size,
               color: formData.color,
@@ -180,9 +223,13 @@ export default function NewPrintJobPage() {
             barcodeValue: formData.barcodeData,
             // Label field data
             productName: formData.productName,
+            description: formData.description, // Phase 7: Description field
             price: formData.price,
             size: formData.size,
             color: formData.color,
+            // Phase 4: Multi-Barcode Support - Link barcode to product
+            selectedProductId: selectedProduct?.id || null,
+            selectedVariantId: selectedProductVariant?.id || null,
           },
           userNotes: formData.userNotes,
         }),
@@ -226,6 +273,70 @@ export default function NewPrintJobPage() {
     }
   };
 
+  const handleProductSelect = (product: any, variant?: any) => {
+    setSelectedProduct(product);
+    setSelectedProductVariant(variant || null);
+
+    // Auto-populate form fields from product
+    const price = variant ? variant.price : product.sellPrice;
+    const sku = variant ? variant.sku : product.sku;
+    const variantName = variant ? variant.name : '';
+
+    // Store original price for comparison when submitting
+    setOriginalPrice(parseFloat(price));
+
+    setFormData((prev) => ({
+      ...prev,
+      itemName: product.suggestedTemplateName || product.name,
+      barcodeData: product.primaryBarcode?.code || sku,
+      productName: product.name,
+      price: parseFloat(price).toFixed(2), // No $ symbol for number input
+      size: variantName,
+      // Description from domain or product
+      color: product.description || '',
+    }));
+
+    toast.push(`Product loaded: ${product.name}${variant ? ` - ${variant.name}` : ''}`, { type: 'success' });
+  };
+
+  const handlePriceOverrideConfirm = async (updateProduct: boolean, reason?: string, notes?: string) => {
+    setShowPriceOverride(false);
+
+    // If user chose to update the product price, call the API
+    if (updateProduct && selectedProduct) {
+      try {
+        const currentPrice = parseFloat(formData.price);
+
+        const response = await fetch(`/api/products/${selectedProduct.id}/price`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            newPrice: currentPrice,
+            variantId: selectedProductVariant?.id || null,
+            reason: reason || 'BARCODE_LABEL_PRINT',
+            notes: notes || null,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          toast.push(data.message || 'Price updated successfully', { type: 'success' });
+          // Update the original price to the new price so we don't show the dialog again
+          setOriginalPrice(currentPrice);
+        } else {
+          const errorData = await response.json();
+          toast.push(errorData.error || 'Failed to update price', { type: 'error' });
+        }
+      } catch (error) {
+        console.error('Error updating price:', error);
+        toast.push('Failed to update price. Continuing with print job creation.', { type: 'warning' });
+      }
+    }
+
+    // Proceed with print job creation
+    await submitPrintJob();
+  };
+
   if (loading && templateId) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -241,7 +352,7 @@ export default function NewPrintJobPage() {
         <div className="mb-8">
           <Link
             href="/universal/barcode-management/print-jobs"
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mb-4 inline-block"
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 mb-4"
           >
             ← Back to Print Jobs
           </Link>
@@ -257,6 +368,18 @@ export default function NewPrintJobPage() {
                 <strong>Template:</strong> {template.name} |
                 <strong className="ml-2">Symbology:</strong> {template.symbology} |
                 <strong className="ml-2">Business:</strong> {template.business?.name}
+                {template.batchId && (
+                  <>
+                    {' | '}
+                    <strong className="ml-2">Batch ID:</strong> {template.batchId}
+                  </>
+                )}
+                {template.defaultPrice && (
+                  <>
+                    {' | '}
+                    <strong className="ml-2">Default Price:</strong> ${parseFloat(template.defaultPrice).toFixed(2)}
+                  </>
+                )}
               </p>
             </div>
           )}
@@ -398,6 +521,63 @@ export default function NewPrintJobPage() {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
               Label Data
             </h2>
+
+            {/* Product Search Button */}
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    💡 Quick Fill from Inventory
+                  </h3>
+                  <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                    Search your product inventory to automatically populate label fields
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowProductSearch(true)}
+                  disabled={!template?.business?.id}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Package className="w-4 h-4" />
+                  Search Products
+                </button>
+              </div>
+
+              {selectedProduct && (
+                <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border border-blue-200 dark:border-blue-700">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        ✓ Loaded: {selectedProduct.name}
+                        {selectedProductVariant && ` - ${selectedProductVariant.name}`}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        SKU: {selectedProductVariant?.sku || selectedProduct.sku} |
+                        Price: ${parseFloat(selectedProductVariant?.price || selectedProduct.sellPrice).toFixed(2)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProduct(null);
+                        setSelectedProductVariant(null);
+                      }}
+                      className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!template?.business?.id && (
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Please select a template first to enable product search
+                </p>
+              )}
+            </div>
+
             <div className="space-y-4">
               <div>
                 <label htmlFor="itemName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -436,68 +616,125 @@ export default function NewPrintJobPage() {
                 </p>
               </div>
 
+              {/* Batch ID */}
+              <div>
+                <label htmlFor="batchId" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Batch ID
+                </label>
+                <input
+                  id="batchId"
+                  name="batchId"
+                  type="text"
+                  maxLength={10}
+                  value={formData.batchId}
+                  onChange={handleChange}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                  placeholder="e.g., A01"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {template?.batchId
+                    ? `Pre-filled from template (${template.batchId}). Can be overridden.`
+                    : 'Enter batch identifier (optional)'}
+                </p>
+              </div>
+
+              {/* Product Name - always show */}
+              <div>
+                <label htmlFor="productName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Product Name
+                </label>
+                <input
+                  id="productName"
+                  name="productName"
+                  type="text"
+                  maxLength={50}
+                  value={formData.productName}
+                  onChange={handleChange}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                  placeholder="e.g., Premium Cotton T-Shirt"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {template?.productName
+                    ? `Pre-filled from template (${template.productName}). Can be overridden.`
+                    : 'Product name that appears on the label (optional)'}
+                </p>
+              </div>
+
               {/* Conditional fields based on template configuration */}
               {template?.layoutTemplate && (
                 <>
-                  {template.layoutTemplate.showProductName && (
-                    <div>
-                      <label htmlFor="productName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Product Name
-                      </label>
-                      <input
-                        id="productName"
-                        name="productName"
-                        type="text"
-                        value={formData.productName}
-                        onChange={handleChange}
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
-                        placeholder="e.g., Premium Cotton T-Shirt"
-                      />
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        This will appear on the printed label
-                      </p>
-                    </div>
-                  )}
 
-                  {template.layoutTemplate.showPrice && (
-                    <div>
-                      <label htmlFor="price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Price
-                      </label>
+                  {/* Description field - always show */}
+                  <div>
+                    <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Description
+                    </label>
+                    <input
+                      id="description"
+                      name="description"
+                      type="text"
+                      maxLength={100}
+                      value={formData.description}
+                      onChange={handleChange}
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                      placeholder="e.g., 100% Cotton, Machine Washable"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {template?.description
+                        ? `Pre-filled from template (${template.description}). Can be overridden.`
+                        : 'Additional product details (optional)'}
+                    </p>
+                  </div>
+
+                  {/* Price field - always show (pre-filled from template's defaultPrice) */}
+                  <div>
+                    <label htmlFor="price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Price
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-gray-500 dark:text-gray-400">$</span>
+                      </div>
                       <input
                         id="price"
                         name="price"
-                        type="text"
+                        type="number"
+                        step="0.01"
+                        min="0"
                         value={formData.price}
                         onChange={handleChange}
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
-                        placeholder="e.g., $19.99"
+                        className="block w-full pl-7 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                        placeholder="0.00"
                       />
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Price can be overridden manually if needed
-                      </p>
                     </div>
-                  )}
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {template?.defaultPrice
+                        ? `Pre-filled from template default (${parseFloat(template.defaultPrice).toFixed(2)}). Can be overridden.`
+                        : 'Enter the price for this label (optional)'}
+                    </p>
+                  </div>
 
-                  {template.layoutTemplate.showSize && (
-                    <div>
-                      <label htmlFor="size" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Size / Variant
-                      </label>
-                      <input
-                        id="size"
-                        name="size"
-                        type="text"
-                        value={formData.size}
-                        onChange={handleChange}
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
-                        placeholder="e.g., Large, XL, 500ml"
-                      />
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        This will appear on the printed label
-                      </p>
-                    </div>
-                  )}
+                  {/* Size field - always show */}
+                  <div>
+                    <label htmlFor="size" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Size / Variant
+                    </label>
+                    <input
+                      id="size"
+                      name="size"
+                      type="text"
+                      maxLength={20}
+                      value={formData.size}
+                      onChange={handleChange}
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                      placeholder="e.g., Large, XL, 500ml"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {template?.defaultSize
+                        ? `Pre-filled from template (${template.defaultSize}). Can be overridden.`
+                        : 'Size or variant that appears on the label (optional)'}
+                    </p>
+                  </div>
 
                   {/* Color field - always show for all templates */}
                   <div>
@@ -508,13 +745,16 @@ export default function NewPrintJobPage() {
                       id="color"
                       name="color"
                       type="text"
+                      maxLength={30}
                       value={formData.color}
                       onChange={handleChange}
                       className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
                       placeholder="e.g., Green, Red, Blue"
                     />
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      This will appear at the bottom of the label
+                      {template?.defaultColor
+                        ? `Pre-filled from template (${template.defaultColor}). Can be overridden.`
+                        : 'Color or descriptor that appears on the label (optional)'}
                     </p>
                   </div>
                 </>
@@ -549,139 +789,34 @@ export default function NewPrintJobPage() {
                   {formData.requestedQuantity} label{formData.requestedQuantity > 1 ? 's' : ''} will be printed
                 </p>
                 <div className="inline-block bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Sample Label (Goodwill Format)</p>
-
-                  {/* SVG Barcode Preview - Goodwill Style */}
-                  {(() => {
-                    const width = template.width || 250;
-                    let yPos = 20;
-                    const lineHeight = 16;
-
-                    return (
-                      <svg
-                        width={width}
-                        height={300}
-                        viewBox={`0 0 ${width} 300`}
-                        className="border border-gray-300 dark:border-gray-600"
-                      >
-                        <rect width={width} height={300} fill={template.backgroundColor || '#FFFFFF'} />
-
-                        {/* Business Name - Large and emphasized */}
-                        {template.business?.name && (
-                          <text
-                            x={width / 2}
-                            y={yPos}
-                            fontSize={18}
-                            textAnchor="middle"
-                            fill={template.lineColor || '#000000'}
-                            fontWeight="700"
-                          >
-                            {template.business.name}
-                          </text>
-                        )}
-                        {(() => { yPos += 22; return null; })()}
-
-                        {/* Product Name */}
-                        {formData.productName && (
-                          <text
-                            x={width / 2}
-                            y={yPos}
-                            fontSize={14}
-                            textAnchor="middle"
-                            fill={template.lineColor || '#000000'}
-                            fontWeight="600"
-                          >
-                            {formData.productName}
-                          </text>
-                        )}
-                        {(() => { yPos += formData.productName ? 18 : 0; return null; })()}
-
-                        {/* Size - Large */}
-                        {formData.size && (
-                          <text
-                            x={width / 2}
-                            y={yPos}
-                            fontSize={20}
-                            textAnchor="middle"
-                            fill={template.lineColor || '#000000'}
-                            fontWeight="700"
-                          >
-                            {formData.size}
-                          </text>
-                        )}
-                        {(() => { yPos += formData.size ? 24 : 0; return null; })()}
-
-                        {/* Date + Batch Number */}
-                        <text
-                          x={width / 2}
-                          y={yPos}
-                          fontSize={12}
-                          textAnchor="middle"
-                          fill={template.lineColor || '#000000'}
-                        >
-                          {new Date().toLocaleDateString('en-GB')} XXX
-                        </text>
-                        {(() => { yPos += 16; return null; })()}
-
-                        {/* Barcode stripes - 40% shorter */}
-                        <g transform={`translate(${template.margin || 10}, ${yPos})`}>
-                          {[...Array(20)].map((_, i) => (
-                            <rect
-                              key={i}
-                              x={i * 9}
-                              y="0"
-                              width={i % 2 === 0 ? 3 : 5}
-                              height={60}
-                              fill={template.lineColor || '#000000'}
-                            />
-                          ))}
-                        </g>
-                        {(() => { yPos += 70; return null; })()}
-
-                        {/* Barcode text */}
-                        {template.displayValue !== false && (
-                          <text
-                            x={width / 2}
-                            y={yPos}
-                            fontSize={11}
-                            textAnchor="middle"
-                            fill={template.lineColor || '#000000'}
-                          >
-                            {formData.barcodeData || 'BARCODE'}
-                          </text>
-                        )}
-                        {(() => { yPos += 20; return null; })()}
-
-                        {/* Price - Large at bottom */}
-                        {formData.price && (
-                          <text
-                            x={width / 2}
-                            y={yPos}
-                            fontSize={22}
-                            textAnchor="middle"
-                            fill={template.lineColor || '#000000'}
-                            fontWeight="700"
-                          >
-                            $ {formData.price}
-                          </text>
-                        )}
-                        {(() => { yPos += formData.price ? 26 : 0; return null; })()}
-
-                        {/* Color */}
-                        {formData.color && (
-                          <text
-                            x={width / 2}
-                            y={yPos}
-                            fontSize={12}
-                            textAnchor="middle"
-                            fill={template.lineColor || '#000000'}
-                          >
-                            {formData.color}
-                          </text>
-                        )}
-                      </svg>
-                    );
-                  })()}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Complete Label Preview</p>
+                  <CompleteLabelPreview
+                    barcodeValue={formData.barcodeData || 'SAMPLE123'}
+                    symbology={template.symbology || 'code128'}
+                    displayValue={template.displayValue !== false}
+                    fontSize={template.fontSize || 20}
+                    lineColor={template.lineColor || '#000000'}
+                    backgroundColor={template.backgroundColor || '#FFFFFF'}
+                    businessName={template.business?.name || ''}
+                    productName={formData.productName || ''}
+                    description={formData.description || ''}
+                    size={formData.size || ''}
+                    price={formData.price || ''}
+                    color={formData.color || ''}
+                    sku={template.sku || ''}
+                    templateName={template.name || ''}
+                    showDate={true}
+                    batchNumber={formData.batchId || 'XXX'}
+                    quantity={formData.requestedQuantity}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    This shows exactly how the label will print
+                    {formData.batchId && formData.requestedQuantity > 0 && (
+                      <>
+                        {' '}with quantity-batch format (e.g., {formData.requestedQuantity}-{formData.batchId})
+                      </>
+                    )}
+                  </p>
                 </div>
               </div>
             </div>
@@ -704,6 +839,31 @@ export default function NewPrintJobPage() {
             </button>
           </div>
         </form>
+
+        {/* Product Search Modal */}
+        {template?.business?.id && (
+          <ProductSearchModal
+            isOpen={showProductSearch}
+            onClose={() => setShowProductSearch(false)}
+            businessId={template.business.id}
+            onSelectProduct={handleProductSelect}
+            scope="current"
+          />
+        )}
+
+        {/* Price Override Dialog */}
+        {selectedProduct && originalPrice !== null && formData.price && (
+          <PriceOverrideDialog
+            isOpen={showPriceOverride}
+            onClose={() => setShowPriceOverride(false)}
+            onConfirm={handlePriceOverrideConfirm}
+            productName={selectedProduct.name}
+            variantName={selectedProductVariant?.name}
+            oldPrice={originalPrice}
+            newPrice={parseFloat(formData.price)}
+            isVariant={!!selectedProductVariant}
+          />
+        )}
       </div>
     </div>
   );

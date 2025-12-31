@@ -12,6 +12,8 @@ interface BarcodeScannerProps {
   minBarcodeLength?: number
   /** Debounce window (ms) to coalesce rapid triggers into one lookup (default: 300) */
   lookupDebounceMs?: number
+  /** Callback when a template is found (for creating new products from templates) */
+  onTemplateFound?: (templateData: any) => void
 }
 
 interface BarcodeMapping {
@@ -27,13 +29,15 @@ export function BarcodeScanner({
   showScanner = false,
   onToggleScanner,
   minBarcodeLength,
-  lookupDebounceMs
+  lookupDebounceMs,
+  onTemplateFound
 }: BarcodeScannerProps) {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null)
   const [matchedBarcodeInfo, setMatchedBarcodeInfo] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [templateResult, setTemplateResult] = useState<any>(null)
   const [scanBuffer, setScanBuffer] = useState('')
   const [inputFocused, setInputFocused] = useState(false)
   const [lastRawEvent, setLastRawEvent] = useState<string | null>(null)
@@ -264,26 +268,48 @@ export function BarcodeScanner({
       setError(null)
 
     try {
-  // Include current businessId in the path so server can scope lookups precisely
-  const response = await fetch(`/api/products/by-barcode/${encodeURIComponent(businessId)}/${encodeURIComponent(toLookup)}`, { signal: controller.signal })
+  // Use new three-tier lookup API
+  const response = await fetch('/api/universal/barcode-management/scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ barcode: toLookup, businessId }),
+    signal: controller.signal
+  })
         // Record that we queried this barcode (even if 404) so we don't hammer the server
         lastQueriedBarcodeRef.current = toLookup
         lastQueriedAtRef.current = Date.now()
 
         if (response.ok) {
-          const data = await response.json()
-          // Support either legacy { success: true, data: { product }} or direct { product: {...} }
-          const product = data?.data?.product ?? data?.product
-          const variantId = data?.data?.variantId ?? data?.variantId ?? (product ? product.id : undefined)
-          const matchedBarcode = data?.data?.matchedBarcode
+          const result = await response.json()
 
-          if (product) {
+          // Handle product result (Tier 1)
+          if (result.type === 'product' && result.data) {
+            const { product, variantId, matchedBarcode } = result.data
             onProductScanned(product as UniversalProduct, variantId, matchedBarcode)
             setLastScannedBarcode(toLookup)
             setMatchedBarcodeInfo(matchedBarcode)
             setBarcodeInput('')
+            setTemplateResult(null)
             clearLastScanned()
             return
+          }
+
+          // Handle template result (Tier 2)
+          if (result.type === 'template' && result.data) {
+            setTemplateResult(result.data)
+            setLastScannedBarcode(toLookup)
+            setBarcodeInput('')
+            setError(null)
+            // Call template callback if provided
+            if (onTemplateFound) {
+              onTemplateFound(result.data)
+            }
+            return
+          }
+
+          // Handle not found (Tier 3)
+          if (result.type === 'not_found') {
+            // Fall through to demo mapping below
           }
         } else if (response.status !== 404) {
           // Non-404 errors should be surfaced
@@ -699,6 +725,85 @@ export function BarcodeScanner({
             <div className="flex items-center gap-2">
               <span className="text-red-600">❌</span>
               <span className="text-sm text-red-800">{error}</span>
+            </div>
+          </div>
+        )}
+
+        {templateResult && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-4 rounded-lg">
+            <div className="flex items-start gap-3 mb-3">
+              <span className="text-2xl">📋</span>
+              <div className="flex-1">
+                <h4 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                  Template Found: Create New Product?
+                </h4>
+                <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                  This barcode matches a label template but no existing product. You can create a new product with pre-populated data from the template.
+                </p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex gap-2">
+                    <span className="font-medium text-amber-900 dark:text-amber-100 min-w-[100px]">Barcode:</span>
+                    <code className="bg-amber-100 dark:bg-amber-800 px-2 py-0.5 rounded text-amber-900 dark:text-amber-100">{lastScannedBarcode}</code>
+                  </div>
+                  {templateResult.suggestedProduct?.name && (
+                    <div className="flex gap-2">
+                      <span className="font-medium text-amber-900 dark:text-amber-100 min-w-[100px]">Product Name:</span>
+                      <span className="text-amber-800 dark:text-amber-200">{templateResult.suggestedProduct.name}</span>
+                    </div>
+                  )}
+                  {templateResult.suggestedProduct?.basePrice && (
+                    <div className="flex gap-2">
+                      <span className="font-medium text-amber-900 dark:text-amber-100 min-w-[100px]">Price:</span>
+                      <span className="text-amber-800 dark:text-amber-200">${templateResult.suggestedProduct.basePrice.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {templateResult.template?.name && (
+                    <div className="flex gap-2">
+                      <span className="font-medium text-amber-900 dark:text-amber-100 min-w-[100px]">Template:</span>
+                      <span className="text-amber-800 dark:text-amber-200 text-xs">{templateResult.template.name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  // Dismiss template result
+                  setTemplateResult(null)
+                  setLastScannedBarcode(null)
+                }}
+                className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={() => {
+                  // Navigate to product creation with template data
+                  const businessType = templateResult.template?.businessType || 'general'
+                  const templateData = encodeURIComponent(JSON.stringify({
+                    ...templateResult.suggestedProduct,
+                    barcode: lastScannedBarcode,
+                    fromTemplate: true,
+                    templateId: templateResult.template?.id
+                  }))
+                  // Construct URL based on business type
+                  let createUrl = `/universal/products/new?templateData=${templateData}&businessId=${businessId}`
+                  if (businessType === 'grocery') {
+                    createUrl = `/grocery/inventory/add?templateData=${templateData}&businessId=${businessId}`
+                  } else if (businessType === 'restaurant') {
+                    createUrl = `/restaurant/inventory/add?templateData=${templateData}&businessId=${businessId}`
+                  } else if (businessType === 'hardware') {
+                    createUrl = `/hardware/inventory/add?templateData=${templateData}&businessId=${businessId}`
+                  } else if (businessType === 'clothing') {
+                    createUrl = `/clothing/inventory?templateData=${templateData}&businessId=${businessId}`
+                  }
+                  window.location.href = createUrl
+                }}
+                className="flex-1 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+              >
+                ✨ Create Product from Template
+              </button>
             </div>
           </div>
         )}

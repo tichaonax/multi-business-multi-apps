@@ -67,6 +67,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "print-worker": "node simple-print-worker.js",
+    "purge:print-jobs": "node scripts/purge-old-print-jobs.js",
     "init-business-balances": "node scripts/initialize-business-balances.js",
     "test:seed-clothing": "node tests/seed-clothing.test.js",
     "setup": "node scripts/setup-fresh-install.js",

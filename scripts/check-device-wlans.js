@@ -2,8 +2,16 @@
  * Query R710 Device for Current WLANs
  */
 
+require('dotenv').config({ path: '.env.local' });
 const axios = require('axios');
 const https = require('https');
+
+// Validate required environment variables
+if (!process.env.R710_DEVICE_HOST || !process.env.R710_ADMIN_USERNAME || !process.env.R710_ADMIN_PASSWORD) {
+  console.error('ERROR: Missing required R710 environment variables in .env.local');
+  console.error('Required variables: R710_DEVICE_HOST, R710_ADMIN_USERNAME, R710_ADMIN_PASSWORD');
+  process.exit(1);
+}
 
 const agent = new https.Agent({
   rejectUnauthorized: false
@@ -11,7 +19,7 @@ const agent = new https.Agent({
 
 const client = axios.create({
   httpsAgent: agent,
-  baseURL: 'https://192.168.0.108',
+  baseURL: `https://${process.env.R710_DEVICE_HOST}`,
   headers: {
     'User-Agent': 'Mozilla/5.0'
   }
@@ -24,7 +32,11 @@ function generateUpdaterId(component) {
 }
 
 async function login() {
-  const response = await client.post('/admin/index.jsp', 'username=admin&password=Ticha%402000&ok=Log+In', {
+  // URL encode the password for form submission
+  const encodedPassword = encodeURIComponent(process.env.R710_ADMIN_PASSWORD);
+  const formData = `username=${process.env.R710_ADMIN_USERNAME}&password=${encodedPassword}&ok=Log+In`;
+
+  const response = await client.post('/admin/index.jsp', formData, {
     maxRedirects: 0,
     validateStatus: (status) => status === 302,
     headers: {

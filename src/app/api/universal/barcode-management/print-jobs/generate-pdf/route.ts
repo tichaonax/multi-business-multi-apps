@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { templateId, quantity, customData } = body;
+    const { templateId, quantity, customData, printerType } = body;
 
     if (!templateId) {
       return NextResponse.json({ error: 'Template ID is required' }, { status: 400 });
@@ -38,6 +38,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
 
+    // Generate batch number (timestamp-based for PDF downloads)
+    const batchNumber = Date.now().toString(36).slice(-3).toUpperCase();
+
     // Prepare barcode parameters
     const barcodeParams = {
       barcodeData: customData?.barcodeValue || template.barcodeValue,
@@ -46,18 +49,29 @@ export async function POST(request: NextRequest) {
       businessName: template.business?.name || '',
       templateName: template.name,
       displayValue: true,
+      batchNumber, // Add batch number
+      quantity, // Add quantity for batch formatting (e.g., "50-A01")
       customData: {
         productName: customData?.productName,
         price: customData?.price,
         size: customData?.size,
         color: customData?.color,
+        description: customData?.description,
       },
     };
 
-    // Generate multi-label page
-    const { generateMultiLabelPage } = await import('@/lib/barcode-image-generator');
+    // Generate PNG based on printer type
+    let imagePath: string;
 
-    const imagePath = await generateMultiLabelPage(barcodeParams, quantity);
+    if (printerType === 'receipt') {
+      // For receipt printers: Generate vertical strip of labels (single column)
+      const { generateReceiptLabelStrip } = await import('@/lib/barcode-image-generator');
+      imagePath = await generateReceiptLabelStrip(barcodeParams, quantity);
+    } else {
+      // For document/laser/label printers: Generate multi-label page (grid layout)
+      const { generateMultiLabelPage } = await import('@/lib/barcode-image-generator');
+      imagePath = await generateMultiLabelPage(barcodeParams, quantity);
+    }
 
     // Read the file
     const imageBuffer = readFileSync(imagePath);

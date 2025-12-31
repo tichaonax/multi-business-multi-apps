@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       prisma.barcodeInventoryItems.findMany({
         where,
         include: {
-          template: {
+          barcodeTemplate: {
             select: {
               id: true,
               name: true,

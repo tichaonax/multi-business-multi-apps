@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
+import { globalBarcodeService } from '@/lib/services/global-barcode-service';
 
 interface Template {
   id: string;
   name: string;
   barcodeValue: string;
+  sku: string | null;
   symbology: string;
   type: string;
   description: string;
@@ -41,8 +43,26 @@ export default function TemplatesPage() {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
 
+  // Barcode scanner support
+  const barcodeBufferRef = useRef<string>('');
+  const lastKeypressTimeRef = useRef<number>(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     fetchBusinesses();
+
+    // Disable global barcode service when on this page
+    // Save the current state so we can restore it
+    const wasEnabled = globalBarcodeService.isEnabled();
+    globalBarcodeService.disable();
+
+    return () => {
+      // Re-enable global barcode service when leaving this page
+      if (wasEnabled) {
+        globalBarcodeService.enable();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -50,6 +70,84 @@ export default function TemplatesPage() {
       fetchTemplates();
     }
   }, [search, selectedBusinessId, selectedType, pagination.page, businesses]);
+
+  // Barcode scanner detection
+  useEffect(() => {
+    const processScan = () => {
+      if (barcodeBufferRef.current.length >= 4) {
+        console.log('📊 Barcode scanned on templates page:', barcodeBufferRef.current);
+        setSearch(barcodeBufferRef.current);
+      }
+      barcodeBufferRef.current = '';
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+        scanTimeoutRef.current = null;
+      }
+    };
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      const now = Date.now();
+      const timeDiff = now - lastKeypressTimeRef.current;
+
+      // If search input is focused, let normal typing work
+      if (document.activeElement === searchInputRef.current) {
+        return;
+      }
+
+      // Prevent the global barcode service from processing this
+      const target = e.target as HTMLElement | null;
+      const isTypingInInput = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        (target as any).isContentEditable
+      );
+
+      if (!isTypingInInput) {
+        // We want to handle this scan on the templates page
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+
+      // Barcode scanners type very fast (typically < 50ms between characters)
+      // and end with Enter key
+      if (e.key === 'Enter') {
+        if (!isTypingInInput) {
+          e.preventDefault();
+        }
+        processScan();
+      } else if (e.key.length === 1) {
+        // Check if this is fast typing (scanner) or slow typing (human)
+        if (timeDiff < 80 || barcodeBufferRef.current.length > 0) {
+          // Fast typing or continuing a scan - add to buffer
+          barcodeBufferRef.current += e.key;
+          lastKeypressTimeRef.current = now;
+
+          // Clear existing timeout
+          if (scanTimeoutRef.current) {
+            clearTimeout(scanTimeoutRef.current);
+          }
+
+          // Set timeout to process scan if no more keys come
+          scanTimeoutRef.current = setTimeout(() => {
+            processScan();
+          }, 150);
+        } else {
+          // Slow typing - reset buffer
+          barcodeBufferRef.current = e.key;
+          lastKeypressTimeRef.current = now;
+        }
+      }
+    };
+
+    // Add event listener with capture phase to intercept before global service
+    window.addEventListener('keydown', handleKeyPress, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress, true);
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const fetchBusinesses = async () => {
     try {
@@ -149,21 +247,29 @@ export default function TemplatesPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Barcode Templates
-            </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">
-              Manage your barcode templates
-            </p>
-          </div>
+        <div className="mb-8">
           <Link
-            href="/universal/barcode-management/templates/new"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-colors"
+            href="/universal/barcode-management"
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 mb-4"
           >
-            ➕ Create Template
+            ← Back to Barcode Management
           </Link>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Barcode Templates
+              </h1>
+              <p className="mt-2 text-gray-600 dark:text-gray-400">
+                Manage your barcode templates
+              </p>
+            </div>
+            <Link
+              href="/universal/barcode-management/templates/new"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-colors"
+            >
+              ➕ Create Template
+            </Link>
+          </div>
         </div>
 
         {/* Filters */}
@@ -171,16 +277,28 @@ export default function TemplatesPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Search
+                Search (or scan barcode)
               </label>
-              <input
-                id="search"
-                type="text"
-                placeholder="Search by name, value, or description..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
-              />
+              <div className="relative">
+                <input
+                  ref={searchInputRef}
+                  id="search"
+                  type="text"
+                  placeholder="Search by name, value, or description..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3 pr-10"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
 
             <div>
@@ -275,6 +393,9 @@ export default function TemplatesPage() {
                     Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    SKU
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Barcode Value
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -301,6 +422,15 @@ export default function TemplatesPage() {
                       <div className="text-sm text-gray-500 dark:text-gray-400">
                         {template.type}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {template.sku ? (
+                        <code className="text-sm text-gray-900 dark:text-white bg-blue-50 dark:bg-blue-900 px-2 py-1 rounded">
+                          {template.sku}
+                        </code>
+                      ) : (
+                        <span className="text-sm text-gray-400 dark:text-gray-500 italic">No SKU</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <code className="text-sm text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">
@@ -368,10 +498,21 @@ export default function TemplatesPage() {
                     {template.symbology}
                   </span>
                 </div>
-                <div className="mb-4">
-                  <code className="text-sm text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">
-                    {template.barcodeValue}
-                  </code>
+                <div className="mb-4 space-y-2">
+                  {template.sku && (
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">SKU:</p>
+                      <code className="text-sm text-gray-900 dark:text-white bg-blue-50 dark:bg-blue-900 px-2 py-1 rounded">
+                        {template.sku}
+                      </code>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Barcode:</p>
+                    <code className="text-sm text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">
+                      {template.barcodeValue}
+                    </code>
+                  </div>
                 </div>
                 <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                   <p>{template.description}</p>

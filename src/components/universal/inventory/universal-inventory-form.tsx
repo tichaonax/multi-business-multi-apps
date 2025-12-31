@@ -12,6 +12,7 @@ import { LabelPreview } from '@/components/printing/label-preview'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { usePrompt, useAlert } from '@/components/ui/confirm-modal'
+import SKUGenerator from '@/components/products/sku-generator'
 import type { LabelData, NetworkPrinter, BarcodeFormat, LabelFormat } from '@/types/printing'
 
 interface InventorySubcategory {
@@ -102,7 +103,6 @@ export function UniversalInventoryForm({
   }>>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [availableSubcategories, setAvailableSubcategories] = useState<InventorySubcategory[]>([])
-  const [generatingSKU, setGeneratingSKU] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isNavigatingToPOS, setIsNavigatingToPOS] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -272,47 +272,6 @@ export function UniversalInventoryForm({
     setShowSubcategoryEditor(false)
   }
 
-  const handleGenerateSKU = async () => {
-    if (!formData.name) {
-      await alert({
-        title: 'Name Required',
-        description: 'Please enter a product name first to generate a SKU.'
-      })
-      return
-    }
-
-    setGeneratingSKU(true)
-    try {
-      const response = await fetch(`/api/inventory/${businessId}/generate-sku`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productName: formData.name,
-          category: selectedCategory || undefined
-        })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setFormData(prev => ({ ...prev, sku: data.sku }))
-
-        // Show pattern info if available
-        if (data.pattern) {
-          console.log(`SKU generated following pattern: ${data.pattern.sample}`)
-        }
-      } else {
-        throw new Error('Failed to generate SKU')
-      }
-    } catch (error) {
-      console.error('Error generating SKU:', error)
-      await alert({
-        title: 'Generation Failed',
-        description: 'Could not auto-generate SKU. Please enter one manually.'
-      })
-    } finally {
-      setGeneratingSKU(false)
-    }
-  }
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -921,31 +880,14 @@ export function UniversalInventoryForm({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                SKU <span className="text-gray-400 font-normal">(optional - auto-generated if empty)</span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={formData.sku}
-                  onChange={(e) => handleInputChange('sku', e.target.value)}
-                  className={`input-field flex-1 ${errors.sku ? 'border-red-500 border-2' : ''}`}
-                  placeholder="Auto-generated or enter custom SKU"
-                />
-                <button
-                  type="button"
-                  onClick={handleGenerateSKU}
-                  disabled={generatingSKU || !formData.name}
-                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  title="Auto-generate SKU based on product name and existing patterns"
-                >
-                  {generatingSKU ? '⏳ Generating...' : '✨ Auto-generate'}
-                </button>
-              </div>
+              <SKUGenerator
+                businessId={businessId}
+                categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
+                value={formData.sku}
+                onChange={(sku) => handleInputChange('sku', sku)}
+                disabled={loading}
+              />
               {errors.sku && <p className="text-red-600 text-sm mt-1 font-medium">{errors.sku}</p>}
-              <p className="text-xs text-gray-500 mt-1">
-                Leave empty for automatic SKU, or click "Auto-generate" to preview before saving. Follows existing patterns in your inventory.
-              </p>
             </div>
 
             <div>

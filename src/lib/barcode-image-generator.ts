@@ -473,7 +473,7 @@ async function generateSingleLabelSVG(
   // Phase 7: Template name at bottom in fine print (40 character abbreviation)
   if (templateName) {
     const abbreviatedName = fitTemplateName(templateName, 40);
-    svg += `<text x="${width / 2}" y="${yPos}" font-size="24" text-anchor="middle" font-family="Arial">${escapeXml(abbreviatedName)}</text>`;
+    svg += `<text x="${width / 2}" y="${yPos}" font-size="22" text-anchor="middle" font-family="Arial">${escapeXml(abbreviatedName)}</text>`;
   }
 
   // Add vertical fold lines at 20% and 80% from left (for strengthening after cutting)

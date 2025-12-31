@@ -25,6 +25,7 @@ interface PrinterListProps {
 export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: PrinterListProps) {
   const [testingPrinter, setTestingPrinter] = useState<string | null>(null)
   const [directTestingPrinter, setDirectTestingPrinter] = useState<string | null>(null)
+  const [checkingOnline, setCheckingOnline] = useState<string | null>(null)
   const { push } = useToast()
   const confirm = useConfirm()
 
@@ -130,6 +131,39 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
       push(`❌ Test failed - ${error instanceof Error ? error.message : 'Failed to send test print'}`)
     } finally {
       setTestingPrinter(null)
+    }
+  }
+
+  async function handleBringOnline(printer: NetworkPrinter) {
+    setCheckingOnline(printer.id)
+
+    try {
+      push(`🔍 Checking "${printer.printerName}" connectivity...`)
+
+      // Check connectivity and update status
+      const response = await fetch(`/api/printers/${printer.id}/check-connectivity`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to check printer connectivity')
+      }
+
+      const { isOnline } = await response.json()
+
+      if (isOnline) {
+        push(`✅ Printer "${printer.printerName}" is ONLINE and ready!`)
+      } else {
+        push(`❌ Printer "${printer.printerName}" is still OFFLINE. Please check:\n• Power is on\n• Network cable connected\n• IP address is correct\n• Firewall allows connection`)
+      }
+
+      // Refresh to update status display
+      onRefresh()
+    } catch (error) {
+      console.error('Connectivity check error:', error)
+      push(`❌ Failed to check printer - ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setCheckingOnline(null)
     }
   }
 
@@ -350,6 +384,19 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
 
               {/* Actions */}
               <div className="flex items-center gap-2 ml-4">
+                {/* Bring Online Button - Prominent for offline printers */}
+                <Button
+                  variant={!isOnline ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleBringOnline(printer)}
+                  disabled={checkingOnline === printer.id}
+                  title="Check printer connectivity and bring online"
+                  className={!isOnline ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                >
+                  <Wifi className="w-4 h-4 mr-1" />
+                  {checkingOnline === printer.id ? 'Checking...' : !isOnline ? 'Bring Online' : 'Check Status'}
+                </Button>
+
                 <Button
                   variant="outline"
                   size="sm"

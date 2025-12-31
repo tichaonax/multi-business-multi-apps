@@ -2,19 +2,28 @@
  * Ruckus R710 API Discovery Configuration
  *
  * IMPORTANT: This is for testing/discovery only.
- * Do NOT commit credentials to version control in production.
+ * Credentials are now loaded from .env.local to prevent exposure in version control.
  */
+
+require('dotenv').config({ path: '../../.env.local' });
+
+// Validate required environment variables
+if (!process.env.R710_DEVICE_HOST || !process.env.R710_ADMIN_USERNAME || !process.env.R710_ADMIN_PASSWORD) {
+  console.error('ERROR: Missing required R710 environment variables in .env.local');
+  console.error('Required variables: R710_DEVICE_HOST, R710_ADMIN_USERNAME, R710_ADMIN_PASSWORD');
+  process.exit(1);
+}
 
 module.exports = {
   // Ruckus Router Connection
   ruckus: {
-    // Base URL for Ruckus Unleashed controller
-    baseUrl: 'https://192.168.0.108',
+    // Base URL for Ruckus Unleashed controller (from environment)
+    baseUrl: `https://${process.env.R710_DEVICE_HOST}`,
 
-    // Login credentials (TEST ENVIRONMENT ONLY)
+    // Login credentials (loaded from .env.local)
     credentials: {
-      username: 'admin',
-      password: 'HelloMotto'
+      username: process.env.R710_ADMIN_USERNAME,
+      password: process.env.R710_ADMIN_PASSWORD
     },
 
     // Firmware version being tested
