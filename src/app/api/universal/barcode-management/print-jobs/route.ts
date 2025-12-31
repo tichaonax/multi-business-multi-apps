@@ -346,6 +346,7 @@ export async function POST(request: NextRequest) {
       height: template.height,
       displayValue: template.displayValue,
       fontSize: template.fontSize,
+      sku: template.sku, // Add SKU field for thermal printer
       // Include custom data fields for printing
       customData: validatedData.customData,
     };
@@ -405,6 +406,55 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Add barcode to product if applicable (Phase 4: Multi-Barcode Support)
+    // Check if we have a product ID from the print job
+    let productIdForBarcode: string | null = null;
+
+    // Try to get product ID from custom data (new print job form integration)
+    if (validatedData.customData?.selectedProductId) {
+      productIdForBarcode = validatedData.customData.selectedProductId;
+    }
+    // Fallback to itemId if itemType is PRODUCT
+    else if (validatedData.itemType === 'PRODUCT' && validatedData.itemId) {
+      productIdForBarcode = validatedData.itemId;
+    }
+
+    // If we have a product ID and barcode data, add/update the barcode
+    if (productIdForBarcode && barcodeData) {
+      try {
+        // Check if barcode already exists for this product
+        const existingBarcode = await prisma.productBarcodes.findFirst({
+          where: {
+            productId: productIdForBarcode,
+            code: barcodeData,
+          },
+        });
+
+        if (!existingBarcode) {
+          // Check if this is the first barcode for the product
+          const barcodeCount = await prisma.productBarcodes.count({
+            where: { productId: productIdForBarcode },
+          });
+
+          // Create the barcode
+          await prisma.productBarcodes.create({
+            data: {
+              code: barcodeData,
+              type: template.symbology,
+              isPrimary: barcodeCount === 0, // First barcode is primary
+              source: 'BARCODE_LABEL_PRINT',
+              label: `Generated from ${template.name}`,
+              productId: productIdForBarcode,
+              createdBy: session.user.id,
+            },
+          });
+        }
+      } catch (barcodeError) {
+        // Log error but don't fail the print job creation
+        console.error('Error adding barcode to product:', barcodeError);
+      }
+    }
 
     // TODO: Queue the print job for actual printing
     // This would integrate with the existing printer system

@@ -4,6 +4,7 @@
  */
 
 import { formatDate } from './date-format';
+import { fitTemplateName } from './text-abbreviation';
 
 interface BarcodeLabelOptions {
   barcodeData: string;
@@ -16,15 +17,18 @@ interface BarcodeLabelOptions {
   displayValue?: boolean;
   fontSize?: number;
   batchNumber?: string;
+  quantity?: number; // Number of labels being printed (for quantity-batch format)
   customData?: {
     name?: string;
     barcodeValue?: string;
     productName?: string;
+    description?: string;
     price?: string;
     size?: string;
     color?: string;
     [key: string]: any;
   };
+  sku?: string;
 }
 
 /**
@@ -66,6 +70,13 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
     label += '\x1B\x21\x00'; // Reset size
   }
 
+  // Print description if provided (centered)
+  if (customData?.description) {
+    label += '\x1B\x61\x01'; // Center alignment
+    label += '\x1B\x21\x00'; // Normal size
+    label += customData.description + '\n';
+  }
+
   // Print size if provided (centered, large number)
   if (customData?.size) {
     label += '\x1B\x61\x01'; // Center alignment
@@ -74,17 +85,18 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
     label += '\x1B\x21\x00'; // Reset size
   }
 
-  // Print date and batch number (centered)
+  // Print date and batch number (centered, with quantity-batch format)
   const currentDate = formatDate(new Date());
-  const batch = batchNumber || '';
+  // Format batch as "quantity-batchId" (e.g., "50-A01") if quantity provided
+  const formattedBatch = options.quantity && batchNumber
+    ? `${options.quantity}-${batchNumber}`
+    : batchNumber || '';
+  const batch = formattedBatch ? ` ${formattedBatch}` : '';
+
   if (currentDate || batch) {
     label += '\x1B\x61\x01'; // Center alignment
     label += '\x1B\x21\x00'; // Normal size
-    label += currentDate;
-    if (batch) {
-      label += ' ' + batch;
-    }
-    label += '\n';
+    label += currentDate + batch + '\n';
   }
 
   // Center alignment for barcode
@@ -98,6 +110,14 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
     label += '\n';
     label += '\x1B\x61\x01'; // Center alignment
     label += barcodeData + '\n';
+  }
+
+  // Print SKU label if provided and different from barcode value (centered, bold)
+  if (options.sku && options.sku !== barcodeData) {
+    label += '\x1B\x61\x01'; // Center alignment
+    label += '\x1B\x21\x08'; // Emphasized (bold)
+    label += 'SKU: ' + options.sku + '\n';
+    label += '\x1B\x21\x00'; // Reset size
   }
 
   // Add minimal spacing before price
@@ -116,6 +136,14 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
     label += '\x1B\x61\x01'; // Center alignment
     label += '\x1B\x21\x00'; // Normal size
     label += customData.color + '\n';
+  }
+
+  // Print template name at bottom (centered, fine print, 40-char abbreviation)
+  if (templateName) {
+    label += '\x1B\x61\x01'; // Center alignment
+    label += '\x1B\x21\x00'; // Normal size
+    const abbreviatedName = fitTemplateName(templateName, 40);
+    label += abbreviatedName + '\n';
   }
 
   // Add extra feed before cut to ensure all content prints
