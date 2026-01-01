@@ -1,26 +1,129 @@
 /**
- * Clean Backup Implementation
+ * Clean Backup Implementation v3.0
  * Creates deterministic, flat backups without nested relations
  * Suitable for cross-machine restore with predictable results
+ *
+ * Supports:
+ * - Full backups (all businesses)
+ * - Business-specific backups (with all dependencies)
+ * - Full-device backups (includes device-specific sync state)
+ * - Compression
  */
 
 import { PrismaClient } from '@prisma/client'
+import crypto from 'crypto'
+import os from 'os'
 
 export interface BackupMetadata {
-  backupType: string
+  // Version
+  version: string // "3.0"
+
+  // Source device identification
+  sourceNodeId: string
+  sourceDeviceId?: string
+  sourceDeviceName?: string
+  sourceHostname?: string
+  sourcePlatform?: string
+
+  // Backup creation metadata
   timestamp: string
-  version: string
-  source: string
+  createdBy?: string
+
+  // Backup type and scope
+  backupType: 'full' | 'business-specific' | 'full-device'
+
+  // Business filtering
+  businessFilter?: {
+    businessId?: string
+    includeDemoData: boolean
+  }
+
+  // Statistics
+  stats: {
+    totalRecords: number
+    totalTables: number
+    businessRecords: number
+    deviceRecords: number
+    uncompressedSize: number
+  }
+
+  // Schema version
+  schemaVersion: string
+
+  // Checksums for integrity
+  checksums: {
+    businessData: string
+    deviceData?: string
+  }
+
+  // Legacy fields (for compatibility)
   includeAuditLogs: boolean
-  includeDemoData: boolean
   includeBusinessData: boolean
-  businessId?: string
   note: string
 }
 
 export interface BackupData {
   metadata: BackupMetadata
-  [key: string]: any
+  businessData: {
+    [key: string]: any
+  }
+  deviceData?: {
+    [key: string]: any
+  }
+}
+
+/**
+ * Helper: Get current node ID
+ */
+async function getCurrentNodeId(prisma: PrismaClient): Promise<string> {
+  const node = await prisma.syncNodes.findFirst({
+    where: { isActive: true },
+    orderBy: { lastSeen: 'desc' }
+  })
+
+  if (node) {
+    return node.id
+  }
+
+  // No node exists - generate temporary ID
+  const hostname = os.hostname()
+  const platform = os.platform()
+  const random = crypto.randomBytes(8).toString('hex')
+  return `node-${platform}-${hostname}-${random}`
+}
+
+/**
+ * Helper: Generate checksum for data
+ */
+function generateChecksum(data: any): string {
+  const jsonString = JSON.stringify(data)
+  return crypto.createHash('sha256').update(jsonString).digest('hex')
+}
+
+/**
+ * Helper: Count records in data object
+ */
+function countRecords(data: any): number {
+  let count = 0
+  for (const key in data) {
+    if (Array.isArray(data[key])) {
+      count += data[key].length
+    }
+  }
+  return count
+}
+
+/**
+ * Helper: Count tables in data object
+ */
+function countTables(data: any): number {
+  let count = 0
+  for (const key in data) {
+    if (Array.isArray(data[key]) && data[key].length > 0) {
+      count++
+    }
+  }
+  return count
 }
 
 /**
@@ -30,12 +133,14 @@ export interface BackupData {
 export async function createCleanBackup(
   prisma: PrismaClient,
   options: {
-    backupType?: string
+    backupType?: 'full' | 'business-specific' | 'full-device'
     includeAuditLogs?: boolean
     includeDemoData?: boolean
     includeBusinessData?: boolean
+    includeDeviceData?: boolean
     businessId?: string
     auditLogLimit?: number
+    createdBy?: string
   } = {}
 ): Promise<BackupData> {
   const {
@@ -43,76 +148,102 @@ export async function createCleanBackup(
     includeAuditLogs = false,
     includeDemoData = false,
     includeBusinessData = true,
+    includeDeviceData = false,
     businessId,
-    auditLogLimit = 1000
+    auditLogLimit = 1000,
+    createdBy
   } = options
 
-  const backupData: BackupData = {
-    metadata: {
-      backupType,
-      timestamp: new Date().toISOString(),
-      version: '2.0',
-      source: 'multi-business-multi-apps',
-      includeAuditLogs,
-      includeDemoData,
-      includeBusinessData,
-      businessId,
-      note: businessId 
-        ? `Specific business backup (${businessId})`
-        : includeDemoData 
-          ? 'Demo data included' 
-          : 'Demo data excluded (production backup)'
-    }
+  const timestamp = new Date().toISOString()
+  const currentNodeId = await getCurrentNodeId(prisma)
+
+  // Initialize business data container
+  const businessData: any = {}
+
+  // Build business filter
+  let businessFilter: any
+
+  if (businessId) {
+    // Business-specific backup: include only this business (ignore demo filter)
+    businessFilter = { id: businessId }
+  } else {
+    // Full backup: filter demo data if needed
+    businessFilter = includeDemoData ? {} : { isDemo: false }
   }
 
-  // Filter for non-demo businesses by default
-  const businessFilter = includeDemoData ? {} : { isDemo: false }
-
   // 0. System settings (global)
-  backupData.systemSettings = await prisma.systemSettings.findMany()
+  businessData.systemSettings = await prisma.systemSettings.findMany()
 
   // 1. Core business and user data (NO INCLUDES)
-  backupData.businesses = await prisma.businesses.findMany({
+  businessData.businesses = await prisma.businesses.findMany({
     where: businessFilter
   })
 
-  const businessIds = backupData.businesses.map((b: any) => b.id)
-  const businessTypes = [...new Set(backupData.businesses.map((b: any) => b.type))]
+  const businessIds = businessData.businesses.map((b: any) => b.id)
 
-  // 2. Users - for FULL backups, include ALL users (they are system/seed data)
-  // Users don't have isDemo flag, so back them all up
-  backupData.users = await prisma.users.findMany()
+  // For business-specific backups, also get related users
+  // (users who are members of this business)
+  let userIds: string[] = []
+
+  if (businessId) {
+    // Get all users who are members of this specific business
+    const memberships = await prisma.businessMemberships.findMany({
+      where: { businessId: { in: businessIds } },
+      select: { userId: true }
+    })
+    userIds = [...new Set(memberships.map(m => m.userId))]
+  }
+  const businessTypes = [...new Set(businessData.businesses.map((b: any) => b.type))]
+
+  // 2. Users
+  if (businessId) {
+    // Business-specific: only users who are members of this business
+    businessData.users = await prisma.users.findMany({
+      where: { id: { in: userIds } }
+    })
+  } else {
+    // Full backup: include ALL users (they are system/seed data)
+    businessData.users = await prisma.users.findMany()
+  }
 
   // 3. Accounts
-  backupData.accounts = await prisma.accounts.findMany()
+  if (businessId) {
+    // Business-specific: only accounts for users in this business
+    businessData.accounts = await prisma.accounts.findMany({
+      where: { userId: { in: userIds } }
+    })
+  } else {
+    // Full backup: include all accounts
+    businessData.accounts = await prisma.accounts.findMany()
+  }
 
   // 4. Business memberships
-  backupData.businessMemberships = await prisma.businessMemberships.findMany({
+  businessData.businessMemberships = await prisma.businessMemberships.findMany({
     where: {
       businessId: { in: businessIds }
     }
   })
 
   // 5. Employees and HR data
-  backupData.employees = await prisma.employees.findMany({
+  businessData.employees = await prisma.employees.findMany({
     where: {
       primaryBusinessId: { in: businessIds }
     }
   })
 
-  backupData.employeeContracts = await prisma.employeeContracts.findMany({
+  businessData.employeeContracts = await prisma.employeeContracts.findMany({
     where: {
       primaryBusinessId: { in: businessIds }
     }
   })
 
-  backupData.employeeBusinessAssignments = await prisma.employeeBusinessAssignments.findMany({
+  businessData.employeeBusinessAssignments = await prisma.employeeBusinessAssignments.findMany({
     where: {
       businessId: { in: businessIds }
     }
   })
 
-  backupData.employeeBenefits = await prisma.employeeBenefits.findMany({
+  businessData.employeeBenefits = await prisma.employeeBenefits.findMany({
     where: {
       employees: {
         primaryBusinessId: { in: businessIds }
@@ -120,7 +251,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeAllowances = await prisma.employeeAllowances.findMany({
+  businessData.employeeAllowances = await prisma.employeeAllowances.findMany({
     where: {
       employees_employee_allowances_employeeIdToemployees: {
         primaryBusinessId: { in: businessIds }
@@ -128,7 +259,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeBonuses = await prisma.employeeBonuses.findMany({
+  businessData.employeeBonuses = await prisma.employeeBonuses.findMany({
     where: {
       employees_employee_bonuses_employeeIdToemployees: {
         primaryBusinessId: { in: businessIds }
@@ -136,7 +267,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeDeductions = await prisma.employeeDeductions.findMany({
+  businessData.employeeDeductions = await prisma.employeeDeductions.findMany({
     where: {
       employees_employee_deductions_employeeIdToemployees: {
         primaryBusinessId: { in: businessIds }
@@ -144,7 +275,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeLoans = await prisma.employeeLoans.findMany({
+  businessData.employeeLoans = await prisma.employeeLoans.findMany({
     where: {
       employees_employee_loans_employeeIdToemployees: {
         primaryBusinessId: { in: businessIds }
@@ -152,7 +283,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeSalaryIncreases = await prisma.employeeSalaryIncreases.findMany({
+  businessData.employeeSalaryIncreases = await prisma.employeeSalaryIncreases.findMany({
     where: {
       employees_employee_salary_increases_employeeIdToemployees: {
         primaryBusinessId: { in: businessIds }
@@ -160,7 +291,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeLeaveRequests = await prisma.employeeLeaveRequests.findMany({
+  businessData.employeeLeaveRequests = await prisma.employeeLeaveRequests.findMany({
     where: {
       employees_employee_leave_requests_employeeIdToemployees: {
         primaryBusinessId: { in: businessIds }
@@ -168,7 +299,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeLeaveBalance = await prisma.employeeLeaveBalance.findMany({
+  businessData.employeeLeaveBalance = await prisma.employeeLeaveBalance.findMany({
     where: {
       employees: {
         primaryBusinessId: { in: businessIds }
@@ -176,7 +307,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeAttendance = await prisma.employeeAttendance.findMany({
+  businessData.employeeAttendance = await prisma.employeeAttendance.findMany({
     where: {
       employees: {
         primaryBusinessId: { in: businessIds }
@@ -184,7 +315,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeTimeTracking = await prisma.employeeTimeTracking.findMany({
+  businessData.employeeTimeTracking = await prisma.employeeTimeTracking.findMany({
     where: {
       employees: {
         primaryBusinessId: { in: businessIds }
@@ -192,7 +323,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.disciplinaryActions = await prisma.disciplinaryActions.findMany({
+  businessData.disciplinaryActions = await prisma.disciplinaryActions.findMany({
     where: {
       employees_disciplinary_actions_employeeIdToemployees: {
         primaryBusinessId: { in: businessIds }
@@ -200,7 +331,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeDeductionPayments = await prisma.employeeDeductionPayments.findMany({
+  businessData.employeeDeductionPayments = await prisma.employeeDeductionPayments.findMany({
     where: {
       employee_deductions: {
         employees_employee_deductions_employeeIdToemployees: {
@@ -210,7 +341,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.employeeLoanPayments = await prisma.employeeLoanPayments.findMany({
+  businessData.employeeLoanPayments = await prisma.employeeLoanPayments.findMany({
     where: {
       employee_loans: {
         employees_employee_loans_employeeIdToemployees: {
@@ -220,7 +351,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.contractBenefits = await prisma.contractBenefits.findMany({
+  businessData.contractBenefits = await prisma.contractBenefits.findMany({
     where: {
       employee_contracts: {
         primaryBusinessId: { in: businessIds }
@@ -228,7 +359,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.contractRenewals = await prisma.contractRenewals.findMany({
+  businessData.contractRenewals = await prisma.contractRenewals.findMany({
     where: {
       employee_contracts_contract_renewals_originalContractIdToemployee_contracts: {
         primaryBusinessId: { in: businessIds }
@@ -238,11 +369,11 @@ export async function createCleanBackup(
 
   // 6. Business data (if included)
   if (includeBusinessData) {
-    backupData.businessProducts = await prisma.businessProducts.findMany({
+    businessData.businessProducts = await prisma.businessProducts.findMany({
       where: { businessId: { in: businessIds } }
     })
 
-    backupData.productVariants = await prisma.productVariants.findMany({
+    businessData.productVariants = await prisma.productVariants.findMany({
       where: {
         business_products: {
           businessId: { in: businessIds }
@@ -250,7 +381,7 @@ export async function createCleanBackup(
       }
     })
 
-    backupData.productImages = await prisma.productImages.findMany({
+    businessData.productImages = await prisma.productImages.findMany({
       where: {
         business_products: {
           businessId: { in: businessIds }
@@ -258,7 +389,7 @@ export async function createCleanBackup(
       }
     })
 
-    backupData.productAttributes = await prisma.productAttributes.findMany({
+    businessData.productAttributes = await prisma.productAttributes.findMany({
       where: {
         business_products: {
           businessId: { in: businessIds }
@@ -267,14 +398,14 @@ export async function createCleanBackup(
     })
 
     // Include ALL product barcodes (they're seed/system data, no isDemo flag)
-    backupData.productBarcodes = await prisma.productBarcodes.findMany()
+    businessData.productBarcodes = await prisma.productBarcodes.findMany()
 
-    backupData.businessStockMovements = await prisma.businessStockMovements.findMany({
+    businessData.businessStockMovements = await prisma.businessStockMovements.findMany({
       where: { businessId: { in: businessIds } }
     })
 
     // Business categories - include business-specific ones AND all system-wide defaults
-    backupData.businessCategories = await prisma.businessCategories.findMany({
+    businessData.businessCategories = await prisma.businessCategories.findMany({
       where: {
         OR: [
           { businessId: { in: businessIds } }, // Business-specific categories
@@ -284,7 +415,7 @@ export async function createCleanBackup(
     })
 
     // Business suppliers - include business-specific ones AND all system-wide defaults
-    backupData.businessSuppliers = await prisma.businessSuppliers.findMany({
+    businessData.businessSuppliers = await prisma.businessSuppliers.findMany({
       where: {
         OR: [
           { businessId: { in: businessIds } }, // Business-specific suppliers
@@ -293,27 +424,27 @@ export async function createCleanBackup(
       }
     })
 
-    backupData.businessCustomers = await prisma.businessCustomers.findMany({
+    businessData.businessCustomers = await prisma.businessCustomers.findMany({
       where: { businessId: { in: businessIds } }
     })
 
-    backupData.businessBrands = await prisma.businessBrands.findMany({
+    businessData.businessBrands = await prisma.businessBrands.findMany({
       where: { businessId: { in: businessIds } }
     })
 
-    backupData.businessLocations = await prisma.businessLocations.findMany({
+    businessData.businessLocations = await prisma.businessLocations.findMany({
       where: { businessId: { in: businessIds } }
     })
 
-    backupData.businessAccounts = await prisma.businessAccounts.findMany({
+    businessData.businessAccounts = await prisma.businessAccounts.findMany({
       where: { businessId: { in: businessIds } }
     })
 
-    backupData.businessOrders = await prisma.businessOrders.findMany({
+    businessData.businessOrders = await prisma.businessOrders.findMany({
       where: { businessId: { in: businessIds } }
     })
 
-    backupData.businessOrderItems = await prisma.businessOrderItems.findMany({
+    businessData.businessOrderItems = await prisma.businessOrderItems.findMany({
       where: {
         business_orders: {
           businessId: { in: businessIds }
@@ -321,11 +452,11 @@ export async function createCleanBackup(
       }
     })
 
-    backupData.businessTransactions = await prisma.businessTransactions.findMany({
+    businessData.businessTransactions = await prisma.businessTransactions.findMany({
       where: { businessId: { in: businessIds } }
     })
 
-    backupData.customerLaybys = await prisma.customerLayby.findMany({
+    businessData.customerLaybys = await prisma.customerLayby.findMany({
       where: {
         customer: {
           businessId: { in: businessIds }
@@ -333,7 +464,7 @@ export async function createCleanBackup(
       }
     })
 
-    backupData.customerLaybyPayments = await prisma.customerLaybyPayment.findMany({
+    businessData.customerLaybyPayments = await prisma.customerLaybyPayment.findMany({
       where: {
         layby: {
           customer: {
@@ -345,39 +476,40 @@ export async function createCleanBackup(
   }
 
   // 7. Inventory system
-  backupData.inventoryDomains = await prisma.inventoryDomains.findMany()
+  businessData.inventoryDomains = await prisma.inventoryDomains.findMany()
 
-  backupData.inventorySubcategories = await prisma.inventorySubcategories.findMany()
+  businessData.inventorySubcategories = await prisma.inventorySubcategories.findMany()
 
   // 8. Expense management
-  backupData.expenseDomains = await prisma.expenseDomains.findMany()
+  businessData.expenseDomains = await prisma.expenseDomains.findMany()
 
-  backupData.expenseCategories = await prisma.expenseCategories.findMany()
+  businessData.expenseCategories = await prisma.expenseCategories.findMany()
 
-  backupData.expenseSubcategories = await prisma.expenseSubcategories.findMany()
+  businessData.expenseSubcategories = await prisma.expenseSubcategories.findMany()
 
   // Get user IDs for expense account filtering (need this before querying expense accounts)
-  const userIds = backupData.users.map((u: any) => u.id)
+  // For full backups: all users. For business-specific: only member users
+  userIds = businessData.users.map((u: any) => u.id)
 
   // 8. Expense accounts and transactions
   // For FULL backups: Include ALL expense accounts (generic, system, and business-specific)
   // These don't have isDemo flag, so back up everything
-  backupData.expenseAccounts = await prisma.expenseAccounts.findMany()
+  businessData.expenseAccounts = await prisma.expenseAccounts.findMany()
 
   // Include ALL deposits (including generic ones with sourceBusinessId=null)
-  backupData.expenseAccountDeposits = await prisma.expenseAccountDeposits.findMany()
+  businessData.expenseAccountDeposits = await prisma.expenseAccountDeposits.findMany()
 
   // Include ALL payments (including generic ones with payeeBusinessId=null)
-  backupData.expenseAccountPayments = await prisma.expenseAccountPayments.findMany()
+  businessData.expenseAccountPayments = await prisma.expenseAccountPayments.findMany()
 
   // 9. Payroll system
-  backupData.payrollPeriods = await prisma.payrollPeriods.findMany({
+  businessData.payrollPeriods = await prisma.payrollPeriods.findMany({
     where: {
       businessId: { in: businessIds }
     }
   })
 
-  backupData.payrollEntries = await prisma.payrollEntries.findMany({
+  businessData.payrollEntries = await prisma.payrollEntries.findMany({
     where: {
       payroll_periods: {
         businessId: { in: businessIds }
@@ -385,7 +517,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.payrollEntryBenefits = await prisma.payrollEntryBenefits.findMany({
+  businessData.payrollEntryBenefits = await prisma.payrollEntryBenefits.findMany({
     where: {
       payroll_entries: {
         payroll_periods: {
@@ -395,7 +527,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.payrollExports = await prisma.payrollExports.findMany({
+  businessData.payrollExports = await prisma.payrollExports.findMany({
     where: {
       payroll_periods: {
         businessId: { in: businessIds }
@@ -403,7 +535,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.payrollAdjustments = await prisma.payrollAdjustments.findMany({
+  businessData.payrollAdjustments = await prisma.payrollAdjustments.findMany({
     where: {
       payroll_entries: {
         payroll_periods: {
@@ -413,7 +545,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.payrollAccounts = await prisma.payrollAccounts.findMany({
+  businessData.payrollAccounts = await prisma.payrollAccounts.findMany({
     where: {
       businessId: { in: businessIds }
     }
@@ -422,32 +554,32 @@ export async function createCleanBackup(
   // 10. Personal finance
   // Note: userIds already defined earlier for expense accounts
 
-  backupData.personalBudgets = await prisma.personalBudgets.findMany({
+  businessData.personalBudgets = await prisma.personalBudgets.findMany({
     where: {
       userId: { in: userIds }
     }
   })
 
-  backupData.personalExpenses = await prisma.personalExpenses.findMany({
+  businessData.personalExpenses = await prisma.personalExpenses.findMany({
     where: {
       userId: { in: userIds }
     }
   })
 
-  backupData.fundSources = await prisma.fundSources.findMany({
+  businessData.fundSources = await prisma.fundSources.findMany({
     where: {
       userId: { in: userIds }
     }
   })
 
   // 11. Projects and construction
-  backupData.projects = await prisma.projects.findMany({
+  businessData.projects = await prisma.projects.findMany({
     where: {
       businessId: { in: businessIds }
     }
   })
 
-  backupData.projectStages = await prisma.projectStages.findMany({
+  businessData.projectStages = await prisma.projectStages.findMany({
     where: {
       projects: {
         businessId: { in: businessIds }
@@ -455,7 +587,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.projectContractors = await prisma.projectContractors.findMany({
+  businessData.projectContractors = await prisma.projectContractors.findMany({
     where: {
       projects: {
         businessId: { in: businessIds }
@@ -463,7 +595,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.projectTransactions = await prisma.projectTransactions.findMany({
+  businessData.projectTransactions = await prisma.projectTransactions.findMany({
     where: {
       projects: {
         businessId: { in: businessIds }
@@ -472,26 +604,26 @@ export async function createCleanBackup(
   })
 
   // Construction projects don't have businessId - include all
-  backupData.constructionProjects = await prisma.constructionProjects.findMany()
+  businessData.constructionProjects = await prisma.constructionProjects.findMany()
 
-  backupData.constructionExpenses = await prisma.constructionExpenses.findMany()
+  businessData.constructionExpenses = await prisma.constructionExpenses.findMany()
 
-  backupData.stageContractorAssignments = await prisma.stageContractorAssignments.findMany()
+  businessData.stageContractorAssignments = await prisma.stageContractorAssignments.findMany()
 
   // 12. Vehicle fleet management
-  backupData.vehicles = await prisma.vehicles.findMany({
+  businessData.vehicles = await prisma.vehicles.findMany({
     where: {
       businessId: { in: businessIds }
     }
   })
 
   // VehicleDrivers don't have direct business relation - include all
-  backupData.vehicleDrivers = await prisma.vehicleDrivers.findMany()
+  businessData.vehicleDrivers = await prisma.vehicleDrivers.findMany()
 
   // Include ALL vehicle expenses (including generic ones with businessId=null)
-  backupData.vehicleExpenses = await prisma.vehicleExpenses.findMany()
+  businessData.vehicleExpenses = await prisma.vehicleExpenses.findMany()
 
-  backupData.vehicleLicenses = await prisma.vehicleLicenses.findMany({
+  businessData.vehicleLicenses = await prisma.vehicleLicenses.findMany({
     where: {
       vehicles: {
         businessId: { in: businessIds }
@@ -499,7 +631,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.vehicleMaintenanceRecords = await prisma.vehicleMaintenanceRecords.findMany({
+  businessData.vehicleMaintenanceRecords = await prisma.vehicleMaintenanceRecords.findMany({
     where: {
       vehicles: {
         businessId: { in: businessIds }
@@ -507,7 +639,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.vehicleMaintenanceServices = await prisma.vehicleMaintenanceServices.findMany({
+  businessData.vehicleMaintenanceServices = await prisma.vehicleMaintenanceServices.findMany({
     where: {
       vehicle_maintenance_records: {
         vehicles: {
@@ -517,7 +649,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.vehicleMaintenanceServiceExpenses = await prisma.vehicleMaintenanceServiceExpenses.findMany({
+  businessData.vehicleMaintenanceServiceExpenses = await prisma.vehicleMaintenanceServiceExpenses.findMany({
     where: {
       vehicle_maintenance_services: {
         vehicle_maintenance_records: {
@@ -529,7 +661,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.vehicleTrips = await prisma.vehicleTrips.findMany({
+  businessData.vehicleTrips = await prisma.vehicleTrips.findMany({
     where: {
       vehicles: {
         businessId: { in: businessIds }
@@ -537,7 +669,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.vehicleReimbursements = await prisma.vehicleReimbursements.findMany({
+  businessData.vehicleReimbursements = await prisma.vehicleReimbursements.findMany({
     where: {
       vehicles: {
         businessId: { in: businessIds }
@@ -545,7 +677,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.driverAuthorizations = await prisma.driverAuthorizations.findMany({
+  businessData.driverAuthorizations = await prisma.driverAuthorizations.findMany({
     where: {
       vehicles: {
         businessId: { in: businessIds }
@@ -554,15 +686,15 @@ export async function createCleanBackup(
   })
 
   // 13. Restaurant/Menu data
-  backupData.menuItems = await prisma.menuItems.findMany()
+  businessData.menuItems = await prisma.menuItems.findMany()
 
-  backupData.menuCombos = await prisma.menuCombos.findMany({
+  businessData.menuCombos = await prisma.menuCombos.findMany({
     where: {
       businessId: { in: businessIds }
     }
   })
 
-  backupData.menuComboItems = await prisma.menuComboItems.findMany({
+  businessData.menuComboItems = await prisma.menuComboItems.findMany({
     where: {
       menu_combos: {
         businessId: { in: businessIds }
@@ -570,28 +702,28 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.menuPromotions = await prisma.menuPromotions.findMany({
+  businessData.menuPromotions = await prisma.menuPromotions.findMany({
     where: {
       businessId: { in: businessIds }
     }
   })
 
   // 14. Orders (universal)
-  backupData.orders = await prisma.orders.findMany()
+  businessData.orders = await prisma.orders.findMany()
 
-  backupData.orderItems = await prisma.orderItems.findMany()
+  businessData.orderItems = await prisma.orderItems.findMany()
 
   // 15. Supplier products
-  backupData.supplierProducts = await prisma.supplierProducts.findMany()
+  businessData.supplierProducts = await prisma.supplierProducts.findMany()
 
   // 16. Persons
-  backupData.persons = await prisma.persons.findMany()
+  businessData.persons = await prisma.persons.findMany()
 
   // 17. Project types
-  backupData.projectTypes = await prisma.projectTypes.findMany()
+  businessData.projectTypes = await prisma.projectTypes.findMany()
 
   // 18. Inter-business loans
-  backupData.interBusinessLoans = await prisma.interBusinessLoans.findMany({
+  businessData.interBusinessLoans = await prisma.interBusinessLoans.findMany({
     where: {
       OR: [
         { lenderBusinessId: { in: businessIds } },
@@ -600,7 +732,7 @@ export async function createCleanBackup(
     }
   })
 
-  backupData.loanTransactions = await prisma.loanTransactions.findMany({
+  businessData.loanTransactions = await prisma.loanTransactions.findMany({
     where: {
       inter_business_loans: {
         OR: [
@@ -612,18 +744,233 @@ export async function createCleanBackup(
   })
 
   // 19. Reference data (global)
-  backupData.emojiLookup = await prisma.emojiLookup.findMany()
-  backupData.jobTitles = await prisma.jobTitles.findMany()
-  backupData.compensationTypes = await prisma.compensationTypes.findMany()
-  backupData.benefitTypes = await prisma.benefitTypes.findMany()
-  backupData.idFormatTemplates = await prisma.idFormatTemplates.findMany()
-  backupData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany()
-  backupData.permissionTemplates = await prisma.permissionTemplates.findMany()
+  businessData.emojiLookup = await prisma.emojiLookup.findMany()
+  businessData.jobTitles = await prisma.jobTitles.findMany()
+  businessData.compensationTypes = await prisma.compensationTypes.findMany()
+  businessData.benefitTypes = await prisma.benefitTypes.findMany()
+  businessData.idFormatTemplates = await prisma.idFormatTemplates.findMany()
+  businessData.driverLicenseTemplates = await prisma.driverLicenseTemplates.findMany()
+  businessData.permissionTemplates = await prisma.permissionTemplates.findMany()
 
   // 20. System data
-  backupData.conflictResolutions = await prisma.conflictResolutions.findMany()
-  backupData.dataSnapshots = await prisma.dataSnapshots.findMany()
-  backupData.seedDataTemplates = await prisma.seedDataTemplates.findMany()
+  businessData.conflictResolutions = await prisma.conflictResolutions.findMany()
+  businessData.dataSnapshots = await prisma.dataSnapshots.findMany()
+  businessData.seedDataTemplates = await prisma.seedDataTemplates.findMany()
 
-  return backupData
+  // 21. WiFi Portal - ESP32 System (6 tables) - NEW
+  // First get business token menu items to find which token configs are used
+  businessData.businessTokenMenuItems = await prisma.businessTokenMenuItems.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // Get token config IDs used by businesses
+  const tokenConfigIds = [...new Set(businessData.businessTokenMenuItems.map((item: any) => item.tokenConfigId))]
+
+  // Get token configurations (global table, filter by usage)
+  businessData.tokenConfigurations = await prisma.tokenConfigurations.findMany({
+    where: { id: { in: tokenConfigIds } }
+  })
+
+  // Get WiFi tokens for businesses
+  businessData.wifiTokens = await prisma.wifiTokens.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // Get WiFi token devices for business tokens
+  const wifiTokenIds = businessData.wifiTokens.map((t: any) => t.id)
+  businessData.wifiTokenDevices = await prisma.wifiTokenDevices.findMany({
+    where: { wifiTokenId: { in: wifiTokenIds } }
+  })
+
+  businessData.wifiTokenSales = await prisma.wifiTokenSales.findMany({
+    where: {
+      businessId: { in: businessIds }
+    }
+  })
+
+  // businessTokenMenuItems already fetched above (needed for tokenConfigIds)
+
+  businessData.wiFiUsageAnalytics = await prisma.wiFiUsageAnalytics.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 22. WiFi Portal - R710 System (10 tables) - NEW
+  businessData.r710DeviceRegistry = await prisma.r710DeviceRegistry.findMany()
+
+  businessData.r710BusinessIntegrations = await prisma.r710BusinessIntegrations.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.r710Wlans = await prisma.r710Wlans.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.r710TokenConfigs = await prisma.r710TokenConfigs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.r710Tokens = await prisma.r710Tokens.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.r710TokenSales = await prisma.r710TokenSales.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.r710DeviceTokens = await prisma.r710DeviceTokens.findMany()
+
+  businessData.r710BusinessTokenMenuItems = await prisma.r710BusinessTokenMenuItems.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.r710SyncLogs = await prisma.r710SyncLogs.findMany()
+
+  // 23. Barcode Management System (6 tables) - NEW
+  // NetworkPrinters is device-level (has nodeId, not businessId) - include all
+  businessData.networkPrinters = await prisma.networkPrinters.findMany()
+
+  businessData.barcodeTemplates = await prisma.barcodeTemplates.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.barcodePrintJobs = await prisma.barcodePrintJobs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.barcodeInventoryItems = await prisma.barcodeInventoryItems.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.printJobs = await prisma.printJobs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.reprintLog = await prisma.reprintLog.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 24. Security & Access Control (3 tables) - NEW
+  businessData.permissions = await prisma.permissions.findMany()
+
+  businessData.userPermissions = await prisma.userPermissions.findMany({
+    where: { userId: { in: userIds } }
+  })
+
+  businessData.macAclEntry = await prisma.macAclEntry.findMany()
+
+  // 25. Portal Integrations - NEW
+  businessData.portalIntegrations = await prisma.portalIntegrations.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 26. SKU Sequences - NEW
+  businessData.skuSequences = await prisma.sku_sequences.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 27. Payroll Account Transactions - NEW
+  businessData.payrollAccountDeposits = await prisma.payrollAccountDeposits.findMany({
+    where: {
+      payroll_accounts: {
+        businessId: { in: businessIds }
+      }
+    }
+  })
+
+  businessData.payrollAccountPayments = await prisma.payrollAccountPayments.findMany({
+    where: {
+      payroll_accounts: {
+        businessId: { in: businessIds }
+      }
+    }
+  })
+
+  // 28. Product Price Changes (audit trail) - NEW
+  businessData.productPriceChanges = await prisma.product_price_changes.findMany()
+
+  // 29. Audit Logs (optional) - NEW
+  if (includeAuditLogs) {
+    businessData.auditLogs = await prisma.auditLogs.findMany({
+      take: auditLogLimit,
+      orderBy: { timestamp: 'desc' }
+    })
+  }
+
+  // Collect device-specific data (Category B) - only if full-device backup
+  let deviceData: any = undefined
+
+  if (includeDeviceData) {
+    deviceData = {
+      syncSessions: await prisma.syncSessions.findMany(),
+      fullSyncSessions: await prisma.fullSyncSessions.findMany(),
+      syncNodes: await prisma.syncNodes.findMany(),
+      syncMetrics: await prisma.syncMetrics.findMany(),
+      nodeStates: await prisma.nodeStates.findMany(),
+      syncEvents: await prisma.syncEvents.findMany(),
+      syncConfigurations: await prisma.syncConfigurations.findMany(),
+      offlineQueue: await prisma.offlineQueue.findMany(),
+      deviceRegistry: await prisma.deviceRegistry.findMany(),
+      deviceConnectionHistory: await prisma.deviceConnectionHistory.findMany(),
+      networkPartitions: await prisma.networkPartitions.findMany()
+    }
+  }
+
+  // Calculate statistics
+  const businessRecords = countRecords(businessData)
+  const deviceRecords = deviceData ? countRecords(deviceData) : 0
+  const totalRecords = businessRecords + deviceRecords
+
+  // Generate checksums
+  const businessDataChecksum = generateChecksum(businessData)
+  const deviceDataChecksum = deviceData ? generateChecksum(deviceData) : undefined
+
+  // Calculate uncompressed size
+  const tempBackup = {
+    metadata: {} as any, // Temporary empty metadata
+    businessData,
+    deviceData
+  }
+  const uncompressedSize = Buffer.byteLength(JSON.stringify(tempBackup), 'utf8')
+
+  // Create metadata
+  const metadata: BackupMetadata = {
+    version: '3.0',
+    sourceNodeId: currentNodeId,
+    sourceDeviceName: os.hostname(),
+    sourceHostname: os.hostname(),
+    sourcePlatform: os.platform(),
+    timestamp,
+    createdBy,
+    backupType,
+    businessFilter: {
+      businessId,
+      includeDemoData
+    },
+    stats: {
+      totalRecords,
+      totalTables: countTables(businessData) + (deviceData ? countTables(deviceData) : 0),
+      businessRecords,
+      deviceRecords,
+      uncompressedSize
+    },
+    schemaVersion: '6.19.1',
+    checksums: {
+      businessData: businessDataChecksum,
+      deviceData: deviceDataChecksum
+    },
+    // Legacy fields
+    includeAuditLogs,
+    includeBusinessData,
+    note: businessId
+      ? `Business-specific backup (${businessId})`
+      : includeDemoData
+        ? 'Demo data included'
+        : 'Production data (demo excluded)'
+  }
+
+  return {
+    metadata,
+    businessData,
+    deviceData
+  }
 }

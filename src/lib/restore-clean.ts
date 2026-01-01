@@ -2,11 +2,56 @@
  * Clean Restore Implementation
  * Restores backup data deterministically using upsert operations
  * Ensures same backup can be restored multiple times with identical results
+ *
+ * Features:
+ * - Smart device detection: Skips device-specific data when restoring to different device
+ * - Business data always restores with preserved IDs for cross-device sync
+ * - Device data only restores to same device
  */
 
 import { PrismaClient } from '@prisma/client'
+import crypto from 'crypto'
+import os from 'os'
 
 type AnyPrismaClient = PrismaClient & any
+
+/**
+ * Device-specific tables that should NOT restore to different devices
+ * These contain sync tracking metadata specific to the source device
+ */
+const DEVICE_SPECIFIC_TABLES = [
+  'syncSessions',
+  'fullSyncSessions',
+  'syncNodes',
+  'syncMetrics',
+  'nodeStates',
+  'syncEvents',
+  'syncConfigurations',
+  'offlineQueue',
+  'deviceRegistry',
+  'deviceConnectionHistory',
+  'networkPartitions'
+]
+
+/**
+ * Get current node ID (matches backup-clean.ts implementation)
+ */
+async function getCurrentNodeId(prisma: PrismaClient): Promise<string> {
+  const node = await (prisma as any).syncNodes.findFirst({
+    where: { isActive: true },
+    orderBy: { lastSeen: 'desc' }
+  })
+
+  if (node) {
+    return node.id
+  }
+
+  // No node exists - generate temporary ID
+  const hostname = os.hostname()
+  const platform = os.platform()
+  const random = crypto.randomBytes(8).toString('hex')
+  return `node-${platform}-${hostname}-${random}`
+}
 
 /**
  * Restore order - dependencies first, then dependent tables
@@ -202,9 +247,11 @@ export async function restoreCleanBackup(
   processed: number
   errors: number
   errorLog: Array<{ model: string; recordId?: string; error: string }>
+  deviceMismatch?: boolean
+  skippedDeviceData?: boolean
 }> {
   const { onProgress, onError, batchSize = 100 } = options
-  
+
   let totalProcessed = 0
   let totalErrors = 0
   const errorLog: Array<{ model: string; recordId?: string; error: string }> = []
@@ -214,9 +261,48 @@ export async function restoreCleanBackup(
   console.log('[restore-clean] Backup timestamp:', backupData.metadata?.timestamp)
   console.log('[restore-clean] Batch size:', batchSize)
 
-  // Process each table in dependency order
-  for (const tableName of RESTORE_ORDER) {
-    const data = backupData[tableName]
+  // === DEVICE DETECTION ===
+  // Check if backup is from same device or different device
+  const currentNodeId = await getCurrentNodeId(prisma)
+  const backupSourceNodeId = backupData.metadata?.sourceNodeId
+  const isSameDevice = currentNodeId === backupSourceNodeId
+  const hasDeviceData = backupData.deviceData && Object.keys(backupData.deviceData).length > 0
+
+  console.log('[restore-clean] Device Detection:')
+  console.log('  Current Device Node ID:', currentNodeId)
+  console.log('  Backup Source Node ID:', backupSourceNodeId)
+  console.log('  Same Device Restore:', isSameDevice ? 'YES' : 'NO')
+  console.log('  Has Device Data:', hasDeviceData ? 'YES' : 'NO')
+
+  let skippedDeviceData = false
+
+  if (!isSameDevice && hasDeviceData) {
+    console.warn('[restore-clean] ⚠️  DEVICE MISMATCH DETECTED')
+    console.warn('[restore-clean] Backup is from a different device')
+    console.warn('[restore-clean] Device-specific sync data will be SKIPPED')
+    console.warn('[restore-clean] Only business data will be restored')
+    skippedDeviceData = true
+  }
+
+  // Determine which data to restore
+  const dataSources: Array<{ source: any; sourceType: 'business' | 'device' }> = []
+
+  // Always restore business data
+  dataSources.push({ source: backupData.businessData || backupData, sourceType: 'business' })
+
+  // Only restore device data if same device
+  if (isSameDevice && hasDeviceData) {
+    console.log('[restore-clean] Including device-specific data (same device restore)')
+    dataSources.push({ source: backupData.deviceData, sourceType: 'device' })
+  }
+
+  // Process each data source
+  for (const { source, sourceType } of dataSources) {
+    console.log(`[restore-clean] Processing ${sourceType} data...`)
+
+    // Process each table in dependency order
+    for (const tableName of RESTORE_ORDER) {
+      const data = source[tableName]
     
     if (!data || !Array.isArray(data) || data.length === 0) {
       continue
@@ -330,18 +416,23 @@ export async function restoreCleanBackup(
     }
   }
 
+  } // End dataSources loop
+
   console.log(`[restore-clean] Restore complete: ${totalProcessed} records processed, ${totalErrors} errors`)
 
   return {
     success: totalErrors === 0,
     processed: totalProcessed,
     errors: totalErrors,
-    errorLog
+    errorLog,
+    deviceMismatch: !isSameDevice,
+    skippedDeviceData
   }
 }
 
 /**
  * Validate backup data structure
+ * Supports both v2.0 (flat) and v3.0 (structured) backup formats
  */
 export function validateBackupData(backupData: any): {
   valid: boolean
@@ -363,12 +454,32 @@ export function validateBackupData(backupData: any): {
     if (!backupData.metadata.timestamp) {
       errors.push('Backup timestamp is missing')
     }
+
+    // v3.0 specific validations
+    if (backupData.metadata.version === '3.0') {
+      if (!backupData.metadata.sourceNodeId) {
+        errors.push('v3.0 backup missing sourceNodeId')
+      }
+      if (!backupData.metadata.backupType) {
+        errors.push('v3.0 backup missing backupType')
+      }
+    }
   }
 
   // Check for at least some data
-  const dataKeys = Object.keys(backupData).filter(k => k !== 'metadata')
-  if (dataKeys.length === 0) {
-    errors.push('Backup contains no data tables')
+  // v3.0 has businessData object, v2.0 has flat structure
+  if (backupData.businessData) {
+    // v3.0 format
+    const businessDataKeys = Object.keys(backupData.businessData)
+    if (businessDataKeys.length === 0) {
+      errors.push('Backup contains no business data tables')
+    }
+  } else {
+    // v2.0 format (flat)
+    const dataKeys = Object.keys(backupData).filter(k => k !== 'metadata' && k !== 'deviceData')
+    if (dataKeys.length === 0) {
+      errors.push('Backup contains no data tables')
+    }
   }
 
   return {

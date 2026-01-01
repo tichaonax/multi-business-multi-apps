@@ -5,12 +5,16 @@ import { prisma } from '@/lib/prisma';
 import { createCleanBackup } from '@/lib/backup-clean';
 import { restoreCleanBackup, validateBackupData } from '@/lib/restore-clean';
 import { createProgressId, updateProgress } from '@/lib/backup-progress';
+import { compressBackup, decompressBackup, isGzipped } from '@/lib/backup-compression';
 
 /**
  * GET /api/backup - Create and download backup
- * 
+ *
  * Query parameters:
+ * - backupType: 'full' | 'business-specific' | 'full-device' (default: 'full')
+ * - compress: Enable gzip compression (default: true)
  * - includeDemoData: Include demo businesses (default: false)
+ * - includeDeviceData: Include device-specific sync data (default: false)
  * - businessId: Backup specific business only (optional)
  * - includeAuditLogs: Include audit logs (default: false)
  * - auditLogLimit: Max audit logs to include (default: 1000)
@@ -24,51 +28,83 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const backupType = searchParams.get('type') || 'full';
+    const backupType = (searchParams.get('backupType') || 'full') as 'full' | 'business-specific' | 'full-device';
+    const compress = searchParams.get('compress') !== 'false'; // Default true
     const includeDemoData = searchParams.get('includeDemoData') === 'true';
+    const includeDeviceData = searchParams.get('includeDeviceData') === 'true';
     const businessId = searchParams.get('businessId') || undefined;
     const includeAuditLogs = searchParams.get('includeAuditLogs') === 'true';
     const auditLogLimit = parseInt(searchParams.get('auditLogLimit') || '1000', 10);
+    const createdBy = session.user?.name || session.user?.email || 'Unknown';
 
     console.log('[backup] Creating backup with options:', {
       backupType,
+      compress,
       includeDemoData,
+      includeDeviceData,
       businessId,
       includeAuditLogs,
-      auditLogLimit
+      auditLogLimit,
+      createdBy
     });
 
     // Create clean backup using new implementation
     const backupData = await createCleanBackup(prisma, {
+      backupType,
       includeDemoData,
+      includeDeviceData,
       businessId,
       includeAuditLogs,
-      auditLogLimit
+      auditLogLimit,
+      createdBy
     });
 
-    // Generate filename in format: MultiBusinessSyncService-backup_full_2025-12-02T03-22-14.json
+    // Generate filename
     const now = new Date();
     const timestamp = now.toISOString().replace(/:/g, '-').replace(/\.\d{3}Z$/, '');
     const type = businessId
-      ? `business-${businessId}`
-      : includeDemoData
-        ? 'with-demos'
-        : backupType;
-    const filename = `MultiBusinessSyncService-backup_${type}_${timestamp}.json`;
+      ? `business-${businessId.substring(0, 8)}`
+      : backupType;
+    const baseFilename = `MultiBusinessSyncService-backup_${type}_${timestamp}`;
+    const extension = compress ? '.json.gz' : '.json';
+    const filename = baseFilename + extension;
 
     console.log('[backup] Backup created successfully:', {
       version: backupData.metadata.version,
       timestamp: backupData.metadata.timestamp,
+      sourceNodeId: backupData.metadata.sourceNodeId,
+      totalRecords: backupData.metadata.stats.totalRecords,
+      uncompressedSize: backupData.metadata.stats.uncompressedSize,
+      compress,
       filename
     });
 
-    // Return backup as JSON download
-    return new NextResponse(JSON.stringify(backupData, null, 2), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      },
-    });
+    // Return compressed or uncompressed backup
+    if (compress) {
+      // Compress backup
+      const compressedBuffer = await compressBackup(backupData);
+
+      console.log('[backup] Backup compressed:', {
+        compressedSize: compressedBuffer.length,
+        filename
+      });
+
+      return new NextResponse(compressedBuffer, {
+        headers: {
+          'Content-Type': 'application/gzip',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Encoding': 'gzip',
+        },
+      });
+    } else {
+      // Return uncompressed JSON
+      return new NextResponse(JSON.stringify(backupData, null, 2), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+        },
+      });
+    }
   } catch (error: any) {
     console.error('[backup] Backup creation failed:', error);
     return NextResponse.json(
@@ -80,11 +116,14 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/backup - Restore backup from uploaded data
- * 
- * Body: { backupData: <backup object> }
+ *
+ * Body:
+ * - { backupData: <backup object> } - For uncompressed JSON backups
+ * - { compressedData: <base64 string> } - For compressed .json.gz backups
+ *
  * Query params: ?wait=true (optional, for synchronous restore)
- * 
- * Returns: 
+ *
+ * Returns:
  * - If wait=true: Full restore results
  * - If wait=false (default): { progressId } for polling
  */
@@ -97,7 +136,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { backupData } = body;
+    let backupData = body.backupData;
+
+    // Check if compressed data was uploaded
+    if (body.compressedData) {
+      console.log('[restore] Decompressing backup data...');
+      try {
+        // Decode base64 and decompress
+        const compressedBuffer = Buffer.from(body.compressedData, 'base64');
+
+        // Check if actually gzipped
+        if (!isGzipped(compressedBuffer)) {
+          return NextResponse.json(
+            { error: 'Invalid compressed data - not a gzip file' },
+            { status: 400 }
+          );
+        }
+
+        // Decompress
+        backupData = await decompressBackup(compressedBuffer);
+        console.log('[restore] Backup decompressed successfully');
+      } catch (error: any) {
+        console.error('[restore] Decompression failed:', error);
+        return NextResponse.json(
+          { error: 'Failed to decompress backup', details: error.message },
+          { status: 400 }
+        );
+      }
+    }
 
     if (!backupData) {
       return NextResponse.json(
