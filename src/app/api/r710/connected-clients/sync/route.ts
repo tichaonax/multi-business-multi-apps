@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         connectionStatus: 'CONNECTED'
       },
       include: {
-        wlans: {
+        r710_wlans: {
           where: {
             isActive: true
           },
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
 
         for (const client of clients) {
           // Find the matching WLAN in our database
-          const wlan = device.wlans.find(w => w.wlanId === client.wlanId || w.ssid === client.ssid)
+          const wlan = device.r710_wlans.find(w => w.wlanId === client.wlanId || w.ssid === client.ssid)
 
           if (!wlan) {
             console.log(`[R710 Sync] Skipping client ${client.macAddress} - WLAN "${client.ssid}" (ID: ${client.wlanId}) not registered in database`)

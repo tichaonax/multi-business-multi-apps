@@ -55,7 +55,20 @@ function R710PortalContent() {
   const [stats, setStats] = useState<R710Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [hasIntegration, setHasIntegration] = useState(false)
+  const [deviceOnline, setDeviceOnline] = useState(false)
   const [checkingIntegration, setCheckingIntegration] = useState(true)
+
+  // Helper: Check if device is truly online (not stale)
+  const isDeviceTrulyOnline = (integration: any): boolean => {
+    if (!integration || !integration.device) return false
+    if (integration.device.connectionStatus !== 'CONNECTED') return false
+    if (!integration.device.lastHealthCheck) return false
+
+    // Consider stale if health check older than 1 hour
+    const oneHourAgo = Date.now() - (60 * 60 * 1000)
+    const lastCheck = new Date(integration.device.lastHealthCheck).getTime()
+    return lastCheck >= oneHourAgo
+  }
 
   // Check if current business has R710 integration
   useEffect(() => {
@@ -70,6 +83,7 @@ function R710PortalContent() {
         if (response.ok) {
           const data = await response.json()
           setHasIntegration(data.hasIntegration || false)
+          setDeviceOnline(isDeviceTrulyOnline(data.integration))
         }
       } catch (error) {
         console.error('Failed to check R710 integration:', error)
@@ -209,52 +223,56 @@ function R710PortalContent() {
             )}
 
             <button
-              disabled={!hasIntegration && !!currentBusinessId}
-              onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/token-configs'}
+              disabled={(!hasIntegration || !deviceOnline) && !!currentBusinessId}
+              onClick={() => (!hasIntegration || !deviceOnline) && currentBusinessId ? null : window.location.href = '/r710-portal/token-configs'}
               className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                !hasIntegration && currentBusinessId
+                (!hasIntegration || !deviceOnline) && currentBusinessId
                   ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
                   : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white cursor-pointer'
               }`}
+              title={!deviceOnline && hasIntegration ? 'Device offline or credentials invalid - click "Test" on device' : ''}
             >
               <span className="mr-2">🎫</span>
               Token Packages
             </button>
 
             <button
-              disabled={!hasIntegration && !!currentBusinessId}
-              onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/tokens'}
+              disabled={(!hasIntegration || !deviceOnline) && !!currentBusinessId}
+              onClick={() => (!hasIntegration || !deviceOnline) && currentBusinessId ? null : window.location.href = '/r710-portal/tokens'}
               className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                !hasIntegration && currentBusinessId
+                (!hasIntegration || !deviceOnline) && currentBusinessId
                   ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
                   : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white cursor-pointer'
               }`}
+              title={!deviceOnline && hasIntegration ? 'Device offline or credentials invalid - click "Test" on device' : ''}
             >
               <span className="mr-2">📦</span>
               Token Inventory
             </button>
 
             <button
-              disabled={!hasIntegration && !!currentBusinessId}
-              onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/sales'}
+              disabled={(!hasIntegration || !deviceOnline) && !!currentBusinessId}
+              onClick={() => (!hasIntegration || !deviceOnline) && currentBusinessId ? null : window.location.href = '/r710-portal/sales'}
               className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                !hasIntegration && currentBusinessId
+                (!hasIntegration || !deviceOnline) && currentBusinessId
                   ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
                   : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white cursor-pointer'
               }`}
+              title={!deviceOnline && hasIntegration ? 'Device offline or credentials invalid - click "Test" on device' : ''}
             >
               <span className="mr-2">💵</span>
               Sales History
             </button>
 
             <button
-              disabled={!hasIntegration && !!currentBusinessId}
-              onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/acl'}
+              disabled={(!hasIntegration || !deviceOnline) && !!currentBusinessId}
+              onClick={() => (!hasIntegration || !deviceOnline) && currentBusinessId ? null : window.location.href = '/r710-portal/acl'}
               className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                !hasIntegration && currentBusinessId
+                (!hasIntegration || !deviceOnline) && currentBusinessId
                   ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
                   : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white cursor-pointer'
               }`}
+              title={!deviceOnline && hasIntegration ? 'Device offline or credentials invalid - click "Test" on device' : ''}
             >
               <span className="mr-2">🛡️</span>
               MAC Access Control
@@ -275,7 +293,7 @@ function R710PortalContent() {
       {!loading && stats && (
         <>
           {/* Quick Stats Grid */}
-          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 ${!hasIntegration && currentBusinessId ? 'opacity-50' : ''}`}>
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 ${(!hasIntegration || !deviceOnline) && currentBusinessId ? 'opacity-50' : ''}`}>
             {/* Devices */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="flex items-center justify-between">

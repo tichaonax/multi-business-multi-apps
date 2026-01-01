@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -1993,7 +1994,7 @@ function GroceryPOSContent() {
 }
 
 // Main export component that wraps everything with providers
-export default function GroceryPOSPage() {
+function GroceryPOSPageContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
@@ -2112,5 +2113,16 @@ export default function GroceryPOSPage() {
         <GroceryPOSContent />
       </BusinessTypeRoute>
     </BusinessProvider>
+  )
+}
+
+// Wrapper component with Suspense boundary
+export default function GroceryPOSPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+    </div>}>
+      <GroceryPOSPageContent />
+    </Suspense>
   )
 }

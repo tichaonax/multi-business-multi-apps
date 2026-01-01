@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -8,7 +8,7 @@ import { useToastContext } from '@/components/ui/toast';
 import BarcodePreview from '@/components/barcode-management/barcode-preview';
 import CompleteLabelPreview from '@/components/barcode-management/complete-label-preview';
 
-export default function EditTemplatePage() {
+function EditTemplatePageContent() {
   const { data: session } = useSession();
   const router = useRouter();
   const params = useParams();
@@ -938,4 +938,15 @@ export default function EditTemplatePage() {
       </div>
     </div>
   );
+}
+
+// Wrapper component with Suspense boundary
+export default function EditTemplatePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+    </div>}>
+      <EditTemplatePageContent />
+    </Suspense>
+  )
 }

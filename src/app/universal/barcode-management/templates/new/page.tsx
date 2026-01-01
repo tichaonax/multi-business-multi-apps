@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -15,7 +15,7 @@ interface SKUPattern {
   sample: string;
 }
 
-export default function NewTemplatePage() {
+function NewTemplatePageContent() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -871,5 +871,16 @@ export default function NewTemplatePage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Wrapper component with Suspense boundary
+export default function NewTemplatePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+    </div>}>
+      <NewTemplatePageContent />
+    </Suspense>
   );
 }

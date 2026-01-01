@@ -3,7 +3,7 @@
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { isSystemAdmin } from '@/lib/permission-utils'
@@ -45,7 +45,7 @@ interface TokenStats {
   invalidated: number
 }
 
-export default function R710TokensPage() {
+function R710TokensPageContent() {
   return (
     <ProtectedRoute>
       <MainLayout>
@@ -573,5 +573,16 @@ function R710TokensContent() {
         </div>
       )}
     </div>
+  )
+}
+
+// Wrapper component with Suspense boundary
+export default function R710TokensPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+    </div>}>
+      <R710TokensPageContent />
+    </Suspense>
   )
 }

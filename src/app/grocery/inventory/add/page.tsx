@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
@@ -9,7 +9,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import SKUGenerator from '@/components/products/sku-generator'
 import { trackTemplateUsage } from '@/lib/barcode-lookup'
 
-export default function AddGroceryInventoryPage() {
+function AddGroceryInventoryPageContent() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -414,5 +414,16 @@ export default function AddGroceryInventoryPage() {
         </div>
       </ContentLayout>
     </BusinessTypeRoute>
+  )
+}
+
+// Wrapper component with Suspense boundary
+export default function AddGroceryInventoryPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+    </div>}>
+      <AddGroceryInventoryPageContent />
+    </Suspense>
   )
 }

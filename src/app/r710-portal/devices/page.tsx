@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import Link from 'next/link'
+import { useAlert } from '@/hooks/use-alert'
 
 interface R710Device {
   id: string
@@ -38,6 +39,7 @@ export default function R710DevicesPage() {
 function R710DevicesContent() {
   const { data: session } = useSession()
   const user = session?.user as any
+  const { showSuccess, showError } = useAlert()
   const [devices, setDevices] = useState<R710Device[]>([])
   const [loading, setLoading] = useState(true)
   const [testingDevice, setTestingDevice] = useState<string | null>(null)
@@ -72,27 +74,60 @@ function R710DevicesContent() {
         credentials: 'include'
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        // Refresh devices list to show updated status
-        await loadDevices()
+      const data = await response.json()
 
-        if (data.success) {
-          alert(`✅ Device connected successfully!\n\nFirmware: ${data.firmwareVersion || 'Unknown'}`)
-        } else {
-          alert(`❌ Connection test failed\n\nError: ${data.error || 'Unknown error'}`)
-        }
+      // Refresh devices list to show updated status
+      await loadDevices()
+
+      if (response.ok && data.success) {
+        showSuccess(
+          `IP: ${data.device.ipAddress}\nStatus: Connected & Authenticated\nFirmware: ${data.device.firmwareVersion || 'Unknown'}\nModel: ${data.device.model || 'R710'}`,
+          '✅ Device Test Successful'
+        )
+      } else {
+        // Test failed - show user-friendly error
+        const errorMsg = data.result?.error || data.error || 'Unknown error'
+        const lastError = data.device?.lastError || ''
+
+        showError(
+          `IP: ${data.device?.ipAddress || 'Unknown'}\nError: ${errorMsg}\n` +
+          (lastError ? `Details: ${lastError}\n\n` : '\n') +
+          `💡 Next Steps:\n` +
+          `1. Verify the R710 device is powered on and reachable\n` +
+          `2. Check if credentials are correct\n` +
+          `3. If password was changed, click "Edit" to update it`,
+          '❌ Integration Test Failed'
+        )
       }
     } catch (error) {
       console.error('Failed to test device:', error)
-      alert('❌ Failed to test device connectivity')
+      await loadDevices()
+      showError(
+        'Unable to communicate with the server. Please check your network connection and try again.',
+        '❌ Integration Test Failed'
+      )
     } finally {
       setTestingDevice(null)
     }
   }
 
+  // Check if health check is stale (older than 1 hour)
+  const isHealthCheckStale = (device: R710Device): boolean => {
+    if (!device.lastHealthCheck) return true
+    const oneHourAgo = Date.now() - (60 * 60 * 1000)
+    return new Date(device.lastHealthCheck).getTime() < oneHourAgo
+  }
+
   const getStatusBadge = (device: R710Device) => {
-    if (device.connectionStatus === 'CONNECTED') {
+    const isStale = isHealthCheckStale(device)
+
+    if (device.connectionStatus === 'CONNECTED' && isStale) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          ⚠ Connected (Stale)
+        </span>
+      )
+    } else if (device.connectionStatus === 'CONNECTED') {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
           ● Connected

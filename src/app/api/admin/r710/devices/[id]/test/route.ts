@@ -23,7 +23,7 @@ import { isSystemAdmin } from '@/lib/permission-utils';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -41,8 +41,9 @@ export async function POST(
       );
     }
 
+    const { id } = await params;
     const device = await prisma.r710DeviceRegistry.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!device) {
@@ -55,7 +56,39 @@ export async function POST(
     console.log(`[R710 Device Test] Testing connectivity to ${device.ipAddress}...`);
 
     // Decrypt password and create service instance
-    const adminPassword = decrypt(device.encryptedAdminPassword);
+    let adminPassword: string;
+    try {
+      adminPassword = decrypt(device.encryptedAdminPassword);
+    } catch (decryptError) {
+      console.error(`[R710 Device Test] Decryption failed for ${device.ipAddress}:`, decryptError);
+
+      // Update device status to reflect credential issue
+      await prisma.r710DeviceRegistry.update({
+        where: { id },
+        data: {
+          connectionStatus: 'ERROR',
+          lastHealthCheck: new Date(),
+          lastError: 'Credential decryption failed - device password needs to be updated'
+        }
+      });
+
+      return NextResponse.json({
+        success: false,
+        result: {
+          online: false,
+          authenticated: false,
+          error: 'Unable to decrypt stored credentials. Please edit the device and re-enter the password.',
+          timestamp: new Date().toISOString()
+        },
+        device: {
+          id: device.id,
+          ipAddress: device.ipAddress,
+          connectionStatus: 'ERROR',
+          lastHealthCheck: new Date(),
+          lastError: 'Credential decryption failed - device password needs to be updated'
+        }
+      });
+    }
 
     const r710Service = new RuckusR710ApiService({
       ipAddress: device.ipAddress,
@@ -98,7 +131,7 @@ export async function POST(
 
     // Update device in database
     const updatedDevice = await prisma.r710DeviceRegistry.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       select: {
         id: true,

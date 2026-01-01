@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -11,7 +11,7 @@ import BarcodePreview from '@/components/barcode-management/barcode-preview';
 import CompleteLabelPreview from '@/components/barcode-management/complete-label-preview';
 import { Package } from 'lucide-react';
 
-export default function NewPrintJobPage() {
+function NewPrintJobPageContent() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -866,5 +866,16 @@ export default function NewPrintJobPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Wrapper component with Suspense boundary
+export default function NewPrintJobPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+    </div>}>
+      <NewPrintJobPageContent />
+    </Suspense>
   );
 }

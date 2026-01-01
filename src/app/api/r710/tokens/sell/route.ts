@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { hasBusinessPermission } from '@/lib/permission-utils';
+import { isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,11 +61,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Check business permissions
-    if (!hasBusinessPermission(user, businessId, ['owner', 'admin', 'employee'])) {
-      return NextResponse.json(
-        { error: 'Forbidden: Insufficient permissions for this business' },
-        { status: 403 }
-      );
+    const isAdmin = isSystemAdmin(user);
+    if (!isAdmin) {
+      const userRole = getUserRoleInBusiness(user, businessId);
+      if (!userRole || !['business-owner', 'business-manager', 'employee'].includes(userRole)) {
+        return NextResponse.json(
+          { error: 'Forbidden: Insufficient permissions for this business' },
+          { status: 403 }
+        );
+      }
     }
 
     // Fetch token and verify it belongs to this business and is AVAILABLE

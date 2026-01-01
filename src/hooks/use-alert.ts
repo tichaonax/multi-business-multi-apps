@@ -4,65 +4,28 @@
  * Uses existing toast component instead of browser alerts
  */
 
-import { useToast } from '@/components/ui/use-toast'
-
-interface AlertOptions {
-  title?: string
-  message: string
-  variant?: 'default' | 'destructive'
-  duration?: number
-}
+import { useToastContext } from '@/components/ui/toast'
 
 export function useAlert() {
-  const { toast } = useToast()
-
-  function showAlert(options: AlertOptions | string) {
-    const config = typeof options === 'string'
-      ? { message: options, title: 'Alert' }
-      : options
-
-    toast({
-      title: config.title || 'Alert',
-      description: config.message,
-      variant: config.variant || 'default',
-      duration: config.duration,
-    })
-  }
+  const { push } = useToastContext()
 
   function showSuccess(message: string, title: string = 'Success') {
-    toast({
-      title,
-      description: message,
-      variant: 'default',
-    })
+    push(`${title}\n${message}`, { type: 'success', duration: 5000 })
   }
 
   function showError(message: string, title: string = 'Error') {
-    toast({
-      title,
-      description: message,
-      variant: 'destructive',
-    })
+    push(`${title}\n${message}`, { type: 'error', duration: 8000 })
   }
 
   function showWarning(message: string, title: string = 'Warning') {
-    toast({
-      title,
-      description: message,
-      variant: 'default',
-    })
+    push(`${title}\n${message}`, { type: 'warning', duration: 6000 })
   }
 
   function showInfo(message: string, title: string = 'Info') {
-    toast({
-      title,
-      description: message,
-      variant: 'default',
-    })
+    push(`${title}\n${message}`, { type: 'info', duration: 5000 })
   }
 
   return {
-    showAlert,
     showSuccess,
     showError,
     showWarning,

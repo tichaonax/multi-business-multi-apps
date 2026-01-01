@@ -20,7 +20,7 @@ import { isSystemAdmin } from '@/lib/permission-utils';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -38,14 +38,14 @@ export async function GET(
       );
     }
 
+    const { id } = await params;
     const device = await prisma.r710DeviceRegistry.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         creator: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
             username: true
           }
         },
@@ -54,8 +54,8 @@ export async function GET(
             businesses: {
               select: {
                 id: true,
-                businessName: true,
-                businessType: true
+                name: true,
+                type: true
               }
             }
           }
@@ -100,15 +100,15 @@ export async function GET(
         lastError: device.lastError,
         createdBy: {
           id: device.creator.id,
-          name: `${device.creator.firstName} ${device.creator.lastName}`,
+          name: device.creator.name,
           username: device.creator.username
         },
         createdAt: device.createdAt,
         updatedAt: device.updatedAt,
         businesses: device.r710_business_integrations.map(integration => ({
           id: integration.businesses.id,
-          name: integration.businesses.businessName,
-          type: integration.businesses.businessType,
+          name: integration.businesses.name,
+          type: integration.businesses.type,
           integrationId: integration.id,
           isActive: integration.isActive
         })),
@@ -141,7 +141,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -159,8 +159,9 @@ export async function PUT(
       );
     }
 
+    const { id } = await params;
     const device = await prisma.r710DeviceRegistry.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!device) {
@@ -253,14 +254,13 @@ export async function PUT(
 
     // Perform update
     const updatedDevice = await prisma.r710DeviceRegistry.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       include: {
         creator: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
             username: true
           }
         },
@@ -313,7 +313,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -331,8 +331,9 @@ export async function DELETE(
       );
     }
 
+    const { id } = await params;
     const device = await prisma.r710DeviceRegistry.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: {
           select: {
@@ -380,7 +381,7 @@ export async function DELETE(
 
     // Delete device
     await prisma.r710DeviceRegistry.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     console.log(`[R710 Device Delete] Device removed: ${device.id} (${device.ipAddress})`);

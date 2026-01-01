@@ -135,8 +135,9 @@ export default function WiFiPortalLandingPage() {
     }
   }, [currentBusinessId])
 
-  // Check if portal integration exists and redirect to setup if not (MUST be before early returns)
-  const hasPortalIntegration = healthStatus && healthStatus.success && healthStatus.status !== 'unknown'
+  // Check if portal integration exists AND device is truly online (healthy)
+  // Device must be healthy (not just "not unknown") to be considered accessible
+  const hasPortalIntegration = healthStatus && healthStatus.success && healthStatus.status === 'healthy'
 
   useEffect(() => {
     // If we have health status and no integration exists, redirect to setup
