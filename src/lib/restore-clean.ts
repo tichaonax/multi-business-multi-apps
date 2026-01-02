@@ -247,6 +247,13 @@ export async function restoreCleanBackup(
   processed: number
   errors: number
   errorLog: Array<{ model: string; recordId?: string; error: string }>
+  skippedRecords: number
+  skippedReasons: {
+    foreignKeyErrors: number
+    validationErrors: number
+    otherErrors: number
+  }
+  modelCounts: Record<string, { attempted: number; successful: number; skipped: number }>
   deviceMismatch?: boolean
   skippedDeviceData?: boolean
 }> {
@@ -254,7 +261,14 @@ export async function restoreCleanBackup(
 
   let totalProcessed = 0
   let totalErrors = 0
+  let totalSkipped = 0
   const errorLog: Array<{ model: string; recordId?: string; error: string }> = []
+  const skippedReasons = {
+    foreignKeyErrors: 0,
+    validationErrors: 0,
+    otherErrors: 0
+  }
+  const modelCounts: Record<string, { attempted: number; successful: number; skipped: number }> = {}
 
   console.log('[restore-clean] Starting restore process...')
   console.log('[restore-clean] Backup version:', backupData.metadata?.version)
@@ -318,6 +332,11 @@ export async function restoreCleanBackup(
 
     console.log(`[restore-clean] Restoring ${tableName}: ${data.length} records`)
 
+    // Initialize model counts
+    if (!modelCounts[tableName]) {
+      modelCounts[tableName] = { attempted: 0, successful: 0, skipped: 0 }
+    }
+
     // Process records in batches to prevent timeouts
     const totalRecords = data.length
     for (let batchStart = 0; batchStart < totalRecords; batchStart += batchSize) {
@@ -326,14 +345,41 @@ export async function restoreCleanBackup(
 
       console.log(`[restore-clean] Processing ${tableName} batch: ${batchStart + 1}-${batchEnd}/${totalRecords}`)
 
-      for (let i = 0; i < batch.length; i++) {
-        const record = batch[i]
+      // Clean nested relations from records (backup should be flat)
+      const cleanedBatch = batch.map((record: any) => {
+        const cleaned = { ...record }
+        // Remove common nested relation fields
+        delete cleaned.product_variants
+        delete cleaned.product_images
+        delete cleaned.product_attributes
+        delete cleaned.business_products
+        delete cleaned.businesses
+        delete cleaned.users
+        delete cleaned.r710_tokens
+        delete cleaned.wifi_tokens
+        delete cleaned.menu_items
+        // Remove any other array fields (likely relations)
+        Object.keys(cleaned).forEach(key => {
+          if (Array.isArray(cleaned[key])) {
+            delete cleaned[key]
+          }
+        })
+        return cleaned
+      })
+
+      for (let i = 0; i < cleanedBatch.length; i++) {
+        const record = cleanedBatch[i]
         const globalIndex = batchStart + i
         const recordId = record.id
+
+        modelCounts[tableName].attempted++
 
         if (!recordId) {
           console.warn(`[restore-clean] Record in ${tableName} has no ID, skipping`)
           totalErrors++
+          totalSkipped++
+          modelCounts[tableName].skipped++
+          skippedReasons.validationErrors++
           errorLog.push({
             model: tableName,
             recordId: undefined,
@@ -372,6 +418,7 @@ export async function restoreCleanBackup(
           }
 
           totalProcessed++
+          modelCounts[tableName].successful++
 
           // Report progress every 10 records or at end of batch
           if ((globalIndex + 1) % 10 === 0 || globalIndex + 1 === totalRecords) {
@@ -382,14 +429,32 @@ export async function restoreCleanBackup(
         } catch (error: any) {
           const errorMsg = error.message || 'Unknown error'
           const isForeignKeyError = error.code === 'P2003' || errorMsg.includes('Foreign key constraint')
-          
+          const isValidationError = error.code === 'P2002' || errorMsg.includes('Unique constraint') || errorMsg.includes('validation')
+
           if (isForeignKeyError) {
             // Skip records with missing foreign key references - they're likely from incomplete backup data
             console.warn(`[restore-clean] Skipping ${tableName} record ${recordId} due to missing foreign key reference`)
+            totalSkipped++
+            modelCounts[tableName].skipped++
+            skippedReasons.foreignKeyErrors++
+            errorLog.push({
+              model: tableName,
+              recordId,
+              error: `Foreign key constraint: ${errorMsg}`
+            })
             continue
           }
-          
+
           totalErrors++
+          totalSkipped++
+          modelCounts[tableName].skipped++
+
+          if (isValidationError) {
+            skippedReasons.validationErrors++
+          } else {
+            skippedReasons.otherErrors++
+          }
+
           errorLog.push({
             model: tableName,
             recordId,
@@ -418,13 +483,17 @@ export async function restoreCleanBackup(
 
   } // End dataSources loop
 
-  console.log(`[restore-clean] Restore complete: ${totalProcessed} records processed, ${totalErrors} errors`)
+  console.log(`[restore-clean] Restore complete: ${totalProcessed} records processed, ${totalSkipped} skipped, ${totalErrors} errors`)
+  console.log(`[restore-clean] Skip reasons: Foreign Keys=${skippedReasons.foreignKeyErrors}, Validation=${skippedReasons.validationErrors}, Other=${skippedReasons.otherErrors}`)
 
   return {
     success: totalErrors === 0,
     processed: totalProcessed,
     errors: totalErrors,
     errorLog,
+    skippedRecords: totalSkipped,
+    skippedReasons,
+    modelCounts,
     deviceMismatch: !isSameDevice,
     skippedDeviceData
   }

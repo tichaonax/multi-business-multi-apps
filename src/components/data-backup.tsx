@@ -101,6 +101,9 @@ export function DataBackup() {
   const [deletingDemo, setDeletingDemo] = useState<string | null>(null);
   const [realBusinesses, setRealBusinesses] = useState<RealBusiness[]>([]);
   const [loadingRealBusinesses, setLoadingRealBusinesses] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm()
   const customAlert = useAlert()
@@ -256,11 +259,17 @@ export function DataBackup() {
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
-    if (selectedFile && selectedFile.type === 'application/json') {
-      setRestoreFile(selectedFile);
-      setRestoreResult(null);
-    } else {
-      await customAlert({ title: 'Invalid File', description: 'Please select a JSON backup file.' });
+    if (selectedFile) {
+      // Accept both .json and .json.gz files
+      const isJson = selectedFile.type === 'application/json' || selectedFile.name.endsWith('.json');
+      const isGzip = selectedFile.type === 'application/gzip' || selectedFile.type === 'application/x-gzip' || selectedFile.name.endsWith('.gz') || selectedFile.name.endsWith('.json.gz');
+
+      if (isJson || isGzip) {
+        setRestoreFile(selectedFile);
+        setRestoreResult(null);
+      } else {
+        await customAlert({ title: 'Invalid File', description: 'Please select a JSON or compressed (.json.gz) backup file.' });
+      }
     }
   };
 
@@ -273,26 +282,68 @@ export function DataBackup() {
     try {
       setLoading(true);
 
-      const fileContent = await restoreFile.text();
-      const backupData = JSON.parse(fileContent);
+      // Check if file is compressed
+      const isCompressed = restoreFile.name.endsWith('.gz') || restoreFile.name.endsWith('.json.gz');
 
-      // Determine which endpoint to use based on backup type
-      const isDemoBackup = backupData.metadata?.backupType === 'demo-business';
-      const endpoint = isDemoBackup ? '/api/admin/demo-backup' : '/api/backup';
+      console.log('[Restore] File:', restoreFile.name, 'Size:', restoreFile.size, 'Compressed:', isCompressed);
 
+      let requestBody: any;
+
+      if (isCompressed) {
+        console.log('[Restore] Reading compressed file...');
+        // For compressed files, read as ArrayBuffer
+        const arrayBuffer = await restoreFile.arrayBuffer();
+        console.log('[Restore] ArrayBuffer size:', arrayBuffer.byteLength);
+
+        // Convert ArrayBuffer to base64 using proper binary encoding
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64 = btoa(binary);
+        console.log('[Restore] Base64 size:', base64.length);
+
+        // Verify it's a gzip file (magic bytes 0x1f 0x8b)
+        console.log('[Restore] First two bytes:', bytes[0].toString(16), bytes[1].toString(16),
+                    'Expected: 1f 8b', bytes[0] === 0x1f && bytes[1] === 0x8b ? '✓' : '✗');
+
+        requestBody = { compressedData: base64 };
+      } else {
+        console.log('[Restore] Reading JSON file...');
+        // For JSON files, read as text and parse
+        const fileContent = await restoreFile.text();
+        console.log('[Restore] JSON content length:', fileContent.length);
+        const backupData = JSON.parse(fileContent);
+        console.log('[Restore] Parsed backup data, version:', backupData.metadata?.version);
+        requestBody = { backupData };
+      }
+
+      // Note: For now, always use /api/backup endpoint
+      // Demo backup detection will happen on server side based on metadata
+      const endpoint = '/api/backup';
+
+      console.log('[Restore] Sending request to:', endpoint);
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ backupData }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('[Restore] Response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Restore failed');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[Restore] API error:', errorData);
+        throw new Error(errorData.error || errorData.details || 'Restore failed');
       }
 
       const result = await response.json();
+      console.log('[Restore] Result:', result);
+
       // If the API returned a `results` object, it's a completed (wait=true) response
       if (result?.results) {
         setRestoreResult(result as RestoreResult);
@@ -309,10 +360,130 @@ export function DataBackup() {
         setRestoreProgressId(null);
         setRestoreProgress(null);
       }
-    } catch (error) {
-      await customAlert({ title: 'Restore Failed', description: 'The restore operation failed. Please check the backup file and try again.' });
+    } catch (error: any) {
+      console.error('[Restore] Error:', error);
+      await customAlert({
+        title: 'Restore Failed',
+        description: error.message || 'The restore operation failed. Please check the backup file and try again.'
+      });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleValidate = async () => {
+    if (!restoreFile) return;
+
+    try {
+      setValidating(true);
+      setValidationResult(null);
+
+      // Check if file is compressed
+      const isCompressed = restoreFile.name.endsWith('.gz') || restoreFile.name.endsWith('.json.gz');
+
+      console.log('[Validate] File:', restoreFile.name, 'Size:', restoreFile.size, 'Compressed:', isCompressed);
+
+      let requestBody: any;
+
+      if (isCompressed) {
+        console.log('[Validate] Reading compressed file...');
+        // For compressed files, read as ArrayBuffer
+        const arrayBuffer = await restoreFile.arrayBuffer();
+
+        // Convert ArrayBuffer to base64
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64 = btoa(binary);
+
+        requestBody = { compressedData: base64 };
+      } else {
+        console.log('[Validate] Reading JSON file...');
+        // For JSON files, read as text and parse
+        const fileContent = await restoreFile.text();
+        const backupData = JSON.parse(fileContent);
+        requestBody = { backupData };
+      }
+
+      console.log('[Validate] Sending validation request...');
+      const response = await fetch('/api/backup/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || errorData.details || 'Validation failed');
+      }
+
+      const result = await response.json();
+      console.log('[Validate] Validation complete:', result);
+      setValidationResult(result);
+
+      // Show summary alert
+      const summary = result.summary;
+      const statusEmoji = {
+        'success': '✅',
+        'warning': '⚠️',
+        'error': '❌'
+      }[summary.overallStatus] || '📊';
+
+      await customAlert({
+        title: `${statusEmoji} Validation ${summary.overallStatus.toUpperCase()}`,
+        description: result.message || 'Validation complete. See details below.'
+      });
+    } catch (error: any) {
+      console.error('[Validate] Error:', error);
+      await customAlert({
+        title: 'Validation Failed',
+        description: error.message || 'Failed to validate backup file.'
+      });
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      // Validate file type
+      const isJson = droppedFile.type === 'application/json' || droppedFile.name.endsWith('.json');
+      const isGzip = droppedFile.type === 'application/gzip' || droppedFile.type === 'application/x-gzip' || droppedFile.name.endsWith('.gz') || droppedFile.name.endsWith('.json.gz');
+
+      if (isJson || isGzip) {
+        setRestoreFile(droppedFile);
+        setRestoreResult(null);
+      } else {
+        await customAlert({ title: 'Invalid File', description: 'Please select a JSON or compressed (.json.gz) backup file.' });
+      }
     }
   };
 
@@ -346,22 +517,54 @@ export function DataBackup() {
         if (res.ok) {
           const data = await res.json();
           setRestoreProgress(data?.progress ?? null);
-          // Stop polling if processed & total are equal (complete) or if model === 'error'
-          if (data?.progress?.total && data?.progress?.processed && data.progress.processed >= data.progress.total) {
+
+          // Stop polling if model indicates completion or error
+          const model = data?.progress?.model;
+          const isComplete = model === 'completed' ||
+                           (data?.progress?.total && data?.progress?.processed &&
+                            data.progress.processed >= data.progress.total);
+          const isError = model === 'error';
+
+          if (isComplete) {
             if (pollingRef.current) {
               window.clearInterval(pollingRef.current);
               pollingRef.current = null;
             }
+
+            // Build detailed summary
+            const progress = data?.progress;
+            const totalProcessed = progress?.processed ?? 0;
+            const totalSkipped = progress?.skipped ?? 0;
+            const total = progress?.total ?? 0;
+
+            let summary = `Successfully restored ${totalProcessed} records out of ${total} total.`;
+
+            if (totalSkipped > 0) {
+              summary += `\n\n⚠️ ${totalSkipped} records were skipped:`;
+              if (progress?.skippedReasons) {
+                if (progress.skippedReasons.foreignKeyErrors > 0) {
+                  summary += `\n• ${progress.skippedReasons.foreignKeyErrors} foreign key constraint errors (missing referenced data)`;
+                }
+                if (progress.skippedReasons.validationErrors > 0) {
+                  summary += `\n• ${progress.skippedReasons.validationErrors} validation errors (duplicate or invalid data)`;
+                }
+                if (progress.skippedReasons.otherErrors > 0) {
+                  summary += `\n• ${progress.skippedReasons.otherErrors} other errors`;
+                }
+              }
+            }
+
+            summary += '\n\nClick OK to reload the application.';
+
             // Mark as finished
             setRestoreProgressId(null);
             // Show completion alert then redirect
             await customAlert({
-              title: '✅ Restore Complete!',
-              description: 'Your backup has been successfully restored. Click OK to reload the application and see your restored data.'
+              title: totalSkipped > 0 ? '⚠️ Restore Complete (with warnings)' : '✅ Restore Complete!',
+              description: summary
             });
             window.location.href = '/dashboard';
-          }
-          if (data?.progress?.model === 'error') {
+          } else if (isError) {
             if (pollingRef.current) {
               window.clearInterval(pollingRef.current);
               pollingRef.current = null;
@@ -666,16 +869,23 @@ export function DataBackup() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".json"
+            accept=".json,.gz,.json.gz,application/json,application/gzip,application/x-gzip"
             onChange={handleFileSelect}
             className="hidden"
           />
 
           <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${restoreFile
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              restoreFile
                 ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950'
+                : isDragging
+                ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950'
                 : 'border-slate-300 hover:border-slate-400 dark:border-slate-600 dark:hover:border-slate-500'
-              }`}
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
           >
             {restoreFile ? (
               <div className="space-y-2">
@@ -693,7 +903,20 @@ export function DataBackup() {
                   >
                     Choose Different File
                   </Button>
-                  <Button onClick={handleRestore} disabled={loading} variant="outline">
+                  <Button onClick={handleValidate} disabled={validating || loading} variant="outline">
+                    {validating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Validating...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Validate Backup
+                      </>
+                    )}
+                  </Button>
+                  <Button onClick={handleRestore} disabled={loading || validating} variant="outline">
                     {loading ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -712,10 +935,12 @@ export function DataBackup() {
               <div className="space-y-2">
                 <HardDrive className="h-8 w-8 text-slate-400 mx-auto" />
                 <p className="text-slate-900 dark:text-slate-100 font-medium">
-                  Select Backup File
+                  {isDragging ? 'Drop backup file here' : 'Select or Drop Backup File'}
                 </p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Choose a JSON backup file to restore
+                  {isDragging
+                    ? 'Release to upload the file'
+                    : 'Drag and drop a .json or .json.gz backup file, or click to browse'}
                 </p>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
@@ -729,6 +954,211 @@ export function DataBackup() {
             )}
           </div>
         </div>
+
+        {/* Validation Results */}
+        {validationResult && (
+          <div className={`p-4 border-2 rounded-lg ${
+            validationResult.summary.overallStatus === 'success'
+              ? 'bg-green-50 border-green-500 dark:bg-green-950 dark:border-green-600'
+              : validationResult.summary.overallStatus === 'warning'
+              ? 'bg-amber-50 border-amber-500 dark:bg-amber-950 dark:border-amber-600'
+              : 'bg-red-50 border-red-500 dark:bg-red-950 dark:border-red-600'
+          }`}>
+            <div className="flex items-center gap-3 mb-4">
+              {validationResult.summary.overallStatus === 'success' && <CheckCircle className="h-7 w-7 text-green-600" />}
+              {validationResult.summary.overallStatus === 'warning' && <AlertTriangle className="h-7 w-7 text-amber-600" />}
+              {validationResult.summary.overallStatus === 'error' && <AlertTriangle className="h-7 w-7 text-red-600" />}
+              <div>
+                <h4 className={`font-bold text-xl ${
+                  validationResult.summary.overallStatus === 'success'
+                    ? 'text-green-900 dark:text-green-100'
+                    : validationResult.summary.overallStatus === 'warning'
+                    ? 'text-amber-900 dark:text-amber-100'
+                    : 'text-red-900 dark:text-red-100'
+                }`}>
+                  {validationResult.summary.overallStatus === 'success' && '✅ Perfect Match'}
+                  {validationResult.summary.overallStatus === 'warning' && '⚠️ Warning - Some Differences'}
+                  {validationResult.summary.overallStatus === 'error' && '❌ Mismatch Detected'}
+                </h4>
+                <p className={`text-sm ${
+                  validationResult.summary.overallStatus === 'success'
+                    ? 'text-green-700 dark:text-green-300'
+                    : validationResult.summary.overallStatus === 'warning'
+                    ? 'text-amber-700 dark:text-amber-300'
+                    : 'text-red-700 dark:text-red-300'
+                }`}>
+                  {validationResult.message}
+                </p>
+              </div>
+            </div>
+
+            {/* Critical: Show Unexpected Mismatches First */}
+            {validationResult.summary.unexpectedMismatches > 0 && (
+              <div className="mb-4 p-4 bg-red-100 border-2 border-red-400 rounded-lg dark:bg-red-900 dark:border-red-600">
+                <div className="flex items-start gap-2 mb-3">
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h5 className="font-bold text-red-900 dark:text-red-100 text-lg mb-1">
+                      {validationResult.summary.unexpectedMismatches} Table{validationResult.summary.unexpectedMismatches > 1 ? 's' : ''} Don't Match
+                    </h5>
+                    <p className="text-sm text-red-800 dark:text-red-200 mb-3">
+                      These tables have different record counts than the backup, which shouldn't happen. This might mean the database was modified after restore.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {validationResult.summary.results
+                    .filter((r: any) => r.status === 'unexpected-mismatch')
+                    .map((result: any, index: number) => (
+                      <div key={index} className="p-3 bg-white dark:bg-slate-800 rounded border-l-4 border-red-500">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-red-900 dark:text-red-100 text-base">
+                            📋 {result.tableName}
+                          </span>
+                          <span className="text-2xl">❌</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                          <div className="text-red-800 dark:text-red-200">
+                            <span className="font-medium">In Backup:</span> <span className="font-bold">{result.backupCount} records</span>
+                          </div>
+                          <div className="text-red-800 dark:text-red-200">
+                            <span className="font-medium">In Database:</span> <span className="font-bold">{result.databaseCount} records</span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950 p-2 rounded">
+                          <span className="font-medium">⚠️ Issue:</span>{' '}
+                          {result.databaseCount > result.backupCount
+                            ? `Database has ${result.difference} EXTRA record${result.difference > 1 ? 's' : ''} not in backup`
+                            : `Database is MISSING ${result.difference} record${result.difference > 1 ? 's' : ''} from backup`}
+                        </div>
+                        {result.notes && (
+                          <div className="mt-2 text-xs text-red-600 dark:text-red-400 italic">
+                            {result.notes}
+                          </div>
+                        )}
+                        <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                          <span className="font-medium">💡 Likely Cause:</span>{' '}
+                          {result.databaseCount > result.backupCount
+                            ? 'Data was added to database after restore (or auto-created by system)'
+                            : 'Data failed to restore from backup (check restore logs)'}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Summary Statistics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+              <div className="text-blue-800 dark:text-blue-200">
+                <span className="font-medium">Total Tables:</span>{' '}
+                <span className="font-bold text-blue-900 dark:text-blue-100">
+                  {validationResult.summary.totalTables}
+                </span>
+              </div>
+              <div className="text-green-800 dark:text-green-200">
+                <span className="font-medium">✅ Exact Matches:</span>{' '}
+                <span className="font-bold text-green-900 dark:text-green-100">
+                  {validationResult.summary.exactMatches}
+                </span>
+              </div>
+              <div className="text-amber-800 dark:text-amber-200">
+                <span className="font-medium">⚠️ Expected Diff:</span>{' '}
+                <span className="font-bold text-amber-900 dark:text-amber-100">
+                  {validationResult.summary.expectedDifferences}
+                </span>
+              </div>
+              <div className="text-red-800 dark:text-red-200">
+                <span className="font-medium">❌ Mismatches:</span>{' '}
+                <span className="font-bold text-red-900 dark:text-red-100">
+                  {validationResult.summary.unexpectedMismatches}
+                </span>
+              </div>
+            </div>
+
+            {/* Detailed Report */}
+            {validationResult.report && (
+              <details className="mt-4">
+                <summary className="cursor-pointer text-sm font-medium text-blue-900 dark:text-blue-100 hover:underline">
+                  View Detailed Report
+                </summary>
+                <pre className="mt-2 p-4 bg-slate-100 dark:bg-slate-900 rounded text-xs overflow-x-auto whitespace-pre-wrap">
+                  {validationResult.report}
+                </pre>
+              </details>
+            )}
+
+            {/* Expected Differences Section */}
+            {validationResult.summary.expectedDifferences > 0 && (
+              <div className="mb-4 p-3 bg-amber-100 border border-amber-400 rounded-lg dark:bg-amber-900 dark:border-amber-600">
+                <h5 className="font-medium text-amber-900 dark:text-amber-100 mb-2 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  {validationResult.summary.expectedDifferences} Expected Difference{validationResult.summary.expectedDifferences > 1 ? 's' : ''}
+                </h5>
+                <p className="text-xs text-amber-800 dark:text-amber-200 mb-2">
+                  These are normal differences caused by foreign key constraints or validation errors during restore.
+                </p>
+                <details>
+                  <summary className="cursor-pointer text-sm text-amber-700 dark:text-amber-300 hover:underline">
+                    Show {validationResult.summary.expectedDifferences} expected difference{validationResult.summary.expectedDifferences > 1 ? 's' : ''}
+                  </summary>
+                  <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                    {validationResult.summary.results
+                      .filter((r: any) => r.status === 'expected-difference')
+                      .map((result: any, index: number) => (
+                        <div key={index} className="text-xs p-2 bg-white dark:bg-slate-800 rounded">
+                          <span className="font-medium">{result.tableName}:</span> Backup {result.backupCount} → DB {result.databaseCount}
+                          {result.notes && <div className="text-amber-600 dark:text-amber-400 mt-1">{result.notes}</div>}
+                        </div>
+                      ))}
+                  </div>
+                </details>
+              </div>
+            )}
+
+            {/* All Results Section */}
+            {validationResult.summary.results && validationResult.summary.results.length > 0 && (
+              <div className="mt-4">
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-300 hover:underline mb-2">
+                    📊 View All {validationResult.summary.totalTables} Table Results
+                  </summary>
+                  <div className="space-y-1 max-h-96 overflow-y-auto mt-2">
+                    {validationResult.summary.results.map((result: any, index: number) => (
+                      <div
+                        key={index}
+                        className={`text-xs p-2 rounded ${
+                          result.status === 'exact-match'
+                            ? 'bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200'
+                            : result.status === 'expected-difference'
+                            ? 'bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-200'
+                            : 'bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{result.tableName}</span>
+                          <span>
+                            {result.status === 'exact-match' && '✅'}
+                            {result.status === 'expected-difference' && '⚠️'}
+                            {result.status === 'unexpected-mismatch' && '❌'}
+                          </span>
+                        </div>
+                        <div className="mt-1">
+                          Backup: {result.backupCount} | Database: {result.databaseCount}
+                          {result.difference > 0 && ` | Diff: ${result.difference}`}
+                        </div>
+                        {result.notes && (
+                          <div className="mt-1 text-xs opacity-75">{result.notes}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Restore Results */}
         { (restoreResult || restoreProgress) && (
@@ -744,43 +1174,43 @@ export function DataBackup() {
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Users:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult?.results?.restored?.users ?? (restoreProgress?.counts?.users?.processed ?? 0)}
+                  {restoreProgress?.modelCounts?.users?.successful ?? 0}
+                  {restoreProgress?.modelCounts?.users?.skipped ? ` (${restoreProgress.modelCounts.users.skipped} skipped)` : ''}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Businesses:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult?.results?.restored?.businesses ?? (restoreProgress?.counts?.businesses?.processed ?? '')}
+                  {restoreProgress?.modelCounts?.businesses?.successful ?? 0}
+                  {restoreProgress?.modelCounts?.businesses?.skipped ? ` (${restoreProgress.modelCounts.businesses.skipped} skipped)` : ''}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
                 <span className="font-medium">Employees:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult?.results?.restored?.employees ?? (restoreProgress?.counts?.employees?.processed ?? '')}
+                  {restoreProgress?.modelCounts?.employees?.successful ?? 0}
+                  {restoreProgress?.modelCounts?.employees?.skipped ? ` (${restoreProgress.modelCounts.employees.skipped} skipped)` : ''}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Memberships:</span>{' '}
+                <span className="font-medium">Products:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult?.results?.restored?.businessMemberships ?? (restoreProgress?.counts?.businessMemberships?.processed ?? '')}
+                  {restoreProgress?.modelCounts?.businessProducts?.successful ?? 0}
+                  {restoreProgress?.modelCounts?.businessProducts?.skipped ? ` (${restoreProgress.modelCounts.businessProducts.skipped} skipped)` : ''}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Audit Logs:</span>{' '}
+                <span className="font-medium">Customers:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult?.results?.restored?.auditLogs ?? (restoreProgress?.counts?.auditLogs?.processed ?? '')}
+                  {restoreProgress?.modelCounts?.businessCustomers?.successful ?? 0}
+                  {restoreProgress?.modelCounts?.businessCustomers?.skipped ? ` (${restoreProgress.modelCounts.businessCustomers.skipped} skipped)` : ''}
                 </span>
               </div>
               <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Reference Data:</span>{' '}
+                <span className="font-medium">Orders:</span>{' '}
                 <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreResult?.results?.restored?.referenceData ?? (
-                    (() => {
-                      const refKeys = ['jobTitles','compensationTypes','benefitTypes','idFormatTemplates','driverLicenseTemplates','permissionTemplates','projectTypes','inventoryDomains','inventorySubcategories','expenseDomains','expenseCategories','expenseSubcategories','emojiLookup']
-                      const counts = restoreProgress?.counts ?? {}
-                      return refKeys.reduce((s, k) => s + (counts[k]?.processed ?? 0), 0) || ''
-                    })()
-                  )}
+                  {restoreProgress?.modelCounts?.businessOrders?.successful ?? 0}
+                  {restoreProgress?.modelCounts?.businessOrders?.skipped ? ` (${restoreProgress.modelCounts.businessOrders.skipped} skipped)` : ''}
                 </span>
               </div>
             </div>
@@ -789,20 +1219,35 @@ export function DataBackup() {
             {restoreProgress && !restoreResult && (
               <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                 <div>
-                  Processed: {Object.values(restoreProgress.counts ?? {}).reduce((a, c) => a + (c.processed ?? 0), 0)} / {Object.values(restoreProgress.counts ?? {}).reduce((a, c) => a + (c.total ?? 0), 0) || '...'} records
+                  <span className="font-medium">Processed:</span> {restoreProgress.processed ?? 0} / {restoreProgress.total ?? '...'} records
+                  {restoreProgress.skipped > 0 && (
+                    <span className="ml-2 text-amber-600 dark:text-amber-400">
+                      ({restoreProgress.skipped} skipped)
+                    </span>
+                  )}
                 </div>
-                <div>Last activity: {restoreProgress.model ?? 'N/A'} (record {restoreProgress.recordId ?? 'N/A'})</div>
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Progress ID: <code className="bg-slate-100 dark:bg-slate-800 p-1 rounded">{restoreProgressId}</code></div>
+                {restoreProgress.skippedReasons && (restoreProgress.skippedReasons.foreignKeyErrors > 0 || restoreProgress.skippedReasons.validationErrors > 0 || restoreProgress.skippedReasons.otherErrors > 0) && (
+                  <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    Skip reasons:
+                    {restoreProgress.skippedReasons.foreignKeyErrors > 0 && ` Foreign Keys: ${restoreProgress.skippedReasons.foreignKeyErrors}`}
+                    {restoreProgress.skippedReasons.validationErrors > 0 && `, Validation: ${restoreProgress.skippedReasons.validationErrors}`}
+                    {restoreProgress.skippedReasons.otherErrors > 0 && `, Other: ${restoreProgress.skippedReasons.otherErrors}`}
+                  </div>
+                )}
+                <div>Last activity: {restoreProgress.model ?? 'N/A'} {restoreProgress.model !== 'completed' && restoreProgress.recordId ? `(record ${restoreProgress.recordId})` : ''}</div>
               </div>
             )}
 
-            {restoreProgress && !restoreResult && Object.values(restoreProgress.counts ?? {}).length > 0 && (
+            {restoreProgress && !restoreResult && restoreProgress.total > 0 && (
               <div className="mt-2">
                 <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                   <div
-                    className="h-2 bg-green-600 dark:bg-green-400"
-                    style={{ width: `${Math.min(100, Math.round((Object.values(restoreProgress.counts ?? {}).reduce((a, c) => a + (c.processed ?? 0), 0) / (Object.values(restoreProgress.counts ?? {}).reduce((a, c) => a + (c.total ?? 0), 0) || 1)) * 100))}%` }}
+                    className="h-2 bg-green-600 dark:bg-green-400 transition-all duration-300"
+                    style={{ width: `${Math.min(100, Math.round(((restoreProgress.processed ?? 0) / (restoreProgress.total || 1)) * 100))}%` }}
                   />
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 text-right mt-1">
+                  {Math.min(100, Math.round(((restoreProgress.processed ?? 0) / (restoreProgress.total || 1)) * 100))}% complete
                 </div>
               </div>
             )}

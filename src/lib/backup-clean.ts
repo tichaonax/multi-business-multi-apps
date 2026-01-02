@@ -547,7 +547,10 @@ export async function createCleanBackup(
 
   businessData.payrollAccounts = await prisma.payrollAccounts.findMany({
     where: {
-      businessId: { in: businessIds }
+      OR: [
+        { businessId: { in: businessIds } },  // Business-specific accounts
+        { businessId: null }                  // Global/system accounts
+      ]
     }
   })
 

@@ -93,7 +93,8 @@ export async function GET(request: NextRequest) {
         headers: {
           'Content-Type': 'application/gzip',
           'Content-Disposition': `attachment; filename="${filename}"`,
-          'Content-Encoding': 'gzip',
+          // Note: Do NOT use Content-Encoding: gzip - it causes browser to auto-decompress
+          // We want the compressed file to be downloaded as-is
         },
       });
     } else {
@@ -196,14 +197,40 @@ export async function POST(request: NextRequest) {
     console.log('[restore] Progress ID:', progressId);
 
     // Initialize progress with model counts from backup
+    // Handle both v2.0 (flat) and v3.0 (businessData/deviceData) formats
     const counts: Record<string, { processed: number; total: number }> = {};
     let totalRecords = 0;
-    for (const [key, value] of Object.entries(backupData)) {
-      if (key !== 'metadata' && Array.isArray(value)) {
-        counts[key] = { processed: 0, total: value.length };
-        totalRecords += value.length;
+
+    // v3.0 format check
+    if (backupData.businessData || backupData.deviceData) {
+      // Count records in businessData
+      if (backupData.businessData) {
+        for (const [key, value] of Object.entries(backupData.businessData)) {
+          if (Array.isArray(value)) {
+            counts[key] = { processed: 0, total: value.length };
+            totalRecords += value.length;
+          }
+        }
+      }
+      // Count records in deviceData
+      if (backupData.deviceData) {
+        for (const [key, value] of Object.entries(backupData.deviceData)) {
+          if (Array.isArray(value)) {
+            counts[key] = { processed: 0, total: value.length };
+            totalRecords += value.length;
+          }
+        }
+      }
+    } else {
+      // v2.0 flat format
+      for (const [key, value] of Object.entries(backupData)) {
+        if (key !== 'metadata' && Array.isArray(value)) {
+          counts[key] = { processed: 0, total: value.length };
+          totalRecords += value.length;
+        }
       }
     }
+
     updateProgress(progressId, {
       counts,
       model: 'starting',
@@ -240,15 +267,20 @@ export async function POST(request: NextRequest) {
         updateProgress(progressId, {
           model: result.success ? 'completed' : 'error',
           processed: result.processed,  // Actual records processed
-          total: totalRecords            // Total records from initial calculation
+          total: totalRecords,           // Total records from initial calculation
+          skipped: result.skippedRecords,
+          skippedReasons: result.skippedReasons,
+          modelCounts: result.modelCounts
         });
 
         console.log('[restore] Restore completed:', {
           progressId,
           success: result.success,
           processed: result.processed,
+          skipped: result.skippedRecords,
           total: totalRecords,
-          errors: result.errors
+          errors: result.errors,
+          skippedReasons: result.skippedReasons
         });
 
         return result;
