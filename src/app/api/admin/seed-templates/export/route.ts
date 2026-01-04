@@ -3,13 +3,20 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
-import type { 
-  ExportTemplateOptions, 
-  ExportTemplateResult, 
+import type {
+  ExportTemplateOptions,
+  ExportTemplateResult,
   SeedDataTemplate,
   ProductSeedItem,
   CategorySeedItem,
-  SubcategorySeedItem
+  SubcategorySeedItem,
+  ExpenseAccountSeedItem,
+  WiFiIntegrationSeedItem,
+  WiFiTokenConfigSeedItem,
+  R710DeviceSeedItem,
+  R710WlanSeedItem,
+  R710TokenConfigSeedItem,
+  PayrollAccountSeedItem
 } from '@/types/seed-templates'
 
 /**
@@ -186,6 +193,129 @@ export async function POST(req: NextRequest) {
       displayOrder: item.subcategory.displayOrder || undefined
     }))
 
+    // Fetch expense accounts (system-wide, not business-specific)
+    const expenseAccounts = await prisma.expenseAccounts.findMany({
+      where: { isActive: true },
+      orderBy: { accountName: 'asc' }
+    })
+
+    const expenseAccountSeedItems: ExpenseAccountSeedItem[] = expenseAccounts.map(account => ({
+      accountNumber: account.accountNumber,
+      accountName: account.accountName,
+      description: account.description || undefined,
+      initialBalance: Number(account.balance),
+      lowBalanceThreshold: Number(account.lowBalanceThreshold),
+      isActive: account.isActive
+    }))
+
+    // Fetch WiFi integrations (ESP32 Portal) for this business
+    const wifiIntegrations = await prisma.portalIntegrations.findMany({
+      where: { businessId: options.sourceBusinessId, isActive: true },
+      include: { expense_accounts: true }
+    })
+
+    const wifiIntegrationSeedItems: WiFiIntegrationSeedItem[] = wifiIntegrations.map(integration => ({
+      portalIpAddress: integration.portalIpAddress,
+      portalPort: integration.portalPort,
+      apiKey: integration.apiKey,
+      isActive: integration.isActive,
+      showTokensInPOS: integration.showTokensInPOS,
+      expenseAccountNumber: integration.expense_accounts?.accountNumber
+    }))
+
+    // Fetch WiFi token configs (ESP32)
+    const wifiTokenConfigs = await prisma.tokenConfigurations.findMany({
+      where: { isActive: true },
+      include: {
+        business_token_menu_items: {
+          where: { businessId: options.sourceBusinessId }
+        }
+      },
+      orderBy: { displayOrder: 'asc' }
+    })
+
+    const wifiTokenConfigSeedItems: WiFiTokenConfigSeedItem[] = wifiTokenConfigs.map(config => ({
+      name: config.name,
+      description: config.description || undefined,
+      durationMinutes: config.durationMinutes,
+      bandwidthDownMb: config.bandwidthDownMb,
+      bandwidthUpMb: config.bandwidthUpMb,
+      basePrice: Number(config.basePrice),
+      ssid: config.ssid || undefined,
+      isActive: config.isActive,
+      displayOrder: config.displayOrder,
+      enabledForBusinesses: config.business_token_menu_items.length > 0
+        ? config.business_token_menu_items.map(item => item.businessId)
+        : undefined
+    }))
+
+    // Fetch R710 device registry for this business
+    const r710Integrations = await prisma.r710BusinessIntegrations.findMany({
+      where: { businessId: options.sourceBusinessId, isActive: true },
+      include: { device_registry: true }
+    })
+
+    const r710DeviceSeedItems: R710DeviceSeedItem[] = r710Integrations.map(integration => ({
+      ipAddress: integration.device_registry.ipAddress,
+      adminUsername: integration.device_registry.adminUsername,
+      firmwareVersion: integration.device_registry.firmwareVersion || undefined,
+      model: integration.device_registry.model,
+      description: integration.device_registry.description || undefined,
+      isActive: integration.device_registry.isActive
+    }))
+
+    // Fetch R710 WLANs for this business
+    const r710Wlans = await prisma.r710Wlans.findMany({
+      where: { businessId: options.sourceBusinessId, isActive: true },
+      include: { device_registry: true }
+    })
+
+    const r710WlanSeedItems: R710WlanSeedItem[] = r710Wlans.map(wlan => ({
+      wlanId: wlan.wlanId,
+      guestServiceId: wlan.guestServiceId,
+      ssid: wlan.ssid,
+      logoType: wlan.logoType,
+      title: wlan.title,
+      validDays: wlan.validDays,
+      enableFriendlyKey: wlan.enableFriendlyKey,
+      enableZeroIt: wlan.enableZeroIt,
+      isActive: wlan.isActive,
+      deviceIpAddress: wlan.device_registry.ipAddress
+    }))
+
+    // Fetch R710 token configs for this business
+    const r710TokenConfigs = await prisma.r710TokenConfigs.findMany({
+      where: { businessId: options.sourceBusinessId, isActive: true },
+      include: { r710_wlans: { include: { device_registry: true } } },
+      orderBy: { displayOrder: 'asc' }
+    })
+
+    const r710TokenConfigSeedItems: R710TokenConfigSeedItem[] = r710TokenConfigs.map(config => ({
+      name: config.name,
+      description: config.description || undefined,
+      durationValue: config.durationValue,
+      durationUnit: config.durationUnit,
+      deviceLimit: config.deviceLimit,
+      basePrice: Number(config.basePrice),
+      autoGenerateThreshold: config.autoGenerateThreshold,
+      autoGenerateQuantity: config.autoGenerateQuantity,
+      isActive: config.isActive,
+      displayOrder: config.displayOrder,
+      wlanSsid: config.r710_wlans.ssid,
+      deviceIpAddress: config.r710_wlans.device_registry.ipAddress
+    }))
+
+    // Fetch payroll accounts for this business
+    const payrollAccounts = await prisma.payrollAccounts.findMany({
+      where: { businessId: options.sourceBusinessId, isActive: true }
+    })
+
+    const payrollAccountSeedItems: PayrollAccountSeedItem[] = payrollAccounts.map(account => ({
+      accountNumber: account.accountNumber,
+      initialBalance: Number(account.balance),
+      isActive: account.isActive
+    }))
+
     // Build template data
     const templateData: SeedDataTemplate = {
       version: options.version,
@@ -198,11 +328,25 @@ export async function POST(req: NextRequest) {
         exportedFrom: business.name,
         totalProducts: productSeedItems.length,
         totalCategories: categorySeedItems.length,
-        totalSubcategories: subcategorySeedItems.length
+        totalSubcategories: subcategorySeedItems.length,
+        totalExpenseAccounts: expenseAccountSeedItems.length,
+        totalWiFiIntegrations: wifiIntegrationSeedItems.length,
+        totalWiFiTokenConfigs: wifiTokenConfigSeedItems.length,
+        totalR710Devices: r710DeviceSeedItems.length,
+        totalR710Wlans: r710WlanSeedItems.length,
+        totalR710TokenConfigs: r710TokenConfigSeedItems.length,
+        totalPayrollAccounts: payrollAccountSeedItems.length
       },
       products: productSeedItems,
       categories: categorySeedItems,
-      subcategories: subcategorySeedItems
+      subcategories: subcategorySeedItems,
+      expenseAccounts: expenseAccountSeedItems.length > 0 ? expenseAccountSeedItems : undefined,
+      wifiIntegrations: wifiIntegrationSeedItems.length > 0 ? wifiIntegrationSeedItems : undefined,
+      wifiTokenConfigs: wifiTokenConfigSeedItems.length > 0 ? wifiTokenConfigSeedItems : undefined,
+      r710Devices: r710DeviceSeedItems.length > 0 ? r710DeviceSeedItems : undefined,
+      r710Wlans: r710WlanSeedItems.length > 0 ? r710WlanSeedItems : undefined,
+      r710TokenConfigs: r710TokenConfigSeedItems.length > 0 ? r710TokenConfigSeedItems : undefined,
+      payrollAccounts: payrollAccountSeedItems.length > 0 ? payrollAccountSeedItems : undefined
     }
 
     // Save to database

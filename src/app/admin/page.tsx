@@ -38,8 +38,6 @@ export default function AdminPage() {
   const [seedingData, setSeedingData] = useState(false)
   const [seedResult, setSeedResult] = useState<any>(null)
   const [seedError, setSeedError] = useState('')
-  const [backups, setBackups] = useState<Array<{ name: string; mtime: number; size: number }>>([])
-  const [loadingBackups, setLoadingBackups] = useState(false)
   const [seedingReferenceData, setSeedingReferenceData] = useState(false)
   const [referenceDataResult, setReferenceDataResult] = useState<any>(null)
   const [referenceDataError, setReferenceDataError] = useState('')
@@ -49,6 +47,9 @@ export default function AdminPage() {
   const [seedTestConfirmText, setSeedTestConfirmText] = useState('')
   const [referenceDataConfirmText, setReferenceDataConfirmText] = useState('')
   const [adminUserConfirmText, setAdminUserConfirmText] = useState('')
+  const [creatingAdmin, setCreatingAdmin] = useState(false)
+  const [adminCreationResult, setAdminCreationResult] = useState<any>(null)
+  const [adminCreationError, setAdminCreationError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [modalBusinessId, setModalBusinessId] = useState<string | null>(null)
   const [modalAction, setModalAction] = useState<null | { endpoint: string; label: string; method?: string; body?: any }>(null)
@@ -125,14 +126,35 @@ export default function AdminPage() {
     }
   }
 
-  const handleCreateAdminUser = () => {
+  const handleCreateAdminUser = async () => {
     if (adminUserConfirmText !== 'CREATE ADMIN USER') {
-      return // Should show error in the UI
+      return
     }
 
-    setShowAdminUserConfirm(false)
-    setAdminUserConfirmText('')
-    window.location.href = '/api/admin/create-admin'
+    setCreatingAdmin(true)
+    setAdminCreationError('')
+    setAdminCreationResult(null)
+
+    try {
+      const res = await fetch('/api/admin/create-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        setAdminCreationResult(data)
+        setShowAdminUserConfirm(false)
+        setAdminUserConfirmText('')
+      } else {
+        setAdminCreationError(data.error || 'Failed to create admin user')
+      }
+    } catch (err: any) {
+      setAdminCreationError(err?.message || 'Failed to create admin user')
+    } finally {
+      setCreatingAdmin(false)
+    }
   }
 
   const handleSanitizeTokens = async () => {
@@ -163,21 +185,6 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => {
-    async function loadBackups() {
-      setLoadingBackups(true)
-      try {
-        const res = await fetch('/api/admin/backups')
-        const json = await res.json()
-        if (res.ok) setBackups(json.backups || [])
-      } catch (e) {
-        // ignore
-      } finally {
-        setLoadingBackups(false)
-      }
-    }
-    loadBackups()
-  }, [])
 
   return (
     <ProtectedRoute>
@@ -678,50 +685,15 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* Quick Actions Card */}
+          {/* Developer Seeds */}
           <div className="card p-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
-                <Zap className="h-6 w-6 mr-2 text-blue-500" />
-                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">Quick Actions</h3>
+                <TestTube className="h-6 w-6 mr-2 text-blue-500" />
+                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">Developer Seeds</h3>
               </div>
             </div>
             <div className="space-y-3">
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-md border border-blue-200 dark:border-blue-700">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="font-medium text-blue-900 dark:text-blue-200 text-sm">Backup Files</div>
-                    <div className="text-blue-700 dark:text-blue-300 text-xs">Recent cleanup backups</div>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-600 dark:text-gray-300">
-                  {loadingBackups ? 'Loading backups...' : (
-                    backups.length === 0 ? 'No backups found' : (
-                      <div className="space-y-2">
-                        {backups.map(b => (
-                          <div key={b.name} className="flex items-center justify-between p-2 border rounded">
-                            <div className="mr-2">
-                              <div className="font-mono text-xs">{b.name}</div>
-                              <div className="text-xs text-gray-500">{new Date(b.mtime).toLocaleString()} · {b.size} bytes</div>
-                            </div>
-                            <div className="flex gap-2">
-                              <a href={`/api/admin/backups/${encodeURIComponent(b.name)}`} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-xs rounded">Download</a>
-                              <button onClick={() => {
-                                const filename = b.name
-                                setModalBusinessId(null)
-                                setModalAction({ endpoint: '/api/admin/restore-backup', label: 'Restore Backup', method: 'POST', body: { filename } })
-                                setModalOpen(true)
-                              }} className="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-xs rounded">Restore</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-              {/* Removed the Dev Seed Controls block here; moved into a dedicated card below for clarity */}
-              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">Restaurant demo seed includes multi-size variants (Small/Regular/Large), POS attributes (posCategory, printToKitchen), and sample kitchen tickets to exercise POS & kitchen flows.</div>
               <div className="bg-white dark:bg-gray-800 p-3 rounded-md border border-blue-200 dark:border-blue-700">
                 {!showSeedTestConfirm ? (
                   <div className="flex items-center justify-between">
@@ -801,9 +773,15 @@ export default function AdminPage() {
                     <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
                     <div className="text-sm">
                       <div className="font-medium text-green-800 dark:text-green-200">Test data created successfully!</div>
-                      <div className="text-green-700 dark:text-green-300 text-xs mt-1">
-                        {seedResult.summary.businesses} businesses, {seedResult.summary.employees} employees, {seedResult.summary.contracts} contracts
-                      </div>
+                      {seedResult.summary ? (
+                        <div className="text-green-700 dark:text-green-300 text-xs mt-1">
+                          {seedResult.summary.businesses} businesses, {seedResult.summary.employees} employees, {seedResult.summary.contracts} contracts
+                        </div>
+                      ) : (
+                        <div className="text-green-700 dark:text-green-300 text-xs mt-1">
+                          Dev data seeded with vehicles, drivers, maintenance records, and demo businesses
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -948,7 +926,8 @@ export default function AdminPage() {
                         value={adminUserConfirmText}
                         onChange={(e) => setAdminUserConfirmText(e.target.value)}
                         placeholder="Type confirmation text..."
-                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        disabled={creatingAdmin}
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -957,18 +936,50 @@ export default function AdminPage() {
                           setShowAdminUserConfirm(false)
                           setAdminUserConfirmText('')
                         }}
-                        className="px-2 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs rounded"
+                        disabled={creatingAdmin}
+                        className="px-2 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs rounded disabled:opacity-50"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleCreateAdminUser}
-                        disabled={adminUserConfirmText !== 'CREATE ADMIN USER'}
+                        disabled={creatingAdmin || adminUserConfirmText !== 'CREATE ADMIN USER'}
                         className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded disabled:opacity-50 flex items-center"
                       >
-                        <Users className="h-3 w-3 mr-1" />
-                        Confirm
+                        {creatingAdmin ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b border-white mr-1"></div>
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Users className="h-3 w-3 mr-1" />
+                            Confirm
+                          </>
+                        )}
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {adminCreationResult && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3 mt-3">
+                    <div className="flex items-center mb-2">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <div className="text-sm font-medium text-green-800 dark:text-green-200">Admin user created successfully!</div>
+                    </div>
+                    <div className="text-xs text-green-700 dark:text-green-300 space-y-1">
+                      <div><strong>Email:</strong> {adminCreationResult.credentials?.email || 'admin@business.local'}</div>
+                      <div><strong>Password:</strong> {adminCreationResult.credentials?.password || 'admin123'}</div>
+                    </div>
+                  </div>
+                )}
+
+                {adminCreationError && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 mt-3">
+                    <div className="flex items-center">
+                      <AlertTriangle className="h-4 w-4 text-red-500 mr-2" />
+                      <div className="text-sm text-red-700 dark:text-red-300">{adminCreationError}</div>
                     </div>
                   </div>
                 )}

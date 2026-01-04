@@ -10,19 +10,40 @@ export interface SeedDataTemplate {
   version: string
   businessType: string
   metadata: SeedDataMetadata
-  
+
   // Department structure (clothing specific, optional)
   departments?: Record<string, DepartmentData>
-  
+
   // Flat product list (universal)
   products: ProductSeedItem[]
-  
+
   // Category definitions
   categories: CategorySeedItem[]
   subcategories: SubcategorySeedItem[]
-  
+
   // Domain definitions (if new ones introduced)
   domains?: DomainSeedItem[]
+
+  // Expense accounts
+  expenseAccounts?: ExpenseAccountSeedItem[]
+
+  // WiFi integrations (ESP32 & R710)
+  wifiIntegrations?: WiFiIntegrationSeedItem[]
+
+  // WiFi token configurations
+  wifiTokenConfigs?: WiFiTokenConfigSeedItem[]
+
+  // R710 device registry (prerequisite for R710 integration)
+  r710Devices?: R710DeviceSeedItem[]
+
+  // R710 WLAN configurations (prerequisite for R710 token configs)
+  r710Wlans?: R710WlanSeedItem[]
+
+  // R710 token configurations
+  r710TokenConfigs?: R710TokenConfigSeedItem[]
+
+  // Payroll accounts (optional)
+  payrollAccounts?: PayrollAccountSeedItem[]
 }
 
 // Metadata about the template
@@ -35,6 +56,13 @@ export interface SeedDataMetadata {
   totalProducts: number
   totalCategories: number
   totalSubcategories: number
+  totalExpenseAccounts?: number
+  totalWiFiIntegrations?: number
+  totalWiFiTokenConfigs?: number
+  totalR710Devices?: number
+  totalR710Wlans?: number
+  totalR710TokenConfigs?: number
+  totalPayrollAccounts?: number
   departments?: string[]
 }
 
@@ -236,4 +264,88 @@ export interface TemplateListItem {
   createdBy: string
   createdByName?: string
   sourceBusinessName?: string
+}
+
+// Expense Account seed item
+export interface ExpenseAccountSeedItem {
+  accountNumber: string
+  accountName: string
+  description?: string
+  initialBalance?: number
+  lowBalanceThreshold?: number
+  isActive?: boolean
+}
+
+// WiFi Integration seed item (ESP32 Portal)
+export interface WiFiIntegrationSeedItem {
+  portalIpAddress: string
+  portalPort: number
+  apiKey: string
+  isActive?: boolean
+  showTokensInPOS?: boolean
+  expenseAccountNumber?: string // Reference to expense account by accountNumber
+}
+
+// WiFi Token Config seed item (ESP32)
+export interface WiFiTokenConfigSeedItem {
+  name: string
+  description?: string
+  durationMinutes: number
+  bandwidthDownMb: number
+  bandwidthUpMb: number
+  basePrice: number
+  ssid?: string
+  isActive?: boolean
+  displayOrder?: number
+  // Menu item configuration
+  enabledForBusinesses?: string[] // business IDs or names
+}
+
+// R710 Token Config seed item
+export interface R710TokenConfigSeedItem {
+  name: string
+  description?: string
+  durationValue: number
+  durationUnit: string // 'minutes', 'hours', 'days'
+  deviceLimit?: number
+  basePrice: number
+  autoGenerateThreshold?: number
+  autoGenerateQuantity?: number
+  isActive?: boolean
+  displayOrder?: number
+  // WLAN association
+  wlanSsid: string // Reference to WLAN by SSID
+  // Device registry reference
+  deviceIpAddress?: string // Reference to R710 device by IP
+}
+
+// R710 Device Registry seed item
+export interface R710DeviceSeedItem {
+  ipAddress: string
+  adminUsername: string
+  firmwareVersion?: string
+  model?: string
+  description?: string
+  isActive?: boolean
+}
+
+// R710 WLAN seed item
+export interface R710WlanSeedItem {
+  wlanId: string
+  guestServiceId: string
+  ssid: string
+  logoType?: string
+  title?: string
+  validDays?: number
+  enableFriendlyKey?: boolean
+  enableZeroIt?: boolean
+  isActive?: boolean
+  deviceIpAddress: string // Reference to device by IP
+}
+
+// Payroll Account seed item
+export interface PayrollAccountSeedItem {
+  accountNumber: string
+  initialBalance?: number
+  isActive?: boolean
 }

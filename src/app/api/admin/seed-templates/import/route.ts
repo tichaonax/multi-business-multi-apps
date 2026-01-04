@@ -85,6 +85,13 @@ export async function POST(req: NextRequest) {
       productsCreated: 0,
       productsUpdated: 0,
       productsSkipped: 0,
+      expenseAccountsCreated: 0,
+      wifiIntegrationsCreated: 0,
+      wifiTokenConfigsCreated: 0,
+      r710DevicesCreated: 0,
+      r710WlansCreated: 0,
+      r710TokenConfigsCreated: 0,
+      payrollAccountsCreated: 0,
       errors: [] as string[]
     }
 
@@ -267,6 +274,282 @@ export async function POST(req: NextRequest) {
         }
       } catch (error: any) {
         stats.errors.push(`Product ${prodData.name}: ${error.message}`)
+      }
+    }
+
+    // Import expense accounts (if present in template)
+    if (template.expenseAccounts && template.expenseAccounts.length > 0) {
+      for (const accountData of template.expenseAccounts) {
+        try {
+          const existing = await prisma.expenseAccounts.findUnique({
+            where: { accountNumber: accountData.accountNumber }
+          })
+
+          if (!existing) {
+            await prisma.expenseAccounts.create({
+              data: {
+                accountNumber: accountData.accountNumber,
+                accountName: accountData.accountName,
+                description: accountData.description,
+                balance: accountData.initialBalance || 0,
+                lowBalanceThreshold: accountData.lowBalanceThreshold || 500,
+                isActive: accountData.isActive !== false,
+                createdBy: session.user.id
+              }
+            })
+            stats.expenseAccountsCreated++
+          }
+        } catch (error: any) {
+          stats.errors.push(`Expense account ${accountData.accountName}: ${error.message}`)
+        }
+      }
+    }
+
+    // Import WiFi integrations (ESP32 Portal) - if present in template
+    if (template.wifiIntegrations && template.wifiIntegrations.length > 0) {
+      for (const wifiData of template.wifiIntegrations) {
+        try {
+          const existing = await prisma.portalIntegrations.findUnique({
+            where: { businessId: options.targetBusinessId }
+          })
+
+          if (!existing) {
+            // Find expense account by account number if specified
+            let expenseAccountId = null
+            if (wifiData.expenseAccountNumber) {
+              const expenseAccount = await prisma.expenseAccounts.findUnique({
+                where: { accountNumber: wifiData.expenseAccountNumber }
+              })
+              expenseAccountId = expenseAccount?.id || null
+            }
+
+            await prisma.portalIntegrations.create({
+              data: {
+                businessId: options.targetBusinessId,
+                portalIpAddress: wifiData.portalIpAddress,
+                portalPort: wifiData.portalPort,
+                apiKey: wifiData.apiKey,
+                isActive: wifiData.isActive !== false,
+                showTokensInPOS: wifiData.showTokensInPOS || false,
+                expenseAccountId,
+                createdBy: session.user.id
+              }
+            })
+            stats.wifiIntegrationsCreated++
+          }
+        } catch (error: any) {
+          stats.errors.push(`WiFi integration ${wifiData.portalIpAddress}: ${error.message}`)
+        }
+      }
+    }
+
+    // Import WiFi token configs (ESP32) - if present in template
+    if (template.wifiTokenConfigs && template.wifiTokenConfigs.length > 0) {
+      for (const configData of template.wifiTokenConfigs) {
+        try {
+          const existing = await prisma.tokenConfigurations.findFirst({
+            where: { name: configData.name }
+          })
+
+          if (!existing) {
+            const tokenConfig = await prisma.tokenConfigurations.create({
+              data: {
+                name: configData.name,
+                description: configData.description,
+                durationMinutes: configData.durationMinutes,
+                bandwidthDownMb: configData.bandwidthDownMb,
+                bandwidthUpMb: configData.bandwidthUpMb,
+                basePrice: configData.basePrice,
+                ssid: configData.ssid,
+                isActive: configData.isActive !== false,
+                displayOrder: configData.displayOrder || 0
+              }
+            })
+
+            // Create business menu item for this business
+            await prisma.businessTokenMenuItems.create({
+              data: {
+                businessId: options.targetBusinessId,
+                tokenConfigId: tokenConfig.id,
+                customPrice: configData.basePrice,
+                isEnabled: true
+              }
+            })
+            stats.wifiTokenConfigsCreated++
+          }
+        } catch (error: any) {
+          stats.errors.push(`WiFi token config ${configData.name}: ${error.message}`)
+        }
+      }
+    }
+
+    // Import R710 devices - if present in template
+    if (template.r710Devices && template.r710Devices.length > 0) {
+      for (const deviceData of template.r710Devices) {
+        try {
+          const existing = await prisma.r710DeviceRegistry.findUnique({
+            where: { ipAddress: deviceData.ipAddress }
+          })
+
+          if (!existing) {
+            const device = await prisma.r710DeviceRegistry.create({
+              data: {
+                ipAddress: deviceData.ipAddress,
+                adminUsername: deviceData.adminUsername,
+                encryptedAdminPassword: '', // Will need to be set manually
+                firmwareVersion: deviceData.firmwareVersion,
+                model: deviceData.model || 'R710',
+                description: deviceData.description,
+                isActive: deviceData.isActive !== false,
+                connectionStatus: 'DISCONNECTED',
+                createdBy: session.user.id
+              }
+            })
+
+            // Create business integration
+            await prisma.r710BusinessIntegrations.create({
+              data: {
+                businessId: options.targetBusinessId,
+                deviceRegistryId: device.id,
+                isActive: true
+              }
+            })
+            stats.r710DevicesCreated++
+          }
+        } catch (error: any) {
+          stats.errors.push(`R710 device ${deviceData.ipAddress}: ${error.message}`)
+        }
+      }
+    }
+
+    // Import R710 WLANs - if present in template
+    if (template.r710Wlans && template.r710Wlans.length > 0) {
+      for (const wlanData of template.r710Wlans) {
+        try {
+          // Find device by IP address
+          const device = await prisma.r710DeviceRegistry.findUnique({
+            where: { ipAddress: wlanData.deviceIpAddress }
+          })
+
+          if (!device) {
+            stats.errors.push(`R710 WLAN ${wlanData.ssid}: device ${wlanData.deviceIpAddress} not found`)
+            continue
+          }
+
+          const existing = await prisma.r710Wlans.findFirst({
+            where: {
+              businessId: options.targetBusinessId,
+              deviceRegistryId: device.id,
+              wlanId: wlanData.wlanId
+            }
+          })
+
+          if (!existing) {
+            await prisma.r710Wlans.create({
+              data: {
+                businessId: options.targetBusinessId,
+                deviceRegistryId: device.id,
+                wlanId: wlanData.wlanId,
+                guestServiceId: wlanData.guestServiceId,
+                ssid: wlanData.ssid,
+                logoType: wlanData.logoType || 'none',
+                title: wlanData.title || 'Welcome to Guest WiFi !',
+                validDays: wlanData.validDays || 1,
+                enableFriendlyKey: wlanData.enableFriendlyKey || false,
+                enableZeroIt: wlanData.enableZeroIt !== false,
+                isActive: wlanData.isActive !== false
+              }
+            })
+            stats.r710WlansCreated++
+          }
+        } catch (error: any) {
+          stats.errors.push(`R710 WLAN ${wlanData.ssid}: ${error.message}`)
+        }
+      }
+    }
+
+    // Import R710 token configs - if present in template
+    if (template.r710TokenConfigs && template.r710TokenConfigs.length > 0) {
+      for (const configData of template.r710TokenConfigs) {
+        try {
+          // Find WLAN by SSID
+          const wlan = await prisma.r710Wlans.findFirst({
+            where: {
+              businessId: options.targetBusinessId,
+              ssid: configData.wlanSsid
+            }
+          })
+
+          if (!wlan) {
+            stats.errors.push(`R710 token config ${configData.name}: WLAN ${configData.wlanSsid} not found`)
+            continue
+          }
+
+          const existing = await prisma.r710TokenConfigs.findFirst({
+            where: {
+              businessId: options.targetBusinessId,
+              name: configData.name
+            }
+          })
+
+          if (!existing) {
+            const tokenConfig = await prisma.r710TokenConfigs.create({
+              data: {
+                businessId: options.targetBusinessId,
+                wlanId: wlan.id,
+                name: configData.name,
+                description: configData.description,
+                durationValue: configData.durationValue,
+                durationUnit: configData.durationUnit,
+                deviceLimit: configData.deviceLimit || 1,
+                basePrice: configData.basePrice,
+                autoGenerateThreshold: configData.autoGenerateThreshold || 5,
+                autoGenerateQuantity: configData.autoGenerateQuantity || 20,
+                isActive: configData.isActive !== false,
+                displayOrder: configData.displayOrder || 0
+              }
+            })
+
+            // Create business menu item for this business
+            await prisma.r710BusinessTokenMenuItems.create({
+              data: {
+                businessId: options.targetBusinessId,
+                tokenConfigId: tokenConfig.id,
+                customPrice: configData.basePrice,
+                isEnabled: true
+              }
+            })
+            stats.r710TokenConfigsCreated++
+          }
+        } catch (error: any) {
+          stats.errors.push(`R710 token config ${configData.name}: ${error.message}`)
+        }
+      }
+    }
+
+    // Import payroll accounts - if present in template
+    if (template.payrollAccounts && template.payrollAccounts.length > 0) {
+      for (const accountData of template.payrollAccounts) {
+        try {
+          const existing = await prisma.payrollAccounts.findUnique({
+            where: { accountNumber: accountData.accountNumber }
+          })
+
+          if (!existing) {
+            await prisma.payrollAccounts.create({
+              data: {
+                businessId: options.targetBusinessId,
+                accountNumber: accountData.accountNumber,
+                balance: accountData.initialBalance || 0,
+                isActive: accountData.isActive !== false,
+                createdBy: session.user.id
+              }
+            })
+            stats.payrollAccountsCreated++
+          }
+        } catch (error: any) {
+          stats.errors.push(`Payroll account ${accountData.accountNumber}: ${error.message}`)
+        }
       }
     }
 
