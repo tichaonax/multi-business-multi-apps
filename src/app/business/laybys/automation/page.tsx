@@ -1,5 +1,8 @@
 'use client'
 
+
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { AutomationMonitor } from '@/components/laybys/automation-monitor'
 import { Button } from '@/components/ui/button'

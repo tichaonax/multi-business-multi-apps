@@ -1,5 +1,8 @@
 'use client'
 
+
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { DataResetComponent } from '@/components/admin/data-reset'
@@ -563,6 +566,17 @@ export default function AdminPage() {
             </div>
             <p className="text-secondary mb-4">Quick seed/unseed operations for demo data (admin only)</p>
             <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  setModalBusinessId(null)
+                  setModalAction({ endpoint: '/api/admin/seed-complete-demo', label: 'Seed Complete Demo (All Businesses + Features)', method: 'POST', body: { confirm: true } })
+                  setModalOpen(true)
+                }}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded font-bold"
+              >
+                🎯 Seed Complete Demo
+              </button>
+
               <button
                 onClick={() => {
                   setModalBusinessId(null)

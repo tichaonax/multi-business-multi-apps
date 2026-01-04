@@ -24,6 +24,7 @@ export interface PrinterBroadcastInfo {
   port: number | null;
   capabilities: PrinterCapability[];
   isOnline: boolean;
+  receiptWidth: number | null;
   lastSeen: Date;
 }
 
@@ -125,6 +126,7 @@ export class PrinterDiscoveryService extends EventEmitter {
         port: printer.port,
         capabilities: printer.capabilities,
         isOnline: printer.isOnline,
+        receiptWidth: printer.receiptWidth,
         lastSeen: printer.lastSeen,
       }));
     } catch (error) {
@@ -209,6 +211,7 @@ export class PrinterDiscoveryService extends EventEmitter {
           capabilities: printerInfo.capabilities,
           isShareable: true,
           isOnline: printerInfo.isOnline,
+          receiptWidth: printerInfo.receiptWidth,
           lastSeen: new Date(printerInfo.lastSeen),
           createdAt: new Date(),
           updatedAt: new Date(),

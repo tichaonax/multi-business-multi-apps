@@ -1,5 +1,8 @@
 'use client'
 
+
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
 import React, { useState } from 'react'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'

@@ -124,6 +124,7 @@ export class PrinterSyncService extends EventEmitter {
       capabilities: p.capabilities,
       isShareable: true,
       isOnline: p.isOnline,
+      receiptWidth: p.receiptWidth,
       lastSeen: p.lastSeen,
       createdAt: new Date(),
       updatedAt: new Date(),

@@ -273,6 +273,59 @@ async function createMenuItemWithStock(businessId, categoryId, itemData, initial
   return { product, variant }
 }
 
+/**
+ * Create business account and expense account for a business
+ * Mirrors the behavior from /api/admin/businesses/route.ts
+ */
+async function createBusinessAccounts(businessId, businessName, creatorId = 'admin-system-user-default') {
+  // 1. Create business account (check if exists first)
+  const existingBizAccount = await prisma.businessAccounts.findUnique({
+    where: { businessId: businessId }
+  })
+
+  if (!existingBizAccount) {
+    await prisma.businessAccounts.create({
+      data: {
+        businessId: businessId,
+        balance: 0,
+        updatedAt: new Date(),
+        createdBy: creatorId,
+      },
+    })
+    console.log(`  ✅ Created business account for ${businessName}`)
+  } else {
+    console.log(`  ℹ️  Business account already exists for ${businessName}`)
+  }
+
+  // 2. Generate account number
+  const existingAccounts = await prisma.expenseAccounts.count()
+  const accountNumber = `EXP-${String(existingAccounts + 1).padStart(3, '0')}`
+
+  // 3. Create expense account (check if one exists for this business first)
+  const existingExpenseAccount = await prisma.expenseAccounts.findFirst({
+    where: {
+      accountName: `${businessName} Expense Account`
+    }
+  })
+
+  if (!existingExpenseAccount) {
+    await prisma.expenseAccounts.create({
+      data: {
+        accountNumber,
+        accountName: `${businessName} Expense Account`,
+        description: `Default expense account for ${businessName}`,
+        balance: 0,
+        lowBalanceThreshold: 500,
+        isActive: true,
+        createdBy: creatorId,
+      },
+    })
+    console.log(`  ✅ Created expense account: ${accountNumber} - ${businessName} Expense Account`)
+  } else {
+    console.log(`  ℹ️  Expense account already exists for ${businessName}`)
+  }
+}
+
 async function seed() {
   try {
     console.log('🔍 Checking for existing restaurant demo businesses...')
@@ -381,7 +434,13 @@ async function seed() {
       })
 
       console.log(`✅ Created new demo business: "${business.name}" (${businessId})`)
+
+      // Create business account and expense account
+      await createBusinessAccounts(businessId, business.name)
     }
+
+    // Create business account and expense account (for existing businesses too)
+    await createBusinessAccounts(businessId, business.name)
 
     console.log(`\n📦 Seeding products for: ${business.name}`)
     console.log(`   Business ID: ${businessId}\n`)

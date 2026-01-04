@@ -1,5 +1,8 @@
 'use client'
 
+
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
 /**
  * Admin Printers Page
  * Manage network printers and print jobs

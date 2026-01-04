@@ -1,5 +1,8 @@
 'use client'
 
+
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useEffect, useState } from 'react'

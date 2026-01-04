@@ -1,5 +1,8 @@
 'use client';
 
+
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
 import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';

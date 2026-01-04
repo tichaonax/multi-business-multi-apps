@@ -72,7 +72,9 @@ async function checkDatabaseEmpty() {
 async function createDatabaseIfNeeded() {
   try {
     // Extract database info from DATABASE_URL
-    require('dotenv').config()
+    // Try .env.local first, then .env
+    require('dotenv').config({ path: path.join(ROOT_DIR, '.env.local') })
+    require('dotenv').config({ path: path.join(ROOT_DIR, '.env') })
     const databaseUrl = process.env.DATABASE_URL
     
     if (!databaseUrl) {
@@ -133,14 +135,20 @@ async function main() {
   console.log('🚀 MULTI-BUSINESS MULTI-APPS - FRESH INSTALLATION SETUP')
   console.log('='.repeat(60) + '\n')
 
-  // Check if .env exists
+  // Check if .env or .env.local exists
   const envPath = path.join(ROOT_DIR, '.env')
-  if (!fs.existsSync(envPath)) {
-    console.log('⚠️  WARNING: .env file not found!')
-    console.log('Please create a .env file with your database credentials.')
+  const envLocalPath = path.join(ROOT_DIR, '.env.local')
+
+  if (!fs.existsSync(envPath) && !fs.existsSync(envLocalPath)) {
+    console.log('⚠️  WARNING: No environment file found!')
+    console.log('Please create a .env.local or .env file with your database credentials.')
     console.log('See SETUP.md for required environment variables.\n')
     process.exit(1)
   }
+
+  // Load environment variables from .env.local first (takes precedence), then .env
+  require('dotenv').config({ path: envLocalPath })
+  require('dotenv').config({ path: envPath })
 
   // Safety check: Verify this is a fresh installation
   console.log('🔍 Checking if this is a fresh installation...\n')

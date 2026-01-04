@@ -20,8 +20,20 @@ function generateClothingBarcode(productName, sku) {
     const uniqueId = sku.replace(/[^0-9]/g, '').slice(-5).padStart(5, '0')
     const randomPart = Math.floor(Math.random() * 100000).toString().padStart(5, '0')
     const baseCode = prefix + uniqueId + randomPart // 1 + 5 + 5 = 11 digits
-    const checkDigit = calculateUPCCheckDigit(fullBase)
-    code = fullBase + checkDigit
+
+    // Calculate UPC-A check digit
+    function calculateUPCCheckDigit(code) {
+      let sum = 0
+      for (let i = 0; i < 11; i++) {
+        const digit = parseInt(code[i])
+        sum += digit * (i % 2 === 0 ? 3 : 1)
+      }
+      const remainder = sum % 10
+      return remainder === 0 ? 0 : 10 - remainder
+    }
+
+    const checkDigit = calculateUPCCheckDigit(baseCode)
+    code = baseCode + checkDigit
     isUniversal = true
   } else if (type === 'EAN_13') {
     // Generate EAN-13 (13 digits) - common for international fashion
@@ -115,6 +127,59 @@ async function ensureCategoriesExist() {
     }
   } else {
     console.log('✅ Type-based categories already exist')
+  }
+}
+
+/**
+ * Create business account and expense account for a business
+ * Mirrors the behavior from /api/admin/businesses/route.ts
+ */
+async function createBusinessAccounts(businessId, businessName, creatorId = 'admin-system-user-default') {
+  // 1. Create business account (check if exists first)
+  const existingBizAccount = await prisma.businessAccounts.findUnique({
+    where: { businessId: businessId }
+  })
+
+  if (!existingBizAccount) {
+    await prisma.businessAccounts.create({
+      data: {
+        businessId: businessId,
+        balance: 0,
+        updatedAt: new Date(),
+        createdBy: creatorId,
+      },
+    })
+    console.log(`  ✅ Created business account for ${businessName}`)
+  } else {
+    console.log(`  ℹ️  Business account already exists for ${businessName}`)
+  }
+
+  // 2. Generate account number
+  const existingAccounts = await prisma.expenseAccounts.count()
+  const accountNumber = `EXP-${String(existingAccounts + 1).padStart(3, '0')}`
+
+  // 3. Create expense account (check if one exists for this business first)
+  const existingExpenseAccount = await prisma.expenseAccounts.findFirst({
+    where: {
+      accountName: `${businessName} Expense Account`
+    }
+  })
+
+  if (!existingExpenseAccount) {
+    await prisma.expenseAccounts.create({
+      data: {
+        accountNumber,
+        accountName: `${businessName} Expense Account`,
+        description: `Default expense account for ${businessName}`,
+        balance: 0,
+        lowBalanceThreshold: 500,
+        isActive: true,
+        createdBy: creatorId,
+      },
+    })
+    console.log(`  ✅ Created expense account: ${accountNumber} - ${businessName} Expense Account`)
+  } else {
+    console.log(`  ℹ️  Expense account already exists for ${businessName}`)
   }
 }
 
@@ -227,6 +292,9 @@ async function seed() {
 
       console.log(`✅ Created new demo business: "${business.name}" (${businessId})`)
     }
+
+    // Create business account and expense account (for all businesses - new or existing)
+    await createBusinessAccounts(businessId, business.name)
 
     console.log(`\n📦 Seeding products for: ${business.name}`)
     console.log(`   Business ID: ${businessId}\n`)

@@ -64,7 +64,7 @@ export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm, a
                 >
                   {isUnseed ? 'Unseed full dev dataset' : 'Create full dev dataset'}
                 </button>
-                <button onClick={onClose} className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-md">Cancel</button>
+                <button onClick={onClose} className="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-900 dark:text-white text-sm rounded-md">Cancel</button>
               </div>
             </>
           )}
@@ -103,7 +103,7 @@ export function AdminSeedPromptModal({ isOpen, onClose, businessId, onConfirm, a
                     setSelectedAction(null)
                   }}
                   disabled={processing}
-                  className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-md"
+                  className="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-900 dark:text-white text-sm rounded-md disabled:opacity-50"
                 >
                   Cancel
                 </button>

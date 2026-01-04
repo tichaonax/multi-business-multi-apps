@@ -1,5 +1,8 @@
 'use client'
 
+
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { ContentLayout } from '@/components/layout/content-layout'
 

@@ -1,5 +1,8 @@
 'use client'
 
+
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
 import { Suspense } from 'react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'

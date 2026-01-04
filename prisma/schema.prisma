@@ -267,9 +267,9 @@ model BusinessProducts {
   product_attributes       ProductAttributes[]
   product_barcodes         ProductBarcodes[]
   product_images           ProductImages[]
+  product_price_changes    product_price_changes[]
   product_variants         ProductVariants[]
   supplier_products        SupplierProducts[]
-  product_price_changes    product_price_changes[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -388,15 +388,18 @@ model Businesses {
   shortName                                                                String?
   isDemo                                                                   Boolean                       @default(false)
   wifiIntegrationEnabled                                                   Boolean                       @default(false)
-  address                                                                  String?
-  phone                                                                    String?
-  receiptReturnPolicy                                                      String?                       @db.Text
-  taxIncludedInPrice                                                       Boolean                       @default(true)
-  taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
-  taxLabel                                                                 String?
   sku_format                                                               String?                       @default("{BUSINESS}-{SEQ}") @db.VarChar(50)
   sku_prefix                                                               String?                       @db.VarChar(20)
   sku_digits                                                               Int?                          @default(5)
+  address                                                                  String?
+  phone                                                                    String?
+  receiptReturnPolicy                                                      String?
+  taxIncludedInPrice                                                       Boolean                       @default(true)
+  taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
+  taxLabel                                                                 String?
+  barcode_inventory_items                                                  BarcodeInventoryItems[]
+  barcode_print_jobs                                                       BarcodePrintJobs[]
+  barcode_templates                                                        BarcodeTemplates[]
   business_accounts                                                        BusinessAccounts?
   business_brands                                                          BusinessBrands[]
   business_categories                                                      BusinessCategories[]
@@ -412,14 +415,19 @@ model Businesses {
   businesses                                                               Businesses?                   @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
   other_businesses                                                         Businesses[]                  @relation("businessesTobusinesses")
   customer_laybys                                                          CustomerLayby[]
+  device_connection_history                                                DeviceConnectionHistory[]
+  device_registry_first_seen                                               DeviceRegistry[]              @relation("DeviceFirstSeenBusiness")
+  device_registry_last_seen                                                DeviceRegistry[]              @relation("DeviceLastSeenBusiness")
   employee_business_assignments                                            EmployeeBusinessAssignments[]
   employee_contracts_employee_contracts_primaryBusinessIdTobusinesses      EmployeeContracts[]           @relation("employee_contracts_primaryBusinessIdTobusinesses")
   employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     EmployeeContracts[]           @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
   employees                                                                Employees[]
+  esp32_connected_clients                                                  ESP32ConnectedClients[]
   expense_account_deposits                                                 ExpenseAccountDeposits[]      @relation("ExpenseAccountDepositSource")
   expense_account_payments_as_payee                                        ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeBusiness")
   inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
   inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
+  mac_acl_entries                                                          MacAclEntry[]
   menu_combos                                                              MenuCombos[]
   menu_promotions                                                          MenuPromotions[]
   payroll_account_deposits                                                 PayrollAccountDeposits[]
@@ -430,32 +438,24 @@ model Businesses {
   print_jobs                                                               PrintJobs[]
   product_barcodes                                                         ProductBarcodes[]
   projects                                                                 Projects[]
+  r710_business_integrations                                               R710BusinessIntegrations[]    @relation("R710BusinessIntegration")
+  r710_business_token_menu_items                                           R710BusinessTokenMenuItems[]
+  r710_connected_clients                                                   R710ConnectedClients[]
+  r710_sync_logs                                                           R710SyncLogs[]
+  r710_token_configs                                                       R710TokenConfigs[]            @relation("R710TokenConfigToBusiness")
+  r710_token_sales                                                         R710TokenSales[]              @relation("R710TokenSaleToBusiness")
+  r710_tokens                                                              R710Tokens[]                  @relation("R710TokenToBusiness")
+  r710_wlans                                                               R710Wlans[]                   @relation("R710WlanToBusiness")
+  reprint_logs                                                             ReprintLog[]
   seed_data_templates                                                      SeedDataTemplates[]
+  sku_sequences                                                            sku_sequences[]
   vehicle_expenses                                                         VehicleExpenses[]
   vehicle_reimbursements                                                   VehicleReimbursements[]
   vehicle_trips                                                            VehicleTrips[]
   vehicles                                                                 Vehicles[]
   wifi_token_sales                                                         WifiTokenSales[]
   wifi_tokens                                                              WifiTokens[]
-  reprint_logs                                                             ReprintLog[]
-  r710_business_integrations                                               R710BusinessIntegrations[]    @relation("R710BusinessIntegration")
-  r710_wlans                                                               R710Wlans[]                   @relation("R710WlanToBusiness")
-  r710_token_configs                                                       R710TokenConfigs[]            @relation("R710TokenConfigToBusiness")
-  r710_tokens                                                              R710Tokens[]                  @relation("R710TokenToBusiness")
-  r710_token_sales                                                         R710TokenSales[]              @relation("R710TokenSaleToBusiness")
-  r710_business_token_menu_items                                           R710BusinessTokenMenuItems[]
-  r710_sync_logs                                                           R710SyncLogs[]
-  device_registry_first_seen                                               DeviceRegistry[]              @relation("DeviceFirstSeenBusiness")
-  device_registry_last_seen                                                DeviceRegistry[]              @relation("DeviceLastSeenBusiness")
-  device_connection_history                                                DeviceConnectionHistory[]
-  mac_acl_entries                                                          MacAclEntry[]
-  r710_connected_clients                                                   R710ConnectedClients[]
-  esp32_connected_clients                                                  ESP32ConnectedClients[]
   wifi_usage_analytics                                                     WiFiUsageAnalytics[]
-  barcode_templates                                                        BarcodeTemplates[]
-  barcode_print_jobs                                                       BarcodePrintJobs[]
-  barcode_inventory_items                                                  BarcodeInventoryItems[]
-  sku_sequences                                                            sku_sequences[]
 
   @@map("businesses")
 }
@@ -1197,9 +1197,9 @@ model ExpenseAccounts {
   deposits            ExpenseAccountDeposits[]
   payments            ExpenseAccountPayments[]
   creator             Users                    @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
-  wifi_token_sales    WifiTokenSales[]
   portal_integrations PortalIntegrations[]     @relation("PortalIntegrationExpenseAccount")
   r710_token_sales    R710TokenSales[]         @relation("R710TokenSaleToExpenseAccount")
+  wifi_token_sales    WifiTokenSales[]
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -2273,13 +2273,13 @@ model NetworkPrinters {
   capabilities       Json?
   isShareable        Boolean            @default(false)
   isOnline           Boolean            @default(true)
-  receiptWidth       Int?               @default(48) // Receipt width in characters (32, 42, or 48)
   lastSeen           DateTime           @default(now())
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @default(now()) @updatedAt
+  receiptWidth       Int?               @default(48)
+  barcode_print_jobs BarcodePrintJobs[]
   sync_nodes         SyncNodes          @relation(fields: [nodeId], references: [nodeId])
   print_jobs         PrintJobs[]
-  barcode_print_jobs BarcodePrintJobs[]
 
   @@index([nodeId])
   @@index([printerType])
@@ -2336,6 +2336,9 @@ model Users {
   username                                                        String?                     @unique
   accounts                                                        Accounts[]
   audit_logs                                                      AuditLogs[]
+  barcode_inventory_items                                         BarcodeInventoryItems[]
+  barcode_print_jobs                                              BarcodePrintJobs[]
+  barcode_templates                                               BarcodeTemplates[]
   business_accounts                                               BusinessAccounts[]
   inventory_categories                                            BusinessCategories[]        @relation("CategoryCreatedBy")
   business_memberships                                            BusinessMemberships[]
@@ -2361,6 +2364,8 @@ model Users {
   inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]        @relation("inter_business_loans_lenderUserIdTousers")
   inventory_subcategories                                         InventorySubcategories[]    @relation("SubcategoryCreatedBy")
   loan_transactions                                               LoanTransactions[]
+  mac_acl_entries_approved                                        MacAclEntry[]               @relation("MacAclApprover")
+  mac_acl_entries_created                                         MacAclEntry[]               @relation("MacAclCreator")
   orders                                                          Orders[]
   payroll_account_deposits                                        PayrollAccountDeposits[]
   payroll_account_payments_created                                PayrollAccountPayments[]    @relation("payroll_account_payments_created")
@@ -2377,11 +2382,16 @@ model Users {
   persons                                                         Persons[]
   portal_integrations_created                                     PortalIntegrations[]        @relation("PortalIntegrationCreator")
   print_jobs                                                      PrintJobs[]
+  product_price_changes                                           product_price_changes[]
   project_transactions_project_transactions_approvedByTousers     ProjectTransactions[]       @relation("project_transactions_approvedByTousers")
   project_transactions_project_transactions_createdByTousers      ProjectTransactions[]       @relation("project_transactions_createdByTousers")
   projects                                                        Projects[]
+  r710_device_registry                                            R710DeviceRegistry[]        @relation("R710DeviceCreator")
+  r710_token_sales                                                R710TokenSales[]            @relation("R710TokenSaleSeller")
+  reprint_logs                                                    ReprintLog[]
   seed_data_templates                                             SeedDataTemplates[]
   sessions                                                        Sessions[]
+  userPermissions                                                 UserPermissions[]
   vehicle_drivers                                                 VehicleDrivers[]
   vehicle_expenses                                                VehicleExpenses[]
   vehicle_maintenance_records                                     VehicleMaintenanceRecords[]
@@ -2389,16 +2399,6 @@ model Users {
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicles[]
   wifi_token_sales                                                WifiTokenSales[]            @relation("WifiTokenSaleSeller")
-  reprint_logs                                                    ReprintLog[]
-  r710_device_registry                                            R710DeviceRegistry[]        @relation("R710DeviceCreator")
-  r710_token_sales                                                R710TokenSales[]            @relation("R710TokenSaleSeller")
-  mac_acl_entries_created                                         MacAclEntry[]               @relation("MacAclCreator")
-  mac_acl_entries_approved                                        MacAclEntry[]               @relation("MacAclApprover")
-  userPermissions                                                 UserPermissions[]
-  barcode_templates                                               BarcodeTemplates[]
-  barcode_print_jobs                                              BarcodePrintJobs[]
-  barcode_inventory_items                                         BarcodeInventoryItems[]
-  product_price_changes                                           product_price_changes[]
 
   @@map("users")
 }
@@ -2680,10 +2680,10 @@ model PortalIntegrations {
   portalPort       Int
   isActive         Boolean          @default(true)
   showTokensInPOS  Boolean          @default(false)
-  expenseAccountId String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @default(now()) @updatedAt
   createdBy        String
+  expenseAccountId String?
   businesses       Businesses       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   users            Users            @relation("PortalIntegrationCreator", fields: [createdBy], references: [id])
   expense_accounts ExpenseAccounts? @relation("PortalIntegrationExpenseAccount", fields: [expenseAccountId], references: [id])
@@ -2698,12 +2698,12 @@ model TokenConfigurations {
   durationMinutes           Int
   bandwidthDownMb           Int
   bandwidthUpMb             Int
-  ssid                      String?                  @db.VarChar(255)
   basePrice                 Decimal                  @db.Decimal(12, 2)
   isActive                  Boolean                  @default(true)
   displayOrder              Int                      @default(0)
   createdAt                 DateTime                 @default(now())
   updatedAt                 DateTime                 @default(now()) @updatedAt
+  ssid                      String?                  @db.VarChar(255)
   business_token_menu_items BusinessTokenMenuItems[]
   wifi_tokens               WifiTokens[]
 
@@ -2717,11 +2717,11 @@ model BusinessTokenMenuItems {
   businessPrice           Decimal             @db.Decimal(12, 2)
   isActive                Boolean             @default(true)
   displayOrder            Int                 @default(0)
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @default(now()) @updatedAt
   durationMinutesOverride Int?
   bandwidthDownMbOverride Int?
   bandwidthUpMbOverride   Int?
-  createdAt               DateTime            @default(now())
-  updatedAt               DateTime            @default(now()) @updatedAt
   businesses              Businesses          @relation(fields: [businessId], references: [id], onDelete: Cascade)
   token_configurations    TokenConfigurations @relation(fields: [tokenConfigId], references: [id], onDelete: Cascade)
   wifi_tokens             WifiTokens[]
@@ -2752,12 +2752,12 @@ model WifiTokens {
   lastSeen                  DateTime?
   primaryMac                String?                 @db.VarChar(17)
   status                    WifiTokenStatus         @default(ACTIVE)
+  esp32_connected_clients   ESP32ConnectedClients[]
   wifi_token_devices        WifiTokenDevices[]
   wifi_token_sales          WifiTokenSales[]
   businesses                Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   business_token_menu_items BusinessTokenMenuItems? @relation(fields: [businessTokenMenuItemId], references: [id])
   token_configurations      TokenConfigurations     @relation(fields: [tokenConfigId], references: [id])
-  esp32_connected_clients   ESP32ConnectedClients[]
 
   @@index([businessId])
   @@index([status])
@@ -2776,10 +2776,10 @@ model WifiTokenSales {
   expenseAccountId String
   saleAmount       Decimal         @db.Decimal(12, 2)
   paymentMethod    String
-  saleChannel      String          @default("DIRECT") // DIRECT = Token Management UI, POS = Business POS
   soldAt           DateTime        @default(now())
   soldBy           String
   receiptPrinted   Boolean         @default(false)
+  saleChannel      String          @default("DIRECT")
   businesses       Businesses      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   expense_accounts ExpenseAccounts @relation(fields: [expenseAccountId], references: [id])
   users            Users           @relation("WifiTokenSaleSeller", fields: [soldBy], references: [id])
@@ -2820,14 +2820,589 @@ model ReprintLog {
   receiptNumber String
   reprintedAt   DateTime       @default(now())
   notes         String?
-  order         BusinessOrders @relation(fields: [orderId], references: [id], onDelete: Cascade)
   business      Businesses     @relation(fields: [businessId], references: [id])
+  order         BusinessOrders @relation(fields: [orderId], references: [id], onDelete: Cascade)
   user          Users          @relation(fields: [userId], references: [id])
 
   @@index([orderId])
   @@index([businessId, reprintedAt])
   @@index([userId])
   @@map("reprint_logs")
+}
+
+model R710DeviceRegistry {
+  id                         String                     @id @default(uuid())
+  ipAddress                  String                     @unique @db.VarChar(45)
+  adminUsername              String                     @db.VarChar(255)
+  encryptedAdminPassword     String
+  firmwareVersion            String?                    @db.VarChar(50)
+  model                      String                     @default("R710") @db.VarChar(50)
+  description                String?
+  isActive                   Boolean                    @default(true)
+  lastHealthCheck            DateTime?
+  connectionStatus           R710ConnectionStatus       @default(DISCONNECTED)
+  lastConnectedAt            DateTime?
+  lastError                  String?
+  createdBy                  String
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @default(now()) @updatedAt
+  r710_business_integrations R710BusinessIntegrations[]
+  r710_connected_clients     R710ConnectedClients[]
+  creator                    Users                      @relation("R710DeviceCreator", fields: [createdBy], references: [id])
+  r710_sync_logs             R710SyncLogs[]
+  r710_wlans                 R710Wlans[]
+
+  @@index([ipAddress])
+  @@index([connectionStatus])
+  @@index([isActive])
+  @@index([lastHealthCheck])
+  @@map("r710_device_registry")
+}
+
+model R710BusinessIntegrations {
+  id               String             @id @default(uuid())
+  businessId       String
+  deviceRegistryId String
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @default(now()) @updatedAt
+  businesses       Businesses         @relation("R710BusinessIntegration", fields: [businessId], references: [id], onDelete: Cascade)
+  device_registry  R710DeviceRegistry @relation(fields: [deviceRegistryId], references: [id])
+
+  @@unique([businessId, deviceRegistryId])
+  @@index([businessId])
+  @@index([deviceRegistryId])
+  @@map("r710_business_integrations")
+}
+
+model R710Wlans {
+  id                     String                 @id @default(uuid())
+  businessId             String
+  deviceRegistryId       String
+  wlanId                 String                 @db.VarChar(50)
+  guestServiceId         String                 @db.VarChar(50)
+  ssid                   String                 @db.VarChar(255)
+  logoType               String                 @default("none") @db.VarChar(20)
+  title                  String                 @default("Welcome to Guest WiFi !") @db.VarChar(255)
+  validDays              Int                    @default(1)
+  isActive               Boolean                @default(true)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @default(now()) @updatedAt
+  enableFriendlyKey      Boolean                @default(false)
+  enableZeroIt           Boolean                @default(true)
+  mac_acl_entries        MacAclEntry[]
+  r710_connected_clients R710ConnectedClients[]
+  r710_token_configs     R710TokenConfigs[]
+  r710_tokens            R710Tokens[]
+  businesses             Businesses             @relation("R710WlanToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  device_registry        R710DeviceRegistry     @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceRegistryId, wlanId])
+  @@index([businessId])
+  @@index([deviceRegistryId])
+  @@index([isActive])
+  @@map("r710_wlans")
+}
+
+model R710TokenConfigs {
+  id                             String                       @id @default(uuid())
+  businessId                     String
+  wlanId                         String
+  name                           String                       @db.VarChar(255)
+  description                    String?
+  durationValue                  Int
+  durationUnit                   String                       @db.VarChar(20)
+  deviceLimit                    Int                          @default(1)
+  basePrice                      Decimal                      @db.Decimal(12, 2)
+  autoGenerateThreshold          Int                          @default(5)
+  autoGenerateQuantity           Int                          @default(20)
+  isActive                       Boolean                      @default(true)
+  displayOrder                   Int                          @default(0)
+  createdAt                      DateTime                     @default(now())
+  updatedAt                      DateTime                     @default(now()) @updatedAt
+  r710_business_token_menu_items R710BusinessTokenMenuItems[]
+  businesses                     Businesses                   @relation("R710TokenConfigToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  r710_wlans                     R710Wlans                    @relation(fields: [wlanId], references: [id], onDelete: Cascade)
+  r710_tokens                    R710Tokens[]
+
+  @@index([businessId])
+  @@index([wlanId])
+  @@index([isActive])
+  @@map("r710_token_configs")
+}
+
+model R710Tokens {
+  id                 String             @id @default(uuid())
+  businessId         String
+  wlanId             String
+  tokenConfigId      String
+  username           String             @db.VarChar(50)
+  password           String             @db.VarChar(50)
+  createdAtR710      DateTime?
+  expiresAtR710      DateTime?
+  validTimeSeconds   Int?
+  firstUsedAt        DateTime?
+  status             R710TokenStatus    @default(AVAILABLE)
+  connectedMac       String?            @db.VarChar(17)
+  lastSyncedAt       DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @default(now()) @updatedAt
+  r710_device_tokens R710DeviceTokens[]
+  r710_token_sales   R710TokenSales[]
+  businesses         Businesses         @relation("R710TokenToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  r710_token_configs R710TokenConfigs   @relation(fields: [tokenConfigId], references: [id], onDelete: Cascade)
+  r710_wlans         R710Wlans          @relation(fields: [wlanId], references: [id], onDelete: Cascade)
+
+  @@unique([username, password], name: "r710_tokens_username_password_unique")
+  @@index([businessId])
+  @@index([wlanId])
+  @@index([tokenConfigId])
+  @@index([status])
+  @@index([username])
+  @@index([password])
+  @@index([connectedMac])
+  @@map("r710_tokens")
+}
+
+model R710TokenSales {
+  id               String          @id @default(uuid())
+  businessId       String
+  tokenId          String
+  expenseAccountId String
+  saleAmount       Decimal         @db.Decimal(12, 2)
+  paymentMethod    String          @db.VarChar(50)
+  saleChannel      R710SaleChannel @default(DIRECT)
+  soldAt           DateTime        @default(now())
+  soldBy           String
+  receiptPrinted   Boolean         @default(false)
+  businesses       Businesses      @relation("R710TokenSaleToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  expense_accounts ExpenseAccounts @relation("R710TokenSaleToExpenseAccount", fields: [expenseAccountId], references: [id])
+  users            Users           @relation("R710TokenSaleSeller", fields: [soldBy], references: [id])
+  r710_tokens      R710Tokens      @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([tokenId])
+  @@index([expenseAccountId])
+  @@index([soldBy])
+  @@index([saleChannel])
+  @@index([soldAt])
+  @@map("r710_token_sales")
+}
+
+model R710BusinessTokenMenuItems {
+  id                 String           @id @default(uuid())
+  businessId         String
+  tokenConfigId      String
+  businessPrice      Decimal          @db.Decimal(12, 2)
+  isActive           Boolean          @default(true)
+  displayOrder       Int              @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @default(now()) @updatedAt
+  businesses         Businesses       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  r710_token_configs R710TokenConfigs @relation(fields: [tokenConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, tokenConfigId])
+  @@index([businessId])
+  @@index([tokenConfigId])
+  @@map("r710_business_token_menu_items")
+}
+
+model R710DeviceTokens {
+  id          String     @id @default(uuid())
+  tokenId     String
+  macAddress  String     @db.VarChar(17)
+  isOnline    Boolean    @default(false)
+  currentIp   String?    @db.VarChar(15)
+  firstSeen   DateTime
+  lastSeen    DateTime
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  r710_tokens R710Tokens @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@unique([tokenId, macAddress])
+  @@index([tokenId])
+  @@index([macAddress])
+  @@index([isOnline])
+  @@map("r710_device_tokens")
+}
+
+model R710SyncLogs {
+  id               String             @id @default(uuid())
+  businessId       String
+  deviceRegistryId String
+  syncType         R710SyncType       @default(TOKEN_SYNC)
+  status           R710SyncStatus
+  tokensChecked    Int                @default(0)
+  tokensUpdated    Int                @default(0)
+  errorMessage     String?
+  syncDurationMs   Int?
+  syncedAt         DateTime           @default(now())
+  createdAt        DateTime           @default(now())
+  businesses       Businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  device_registry  R710DeviceRegistry @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([deviceRegistryId])
+  @@index([syncedAt])
+  @@index([status])
+  @@index([syncType])
+  @@map("r710_sync_logs")
+}
+
+model DeviceRegistry {
+  id                  String                    @id @default(uuid())
+  macAddress          String                    @unique @db.VarChar(17)
+  hostname            String?                   @db.VarChar(255)
+  deviceType          String?                   @db.VarChar(100)
+  manufacturer        String?                   @db.VarChar(100)
+  firstSeenAt         DateTime
+  firstSeenSystem     String                    @db.VarChar(10)
+  firstSeenBusinessId String?
+  lastSeenAt          DateTime
+  lastSeenSystem      String                    @db.VarChar(10)
+  lastSeenBusinessId  String?
+  totalConnections    Int                       @default(0)
+  esp32Connections    Int                       @default(0)
+  r710Connections     Int                       @default(0)
+  notes               String?
+  tags                String[]
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  connectionHistory   DeviceConnectionHistory[]
+  firstSeenBusiness   Businesses?               @relation("DeviceFirstSeenBusiness", fields: [firstSeenBusinessId], references: [id])
+  lastSeenBusiness    Businesses?               @relation("DeviceLastSeenBusiness", fields: [lastSeenBusinessId], references: [id])
+  aclEntries          MacAclEntry[]
+
+  @@index([macAddress])
+  @@index([firstSeenAt])
+  @@index([lastSeenAt])
+  @@index([deviceType])
+  @@index([firstSeenBusinessId])
+  @@index([lastSeenBusinessId])
+  @@index([firstSeenSystem])
+  @@index([lastSeenSystem])
+  @@map("device_registry")
+}
+
+model DeviceConnectionHistory {
+  id                String         @id @default(uuid())
+  deviceId          String
+  system            String         @db.VarChar(10)
+  businessId        String?
+  tokenId           String?
+  wlanSsid          String?        @db.VarChar(255)
+  ipAddress         String?        @db.VarChar(45)
+  signalStrength    Int?
+  radioBand         String?        @db.VarChar(10)
+  channel           String?        @db.VarChar(10)
+  bandwidthUsedDown Decimal?       @db.Decimal(12, 2)
+  bandwidthUsedUp   Decimal?       @db.Decimal(12, 2)
+  connectedAt       DateTime
+  disconnectedAt    DateTime?
+  duration          Int?
+  createdAt         DateTime       @default(now())
+  business          Businesses?    @relation(fields: [businessId], references: [id])
+  device            DeviceRegistry @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([businessId])
+  @@index([connectedAt])
+  @@index([system])
+  @@index([tokenId])
+  @@map("device_connection_history")
+}
+
+model MacAclEntry {
+  id         String          @id @default(uuid())
+  macAddress String          @db.VarChar(17)
+  deviceId   String?
+  listType   MacAclListType
+  system     String          @db.VarChar(10)
+  businessId String?
+  r710WlanId String?
+  r710AclId  String?         @db.VarChar(50)
+  reason     String?         @db.VarChar(255)
+  notes      String?
+  createdBy  String
+  approvedBy String?
+  expiresAt  DateTime?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  approver   Users?          @relation("MacAclApprover", fields: [approvedBy], references: [id])
+  business   Businesses?     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator    Users           @relation("MacAclCreator", fields: [createdBy], references: [id])
+  device     DeviceRegistry? @relation(fields: [deviceId], references: [id])
+  r710Wlan   R710Wlans?      @relation(fields: [r710WlanId], references: [id], onDelete: Cascade)
+
+  @@unique([macAddress, system, businessId, listType])
+  @@index([macAddress])
+  @@index([listType])
+  @@index([system])
+  @@index([businessId])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@map("mac_acl_entries")
+}
+
+model R710ConnectedClients {
+  id               String             @id @default(uuid())
+  deviceRegistryId String
+  wlanId           String
+  businessId       String
+  macAddress       String             @db.VarChar(17)
+  ipAddress        String?            @db.VarChar(45)
+  hostname         String?            @db.VarChar(255)
+  deviceType       String?            @db.VarChar(100)
+  tokenUsername    String?            @db.VarChar(50)
+  connectedAt      DateTime
+  signalStrength   Int?
+  radioBand        String?            @db.VarChar(10)
+  channel          String?            @db.VarChar(10)
+  rxBytes          BigInt             @default(0)
+  txBytes          BigInt             @default(0)
+  rxPackets        Int                @default(0)
+  txPackets        Int                @default(0)
+  lastSyncedAt     DateTime           @default(now())
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  business         Businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  deviceRegistry   R710DeviceRegistry @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
+  wlan             R710Wlans          @relation(fields: [wlanId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceRegistryId, macAddress])
+  @@index([deviceRegistryId])
+  @@index([wlanId])
+  @@index([businessId])
+  @@index([macAddress])
+  @@index([connectedAt])
+  @@index([lastSyncedAt])
+  @@map("r710_connected_clients")
+}
+
+model ESP32ConnectedClients {
+  id                String     @id @default(uuid())
+  macAddress        String     @db.VarChar(17)
+  ipAddress         String?    @db.VarChar(15)
+  hostname          String?    @db.VarChar(255)
+  deviceType        String?    @db.VarChar(100)
+  wifiTokenId       String
+  businessId        String
+  connectedAt       DateTime
+  isOnline          Boolean    @default(true)
+  bandwidthUsedDown Decimal    @default(0) @db.Decimal(12, 2)
+  bandwidthUsedUp   Decimal    @default(0) @db.Decimal(12, 2)
+  lastSyncedAt      DateTime   @default(now())
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  business          Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  wifiToken         WifiTokens @relation(fields: [wifiTokenId], references: [id], onDelete: Cascade)
+
+  @@unique([wifiTokenId, macAddress])
+  @@index([wifiTokenId])
+  @@index([businessId])
+  @@index([macAddress])
+  @@index([connectedAt])
+  @@index([lastSyncedAt])
+  @@index([isOnline])
+  @@map("esp32_connected_clients")
+}
+
+model WiFiUsageAnalytics {
+  id                    String      @id @default(uuid())
+  periodType            String      @db.VarChar(10)
+  periodStart           DateTime
+  periodEnd             DateTime
+  system                String      @db.VarChar(10)
+  businessId            String?
+  uniqueDevices         Int         @default(0)
+  totalConnections      Int         @default(0)
+  avgConnectionDuration Decimal?    @db.Decimal(12, 2)
+  tokensGenerated       Int         @default(0)
+  tokensSold            Int         @default(0)
+  tokensUsed            Int         @default(0)
+  tokensExpired         Int         @default(0)
+  totalRevenue          Decimal     @default(0) @db.Decimal(12, 2)
+  esp32Revenue          Decimal     @default(0) @db.Decimal(12, 2)
+  r710Revenue           Decimal     @default(0) @db.Decimal(12, 2)
+  totalBandwidthDown    Decimal     @default(0) @db.Decimal(12, 2)
+  totalBandwidthUp      Decimal     @default(0) @db.Decimal(12, 2)
+  deviceTypeStats       Json?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  business              Businesses? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([periodType, periodStart, system, businessId])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@index([system])
+  @@index([businessId])
+  @@index([periodType])
+  @@map("wifi_usage_analytics")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model BarcodeTemplates {
+  id              String                  @id @default(cuid())
+  barcodeValue    String
+  type            String
+  description     String
+  extraInfo       Json?
+  symbology       String                  @default("CODE128")
+  dpi             Int                     @default(300)
+  quietZone       Int                     @default(10)
+  paperSize       String                  @default("A6")
+  orientation     String                  @default("portrait")
+  layoutTemplate  Json
+  businessId      String
+  createdAt       DateTime                @default(now())
+  updatedBy       String?
+  updatedAt       DateTime                @updatedAt
+  name            String
+  width           Int?                    @db.SmallInt
+  height          Int?                    @db.SmallInt
+  margin          Int?                    @db.SmallInt
+  displayValue    Boolean?                @default(true)
+  fontSize        Int?                    @db.SmallInt
+  backgroundColor String?
+  lineColor       String?
+  createdById     String
+  sku             String?
+  batchId         String?
+  defaultPrice    Decimal?                @db.Decimal(10, 2)
+  productName     String?
+  defaultColor    String?
+  defaultSize     String?
+  inventoryItems  BarcodeInventoryItems[]
+  printJobs       BarcodePrintJobs[]
+  business        Businesses              @relation(fields: [businessId], references: [id])
+  createdBy       Users                   @relation(fields: [createdById], references: [id])
+
+  @@unique([businessId, barcodeValue], name: "barcode_templates_business_value_unique")
+  @@map("barcode_templates")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model BarcodePrintJobs {
+  id                    String                  @id @default(cuid())
+  templateId            String
+  requestedQuantity     Int
+  printedQuantity       Int                     @default(0)
+  status                BarcodePrintJobStatus   @default(QUEUED)
+  printerId             String?
+  printSettings         Json
+  printedAt             DateTime?
+  userNotes             String?
+  businessId            String
+  createdAt             DateTime                @default(now())
+  itemId                String?
+  itemType              String?
+  barcodeData           String?
+  itemName              String?
+  customData            Json?
+  errorMessage          String?
+  inventoryItemId       String?
+  createdById           String
+  business              Businesses              @relation(fields: [businessId], references: [id])
+  createdBy             Users                   @relation(fields: [createdById], references: [id])
+  inventoryItem         BarcodeInventoryItems?  @relation(fields: [inventoryItemId], references: [id])
+  printer               NetworkPrinters?        @relation(fields: [printerId], references: [id])
+  template              BarcodeTemplates        @relation(fields: [templateId], references: [id])
+  product_price_changes product_price_changes[]
+
+  @@map("barcode_print_jobs")
+}
+
+model BarcodeInventoryItems {
+  id                String             @id @default(cuid())
+  name              String
+  sku               String?
+  category          String?
+  barcodeTemplateId String
+  location          String?
+  stockQuantity     Int                @default(0)
+  businessId        String
+  inventoryItemId   String
+  barcodeData       String?
+  customLabel       String?
+  batchNumber       String?
+  expiryDate        DateTime?
+  quantity          Int                @default(1)
+  isActive          Boolean            @default(true)
+  createdById       String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  barcodeTemplate   BarcodeTemplates   @relation(fields: [barcodeTemplateId], references: [id])
+  business          Businesses         @relation(fields: [businessId], references: [id])
+  createdBy         Users              @relation(fields: [createdById], references: [id])
+  printJobs         BarcodePrintJobs[]
+
+  @@map("barcode_inventory_items")
+}
+
+model sku_sequences {
+  id              String     @id @default(uuid())
+  businessId      String
+  prefix          String     @db.VarChar(20)
+  currentSequence Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @default(now())
+  business        Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, prefix])
+  @@index([businessId])
+  @@index([businessId, prefix])
+  @@map("sku_sequences")
+}
+
+model product_price_changes {
+  id           String            @id @default(uuid())
+  productId    String
+  variantId    String?
+  oldPrice     Decimal?          @db.Decimal(10, 2)
+  newPrice     Decimal           @db.Decimal(10, 2)
+  changedBy    String?
+  changedAt    DateTime          @default(now())
+  changeReason String            @default("MANUAL_EDIT") @db.VarChar(100)
+  barcodeJobId String?
+  notes        String?
+  barcodeJob   BarcodePrintJobs? @relation(fields: [barcodeJobId], references: [id])
+  user         Users?            @relation(fields: [changedBy], references: [id])
+  product      BusinessProducts  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([changedAt(sort: Desc)])
+  @@index([changedBy])
+  @@index([variantId])
+  @@index([changeReason])
+  @@map("product_price_changes")
+}
+
+model Permissions {
+  id                 String            @id @default(uuid())
+  name               String            @unique
+  description        String?
+  category           String?
+  isSystemPermission Boolean           @default(false)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  userPermissions    UserPermissions[]
+
+  @@map("permissions")
+}
+
+model UserPermissions {
+  id           String      @id @default(uuid())
+  userId       String
+  permissionId String
+  granted      Boolean     @default(true)
+  grantedAt    DateTime    @default(now())
+  grantedBy    String?
+  expiresAt    DateTime?
+  permission   Permissions @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  users        Users       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
 }
 
 enum AttributeDataType {
@@ -3062,9 +3637,9 @@ enum InstallmentFrequency {
 
 enum WifiTokenStatus {
   ACTIVE
-  UNUSED
   EXPIRED
   DISABLED
+  UNUSED
   SOLD
 }
 
@@ -3104,698 +3679,10 @@ enum MacAclListType {
   WHITELIST
 }
 
-// Ruckus R710 Captive Portal Integration Models
-
-// Global R710 Device Registry - Admin manages R710 devices here
-// One record per unique IP address, shared across all businesses
-// CRITICAL: Dropdown only shows devices with recent successful health checks
-// This handles database sync/backup scenarios where devices may not be accessible
-model R710DeviceRegistry {
-  id                     String  @id @default(uuid())
-  ipAddress              String  @unique @db.VarChar(45)
-  adminUsername          String  @db.VarChar(255)
-  encryptedAdminPassword String  @db.Text
-  firmwareVersion        String? @db.VarChar(50)
-  model                  String  @default("R710") @db.VarChar(50)
-  description            String? @db.Text
-  isActive               Boolean @default(true)
-
-  // Connectivity tracking - prevents showing unreachable devices in dropdown
-  lastHealthCheck  DateTime? // Last time connectivity was tested
-  connectionStatus R710ConnectionStatus @default(DISCONNECTED)
-  lastConnectedAt  DateTime? // Last successful connection
-  lastError        String?              @db.Text // Last error message if disconnected
-
-  createdBy                  String
-  createdAt                  DateTime                   @default(now())
-  updatedAt                  DateTime                   @default(now()) @updatedAt
-  creator                    Users                      @relation("R710DeviceCreator", fields: [createdBy], references: [id])
-  r710_business_integrations R710BusinessIntegrations[]
-  r710_wlans                 R710Wlans[]
-  r710_sync_logs             R710SyncLogs[]
-  r710_connected_clients     R710ConnectedClients[]
-
-  @@index([ipAddress])
-  @@index([connectionStatus])
-  @@index([isActive])
-  @@index([lastHealthCheck])
-  @@map("r710_device_registry")
-}
-
-// Links businesses to R710 devices - businesses select from registered devices
-model R710BusinessIntegrations {
-  id               String             @id @default(uuid())
-  businessId       String
-  deviceRegistryId String
-  isActive         Boolean            @default(true)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @default(now()) @updatedAt
-  businesses       Businesses         @relation("R710BusinessIntegration", fields: [businessId], references: [id], onDelete: Cascade)
-  device_registry  R710DeviceRegistry @relation(fields: [deviceRegistryId], references: [id], onDelete: Restrict)
-
-  @@unique([businessId, deviceRegistryId])
-  @@index([businessId])
-  @@index([deviceRegistryId])
-  @@map("r710_business_integrations")
-}
-
-model R710Wlans {
-  id                     String                 @id @default(uuid())
-  businessId             String
-  deviceRegistryId       String
-  wlanId                 String                 @db.VarChar(50)
-  guestServiceId         String                 @db.VarChar(50)
-  ssid                   String                 @db.VarChar(255)
-  logoType               String                 @default("none") @db.VarChar(20)
-  title                  String                 @default("Welcome to Guest WiFi !") @db.VarChar(255)
-  validDays              Int                    @default(1)
-  enableFriendlyKey      Boolean                @default(false)
-  enableZeroIt           Boolean                @default(true)
-  isActive               Boolean                @default(true)
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @default(now()) @updatedAt
-  businesses             Businesses             @relation("R710WlanToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
-  device_registry        R710DeviceRegistry     @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
-  r710_token_configs     R710TokenConfigs[]
-  r710_tokens            R710Tokens[]
-  r710_connected_clients R710ConnectedClients[]
-  mac_acl_entries        MacAclEntry[]
-
-  @@unique([deviceRegistryId, wlanId])
-  @@index([businessId])
-  @@index([deviceRegistryId])
-  @@index([isActive])
-  @@map("r710_wlans")
-}
-
-model R710TokenConfigs {
-  id                             String                       @id @default(uuid())
-  businessId                     String
-  wlanId                         String
-  name                           String                       @db.VarChar(255)
-  description                    String?                      @db.Text
-  durationValue                  Int
-  durationUnit                   String                       @db.VarChar(20)
-  deviceLimit                    Int                          @default(1)
-  basePrice                      Decimal                      @db.Decimal(12, 2)
-  autoGenerateThreshold          Int                          @default(5)
-  autoGenerateQuantity           Int                          @default(20)
-  isActive                       Boolean                      @default(true)
-  displayOrder                   Int                          @default(0)
-  createdAt                      DateTime                     @default(now())
-  updatedAt                      DateTime                     @default(now()) @updatedAt
-  businesses                     Businesses                   @relation("R710TokenConfigToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
-  r710_wlans                     R710Wlans                    @relation(fields: [wlanId], references: [id], onDelete: Cascade)
-  r710_tokens                    R710Tokens[]
-  r710_business_token_menu_items R710BusinessTokenMenuItems[]
-
-  @@index([businessId])
-  @@index([wlanId])
-  @@index([isActive])
-  @@map("r710_token_configs")
-}
-
-model R710Tokens {
-  id                 String             @id @default(uuid())
-  businessId         String
-  wlanId             String
-  tokenConfigId      String
-  username           String             @db.VarChar(50)
-  password           String             @db.VarChar(50)
-  createdAtR710      DateTime?
-  expiresAtR710      DateTime?
-  validTimeSeconds   Int?
-  firstUsedAt        DateTime?
-  status             R710TokenStatus    @default(AVAILABLE)
-  connectedMac       String?            @db.VarChar(17)
-  lastSyncedAt       DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @default(now()) @updatedAt
-  businesses         Businesses         @relation("R710TokenToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
-  r710_wlans         R710Wlans          @relation(fields: [wlanId], references: [id], onDelete: Cascade)
-  r710_token_configs R710TokenConfigs   @relation(fields: [tokenConfigId], references: [id], onDelete: Cascade)
-  r710_token_sales   R710TokenSales[]
-  r710_device_tokens R710DeviceTokens[]
-
-  @@unique([username, password], name: "r710_tokens_username_password_unique")
-  @@index([businessId])
-  @@index([wlanId])
-  @@index([tokenConfigId])
-  @@index([status])
-  @@index([username])
-  @@index([password])
-  @@index([connectedMac])
-  @@map("r710_tokens")
-}
-
-model R710TokenSales {
-  id               String          @id @default(uuid())
-  businessId       String
-  tokenId          String
-  expenseAccountId String
-  saleAmount       Decimal         @db.Decimal(12, 2)
-  paymentMethod    String          @db.VarChar(50)
-  saleChannel      R710SaleChannel @default(DIRECT)
-  soldAt           DateTime        @default(now())
-  soldBy           String
-  receiptPrinted   Boolean         @default(false)
-  businesses       Businesses      @relation("R710TokenSaleToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
-  r710_tokens      R710Tokens      @relation(fields: [tokenId], references: [id], onDelete: Cascade)
-  expense_accounts ExpenseAccounts @relation("R710TokenSaleToExpenseAccount", fields: [expenseAccountId], references: [id])
-  users            Users           @relation("R710TokenSaleSeller", fields: [soldBy], references: [id])
-
-  @@index([businessId])
-  @@index([tokenId])
-  @@index([expenseAccountId])
-  @@index([soldBy])
-  @@index([saleChannel])
-  @@index([soldAt])
-  @@map("r710_token_sales")
-}
-
-// R710 Business Token Menu Items - Which token configs are available in each business's POS
-model R710BusinessTokenMenuItems {
-  id                 String           @id @default(uuid())
-  businessId         String
-  tokenConfigId      String
-  businessPrice      Decimal          @db.Decimal(12, 2)
-  isActive           Boolean          @default(true)
-  displayOrder       Int              @default(0)
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @default(now()) @updatedAt
-  businesses         Businesses       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  r710_token_configs R710TokenConfigs @relation(fields: [tokenConfigId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, tokenConfigId])
-  @@index([businessId])
-  @@index([tokenConfigId])
-  @@map("r710_business_token_menu_items")
-}
-
-model R710DeviceTokens {
-  id          String     @id @default(uuid())
-  tokenId     String
-  macAddress  String     @db.VarChar(17)
-  isOnline    Boolean    @default(false)
-  currentIp   String?    @db.VarChar(15)
-  firstSeen   DateTime
-  lastSeen    DateTime
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  r710_tokens R710Tokens @relation(fields: [tokenId], references: [id], onDelete: Cascade)
-
-  @@unique([tokenId, macAddress])
-  @@index([tokenId])
-  @@index([macAddress])
-  @@index([isOnline])
-  @@map("r710_device_tokens")
-}
-
-model R710SyncLogs {
-  id               String             @id @default(uuid())
-  businessId       String
-  deviceRegistryId String
-  syncType         R710SyncType       @default(TOKEN_SYNC)
-  status           R710SyncStatus
-  tokensChecked    Int                @default(0)
-  tokensUpdated    Int                @default(0)
-  errorMessage     String?            @db.Text
-  syncDurationMs   Int?
-  syncedAt         DateTime           @default(now())
-  createdAt        DateTime           @default(now())
-  businesses       Businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  device_registry  R710DeviceRegistry @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
-
-  @@index([businessId])
-  @@index([deviceRegistryId])
-  @@index([syncedAt])
-  @@index([status])
-  @@index([syncType])
-  @@map("r710_sync_logs")
-}
-
-// ==================================================
-// WiFi Admin Monitoring & Analytics Models (MBM-121)
-// ==================================================
-
-// Unified device registry across ESP32 and R710 systems
-// Tracks unique devices by MAC address with first/last connection details
-model DeviceRegistry {
-  id         String @id @default(uuid())
-  macAddress String @unique @db.VarChar(17) // Normalized MAC (lowercase with colons: aa:bb:cc:dd:ee:ff)
-
-  // Device Identification
-  hostname     String? @db.VarChar(255)
-  deviceType   String? @db.VarChar(100) // iOS, Android, Windows, Linux, etc.
-  manufacturer String? @db.VarChar(100) // Derived from MAC OUI lookup
-
-  // First Connection Tracking
-  firstSeenAt         DateTime
-  firstSeenSystem     String   @db.VarChar(10) // "ESP32" or "R710"
-  firstSeenBusinessId String?
-
-  // Last Connection Tracking
-  lastSeenAt         DateTime
-  lastSeenSystem     String   @db.VarChar(10) // "ESP32" or "R710"
-  lastSeenBusinessId String?
-
-  // Connection Statistics
-  totalConnections Int @default(0)
-  esp32Connections Int @default(0)
-  r710Connections  Int @default(0)
-
-  // Admin Notes & Tags
-  notes String?  @db.Text
-  tags  String[] // ["VIP", "Blocked", "Employee", "Suspicious", etc.]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  firstSeenBusiness Businesses?               @relation("DeviceFirstSeenBusiness", fields: [firstSeenBusinessId], references: [id])
-  lastSeenBusiness  Businesses?               @relation("DeviceLastSeenBusiness", fields: [lastSeenBusinessId], references: [id])
-  aclEntries        MacAclEntry[]
-  connectionHistory DeviceConnectionHistory[]
-
-  @@index([macAddress])
-  @@index([firstSeenAt])
-  @@index([lastSeenAt])
-  @@index([deviceType])
-  @@index([firstSeenBusinessId])
-  @@index([lastSeenBusinessId])
-  @@index([firstSeenSystem])
-  @@index([lastSeenSystem])
-  @@map("device_registry")
-}
-
-// Historical connection records for devices
-// Enables connection timeline and analytics
-model DeviceConnectionHistory {
-  id       String @id @default(uuid())
-  deviceId String
-
-  // Connection Details
-  system     String  @db.VarChar(10) // "ESP32" or "R710"
-  businessId String?
-  tokenId    String? // Reference to WifiTokens.id or R710Tokens.id (polymorphic)
-  wlanSsid   String? @db.VarChar(255)
-
-  // Connection Metadata
-  ipAddress      String? @db.VarChar(45) // Supports IPv6
-  signalStrength Int? // RSSI for R710 (e.g., -65 dBm)
-  radioBand      String? @db.VarChar(10) // "2.4g" or "5g" for R710
-  channel        String? @db.VarChar(10)
-
-  // Bandwidth Usage (captured at disconnect for ESP32)
-  bandwidthUsedDown Decimal? @db.Decimal(12, 2) // MB
-  bandwidthUsedUp   Decimal? @db.Decimal(12, 2) // MB
-
-  // Timestamps
-  connectedAt    DateTime
-  disconnectedAt DateTime?
-  duration       Int? // Seconds (calculated from connected/disconnected)
-
-  createdAt DateTime @default(now())
-
-  // Relations
-  device   DeviceRegistry @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  business Businesses?    @relation(fields: [businessId], references: [id])
-
-  @@index([deviceId])
-  @@index([businessId])
-  @@index([connectedAt])
-  @@index([system])
-  @@index([tokenId])
-  @@map("device_connection_history")
-}
-
-// Unified MAC address access control list for both ESP32 and R710
-// Supports blacklist (deny) and whitelist (allow) modes
-model MacAclEntry {
-  id String @id @default(uuid())
-
-  // MAC Address
-  macAddress String  @db.VarChar(17) // Normalized format
-  deviceId   String? // Link to DeviceRegistry if device has been seen
-
-  // ACL Configuration
-  listType   MacAclListType // "BLACKLIST" or "WHITELIST"
-  system     String         @db.VarChar(10) // "ESP32", "R710", or "BOTH"
-  businessId String? // Null = applies globally, otherwise business-specific
-
-  // R710-Specific (Optional)
-  r710WlanId String? // Restrict to specific WLAN
-  r710AclId  String? @db.VarChar(50) // R710 internal ACL list ID
-
-  // Metadata
-  reason     String? @db.VarChar(255) // "Abuse", "VIP", "Employee", etc.
-  notes      String? @db.Text
-  createdBy  String
-  approvedBy String? // For approval workflow
-
-  // Auto-Expiry (Optional)
-  expiresAt DateTime?
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  device   DeviceRegistry? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  business Businesses?     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  creator  Users           @relation("MacAclCreator", fields: [createdBy], references: [id])
-  approver Users?          @relation("MacAclApprover", fields: [approvedBy], references: [id])
-  r710Wlan R710Wlans?      @relation(fields: [r710WlanId], references: [id], onDelete: Cascade)
-
-  @@unique([macAddress, system, businessId, listType]) // Prevent duplicates
-  @@index([macAddress])
-  @@index([listType])
-  @@index([system])
-  @@index([businessId])
-  @@index([createdAt])
-  @@index([expiresAt])
-  @@map("mac_acl_entries")
-}
-
-// Real-time snapshot of connected clients on R710 devices
-// Refreshed periodically by background sync job
-model R710ConnectedClients {
-  id String @id @default(uuid())
-
-  // Device & WLAN Association
-  deviceRegistryId String
-  wlanId           String
-  businessId       String
-
-  // Client Identification
-  macAddress String  @db.VarChar(17)
-  ipAddress  String? @db.VarChar(45)
-  hostname   String? @db.VarChar(255)
-  deviceType String? @db.VarChar(100)
-
-  // Connection Details
-  tokenUsername  String?  @db.VarChar(50) // Guest-XX from R710Tokens
-  connectedAt    DateTime
-  signalStrength Int? // RSSI in dBm
-  radioBand      String?  @db.VarChar(10) // "2.4g" or "5g"
-  channel        String?  @db.VarChar(10)
-
-  // Traffic Statistics (from R710 API)
-  rxBytes   BigInt @default(0)
-  txBytes   BigInt @default(0)
-  rxPackets Int    @default(0)
-  txPackets Int    @default(0)
-
-  // Metadata
-  lastSyncedAt DateTime @default(now())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  deviceRegistry R710DeviceRegistry @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
-  wlan           R710Wlans          @relation(fields: [wlanId], references: [id], onDelete: Cascade)
-  business       Businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([deviceRegistryId, macAddress]) // One entry per MAC per device
-  @@index([deviceRegistryId])
-  @@index([wlanId])
-  @@index([businessId])
-  @@index([macAddress])
-  @@index([connectedAt])
-  @@index([lastSyncedAt])
-  @@map("r710_connected_clients")
-}
-
-// Real-time snapshot of connected clients on ESP32 devices
-// Refreshed periodically by querying ESP32 /api/tokens/list with status=active
-model ESP32ConnectedClients {
-  id String @id @default(uuid())
-
-  // Client Identification
-  macAddress String  @db.VarChar(17)
-  ipAddress  String? @db.VarChar(15) // IPv4 only for ESP32
-  hostname   String? @db.VarChar(255)
-  deviceType String? @db.VarChar(100)
-
-  // Token Association
-  wifiTokenId String // WifiTokens.id
-  businessId  String
-
-  // Connection Details
-  connectedAt DateTime
-  isOnline    Boolean  @default(true)
-
-  // Bandwidth Usage (from ESP32 API)
-  bandwidthUsedDown Decimal @default(0) @db.Decimal(12, 2) // MB
-  bandwidthUsedUp   Decimal @default(0) @db.Decimal(12, 2) // MB
-
-  // Metadata
-  lastSyncedAt DateTime @default(now())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  wifiToken WifiTokens @relation(fields: [wifiTokenId], references: [id], onDelete: Cascade)
-  business  Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([wifiTokenId, macAddress]) // One entry per MAC per token
-  @@index([wifiTokenId])
-  @@index([businessId])
-  @@index([macAddress])
-  @@index([connectedAt])
-  @@index([lastSyncedAt])
-  @@index([isOnline])
-  @@map("esp32_connected_clients")
-}
-
-// Aggregated usage analytics for WiFi systems
-// Pre-calculated metrics for faster dashboard loading
-model WiFiUsageAnalytics {
-  id String @id @default(uuid())
-
-  // Time Period
-  periodType  String   @db.VarChar(10) // "HOURLY", "DAILY", "WEEKLY", "MONTHLY"
-  periodStart DateTime
-  periodEnd   DateTime
-
-  // System & Business
-  system     String  @db.VarChar(10) // "ESP32", "R710", or "BOTH"
-  businessId String? // Null = global analytics
-
-  // Connection Metrics
-  uniqueDevices         Int      @default(0)
-  totalConnections      Int      @default(0)
-  avgConnectionDuration Decimal? @db.Decimal(12, 2) // Minutes
-
-  // Token Metrics
-  tokensGenerated Int @default(0)
-  tokensSold      Int @default(0)
-  tokensUsed      Int @default(0)
-  tokensExpired   Int @default(0)
-
-  // Revenue Metrics
-  totalRevenue Decimal @default(0) @db.Decimal(12, 2)
-  esp32Revenue Decimal @default(0) @db.Decimal(12, 2)
-  r710Revenue  Decimal @default(0) @db.Decimal(12, 2)
-
-  // Bandwidth Metrics (ESP32 only)
-  totalBandwidthDown Decimal @default(0) @db.Decimal(12, 2) // MB
-  totalBandwidthUp   Decimal @default(0) @db.Decimal(12, 2) // MB
-
-  // Device Type Breakdown (JSON)
-  deviceTypeStats Json? // {"iOS": 45, "Android": 30, "Windows": 15, ...}
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  business Businesses? @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([periodType, periodStart, system, businessId]) // Prevent duplicates for same period
-  @@index([periodStart])
-  @@index([periodEnd])
-  @@index([system])
-  @@index([businessId])
-  @@index([periodType])
-  @@map("wifi_usage_analytics")
-}
-
-// =============================================================================
-// BARCODE MANAGEMENT SYSTEM
-// =============================================================================
-
-model BarcodeTemplates {
-  id              String                  @id @default(cuid())
-  name            String // Template name (required)
-  barcodeValue    String // Barcode value (what gets scanned)
-  sku             String? // Human-readable SKU/product code
-  batchId         String? // Batch identifier (max 10 chars, auto-generated if not provided)
-  defaultPrice    Decimal? @db.Decimal(10, 2) // Default price for this template (can be overridden per print job)
-  productName     String? // Default product name that appears on label (can be overridden per print job)
-  defaultColor    String? // Default color/descriptor that appears on label (can be overridden per print job)
-  defaultSize     String? // Default size/variant that appears on label (can be overridden per print job)
-  type            String // 'grocery', 'hardware', 'clothing', etc.
-  description     String
-  extraInfo       Json? // Flexible metadata storage
-  symbology       String                  @default("CODE128") // CODE128, QR, EAN13, etc.
-  width           Int?                    @db.SmallInt // Barcode width in pixels (1-500)
-  height          Int?                    @db.SmallInt // Barcode height in pixels (1-500)
-  margin          Int?                    @db.SmallInt // Barcode margin (0-50)
-  displayValue    Boolean?                @default(true) // Show text below barcode
-  fontSize        Int?                    @db.SmallInt // Font size (8-72)
-  backgroundColor String? // Background color
-  lineColor       String? // Barcode line color
-  dpi             Int                     @default(300)
-  quietZone       Int                     @default(10)
-  paperSize       String                  @default("A6") // A6, CR80, receipt, etc.
-  orientation     String                  @default("portrait") // portrait, landscape
-  layoutTemplate  Json // Field positioning and styling
-  businessId      String
-  business        Businesses              @relation(fields: [businessId], references: [id])
-  createdById     String // User who created the template
-  createdBy       Users                   @relation(fields: [createdById], references: [id])
-  createdAt       DateTime                @default(now())
-  updatedBy       String?
-  updatedAt       DateTime                @updatedAt
-  printJobs       BarcodePrintJobs[]
-  inventoryItems  BarcodeInventoryItems[]
-
-  @@unique([businessId, barcodeValue], name: "barcode_templates_business_value_unique")
-  @@map("barcode_templates")
-}
-
-model BarcodePrintJobs {
-  id                String                 @id @default(cuid())
-  templateId        String
-  template          BarcodeTemplates       @relation(fields: [templateId], references: [id])
-  itemId            String? // Reference to product/inventory item
-  itemType          String? // INVENTORY_ITEM, PRODUCT, CUSTOM
-  barcodeData       String? // Generated barcode value
-  itemName          String? // Item name for display
-  customData        Json? // Custom metadata for CUSTOM type
-  requestedQuantity Int
-  printedQuantity   Int                    @default(0)
-  status            BarcodePrintJobStatus  @default(QUEUED)
-  printerId         String?
-  printer           NetworkPrinters?       @relation(fields: [printerId], references: [id])
-  printSettings     Json // Snapshot of print configuration
-  printedAt         DateTime?
-  userNotes         String?
-  errorMessage      String? // Error message for failed jobs
-  inventoryItemId   String? // FK to BarcodeInventoryItems
-  inventoryItem     BarcodeInventoryItems? @relation(fields: [inventoryItemId], references: [id])
-  businessId        String
-  business          Businesses             @relation(fields: [businessId], references: [id])
-  createdById       String // User who created the job
-  createdBy         Users                  @relation(fields: [createdById], references: [id])
-  createdAt         DateTime               @default(now())
-  product_price_changes product_price_changes[]
-
-  @@map("barcode_print_jobs")
-}
-
 enum BarcodePrintJobStatus {
   QUEUED
   PRINTING
   COMPLETED
   FAILED
   CANCELLED
-}
-
-model BarcodeInventoryItems {
-  id                String             @id @default(cuid())
-  inventoryItemId   String // Reference to existing inventory
-  name              String
-  sku               String?
-  category          String?
-  barcodeData       String? // Barcode data value
-  customLabel       String? // Custom label for this item
-  batchNumber       String? // Batch/lot number
-  expiryDate        DateTime? // Expiration date
-  quantity          Int                @default(1) // Quantity for this barcode
-  isActive          Boolean            @default(true) // Soft delete flag
-  barcodeTemplateId String
-  barcodeTemplate   BarcodeTemplates   @relation(fields: [barcodeTemplateId], references: [id])
-  location          String?
-  stockQuantity     Int                @default(0)
-  businessId        String
-  business          Businesses         @relation(fields: [businessId], references: [id])
-  createdById       String // User who created the linkage
-  createdBy         Users              @relation(fields: [createdById], references: [id])
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  printJobs         BarcodePrintJobs[] // Back relation to print jobs
-
-  @@map("barcode_inventory_items")
-}
-
-// SKU Auto-Generation Models
-model sku_sequences {
-  id              String     @id @default(uuid())
-  businessId      String
-  prefix          String     @db.VarChar(20)
-  currentSequence Int        @default(0)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @default(now())
-  business        Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, prefix])
-  @@index([businessId])
-  @@index([businessId, prefix])
-  @@map("sku_sequences")
-}
-
-// Price Change Audit Log
-model product_price_changes {
-  id             String            @id @default(uuid())
-  productId      String
-  variantId      String?
-  oldPrice       Decimal?          @db.Decimal(10, 2)
-  newPrice       Decimal           @db.Decimal(10, 2)
-  changedBy      String?
-  changedAt      DateTime          @default(now())
-  changeReason   String            @default("MANUAL_EDIT") @db.VarChar(100)
-  barcodeJobId   String?
-  notes          String?           @db.Text
-  product        BusinessProducts  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user           Users?            @relation(fields: [changedBy], references: [id], onDelete: SetNull)
-  barcodeJob     BarcodePrintJobs? @relation(fields: [barcodeJobId], references: [id], onDelete: SetNull)
-
-  @@index([productId])
-  @@index([changedAt(sort: Desc)])
-  @@index([changedBy])
-  @@index([variantId])
-  @@index([changeReason])
-  @@map("product_price_changes")
-}
-
-// Permission System Models
-model Permissions {
-  id                 String            @id @default(uuid())
-  name               String            @unique
-  description        String?
-  category           String?
-  isSystemPermission Boolean           @default(false)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  userPermissions    UserPermissions[]
-
-  @@map("permissions")
-}
-
-model UserPermissions {
-  id           String      @id @default(uuid())
-  userId       String
-  permissionId String
-  granted      Boolean     @default(true)
-  grantedAt    DateTime    @default(now())
-  grantedBy    String?
-  expiresAt    DateTime?
-  users        Users       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permissions @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, permissionId])
-  @@map("user_permissions")
 }

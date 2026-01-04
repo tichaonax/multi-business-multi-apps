@@ -27,7 +27,7 @@ async function upsertVehicle(id, plate, vin) {
   })
 }
 
-async function upsertDriver(id, fullName, licenseNumber) {
+async function upsertDriver(id, fullName, licenseNumber, licenseCountryOfIssuance = 'US') {
   const existing = await prisma.vehicleDrivers.findUnique({ where: { id } })
   if (existing) return existing
   const now = new Date()
@@ -37,6 +37,7 @@ async function upsertDriver(id, fullName, licenseNumber) {
       fullName,
       licenseNumber,
       licenseExpiry: new Date('2026-12-31'),
+      licenseCountryOfIssuance,
       isActive: true,
       createdAt: now,
       updatedAt: now

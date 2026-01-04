@@ -78,7 +78,7 @@ const employeesByBusiness = {
     { firstName: 'Emily', lastName: 'Rodriguez', role: 'sales', jobTitle: 'Sales Representative', compensationType: 'base-plus-commission-low' },
     { firstName: 'David', lastName: 'Williams', role: 'sales', jobTitle: 'Sales Representative', compensationType: 'base-plus-commission-low' }
   ],
-  'grocery-demo-business': [
+  'grocery-demo-1': [
     { firstName: 'James', lastName: 'Brown', role: 'manager', jobTitle: 'Operations Manager', compensationType: 'monthly-management' },
     { firstName: 'Lisa', lastName: 'Garcia', role: 'sales', jobTitle: 'Sales Associate', compensationType: 'hourly-skilled' },
     { firstName: 'Robert', lastName: 'Martinez', role: 'staff', jobTitle: 'Inventory Clerk', compensationType: 'hourly-minimum' },
@@ -123,7 +123,29 @@ async function seedDemoEmployees() {
       console.log(`⚠️  Found ${existingDemoEmployees.length} existing demo employees`);
       console.log('🗑️  Cleaning up existing demo data to ensure fresh seed...\n');
 
-      // Delete business memberships first
+      // Get employee IDs for cleanup
+      const employeeIds = existingDemoEmployees.map(emp => emp.id);
+
+      // Delete related records that have RESTRICT constraint
+      // These MUST be deleted BEFORE employees to avoid foreign key constraint violations
+
+      // 1. Delete PayrollAccountPayments (RESTRICT constraint on employeeId)
+      const deletedPayrollPayments = await prisma.payrollAccountPayments.deleteMany({
+        where: {
+          employeeId: { in: employeeIds }
+        }
+      });
+      console.log(`   Deleted ${deletedPayrollPayments.count} payroll account payments`);
+
+      // 2. Delete DisciplinaryActions where employee is the creator (RESTRICT constraint on createdBy)
+      const deletedDisciplinaryActions = await prisma.disciplinaryActions.deleteMany({
+        where: {
+          createdBy: { in: employeeIds }
+        }
+      });
+      console.log(`   Deleted ${deletedDisciplinaryActions.count} disciplinary actions (as creator)`);
+
+      // Delete business memberships
       for (const emp of existingDemoEmployees) {
         if (emp.userId) {
           await prisma.businessMemberships.deleteMany({
@@ -132,7 +154,7 @@ async function seedDemoEmployees() {
         }
       }
 
-      // Delete employees
+      // Delete employees (cascading deletes will handle employee_* tables)
       await prisma.employees.deleteMany({
         where: {
           email: {

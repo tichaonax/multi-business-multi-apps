@@ -371,6 +371,20 @@ async function checkLocalPrinterConnectivity(printerName: string): Promise<boole
  * Update printer online status
  */
 async function updatePrinterStatus(printerId: string, isOnline: boolean): Promise<void> {
+  // Get current printer status before update
+  const printer = await prisma.networkPrinters.findUnique({
+    where: { id: printerId },
+    select: { printerName: true, isOnline: true, nodeId: true }
+  });
+
+  if (!printer) {
+    console.warn(`Cannot update status for printer ${printerId}: printer not found`);
+    return;
+  }
+
+  const oldStatus = printer.isOnline ? 'online' : 'offline';
+  const newStatus = isOnline ? 'online' : 'offline';
+
   await prisma.networkPrinters.update({
     where: { id: printerId },
     data: {
@@ -379,8 +393,10 @@ async function updatePrinterStatus(printerId: string, isOnline: boolean): Promis
     },
   });
 
-  // Audit the status change
-  await auditPrinterStatusChanged(printerId, isOnline);
+  // Audit the status change only if status actually changed
+  if (oldStatus !== newStatus) {
+    await auditPrinterStatusChanged(printerId, printer.printerName, oldStatus, newStatus, printer.nodeId);
+  }
 }
 
 /**

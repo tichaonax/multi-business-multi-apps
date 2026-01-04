@@ -1,5 +1,8 @@
 'use client'
 
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
+
 import { SystemAdminRoute } from '@/components/auth/system-admin-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, useRef } from 'react'

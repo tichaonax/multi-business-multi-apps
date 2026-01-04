@@ -1,5 +1,8 @@
 'use client'
 
+// Force dynamic rendering for session-based pages
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react'
 import { usePrompt } from '@/components/ui/input-modal'
 import { useParams } from 'next/navigation'
