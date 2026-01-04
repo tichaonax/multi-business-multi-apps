@@ -23,10 +23,10 @@ async function getRestaurantBusinessIds(session: any) {
     }
   })
 
-  // If user is admin, get ALL restaurant businesses
+  // If user is admin, get ALL active restaurant businesses
   if (user?.role === 'admin') {
     const allRestaurantBusinesses = await prisma.businesses.findMany({
-      where: { type: 'restaurant' },
+      where: { type: 'restaurant', isActive: true },
       select: { id: true, name: true }
     })
 

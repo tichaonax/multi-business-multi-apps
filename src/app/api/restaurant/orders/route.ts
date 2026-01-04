@@ -19,7 +19,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
   // If session already indicates admin (useful for dev bypass), return all restaurant businesses
   if (session?.user?.role === 'admin') {
     const allRestaurantBusinesses = await prisma.businesses.findMany({
-      where: { type: 'restaurant' },
+      where: { type: 'restaurant', isActive: true },
       select: { id: true, name: true }
     })
 
@@ -43,10 +43,10 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
     }
   })
 
-  // If user is admin in DB, return all restaurants
+  // If user is admin in DB, return all active restaurants
   if (user?.role === 'admin') {
     const allRestaurantBusinesses = await prisma.businesses.findMany({
-      where: { type: 'restaurant' },
+      where: { type: 'restaurant', isActive: true },
       select: { id: true }
     })
     return allRestaurantBusinesses.map(b => b.id)

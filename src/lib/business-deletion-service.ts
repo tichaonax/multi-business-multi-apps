@@ -13,6 +13,7 @@ import { prisma } from '@/lib/prisma'
 interface DeletionResult {
   success: boolean
   error?: string
+  warning?: string
   deletedCounts?: {
     orderItems: number
     orders: number
@@ -54,8 +55,18 @@ export async function deleteBusinessHard(
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },
       include: {
-        business_memberships: { where: { isActive: true } },
-        employees: { where: { isActive: true } }
+        business_memberships: {
+          where: { isActive: true },
+          include: {
+            users: {
+              select: { name: true, email: true }
+            }
+          }
+        },
+        employees: {
+          where: { isActive: true },
+          select: { fullName: true, employeeNumber: true }
+        }
       }
     })
 
@@ -66,24 +77,32 @@ export async function deleteBusinessHard(
     // Safety check: Verify this is a demo business
     const isDemoBusiness = business.name.includes('[Demo]')
     if (!isDemoBusiness) {
-      return { 
-        success: false, 
-        error: 'Hard delete is only allowed for demo businesses. Use soft delete (deactivation) for real businesses.' 
+      return {
+        success: false,
+        error: 'Hard delete is only allowed for demo businesses. Use soft delete (deactivation) for real businesses.'
       }
     }
 
     // Safety check: No active memberships or employees
     if (business.business_memberships.length > 0) {
+      const memberNames = business.business_memberships
+        .map(m => m.users.name || m.users.email)
+        .join(', ')
+
       return {
         success: false,
-        error: `Cannot delete business with ${business.business_memberships.length} active member(s). Deactivate them first.`
+        error: `Cannot delete business with ${business.business_memberships.length} active member(s): ${memberNames}. Go to Admin → User Management to deactivate their membership first.`
       }
     }
 
     if (business.employees.length > 0) {
+      const employeeNames = business.employees
+        .map(e => `${e.fullName} (${e.employeeNumber})`)
+        .join(', ')
+
       return {
         success: false,
-        error: `Cannot delete business with ${business.employees.length} active employee(s). Transfer them to another business first.`
+        error: `Cannot delete business with ${business.employees.length} active employee(s): ${employeeNames}. Transfer them to another business first using the employee transfer feature.`
       }
     }
 
@@ -349,9 +368,33 @@ export async function deleteBusinessHard(
     }
   } catch (error) {
     console.error('Error in deleteBusinessHard:', error)
+
+    // Convert technical errors to user-friendly messages
+    let userMessage = 'An unexpected error occurred while deleting the business. Please try again or contact support.'
+
+    if (error instanceof Error) {
+      const errorMsg = error.message.toLowerCase()
+
+      // Prisma-specific errors
+      if (errorMsg.includes('foreign key constraint')) {
+        userMessage = 'Cannot delete business due to existing data dependencies. Please contact support for assistance.'
+      } else if (errorMsg.includes('unique constraint')) {
+        userMessage = 'A duplicate entry was detected. Please refresh the page and try again.'
+      } else if (errorMsg.includes('record to delete does not exist')) {
+        userMessage = 'Business not found. It may have already been deleted.'
+      } else if (errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
+        userMessage = 'The operation took too long. Please try again.'
+      } else if (errorMsg.includes('connection')) {
+        userMessage = 'Database connection error. Please check your connection and try again.'
+      }
+
+      // Log the full technical error for debugging
+      console.error('[Business Hard Delete] Technical error details:', error.message)
+    }
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error during deletion'
+      error: userMessage
     }
   }
 }
@@ -367,8 +410,18 @@ export async function deleteBusinessSoft(
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },
       include: {
-        business_memberships: { where: { isActive: true } },
-        employees: { where: { isActive: true } }
+        business_memberships: {
+          where: { isActive: true },
+          include: {
+            users: {
+              select: { name: true, email: true }
+            }
+          }
+        },
+        employees: {
+          where: { isActive: true },
+          select: { fullName: true, employeeNumber: true }
+        }
       }
     })
 
@@ -376,22 +429,22 @@ export async function deleteBusinessSoft(
       return { success: false, error: 'Business not found' }
     }
 
-    // Safety check: No active memberships or employees
+    // Note: We DO NOT block deactivation if employees exist
+    // Employees can remain associated with inactive businesses
+    // The user can optionally transfer them to another business later
+
+    // Automatically deactivate all active memberships for this business
+    let deactivatedMembershipsCount = 0
     if (business.business_memberships.length > 0) {
-      return {
-        success: false,
-        error: `Cannot deactivate business with ${business.business_memberships.length} active member(s). Deactivate them first.`
-      }
+      const membershipIds = business.business_memberships.map(m => m.id)
+      const result = await prisma.businessMemberships.updateMany({
+        where: { id: { in: membershipIds } },
+        data: { isActive: false }
+      })
+      deactivatedMembershipsCount = result.count
     }
 
-    if (business.employees.length > 0) {
-      return {
-        success: false,
-        error: `Cannot deactivate business with ${business.employees.length} active employee(s). Transfer them to another business first.`
-      }
-    }
-
-    // Soft delete
+    // Soft delete the business
     const updated = await prisma.businesses.update({
       where: { id: businessId },
       data: { isActive: false, updatedAt: new Date() }
@@ -407,7 +460,15 @@ export async function deleteBusinessSoft(
           ...(userId && { userId }), // Only include userId if it exists
           details: {
             businessName: business.name,
-            businessType: business.type
+            businessType: business.type,
+            deactivatedMemberships: deactivatedMembershipsCount,
+            membershipNames: business.business_memberships.length > 0
+              ? business.business_memberships.map(m => m.users.name || m.users.email).join(', ')
+              : undefined,
+            employeeCount: business.employees.length,
+            employeeTransferNote: business.employees.length > 0
+              ? `${business.employees.length} active employee(s) remain associated with this inactive business. You can optionally transfer them to another business.`
+              : undefined
           }
         } as any
       })
@@ -415,12 +476,60 @@ export async function deleteBusinessSoft(
       console.warn('Failed to create audit log for soft delete', e)
     }
 
-    return { success: true }
+    // Return success with informational message
+    const result: DeletionResult = { success: true }
+
+    // Build informational message about what was deactivated
+    const messages: string[] = []
+
+    if (deactivatedMembershipsCount > 0) {
+      const memberNames = business.business_memberships
+        .map(m => m.users.name || m.users.email)
+        .join(', ')
+      messages.push(`${deactivatedMembershipsCount} business membership(s) automatically deactivated: ${memberNames}`)
+    }
+
+    if (business.employees.length > 0) {
+      const employeeNames = business.employees
+        .map(e => `${e.fullName} (${e.employeeNumber})`)
+        .join(', ')
+      messages.push(`${business.employees.length} active employee(s) remain associated with this business: ${employeeNames}. You can transfer them to another business if needed.`)
+    }
+
+    if (messages.length > 0) {
+      result.warning = `Business deactivated successfully. ${messages.join(' ')}`
+    }
+
+    return result
   } catch (error) {
     console.error('Error in deleteBusinessSoft:', error)
+
+    // Convert technical errors to user-friendly messages
+    let userMessage = 'An unexpected error occurred while deactivating the business. Please try again or contact support.'
+
+    if (error instanceof Error) {
+      const errorMsg = error.message.toLowerCase()
+
+      // Prisma-specific errors
+      if (errorMsg.includes('foreign key constraint')) {
+        userMessage = 'Cannot deactivate business due to existing data dependencies. Please contact support for assistance.'
+      } else if (errorMsg.includes('unique constraint')) {
+        userMessage = 'A duplicate entry was detected. Please refresh the page and try again.'
+      } else if (errorMsg.includes('record to update not found')) {
+        userMessage = 'Business not found. It may have already been deactivated or deleted.'
+      } else if (errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
+        userMessage = 'The operation took too long. Please try again.'
+      } else if (errorMsg.includes('connection')) {
+        userMessage = 'Database connection error. Please check your connection and try again.'
+      }
+
+      // Log the full technical error for debugging
+      console.error('[Business Deactivation] Technical error details:', error.message)
+    }
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error during deactivation'
+      error: userMessage
     }
   }
 }
@@ -458,6 +567,23 @@ export async function getDeletionImpact(businessId: string) {
       }
     })
 
+    // Get active membership details with user info
+    const memberships = await prisma.businessMemberships.findMany({
+      where: {
+        businessId,
+        isActive: true
+      },
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    })
+
     // Count related records
     const [
       ordersCount,
@@ -467,7 +593,6 @@ export async function getDeletionImpact(businessId: string) {
       locationsCount,
       projectsCount,
       vehiclesCount,
-      membershipsCount,
       customersCount
     ] = await Promise.all([
       prisma.businessOrders.count({ where: { businessId } }),
@@ -477,7 +602,6 @@ export async function getDeletionImpact(businessId: string) {
       prisma.businessLocations.count({ where: { businessId } }),
       prisma.projects.count({ where: { businessId } }),
       prisma.vehicles.count({ where: { businessId } }),
-      prisma.businessMemberships.count({ where: { businessId } }),
       prisma.businessCustomers.count({ where: { businessId } })
     ])
 
@@ -494,9 +618,17 @@ export async function getDeletionImpact(businessId: string) {
         projects: projectsCount,
         employees: employees.length,
         vehicles: vehiclesCount,
-        memberships: membershipsCount,
+        memberships: memberships.length,
         customers: customersCount
       },
+      membershipDetails: memberships.map(membership => ({
+        id: membership.id,
+        userId: membership.users.id,
+        userName: membership.users.name || membership.users.email,
+        userEmail: membership.users.email,
+        role: membership.role,
+        isActive: membership.isActive
+      })),
       employeeDetails: employees.map(emp => ({
         id: emp.id,
         fullName: emp.fullName,

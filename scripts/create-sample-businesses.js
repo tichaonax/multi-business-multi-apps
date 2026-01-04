@@ -4,7 +4,7 @@ const prisma = new PrismaClient()
 
 const SAMPLE_BUSINESSES = [
   {
-    name: "Fashion Forward Boutique",
+    name: "Fashion Forward Boutique [Demo]",
     type: "clothing",
     description: "Modern clothing and accessories for all ages",
     settings: {
@@ -14,7 +14,7 @@ const SAMPLE_BUSINESSES = [
     }
   },
   {
-    name: "Builder's Hardware Store",
+    name: "Builder's Hardware Store [Demo]",
     type: "hardware",
     description: "Tools and supplies for construction and home improvement",
     settings: {
@@ -24,7 +24,7 @@ const SAMPLE_BUSINESSES = [
     }
   },
   {
-    name: "Fresh Market Grocery",
+    name: "Fresh Market Grocery [Demo]",
     type: "grocery",
     description: "Fresh produce and everyday essentials",
     settings: {
@@ -34,7 +34,7 @@ const SAMPLE_BUSINESSES = [
     }
   },
   {
-    name: "Bella Vista Restaurant",
+    name: "Bella Vista Restaurant [Demo]",
     type: "restaurant",
     description: "Fine dining experience with seasonal menu",
     settings: {
@@ -44,7 +44,7 @@ const SAMPLE_BUSINESSES = [
     }
   },
   {
-    name: "Strategic Solutions Consulting",
+    name: "Strategic Solutions Consulting [Demo]",
     type: "consulting",
     description: "Business strategy and operational consulting services",
     settings: {
@@ -77,14 +77,16 @@ async function createSampleBusinesses() {
         update: {
           description: businessData.description,
           settings: businessData.settings,
-          isActive: true
+          isActive: true,
+          isDemo: true
         },
         create: {
           name: businessData.name,
           type: businessData.type,
           description: businessData.description,
           settings: businessData.settings,
-          isActive: true
+          isActive: true,
+          isDemo: true
         }
       })
 

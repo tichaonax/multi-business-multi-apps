@@ -40,10 +40,11 @@ export async function GET(request: NextRequest) {
     let businesses
 
     if (session.user.role === 'admin') {
-      // System admins can access all businesses of the requested type
+      // System admins can access all active businesses of the requested type
       businesses = await prisma.businesses.findMany({
         where: {
-          type: inventoryType
+          type: inventoryType,
+          isActive: true
         },
         select: {
           id: true,
@@ -66,7 +67,8 @@ export async function GET(request: NextRequest) {
           userId: session.user.id,
           isActive: true,
           businesses: {
-            type: inventoryType
+            type: inventoryType,
+            isActive: true
           }
         },
         include: {

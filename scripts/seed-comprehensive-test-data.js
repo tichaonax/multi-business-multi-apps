@@ -252,20 +252,20 @@ const seedData = {
   businesses: [
     {
       id: 'biz-test-grocery-seed',
-      name: 'Test Grocery Store',
+      name: 'Test Grocery Store [Demo]',
       type: 'grocery',
       description: 'A test grocery business for seed data',
       isActive: true,
-      isDemo: false,
+      isDemo: true,
       createdBy: 'user-test-seed-001'
     },
     {
       id: 'biz-test-restaurant-seed',
-      name: 'Test Restaurant',
+      name: 'Test Restaurant [Demo]',
       type: 'restaurant',
       description: 'A test restaurant business for seed data',
       isActive: true,
-      isDemo: false,
+      isDemo: true,
       createdBy: 'user-test-seed-001'
     }
   ],

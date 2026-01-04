@@ -41,9 +41,9 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Get all businesses of this type for the business selector
+    // Get all active businesses of this type for the business selector
     const allBusinesses = await prisma.businesses.findMany({
-      where: { type: businessType },
+      where: { type: businessType, isActive: true },
       select: { id: true, name: true }
     })
 

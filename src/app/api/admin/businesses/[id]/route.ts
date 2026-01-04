@@ -159,7 +159,10 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: result.error }, { status: 400 })
     }
 
-    return NextResponse.json({ message: 'Business deactivated' })
+    return NextResponse.json({
+      message: 'Business deactivated',
+      warning: result.warning // Include warning if employees remain
+    })
   } catch (error) {
     console.error('Error deleting business:', error)
     return NextResponse.json({ error: 'Failed to delete business' }, { status: 500 })

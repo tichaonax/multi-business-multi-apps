@@ -32,9 +32,9 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Get all clothing businesses for the business selector
+    // Get all active clothing businesses for the business selector
     const allBusinesses = await prisma.businesses.findMany({
-      where: { type: 'clothing' },
+      where: { type: 'clothing', isActive: true },
       select: { id: true, name: true }
     })
 

@@ -1,7 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { SessionUser } from '@/lib/permission-utils'
 import { EmployeeTransferModal } from './employee-transfer-modal'
+import { UserEditModal } from '@/components/user-management/user-edit-modal'
 
 interface EmployeeDetail {
   id: string
@@ -9,6 +12,15 @@ interface EmployeeDetail {
   employeeNumber: string
   primaryBusinessId: string
   primaryBusinessName: string
+  isActive: boolean
+}
+
+interface MembershipDetail {
+  id: string
+  userId: string
+  userName: string
+  userEmail: string
+  role: string
   isActive: boolean
 }
 
@@ -28,7 +40,39 @@ interface DeletionImpact {
     memberships: number
     customers: number
   }
+  membershipDetails?: MembershipDetail[]
   employeeDetails?: EmployeeDetail[]
+}
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+  isActive: boolean
+  passwordResetRequired: boolean
+  employee?: {
+    id: string
+    fullName: string
+    employeeNumber: string
+    employmentStatus: string
+  }
+  businessMemberships?: Array<{
+    businessId: string
+    role: string
+    permissions: any
+    isActive: boolean
+    templateId?: string
+    template?: {
+      id: string
+      name: string
+    }
+    business: {
+      id: string
+      name: string
+      type: string
+    }
+  }>
 }
 
 interface BusinessDeletionModalProps {
@@ -44,6 +88,7 @@ export function BusinessDeletionModal({
   onSuccess,
   onError
 }: BusinessDeletionModalProps) {
+  const { data: session } = useSession()
   const [step, setStep] = useState<'loading' | 'confirm' | 'type-name' | 'final' | 'deleting'>('loading')
   const [impact, setImpact] = useState<DeletionImpact | null>(null)
   const [deletionType, setDeletionType] = useState<'soft' | 'hard'>('soft')
@@ -53,6 +98,8 @@ export function BusinessDeletionModal({
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [activeEmployeeCount, setActiveEmployeeCount] = useState(0)
   const [hasFetched, setHasFetched] = useState(false)
+  const [viewingUser, setViewingUser] = useState<User | null>(null)
+  const [loadingUser, setLoadingUser] = useState(false)
 
   useEffect(() => {
     // Only fetch once when the modal opens
@@ -61,6 +108,12 @@ export function BusinessDeletionModal({
       fetchDeletionImpact()
     }
   }, [businessId, hasFetched])
+
+  useEffect(() => {
+    console.log('[DeletionModal] viewingUser changed:', viewingUser)
+    console.log('[DeletionModal] session:', session)
+    console.log('[DeletionModal] Should show UserEditModal:', !!(viewingUser && session?.user))
+  }, [viewingUser, session])
 
   const fetchDeletionImpact = async () => {
     try {
@@ -101,17 +154,52 @@ export function BusinessDeletionModal({
     fetchDeletionImpact()
   }
 
+  const handleViewUser = async (userId: string) => {
+    console.log('[DeletionModal] Opening user details for userId:', userId)
+    setLoadingUser(true)
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch user details')
+      }
+      const userData = await response.json()
+      console.log('[DeletionModal] User data loaded:', userData)
+      setViewingUser(userData)
+      console.log('[DeletionModal] viewingUser state set, session available:', !!session?.user)
+    } catch (err) {
+      console.error('[DeletionModal] Error fetching user details:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load user details')
+    } finally {
+      setLoadingUser(false)
+    }
+  }
+
+  const handleUserModalClose = () => {
+    setViewingUser(null)
+  }
+
+  const handleUserUpdateSuccess = (message: string) => {
+    setViewingUser(null)
+    // Refresh deletion impact to show updated membership info
+    fetchDeletionImpact()
+  }
+
+  const handleUserUpdateError = (errorMsg: string) => {
+    setError(errorMsg)
+  }
+
   const handleDelete = async () => {
     if (!impact) return
 
     setStep('deleting')
+    setError(null) // Clear any previous errors
     try {
-      const url = deletionType === 'hard' 
+      const url = deletionType === 'hard'
         ? `/api/admin/businesses/${businessId}?hardDelete=true`
         : `/api/admin/businesses/${businessId}`
 
       const response = await fetch(url, { method: 'DELETE' })
-      
+
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.error || 'Failed to delete business')
@@ -121,8 +209,9 @@ export function BusinessDeletionModal({
       onSuccess()
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to delete business'
-      onError(errorMsg)
-      setStep('final')
+      // Show error in modal instead of closing it
+      setError(errorMsg)
+      setStep('confirm') // Go back to confirm step so user can see the error and try again
     }
   }
 
@@ -153,6 +242,17 @@ export function BusinessDeletionModal({
 
   return (
     <>
+      {/* User Details Modal */}
+      {viewingUser && session?.user && (
+        <UserEditModal
+          user={viewingUser}
+          currentUser={session.user as SessionUser}
+          onClose={handleUserModalClose}
+          onSuccess={handleUserUpdateSuccess}
+          onError={handleUserUpdateError}
+        />
+      )}
+
       {/* Employee Transfer Modal */}
       {showTransferModal && impact && (
         <EmployeeTransferModal
@@ -205,8 +305,18 @@ export function BusinessDeletionModal({
           )}
 
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
-              <p className="text-red-800 dark:text-red-300">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-400 dark:border-red-600 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <div className="text-3xl">❌</div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-red-900 dark:text-red-200 mb-2">
+                    Deactivation Failed
+                  </h4>
+                  <p className="text-red-800 dark:text-red-300 text-sm leading-relaxed whitespace-pre-wrap">
+                    {error}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -297,6 +407,42 @@ export function BusinessDeletionModal({
                   Total: {totalRecords} related records
                 </div>
               </div>
+
+              {/* Active Membership Warning - Shows who will be automatically deactivated */}
+              {impact.membershipDetails && impact.membershipDetails.length > 0 && (
+                <div className="border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
+                    <span className="text-2xl">ℹ️</span>
+                    {impact.membershipDetails.length} Business Membership{impact.membershipDetails.length !== 1 ? 's' : ''} Will Be Automatically Deactivated
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
+                    The following user{impact.membershipDetails.length !== 1 ? 's' : ''} will automatically lose access to this business:
+                  </p>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {impact.membershipDetails.map((membership) => (
+                      <button
+                        key={membership.id}
+                        onClick={() => handleViewUser(membership.userId)}
+                        disabled={loadingUser}
+                        className="w-full text-left text-sm bg-white dark:bg-neutral-800 rounded p-2 border border-blue-200 dark:border-blue-800 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 dark:text-white">{membership.userName}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{membership.userEmail}</p>
+                          </div>
+                          <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                            {membership.role}
+                          </span>
+                        </div>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          Click to view details →
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Active Employee Warning */}
               {activeEmployeeCount > 0 && (

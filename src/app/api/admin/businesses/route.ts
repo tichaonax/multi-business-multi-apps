@@ -15,9 +15,10 @@ export async function GET() {
 
     const user = session.user as SessionUser
 
-    // System admins can see all businesses
+    // System admins can see all active businesses
     if (isSystemAdmin(user)) {
       const businesses = await prisma.businesses.findMany({
+        where: { isActive: true },
         orderBy: { createdAt: 'desc' }
       })
       return NextResponse.json(businesses)

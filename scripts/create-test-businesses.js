@@ -4,10 +4,10 @@ async function createTestBusinesses() {
   const prisma = new PrismaClient();
 
   const businesses = [
-    {name: 'TechCorp Solutions', type: 'consulting', description: 'Technology consulting firm'},
-    {name: 'Fresh Market', type: 'grocery', description: 'Local grocery chain'},
-    {name: 'BuildRight Construction', type: 'construction', description: 'Commercial construction company'},
-    {name: 'Bella Vista Restaurant', type: 'restaurant', description: 'Fine dining establishment'}
+    {name: 'TechCorp Solutions [Demo]', type: 'consulting', description: 'Technology consulting firm'},
+    {name: 'Fresh Market [Demo]', type: 'grocery', description: 'Local grocery chain'},
+    {name: 'BuildRight Construction [Demo]', type: 'construction', description: 'Commercial construction company'},
+    {name: 'Bella Vista Restaurant [Demo]', type: 'restaurant', description: 'Fine dining establishment'}
   ];
 
   try {
@@ -18,6 +18,7 @@ async function createTestBusinesses() {
           type: businessData.type,
           description: businessData.description,
           isActive: true,
+          isDemo: true,
           settings: {},
           createdBy: null // System created
         }
