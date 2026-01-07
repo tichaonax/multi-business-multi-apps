@@ -19,6 +19,13 @@ export default function EndOfDayReport() {
   const [variance, setVariance] = useState(0)
   const [managerSignature, setManagerSignature] = useState('')
 
+  // Report saving state
+  const [existingReport, setExistingReport] = useState<any>(null)
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   const {
     currentBusiness,
     currentBusinessId,
@@ -52,6 +59,94 @@ export default function EndOfDayReport() {
       loadDailySales()
     }
   }, [currentBusinessId])
+
+  // Check if report already exists (locked)
+  useEffect(() => {
+    const checkExistingReport = async () => {
+      if (!currentBusinessId || !dailySales) return
+
+      try {
+        const reportDate = dailySales.businessDay.date
+        const response = await fetch(
+          `/api/reports/save?businessId=${currentBusinessId}&reportType=END_OF_DAY&reportDate=${reportDate}`
+        )
+
+        if (response.ok) {
+          const data = await response.json()
+          if (!data.canSave && data.existingReport) {
+            setExistingReport(data.existingReport)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check existing report:', error)
+      }
+    }
+
+    checkExistingReport()
+  }, [currentBusinessId, dailySales])
+
+  // Handle save report
+  const handleSaveReport = async () => {
+    if (!managerSignature.trim()) {
+      setSaveError('Manager name is required')
+      return
+    }
+
+    try {
+      setSaving(true)
+      setSaveError(null)
+
+      const reportData = {
+        summary: {
+          totalSales: dailySales.summary.totalSales,
+          totalOrders: dailySales.summary.totalOrders,
+          averageOrderValue: dailySales.summary.averageOrderValue,
+          receiptsIssued: dailySales.summary.receiptsIssued,
+          totalTax: dailySales.summary.totalTax
+        },
+        paymentMethods: dailySales.paymentMethods,
+        employeeSales: dailySales.employeeSales || [],
+        categoryBreakdown: dailySales.categoryBreakdown || [],
+        businessDay: dailySales.businessDay
+      }
+
+      const response = await fetch('/api/reports/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          reportType: 'END_OF_DAY',
+          reportDate: dailySales.businessDay.date,
+          periodStart: dailySales.businessDay.start,
+          periodEnd: dailySales.businessDay.end,
+          managerName: managerSignature,
+          cashCounted: cashCounted ? parseFloat(cashCounted) : null,
+          reportData: reportData
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save report')
+      }
+
+      setSaveSuccess(true)
+      setExistingReport(result.report)
+      setShowSaveModal(false)
+
+      // Show success message
+      setTimeout(() => {
+        setSaveSuccess(false)
+      }, 5000)
+
+    } catch (error: any) {
+      console.error('Error saving report:', error)
+      setSaveError(error.message || 'Failed to save report')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // Calculate expected cash
   const expectedCash = dailySales?.paymentMethods?.CASH?.total || 0
@@ -157,6 +252,51 @@ export default function EndOfDayReport() {
           }
         `}</style>
 
+        {/* Success Message */}
+        {saveSuccess && (
+          <div className="no-print mb-6 bg-green-50 dark:bg-green-900/30 border-2 border-green-500 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">✅</span>
+              <div>
+                <h3 className="font-bold text-green-900 dark:text-green-100">Report Saved & Locked Successfully!</h3>
+                <p className="text-sm text-green-800 dark:text-green-200">
+                  This report is now permanently locked and cannot be modified.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Locked Report Indicator */}
+        {existingReport && (
+          <div className="no-print mb-6 bg-yellow-50 dark:bg-yellow-900/30 border-2 border-yellow-500 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔒</span>
+                <div>
+                  <h3 className="font-bold text-yellow-900 dark:text-yellow-100">Report Already Locked</h3>
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    Signed by <strong>{existingReport.managerName}</strong> on{' '}
+                    {new Date(existingReport.signedAt).toLocaleString('en-GB', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={`/restaurant/reports/saved/${existingReport.id}`}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-semibold"
+              >
+                View Locked Report →
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Navigation (No Print) */}
         <div className="no-print mb-6 flex items-center justify-between">
           <div className="flex gap-3">
@@ -173,12 +313,22 @@ export default function EndOfDayReport() {
               📅 Historical Reports
             </Link>
           </div>
-          <button
-            onClick={() => window.print()}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold"
-          >
-            🖨️ Print Report
-          </button>
+          <div className="flex gap-3">
+            {!existingReport && (
+              <button
+                onClick={() => setShowSaveModal(true)}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold"
+              >
+                💾 Save & Lock Report
+              </button>
+            )}
+            <button
+              onClick={() => window.print()}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold"
+            >
+              🖨️ Print Report
+            </button>
+          </div>
         </div>
 
         {/* Printable Report */}
@@ -539,6 +689,85 @@ export default function EndOfDayReport() {
             <p className="mt-1">Business Day: {dailySales.businessDay.date}</p>
           </div>
         </div>
+
+        {/* Save Confirmation Modal */}
+        {showSaveModal && (
+          <div className="no-print fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+                Save & Lock Report
+              </h2>
+
+              <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded-lg p-4">
+                <p className="text-sm text-yellow-900 dark:text-yellow-100">
+                  <strong>⚠️ Warning:</strong> Once saved, this report cannot be edited or deleted (admin only).
+                  This creates a permanent record for compliance and audit purposes.
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Manager Name: <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={managerSignature}
+                  onChange={(e) => setManagerSignature(e.target.value)}
+                  placeholder="Enter your name"
+                  className="w-full px-3 py-2 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  autoFocus
+                />
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Cash Counted (Optional):
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg text-gray-700 dark:text-gray-300">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={cashCounted}
+                    onChange={(e) => setCashCounted(e.target.value)}
+                    placeholder="0.00"
+                    className="flex-1 px-3 py-2 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg text-right"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Expected Cash: {formatCurrency(expectedCash)}
+                  {cashCounted && ` | Variance: ${formatCurrency(variance)}`}
+                </p>
+              </div>
+
+              {saveError && (
+                <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg p-3">
+                  <p className="text-sm text-red-800 dark:text-red-200">{saveError}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowSaveModal(false)
+                    setSaveError(null)
+                  }}
+                  disabled={saving}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveReport}
+                  disabled={saving || !managerSignature.trim()}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+                >
+                  {saving ? '💾 Saving...' : '💾 Save & Lock'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
   )
 }
