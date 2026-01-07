@@ -447,6 +447,7 @@ model Businesses {
   r710_tokens                                                              R710Tokens[]                  @relation("R710TokenToBusiness")
   r710_wlans                                                               R710Wlans[]                   @relation("R710WlanToBusiness")
   reprint_logs                                                             ReprintLog[]
+  saved_reports                                                            SavedReports[]
   seed_data_templates                                                      SeedDataTemplates[]
   sku_sequences                                                            sku_sequences[]
   vehicle_expenses                                                         VehicleExpenses[]
@@ -469,6 +470,48 @@ model ReceiptSequences {
 
   @@id([businessId, date])
   @@map("receipt_sequences")
+}
+
+model SavedReports {
+  id             String   @id @default(cuid())
+  businessId     String
+  reportType     String   // 'END_OF_DAY' | 'END_OF_WEEK' | 'END_OF_MONTH'
+  reportDate     DateTime @db.Date // Business day date
+  periodStart    DateTime // Start of period
+  periodEnd      DateTime // End of period
+
+  // Snapshot data (JSON)
+  reportData Json // Complete report data snapshot
+
+  // Manager sign-off
+  managerName   String
+  managerUserId String? // Link to user if logged in
+  signedAt      DateTime
+
+  // Till reconciliation (for day reports)
+  expectedCash Decimal? @db.Decimal(10, 2)
+  cashCounted  Decimal? @db.Decimal(10, 2)
+  variance     Decimal? @db.Decimal(10, 2)
+
+  // Summary metrics (for quick queries)
+  totalSales     Decimal @db.Decimal(10, 2)
+  totalOrders    Int
+  receiptsIssued Int
+
+  // Metadata
+  createdAt DateTime @default(now())
+  createdBy String
+  isLocked  Boolean  @default(true) // Locked reports cannot be edited
+
+  // Relations
+  business Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     Users?     @relation(fields: [managerUserId], references: [id])
+
+  @@unique([businessId, reportType, reportDate])
+  @@index([businessId, reportType, reportDate])
+  @@index([reportDate])
+  @@index([businessId])
+  @@map("saved_reports")
 }
 
 model ChatMessages {
@@ -2389,6 +2432,7 @@ model Users {
   r710_device_registry                                            R710DeviceRegistry[]        @relation("R710DeviceCreator")
   r710_token_sales                                                R710TokenSales[]            @relation("R710TokenSaleSeller")
   reprint_logs                                                    ReprintLog[]
+  saved_reports                                                   SavedReports[]
   seed_data_templates                                             SeedDataTemplates[]
   sessions                                                        Sessions[]
   userPermissions                                                 UserPermissions[]

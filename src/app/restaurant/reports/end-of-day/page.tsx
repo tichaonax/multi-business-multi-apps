@@ -127,7 +127,17 @@ export default function EndOfDayReport() {
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
         {/* Print Styles */}
         <style jsx global>{`
+          /* Hide print-only elements on screen */
+          .print-only {
+            display: none;
+          }
+
           @media print {
+            /* Show print-only elements when printing */
+            .print-only {
+              display: block !important;
+            }
+
             body * {
               visibility: hidden;
             }

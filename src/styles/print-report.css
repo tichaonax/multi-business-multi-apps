@@ -1,0 +1,369 @@
+/**
+ * Print-Friendly Stylesheet for Reports
+ *
+ * This stylesheet ensures:
+ * - No colors (saves ink)
+ * - No backgrounds (saves ink and looks professional)
+ * - Optimized page breaks
+ * - Efficient use of paper
+ * - Professional black & white appearance
+ */
+
+@media print {
+  /* ======================
+     REMOVE ALL COLORS
+     ====================== */
+
+  * {
+    background-color: white !important;
+    background-image: none !important;
+    color: black !important;
+    border-color: #999 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Keep some borders visible but in grayscale */
+  table,
+  th,
+  td {
+    border-color: #666 !important;
+  }
+
+  /* ======================
+     PAGE LAYOUT
+     ====================== */
+
+  @page {
+    size: A4; /* or Letter */
+    margin: 1cm 1.5cm; /* Reduced margins to save paper */
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-size: 10pt; /* Slightly smaller for paper efficiency */
+    line-height: 1.4;
+    color: black !important;
+    background: white !important;
+  }
+
+  /* ======================
+     HIDE NON-ESSENTIAL ELEMENTS
+     ====================== */
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Hide navigation, buttons, etc */
+  nav,
+  button:not(.print-only),
+  .nav-menu,
+  .sidebar,
+  .navigation,
+  .toolbar,
+  .footer-navigation {
+    display: none !important;
+  }
+
+  /* ======================
+     PAGE BREAKS
+     ====================== */
+
+  /* Avoid page breaks inside important elements */
+  table,
+  .report-section,
+  .summary-card {
+    page-break-inside: avoid;
+  }
+
+  /* Avoid page breaks after headings */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure sections start on new page if needed */
+  .page-break-before {
+    page-break-before: always;
+  }
+
+  /* ======================
+     TYPOGRAPHY
+     ====================== */
+
+  h1 {
+    font-size: 18pt;
+    font-weight: bold;
+    margin: 0 0 12pt 0;
+    color: black !important;
+  }
+
+  h2 {
+    font-size: 14pt;
+    font-weight: bold;
+    margin: 12pt 0 8pt 0;
+    color: black !important;
+  }
+
+  h3 {
+    font-size: 12pt;
+    font-weight: bold;
+    margin: 10pt 0 6pt 0;
+    color: black !important;
+  }
+
+  p {
+    margin: 0 0 6pt 0;
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* ======================
+     TABLES
+     ====================== */
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8pt 0;
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group; /* Repeat header on each page */
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  tbody tr {
+    page-break-inside: avoid;
+  }
+
+  th {
+    background-color: #e8e8e8 !important; /* Light gray for headers */
+    color: black !important;
+    font-weight: bold;
+    padding: 4pt 6pt;
+    text-align: left;
+    border: 1px solid #666 !important;
+  }
+
+  td {
+    padding: 4pt 6pt;
+    border: 1px solid #999 !important;
+    color: black !important;
+  }
+
+  /* Zebra striping (light gray only) */
+  tbody tr:nth-child(even) {
+    background-color: #f5f5f5 !important;
+  }
+
+  tbody tr:nth-child(odd) {
+    background-color: white !important;
+  }
+
+  /* ======================
+     SIGNATURES SECTION
+     ====================== */
+
+  .signature-section {
+    margin-top: 24pt;
+    page-break-inside: avoid;
+  }
+
+  .signature-line {
+    border-bottom: 1px solid #666 !important;
+    padding-bottom: 2pt;
+    margin-bottom: 4pt;
+    min-height: 20pt;
+  }
+
+  /* ======================
+     REPORT METADATA
+     ====================== */
+
+  .report-header {
+    text-align: center;
+    margin-bottom: 16pt;
+    padding-bottom: 8pt;
+    border-bottom: 2px solid #666 !important;
+  }
+
+  .report-footer {
+    margin-top: 16pt;
+    padding-top: 8pt;
+    border-top: 1px solid #666 !important;
+    text-align: center;
+    font-size: 8pt;
+    color: #666 !important;
+  }
+
+  /* ======================
+     SUMMARY BOXES
+     ====================== */
+
+  .summary-box {
+    border: 1px solid #666 !important;
+    padding: 8pt;
+    margin: 8pt 0;
+    background-color: white !important;
+    page-break-inside: avoid;
+  }
+
+  /* ======================
+     CHARTS AND VISUALS
+     ====================== */
+
+  /* Hide all charts in print mode (data shown in tables instead) */
+  .chart,
+  .pie-chart,
+  .bar-chart,
+  .line-chart,
+  canvas,
+  svg.recharts-surface {
+    display: none !important;
+  }
+
+  /* Show data tables instead */
+  .chart-data-table {
+    display: table !important;
+  }
+
+  /* ======================
+     UTILITY CLASSES
+     ====================== */
+
+  .print-only {
+    display: block !important;
+  }
+
+  .screen-only {
+    display: none !important;
+  }
+
+  /* Text alignment */
+  .text-center {
+    text-align: center;
+  }
+
+  .text-right {
+    text-align: right;
+  }
+
+  .text-left {
+    text-align: left;
+  }
+
+  /* Font weights */
+  .font-bold {
+    font-weight: bold;
+  }
+
+  .font-normal {
+    font-weight: normal;
+  }
+
+  /* ======================
+     SPECIFIC REPORT ELEMENTS
+     ====================== */
+
+  /* Till reconciliation section */
+  .till-reconciliation {
+    margin: 16pt 0;
+    page-break-inside: avoid;
+  }
+
+  /* Employee sales section */
+  .employee-sales {
+    margin: 12pt 0;
+  }
+
+  /* Category breakdown */
+  .category-breakdown {
+    margin: 12pt 0;
+  }
+
+  /* Payment methods */
+  .payment-methods {
+    margin: 12pt 0;
+  }
+
+  /* ======================
+     LOCKED REPORT WATERMARK
+     ====================== */
+
+  .locked-watermark {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    font-size: 72pt;
+    font-weight: bold;
+    color: #e0e0e0 !important;
+    opacity: 0.3;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  /* ======================
+     LINKS
+     ====================== */
+
+  a {
+    text-decoration: none;
+    color: black !important;
+  }
+
+  /* Show URLs after links (optional) */
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #666 !important;
+  }
+
+  /* Don't show URLs for internal links */
+  a[href^="#"]:after,
+  a[href^="/"]:after {
+    content: "";
+  }
+
+  /* ======================
+     SPACING ADJUSTMENTS
+     ====================== */
+
+  /* Reduce spacing between sections to save paper */
+  .report-section + .report-section {
+    margin-top: 12pt;
+  }
+
+  /* Compact lists */
+  ul, ol {
+    margin: 4pt 0;
+    padding-left: 16pt;
+  }
+
+  li {
+    margin: 2pt 0;
+  }
+
+  /* ======================
+     END OF STYLESHEET
+     ====================== */
+}
+
+/* ======================
+   SCREEN STYLES (for print preview)
+   ====================== */
+
+.print-only {
+  display: none;
+}
+
+.no-print {
+  display: block;
+}
