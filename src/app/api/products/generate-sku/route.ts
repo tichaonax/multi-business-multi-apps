@@ -51,10 +51,10 @@ export async function POST(request: NextRequest) {
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },
       include: {
-        business_members: {
+        business_memberships: {
           where: {
             userId: session.user.id,
-            status: 'ACTIVE',
+            isActive: true,
           },
           select: {
             id: true,
@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
 
     // Check if user has access to this business
     const hasAccess =
-      session.user.role === 'ADMIN' ||
-      business.business_members.length > 0;
+      session.user.role?.toLowerCase() === 'admin' ||
+      business.business_memberships.length > 0;
 
     if (!hasAccess) {
       return NextResponse.json(
@@ -164,10 +164,10 @@ export async function GET(request: NextRequest) {
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },
       include: {
-        business_members: {
+        business_memberships: {
           where: {
             userId: session.user.id,
-            status: 'ACTIVE',
+            isActive: true,
           },
           select: {
             id: true,
@@ -186,8 +186,8 @@ export async function GET(request: NextRequest) {
 
     // Check if user has access to this business
     const hasAccess =
-      session.user.role === 'ADMIN' ||
-      business.business_members.length > 0;
+      session.user.role?.toLowerCase() === 'admin' ||
+      business.business_memberships.length > 0;
 
     if (!hasAccess) {
       return NextResponse.json(

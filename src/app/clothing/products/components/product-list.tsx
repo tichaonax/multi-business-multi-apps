@@ -74,118 +74,49 @@ export function ClothingProductList({
       setLoading(true)
       setError(null)
 
-      // Sample clothing product data
-      const sampleProducts: ClothingProduct[] = [
-        {
-          id: 'prod1',
-          name: "Classic Cotton T-Shirt",
-          sku: 'CCT-001',
-          description: 'Comfortable 100% cotton t-shirt perfect for casual wear',
-          basePrice: 24.99,
-          category: { id: 'cat1', name: 'Tops' },
-          brand: { id: 'brand1', name: 'ComfortWear' },
-          condition: 'NEW',
-          season: 'All Season',
-          gender: 'Unisex',
-          material: '100% Cotton',
-          careInstructions: 'Machine wash cold, tumble dry low',
-          variants: [
-            { id: 'var1', sku: 'CCT-001-S-BLK', stockQuantity: 15, price: 24.99, attributes: { size: 'S', color: 'Black' } },
-            { id: 'var2', sku: 'CCT-001-M-BLK', stockQuantity: 22, price: 24.99, attributes: { size: 'M', color: 'Black' } },
-            { id: 'var3', sku: 'CCT-001-L-BLK', stockQuantity: 18, price: 24.99, attributes: { size: 'L', color: 'Black' } },
-            { id: 'var4', sku: 'CCT-001-S-WHT', stockQuantity: 12, price: 24.99, attributes: { size: 'S', color: 'White' } },
-            { id: 'var5', sku: 'CCT-001-M-WHT', stockQuantity: 8, price: 24.99, attributes: { size: 'M', color: 'White' } }
-          ],
-          status: 'ACTIVE',
-          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: 'prod2',
-          name: "Designer Summer Dress",
-          sku: 'DSD-002',
-          description: 'Elegant floral summer dress for special occasions',
-          basePrice: 89.99,
-          category: { id: 'cat2', name: 'Dresses' },
-          brand: { id: 'brand2', name: 'ElegantStyle' },
-          condition: 'NEW',
-          season: 'Summer',
-          gender: 'Women',
-          material: '95% Polyester, 5% Spandex',
-          careInstructions: 'Hand wash only, hang dry',
-          variants: [
-            { id: 'var6', sku: 'DSD-002-8-FLR', stockQuantity: 5, price: 89.99, attributes: { size: '8', color: 'Floral' } },
-            { id: 'var7', sku: 'DSD-002-10-FLR', stockQuantity: 3, price: 89.99, attributes: { size: '10', color: 'Floral' } },
-            { id: 'var8', sku: 'DSD-002-12-FLR', stockQuantity: 7, price: 89.99, attributes: { size: '12', color: 'Floral' } }
-          ],
-          status: 'ACTIVE',
-          createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: 'prod3',
-          name: "Vintage Leather Jacket",
-          sku: 'VLJ-003',
-          description: 'Pre-owned genuine leather jacket in excellent condition',
-          basePrice: 149.99,
-          category: { id: 'cat3', name: 'Jackets' },
-          brand: { id: 'brand3', name: 'RetroStyle' },
-          condition: 'USED',
-          season: 'Fall',
-          gender: 'Men',
-          material: 'Genuine Leather',
-          careInstructions: 'Professional cleaning recommended',
-          variants: [
-            { id: 'var9', sku: 'VLJ-003-M-BRN', stockQuantity: 1, price: 149.99, attributes: { size: 'M', color: 'Brown' } },
-            { id: 'var10', sku: 'VLJ-003-L-BRN', stockQuantity: 2, price: 149.99, attributes: { size: 'L', color: 'Brown' } }
-          ],
-          status: 'ACTIVE',
-          createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: 'prod4',
-          name: "Kids Winter Coat",
-          sku: 'KWC-004',
-          description: 'Warm winter coat for children, water-resistant',
-          basePrice: 79.99,
-          category: { id: 'cat4', name: 'Outerwear' },
-          brand: { id: 'brand4', name: 'KidsWear' },
-          condition: 'NEW',
-          season: 'Winter',
-          gender: 'Kids',
-          material: 'Polyester shell with down filling',
-          careInstructions: 'Machine wash cold, do not dry clean',
-          variants: [
-            { id: 'var11', sku: 'KWC-004-4T-RED', stockQuantity: 8, price: 79.99, attributes: { size: '4T', color: 'Red' } },
-            { id: 'var12', sku: 'KWC-004-5T-RED', stockQuantity: 6, price: 79.99, attributes: { size: '5T', color: 'Red' } },
-            { id: 'var13', sku: 'KWC-004-6T-RED', stockQuantity: 4, price: 79.99, attributes: { size: '6T', color: 'Red' } },
-            { id: 'var14', sku: 'KWC-004-4T-BLU', stockQuantity: 0, price: 79.99, attributes: { size: '4T', color: 'Blue' } }
-          ],
-          status: 'ACTIVE',
-          createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: 'prod5',
-          name: "Discontinued Sweater",
-          sku: 'DS-005',
-          description: 'Winter sweater - being phased out',
-          basePrice: 45.99,
-          category: { id: 'cat5', name: 'Sweaters' },
-          condition: 'NEW',
-          season: 'Winter',
-          gender: 'Women',
-          variants: [
-            { id: 'var15', sku: 'DS-005-M-GRY', stockQuantity: 2, price: 35.99, attributes: { size: 'M', color: 'Gray' } }
-          ],
-          status: 'DISCONTINUED',
-          createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        }
-      ]
+      // Fetch real products from database filtered by businessId
+      const response = await fetch(
+        `/api/universal/products?businessId=${businessId}&businessType=clothing&includeVariants=true&limit=1000`
+      )
 
-      setProducts(sampleProducts)
+      if (!response.ok) {
+        throw new Error('Failed to fetch products')
+      }
+
+      const result = await response.json()
+
+      if (result.success && result.data) {
+        // Map API response to component format
+        const fetchedProducts: ClothingProduct[] = result.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          description: p.description,
+          basePrice: parseFloat(p.basePrice || p.price || 0),
+          category: p.category ? { id: p.category.id, name: p.category.name } : undefined,
+          brand: p.brand ? { id: p.brand.id, name: p.brand.name } : undefined,
+          condition: p.condition || 'NEW',
+          season: p.season,
+          gender: p.gender,
+          material: p.material,
+          careInstructions: p.careInstructions,
+          variants: (p.variants || []).map((v: any) => ({
+            id: v.id,
+            sku: v.sku,
+            stockQuantity: v.stockQuantity || 0,
+            price: parseFloat(v.price || 0),
+            attributes: v.attributes || {}
+          })),
+          images: p.images || [],
+          status: p.isAvailable ? 'ACTIVE' : 'INACTIVE',
+          createdAt: p.createdAt || new Date().toISOString(),
+          updatedAt: p.updatedAt || new Date().toISOString()
+        }))
+
+        setProducts(fetchedProducts)
+      } else {
+        setProducts([])
+      }
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred')
@@ -351,8 +282,22 @@ export function ClothingProductList({
         {paginatedProducts.length === 0 ? (
           <div className="col-span-full text-center py-12">
             <div className="text-6xl mb-4">📦</div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No Products Found</h3>
-            <p className="text-gray-600 dark:text-gray-400">No products match your current filters.</p>
+            {products.length === 0 ? (
+              <>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No Products Yet</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Get started by adding your first product.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                  Click "Add New Product" above to create your first clothing item.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No Products Found</h3>
+                <p className="text-gray-600 dark:text-gray-400">No products match your current filters.</p>
+              </>
+            )}
           </div>
         ) : (
           paginatedProducts.map((product) => {

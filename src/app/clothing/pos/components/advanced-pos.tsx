@@ -132,14 +132,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
               .map((p: any) => ({
                 id: p.id,
                 name: p.name,
-                variants: p.variants.map((v: any) => ({
-                  id: v.id,
-                  sku: v.sku,
-                  price: parseFloat(v.price),
-                  attributes: v.attributes || {},
-                  stock: v.stockQuantity || 0
-                }))
+                variants: p.variants
+                  .filter((v: any) => parseFloat(v.price) > 0) // Only include variants with selling price > 0
+                  .map((v: any) => ({
+                    id: v.id,
+                    sku: v.sku,
+                    price: parseFloat(v.price),
+                    attributes: v.attributes || {},
+                    stock: v.stockQuantity || 0
+                  }))
               }))
+              .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
 
             setQuickAddProducts(products.slice(0, 4)) // Show first 4 products
           }

@@ -107,12 +107,13 @@ function ClothingProductsContent() {
       icon: '🔧',
       description: 'Bulk manage sizes, colors, and variants'
     },
-    {
-      id: 'seasonal',
-      label: 'Seasonal Collections',
-      icon: '🌟',
-      description: 'Organize products by seasons and collections'
-    },
+    // Seasonal collections removed - was mock data only
+    // {
+    //   id: 'seasonal',
+    //   label: 'Seasonal Collections',
+    //   icon: '🌟',
+    //   description: 'Organize products by seasons and collections'
+    // },
     {
       id: 'import',
       label: 'Bulk Import',
@@ -169,13 +170,7 @@ function ClothingProductsContent() {
                 Bulk Import
               </button>
 
-              <button
-                onClick={() => setActiveTab('seasonal')}
-                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
-              >
-                <span>🌟</span>
-                Manage Collections
-              </button>
+              {/* Seasonal collections button removed - was mock data only */}
             </div>
 
             {/* Tab Navigation */}
@@ -222,9 +217,7 @@ function ClothingProductsContent() {
                   />
                 )}
 
-                {activeTab === 'seasonal' && (
-                  <ClothingSeasonalManager businessId={businessId} />
-                )}
+                {/* Seasonal collections removed - was mock data only */}
 
                 {activeTab === 'import' && (
                   <ClothingBulkImport businessId={businessId} />

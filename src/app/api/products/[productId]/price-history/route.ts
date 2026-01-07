@@ -67,10 +67,10 @@ export async function GET(
           select: {
             id: true,
             name: true,
-            business_members: {
+            business_memberships: {
               where: {
                 userId: session.user.id,
-                status: 'ACTIVE',
+                isActive: true,
               },
               select: {
                 id: true,
@@ -91,8 +91,8 @@ export async function GET(
 
     // Check if user has access to this business
     const hasAccess =
-      session.user.role === 'ADMIN' ||
-      product.businesses.business_members.length > 0;
+      session.user.role?.toLowerCase() === 'admin' ||
+      product.businesses.business_memberships.length > 0;
 
     if (!hasAccess) {
       return NextResponse.json(
