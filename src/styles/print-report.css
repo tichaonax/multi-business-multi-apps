@@ -23,6 +23,45 @@
     text-shadow: none !important;
   }
 
+  /* ======================
+     OVERRIDE TAILWIND SPACING - AGGRESSIVE
+     ====================== */
+
+  /* Override all margin utilities */
+  .m-0, .m-1, .m-2, .m-3, .m-4, .m-5, .m-6, .m-7, .m-8, .m-10, .m-12, .m-16, .m-20, .m-24,
+  .my-0, .my-1, .my-2, .my-3, .my-4, .my-5, .my-6, .my-7, .my-8, .my-10, .my-12, .my-16, .my-20, .my-24,
+  .mx-0, .mx-1, .mx-2, .mx-3, .mx-4, .mx-5, .mx-6, .mx-7, .mx-8, .mx-10, .mx-12, .mx-16, .mx-20, .mx-24,
+  .mt-0, .mt-1, .mt-2, .mt-3, .mt-4, .mt-5, .mt-6, .mt-7, .mt-8, .mt-10, .mt-12, .mt-16, .mt-20, .mt-24,
+  .mr-0, .mr-1, .mr-2, .mr-3, .mr-4, .mr-5, .mr-6, .mr-7, .mr-8, .mr-10, .mr-12, .mr-16, .mr-20, .mr-24,
+  .mb-0, .mb-1, .mb-2, .mb-3, .mb-4, .mb-5, .mb-6, .mb-7, .mb-8, .mb-10, .mb-12, .mb-16, .mb-20, .mb-24,
+  .ml-0, .ml-1, .ml-2, .ml-3, .ml-4, .ml-5, .ml-6, .ml-7, .ml-8, .ml-10, .ml-12, .ml-16, .ml-20, .ml-24 {
+    margin: 0 !important;
+  }
+
+  /* Override all padding utilities */
+  .p-0, .p-1, .p-2, .p-3, .p-4, .p-5, .p-6, .p-7, .p-8, .p-10, .p-12, .p-16, .p-20, .p-24,
+  .py-0, .py-1, .py-2, .py-3, .py-4, .py-5, .py-6, .py-7, .py-8, .py-10, .py-12, .py-16, .py-20, .py-24,
+  .px-0, .px-1, .px-2, .px-3, .px-4, .px-5, .px-6, .px-7, .px-8, .px-10, .px-12, .px-16, .px-20, .px-24,
+  .pt-0, .pt-1, .pt-2, .pt-3, .pt-4, .pt-5, .pt-6, .pt-7, .pt-8, .pt-10, .pt-12, .pt-16, .pt-20, .pt-24,
+  .pr-0, .pr-1, .pr-2, .pr-3, .pr-4, .pr-5, .pr-6, .pr-7, .pr-8, .pr-10, .pr-12, .pr-16, .pr-20, .pr-24,
+  .pb-0, .pb-1, .pb-2, .pb-3, .pb-4, .pb-5, .pb-6, .pb-7, .pb-8, .pb-10, .pb-12, .pb-16, .pb-20, .pb-24,
+  .pl-0, .pl-1, .pl-2, .pl-3, .pl-4, .pl-5, .pl-6, .pl-7, .pl-8, .pl-10, .pl-12, .pl-16, .pl-20, .pl-24 {
+    padding: 0 !important;
+  }
+
+  /* Override gap utilities */
+  .gap-0, .gap-1, .gap-2, .gap-3, .gap-4, .gap-5, .gap-6, .gap-7, .gap-8, .gap-10, .gap-12,
+  .gap-x-0, .gap-x-1, .gap-x-2, .gap-x-3, .gap-x-4, .gap-x-5, .gap-x-6, .gap-x-7, .gap-x-8,
+  .gap-y-0, .gap-y-1, .gap-y-2, .gap-y-3, .gap-y-4, .gap-y-5, .gap-y-6, .gap-y-7, .gap-y-8 {
+    gap: 2pt !important;
+  }
+
+  /* Override space utilities */
+  .space-y-0, .space-y-1, .space-y-2, .space-y-3, .space-y-4, .space-y-5, .space-y-6, .space-y-7, .space-y-8 > * + *,
+  .space-x-0, .space-x-1, .space-x-2, .space-x-3, .space-x-4, .space-x-5, .space-x-6, .space-x-7, .space-x-8 > * + * {
+    margin: 2pt 0 !important;
+  }
+
   /* Keep some borders visible but in grayscale */
   table,
   th,
@@ -36,15 +75,144 @@
 
   @page {
     size: A4; /* or Letter */
-    margin: 1cm 1.5cm; /* Reduced margins to save paper */
+    margin: 0.5cm 1cm; /* Minimal margins to save paper */
+  }
+
+  /* Prevent blank pages from being generated */
+  @page:blank {
+    display: none;
+  }
+
+  /* Only allow auto page breaks if content truly overflows */
+  @page:first {
+    margin: 0.5cm 1cm;
+  }
+
+  @page:last {
+    margin: 0.5cm 1cm;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 8pt; /* Smaller for paper efficiency */
+    line-height: 1.1; /* Tight line spacing to save paper */
+    color: black !important;
+    background: white !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   body {
-    margin: 0;
-    padding: 0;
-    font-size: 10pt; /* Slightly smaller for paper efficiency */
-    line-height: 1.4;
-    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Force all container elements to have no extra height */
+  html > body > *,
+  body > div,
+  #__next,
+  main,
+  main > div,
+  .min-h-screen {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  /* Report container - minimal padding */
+  #end-of-day-report,
+  #end-of-week-report {
+    padding: 4pt !important;
+    margin: 0 !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Force report container siblings to not exist in print */
+  #end-of-day-report ~ *,
+  #end-of-week-report ~ * {
+    display: none !important;
+  }
+
+  /* Prevent blank pages */
+  body:after,
+  html:after,
+  main:after,
+  div:after {
+    content: none !important;
+    display: none !important;
+  }
+
+  /* Ensure last element doesn't force a new page */
+  *:last-child {
+    page-break-after: avoid !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Prevent any element from creating a page break after itself */
+  * {
+    page-break-after: avoid !important;
+  }
+
+  /* Additional orphan/widow control */
+  p, div, section, table, ul, ol {
+    orphans: 10 !important;
+    widows: 10 !important;
+  }
+
+  /* Ensure no elements create extra height at the end */
+  .min-h-screen,
+  .h-screen,
+  .h-full {
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  /* Section spacing - minimal */
+  .mb-8, .mb-6, .mb-4, .mb-2, .mb-1 {
+    margin-bottom: 3pt !important;
+  }
+
+  .mt-8, .mt-6, .mt-4, .mt-2, .mt-1 {
+    margin-top: 2pt !important;
+  }
+
+  .pt-8, .pt-6, .pt-4, .pt-2, .pt-1 {
+    padding-top: 2pt !important;
+  }
+
+  /* Border sections get tiny padding */
+  .border-b-2, .border-b, .pb-6, .pb-4, .pb-2, .pb-1 {
+    padding-bottom: 2pt !important;
+  }
+
+  /* Grid spacing */
+  .grid {
+    gap: 3pt !important;
+  }
+
+  .grid-cols-2 > * {
+    margin: 0 !important;
+    padding: 2pt !important;
+  }
+
+  /* Force the main report container to have no bottom margin/padding */
+  #end-of-day-report > *:last-child,
+  #end-of-week-report > *:last-child {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Remove any wrapper padding */
+  .bg-white,
+  .dark\\:bg-gray-900,
+  .p-4,
+  .p-8 {
+    padding: 0 !important;
     background: white !important;
   }
 
@@ -84,9 +252,16 @@
     page-break-inside: avoid;
   }
 
-  /* Ensure sections start on new page if needed */
+  /* Disable forced page breaks to prevent blank pages */
   .page-break-before {
-    page-break-before: always;
+    page-break-before: auto !important;
+  }
+
+  /* Prevent orphan sections that create blank pages */
+  div:empty,
+  section:empty,
+  p:empty {
+    display: none !important;
   }
 
   /* ======================
@@ -94,28 +269,28 @@
      ====================== */
 
   h1 {
-    font-size: 18pt;
+    font-size: 14pt;
     font-weight: bold;
-    margin: 0 0 12pt 0;
+    margin: 0 0 3pt 0; /* Minimal spacing */
     color: black !important;
   }
 
   h2 {
-    font-size: 14pt;
+    font-size: 11pt;
     font-weight: bold;
-    margin: 12pt 0 8pt 0;
+    margin: 4pt 0 2pt 0; /* Minimal spacing */
     color: black !important;
   }
 
   h3 {
-    font-size: 12pt;
+    font-size: 10pt;
     font-weight: bold;
-    margin: 10pt 0 6pt 0;
+    margin: 3pt 0 1pt 0; /* Minimal spacing */
     color: black !important;
   }
 
   p {
-    margin: 0 0 6pt 0;
+    margin: 0 0 1pt 0; /* Minimal spacing */
     orphans: 3;
     widows: 3;
   }
@@ -127,7 +302,7 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    margin: 8pt 0;
+    margin: 2pt 0; /* Minimal margin */
     page-break-inside: avoid;
   }
 
@@ -147,15 +322,17 @@
     background-color: #e8e8e8 !important; /* Light gray for headers */
     color: black !important;
     font-weight: bold;
-    padding: 4pt 6pt;
+    padding: 1pt 3pt; /* Minimal padding */
     text-align: left;
     border: 1px solid #666 !important;
+    font-size: 8pt;
   }
 
   td {
-    padding: 4pt 6pt;
+    padding: 1pt 3pt; /* Minimal padding */
     border: 1px solid #999 !important;
     color: black !important;
+    font-size: 8pt;
   }
 
   /* Zebra striping (light gray only) */
@@ -172,15 +349,23 @@
      ====================== */
 
   .signature-section {
-    margin-top: 24pt;
+    margin-top: 6pt; /* Minimal spacing */
+    margin-bottom: 0 !important; /* Prevent trailing space */
     page-break-inside: avoid;
+    page-break-after: avoid !important;
   }
 
   .signature-line {
     border-bottom: 1px solid #666 !important;
-    padding-bottom: 2pt;
-    margin-bottom: 4pt;
-    min-height: 20pt;
+    padding-bottom: 0pt;
+    margin-bottom: 1pt;
+    min-height: 12pt; /* Minimal height */
+  }
+
+  /* Ensure signature section is the last element and doesn't create blank page */
+  .signature-section:last-child {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
   }
 
   /* ======================
@@ -189,18 +374,21 @@
 
   .report-header {
     text-align: center;
-    margin-bottom: 16pt;
-    padding-bottom: 8pt;
+    margin-bottom: 3pt; /* Minimal spacing */
+    padding-bottom: 2pt; /* Minimal spacing */
     border-bottom: 2px solid #666 !important;
   }
 
   .report-footer {
-    margin-top: 16pt;
-    padding-top: 8pt;
+    margin-top: 3pt; /* Minimal spacing */
+    margin-bottom: 0 !important; /* No bottom margin */
+    padding-top: 2pt; /* Minimal spacing */
+    padding-bottom: 0 !important; /* No bottom padding */
     border-top: 1px solid #666 !important;
     text-align: center;
-    font-size: 8pt;
+    font-size: 7pt;
     color: #666 !important;
+    page-break-after: avoid !important; /* Don't break after footer */
   }
 
   /* ======================
@@ -209,8 +397,8 @@
 
   .summary-box {
     border: 1px solid #666 !important;
-    padding: 8pt;
-    margin: 8pt 0;
+    padding: 2pt; /* Minimal padding */
+    margin: 2pt 0; /* Minimal margin */
     background-color: white !important;
     page-break-inside: avoid;
   }
@@ -274,23 +462,23 @@
 
   /* Till reconciliation section */
   .till-reconciliation {
-    margin: 16pt 0;
+    margin: 2pt 0; /* Minimal spacing */
     page-break-inside: avoid;
   }
 
   /* Employee sales section */
   .employee-sales {
-    margin: 12pt 0;
+    margin: 2pt 0; /* Minimal spacing */
   }
 
   /* Category breakdown */
   .category-breakdown {
-    margin: 12pt 0;
+    margin: 2pt 0; /* Minimal spacing */
   }
 
   /* Payment methods */
   .payment-methods {
-    margin: 12pt 0;
+    margin: 2pt 0; /* Minimal spacing */
   }
 
   /* ======================
@@ -338,17 +526,33 @@
 
   /* Reduce spacing between sections to save paper */
   .report-section + .report-section {
-    margin-top: 12pt;
+    margin-top: 2pt; /* Minimal */
+  }
+
+  /* Prevent sections from creating blank pages at the end */
+  .report-section:last-of-type,
+  section:last-of-type,
+  div:last-of-type {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    page-break-after: avoid !important;
   }
 
   /* Compact lists */
   ul, ol {
-    margin: 4pt 0;
-    padding-left: 16pt;
+    margin: 1pt 0; /* Minimal spacing */
+    padding-left: 8pt; /* Minimal indent */
   }
 
   li {
-    margin: 2pt 0;
+    margin: 0pt; /* No spacing between list items */
+    line-height: 1.1;
+  }
+
+  /* Ensure list elements at the end don't create blank pages */
+  ul:last-child, ol:last-child {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
   }
 
   /* ======================

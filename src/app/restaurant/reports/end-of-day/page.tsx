@@ -11,6 +11,7 @@ import { getCategoryEmoji, getPaymentMethodEmoji } from '@/lib/category-emojis'
 import { PercentageBar } from '@/components/reports/percentage-bar'
 import { PaymentMethodsPieChart } from '@/components/reports/payment-methods-pie-chart'
 import { CategoryPerformanceBarChart } from '@/components/reports/category-performance-bar-chart'
+import '@/styles/print-report.css'
 
 export default function EndOfDayReport() {
   const [dailySales, setDailySales] = useState<any>(null)
@@ -298,33 +299,37 @@ export default function EndOfDayReport() {
         )}
 
         {/* Navigation (No Print) */}
-        <div className="no-print mb-6 flex items-center justify-between">
-          <div className="flex gap-3">
+        <div className="no-print mb-6 max-w-4xl mx-auto">
+          <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link
               href={posLink}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm whitespace-nowrap"
             >
               ← Back to POS
             </Link>
             <Link
               href="/restaurant/reports/history"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm whitespace-nowrap"
             >
               📅 Historical Reports
             </Link>
-          </div>
-          <div className="flex gap-3">
+            <Link
+              href="/restaurant/reports/end-of-week"
+              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm whitespace-nowrap"
+            >
+              📊 End of Week Report
+            </Link>
             {!existingReport && (
               <button
                 onClick={() => setShowSaveModal(true)}
-                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold"
+                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm whitespace-nowrap"
               >
                 💾 Save & Lock Report
               </button>
             )}
             <button
               onClick={() => window.print()}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold"
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm whitespace-nowrap"
             >
               🖨️ Print Report
             </button>
