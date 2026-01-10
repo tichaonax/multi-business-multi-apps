@@ -325,11 +325,11 @@ function CustomerDisplayContent() {
     fetchInitialData()
   }, [businessId])
 
-  // Auto-enter fullscreen/kiosk mode on mount
+  // Auto-enter fullscreen/kiosk mode on mount and maintain it
   useEffect(() => {
     const enterFullscreen = async () => {
       try {
-        if (document.documentElement.requestFullscreen) {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
           await document.documentElement.requestFullscreen()
           console.log('[CustomerDisplay] Entered fullscreen mode')
         }
@@ -338,9 +338,33 @@ function CustomerDisplayContent() {
       }
     }
 
-    // Small delay to ensure page is loaded
+    // Enter fullscreen on mount
     const timer = setTimeout(enterFullscreen, 500)
-    return () => clearTimeout(timer)
+
+    // Re-enter fullscreen when window regains focus (after clicking on POS)
+    const handleFocus = () => {
+      console.log('[CustomerDisplay] Window focused, checking fullscreen')
+      // Small delay to avoid conflicts with browser behavior
+      setTimeout(enterFullscreen, 100)
+    }
+
+    // Re-enter fullscreen if user exits it (e.g., pressing Escape)
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        console.log('[CustomerDisplay] Exited fullscreen, attempting to re-enter')
+        // Delay to avoid immediate conflict
+        setTimeout(enterFullscreen, 1000)
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+    }
   }, [])
 
   // Toggle between cart and marketing mode based on cart contents AND page context
