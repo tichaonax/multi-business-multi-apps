@@ -43,6 +43,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('phone')) {
       updateData.phone = payload.phone?.trim() || null
     }
+    if (payload.hasOwnProperty('ecocashEnabled')) {
+      updateData.ecocashEnabled = !!payload.ecocashEnabled
+    }
 
     // Receipt configuration fields
     if (payload.hasOwnProperty('receiptReturnPolicy')) {
