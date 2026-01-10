@@ -1,0 +1,48 @@
+
+model CustomerDisplaySession {
+  id             String     @id @default(uuid())
+  businessId     String
+  terminalId     String
+  isActive       Boolean    @default(true)
+  connectionType String
+  lastHeartbeat  DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  businesses     Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, terminalId])
+  @@index([isActive])
+  @@map("customer_display_sessions")
+}
+
+model CustomerDisplayAd {
+  id         String     @id @default(uuid())
+  businessId String
+  title      String
+  imageUrl   String?
+  videoUrl   String?
+  duration   Int        @default(10)
+  isActive   Boolean    @default(true)
+  sortOrder  Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  businesses Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, isActive, sortOrder])
+  @@map("customer_display_ads")
+}
+
+model PosTerminalConfig {
+  id                 String     @id @default(uuid())
+  businessId         String
+  terminalId         String     @unique
+  displayName        String
+  hasCustomerDisplay Boolean    @default(false)
+  customerDisplayUrl String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  businesses         Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("pos_terminal_configs")
+}
+

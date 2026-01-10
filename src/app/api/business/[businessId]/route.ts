@@ -43,6 +43,8 @@ export async function GET(
         description: true,
         address: true,
         phone: true,
+        ecocashEnabled: true,
+        receiptReturnPolicy: true,
         isActive: true,
         isDemo: true,
         umbrellaBusinessId: true,
@@ -66,6 +68,8 @@ export async function GET(
       description: business.description,
       address: business.address || business.umbrellaBusinessAddress || '',
       phone: business.phone || business.umbrellaBusinessPhone || '',
+      ecocashEnabled: business.ecocashEnabled,
+      receiptReturnPolicy: business.receiptReturnPolicy || 'All sales are final',
       isActive: business.isActive,
       isDemo: business.isDemo,
       settings: business.settings
@@ -110,14 +114,15 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { address, phone } = body
+    const { address, phone, ecocashEnabled } = body
 
     // Update business details
     const updatedBusiness = await prisma.businesses.update({
       where: { id: businessId },
       data: {
         ...(address !== undefined && { address }),
-        ...(phone !== undefined && { phone })
+        ...(phone !== undefined && { phone }),
+        ...(ecocashEnabled !== undefined && { ecocashEnabled })
       },
       select: {
         id: true,
@@ -126,6 +131,8 @@ export async function PUT(
         description: true,
         address: true,
         phone: true,
+        ecocashEnabled: true,
+        receiptReturnPolicy: true,
         isActive: true,
         isDemo: true,
         umbrellaBusinessId: true,
@@ -145,6 +152,8 @@ export async function PUT(
       description: updatedBusiness.description,
       address: updatedBusiness.address || updatedBusiness.umbrellaBusinessAddress || '',
       phone: updatedBusiness.phone || updatedBusiness.umbrellaBusinessPhone || '',
+      ecocashEnabled: updatedBusiness.ecocashEnabled,
+      receiptReturnPolicy: updatedBusiness.receiptReturnPolicy || 'All sales are final',
       isActive: updatedBusiness.isActive,
       isDemo: updatedBusiness.isDemo,
       settings: updatedBusiness.settings

@@ -24,6 +24,8 @@ import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 import { useToastContext } from '@/components/ui/toast'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
+import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
+import { SyncMode } from '@/lib/customer-display/sync-manager'
 
 interface POSItem {
   id: string
@@ -120,6 +122,53 @@ function GroceryPOSContent() {
 
   // Toast context for notifications
   const toast = useToastContext()
+
+  // Get or create terminal ID for this POS instance
+  const [terminalId] = useState(() => {
+    if (typeof window === 'undefined') return 'terminal-default'
+    const stored = localStorage.getItem('pos-terminal-id')
+    if (stored) return stored
+    const newId = `terminal-${Date.now()}`
+    localStorage.setItem('pos-terminal-id', newId)
+    return newId
+  })
+
+  // Customer Display Sync - broadcast cart updates to customer-facing display
+  const { send: sendToDisplay } = useCustomerDisplaySync({
+    businessId: currentBusinessId || '',
+    terminalId,
+    mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
+    autoConnect: true,
+    onError: (error) => console.error('[Customer Display] Sync error:', error)
+  })
+
+  // Open Customer Display utility
+  const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
+
+  // Broadcast cart state to customer display
+  const broadcastCartState = (cartItems: CartItem[]) => {
+    console.log('[Grocery POS] Broadcasting cart state, items:', cartItems.length)
+    const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    const tax = subtotal * 0.08 // 8% tax rate
+    const total = subtotal + tax
+
+    const cartMessage = {
+      items: cartItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        variant: item.unit || ''
+      })),
+      subtotal,
+      tax,
+      total
+    }
+
+    console.log('[Grocery POS] Sending CART_STATE:', cartMessage)
+    sendToDisplay('CART_STATE', cartMessage)
+    console.log('[Grocery POS] CART_STATE sent')
+  }
 
   // Get user info
   const { data: session, status } = useSession()
@@ -501,6 +550,93 @@ function GroceryPOSContent() {
     fetchBusinessDetails()
   }, [currentBusinessId])
 
+  // Auto-open customer display and send greeting/context on mount
+  useEffect(() => {
+    if (!currentBusinessId || !currentBusiness) {
+      console.log('[Grocery POS] Waiting for business context...', { currentBusinessId, hasBusiness: !!currentBusiness })
+      return
+    }
+
+    let isActive = true
+
+    async function initializeDisplay() {
+      try {
+        console.log('[Grocery POS] Starting customer display initialization...')
+
+        // Try to open display (may fail if already open or popup blocked - that's OK)
+        try {
+          await openDisplay()
+          console.log('[Grocery POS] Customer display window opened')
+        } catch (displayError) {
+          }
+
+        // Fetch full business details from API to get all fields
+        console.log('[Grocery POS] Fetching business details for:', currentBusinessId)
+        const response = await fetch(`/api/business/${currentBusinessId}`)
+        if (!response.ok) {
+          console.error('[Grocery POS] Failed to fetch business details, status:', response.status)
+          return
+        }
+        const data = await response.json()
+        const businessData = data.business // API returns { business: {...} }
+        console.log('[Grocery POS] Business data fetched:', {
+          name: businessData?.name,
+          phone: businessData?.phone,
+          receiptReturnPolicy: businessData?.receiptReturnPolicy
+        })
+
+        // Wait longer for BroadcastChannel to initialize on BOTH windows
+        console.log('[Grocery POS] Waiting for BroadcastChannel to be ready...')
+        await new Promise(resolve => setTimeout(resolve, 2000))
+
+        if (!isActive) return
+
+        console.log('[Grocery POS] Sending greeting message...')
+        // Send greeting and business info
+        const greetingData = {
+          employeeName: sessionUser?.name || 'Staff',
+          businessName: businessData?.name || businessData?.umbrellaBusinessName || currentBusiness.businessName || '',
+          businessPhone: businessData?.phone || businessData?.umbrellaBusinessPhone || '',
+          customMessage: businessData?.receiptReturnPolicy || 'All sales are final',
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        }
+
+        sendToDisplay('SET_GREETING', greetingData)
+        console.log('[Grocery POS] Greeting sent:', greetingData)
+
+        // Set page context to POS
+        sendToDisplay('SET_PAGE_CONTEXT', {
+          pageContext: 'pos',
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
+        console.log('[Grocery POS] Page context set to POS')
+      } catch (error) {
+        console.error('[Grocery POS] Failed to initialize customer display:', error)
+      }
+    }
+
+    initializeDisplay()
+
+    // Cleanup: Set context back to marketing when leaving POS
+    return () => {
+      isActive = false
+      console.log('[Grocery POS] Cleanup: Setting context back to marketing')
+      sendToDisplay('SET_PAGE_CONTEXT', {
+        pageContext: 'marketing',
+        subtotal: 0,
+        tax: 0,
+        total: 0
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // IMPORTANT: Only depend on currentBusinessId (string) to avoid infinite loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBusinessId])
+
   const sampleCustomer: Customer = {
     id: 'c1',
     name: 'Sarah Johnson',
@@ -628,12 +764,14 @@ function GroceryPOSContent() {
     const actualQuantity = product.weightRequired ? (weight || currentWeight) : quantity
     const subtotal = product.price * actualQuantity
 
+    let newCart: CartItem[]
     if (existingItem) {
-      setCart(cart.map(item =>
+      newCart = cart.map(item =>
         item.id === product.id
           ? { ...item, quantity: item.quantity + actualQuantity, subtotal: item.subtotal + subtotal }
           : item
-      ))
+      )
+      setCart(newCart)
     } else {
       const cartItem: CartItem = {
         ...product,
@@ -641,8 +779,12 @@ function GroceryPOSContent() {
         weight: product.weightRequired ? actualQuantity : undefined,
         subtotal
       }
-      setCart([...cart, cartItem])
+      newCart = [...cart, cartItem]
+      setCart(newCart)
     }
+
+    // Broadcast updated cart to customer display
+    broadcastCartState(newCart)
 
     // Clear inputs
     setBarcodeInput('')
@@ -708,15 +850,19 @@ function GroceryPOSContent() {
   }, [searchParams, products, productsLoading, currentBusinessId, router, isAutoAdding])
 
   const removeFromCart = (productId: string) => {
-    setCart(cart.filter(item => item.id !== productId))
+    const newCart = cart.filter(item => item.id !== productId)
+    setCart(newCart)
+    broadcastCartState(newCart)
   }
 
   const updateQuantity = (productId: string, newQuantity: number) => {
-    setCart(cart.map(item =>
+    const newCart = cart.map(item =>
       item.id === productId
         ? { ...item, quantity: newQuantity, subtotal: item.price * newQuantity }
         : item
-    ))
+    )
+    setCart(newCart)
+    broadcastCartState(newCart)
   }
 
   const handleBarcodeSubmit = (e: React.FormEvent) => {
@@ -879,8 +1025,13 @@ function GroceryPOSContent() {
 
         setCompletedOrder(orderSummary)
 
-        // Clear cart after successful payment
+        // Clear cart after successful payment and broadcast to customer display
         setCart([])
+        sendToDisplay('CLEAR_CART', {
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
         setCustomer(null)
         setSelectedCustomer(null)
         setShowCashTenderModal(false)
@@ -1359,8 +1510,20 @@ function GroceryPOSContent() {
         />
       </div>
 
-      {/* Reports Link */}
-      <div className="mb-4">
+      {/* Quick Actions */}
+      <div className="mb-4 flex gap-3">
+        <button
+          onClick={async () => {
+            try {
+              await openDisplay()
+            } catch (error) {
+              toast.push('Failed to open customer display. Please allow popups for this site.', { type: 'error', duration: 5000 })
+            }
+          }}
+          className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg font-medium"
+        >
+          🖥️ Open Customer Display
+        </button>
         <a
           href="/grocery/reports"
           className="inline-block px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md hover:shadow-lg font-medium"

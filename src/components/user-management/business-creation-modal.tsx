@@ -16,6 +16,7 @@ interface BusinessCreationModalProps {
     description?: string
     address?: string
     phone?: string
+    ecocashEnabled?: boolean
     receiptReturnPolicy?: string
     taxIncludedInPrice?: boolean
     taxRate?: string
@@ -46,6 +47,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     description: initial?.description || '',
     address: initial?.address || '',
     phone: initial?.phone || '',
+    ecocashEnabled: initial?.ecocashEnabled !== undefined ? initial.ecocashEnabled : false,
     receiptReturnPolicy: initial?.receiptReturnPolicy || 'All sales are final, returns not accepted',
     taxIncludedInPrice: initial?.taxIncludedInPrice !== undefined ? initial.taxIncludedInPrice : true,
     taxRate: initial?.taxRate || '',
@@ -167,6 +169,25 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
               label="Business Phone (Optional)"
               placeholder="77 123 4567"
               className="w-full"
+            />
+          </div>
+
+          {/* Eco-Cash Support */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-800 rounded-md border border-gray-200 dark:border-neutral-700">
+            <div className="flex-1">
+              <label htmlFor="ecocashEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                Accepts Eco-Cash
+              </label>
+              <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                Display Eco-Cash logo on customer display when enabled
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              id="ecocashEnabled"
+              checked={formData.ecocashEnabled}
+              onChange={(e) => setFormData({ ...formData, ecocashEnabled: e.target.checked })}
+              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600"
             />
           </div>
 

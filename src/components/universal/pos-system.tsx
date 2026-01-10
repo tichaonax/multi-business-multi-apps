@@ -11,6 +11,7 @@ import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
+import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import type { ReceiptData, NetworkPrinter } from '@/types/printing'
 
 interface CartItem {
@@ -34,10 +35,11 @@ interface CartItem {
 interface UniversalPOSProps {
   businessId: string
   employeeId?: string
+  terminalId?: string
   onOrderComplete?: (orderId: string) => void
 }
 
-export function UniversalPOS({ businessId, employeeId, onOrderComplete }: UniversalPOSProps) {
+export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComplete }: UniversalPOSProps) {
   const { formatCurrency, config } = useBusinessContext()
   const customAlert = useAlert()
   const businessFeatures = useBusinessFeatures()
@@ -74,6 +76,38 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
   // Printing hooks
   const { canPrintReceipts } = usePrinterPermissions()
   const { monitorJob, notifyJobQueued } = usePrintJobMonitor()
+
+  // Customer Display Sync (only if terminalId is provided)
+  const { send: sendToDisplay } = useCustomerDisplaySync({
+    businessId,
+    terminalId: terminalId || '',
+    autoConnect: !!terminalId,
+    onError: (error) => console.error('[Customer Display] Sync error:', error)
+  })
+
+  // Broadcast cart state to customer display
+  const broadcastCartState = (cartItems: CartItem[]) => {
+    if (!terminalId) return // Skip if no terminal ID
+
+    const subtotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0)
+    const taxRate = config?.general?.taxEnabled ? (config?.general?.taxRate || 0) / 100 : 0
+    const taxAmount = subtotal * taxRate
+    const total = subtotal + taxAmount - discountAmount
+
+    sendToDisplay('CART_STATE', {
+      items: cartItems.map(item => ({
+        id: item.productId,
+        name: item.product?.name || 'Item',
+        quantity: item.quantity,
+        price: item.unitPrice,
+        variant: item.variant?.name || ''
+      })),
+      subtotal,
+      tax: taxAmount,
+      total
+    })
+  }
+
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0)
   const taxRate = config?.general?.taxEnabled ? (config?.general?.taxRate || 0) / 100 : 0
@@ -96,6 +130,7 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
         item => item.productId === product.id && item.variantId === variantId
       )
 
+      let newCart: CartItem[]
       if (existingItemIndex >= 0) {
         // Update existing item
         const updatedCart = [...currentCart]
@@ -108,7 +143,7 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           totalPrice: (unitPrice * newQuantity) - existingItem.discountAmount
         }
 
-        return updatedCart
+        newCart = updatedCart
       } else {
         // Add new item
         const newItem: CartItem = {
@@ -123,8 +158,12 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
           scannedBarcode
         }
 
-        return [...currentCart, newItem]
+        newCart = [...currentCart, newItem]
       }
+
+      // Broadcast updated cart to customer display
+      broadcastCartState(newCart)
+      return newCart
     })
   }
 
@@ -139,12 +178,19 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
         totalPrice: ((updates.unitPrice ?? item.unitPrice) * (updates.quantity ?? item.quantity)) - (updates.discountAmount ?? item.discountAmount)
       }
 
+      // Broadcast updated cart to customer display
+      broadcastCartState(updatedCart)
       return updatedCart
     })
   }
 
   const removeFromCart = (index: number) => {
-    setCart(currentCart => currentCart.filter((_, i) => i !== index))
+    setCart(currentCart => {
+      const newCart = currentCart.filter((_, i) => i !== index)
+      // Broadcast updated cart to customer display
+      broadcastCartState(newCart)
+      return newCart
+    })
   }
 
   const clearCart = () => {
@@ -153,6 +199,15 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
     setCustomerInfo({ name: '' })
     setDiscountAmount(0)
     setError(null)
+
+    // Send CLEAR_CART to customer display
+    if (terminalId) {
+      sendToDisplay('CLEAR_CART', {
+        subtotal: 0,
+        tax: 0,
+        total: 0
+      })
+    }
   }
 
   // Auto-add product from query parameters (from barcode scanner navigation or inventory)
@@ -341,6 +396,16 @@ export function UniversalPOS({ businessId, employeeId, onOrderComplete }: Univer
 
         clearCart()
         setCashTendered('')
+
+        // Send CLEAR_CART to customer display after successful checkout
+        if (terminalId) {
+          sendToDisplay('CLEAR_CART', {
+            subtotal: 0,
+            tax: 0,
+            total: 0
+          })
+        }
+
         onOrderComplete?.(result.data.id)
 
         // Always show receipt preview with print option

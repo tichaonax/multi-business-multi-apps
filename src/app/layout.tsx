@@ -7,11 +7,11 @@ import { BusinessPermissionsProvider } from '@/contexts/business-permissions-con
 import ToastProvider from '@/components/ui/toast'
 import PromptProvider from '@/components/ui/input-modal'
 import { NavigationProvider } from '@/contexts/navigation-context'
-import { GlobalHeader } from '@/components/layout/global-header'
+import { ConditionalGlobalHeader } from '@/components/layout/conditional-global-header'
+import { ConditionalHealthIndicator } from '@/components/layout/conditional-health-indicator'
 import { GlobalBarcodeModalManager } from '@/components/global/global-barcode-modal-manager'
 import { GlobalBarcodeProvider } from '@/contexts/global-barcode-context'
 import ConfirmProvider from '@/components/ui/confirm-modal'
-import HealthIndicator from '@/components/ui/health-indicator'
 import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
 
 export const metadata: Metadata = {
@@ -42,7 +42,7 @@ export default function RootLayout({
                     <NavigationProvider>
                       <GlobalBarcodeProvider>
                         <div className="min-h-screen">
-                          <GlobalHeader />
+                          <ConditionalGlobalHeader />
                           <ConfirmProvider>
                             <main>
                               {children}
@@ -60,12 +60,8 @@ export default function RootLayout({
           </SettingsProvider>
         </CustomSessionProvider>
 
-        {/* Global Health Status Indicator - Appears on ALL pages */}
-        <HealthIndicator 
-          position="bottom-right" 
-          showFullOnDesktop={true}
-          enableClickToExpand={true}
-        />
+        {/* Global Health Status Indicator - Conditionally hidden on customer display */}
+        <ConditionalHealthIndicator />
       </body>
     </html>
   )

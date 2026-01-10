@@ -5,16 +5,71 @@ export const dynamic = 'force-dynamic';
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function HomePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { currentBusinessId } = useBusinessPermissionsContext()
+
+  // Terminal ID for customer display
+  const [terminalId] = useState(() => {
+    if (typeof window === 'undefined') return 'terminal-default'
+    const stored = localStorage.getItem('pos-terminal-id')
+    if (stored) return stored
+    const newId = `terminal-${Date.now()}`
+    localStorage.setItem('pos-terminal-id', newId)
+    return newId
+  })
+
+  // Auto-open customer display when logged in and business is selected
+  useEffect(() => {
+    if (status === 'loading' || !session || !currentBusinessId) return
+
+    async function openCustomerDisplay() {
+      try {
+        const displayUrl = `/customer-display?businessId=${currentBusinessId}&terminalId=${terminalId}`
+
+        // Try Window Management API for multi-monitor support
+        if ('getScreenDetails' in window) {
+          try {
+            const screenDetails = await (window as any).getScreenDetails()
+            const screens = screenDetails.screens
+            const currentScreen = screenDetails.currentScreen
+            const secondaryScreen = screens.find((screen: any) => screen !== currentScreen)
+
+            if (secondaryScreen) {
+              const width = 1920
+              const height = 1080
+              const left = secondaryScreen.availLeft + (secondaryScreen.availWidth - width) / 2
+              const top = secondaryScreen.availTop + (secondaryScreen.availHeight - height) / 2
+              const features = `left=${left},top=${top},width=${width},height=${height},toolbar=no,menubar=no,location=no,status=no`
+              window.open(displayUrl, 'CustomerDisplay', features)
+              console.log('[HomePage] Customer display opened on secondary monitor')
+              return
+            }
+          } catch (err) {
+            console.log('[HomePage] Window Management API not available:', err)
+          }
+        }
+
+        // Fallback: standard window.open
+        const features = 'width=1920,height=1080,toolbar=no,menubar=no,location=no,status=no'
+        window.open(displayUrl, 'CustomerDisplay', features)
+        console.log('[HomePage] Customer display opened')
+      } catch (error) {
+        console.error('[HomePage] Failed to open customer display:', error)
+      }
+    }
+
+    openCustomerDisplay()
+  }, [session, status, currentBusinessId, terminalId])
 
   useEffect(() => {
     if (status === 'loading') return
-    
+
     if (session) {
       router.push('/dashboard')
     }

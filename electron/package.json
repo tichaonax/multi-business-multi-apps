@@ -1,0 +1,47 @@
+{
+  "name": "multi-business-pos-electron",
+  "version": "1.0.0",
+  "description": "Electron wrapper for Multi-Business POS with automatic dual-monitor support",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:restaurant": "cross-env POS_TYPE=restaurant electron .",
+    "start:grocery": "cross-env POS_TYPE=grocery electron .",
+    "start:hardware": "cross-env POS_TYPE=hardware electron .",
+    "start:clothing": "cross-env POS_TYPE=clothing electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "electron": "^28.1.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.multibusiness.pos",
+    "productName": "Multi-Business POS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "icon.png"
+    }
+  }
+}

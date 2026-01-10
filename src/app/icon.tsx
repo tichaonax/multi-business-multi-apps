@@ -1,5 +1,8 @@
 import { ImageResponse } from 'next/og'
 
+// Force edge runtime to fix ESM import issue
+export const runtime = 'edge'
+
 // Image metadata
 export const size = {
   width: 32,

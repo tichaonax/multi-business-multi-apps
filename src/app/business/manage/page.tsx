@@ -377,6 +377,7 @@ function BusinessManagePageContent() {
                               description: biz?.businessDescription || '',
                               address: biz?.address || '',
                               phone: biz?.phone || '',
+                              ecocashEnabled: biz?.ecocashEnabled !== undefined ? biz.ecocashEnabled : false,
                               receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',
                               taxIncludedInPrice: biz?.taxIncludedInPrice !== undefined ? biz.taxIncludedInPrice : true,
                               taxRate: biz?.taxRate ? String(biz.taxRate) : '',

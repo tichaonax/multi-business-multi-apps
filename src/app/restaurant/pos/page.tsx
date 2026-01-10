@@ -3,6 +3,10 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
+
+// IMMEDIATE LOG - This will show as soon as the file is loaded
+console.log('🔥🔥🔥 [Restaurant POS] MODULE LOADED 🔥🔥🔥')
+
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { BarcodeScanner } from '@/components/universal/barcode-scanner'
 import { UniversalProduct } from '@/components/universal/product-card'
@@ -20,6 +24,8 @@ import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receip
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 import type { ReceiptData } from '@/types/printing'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
+import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
+import { SyncMode } from '@/lib/customer-display/sync-manager'
 
 interface MenuItem {
   id: string
@@ -43,6 +49,9 @@ interface CartItem extends MenuItem {
 }
 
 export default function RestaurantPOS() {
+  // IMMEDIATE LOG - This will show when component renders
+  console.log('🚀🚀🚀 [Restaurant POS] COMPONENT RENDERING 🚀🚀🚀')
+
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const submitInFlightRef = useRef<{ current: boolean } | any>({ current: false })
   const [cart, setCart] = useState<CartItem[]>([])
@@ -82,6 +91,124 @@ export default function RestaurantPOS() {
 
   // Toast context (hook) must be called unconditionally to preserve hooks order
   const toast = useToastContext()
+
+  // Get or create terminal ID for this POS instance
+  const [terminalId] = useState(() => {
+    if (typeof window === 'undefined') return 'terminal-default'
+    const stored = localStorage.getItem('pos-terminal-id')
+    if (stored) return stored
+    const newId = `terminal-${Date.now()}`
+    localStorage.setItem('pos-terminal-id', newId)
+    return newId
+  })
+
+  // Customer Display Sync - broadcast cart updates to customer-facing display
+  const { send: sendToDisplay } = useCustomerDisplaySync({
+    businessId: currentBusinessId || '',
+    terminalId,
+    mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
+    autoConnect: true,
+    onError: (error) => console.error('[Customer Display] Sync error:', error)
+  })
+
+  // Open Customer Display utility
+  const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
+
+  // Auto-open customer display and send greeting/context on mount
+  useEffect(() => {
+    if (!currentBusinessId) {
+      return
+    }
+
+    let isActive = true
+
+    async function initializeDisplay() {
+      try {
+        // Try to open display (may fail if already open or popup blocked - that's OK)
+        try {
+          await openDisplay()
+        } catch (displayError) {
+          // Display may already be open from home page
+        }
+
+        // Fetch full business details from API to get all fields
+        const response = await fetch(`/api/business/${currentBusinessId}`)
+        if (!response.ok) {
+          return
+        }
+        const data = await response.json()
+        const businessData = data.business
+
+        // Wait for BroadcastChannel to initialize on BOTH windows
+        await new Promise(resolve => setTimeout(resolve, 2000))
+
+        if (!isActive) return
+
+        // Send greeting and business info
+        const greetingData = {
+          employeeName: sessionUser?.name || 'Staff',
+          businessName: businessData?.name || businessData?.umbrellaBusinessName || '',
+          businessPhone: businessData?.phone || businessData?.umbrellaBusinessPhone || '',
+          customMessage: businessData?.receiptReturnPolicy || 'All sales are final',
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        }
+
+        sendToDisplay('SET_GREETING', greetingData)
+
+        // Set page context to POS
+        sendToDisplay('SET_PAGE_CONTEXT', {
+          pageContext: 'pos',
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
+      } catch (error) {
+        console.error('[POS] Failed to initialize customer display:', error)
+      }
+    }
+
+    initializeDisplay()
+
+    // Cleanup: Set context back to marketing when unmounting
+    return () => {
+      isActive = false
+      sendToDisplay('SET_PAGE_CONTEXT', {
+        pageContext: 'marketing',
+        subtotal: 0,
+        tax: 0,
+        total: 0
+      })
+    }
+  // IMPORTANT: Only depend on currentBusinessId (string) to avoid infinite loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBusinessId])
+
+  // Broadcast cart state to customer display
+  const broadcastCartState = (cartItems: CartItem[]) => {
+    console.log('[POS] Broadcasting cart state, items:', cartItems.length)
+    const subtotal = cartItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
+    const tax = subtotal * 0.08 // 8% tax rate
+    const total = subtotal + tax
+
+    const cartMessage = {
+      items: cartItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: Number(item.price),
+        variant: item.category
+      })),
+      subtotal,
+      tax,
+      total
+    }
+
+    console.log('[POS] Sending CART_STATE:', cartMessage)
+    sendToDisplay('CART_STATE', cartMessage)
+    console.log('[POS] CART_STATE sent')
+  }
 
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
@@ -874,14 +1001,19 @@ export default function RestaurantPOS() {
 
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id)
+      let newCart: CartItem[]
       if (existing) {
         console.log('✅ Item already in cart, incrementing quantity')
-        return prev.map(i =>
+        newCart = prev.map(i =>
           i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
         )
+      } else {
+        console.log('✅ Adding new item to cart')
+        newCart = [...prev, { ...item, quantity: 1 }]
       }
-      console.log('✅ Adding new item to cart')
-      return [...prev, { ...item, quantity: 1 }]
+      // Broadcast updated cart to customer display
+      broadcastCartState(newCart)
+      return newCart
     })
   }
 
@@ -916,7 +1048,12 @@ export default function RestaurantPOS() {
   }
 
   const removeFromCart = (itemId: string) => {
-    setCart(prev => prev.filter(i => i.id !== itemId))
+    setCart(prev => {
+      const newCart = prev.filter(i => i.id !== itemId)
+      // Broadcast updated cart to customer display
+      broadcastCartState(newCart)
+      return newCart
+    })
   }
 
   const updateQuantity = (itemId: string, quantity: number) => {
@@ -924,9 +1061,12 @@ export default function RestaurantPOS() {
       removeFromCart(itemId)
       return
     }
-    setCart(prev => 
-      prev.map(i => i.id === itemId ? { ...i, quantity } : i)
-    )
+    setCart(prev => {
+      const newCart = prev.map(i => i.id === itemId ? { ...i, quantity } : i)
+      // Broadcast updated cart to customer display
+      broadcastCartState(newCart)
+      return newCart
+    })
   }
 
   const total = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
@@ -1028,8 +1168,13 @@ export default function RestaurantPOS() {
         // Show receipt modal
         setShowReceiptModal(true)
 
-        // Clear cart
+        // Clear cart and broadcast to customer display
         setCart([])
+        sendToDisplay('CLEAR_CART', {
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
 
         // Reset payment fields
         setPaymentMethod('CASH')
@@ -1079,6 +1224,19 @@ export default function RestaurantPOS() {
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold text-primary">Point of Sale</h1>
               <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      await openDisplay()
+                    } catch (error) {
+                      toast.push('Failed to open customer display. Please allow popups for this site.', { type: 'error', duration: 5000 })
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                  title="Open Customer Display"
+                >
+                  🖥️ Display
+                </button>
                 <button
                   onClick={() => setShowSettings(true)}
                   className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"

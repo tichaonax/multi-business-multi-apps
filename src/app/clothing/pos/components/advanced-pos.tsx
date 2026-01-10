@@ -7,6 +7,7 @@ import { useBusinessContext } from '@/components/universal'
 import { BarcodeScanner, UniversalProduct } from '@/components/universal'
 import { ReceiptPreview } from '@/components/printing/receipt-preview'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import type { ReceiptData } from '@/types/printing'
 
 interface CartItem {
@@ -47,10 +48,11 @@ interface SupervisorOverride {
 interface ClothingAdvancedPOSProps {
   businessId: string
   employeeId: string
+  terminalId?: string
   onOrderComplete?: (orderId: string) => void
 }
 
-export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }: ClothingAdvancedPOSProps) {
+export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrderComplete }: ClothingAdvancedPOSProps) {
   const { formatCurrency } = useBusinessContext()
   const { currentBusiness } = useBusinessPermissionsContext()
   const customAlert = useAlert()
@@ -83,6 +85,38 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
   // Product data loaded from database
   const [quickAddProducts, setQuickAddProducts] = useState<any[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
+
+  // Customer Display Sync (only if terminalId is provided)
+  const { send: sendToDisplay } = useCustomerDisplaySync({
+    businessId,
+    terminalId: terminalId || '',
+    autoConnect: !!terminalId,
+    onError: (error) => console.error('[Customer Display] Sync error:', error)
+  })
+
+  // Broadcast cart state to customer display
+  const broadcastCartState = (cartItems: CartItem[]) => {
+    if (!terminalId) return // Skip if no terminal ID
+
+    const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity - (item.discount || 0)), 0)
+    const tax = subtotal * 0.08 // Assuming 8% tax
+    const total = subtotal + tax
+
+    sendToDisplay('CART_STATE', {
+      items: cartItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        variant: item.attributes?.size && item.attributes?.color
+          ? `${item.attributes.size} - ${item.attributes.color}`
+          : item.attributes?.size || item.attributes?.color || ''
+      })),
+      subtotal,
+      tax,
+      total
+    })
+  }
 
   // Fetch default printer on component mount
   useEffect(() => {
@@ -165,12 +199,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
 
     const existingItem = cart.find(item => item.variantId === variantId)
 
+    let newCart: CartItem[]
     if (existingItem) {
-      setCart(cart.map(item =>
+      newCart = cart.map(item =>
         item.variantId === variantId
           ? { ...item, quantity: item.quantity + (quantity || 1) }
           : item
-      ))
+      )
     } else {
       const newItem: CartItem = {
         id: Date.now().toString(),
@@ -183,8 +218,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
         attributes: variant.attributes,
         isReturn: mode === 'return'
       }
-      setCart([...cart, newItem])
+      newCart = [...cart, newItem]
     }
+
+    setCart(newCart)
+    // Broadcast updated cart to customer display
+    broadcastCartState(newCart)
   }
 
   // Overloaded function for scanner integration
@@ -196,12 +235,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
       item.productId === product.id && item.variantId === variantId
     )
 
+    let newCart: CartItem[]
     if (existingItem) {
-      setCart(cart.map(item =>
+      newCart = cart.map(item =>
         item.productId === product.id && item.variantId === variantId
           ? { ...item, quantity: item.quantity + quantity }
           : item
-      ))
+      )
     } else {
       const newItem: CartItem = {
         id: Date.now().toString(),
@@ -216,12 +256,19 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
         variant,
         isReturn: mode === 'return'
       }
-      setCart([...cart, newItem])
+      newCart = [...cart, newItem]
     }
+
+    setCart(newCart)
+    // Broadcast updated cart to customer display
+    broadcastCartState(newCart)
   }
 
   const removeFromCart = (itemId: string) => {
-    setCart(cart.filter(item => item.id !== itemId))
+    const newCart = cart.filter(item => item.id !== itemId)
+    setCart(newCart)
+    // Broadcast updated cart to customer display
+    broadcastCartState(newCart)
   }
 
   const updateQuantity = (itemId: string, newQuantity: number) => {
@@ -230,9 +277,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
       return
     }
 
-    setCart(cart.map(item =>
+    const newCart = cart.map(item =>
       item.id === itemId ? { ...item, quantity: newQuantity } : item
-    ))
+    )
+    setCart(newCart)
+    // Broadcast updated cart to customer display
+    broadcastCartState(newCart)
   }
 
   const applyDiscount = (itemId: string, discountAmount: number) => {
@@ -449,6 +499,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, onOrderComplete }:
       setShowPaymentModal(false)
       setCashTendered('')
       setSelectedPaymentMethod('CASH')
+
+      // Send CLEAR_CART to customer display after successful checkout
+      if (terminalId) {
+        sendToDisplay('CLEAR_CART', {
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
+      }
 
       // Auto-print to default printer if configured, otherwise show preview
       if (defaultPrinter) {

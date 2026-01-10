@@ -17,12 +17,16 @@ import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
+import { useOpenCustomerDisplay, useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
+import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 export default function HardwarePOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
   const [dailySales, setDailySales] = useState<any>(null)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const customAlert = useAlert()
 
   // Use the business permissions context for proper business management
   const {
@@ -39,6 +43,27 @@ export default function HardwarePOSPage() {
 
   // Check if current business is a hardware business
   const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
+
+  // Customer Display - generate terminal ID
+  const [terminalId] = useState(() => {
+    if (typeof window === 'undefined') return 'terminal-default'
+    const stored = localStorage.getItem('pos-terminal-id')
+    if (stored) return stored
+    const newId = `terminal-${Date.now()}`
+    localStorage.setItem('pos-terminal-id', newId)
+    return newId
+  })
+
+  const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
+
+  // Customer Display Sync - broadcast updates to customer-facing display
+  const { send: sendToDisplay } = useCustomerDisplaySync({
+    businessId: currentBusinessId || '',
+    terminalId,
+    mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
+    autoConnect: true,
+    onError: (error) => console.error('[Customer Display] Sync error:', error)
+  })
 
   // Load daily sales
   const loadDailySales = async () => {
@@ -69,6 +94,93 @@ export default function HardwarePOSPage() {
       loadDailySales()
     }
   }, [currentBusinessId, isHardwareBusiness])
+
+  // Auto-open customer display and send greeting/context on mount
+  useEffect(() => {
+    if (!currentBusinessId || !currentBusiness) {
+      console.log('[Hardware POS] Waiting for business context...', { currentBusinessId, hasBusiness: !!currentBusiness })
+      return
+    }
+
+    let isActive = true
+
+    async function initializeDisplay() {
+      try {
+        console.log('[Hardware POS] Starting customer display initialization...')
+
+        // Try to open display (may fail if already open or popup blocked - that's OK)
+        try {
+          await openDisplay()
+          console.log('[Hardware POS] Customer display window opened')
+        } catch (displayError) {
+          }
+
+        // Fetch full business details from API to get all fields
+        console.log('[Hardware POS] Fetching business details for:', currentBusinessId)
+        const response = await fetch(`/api/business/${currentBusinessId}`)
+        if (!response.ok) {
+          console.error('[Hardware POS] Failed to fetch business details, status:', response.status)
+          return
+        }
+        const data = await response.json()
+        const businessData = data.business // API returns { business: {...} }
+        console.log('[Hardware POS] Business data fetched:', {
+          name: businessData?.name,
+          phone: businessData?.phone,
+          receiptReturnPolicy: businessData?.receiptReturnPolicy
+        })
+
+        // Wait longer for BroadcastChannel to initialize on BOTH windows
+        console.log('[Hardware POS] Waiting for BroadcastChannel to be ready...')
+        await new Promise(resolve => setTimeout(resolve, 2000))
+
+        if (!isActive) return
+
+        console.log('[Hardware POS] Sending greeting message...')
+        // Send greeting and business info
+        const greetingData = {
+          employeeName: sessionUser?.name || 'Staff',
+          businessName: businessData?.name || businessData?.umbrellaBusinessName || currentBusiness.businessName || '',
+          businessPhone: businessData?.phone || businessData?.umbrellaBusinessPhone || '',
+          customMessage: businessData?.receiptReturnPolicy || 'All sales are final',
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        }
+
+        sendToDisplay('SET_GREETING', greetingData)
+        console.log('[Hardware POS] Greeting sent:', greetingData)
+
+        // Set page context to POS
+        sendToDisplay('SET_PAGE_CONTEXT', {
+          pageContext: 'pos',
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
+        console.log('[Hardware POS] Page context set to POS')
+      } catch (error) {
+        console.error('[Hardware POS] Failed to initialize customer display:', error)
+      }
+    }
+
+    initializeDisplay()
+
+    // Cleanup: Set context back to marketing when leaving POS
+    return () => {
+      isActive = false
+      console.log('[Hardware POS] Cleanup: Setting context back to marketing')
+      sendToDisplay('SET_PAGE_CONTEXT', {
+        pageContext: 'marketing',
+        subtotal: 0,
+        tax: 0,
+        total: 0
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // IMPORTANT: Only depend on currentBusinessId (string) to avoid infinite loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBusinessId])
 
   // Show loading while session or business context is loading
   if (status === 'loading' || businessLoading) {
@@ -194,12 +306,30 @@ export default function HardwarePOSPage() {
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowProductGrid(!showProductGrid)}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                {showProductGrid ? 'Hide Products' : 'Show Products'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      await openDisplay()
+                    } catch (error) {
+                      customAlert({
+                        title: 'Failed to Open Display',
+                        description: 'Failed to open customer display. Please allow popups for this site and ensure you have a secondary monitor connected.'
+                      })
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                  title="Open Customer Display"
+                >
+                  🖥️ Display
+                </button>
+                <button
+                  onClick={() => setShowProductGrid(!showProductGrid)}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  {showProductGrid ? 'Hide Products' : 'Show Products'}
+                </button>
+              </div>
             </div>
 
             {/* POS System */}
@@ -209,6 +339,7 @@ export default function HardwarePOSPage() {
                 <UniversalPOS
                   businessId={businessId}
                   employeeId={employeeId!}
+                  terminalId={terminalId}
                   onOrderComplete={handleOrderComplete}
                 />
               </div>

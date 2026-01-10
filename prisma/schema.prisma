@@ -393,6 +393,7 @@ model Businesses {
   sku_digits                                                               Int?                          @default(5)
   address                                                                  String?
   phone                                                                    String?
+  ecocashEnabled                                                           Boolean                       @default(false)
   receiptReturnPolicy                                                      String?
   taxIncludedInPrice                                                       Boolean                       @default(true)
   taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
@@ -414,7 +415,10 @@ model Businesses {
   business_transactions                                                    BusinessTransactions[]
   businesses                                                               Businesses?                   @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
   other_businesses                                                         Businesses[]                  @relation("businessesTobusinesses")
+  customer_display_ads                                                     CustomerDisplayAd[]
+  customer_display_sessions                                                CustomerDisplaySession[]
   customer_laybys                                                          CustomerLayby[]
+  pos_terminal_configs                                                     PosTerminalConfig[]
   device_connection_history                                                DeviceConnectionHistory[]
   device_registry_first_seen                                               DeviceRegistry[]              @relation("DeviceFirstSeenBusiness")
   device_registry_last_seen                                                DeviceRegistry[]              @relation("DeviceLastSeenBusiness")
@@ -3447,6 +3451,54 @@ model UserPermissions {
 
   @@unique([userId, permissionId])
   @@map("user_permissions")
+}
+
+
+model CustomerDisplaySession {
+  id             String     @id @default(uuid())
+  businessId     String
+  terminalId     String
+  isActive       Boolean    @default(true)
+  connectionType String
+  lastHeartbeat  DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  businesses     Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, terminalId])
+  @@index([isActive])
+  @@map("customer_display_sessions")
+}
+
+model CustomerDisplayAd {
+  id         String     @id @default(uuid())
+  businessId String
+  title      String
+  imageUrl   String?
+  videoUrl   String?
+  duration   Int        @default(10)
+  isActive   Boolean    @default(true)
+  sortOrder  Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  businesses Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, isActive, sortOrder])
+  @@map("customer_display_ads")
+}
+
+model PosTerminalConfig {
+  id                 String     @id @default(uuid())
+  businessId         String
+  terminalId         String     @unique
+  displayName        String
+  hasCustomerDisplay Boolean    @default(false)
+  customerDisplayUrl String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  businesses         Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("pos_terminal_configs")
 }
 
 enum AttributeDataType {
