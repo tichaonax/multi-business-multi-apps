@@ -256,9 +256,9 @@ function CustomerDisplayContent() {
   useEffect(() => {
     async function fetchInitialData() {
       try {
-        // Fetch business information
+        // Fetch business information (using public customer display endpoint)
         console.log('[CustomerDisplay] Fetching business info for:', businessId)
-        const businessResponse = await fetch(`/api/business/${businessId}`)
+        const businessResponse = await fetch(`/api/customer-display/business/${businessId}`)
 
         if (!businessResponse.ok) {
           console.error('[CustomerDisplay] Failed to fetch business info:', businessResponse.status)
