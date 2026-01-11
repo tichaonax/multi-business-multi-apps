@@ -348,26 +348,36 @@ class SyncServiceRunner {
       console.log(`[Electron] Working directory: ${electronPath}`)
       console.log(`[Electron] PORT: ${PORT}`)
 
-      // Create a simple batch file to launch Electron
+      // Find the electron executable
+      const electronExe = path.join(electronPath, 'node_modules', 'electron', 'dist', 'electron.exe')
+
+      // Verify electron.exe exists
+      if (!fs.existsSync(electronExe)) {
+        console.error(`[Electron] electron.exe not found at: ${electronExe}`)
+        console.error(`[Electron] Run 'npm install' in the electron folder`)
+        return
+      }
+
+      // Create a batch file that sets environment and launches electron.exe directly
       const batchPath = path.join(PROJECT_ROOT, 'windows-service', 'start-electron.bat')
       const batchContent = `@echo off
-cd /d "${electronPath}"
 set PORT=${PORT}
 set NODE_ENV=production
-call npm start
+cd /d "${electronPath}"
+"${electronExe}" .
 `
       fs.writeFileSync(batchPath, batchContent)
 
       console.log(`[Electron] Batch file: ${batchPath}`)
+      console.log(`[Electron] Electron.exe: ${electronExe}`)
 
       // Use cmd.exe to execute the batch file
-      // Use /k to keep window open (not /c which closes immediately)
       const cmdExe = 'C:\\Windows\\System32\\cmd.exe'
-      const cmdArgs = `/k "${batchPath}"`
+      const cmdArgs = `/c "${batchPath}"`
 
       console.log(`[Electron] Command: ${cmdExe} ${cmdArgs}`)
 
-      // Use launcher to start cmd.exe with the batch file
+      // Launch via C# helper
       this.electronProcess = spawn(launcherPath, [cmdExe, cmdArgs], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false
