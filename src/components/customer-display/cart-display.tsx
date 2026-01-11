@@ -208,15 +208,15 @@ function CartItemRow({ item }: { item: CartItem }) {
         )}
 
         {/* Item Details */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden">
           {/* Item Name */}
-          <div className="text-4xl font-bold text-gray-900 mb-1 break-words">
+          <div className="text-4xl font-bold text-gray-900 mb-1 break-all overflow-wrap-anywhere">
             {item.name}
           </div>
 
           {/* Variant (if exists) */}
           {item.variant && (
-            <div className="text-2xl text-gray-600 mb-2 break-words">
+            <div className="text-2xl text-gray-600 mb-2 break-all overflow-wrap-anywhere">
               {item.variant}
             </div>
           )}
