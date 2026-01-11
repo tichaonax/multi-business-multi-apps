@@ -146,6 +146,7 @@ class ProductionServiceRunner {
   constructor() {
     this.isShuttingDown = false;
     this.appProcess = null;
+    this.electronProcess = null;
     this.restartCount = 0;
     this.maxRestarts = 3;
     this.restartDelay = 5000;
@@ -308,6 +309,10 @@ class ProductionServiceRunner {
         // Check if server started successfully
         if (output.includes('Multi-Business Platform ready on')) {
           logger.info('✅ Application server started successfully');
+
+          // Start Electron after server is ready
+          this.startElectron();
+
           resolve();
         }
       });
@@ -323,6 +328,9 @@ class ProductionServiceRunner {
         logger.warn('Application process exited', { code, signal });
 
         if (!this.isShuttingDown) {
+          // Stop Electron before restarting
+          this.stopElectron();
+
           // Restart the service if app crashes
           logger.info('Application crashed, restarting service...');
           setTimeout(() => {
@@ -341,10 +349,77 @@ class ProductionServiceRunner {
       setTimeout(() => {
         if (this.appProcess && !this.appProcess.killed) {
           logger.info('✅ Application startup timeout reached, assuming success');
+
+          // Start Electron if server started
+          this.startElectron();
+
           resolve();
         }
       }, 30000); // 30 second timeout
     });
+  }
+
+  startElectron() {
+    logger.info('🖥️  Starting Electron kiosk application...');
+
+    try {
+      const electronPath = path.join(PROJECT_ROOT, 'electron');
+
+      this.electronProcess = spawn('npm', ['start'], {
+        cwd: electronPath,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          PORT: PORT,
+          NODE_ENV: 'production'
+        },
+        shell: true
+      });
+
+      this.electronProcess.stdout.on('data', (data) => {
+        const output = data.toString().trim();
+        logger.info('Electron Output:', { output });
+      });
+
+      this.electronProcess.stderr.on('data', (data) => {
+        const error = data.toString().trim();
+        logger.error('Electron Error:', { error });
+      });
+
+      this.electronProcess.on('exit', (code, signal) => {
+        logger.warn('Electron process exited', { code, signal });
+
+        if (!this.isShuttingDown) {
+          // Restart Electron if it crashes (but don't restart the whole service)
+          logger.info('Electron crashed, restarting Electron...');
+          setTimeout(() => {
+            this.startElectron();
+          }, 3000);
+        }
+      });
+
+      this.electronProcess.on('error', (error) => {
+        logger.error('Failed to start Electron', { error: error.message });
+      });
+
+      logger.info('✅ Electron kiosk application started');
+    } catch (error) {
+      logger.error('Error starting Electron', { error: error.message });
+    }
+  }
+
+  stopElectron() {
+    if (this.electronProcess && !this.electronProcess.killed) {
+      logger.info('Stopping Electron...');
+      this.electronProcess.kill('SIGTERM');
+
+      setTimeout(() => {
+        if (this.electronProcess && !this.electronProcess.killed) {
+          logger.warn('Force killing Electron process');
+          this.electronProcess.kill('SIGKILL');
+        }
+      }, 5000);
+    }
   }
 
   async stop() {
@@ -356,6 +431,10 @@ class ProductionServiceRunner {
     logger.info('🛑 Stopping Multi-Business Platform Service...');
 
     try {
+      // Stop Electron first
+      this.stopElectron();
+
+      // Then stop the application server
       if (this.appProcess && !this.appProcess.killed) {
         logger.info('Terminating application process...');
         this.appProcess.kill('SIGTERM');
@@ -478,8 +557,9 @@ module.exports = { ProductionServiceRunner };`;
     log(`   1. ✅ Runs database migrations (prisma migrate deploy)`);
     log(`   2. ✅ Builds the Next.js application (npm run build)`);
     log(`   3. ✅ Starts the app in production mode`);
-    log(`   4. ✅ Automatic restart on crashes (up to 3 times)`);
-    log(`   5. ✅ Comprehensive logging to logs/ directory`);
+    log(`   4. ✅ Starts Electron kiosk application (POS + Customer Display)`);
+    log(`   5. ✅ Automatic restart on crashes (up to 3 times)`);
+    log(`   6. ✅ Comprehensive logging to logs/ directory`);
 
     log(`\n📂 Important Files:`, 'bright');
     log(`   Service Runner: ${this.serviceRunner}`);

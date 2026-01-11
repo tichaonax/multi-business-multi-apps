@@ -11,6 +11,12 @@ const path = require('path')
 let mainWindow = null
 let customerWindow = null
 
+// Get server URL from environment (supports both dev and production)
+const SERVER_PORT = process.env.PORT || process.env.NEXT_PUBLIC_PORT || 8080
+const SERVER_URL = `http://localhost:${SERVER_PORT}`
+
+console.log(`Electron using server URL: ${SERVER_URL}`)
+
 function createWindows() {
   // Get all displays
   const displays = screen.getAllDisplays()
@@ -40,7 +46,7 @@ function createWindows() {
 
   // Load the home/dashboard page - user will navigate to their desired POS
   // This allows flexibility to use any business type without restarting Electron
-  mainWindow.loadURL(`http://localhost:8080/`)
+  mainWindow.loadURL(`${SERVER_URL}/`)
 
   // Open customer display on secondary monitor after getting businessId
   mainWindow.webContents.on('did-finish-load', () => {
@@ -76,7 +82,7 @@ function createWindows() {
           const terminalId = process.env.TERMINAL_ID || `terminal-${Date.now()}`
 
           // Build URL with businessId if available
-          let displayUrl = `http://localhost:8080/customer-display?terminalId=${terminalId}`
+          let displayUrl = `${SERVER_URL}/customer-display?terminalId=${terminalId}`
           if (businessId) {
             displayUrl += `&businessId=${businessId}`
             console.log('Customer display opening with businessId:', businessId)
