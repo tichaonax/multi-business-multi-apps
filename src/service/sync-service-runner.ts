@@ -342,7 +342,6 @@ class SyncServiceRunner {
       // Step 3: Launch Electron in user session
       const launcherPath = path.join(PROJECT_ROOT, 'windows-service', 'LaunchInUserSession.exe')
       const electronPath = path.join(PROJECT_ROOT, 'electron')
-      const npmPath = 'npm' // Assumes npm is in PATH
       const PORT = process.env.PORT || process.env.NEXT_PUBLIC_PORT || '8080'
 
       // Build batch file to run npm start with environment variables
@@ -358,8 +357,13 @@ npm start
       console.log('[Electron] Launching in user session via CreateProcessAsUser...')
       console.log(`[Electron] Script: ${launchScript}`)
 
-      // Use launcher to start the batch file in user session
-      this.electronProcess = spawn(launcherPath, [`"${launchScript}"`], {
+      // CreateProcessAsUser requires an executable, not a .bat file
+      // Use cmd.exe to execute the batch file
+      const cmdExe = 'C:\\Windows\\System32\\cmd.exe'
+      const cmdArgs = `/c "${launchScript}"`
+
+      // Use launcher to start cmd.exe with the batch file
+      this.electronProcess = spawn(launcherPath, [cmdExe, cmdArgs], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false
       })
