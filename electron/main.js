@@ -51,7 +51,8 @@ function createWindows() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      partition: 'persist:pos' // Shared partition so BroadcastChannel works
     },
     autoHideMenuBar: true,
     fullscreen: false // Allow windowed mode for POS operator
@@ -60,6 +61,16 @@ function createWindows() {
   // Load the home/dashboard page - user will navigate to their desired POS
   // This allows flexibility to use any business type without restarting Electron
   mainWindow.loadURL(`${SERVER_URL}/`)
+
+  // Clear auth cookies when window closes (but keep localStorage for theme)
+  mainWindow.on('close', () => {
+    if (mainWindow && mainWindow.webContents && mainWindow.webContents.session) {
+      // Clear cookies (removes NextAuth session)
+      mainWindow.webContents.session.clearStorageData({
+        storages: ['cookies'], // Only clear cookies, not localStorage
+      }).catch(err => console.error('Error clearing cookies:', err))
+    }
+  })
 
   // Open customer display immediately on secondary monitor (if available)
   // Customer display will show advertising/marketing until business is selected
@@ -75,19 +86,49 @@ function createWindows() {
       frame: false, // No window frame
       autoHideMenuBar: true,
       alwaysOnTop: true, // Stay on top
-      fullscreen: true, // Start in fullscreen
-      kiosk: true, // Enable kiosk mode immediately
+      skipTaskbar: true, // Hide from taskbar
       webPreferences: {
         nodeIntegration: false,
-        contextIsolation: true
+        contextIsolation: true,
+        partition: 'persist:pos' // MUST use same partition for BroadcastChannel to work
       }
     })
 
     // Set kiosk mode IMMEDIATELY (before loading URL)
+    // Set bounds to cover entire screen including taskbar area
+    customerWindow.setBounds({
+      x: secondary.bounds.x,
+      y: secondary.bounds.y,
+      width: secondary.bounds.width,
+      height: secondary.bounds.height
+    })
+
     customerWindow.setKiosk(true)
-    customerWindow.setFullScreen(true)
-    customerWindow.setMenuBarVisibility(false)
+    customerWindow.setAlwaysOnTop(true, 'screen-saver') // Highest level
+    customerWindow.setVisibleOnAllWorkspaces(true)
+    customerWindow.focus()
+
     console.log('✅ Customer display kiosk mode set immediately on creation')
+
+    // Force kiosk mode when window regains focus
+    customerWindow.on('focus', () => {
+      // Check if window still exists before calling methods
+      if (customerWindow && !customerWindow.isDestroyed()) {
+        customerWindow.setKiosk(true)
+        customerWindow.setFullScreen(true)
+        customerWindow.focus()
+      }
+    })
+
+    // Prevent window from ever leaving kiosk mode
+    customerWindow.on('leave-full-screen', () => {
+      console.log('[Customer Display] Attempting to leave fullscreen - preventing...')
+      // Check if window still exists before calling methods
+      if (customerWindow && !customerWindow.isDestroyed()) {
+        customerWindow.setKiosk(true)
+        customerWindow.setFullScreen(true)
+      }
+    })
 
     const terminalId = process.env.TERMINAL_ID || `terminal-${Date.now()}`
 

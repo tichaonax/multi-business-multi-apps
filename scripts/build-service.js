@@ -66,64 +66,6 @@ function cleanDistFolder() {
 }
 
 /**
- * Build the C# launcher helper (LaunchInUserSession.exe)
- * This helper launches Electron in the user's interactive session from the service
- */
-async function buildCSharpLauncher() {
-  console.log('🔧 Building C# launcher helper (LaunchInUserSession.exe)...');
-
-  const windowsServiceDir = path.join(__dirname, '..', 'windows-service');
-  const launcherCs = path.join(windowsServiceDir, 'LaunchInUserSession.cs');
-  const launcherExe = path.join(windowsServiceDir, 'LaunchInUserSession.exe');
-
-  // Check if source file exists
-  if (!fs.existsSync(launcherCs)) {
-    console.warn('⚠️  LaunchInUserSession.cs not found, skipping launcher build');
-    return false;
-  }
-
-  try {
-    // Find .NET Framework C# compiler
-    const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
-
-    if (!fs.existsSync(cscPath)) {
-      console.warn('⚠️  .NET Framework compiler (csc.exe) not found at:', cscPath);
-      console.warn('   Skipping launcher build. Install .NET Framework 4.0+ to build.');
-      return false;
-    }
-
-    // Remove old exe if exists
-    if (fs.existsSync(launcherExe)) {
-      fs.unlinkSync(launcherExe);
-    }
-
-    // Compile the C# launcher
-    const compileCmd = `"${cscPath}" /target:exe /out:"${launcherExe}" "${launcherCs}"`;
-    const { stdout, stderr } = await execAsync(compileCmd);
-
-    if (stdout && stdout.trim()) console.log(stdout);
-    if (stderr && stderr.trim()) console.error(stderr);
-
-    // Verify exe was created
-    if (!fs.existsSync(launcherExe)) {
-      throw new Error('Compilation completed but LaunchInUserSession.exe not found');
-    }
-
-    const stats = fs.statSync(launcherExe);
-    console.log('✅ C# launcher built successfully');
-    console.log(`📄 Launcher: ${launcherExe}`);
-    console.log(`📏 Size: ${Math.round(stats.size / 1024)}KB`);
-
-    return true;
-
-  } catch (error) {
-    console.error('❌ C# launcher build failed:', error.message);
-    console.warn('⚠️  Service will attempt to build launcher at runtime');
-    return false;
-  }
-}
-
-/**
  * Build the TypeScript service files
  */
 async function buildService() {
@@ -216,11 +158,6 @@ async function main() {
     // Step 3: Build TypeScript
     console.log('3️⃣  Compiling TypeScript...');
     await buildService();
-    console.log('');
-
-    // Step 4: Build C# launcher helper
-    console.log('4️⃣  Building C# launcher helper...');
-    await buildCSharpLauncher();
     console.log('');
 
     console.log('🎉 Build process completed successfully!');

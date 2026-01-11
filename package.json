@@ -10,7 +10,7 @@
     "dev:next": "next dev -p 8080",
     "electron:start": "node scripts/start-electron-kiosk.js",
     "electron:stop": "node scripts/stop-electron.js",
-    "electron:install-startup": "scripts\\install-electron-startup.bat",
+    "electron:install-startup": "node scripts/create-electron-shortcut.js",
     "electron:uninstall-startup": "scripts\\uninstall-electron-startup.bat",
     "clean": "rimraf .next",
     "build": "next build",

@@ -52,7 +52,7 @@ console.log('✅ DATABASE_URL loaded successfully')
 import { createSyncService, getDefaultSyncConfig, SyncServiceConfig } from '../lib/sync/sync-service'
 import { generateNodeId } from '../lib/sync/database-hooks'
 import { hostname } from 'os'
-import { exec, spawn, ChildProcess } from 'child_process'
+import { exec } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
@@ -65,7 +65,6 @@ interface ServiceConfiguration extends SyncServiceConfig {
 
 class SyncServiceRunner {
   private service: any = null
-  private electronProcess: ChildProcess | null = null
   private config: ServiceConfiguration
   private restartAttempts = 0
   private isShuttingDown = false
@@ -255,9 +254,9 @@ class SyncServiceRunner {
 
       this.restartAttempts = 0 // Reset on successful start
       console.log('🚀 Sync service started successfully')
-
-      // Start Electron with display detection (polls until 2 displays are found)
-      this.startElectronWithDisplayCheck()
+      console.log('')
+      console.log('💡 Electron will start automatically when user logs in via Windows Startup shortcut')
+      console.log('   To install startup shortcut: npm run electron:install-startup')
 
     } catch (error) {
       console.error('❌ Failed to start sync service:', error)
@@ -276,9 +275,6 @@ class SyncServiceRunner {
   async stop(): Promise<void> {
     this.isShuttingDown = true
 
-    // Stop Electron first before stopping the service
-    this.stopElectron()
-
     if (this.service) {
       try {
         console.log('Stopping sync service...')
@@ -290,155 +286,6 @@ class SyncServiceRunner {
     }
   }
 
-  /**
-   * Verify the C# launcher helper exists (pre-built during service build)
-   */
-  private verifyLauncherExists(): boolean {
-    const launcherPath = path.join(PROJECT_ROOT, 'windows-service', 'LaunchInUserSession.exe')
-
-    // Check if launcher exists
-    if (fs.existsSync(launcherPath)) {
-      console.log('[Launcher] ✅ LaunchInUserSession.exe found')
-      return true
-    }
-
-    console.error('[Launcher] ❌ LaunchInUserSession.exe not found!')
-    console.error('[Launcher] Run "npm run build:service" to build the launcher')
-    console.error('[Launcher] Path expected:', launcherPath)
-    return false
-  }
-
-  /**
-   * Wait briefly before launching Electron
-   * Gives system time to stabilize after boot
-   */
-  private async waitBeforeLaunch(): Promise<void> {
-    const waitSeconds = 10
-    console.log(`⏳ Waiting ${waitSeconds} seconds for system to stabilize...`)
-    await new Promise(resolve => setTimeout(resolve, waitSeconds * 1000))
-    console.log('✅ Ready to launch Electron')
-  }
-
-  /**
-   * Start Electron kiosk application in user session using CreateProcessAsUser
-   */
-  private async startElectronWithDisplayCheck(): Promise<void> {
-    console.log('🖥️  Preparing to start Electron in user session...')
-
-    try {
-      // Step 1: Verify launcher exists (pre-built during service build)
-      const launcherReady = this.verifyLauncherExists()
-      if (!launcherReady) {
-        console.error('[Electron] Cannot start - launcher not found')
-        console.error('[Electron] Run "npm run build:service" to build the launcher')
-        return
-      }
-
-      // Step 2: Wait for system to stabilize
-      // Note: C# launcher will check for active user session using WTSGetActiveConsoleSessionId()
-      // If no user logged in, it will return error code 2 and retry
-      await this.waitBeforeLaunch()
-
-      // Step 3: Launch Electron in user session
-      const launcherPath = path.join(PROJECT_ROOT, 'windows-service', 'LaunchInUserSession.exe')
-      const electronPath = path.join(PROJECT_ROOT, 'electron')
-      const PORT = process.env.PORT || process.env.NEXT_PUBLIC_PORT || '8080'
-
-      console.log('[Electron] Launching in user session via CreateProcessAsUser...')
-      console.log(`[Electron] Working directory: ${electronPath}`)
-      console.log(`[Electron] PORT: ${PORT}`)
-
-      // Find the electron executable
-      const electronExe = path.join(electronPath, 'node_modules', 'electron', 'dist', 'electron.exe')
-
-      // Verify electron.exe exists
-      if (!fs.existsSync(electronExe)) {
-        console.error(`[Electron] electron.exe not found at: ${electronExe}`)
-        console.error(`[Electron] Run 'npm install' in the electron folder`)
-        return
-      }
-
-      // Create a batch file that sets environment and launches electron.exe directly
-      const batchPath = path.join(PROJECT_ROOT, 'windows-service', 'start-electron.bat')
-      const batchContent = `@echo off
-set PORT=${PORT}
-set NODE_ENV=production
-cd /d "${electronPath}"
-"${electronExe}" .
-`
-      fs.writeFileSync(batchPath, batchContent)
-
-      console.log(`[Electron] Batch file: ${batchPath}`)
-      console.log(`[Electron] Electron.exe: ${electronExe}`)
-
-      // Use cmd.exe to execute the batch file
-      const cmdExe = 'C:\\Windows\\System32\\cmd.exe'
-      const cmdArgs = `/c "${batchPath}"`
-
-      console.log(`[Electron] Command: ${cmdExe} ${cmdArgs}`)
-
-      // Launch via C# helper
-      this.electronProcess = spawn(launcherPath, [cmdExe, cmdArgs], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: false
-      })
-
-      this.electronProcess.stdout?.on('data', (data: Buffer) => {
-        const output = data.toString().trim()
-        console.log('[Launcher]', output)
-      })
-
-      this.electronProcess.stderr?.on('data', (data: Buffer) => {
-        const error = data.toString().trim()
-        console.error('[Launcher Error]', error)
-      })
-
-      this.electronProcess.on('exit', (code, signal) => {
-        console.log(`[Launcher] Process exited with code ${code}, signal ${signal}`)
-
-        if (!this.isShuttingDown && code !== 0) {
-          // Error code 2 = no active console session (user not logged in)
-          if (code === 2) {
-            console.log('[Electron] No user logged in yet, waiting 30 seconds...')
-            setTimeout(() => {
-              this.startElectronWithDisplayCheck()
-            }, 30000)
-          } else {
-            console.log('[Electron] Launch failed (code ' + code + '), retrying in 10 seconds...')
-            setTimeout(() => {
-              this.startElectronWithDisplayCheck()
-            }, 10000)
-          }
-        }
-      })
-
-      this.electronProcess.on('error', (error: Error) => {
-        console.error('[Launcher] Failed to start:', error.message)
-      })
-
-      console.log('✅ Electron launch command sent to user session')
-      console.log('   Electron should now have access to all displays')
-    } catch (error: any) {
-      console.error('[Electron] Error starting Electron:', error.message)
-    }
-  }
-
-  /**
-   * Stop Electron kiosk application
-   */
-  private stopElectron(): void {
-    if (this.electronProcess && !this.electronProcess.killed) {
-      console.log('🛑 Stopping Electron kiosk...')
-      this.electronProcess.kill('SIGTERM')
-
-      setTimeout(() => {
-        if (this.electronProcess && !this.electronProcess.killed) {
-          console.log('[Electron] Force killing process')
-          this.electronProcess.kill('SIGKILL')
-        }
-      }, 5000)
-    }
-  }
 
   /**
    * Restart the sync service
