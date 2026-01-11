@@ -93,8 +93,18 @@ function createWindows() {
 
     // Enable kiosk mode after window is ready (more reliable on Windows)
     customerWindow.webContents.on('did-finish-load', () => {
+      // Try multiple approaches for Windows compatibility
       customerWindow.setKiosk(true)
+      customerWindow.setFullScreen(true)
+      customerWindow.setMenuBarVisibility(false)
       console.log('✅ Customer display kiosk mode enabled')
+    })
+
+    // Also try setting kiosk immediately (belt and suspenders approach)
+    customerWindow.once('ready-to-show', () => {
+      customerWindow.setKiosk(true)
+      customerWindow.setFullScreen(true)
+      console.log('✅ Customer display kiosk mode set on ready-to-show')
     })
 
     // Open DevTools for customer display in development mode
