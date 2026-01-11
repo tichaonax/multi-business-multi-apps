@@ -291,102 +291,167 @@ class SyncServiceRunner {
   }
 
   /**
-   * Check how many displays are currently connected using PowerShell
+   * Build the C# launcher helper if it doesn't exist
    */
-  private async getDisplayCount(): Promise<number> {
+  private async buildLauncherIfNeeded(): Promise<boolean> {
+    const launcherPath = path.join(PROJECT_ROOT, 'windows-service', 'LaunchInUserSession.exe')
+    const buildScript = path.join(PROJECT_ROOT, 'windows-service', 'build-launcher.bat')
+
+    // Check if launcher already exists
+    if (fs.existsSync(launcherPath)) {
+      console.log('[Launcher] LaunchInUserSession.exe found')
+      return true
+    }
+
+    console.log('[Launcher] LaunchInUserSession.exe not found, building...')
+
+    // Check if build script exists
+    if (!fs.existsSync(buildScript)) {
+      console.error('[Launcher] Build script not found:', buildScript)
+      return false
+    }
+
+    // Build the launcher
     try {
-      const result = await new Promise<string>((resolve, reject) => {
-        exec('powershell -Command "(Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).Count"',
+      await new Promise<void>((resolve, reject) => {
+        exec(`cd "${path.join(PROJECT_ROOT, 'windows-service')}" && build-launcher.bat`,
           (error, stdout, stderr) => {
-            if (error) reject(error)
-            else resolve(stdout.trim())
+            if (error) {
+              console.error('[Launcher] Build failed:', stderr)
+              reject(error)
+            } else {
+              console.log('[Launcher] Build output:', stdout)
+              resolve()
+            }
           })
       })
-      return parseInt(result) || 0
+
+      // Verify exe was created
+      if (fs.existsSync(launcherPath)) {
+        console.log('[Launcher] ✅ LaunchInUserSession.exe built successfully')
+        return true
+      } else {
+        console.error('[Launcher] Build completed but exe not found')
+        return false
+      }
     } catch (error) {
-      console.error('[Display Detection] Error checking display count:', error)
-      return 0
+      console.error('[Launcher] Build error:', error)
+      return false
     }
   }
 
   /**
-   * Wait for 2 displays to be connected before starting Electron
+   * Wait for an active user session (user login)
    */
-  private async waitForDisplays(): Promise<void> {
-    const maxWaitMinutes = 5
+  private async waitForUserSession(): Promise<boolean> {
+    const maxWaitMinutes = 10
     const checkIntervalSeconds = 5
     const maxAttempts = (maxWaitMinutes * 60) / checkIntervalSeconds
 
-    console.log('🖥️  Waiting for display drivers to initialize...')
+    console.log('👤 Waiting for user to log in...')
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const displayCount = await this.getDisplayCount()
-      console.log(`[Display Detection] Attempt ${attempt}: Found ${displayCount} display(s)`)
+      try {
+        // Check if there's an active console session
+        const result = await new Promise<string>((resolve, reject) => {
+          exec('query session', (error, stdout, stderr) => {
+            if (error) reject(error)
+            else resolve(stdout)
+          })
+        })
 
-      if (displayCount >= 2) {
-        console.log('✅ 2 displays detected, starting Electron...')
-        return
-      }
+        // Look for "Active" session
+        if (result.includes('Active')) {
+          console.log('✅ Active user session detected')
+          return true
+        }
 
-      if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000))
+        if (attempt < maxAttempts) {
+          console.log(`[User Session] Attempt ${attempt}/${maxAttempts}: No active session, waiting...`)
+          await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000))
+        }
+      } catch (error) {
+        console.error('[User Session] Error checking session:', error)
       }
     }
 
-    console.warn('⚠️  Timeout waiting for 2 displays. Starting Electron anyway (only primary monitor will be used).')
+    console.warn('⚠️  Timeout waiting for user session.')
+    return false
   }
 
   /**
-   * Start Electron kiosk application
+   * Start Electron kiosk application in user session using CreateProcessAsUser
    */
   private async startElectronWithDisplayCheck(): Promise<void> {
-    // Wait for displays to be ready
-    await this.waitForDisplays()
-
-    console.log('🖥️  Starting Electron kiosk application...')
+    console.log('🖥️  Preparing to start Electron in user session...')
 
     try {
+      // Step 1: Build launcher if needed
+      const launcherReady = await this.buildLauncherIfNeeded()
+      if (!launcherReady) {
+        console.error('[Electron] Cannot start - launcher build failed')
+        return
+      }
+
+      // Step 2: Wait for user session
+      const userSessionReady = await this.waitForUserSession()
+      if (!userSessionReady) {
+        console.error('[Electron] Cannot start - no user session available')
+        return
+      }
+
+      // Step 3: Launch Electron in user session
+      const launcherPath = path.join(PROJECT_ROOT, 'windows-service', 'LaunchInUserSession.exe')
       const electronPath = path.join(PROJECT_ROOT, 'electron')
+      const npmPath = 'npm' // Assumes npm is in PATH
       const PORT = process.env.PORT || process.env.NEXT_PUBLIC_PORT || '8080'
 
-      this.electronProcess = spawn('npm', ['start'], {
-        cwd: electronPath,
+      // Build batch file to run npm start with environment variables
+      const launchScript = path.join(PROJECT_ROOT, 'windows-service', 'launch-electron.bat')
+      const batchContent = `@echo off
+cd /d "${electronPath}"
+set PORT=${PORT}
+set NODE_ENV=production
+npm start
+`
+      fs.writeFileSync(launchScript, batchContent)
+
+      console.log('[Electron] Launching in user session via CreateProcessAsUser...')
+      console.log(`[Electron] Script: ${launchScript}`)
+
+      // Use launcher to start the batch file in user session
+      this.electronProcess = spawn(launcherPath, [`"${launchScript}"`], {
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          PORT: PORT,
-          NODE_ENV: process.env.NODE_ENV || 'production'
-        },
-        shell: true
+        shell: false
       })
 
       this.electronProcess.stdout?.on('data', (data: Buffer) => {
         const output = data.toString().trim()
-        console.log('[Electron]', output)
+        console.log('[Launcher]', output)
       })
 
       this.electronProcess.stderr?.on('data', (data: Buffer) => {
         const error = data.toString().trim()
-        console.error('[Electron Error]', error)
+        console.error('[Launcher Error]', error)
       })
 
       this.electronProcess.on('exit', (code, signal) => {
-        console.log(`[Electron] Process exited with code ${code}, signal ${signal}`)
+        console.log(`[Launcher] Process exited with code ${code}, signal ${signal}`)
 
-        if (!this.isShuttingDown) {
-          // Restart Electron if it crashes (but don't restart the whole service)
-          console.log('[Electron] Crashed, restarting in 3 seconds...')
+        if (!this.isShuttingDown && code !== 0) {
+          console.log('[Electron] Launch failed or crashed, retrying in 10 seconds...')
           setTimeout(() => {
             this.startElectronWithDisplayCheck()
-          }, 3000)
+          }, 10000)
         }
       })
 
       this.electronProcess.on('error', (error: Error) => {
-        console.error('[Electron] Failed to start:', error.message)
+        console.error('[Launcher] Failed to start:', error.message)
       })
 
-      console.log('✅ Electron kiosk application started')
+      console.log('✅ Electron launch command sent to user session')
+      console.log('   Electron should now have access to all displays')
     } catch (error: any) {
       console.error('[Electron] Error starting Electron:', error.message)
     }
