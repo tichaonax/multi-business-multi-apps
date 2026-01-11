@@ -348,25 +348,26 @@ class SyncServiceRunner {
       console.log(`[Electron] Working directory: ${electronPath}`)
       console.log(`[Electron] PORT: ${PORT}`)
 
-      // Find npm executable (npm.cmd on Windows)
-      // npm is typically in C:\Program Files\nodejs\npm.cmd
-      const npmCmd = 'C:\\Program Files\\nodejs\\npm.cmd'
+      // Create a simple batch file to launch Electron
+      const batchPath = path.join(PROJECT_ROOT, 'windows-service', 'start-electron.bat')
+      const batchContent = `@echo off
+cd /d "${electronPath}"
+set PORT=${PORT}
+set NODE_ENV=production
+call npm start
+`
+      fs.writeFileSync(batchPath, batchContent)
 
-      // Build command line arguments for npm start
-      // Format: "C:\Program Files\nodejs\npm.cmd" "start" "--prefix" "C:\path\to\electron"
-      const npmArgs = `start --prefix "${electronPath}"`
+      console.log(`[Electron] Batch file: ${batchPath}`)
 
-      // Build environment variable string
-      // Format: PORT=8080 NODE_ENV=production
-      const envVars = `PORT=${PORT} NODE_ENV=production`
-
-      // Use cmd.exe to set environment and run npm
+      // Use cmd.exe to execute the batch file
+      // Use /k to keep window open (not /c which closes immediately)
       const cmdExe = 'C:\\Windows\\System32\\cmd.exe'
-      const cmdArgs = `/c "set ${envVars} && cd /d "${electronPath}" && "${npmCmd}" start"`
+      const cmdArgs = `/k "${batchPath}"`
 
       console.log(`[Electron] Command: ${cmdExe} ${cmdArgs}`)
 
-      // Use launcher to start cmd.exe with npm
+      // Use launcher to start cmd.exe with the batch file
       this.electronProcess = spawn(launcherPath, [cmdExe, cmdArgs], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false
