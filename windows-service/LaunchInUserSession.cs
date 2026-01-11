@@ -145,6 +145,7 @@ class LaunchInUserSession
             Console.WriteLine("[INFO] Launching: " + commandLine);
 
             // Launch process in user session
+            // Use CREATE_NO_WINDOW to hide console window for GUI apps
             bool success = CreateProcessAsUser(
                 userToken,
                 null, // lpApplicationName - null to use command line parsing
@@ -152,7 +153,7 @@ class LaunchInUserSession
                 IntPtr.Zero,
                 IntPtr.Zero,
                 false,
-                CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
+                CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
                 envBlock,
                 null, // Current directory
                 ref si,
