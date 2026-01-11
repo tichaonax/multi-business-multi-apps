@@ -52,7 +52,7 @@ console.log('✅ DATABASE_URL loaded successfully')
 import { createSyncService, getDefaultSyncConfig, SyncServiceConfig } from '../lib/sync/sync-service'
 import { generateNodeId } from '../lib/sync/database-hooks'
 import { hostname } from 'os'
-import { exec } from 'child_process'
+import { exec, spawn, ChildProcess } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
@@ -65,6 +65,7 @@ interface ServiceConfiguration extends SyncServiceConfig {
 
 class SyncServiceRunner {
   private service: any = null
+  private electronProcess: ChildProcess | null = null
   private config: ServiceConfiguration
   private restartAttempts = 0
   private isShuttingDown = false
@@ -255,6 +256,9 @@ class SyncServiceRunner {
       this.restartAttempts = 0 // Reset on successful start
       console.log('🚀 Sync service started successfully')
 
+      // Start Electron after service is ready
+      this.startElectron()
+
     } catch (error) {
       console.error('❌ Failed to start sync service:', error)
 
@@ -272,6 +276,9 @@ class SyncServiceRunner {
   async stop(): Promise<void> {
     this.isShuttingDown = true
 
+    // Stop Electron first before stopping the service
+    this.stopElectron()
+
     if (this.service) {
       try {
         console.log('Stopping sync service...')
@@ -280,6 +287,76 @@ class SyncServiceRunner {
       } catch (error) {
         console.error('Error stopping sync service:', error)
       }
+    }
+  }
+
+  /**
+   * Start Electron kiosk application
+   */
+  private startElectron(): void {
+    console.log('🖥️  Starting Electron kiosk application...')
+
+    try {
+      const electronPath = path.join(PROJECT_ROOT, 'electron')
+      const PORT = process.env.PORT || process.env.NEXT_PUBLIC_PORT || '8080'
+
+      this.electronProcess = spawn('npm', ['start'], {
+        cwd: electronPath,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          PORT: PORT,
+          NODE_ENV: process.env.NODE_ENV || 'production'
+        },
+        shell: true
+      })
+
+      this.electronProcess.stdout?.on('data', (data: Buffer) => {
+        const output = data.toString().trim()
+        console.log('[Electron]', output)
+      })
+
+      this.electronProcess.stderr?.on('data', (data: Buffer) => {
+        const error = data.toString().trim()
+        console.error('[Electron Error]', error)
+      })
+
+      this.electronProcess.on('exit', (code, signal) => {
+        console.log(`[Electron] Process exited with code ${code}, signal ${signal}`)
+
+        if (!this.isShuttingDown) {
+          // Restart Electron if it crashes (but don't restart the whole service)
+          console.log('[Electron] Crashed, restarting in 3 seconds...')
+          setTimeout(() => {
+            this.startElectron()
+          }, 3000)
+        }
+      })
+
+      this.electronProcess.on('error', (error: Error) => {
+        console.error('[Electron] Failed to start:', error.message)
+      })
+
+      console.log('✅ Electron kiosk application started')
+    } catch (error: any) {
+      console.error('[Electron] Error starting Electron:', error.message)
+    }
+  }
+
+  /**
+   * Stop Electron kiosk application
+   */
+  private stopElectron(): void {
+    if (this.electronProcess && !this.electronProcess.killed) {
+      console.log('🛑 Stopping Electron kiosk...')
+      this.electronProcess.kill('SIGTERM')
+
+      setTimeout(() => {
+        if (this.electronProcess && !this.electronProcess.killed) {
+          console.log('[Electron] Force killing process')
+          this.electronProcess.kill('SIGKILL')
+        }
+      }, 5000)
     }
   }
 

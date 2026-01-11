@@ -9,6 +9,7 @@
     "dev:electron": "wait-on http://localhost:8080 && cd electron && npm run dev",
     "dev:next": "next dev -p 8080",
     "electron:start": "node scripts/start-electron-kiosk.js",
+    "electron:stop": "node scripts/stop-electron.js",
     "electron:install-startup": "scripts\\install-electron-startup.bat",
     "electron:uninstall-startup": "scripts\\uninstall-electron-startup.bat",
     "clean": "rimraf .next",
