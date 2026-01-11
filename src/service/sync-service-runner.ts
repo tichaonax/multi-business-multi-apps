@@ -291,53 +291,21 @@ class SyncServiceRunner {
   }
 
   /**
-   * Build the C# launcher helper if it doesn't exist
+   * Verify the C# launcher helper exists (pre-built during service build)
    */
-  private async buildLauncherIfNeeded(): Promise<boolean> {
+  private verifyLauncherExists(): boolean {
     const launcherPath = path.join(PROJECT_ROOT, 'windows-service', 'LaunchInUserSession.exe')
-    const buildScript = path.join(PROJECT_ROOT, 'windows-service', 'build-launcher.bat')
 
-    // Check if launcher already exists
+    // Check if launcher exists
     if (fs.existsSync(launcherPath)) {
-      console.log('[Launcher] LaunchInUserSession.exe found')
+      console.log('[Launcher] ✅ LaunchInUserSession.exe found')
       return true
     }
 
-    console.log('[Launcher] LaunchInUserSession.exe not found, building...')
-
-    // Check if build script exists
-    if (!fs.existsSync(buildScript)) {
-      console.error('[Launcher] Build script not found:', buildScript)
-      return false
-    }
-
-    // Build the launcher
-    try {
-      await new Promise<void>((resolve, reject) => {
-        exec(`cd "${path.join(PROJECT_ROOT, 'windows-service')}" && build-launcher.bat`,
-          (error, stdout, stderr) => {
-            if (error) {
-              console.error('[Launcher] Build failed:', stderr)
-              reject(error)
-            } else {
-              console.log('[Launcher] Build output:', stdout)
-              resolve()
-            }
-          })
-      })
-
-      // Verify exe was created
-      if (fs.existsSync(launcherPath)) {
-        console.log('[Launcher] ✅ LaunchInUserSession.exe built successfully')
-        return true
-      } else {
-        console.error('[Launcher] Build completed but exe not found')
-        return false
-      }
-    } catch (error) {
-      console.error('[Launcher] Build error:', error)
-      return false
-    }
+    console.error('[Launcher] ❌ LaunchInUserSession.exe not found!')
+    console.error('[Launcher] Run "npm run build:service" to build the launcher')
+    console.error('[Launcher] Path expected:', launcherPath)
+    return false
   }
 
   /**
@@ -386,10 +354,11 @@ class SyncServiceRunner {
     console.log('🖥️  Preparing to start Electron in user session...')
 
     try {
-      // Step 1: Build launcher if needed
-      const launcherReady = await this.buildLauncherIfNeeded()
+      // Step 1: Verify launcher exists (pre-built during service build)
+      const launcherReady = this.verifyLauncherExists()
       if (!launcherReady) {
-        console.error('[Electron] Cannot start - launcher build failed')
+        console.error('[Electron] Cannot start - launcher not found')
+        console.error('[Electron] Run "npm run build:service" to build the launcher')
         return
       }
 

@@ -68,6 +68,10 @@ logs
 /windows-service/daemon/*.pid
 /windows-service/daemon/*.log
 
+# C# launcher helper (build artifact - rebuilt during service build)
+/windows-service/LaunchInUserSession.exe
+/windows-service/launch-electron.bat
+
 # environment and config files
 .env
 .env.local
