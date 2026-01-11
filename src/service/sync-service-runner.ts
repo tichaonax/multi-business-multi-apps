@@ -256,12 +256,8 @@ class SyncServiceRunner {
       this.restartAttempts = 0 // Reset on successful start
       console.log('🚀 Sync service started successfully')
 
-      // Wait for display drivers to initialize before starting Electron
-      // This prevents the "Found 1 display" issue when service auto-starts at boot
-      console.log('⏳ Waiting 15 seconds for display drivers to initialize...')
-      setTimeout(() => {
-        this.startElectron()
-      }, 15000) // 15 second delay
+      // Start Electron with display detection (polls until 2 displays are found)
+      this.startElectronWithDisplayCheck()
 
     } catch (error) {
       console.error('❌ Failed to start sync service:', error)
@@ -295,9 +291,58 @@ class SyncServiceRunner {
   }
 
   /**
+   * Check how many displays are currently connected using PowerShell
+   */
+  private async getDisplayCount(): Promise<number> {
+    try {
+      const result = await new Promise<string>((resolve, reject) => {
+        exec('powershell -Command "(Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).Count"',
+          (error, stdout, stderr) => {
+            if (error) reject(error)
+            else resolve(stdout.trim())
+          })
+      })
+      return parseInt(result) || 0
+    } catch (error) {
+      console.error('[Display Detection] Error checking display count:', error)
+      return 0
+    }
+  }
+
+  /**
+   * Wait for 2 displays to be connected before starting Electron
+   */
+  private async waitForDisplays(): Promise<void> {
+    const maxWaitMinutes = 5
+    const checkIntervalSeconds = 5
+    const maxAttempts = (maxWaitMinutes * 60) / checkIntervalSeconds
+
+    console.log('🖥️  Waiting for display drivers to initialize...')
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const displayCount = await this.getDisplayCount()
+      console.log(`[Display Detection] Attempt ${attempt}: Found ${displayCount} display(s)`)
+
+      if (displayCount >= 2) {
+        console.log('✅ 2 displays detected, starting Electron...')
+        return
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000))
+      }
+    }
+
+    console.warn('⚠️  Timeout waiting for 2 displays. Starting Electron anyway (only primary monitor will be used).')
+  }
+
+  /**
    * Start Electron kiosk application
    */
-  private startElectron(): void {
+  private async startElectronWithDisplayCheck(): Promise<void> {
+    // Wait for displays to be ready
+    await this.waitForDisplays()
+
     console.log('🖥️  Starting Electron kiosk application...')
 
     try {
@@ -332,7 +377,7 @@ class SyncServiceRunner {
           // Restart Electron if it crashes (but don't restart the whole service)
           console.log('[Electron] Crashed, restarting in 3 seconds...')
           setTimeout(() => {
-            this.startElectron()
+            this.startElectronWithDisplayCheck()
           }, 3000)
         }
       })
