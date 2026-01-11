@@ -37,7 +37,11 @@ export async function GET(
         name: true,
         type: true,
         phone: true,
+        ecocashEnabled: true,
         receiptReturnPolicy: true,
+        taxIncludedInPrice: true,
+        taxRate: true,
+        taxLabel: true,
         umbrellaBusinessName: true,
         umbrellaBusinessPhone: true,
         isActive: true
@@ -64,7 +68,11 @@ export async function GET(
       name: business.name,
       type: business.type,
       phone: business.phone || business.umbrellaBusinessPhone || '',
+      ecocashEnabled: business.ecocashEnabled || false,
       receiptReturnPolicy: business.receiptReturnPolicy || 'All sales are final',
+      taxIncludedInPrice: business.taxIncludedInPrice ?? true,
+      taxRate: business.taxRate ? Number(business.taxRate) : 0,
+      taxLabel: business.taxLabel || 'Tax',
       umbrellaBusinessName: business.umbrellaBusinessName,
       umbrellaBusinessPhone: business.umbrellaBusinessPhone
     }

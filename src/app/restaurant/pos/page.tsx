@@ -65,6 +65,8 @@ export default function RestaurantPOS() {
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [completedOrder, setCompletedOrder] = useState<any>(null)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
+  const [taxIncludedInPrice, setTaxIncludedInPrice] = useState(true) // Default: tax included
+  const [taxRate, setTaxRate] = useState(0.08) // Default: 8%
   const [printerId, setPrinterId] = useState<string | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
@@ -114,7 +116,7 @@ export default function RestaurantPOS() {
   // Open Customer Display utility
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
 
-  // Auto-open customer display and send greeting/context on mount
+  // Signal active business to customer display when business changes
   useEffect(() => {
     if (!currentBusinessId) {
       return
@@ -124,6 +126,15 @@ export default function RestaurantPOS() {
 
     async function initializeDisplay() {
       try {
+        // CRITICAL: Signal which business is active FIRST
+        // This allows customer display to work with multiple businesses
+        console.log('[POS] Signaling active business:', currentBusinessId)
+        sendToDisplay('SET_ACTIVE_BUSINESS', {
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
+
         // Try to open display (may fail if already open or popup blocked - that's OK)
         try {
           await openDisplay()
@@ -139,17 +150,24 @@ export default function RestaurantPOS() {
         const data = await response.json()
         const businessData = data.business
 
+        // Store tax settings from business data
+        if (businessData) {
+          setTaxIncludedInPrice(businessData.taxIncludedInPrice ?? true)
+          setTaxRate(businessData.taxRate ? Number(businessData.taxRate) : 0.08)
+          console.log('[POS] Tax settings:', {
+            taxIncludedInPrice: businessData.taxIncludedInPrice,
+            taxRate: businessData.taxRate
+          })
+        }
+
         // Wait for BroadcastChannel to initialize on BOTH windows
         await new Promise(resolve => setTimeout(resolve, 2000))
 
         if (!isActive) return
 
-        // Send greeting and business info
+        // Send employee greeting only (business info comes from customer display API)
         const greetingData = {
           employeeName: sessionUser?.name || 'Staff',
-          businessName: businessData?.name || businessData?.umbrellaBusinessName || '',
-          businessPhone: businessData?.phone || businessData?.umbrellaBusinessPhone || '',
-          customMessage: businessData?.receiptReturnPolicy || 'All sales are final',
           subtotal: 0,
           tax: 0,
           total: 0
@@ -181,7 +199,7 @@ export default function RestaurantPOS() {
         total: 0
       })
     }
-  // IMPORTANT: Only depend on currentBusinessId (string) to avoid infinite loops
+  // IMPORTANT: Re-run when currentBusinessId changes to signal business switch
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBusinessId])
 
@@ -189,8 +207,22 @@ export default function RestaurantPOS() {
   const broadcastCartState = (cartItems: CartItem[]) => {
     console.log('[POS] Broadcasting cart state, items:', cartItems.length)
     const subtotal = cartItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
-    const tax = subtotal * 0.08 // 8% tax rate
-    const total = subtotal + tax
+
+    // Calculate tax and total based on business settings
+    let tax: number
+    let total: number
+
+    if (taxIncludedInPrice) {
+      // Tax is already included in prices
+      // total = subtotal (prices already include tax)
+      // tax = 0 (or calculate embedded tax for display: subtotal / (1 + taxRate) * taxRate)
+      total = subtotal
+      tax = 0 // Don't show separate tax line when included
+    } else {
+      // Tax is NOT included, add it to subtotal
+      tax = subtotal * taxRate
+      total = subtotal + tax
+    }
 
     const cartMessage = {
       items: cartItems.map(item => ({
@@ -205,10 +237,47 @@ export default function RestaurantPOS() {
       total
     }
 
-    console.log('[POS] Sending CART_STATE:', cartMessage)
+    console.log('[POS] Sending CART_STATE:', {
+      subtotal,
+      tax,
+      total,
+      taxIncludedInPrice,
+      taxRate
+    })
+
+    // CRITICAL: Signal active business, page context, then cart state
+    // This ensures customer display shows the correct business even if it opens after POS
+    sendToDisplay('SET_ACTIVE_BUSINESS', {
+      subtotal: 0,
+      tax: 0,
+      total: 0
+    })
+
+    sendToDisplay('SET_PAGE_CONTEXT', {
+      pageContext: 'pos',
+      subtotal: 0,
+      tax: 0,
+      total: 0
+    })
+
     sendToDisplay('CART_STATE', cartMessage)
-    console.log('[POS] CART_STATE sent')
   }
+
+  // Sync cart state whenever cart changes AND periodically for reliability
+  useEffect(() => {
+    if (!currentBusinessId) return
+
+    // Immediate sync when cart changes
+    broadcastCartState(cart)
+
+    // Periodic sync every 3 seconds to ensure customer display stays in sync
+    // This handles cases where messages might be lost or pages refreshed
+    const syncInterval = setInterval(() => {
+      broadcastCartState(cart)
+    }, 3000)
+
+    return () => clearInterval(syncInterval)
+  }, [cart, currentBusinessId, taxIncludedInPrice, taxRate])
 
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'

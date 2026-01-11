@@ -24,6 +24,9 @@ export default function HomePage() {
     return newId
   })
 
+  // No need to send SET_ACTIVE_BUSINESS here anymore
+  // It's now handled globally in BusinessPermissionsContext
+
   // Auto-open customer display when logged in and business is selected
   useEffect(() => {
     if (status === 'loading' || !session || !currentBusinessId) return

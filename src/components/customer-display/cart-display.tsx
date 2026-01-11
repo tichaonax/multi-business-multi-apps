@@ -24,6 +24,8 @@ interface CartDisplayProps {
   tax: number
   total: number
   taxIncludedInPrice?: boolean
+  taxRate?: number
+  taxLabel?: string
 }
 
 /**
@@ -36,7 +38,15 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
-export function CartDisplay({ items, subtotal, tax, total, taxIncludedInPrice = false }: CartDisplayProps) {
+export function CartDisplay({
+  items,
+  subtotal,
+  tax,
+  total,
+  taxIncludedInPrice = false,
+  taxRate = 0,
+  taxLabel = 'Tax'
+}: CartDisplayProps) {
   return (
     <div className="h-full w-full flex flex-col bg-gradient-to-br from-blue-50 via-white to-blue-50 p-8">
       {/* Header */}
@@ -81,9 +91,11 @@ export function CartDisplay({ items, subtotal, tax, total, taxIncludedInPrice = 
             )}
 
             {/* Tax - Only show if tax is NOT included in prices */}
-            {!taxIncludedInPrice && (
+            {!taxIncludedInPrice && tax > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-4xl text-gray-700">Tax:</span>
+                <span className="text-4xl text-gray-700">
+                  {taxLabel}{taxRate > 0 ? ` (${taxRate}%)` : ''}:
+                </span>
                 <span className="text-4xl font-semibold text-gray-900">
                   {formatCurrency(tax)}
                 </span>

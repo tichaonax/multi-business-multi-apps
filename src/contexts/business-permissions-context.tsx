@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { BusinessPermissions, BusinessMembership, hasBusinessPermission, getActiveBusinesses } from "@/types/permissions";
 import { useToastContext } from '@/components/ui/toast'
 import AdminSeedPromptModal from '@/components/admin/admin-seed-prompt-modal'
+import { BroadcastSync } from '@/lib/customer-display/broadcast-sync'
 
 interface BusinessPermissionsContextType {
   currentBusinessId: string | null;
@@ -137,6 +138,55 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
     };
     // Intentionally exclude currentBusinessId from deps to avoid loops when we set it here
   }, [session?.user?.id, status]);
+
+  // Signal active business to customer display whenever it changes
+  useEffect(() => {
+    console.log('[BusinessPermissionsContext] useEffect triggered:', {
+      currentBusinessId,
+      isWindow: typeof window !== 'undefined'
+    });
+
+    if (!currentBusinessId) {
+      console.log('[BusinessPermissionsContext] No currentBusinessId, skipping broadcast');
+      return;
+    }
+
+    // Only run in browser
+    if (typeof window === 'undefined') {
+      console.log('[BusinessPermissionsContext] Not in browser, skipping broadcast');
+      return;
+    }
+
+    console.log('[BusinessPermissionsContext] Broadcasting active business to customer display:', currentBusinessId);
+
+    // Create a temporary BroadcastSync instance to send the message
+    const sync = new BroadcastSync({
+      businessId: currentBusinessId,
+      terminalId: 'main-window',
+    });
+
+    // Connect the channel BEFORE sending
+    sync.connect();
+    console.log('[BusinessPermissionsContext] BroadcastSync connected');
+
+    // Small delay to ensure customer display is ready
+    const timer = setTimeout(() => {
+      console.log('[BusinessPermissionsContext] Sending SET_ACTIVE_BUSINESS message');
+      sync.send('SET_ACTIVE_BUSINESS', {
+        subtotal: 0,
+        tax: 0,
+        total: 0,
+      });
+
+      // Clean up
+      sync.disconnect();
+      console.log('[BusinessPermissionsContext] BroadcastSync disconnected');
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [currentBusinessId]);
 
   const currentBusiness = useMemo(() => {
     return businesses.find((b) => b.businessId === currentBusinessId && b.isActive) || null;

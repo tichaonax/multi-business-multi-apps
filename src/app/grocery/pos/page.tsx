@@ -166,7 +166,12 @@ function GroceryPOSContent() {
     }
 
     console.log('[Grocery POS] Sending CART_STATE:', cartMessage)
+
+    // Signal active business, page context, then cart state
+    sendToDisplay('SET_ACTIVE_BUSINESS', { subtotal: 0, tax: 0, total: 0 })
+    sendToDisplay('SET_PAGE_CONTEXT', { pageContext: 'pos', subtotal: 0, tax: 0, total: 0 })
     sendToDisplay('CART_STATE', cartMessage)
+
     console.log('[Grocery POS] CART_STATE sent')
   }
 

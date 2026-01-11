@@ -28,7 +28,7 @@ function createWindows() {
     y: primary.bounds.y,
     width: primary.bounds.width,
     height: primary.bounds.height,
-    title: 'POS System',
+    title: 'Multi-Business Management Platform',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -38,51 +38,78 @@ function createWindows() {
     fullscreen: false // Allow windowed mode for POS operator
   })
 
-  // Load the POS page (Restaurant, Grocery, Hardware, or Clothing)
-  // Default to restaurant, can be configured via environment variable
-  const posType = process.env.POS_TYPE || 'restaurant'
-  mainWindow.loadURL(`http://localhost:8080/${posType}/pos`)
+  // Load the home/dashboard page - user will navigate to their desired POS
+  // This allows flexibility to use any business type without restarting Electron
+  mainWindow.loadURL(`http://localhost:8080/`)
 
-  // Create customer display window on secondary monitor (if available)
-  if (secondary) {
-    console.log(`Secondary display detected at (${secondary.bounds.x}, ${secondary.bounds.y})`)
+  // Open customer display on secondary monitor after getting businessId
+  mainWindow.webContents.on('did-finish-load', () => {
+    // Wait a moment for localStorage to be available, then get businessId
+    setTimeout(() => {
+      mainWindow.webContents.executeJavaScript(`
+        (function() {
+          // Try to get businessId from localStorage
+          const businessId = localStorage.getItem('currentBusinessId')
+          return businessId
+        })()
+      `).then(businessId => {
+        // Create customer display window on secondary monitor (if available)
+        if (secondary && !customerWindow) {
+          console.log(`Secondary display detected at (${secondary.bounds.x}, ${secondary.bounds.y})`)
 
-    customerWindow = new BrowserWindow({
-      x: secondary.bounds.x,
-      y: secondary.bounds.y,
-      width: secondary.bounds.width,
-      height: secondary.bounds.height,
-      title: 'Customer Display',
-      kiosk: true, // Fullscreen kiosk mode (hides browser chrome, prevents exit)
-      frame: false, // No window frame
-      autoHideMenuBar: true,
-      alwaysOnTop: true, // Stay on top
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true
-      }
-    })
+          customerWindow = new BrowserWindow({
+            x: secondary.bounds.x,
+            y: secondary.bounds.y,
+            width: secondary.bounds.width,
+            height: secondary.bounds.height,
+            title: 'Customer Display',
+            kiosk: true, // Fullscreen kiosk mode (hides browser chrome, prevents exit)
+            frame: false, // No window frame
+            autoHideMenuBar: true,
+            alwaysOnTop: true, // Stay on top
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true
+            }
+          })
 
-    // Get business and terminal IDs from main window or environment
-    const businessId = process.env.BUSINESS_ID || 'default-business'
-    const terminalId = process.env.TERMINAL_ID || `terminal-${Date.now()}`
+          const terminalId = process.env.TERMINAL_ID || `terminal-${Date.now()}`
 
-    // Load customer display page
-    customerWindow.loadURL(`http://localhost:8080/customer-display?businessId=${businessId}&terminalId=${terminalId}`)
+          // Build URL with businessId if available
+          let displayUrl = `http://localhost:8080/customer-display?terminalId=${terminalId}`
+          if (businessId) {
+            displayUrl += `&businessId=${businessId}`
+            console.log('Customer display opening with businessId:', businessId)
+          } else {
+            console.log('No businessId in localStorage - customer display will wait for business selection')
+          }
 
-    // Prevent customer window from closing
-    customerWindow.on('close', (e) => {
-      if (!app.isQuitting) {
-        e.preventDefault()
-        customerWindow.hide()
-      }
-    })
+          customerWindow.loadURL(displayUrl)
 
-    console.log('Customer display opened on secondary monitor')
-  } else {
-    console.log('No secondary display detected - customer display will not open')
-    console.log('Connect a second monitor and restart the application')
-  }
+          // Open DevTools for customer display in development mode
+          if (process.env.NODE_ENV === 'development') {
+            customerWindow.webContents.openDevTools()
+            console.log('Customer display DevTools opened')
+          }
+
+          // Prevent customer window from closing
+          customerWindow.on('close', (e) => {
+            if (!app.isQuitting) {
+              e.preventDefault()
+              customerWindow.hide()
+            }
+          })
+
+          console.log('Customer display opened on secondary monitor')
+        } else if (!secondary) {
+          console.log('No secondary display detected - customer display will not open')
+          console.log('Connect a second monitor and restart the application')
+        }
+      }).catch(err => {
+        console.error('Error getting businessId from localStorage:', err)
+      })
+    }, 1000) // Wait 1 second for localStorage to be available
+  })
 
   // Handle main window close
   mainWindow.on('closed', () => {
@@ -103,6 +130,17 @@ function createWindows() {
 app.whenReady().then(() => {
   createWindows()
 
+  // Handle display changes (monitor connected/disconnected)
+  screen.on('display-added', (event, newDisplay) => {
+    console.log('Display added:', newDisplay.id)
+    // Optionally: Auto-create customer window on new display
+  })
+
+  screen.on('display-removed', (event, oldDisplay) => {
+    console.log('Display removed:', oldDisplay.id)
+    // Handle customer window if on removed display
+  })
+
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -121,15 +159,4 @@ app.on('window-all-closed', () => {
 // Set quitting flag when app is quitting
 app.on('before-quit', () => {
   app.isQuitting = true
-})
-
-// Handle display changes (monitor connected/disconnected)
-screen.on('display-added', (event, newDisplay) => {
-  console.log('Display added:', newDisplay.id)
-  // Optionally: Auto-create customer window on new display
-})
-
-screen.on('display-removed', (event, oldDisplay) => {
-  console.log('Display removed:', oldDisplay.id)
-  // Handle customer window if on removed display
 })

@@ -8,6 +8,7 @@
  */
 
 export type CartMessageType =
+  | 'SET_ACTIVE_BUSINESS'
   | 'ADD_ITEM'
   | 'REMOVE_ITEM'
   | 'UPDATE_QUANTITY'
@@ -43,12 +44,12 @@ export interface CartMessage {
   }
   timestamp: number
   businessId: string
-  terminalId: string
+  terminalId?: string // Optional, kept for backward compatibility
 }
 
 export interface BroadcastSyncOptions {
-  businessId: string
-  terminalId: string
+  businessId?: string // Optional - only needed when SENDING messages to tag them with businessId
+  terminalId?: string // Optional - only for logging/debugging, not used for filtering
   onMessage?: (message: CartMessage) => void
   onError?: (error: Error) => void
 }
@@ -84,17 +85,17 @@ export class BroadcastSync {
     }
 
     try {
-      // Create channel with unique name per business/terminal
-      const channelName = `customer-display-${this.options.businessId}-${this.options.terminalId}`
+      // Create universal channel for ALL businesses
+      // Customer display receives messages from all businesses and filters by active business
+      const channelName = 'customer-display'
       this.channel = new BroadcastChannel(channelName)
 
       // Expose channel for debugging
       if (typeof window !== 'undefined') {
         (window as any)._customerDisplayChannel = this.channel
-        console.log('🔍 [DEBUG] Channel created:', {
+        console.log('🔍 [DEBUG] Universal channel created:', {
           channelName,
-          businessId: this.options.businessId,
-          terminalId: this.options.terminalId
+          note: 'Channel is shared across all businesses - filtering happens at application level'
         })
       }
 
@@ -103,13 +104,11 @@ export class BroadcastSync {
         try {
           const message = event.data
 
-          console.log('🔍 [DEBUG] Message received on channel:', {
+          console.log('🔍 [DEBUG] Message received on universal channel:', {
             messageType: message?.type,
             messageBusinessId: message?.businessId,
             messageTerminalId: message?.terminalId,
-            expectedBusinessId: this.options.businessId,
-            expectedTerminalId: this.options.terminalId,
-            willAccept: message?.businessId === this.options.businessId && message?.terminalId === this.options.terminalId
+            note: 'Passing to application layer for business filtering'
           })
 
           // Validate message structure
@@ -118,18 +117,9 @@ export class BroadcastSync {
             return
           }
 
-          // Ensure message is for this business/terminal
-          if (
-            message.businessId !== this.options.businessId ||
-            message.terminalId !== this.options.terminalId
-          ) {
-            // Ignore messages from other business/terminals
-            console.log('🔍 [DEBUG] Message ignored - businessId/terminalId mismatch')
-            return
-          }
-
-          console.log('✅ [DEBUG] Message accepted and forwarding to onMessage callback')
-          // Call message callback
+          // NO FILTERING HERE - pass all messages to application layer
+          // Application (customer display) decides which business to show
+          console.log('✅ [DEBUG] Forwarding message to application layer')
           this.options.onMessage?.(message)
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error))

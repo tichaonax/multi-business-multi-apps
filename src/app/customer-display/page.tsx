@@ -62,8 +62,28 @@ interface CartState {
 
 function CustomerDisplayContent() {
   const searchParams = useSearchParams()
-  const businessId = searchParams.get('businessId')
+  const initialBusinessId = searchParams.get('businessId') // Optional hint
   const terminalId = searchParams.get('terminalId')
+  const autoFullscreen = searchParams.get('autoFullscreen') === 'true'
+
+  // Active business tracking - can change dynamically when POS switches business
+  // Start with initialBusinessId from URL if provided, otherwise null
+  const [currentActiveBusinessId, setCurrentActiveBusinessId] = useState<string | null>(initialBusinessId)
+
+  // Use initialBusinessId for display even if no active business signaled yet
+  // This allows showing business info and marketing content immediately
+  const displayBusinessId = currentActiveBusinessId || initialBusinessId
+
+  // Debug: Log connection parameters
+  console.log('🔍 [CustomerDisplay] Connection Info:', {
+    initialBusinessId,
+    currentActiveBusinessId,
+    displayBusinessId,
+    terminalId: terminalId || '(not used for channel)',
+    channelName: 'customer-display',
+    autoFullscreen,
+    note: 'Universal channel - display can switch between businesses dynamically'
+  })
 
   // Cart state
   const [cart, setCart] = useState<CartState>({
@@ -79,7 +99,12 @@ function CustomerDisplayContent() {
   const [businessPhone, setBusinessPhone] = useState<string | null>(null)
   const [customMessage, setCustomMessage] = useState<string>('All sales are final')
   const [taxIncludedInPrice, setTaxIncludedInPrice] = useState<boolean>(false)
+  const [taxRate, setTaxRate] = useState<number>(0)
+  const [taxLabel, setTaxLabel] = useState<string>('Tax')
   const [ecocashEnabled, setEcocashEnabled] = useState<boolean>(false)
+
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Page context tracking
   const [pageContext, setPageContext] = useState<'pos' | 'marketing'>('marketing')
@@ -91,34 +116,44 @@ function CustomerDisplayContent() {
   const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now())
   const INACTIVITY_TIMEOUT_MS = 30000 // 30 seconds
 
-  // Validate required params
-  if (!businessId || !terminalId) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-white">
-        <div className="text-center p-8">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Invalid Display Configuration
-          </h1>
-          <p className="text-2xl text-gray-600 mb-4">
-            Missing required parameters: businessId and terminalId
-          </p>
-          <p className="text-xl text-gray-500">
-            Please open this display from your POS system.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   // Handle incoming cart messages
   const handleCartMessage = useCallback((message: CartMessage) => {
     console.log('📨 [CustomerDisplay] Received message:', {
       type: message.type,
       businessId: message.businessId,
       terminalId: message.terminalId,
+      currentActiveBusinessId,
       payload: message.payload
     })
+
+    // Handle SET_ACTIVE_BUSINESS - always process to potentially switch businesses
+    if (message.type === 'SET_ACTIVE_BUSINESS') {
+      if (message.businessId !== currentActiveBusinessId) {
+        console.log('🔄 [CustomerDisplay] Business switch detected:', {
+          from: currentActiveBusinessId,
+          to: message.businessId
+        })
+        setCurrentActiveBusinessId(message.businessId)
+        // Clear cart when switching businesses
+        setCart({
+          items: [],
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
+      }
+      return
+    }
+
+    // Filter messages by active business (ignore messages from other businesses)
+    if (message.businessId !== currentActiveBusinessId) {
+      console.log('⏭️ [CustomerDisplay] Ignoring message from different business:', {
+        messageBusinessId: message.businessId,
+        currentActiveBusinessId
+      })
+      return
+    }
+
     setLastActivityTime(Date.now())
 
     switch (message.type) {
@@ -137,6 +172,8 @@ function CustomerDisplayContent() {
           tax: newCart.tax,
           total: newCart.total
         })
+        console.log('🛒 [CustomerDisplay] Current pageContext:', pageContext)
+        console.log('🛒 [CustomerDisplay] Will show cart?', pageContext === 'pos' && newCart.items.length > 0)
         setCart(newCart)
         break
 
@@ -210,25 +247,14 @@ function CustomerDisplayContent() {
         break
 
       case 'SET_GREETING':
-        // Set greeting and business info from POS
+        // Set employee greeting from POS (business info comes from API only)
         console.log('[CustomerDisplay] SET_GREETING received:', {
-          employeeName: message.payload.employeeName,
-          businessName: message.payload.businessName,
-          businessPhone: message.payload.businessPhone,
-          customMessage: message.payload.customMessage
+          employeeName: message.payload.employeeName
         })
         if (message.payload.employeeName) {
           setEmployeeName(message.payload.employeeName)
         }
-        if (message.payload.businessName) {
-          setBusinessName(message.payload.businessName)
-        }
-        if (message.payload.businessPhone) {
-          setBusinessPhone(message.payload.businessPhone)
-        }
-        if (message.payload.customMessage) {
-          setCustomMessage(message.payload.customMessage)
-        }
+        // Business data (name, phone, customMessage) is ONLY set from API, not from POS broadcast
         break
 
       case 'SET_PAGE_CONTEXT':
@@ -238,12 +264,12 @@ function CustomerDisplayContent() {
         }
         break
     }
-  }, [])
+  }, [currentActiveBusinessId])
 
-  // Initialize sync connection
+  // Initialize sync connection (businessId is optional - display works with any/all businesses)
   const { isConnected, syncMode, connectionStatus, error } = useCustomerDisplaySync({
-    businessId,
-    terminalId,
+    businessId: currentActiveBusinessId || undefined, // Optional - only for tagging outgoing messages
+    terminalId: terminalId || `terminal-${Date.now()}`, // Generate terminalId if not provided
     mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
     autoConnect: true,
     onMessage: handleCartMessage,
@@ -252,27 +278,71 @@ function CustomerDisplayContent() {
     }
   })
 
-  // Fetch business information and session user on mount (independent of POS)
+  // Fetch business information when business changes (dynamic)
   useEffect(() => {
-    async function fetchInitialData() {
+    // Skip if no business to display
+    if (!displayBusinessId) {
+      console.log('[CustomerDisplay] No business ID available yet')
+      return
+    }
+
+    async function fetchBusinessData() {
       try {
+        // Detect Electron environment - check multiple indicators
+        const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : ''
+        const isElectron = userAgent.includes('electron') ||
+                          (typeof process !== 'undefined' && (process as any).versions?.electron) ||
+                          (typeof window !== 'undefined' && (window as any).electronAPI !== undefined)
+
+        // Use window.location.origin to get the current base URL (includes port from .env.local)
+        // This works in both browser and Electron, using whatever port the app is running on
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+
         // Fetch business information (using public customer display endpoint)
-        console.log('[CustomerDisplay] Fetching business info for:', businessId)
-        const businessResponse = await fetch(`/api/customer-display/business/${businessId}`)
+        console.log('[CustomerDisplay] Fetching business info:', {
+          businessId: displayBusinessId,
+          isElectron,
+          baseUrl,
+          locationOrigin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
+          fullUrl: `${baseUrl}/api/customer-display/business/${displayBusinessId}`
+        })
+
+        let businessResponse
+        try {
+          businessResponse = await fetch(`${baseUrl}/api/customer-display/business/${displayBusinessId}`)
+        } catch (fetchError) {
+          console.error('[CustomerDisplay] Network error fetching business info:', {
+            error: fetchError,
+            message: (fetchError as Error).message,
+            isElectron,
+            baseUrl,
+            url: `${baseUrl}/api/customer-display/business/${displayBusinessId}`
+          })
+          return
+        }
 
         if (!businessResponse.ok) {
-          console.error('[CustomerDisplay] Failed to fetch business info:', businessResponse.status)
+          console.error('[CustomerDisplay] Failed to fetch business info (HTTP error):', {
+            status: businessResponse.status,
+            statusText: businessResponse.statusText,
+            url: businessResponse.url,
+            isElectron,
+            baseUrl
+          })
           return
         }
 
         const businessData = await businessResponse.json()
         const business = businessData.business
 
-        console.log('[CustomerDisplay] Business info fetched:', {
+        console.log('[CustomerDisplay] Business data received:', {
+          hasData: !!business,
           name: business?.name,
           phone: business?.phone,
           umbrellaBusinessName: business?.umbrellaBusinessName,
-          umbrellaBusinessPhone: business?.umbrellaBusinessPhone
+          umbrellaBusinessPhone: business?.umbrellaBusinessPhone,
+          ecocashEnabled: business?.ecocashEnabled,
+          taxIncludedInPrice: business?.taxIncludedInPrice
         })
 
         // Set business information
@@ -281,22 +351,24 @@ function CustomerDisplayContent() {
           setBusinessPhone(business.phone || business.umbrellaBusinessPhone || null)
           setCustomMessage(business.receiptReturnPolicy || 'Thank you for your business')
           setEcocashEnabled(business.ecocashEnabled || false)
-          console.log('[CustomerDisplay] Eco-cash enabled:', business.ecocashEnabled)
 
-          // Extract tax setting from business settings
-          if (business.settings && typeof business.settings === 'object') {
-            const settings = business.settings as any
-            if (settings.taxIncludedInPrice !== undefined) {
-              setTaxIncludedInPrice(settings.taxIncludedInPrice)
-              console.log('[CustomerDisplay] Tax included in price:', settings.taxIncludedInPrice)
-            }
-          }
+          // Set tax configuration
+          setTaxIncludedInPrice(business.taxIncludedInPrice ?? true)
+          setTaxRate(business.taxRate || 0)
+          setTaxLabel(business.taxLabel || 'Tax')
+
+          console.log('[CustomerDisplay] Business config applied:', {
+            ecocashEnabled: business.ecocashEnabled,
+            taxIncludedInPrice: business.taxIncludedInPrice,
+            taxRate: business.taxRate,
+            taxLabel: business.taxLabel
+          })
         }
 
         // Fetch current session user (for same-device scenarios)
         try {
-          console.log('[CustomerDisplay] Fetching session user...')
-          const sessionResponse = await fetch('/api/auth/session')
+          console.log('[CustomerDisplay] Fetching session user from:', `${baseUrl}/api/auth/session`)
+          const sessionResponse = await fetch(`${baseUrl}/api/auth/session`)
 
           if (sessionResponse.ok) {
             const sessionData = await sessionResponse.json()
@@ -318,51 +390,46 @@ function CustomerDisplayContent() {
           setEmployeeName('Our Staff')
         }
       } catch (err) {
-        console.error('[CustomerDisplay] Error fetching initial data:', err)
+        console.error('[CustomerDisplay] Error fetching business data:', err)
       }
     }
 
-    fetchInitialData()
-  }, [businessId])
+    fetchBusinessData()
+  }, [displayBusinessId])
 
-  // Auto-enter fullscreen/kiosk mode on mount and maintain it
+  // Handle fullscreen mode
+  const enterFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen()
+        console.log('[CustomerDisplay] ✅ Entered fullscreen mode')
+        setIsFullscreen(true)
+        setShowFullscreenPrompt(false)
+      }
+    } catch (err: any) {
+      console.error('[CustomerDisplay] ⚠️ Fullscreen failed:', err.message)
+    }
+  }
+
+  // Monitor fullscreen changes
   useEffect(() => {
-    const enterFullscreen = async () => {
-      try {
-        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen()
-          console.log('[CustomerDisplay] Entered fullscreen mode')
-        }
-      } catch (err) {
-        console.log('[CustomerDisplay] Fullscreen request failed:', err)
-      }
-    }
-
-    // Enter fullscreen on mount
-    const timer = setTimeout(enterFullscreen, 500)
-
-    // Re-enter fullscreen when window regains focus (after clicking on POS)
-    const handleFocus = () => {
-      console.log('[CustomerDisplay] Window focused, checking fullscreen')
-      // Small delay to avoid conflicts with browser behavior
-      setTimeout(enterFullscreen, 100)
-    }
-
-    // Re-enter fullscreen if user exits it (e.g., pressing Escape)
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        console.log('[CustomerDisplay] Exited fullscreen, attempting to re-enter')
-        // Delay to avoid immediate conflict
-        setTimeout(enterFullscreen, 1000)
+      const inFullscreen = !!document.fullscreenElement
+      setIsFullscreen(inFullscreen)
+
+      if (!inFullscreen) {
+        console.log('[CustomerDisplay] Exited fullscreen')
+        // Auto re-enter after brief delay
+        setTimeout(enterFullscreen, 500)
       }
     }
 
-    window.addEventListener('focus', handleFocus)
     document.addEventListener('fullscreenchange', handleFullscreenChange)
 
+    // Check initial state
+    setIsFullscreen(!!document.fullscreenElement)
+
     return () => {
-      clearTimeout(timer)
-      window.removeEventListener('focus', handleFocus)
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
     }
   }, [])
@@ -430,12 +497,12 @@ function CustomerDisplayContent() {
 
             {businessPhone && (
               <div className="text-right flex items-center gap-3">
-                <p className="text-2xl font-bold">📞 {businessPhone}</p>
+                <p className="text-3xl font-bold">📞 {businessPhone}</p>
                 {ecocashEnabled && (
                   <img
                     src="/images/ecocash-logo.png"
                     alt="Eco-Cash Accepted"
-                    className="h-12 w-auto object-contain"
+                    style={{ width: '90px', height: '90px' }}
                   />
                 )}
               </div>
@@ -459,7 +526,7 @@ function CustomerDisplayContent() {
             displayMode === 'marketing' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
           }`}
         >
-          <MarketingDisplay businessId={businessId} />
+          <MarketingDisplay businessId={displayBusinessId} />
         </div>
 
         {/* Cart Display - fade in/out */}
@@ -474,6 +541,8 @@ function CustomerDisplayContent() {
             tax={cart.tax}
             total={cart.total}
             taxIncludedInPrice={taxIncludedInPrice}
+            taxRate={taxRate}
+            taxLabel={taxLabel}
           />
         </div>
       </div>

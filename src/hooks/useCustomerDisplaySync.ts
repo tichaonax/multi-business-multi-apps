@@ -13,8 +13,8 @@ import { CartMessage, CartMessageType } from '@/lib/customer-display/broadcast-s
 import { ConnectionStatus } from '@/lib/customer-display/websocket-sync'
 
 export interface UseCustomerDisplaySyncOptions {
-  businessId: string
-  terminalId: string
+  businessId?: string  // Optional - only needed when SENDING messages to tag them
+  terminalId?: string  // Optional - only for logging/debugging
   mode?: SyncMode
   serverUrl?: string
   autoConnect?: boolean
@@ -41,9 +41,9 @@ export interface UseCustomerDisplaySyncReturn {
  * Hook for customer display synchronization
  *
  * @example
- * // In POS page - sending cart updates
+ * // In POS page - sending cart updates (businessId required for tagging messages)
  * const { send, isConnected } = useCustomerDisplaySync({
- *   businessId: 'business-123',
+ *   businessId: 'business-123',  // Messages will be tagged with this businessId
  *   terminalId: 'terminal-1',
  *   autoConnect: true
  * })
@@ -53,12 +53,12 @@ export interface UseCustomerDisplaySyncReturn {
  * }
  *
  * @example
- * // In customer display page - receiving updates
+ * // In customer display page - receiving updates (businessId optional - display handles filtering)
  * const { isConnected, syncMode } = useCustomerDisplaySync({
- *   businessId: 'business-123',
- *   terminalId: 'terminal-1',
+ *   businessId: currentActiveBusinessId,  // Optional - display filters by this in application layer
  *   autoConnect: true,
  *   onMessage: (message) => {
+ *     // Application layer filters messages by businessId
  *     if (message.type === 'ADD_ITEM') {
  *       setCart(prev => [...prev, message.payload.item])
  *     }
@@ -274,7 +274,7 @@ export function useOpenCustomerDisplay(businessId: string, terminalId: string) {
     // Set display marker in localStorage for same-device detection
     SyncManager.setDisplayMarker(businessId, terminalId)
 
-    const displayUrl = `/customer-display?businessId=${businessId}&terminalId=${terminalId}`
+    const displayUrl = `/customer-display?businessId=${businessId}&terminalId=${terminalId}&autoFullscreen=true`
 
     try {
       // Check if Window Management API is supported (Chrome 100+, Edge 100+)
@@ -309,21 +309,7 @@ export function useOpenCustomerDisplay(businessId: string, terminalId: string) {
               throw new Error('Failed to open display window. Please allow popups for this site.')
             }
 
-            // Request fullscreen on the secondary display after a brief delay
-            setTimeout(() => {
-              if (displayWindow && !displayWindow.closed) {
-                displayWindow.focus()
-                // Attempt to enter fullscreen (user gesture required in some browsers)
-                try {
-                  displayWindow.document.documentElement.requestFullscreen?.()
-                    .catch((err: any) => console.log('[useOpenCustomerDisplay] Fullscreen not available:', err.message))
-                } catch (err) {
-                  console.log('[useOpenCustomerDisplay] Fullscreen API not available')
-                }
-              }
-            }, 500)
-
-            console.log('[useOpenCustomerDisplay] Display opened on secondary monitor')
+            console.log('[useOpenCustomerDisplay] Display opened on secondary monitor (will auto-enter fullscreen)')
             return displayWindow
           } else {
             console.log('[useOpenCustomerDisplay] No secondary monitor detected, opening on primary')

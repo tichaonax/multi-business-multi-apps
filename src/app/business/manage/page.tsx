@@ -45,6 +45,7 @@ function BusinessManagePageContent() {
     description?: string
     address?: string
     phone?: string
+    ecocashEnabled?: boolean
     receiptReturnPolicy?: string
     taxIncludedInPrice?: boolean
     taxRate?: string
