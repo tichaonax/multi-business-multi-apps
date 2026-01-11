@@ -256,8 +256,12 @@ class SyncServiceRunner {
       this.restartAttempts = 0 // Reset on successful start
       console.log('🚀 Sync service started successfully')
 
-      // Start Electron after service is ready
-      this.startElectron()
+      // Wait for display drivers to initialize before starting Electron
+      // This prevents the "Found 1 display" issue when service auto-starts at boot
+      console.log('⏳ Waiting 15 seconds for display drivers to initialize...')
+      setTimeout(() => {
+        this.startElectron()
+      }, 15000) // 15 second delay
 
     } catch (error) {
       console.error('❌ Failed to start sync service:', error)
