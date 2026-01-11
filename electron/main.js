@@ -59,10 +59,10 @@ function createWindows() {
       width: secondary.bounds.width,
       height: secondary.bounds.height,
       title: 'Customer Display',
-      kiosk: true, // Fullscreen kiosk mode (hides browser chrome, prevents exit)
       frame: false, // No window frame
       autoHideMenuBar: true,
       alwaysOnTop: true, // Stay on top
+      fullscreen: true, // Start in fullscreen
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true
@@ -77,6 +77,12 @@ function createWindows() {
     console.log('Opening customer display (will show advertising until business selected):', displayUrl)
 
     customerWindow.loadURL(displayUrl)
+
+    // Enable kiosk mode after window is ready (more reliable on Windows)
+    customerWindow.webContents.on('did-finish-load', () => {
+      customerWindow.setKiosk(true)
+      console.log('✅ Customer display kiosk mode enabled')
+    })
 
     // Open DevTools for customer display in development mode
     if (process.env.NODE_ENV === 'development') {
