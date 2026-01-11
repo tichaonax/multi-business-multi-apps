@@ -107,13 +107,13 @@ class LaunchInUserSession
                 return 2;
             }
 
-            Console.WriteLine($"[INFO] Active console session ID: {sessionId}");
+            Console.WriteLine("[INFO] Active console session ID: " + sessionId);
 
             // Get the user token for that session
             IntPtr userToken = IntPtr.Zero;
             if (!WTSQueryUserToken(sessionId, out userToken))
             {
-                Console.WriteLine($"[ERROR] Failed to get user token. Error: {Marshal.GetLastWin32Error()}");
+                Console.WriteLine("[ERROR] Failed to get user token. Error: " + Marshal.GetLastWin32Error());
                 return 3;
             }
 
@@ -123,7 +123,7 @@ class LaunchInUserSession
             IntPtr envBlock = IntPtr.Zero;
             if (!CreateEnvironmentBlock(out envBlock, userToken, false))
             {
-                Console.WriteLine($"[ERROR] Failed to create environment block. Error: {Marshal.GetLastWin32Error()}");
+                Console.WriteLine("[ERROR] Failed to create environment block. Error: " + Marshal.GetLastWin32Error());
                 CloseHandle(userToken);
                 return 4;
             }
@@ -139,10 +139,10 @@ class LaunchInUserSession
 
             // Build command line
             string commandLine = string.IsNullOrEmpty(arguments)
-                ? $"\"{exePath}\""
-                : $"\"{exePath}\" {arguments}";
+                ? "\"" + exePath + "\""
+                : "\"" + exePath + "\" " + arguments;
 
-            Console.WriteLine($"[INFO] Launching: {commandLine}");
+            Console.WriteLine("[INFO] Launching: " + commandLine);
 
             // Launch process in user session
             bool success = CreateProcessAsUser(
@@ -168,11 +168,11 @@ class LaunchInUserSession
             if (!success)
             {
                 int error = Marshal.GetLastWin32Error();
-                Console.WriteLine($"[ERROR] CreateProcessAsUser failed. Error code: {error}");
+                Console.WriteLine("[ERROR] CreateProcessAsUser failed. Error code: " + error);
                 return 5;
             }
 
-            Console.WriteLine($"[SUCCESS] Process launched in user session. PID: {pi.dwProcessId}");
+            Console.WriteLine("[SUCCESS] Process launched in user session. PID: " + pi.dwProcessId);
 
             // Close process handles (we don't need to wait)
             CloseHandle(pi.hProcess);
@@ -182,7 +182,7 @@ class LaunchInUserSession
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[EXCEPTION] {ex.Message}");
+            Console.WriteLine("[EXCEPTION] " + ex.Message);
             Console.WriteLine(ex.StackTrace);
             return 99;
         }
