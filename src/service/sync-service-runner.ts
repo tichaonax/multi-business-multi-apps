@@ -309,42 +309,14 @@ class SyncServiceRunner {
   }
 
   /**
-   * Wait for an active user session (user login)
+   * Wait briefly before launching Electron
+   * Gives system time to stabilize after boot
    */
-  private async waitForUserSession(): Promise<boolean> {
-    const maxWaitMinutes = 10
-    const checkIntervalSeconds = 5
-    const maxAttempts = (maxWaitMinutes * 60) / checkIntervalSeconds
-
-    console.log('👤 Waiting for user to log in...')
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        // Check if there's an active console session
-        const result = await new Promise<string>((resolve, reject) => {
-          exec('query session', (error, stdout, stderr) => {
-            if (error) reject(error)
-            else resolve(stdout)
-          })
-        })
-
-        // Look for "Active" session
-        if (result.includes('Active')) {
-          console.log('✅ Active user session detected')
-          return true
-        }
-
-        if (attempt < maxAttempts) {
-          console.log(`[User Session] Attempt ${attempt}/${maxAttempts}: No active session, waiting...`)
-          await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000))
-        }
-      } catch (error) {
-        console.error('[User Session] Error checking session:', error)
-      }
-    }
-
-    console.warn('⚠️  Timeout waiting for user session.')
-    return false
+  private async waitBeforeLaunch(): Promise<void> {
+    const waitSeconds = 10
+    console.log(`⏳ Waiting ${waitSeconds} seconds for system to stabilize...`)
+    await new Promise(resolve => setTimeout(resolve, waitSeconds * 1000))
+    console.log('✅ Ready to launch Electron')
   }
 
   /**
@@ -362,12 +334,10 @@ class SyncServiceRunner {
         return
       }
 
-      // Step 2: Wait for user session
-      const userSessionReady = await this.waitForUserSession()
-      if (!userSessionReady) {
-        console.error('[Electron] Cannot start - no user session available')
-        return
-      }
+      // Step 2: Wait for system to stabilize
+      // Note: C# launcher will check for active user session using WTSGetActiveConsoleSessionId()
+      // If no user logged in, it will return error code 2 and retry
+      await this.waitBeforeLaunch()
 
       // Step 3: Launch Electron in user session
       const launcherPath = path.join(PROJECT_ROOT, 'windows-service', 'LaunchInUserSession.exe')
@@ -408,10 +378,18 @@ npm start
         console.log(`[Launcher] Process exited with code ${code}, signal ${signal}`)
 
         if (!this.isShuttingDown && code !== 0) {
-          console.log('[Electron] Launch failed or crashed, retrying in 10 seconds...')
-          setTimeout(() => {
-            this.startElectronWithDisplayCheck()
-          }, 10000)
+          // Error code 2 = no active console session (user not logged in)
+          if (code === 2) {
+            console.log('[Electron] No user logged in yet, waiting 30 seconds...')
+            setTimeout(() => {
+              this.startElectronWithDisplayCheck()
+            }, 30000)
+          } else {
+            console.log('[Electron] Launch failed (code ' + code + '), retrying in 10 seconds...')
+            setTimeout(() => {
+              this.startElectronWithDisplayCheck()
+            }, 10000)
+          }
         }
       })
 
