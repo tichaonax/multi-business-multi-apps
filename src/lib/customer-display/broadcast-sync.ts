@@ -16,6 +16,10 @@ export type CartMessageType =
   | 'CART_STATE'
   | 'SET_GREETING'
   | 'SET_PAGE_CONTEXT'
+  | 'PAYMENT_STARTED'      // Payment in progress
+  | 'PAYMENT_AMOUNT'       // Amount tendered updated
+  | 'PAYMENT_COMPLETE'     // Payment successful, sale complete
+  | 'PAYMENT_CANCELLED'    // Payment cancelled, return to cart
 
 export interface CartItem {
   id: string
@@ -41,6 +45,12 @@ export interface CartMessage {
     businessPhone?: string
     customMessage?: string
     pageContext?: 'pos' | 'marketing' // Track which page user is on
+    // Payment fields
+    amountTendered?: number
+    changeDue?: number
+    shortfall?: number
+    paymentMethod?: string
+    paymentComplete?: boolean
   }
   timestamp: number
   businessId: string

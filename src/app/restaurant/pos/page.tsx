@@ -279,6 +279,24 @@ export default function RestaurantPOS() {
     return () => clearInterval(syncInterval)
   }, [cart, currentBusinessId, taxIncludedInPrice, taxRate])
 
+  // Broadcast payment amount updates to customer display
+  useEffect(() => {
+    if (!showPaymentModal || !amountReceived) return
+
+    const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
+    const tax = subtotal * (currentBusinessConfig?.taxRate || 0)
+    const total = subtotal + tax
+    const tendered = parseFloat(amountReceived) || 0
+
+    sendToDisplay('PAYMENT_AMOUNT', {
+      subtotal,
+      tax,
+      total,
+      amountTendered: tendered,
+      paymentMethod: paymentMethod
+    })
+  }, [amountReceived, showPaymentModal, cart, currentBusinessConfig?.taxRate, paymentMethod])
+
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
 
@@ -1163,6 +1181,20 @@ export default function RestaurantPOS() {
       console.log('❌ Cart is empty, not processing')
       return
     }
+
+    // Calculate totals for payment broadcast
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    const tax = subtotal * (currentBusinessConfig?.taxRate || 0)
+    const total = subtotal + tax
+
+    // Broadcast payment started to customer display
+    sendToDisplay('PAYMENT_STARTED', {
+      subtotal,
+      tax,
+      total,
+      paymentMethod: paymentMethod
+    })
+
     // Open payment modal
     setAmountReceived('') // Start at zero so cashier can enter amount received
     setShowPaymentModal(true)
@@ -1237,13 +1269,15 @@ export default function RestaurantPOS() {
         // Show receipt modal
         setShowReceiptModal(true)
 
-        // Clear cart and broadcast to customer display
-        setCart([])
-        sendToDisplay('CLEAR_CART', {
-          subtotal: 0,
+        // Broadcast payment complete to customer display (cart will clear after 3 seconds on display)
+        sendToDisplay('PAYMENT_COMPLETE', {
+          subtotal: total,
           tax: 0,
-          total: 0
+          total: total
         })
+
+        // Clear cart on POS
+        setCart([])
 
         // Reset payment fields
         setPaymentMethod('CASH')
@@ -1773,6 +1807,16 @@ export default function RestaurantPOS() {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => {
+                    // Broadcast payment cancelled to customer display
+                    const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
+                    const tax = subtotal * (currentBusinessConfig?.taxRate || 0)
+                    const total = subtotal + tax
+                    sendToDisplay('PAYMENT_CANCELLED', {
+                      subtotal,
+                      tax,
+                      total
+                    })
+
                     setShowPaymentModal(false)
                     setAmountReceived('')
                   }}

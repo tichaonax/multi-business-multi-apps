@@ -21,6 +21,7 @@ import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { CartMessage } from '@/lib/customer-display/broadcast-sync'
 import { CartDisplay } from '@/components/customer-display/cart-display'
 import { MarketingDisplay } from '@/components/customer-display/marketing-display'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -102,6 +103,20 @@ function CustomerDisplayContent() {
   const [taxRate, setTaxRate] = useState<number>(0)
   const [taxLabel, setTaxLabel] = useState<string>('Tax')
   const [ecocashEnabled, setEcocashEnabled] = useState<boolean>(false)
+
+  // Payment state
+  const [paymentState, setPaymentState] = useState<{
+    inProgress: boolean
+    amountTendered: number
+    changeDue: number
+    shortfall: number
+    paymentMethod?: string
+  }>({
+    inProgress: false,
+    amountTendered: 0,
+    changeDue: 0,
+    shortfall: 0
+  })
 
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -262,6 +277,74 @@ function CustomerDisplayContent() {
         if (message.payload.pageContext) {
           setPageContext(message.payload.pageContext)
         }
+        break
+
+      case 'PAYMENT_STARTED':
+        // Payment started - show cart with "Payment in Progress"
+        console.log('[CustomerDisplay] Payment started')
+        setPaymentState({
+          inProgress: true,
+          amountTendered: 0,
+          changeDue: 0,
+          shortfall: message.payload.total,
+          paymentMethod: message.payload.paymentMethod
+        })
+        break
+
+      case 'PAYMENT_AMOUNT':
+        // Amount tendered updated - calculate change or shortfall
+        const tendered = message.payload.amountTendered || 0
+        const total = message.payload.total
+        const change = tendered - total
+        console.log('[CustomerDisplay] Payment amount updated:', {
+          tendered,
+          total,
+          change
+        })
+        setPaymentState({
+          inProgress: true,
+          amountTendered: tendered,
+          changeDue: change > 0 ? change : 0,
+          shortfall: change < 0 ? Math.abs(change) : 0,
+          paymentMethod: message.payload.paymentMethod
+        })
+        break
+
+      case 'PAYMENT_COMPLETE':
+        // Payment complete - show "Sale Complete" then clear cart after 3 seconds
+        console.log('[CustomerDisplay] Payment complete - sale finished')
+        setPaymentState(prev => ({
+          ...prev,
+          inProgress: false
+        }))
+
+        // Clear cart and payment state after 3 seconds
+        setTimeout(() => {
+          console.log('[CustomerDisplay] Clearing cart after sale complete')
+          setCart({
+            items: [],
+            subtotal: 0,
+            tax: 0,
+            total: 0
+          })
+          setPaymentState({
+            inProgress: false,
+            amountTendered: 0,
+            changeDue: 0,
+            shortfall: 0
+          })
+        }, 3000)
+        break
+
+      case 'PAYMENT_CANCELLED':
+        // Payment cancelled - return to cart view
+        console.log('[CustomerDisplay] Payment cancelled - returning to cart view')
+        setPaymentState({
+          inProgress: false,
+          amountTendered: 0,
+          changeDue: 0,
+          shortfall: 0
+        })
         break
     }
   }, [currentActiveBusinessId])
@@ -497,7 +580,7 @@ function CustomerDisplayContent() {
 
             {businessPhone && (
               <div className="text-right flex items-center gap-3">
-                <p className="text-3xl font-bold">📞 {businessPhone}</p>
+                <p className="text-3xl font-bold">📞 {formatPhoneNumberForDisplay(businessPhone)}</p>
                 {ecocashEnabled && (
                   <img
                     src="/images/ecocash-logo.png"
@@ -543,6 +626,11 @@ function CustomerDisplayContent() {
             taxIncludedInPrice={taxIncludedInPrice}
             taxRate={taxRate}
             taxLabel={taxLabel}
+            paymentInProgress={paymentState.inProgress}
+            amountTendered={paymentState.amountTendered}
+            changeDue={paymentState.changeDue}
+            shortfall={paymentState.shortfall}
+            paymentMethod={paymentState.paymentMethod}
           />
         </div>
       </div>

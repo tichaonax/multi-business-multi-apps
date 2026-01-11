@@ -26,6 +26,12 @@ interface CartDisplayProps {
   taxIncludedInPrice?: boolean
   taxRate?: number
   taxLabel?: string
+  // Payment props
+  paymentInProgress?: boolean
+  amountTendered?: number
+  changeDue?: number
+  shortfall?: number
+  paymentMethod?: string
 }
 
 /**
@@ -45,7 +51,12 @@ export function CartDisplay({
   total,
   taxIncludedInPrice = false,
   taxRate = 0,
-  taxLabel = 'Tax'
+  taxLabel = 'Tax',
+  paymentInProgress = false,
+  amountTendered = 0,
+  changeDue = 0,
+  shortfall = 0,
+  paymentMethod
 }: CartDisplayProps) {
   return (
     <div className="h-full w-full flex flex-col bg-gradient-to-br from-blue-50 via-white to-blue-50 p-8">
@@ -117,6 +128,53 @@ export function CartDisplay({
               </div>
             )}
           </div>
+
+          {/* Payment Section */}
+          {paymentInProgress && (
+            <div className="mt-8 pt-8 border-t-4 border-green-600">
+              <div className="bg-green-50 rounded-2xl p-6 border-2 border-green-600">
+                <div className="text-center mb-6">
+                  <div className="text-5xl font-bold text-green-700 mb-2">
+                    💳 Payment in Progress
+                  </div>
+                  {paymentMethod && (
+                    <div className="text-3xl text-gray-600">
+                      Method: {paymentMethod}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {/* Amount Tendered */}
+                  <div className="flex justify-between items-center bg-white rounded-xl p-4">
+                    <span className="text-4xl font-semibold text-gray-700">Amount Tendered:</span>
+                    <span className="text-5xl font-bold text-blue-600">
+                      {formatCurrency(amountTendered)}
+                    </span>
+                  </div>
+
+                  {/* Change or Shortfall */}
+                  {changeDue > 0 && (
+                    <div className="flex justify-between items-center bg-green-100 rounded-xl p-4">
+                      <span className="text-4xl font-semibold text-green-700">Change Due:</span>
+                      <span className="text-5xl font-bold text-green-700">
+                        {formatCurrency(changeDue)}
+                      </span>
+                    </div>
+                  )}
+
+                  {shortfall > 0 && (
+                    <div className="flex justify-between items-center bg-red-100 rounded-xl p-4">
+                      <span className="text-4xl font-semibold text-red-700">Shortfall:</span>
+                      <span className="text-5xl font-bold text-red-700">
+                        {formatCurrency(shortfall)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
