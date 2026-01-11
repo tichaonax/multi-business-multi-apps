@@ -168,27 +168,38 @@ npm run electron:start
 ## Process Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│         Windows Machine                  │
-├─────────────────────────────────────────┤
-│                                           │
-│  Windows Service (Background)            │
-│  ├─ multibusinesssyncservice.exe        │
-│  ├─ Starts on boot                      │
-│  ├─ Runs headless (no GUI)              │
-│  └─ Manages Next.js server (port 8080)  │
-│                                           │
-│  ────────────────────────────────────   │
-│                                           │
-│  Electron (GUI) - SEPARATE PROCESS       │
-│  ├─ Starts on user login (auto-start)   │
-│  ├─ OR: npm run electron:start           │
-│  ├─ Connects to http://localhost:8080   │
-│  ├─ Main Window: POS (primary monitor)  │
-│  └─ Customer Display (secondary monitor)│
-│                                           │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    Windows Machine                            │
+├──────────────────────────────────────────────────────────────┤
+│                                                                │
+│  SESSION 0 (Non-Interactive Background)                       │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Windows Service (multibusinesssyncservice.exe)      │   │
+│  │  ├─ Starts automatically on boot (LocalSystem)       │   │
+│  │  ├─ Runs Next.js server (http://localhost:8080)      │   │
+│  │  ├─ Waits for user to log in                         │   │
+│  │  └─ Calls LaunchInUserSession.exe to start Electron  │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                          ↓ CreateProcessAsUser                │
+│  ────────────────────────────────────────────────────────   │
+│                                                                │
+│  SESSION 1+ (Interactive User Desktop)                        │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Electron (Launched in User Session)                 │   │
+│  │  ├─ Full GPU and display access                      │   │
+│  │  ├─ Detects all monitors correctly                   │   │
+│  │  ├─ Main Window: POS (primary monitor)               │   │
+│  │  └─ Customer Display (secondary monitor, kiosk mode) │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                                │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+**Key Architecture Points:**
+- ✅ Service controls Electron lifecycle (start/stop/restart)
+- ✅ Service uses `CreateProcessAsUser` to launch Electron in user session
+- ✅ Electron runs with full display access (not in Session 0)
+- ✅ Customer display sees all monitors and runs in kiosk mode
 
 ## Quick Reference
 
