@@ -22,11 +22,24 @@ function createWindows() {
   const displays = screen.getAllDisplays()
   console.log(`Found ${displays.length} display(s)`)
 
-  // Primary display (where POS runs)
-  const primary = displays.find(d => d.bounds.x === 0 && d.bounds.y === 0) || displays[0]
+  // Log all displays for debugging
+  displays.forEach((display, index) => {
+    console.log(`Display ${index + 1}:`, {
+      id: display.id,
+      bounds: display.bounds,
+      workArea: display.workArea,
+      scaleFactor: display.scaleFactor,
+      rotation: display.rotation,
+      internal: display.internal
+    })
+  })
 
-  // Secondary display (for customer-facing screen)
-  const secondary = displays.find(d => d.bounds.x !== 0 || d.bounds.y !== 0)
+  // Primary display (where POS runs) - use Electron's primary display API
+  const primary = screen.getPrimaryDisplay()
+  console.log('Primary display ID:', primary.id)
+
+  // Secondary display (for customer-facing screen) - any display that's not primary
+  const secondary = displays.find(d => d.id !== primary.id)
 
   // Create main POS window on primary display
   mainWindow = new BrowserWindow({
