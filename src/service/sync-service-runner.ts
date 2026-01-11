@@ -344,25 +344,29 @@ class SyncServiceRunner {
       const electronPath = path.join(PROJECT_ROOT, 'electron')
       const PORT = process.env.PORT || process.env.NEXT_PUBLIC_PORT || '8080'
 
-      // Build batch file to run npm start with environment variables
-      const launchScript = path.join(PROJECT_ROOT, 'windows-service', 'launch-electron.bat')
-      const batchContent = `@echo off
-cd /d "${electronPath}"
-set PORT=${PORT}
-set NODE_ENV=production
-npm start
-`
-      fs.writeFileSync(launchScript, batchContent)
-
       console.log('[Electron] Launching in user session via CreateProcessAsUser...')
-      console.log(`[Electron] Script: ${launchScript}`)
+      console.log(`[Electron] Working directory: ${electronPath}`)
+      console.log(`[Electron] PORT: ${PORT}`)
 
-      // CreateProcessAsUser requires an executable, not a .bat file
-      // Use cmd.exe to execute the batch file
+      // Find npm executable (npm.cmd on Windows)
+      // npm is typically in C:\Program Files\nodejs\npm.cmd
+      const npmCmd = 'C:\\Program Files\\nodejs\\npm.cmd'
+
+      // Build command line arguments for npm start
+      // Format: "C:\Program Files\nodejs\npm.cmd" "start" "--prefix" "C:\path\to\electron"
+      const npmArgs = `start --prefix "${electronPath}"`
+
+      // Build environment variable string
+      // Format: PORT=8080 NODE_ENV=production
+      const envVars = `PORT=${PORT} NODE_ENV=production`
+
+      // Use cmd.exe to set environment and run npm
       const cmdExe = 'C:\\Windows\\System32\\cmd.exe'
-      const cmdArgs = `/c "${launchScript}"`
+      const cmdArgs = `/c "set ${envVars} && cd /d "${electronPath}" && "${npmCmd}" start"`
 
-      // Use launcher to start cmd.exe with the batch file
+      console.log(`[Electron] Command: ${cmdExe} ${cmdArgs}`)
+
+      // Use launcher to start cmd.exe with npm
       this.electronProcess = spawn(launcherPath, [cmdExe, cmdArgs], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false

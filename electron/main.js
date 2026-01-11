@@ -76,11 +76,18 @@ function createWindows() {
       autoHideMenuBar: true,
       alwaysOnTop: true, // Stay on top
       fullscreen: true, // Start in fullscreen
+      kiosk: true, // Enable kiosk mode immediately
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true
       }
     })
+
+    // Set kiosk mode IMMEDIATELY (before loading URL)
+    customerWindow.setKiosk(true)
+    customerWindow.setFullScreen(true)
+    customerWindow.setMenuBarVisibility(false)
+    console.log('✅ Customer display kiosk mode set immediately on creation')
 
     const terminalId = process.env.TERMINAL_ID || `terminal-${Date.now()}`
 
