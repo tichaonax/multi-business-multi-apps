@@ -71,6 +71,7 @@ logs
 # C# launcher helper (build artifact - rebuilt during service build)
 /windows-service/LaunchInUserSession.exe
 /windows-service/launch-electron.bat
+/windows-service/start-electron.bat
 
 # environment and config files
 .env
