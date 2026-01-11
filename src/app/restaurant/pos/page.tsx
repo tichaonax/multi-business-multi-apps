@@ -284,7 +284,7 @@ export default function RestaurantPOS() {
     if (!showPaymentModal || !amountReceived) return
 
     const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
-    const tax = subtotal * (currentBusinessConfig?.taxRate || 0)
+    const tax = taxIncludedInPrice ? 0 : subtotal * taxRate
     const total = subtotal + tax
     const tendered = parseFloat(amountReceived) || 0
 
@@ -295,7 +295,7 @@ export default function RestaurantPOS() {
       amountTendered: tendered,
       paymentMethod: paymentMethod
     })
-  }, [amountReceived, showPaymentModal, cart, currentBusinessConfig?.taxRate, paymentMethod])
+  }, [amountReceived, showPaymentModal, cart, taxRate, taxIncludedInPrice, paymentMethod])
 
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
@@ -1184,7 +1184,7 @@ export default function RestaurantPOS() {
 
     // Calculate totals for payment broadcast
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    const tax = subtotal * (currentBusinessConfig?.taxRate || 0)
+    const tax = taxIncludedInPrice ? 0 : subtotal * taxRate
     const total = subtotal + tax
 
     // Broadcast payment started to customer display
@@ -1809,7 +1809,7 @@ export default function RestaurantPOS() {
                   onClick={() => {
                     // Broadcast payment cancelled to customer display
                     const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
-                    const tax = subtotal * (currentBusinessConfig?.taxRate || 0)
+                    const tax = taxIncludedInPrice ? 0 : subtotal * taxRate
                     const total = subtotal + tax
                     sendToDisplay('PAYMENT_CANCELLED', {
                       subtotal,
