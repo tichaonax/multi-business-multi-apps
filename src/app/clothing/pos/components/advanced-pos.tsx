@@ -8,6 +8,7 @@ import { BarcodeScanner, UniversalProduct } from '@/components/universal'
 import { ReceiptPreview } from '@/components/printing/receipt-preview'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
+import { SyncMode } from '@/lib/customer-display/sync-manager'
 import type { ReceiptData } from '@/types/printing'
 
 interface CartItem {
@@ -90,6 +91,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const { send: sendToDisplay } = useCustomerDisplaySync({
     businessId,
     terminalId: terminalId || '',
+    mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
     autoConnect: !!terminalId,
     onError: (error) => console.error('[Customer Display] Sync error:', error)
   })

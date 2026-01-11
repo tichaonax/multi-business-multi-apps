@@ -1,123 +1,219 @@
-# Fix Customer Display: Business Information Not Loading
+# Customer Display Improvements
 
-## Problem
+## Issues to Fix
 
-Customer display shows all null business IDs:
-```json
-{
-    "initialBusinessId": null,
-    "currentActiveBusinessId": null,
-    "displayBusinessId": null,
-    "terminalId": "terminal-1768125949429",
-    "channelName": "customer-display"
-}
-```
+### Issue 1: Fashion/Clothing Business Cart Not Showing on Customer Display
+**Problem**: When switching from Restaurant business to Fashion business, cart values don't appear on customer display.
 
-## Root Cause
+**Root Cause**: Customer display is filtering messages from the new business because it hasn't received the `SET_ACTIVE_BUSINESS` message for Fashion business yet.
 
-The `BusinessPermissionsContext` creates a `BroadcastSync` instance but never calls `.connect()` before sending messages.
+**Solution**:
+- Ensure `BusinessPermissionsContext` broadcasts `SET_ACTIVE_BUSINESS` when business changes
+- ✅ Already fixed by adding `sync.connect()` - just needs app restart
 
-**File:** `src/contexts/business-permissions-context.tsx` (lines 152-167)
+### Issue 2: Cart Visibility During Payment
+**Problem**: Cart disappears during payment. Customer should see:
+- Amount tendered
+- Change due
+- Shortfall (if insufficient funds)
+- Cart should only clear after receipt is printed or sale completes
 
-```typescript
-// Creates BroadcastSync
-const sync = new BroadcastSync({
-  businessId: currentBusinessId,
-  terminalId: 'main-window',
-});
-
-// ❌ NEVER CALLS sync.connect() ❌
-
-// Tries to send without connecting
-sync.send('SET_ACTIVE_BUSINESS', {
-  subtotal: 0,
-  tax: 0,
-  total: 0,
-});
-```
-
-**Why it fails:**
-- `BroadcastSync.send()` checks if `this.channel` is not null
-- `this.channel` is only created when you call `connect()`
-- Without `connect()`, the channel is null and the send fails silently
-
-**From broadcast-sync.ts line 142:**
-```typescript
-send(type: CartMessageType, payload: CartMessage['payload']): void {
-  if (!this.channel) {
-    console.warn('BroadcastSync: Cannot send message, channel not connected');
-    return; // ❌ Fails silently
-  }
-```
-
-## Solution
-
-Call `sync.connect()` before `sync.send()`.
+**Solution**: Add payment state broadcasting to customer display
 
 ## Implementation Plan
 
-### Task 1: Fix BusinessPermissionsContext Broadcasting
-- [ ] Update the useEffect in `BusinessPermissionsContext` to call `sync.connect()` before sending
-- [ ] Keep the delay to ensure customer display is ready
-- [ ] Ensure proper cleanup with disconnect
+### Phase 1: Test Business Switching ✅
+- [x] Fix BroadcastSync.connect() issue
+- [ ] Restart app and test business switching
+- [ ] Verify Fashion business cart appears on customer display
 
-**File:** `src/contexts/business-permissions-context.tsx` (lines 142-172)
+### Phase 2: Add Payment State to Customer Display
 
-**Change:**
+#### Task 1: Add New Message Types
+**File**: `src/lib/customer-display/broadcast-sync.ts`
+
+Add new message types:
 ```typescript
-// Before (BROKEN):
-const sync = new BroadcastSync({
-  businessId: currentBusinessId,
-  terminalId: 'main-window',
-});
-
-const timer = setTimeout(() => {
-  sync.send('SET_ACTIVE_BUSINESS', { ... });
-  sync.disconnect();
-}, 500);
-
-// After (FIXED):
-const sync = new BroadcastSync({
-  businessId: currentBusinessId,
-  terminalId: 'main-window',
-});
-
-// Connect the channel
-sync.connect();
-
-const timer = setTimeout(() => {
-  sync.send('SET_ACTIVE_BUSINESS', { ... });
-  sync.disconnect();
-}, 500);
+export type CartMessageType =
+  | 'SET_ACTIVE_BUSINESS'
+  | 'ADD_ITEM'
+  | 'REMOVE_ITEM'
+  | 'UPDATE_QUANTITY'
+  | 'CLEAR_CART'
+  | 'CART_STATE'
+  | 'SET_GREETING'
+  | 'SET_PAGE_CONTEXT'
+  | 'PAYMENT_STARTED'      // NEW: Payment in progress
+  | 'PAYMENT_AMOUNT'       // NEW: Amount tendered
+  | 'PAYMENT_COMPLETE'     // NEW: Payment successful
+  | 'PAYMENT_CANCELLED'    // NEW: Payment cancelled
 ```
 
-### Task 2: Verify Customer Display Connection
-- [ ] Ensure customer display is properly listening for messages
-- [ ] Check console logs for message receipt
+Update CartMessage payload:
+```typescript
+export interface CartMessage {
+  type: CartMessageType
+  payload: {
+    // Existing fields...
+    items?: CartItem[]
+    subtotal: number
+    tax: number
+    total: number
 
-### Task 3: Test End-to-End
-- [ ] Start app with `npm run dev`
-- [ ] Login to see business selection
-- [ ] Verify customer display receives businessId
-- [ ] Check console for successful broadcast message
-- [ ] Verify business info appears on customer display
+    // NEW: Payment fields
+    amountTendered?: number
+    changeDue?: number
+    shortfall?: number
+    paymentMethod?: string
+    paymentComplete?: boolean
+  }
+  timestamp: number
+  businessId: string
+  terminalId?: string
+}
+```
 
-## Impact Analysis
+#### Task 2: Update Customer Display to Show Payment Info
+**File**: `src/app/customer-display/page.tsx`
 
-**Files to modify:**
-1. `src/contexts/business-permissions-context.tsx` - Add `sync.connect()` call
+Add payment state:
+```typescript
+const [paymentState, setPaymentState] = useState<{
+  inProgress: boolean
+  amountTendered: number
+  changeDue: number
+  shortfall: number
+  paymentMethod?: string
+}>({
+  inProgress: false,
+  amountTendered: 0,
+  changeDue: 0,
+  shortfall: 0
+})
+```
 
-**Risk:** Very low - simple one-line addition
+Handle payment messages:
+```typescript
+case 'PAYMENT_STARTED':
+  setPaymentState({
+    inProgress: true,
+    amountTendered: 0,
+    changeDue: 0,
+    shortfall: message.payload.total
+  })
+  break
 
-**Breaking changes:** None
+case 'PAYMENT_AMOUNT':
+  const tendered = message.payload.amountTendered || 0
+  const total = message.payload.total
+  const change = tendered - total
+  setPaymentState({
+    inProgress: true,
+    amountTendered: tendered,
+    changeDue: change > 0 ? change : 0,
+    shortfall: change < 0 ? Math.abs(change) : 0,
+    paymentMethod: message.payload.paymentMethod
+  })
+  break
 
-## Expected Result
+case 'PAYMENT_COMPLETE':
+  // Keep cart visible until this message
+  // Clear cart after showing "Sale Complete" for 3 seconds
+  setTimeout(() => {
+    setCart({ items: [], subtotal: 0, tax: 0, total: 0 })
+    setPaymentState({ inProgress: false, amountTendered: 0, changeDue: 0, shortfall: 0 })
+  }, 3000)
+  break
 
-After fix:
-1. User logs in → BusinessPermissionsContext sets currentBusinessId
-2. useEffect triggers, creates BroadcastSync
-3. **Calls sync.connect() to initialize channel** ← FIX
-4. Sends SET_ACTIVE_BUSINESS message
-5. Customer display receives message
-6. Customer display fetches business info
-7. Business name, phone, etc. appear on display
+case 'PAYMENT_CANCELLED':
+  // Return to cart view
+  setPaymentState({ inProgress: false, amountTendered: 0, changeDue: 0, shortfall: 0 })
+  break
+```
+
+#### Task 3: Update CartDisplay Component to Show Payment Info
+**File**: `src/components/customer-display/cart-display.tsx`
+
+Add payment info props:
+```typescript
+interface CartDisplayProps {
+  // Existing props...
+  items: CartItem[]
+  subtotal: number
+  tax: number
+  total: number
+
+  // NEW: Payment props
+  paymentInProgress?: boolean
+  amountTendered?: number
+  changeDue?: number
+  shortfall?: number
+  paymentMethod?: string
+}
+```
+
+Update display to show payment info when payment is in progress.
+
+#### Task 4: Update POS Components to Broadcast Payment State
+
+**Restaurant POS** (`src/app/restaurant/pos/page.tsx`):
+- Broadcast `PAYMENT_STARTED` when checkout modal opens
+- Broadcast `PAYMENT_AMOUNT` when amount tendered changes
+- Broadcast `PAYMENT_COMPLETE` after receipt prints
+- Broadcast `PAYMENT_CANCELLED` if payment is cancelled
+
+**Grocery POS** (`src/app/grocery/pos/page.tsx`):
+- Same as restaurant
+
+**Clothing Advanced POS** (`src/app/clothing/pos/components/advanced-pos.tsx`):
+- Same as above
+
+**Universal POS** (`src/components/universal/pos-system.tsx`):
+- Same as above
+
+## Testing Checklist
+
+### Test 1: Business Switching
+- [ ] Start app, login to Restaurant business
+- [ ] Customer display shows Restaurant info
+- [ ] Add items to cart - verify they appear on display
+- [ ] Switch to Fashion business in sidebar
+- [ ] Verify customer display switches to Fashion business
+- [ ] Add items to Fashion cart - verify they appear on display
+
+### Test 2: Payment Workflow
+- [ ] Add items to cart
+- [ ] Items visible on customer display
+- [ ] Click checkout/payment
+- [ ] Customer display still shows cart + "Payment in Progress"
+- [ ] Enter amount tendered (less than total)
+- [ ] Customer display shows shortfall
+- [ ] Enter full amount
+- [ ] Customer display shows change due
+- [ ] Complete payment and print receipt
+- [ ] Customer display shows "Sale Complete" for 3 seconds
+- [ ] Cart clears after 3 seconds
+
+### Test 3: Payment Cancellation
+- [ ] Add items to cart
+- [ ] Start payment
+- [ ] Cancel payment
+- [ ] Customer display returns to cart view
+- [ ] Cart is NOT cleared
+
+## Files to Modify
+
+1. `src/lib/customer-display/broadcast-sync.ts` - New message types
+2. `src/app/customer-display/page.tsx` - Payment state handling
+3. `src/components/customer-display/cart-display.tsx` - Payment UI
+4. `src/app/restaurant/pos/page.tsx` - Payment broadcasting
+5. `src/app/grocery/pos/page.tsx` - Payment broadcasting
+6. `src/app/clothing/pos/components/advanced-pos.tsx` - Payment broadcasting
+7. `src/components/universal/pos-system.tsx` - Payment broadcasting
+
+## Current Status
+
+- ✅ Fixed BroadcastSync.connect() issue
+- ✅ Committed and pushing to GitHub
+- ⏳ Waiting for app restart to test business switching
+- 🔲 Payment state broadcasting not yet implemented

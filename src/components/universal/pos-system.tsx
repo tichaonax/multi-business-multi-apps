@@ -12,6 +12,7 @@ import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
+import { SyncMode } from '@/lib/customer-display/sync-manager'
 import type { ReceiptData, NetworkPrinter } from '@/types/printing'
 
 interface CartItem {
@@ -81,6 +82,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
   const { send: sendToDisplay } = useCustomerDisplaySync({
     businessId,
     terminalId: terminalId || '',
+    mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
     autoConnect: !!terminalId,
     onError: (error) => console.error('[Customer Display] Sync error:', error)
   })
