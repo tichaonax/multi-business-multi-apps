@@ -48,74 +48,57 @@ function createWindows() {
   // This allows flexibility to use any business type without restarting Electron
   mainWindow.loadURL(`${SERVER_URL}/`)
 
-  // Open customer display on secondary monitor after getting businessId
-  mainWindow.webContents.on('did-finish-load', () => {
-    // Wait a moment for localStorage to be available, then get businessId
-    setTimeout(() => {
-      mainWindow.webContents.executeJavaScript(`
-        (function() {
-          // Try to get businessId from localStorage
-          const businessId = localStorage.getItem('currentBusinessId')
-          return businessId
-        })()
-      `).then(businessId => {
-        // Create customer display window on secondary monitor (if available)
-        if (secondary && !customerWindow) {
-          console.log(`Secondary display detected at (${secondary.bounds.x}, ${secondary.bounds.y})`)
+  // Open customer display immediately on secondary monitor (if available)
+  // Customer display will show advertising/marketing until business is selected
+  if (secondary) {
+    console.log(`Secondary display detected at (${secondary.bounds.x}, ${secondary.bounds.y})`)
 
-          customerWindow = new BrowserWindow({
-            x: secondary.bounds.x,
-            y: secondary.bounds.y,
-            width: secondary.bounds.width,
-            height: secondary.bounds.height,
-            title: 'Customer Display',
-            kiosk: true, // Fullscreen kiosk mode (hides browser chrome, prevents exit)
-            frame: false, // No window frame
-            autoHideMenuBar: true,
-            alwaysOnTop: true, // Stay on top
-            webPreferences: {
-              nodeIntegration: false,
-              contextIsolation: true
-            }
-          })
+    customerWindow = new BrowserWindow({
+      x: secondary.bounds.x,
+      y: secondary.bounds.y,
+      width: secondary.bounds.width,
+      height: secondary.bounds.height,
+      title: 'Customer Display',
+      kiosk: true, // Fullscreen kiosk mode (hides browser chrome, prevents exit)
+      frame: false, // No window frame
+      autoHideMenuBar: true,
+      alwaysOnTop: true, // Stay on top
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    })
 
-          const terminalId = process.env.TERMINAL_ID || `terminal-${Date.now()}`
+    const terminalId = process.env.TERMINAL_ID || `terminal-${Date.now()}`
 
-          // Build URL with businessId if available
-          let displayUrl = `${SERVER_URL}/customer-display?terminalId=${terminalId}`
-          if (businessId) {
-            displayUrl += `&businessId=${businessId}`
-            console.log('Customer display opening with businessId:', businessId)
-          } else {
-            console.log('No businessId in localStorage - customer display will wait for business selection')
-          }
+    // Open customer display without businessId
+    // It will show advertising/marketing content and wait for business selection via BroadcastChannel
+    const displayUrl = `${SERVER_URL}/customer-display?terminalId=${terminalId}`
+    console.log('Opening customer display (will show advertising until business selected):', displayUrl)
 
-          customerWindow.loadURL(displayUrl)
+    customerWindow.loadURL(displayUrl)
 
-          // Open DevTools for customer display in development mode
-          if (process.env.NODE_ENV === 'development') {
-            customerWindow.webContents.openDevTools()
-            console.log('Customer display DevTools opened')
-          }
+    // Open DevTools for customer display in development mode
+    if (process.env.NODE_ENV === 'development') {
+      customerWindow.webContents.openDevTools()
+      console.log('Customer display DevTools opened')
+    }
 
-          // Prevent customer window from closing
-          customerWindow.on('close', (e) => {
-            if (!app.isQuitting) {
-              e.preventDefault()
-              customerWindow.hide()
-            }
-          })
+    // Prevent customer window from closing
+    customerWindow.on('close', (e) => {
+      if (!app.isQuitting) {
+        e.preventDefault()
+        customerWindow.hide()
+      }
+    })
 
-          console.log('Customer display opened on secondary monitor')
-        } else if (!secondary) {
-          console.log('No secondary display detected - customer display will not open')
-          console.log('Connect a second monitor and restart the application')
-        }
-      }).catch(err => {
-        console.error('Error getting businessId from localStorage:', err)
-      })
-    }, 1000) // Wait 1 second for localStorage to be available
-  })
+    console.log('✅ Customer display opened on secondary monitor')
+    console.log('   - Will show advertising/marketing content')
+    console.log('   - Will update automatically when business is selected')
+  } else {
+    console.log('⚠️  No secondary display detected - customer display will not open')
+    console.log('   Connect a second monitor and restart to enable customer display')
+  }
 
   // Handle main window close
   mainWindow.on('closed', () => {

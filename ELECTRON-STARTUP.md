@@ -27,12 +27,13 @@ npm run dev
    - System will automatically select your business
    - Navigate to any POS (Restaurant, Grocery, Hardware, Clothing)
 
-3. **Customer Display**: Opens automatically on secondary monitor
-   - Shows business info and welcome/marketing content immediately
-   - Automatically updates when you log in and select a business
+3. **Customer Display**: Opens **immediately** on secondary monitor
+   - Shows advertising/marketing content right away (no need to wait for login)
+   - Automatically updates with business info when you log in
    - Switches automatically when you change businesses
    - Updates in real-time when you add cart items
-   - Shows advertising/marketing when cart is empty (ready for Phase 5)
+   - Returns to advertising/marketing when cart is empty
+   - **Always on** - perfect for customer-facing advertising 24/7
 
 ### Stopping the Application
 
@@ -106,8 +107,11 @@ Windows Boots
 └─ User logs in
    └─ Electron startup script runs
       ├─ Waits for server to be ready
-      ├─ Opens POS window (primary monitor)
-      └─ Opens customer display (secondary monitor - fullscreen kiosk)
+      ├─ Opens main window (primary monitor) - Dashboard/Login
+      └─ Opens customer display IMMEDIATELY (secondary monitor - fullscreen kiosk)
+         ├─ Shows advertising/marketing content initially
+         ├─ Updates automatically when user logs in and selects business
+         └─ Shows cart when items are added to POS
 ```
 
 #### Manual Control
