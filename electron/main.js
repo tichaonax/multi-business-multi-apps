@@ -93,18 +93,39 @@ function createWindows() {
 
     // Enable kiosk mode after window is ready (more reliable on Windows)
     customerWindow.webContents.on('did-finish-load', () => {
-      // Try multiple approaches for Windows compatibility
-      customerWindow.setKiosk(true)
-      customerWindow.setFullScreen(true)
-      customerWindow.setMenuBarVisibility(false)
-      console.log('✅ Customer display kiosk mode enabled')
+      console.log('[Customer Display] Page loaded, activating kiosk mode...')
+
+      // Add a small delay to ensure window is fully ready
+      setTimeout(() => {
+        // Try multiple approaches for Windows compatibility
+        customerWindow.setKiosk(true)
+        customerWindow.setFullScreen(true)
+        customerWindow.setMenuBarVisibility(false)
+        console.log('✅ Customer display kiosk mode enabled (did-finish-load)')
+      }, 500)
     })
 
     // Also try setting kiosk immediately (belt and suspenders approach)
     customerWindow.once('ready-to-show', () => {
-      customerWindow.setKiosk(true)
-      customerWindow.setFullScreen(true)
-      console.log('✅ Customer display kiosk mode set on ready-to-show')
+      console.log('[Customer Display] Window ready, activating kiosk mode...')
+
+      setTimeout(() => {
+        customerWindow.setKiosk(true)
+        customerWindow.setFullScreen(true)
+        console.log('✅ Customer display kiosk mode set (ready-to-show)')
+      }, 1000)
+    })
+
+    // Final attempt after window is shown
+    customerWindow.once('show', () => {
+      console.log('[Customer Display] Window shown, final kiosk activation...')
+
+      setTimeout(() => {
+        customerWindow.setKiosk(true)
+        customerWindow.setFullScreen(true)
+        customerWindow.focus()
+        console.log('✅ Customer display kiosk mode set (show event)')
+      }, 1500)
     })
 
     // Open DevTools for customer display in development mode
