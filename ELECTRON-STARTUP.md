@@ -82,15 +82,67 @@ The customer display will show:
 
 ## Production Deployment
 
-For production use (without DevTools):
+### Windows Service with Auto-Start Electron
 
+For production deployment where the app runs as a Windows service and Electron starts automatically on user login:
+
+#### Setup
+
+1. **Install Electron to Windows Startup** (one-time):
 ```bash
-# Build the application
-npm run build
-
-# Start in production mode
-npm start
+npm run electron:install-startup
 ```
+
+2. **Reboot computer**
+
+#### How It Works
+
+When Windows boots:
+```
+Windows Boots
+├─ Service starts automatically (headless)
+│  └─ Next.js server starts on port 8080
+│
+└─ User logs in
+   └─ Electron startup script runs
+      ├─ Waits for server to be ready
+      ├─ Opens POS window (primary monitor)
+      └─ Opens customer display (secondary monitor - fullscreen kiosk)
+```
+
+#### Manual Control
+
+**Start Electron manually** (if not using auto-startup):
+```bash
+# Ensure service is running
+npm run service:start
+
+# Then start Electron
+npm run electron:start
+```
+
+**Remove from auto-startup:**
+```bash
+npm run electron:uninstall-startup
+```
+
+#### Troubleshooting
+
+**Electron doesn't start on login:**
+- Check Startup folder: `explorer "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"`
+- Look for: `Multi-Business-Kiosk.lnk`
+- Reinstall: `npm run electron:uninstall-startup && npm run electron:install-startup`
+
+**Electron shows "waiting for server":**
+- Check service status: `sc query multibusinesssyncservice.exe`
+- Start service: `npm run service:start`
+- Check logs: `type logs\service.log`
+
+**Customer display doesn't appear:**
+- Verify secondary monitor is connected
+- Electron only opens customer display if second monitor detected
+
+### Standalone Build
 
 Or package as standalone Electron app:
 ```bash
