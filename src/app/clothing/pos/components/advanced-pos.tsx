@@ -87,6 +87,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [quickAddProducts, setQuickAddProducts] = useState<any[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
 
+  // Business tax configuration
+  const [businessConfig, setBusinessConfig] = useState<{
+    taxIncludedInPrice: boolean
+    taxRate: number
+    taxLabel: string
+  }>({
+    taxIncludedInPrice: true,
+    taxRate: 8.0,
+    taxLabel: 'Tax'
+  })
+
   // Customer Display Sync (only if terminalId is provided)
   const { send: sendToDisplay } = useCustomerDisplaySync({
     businessId,
@@ -101,8 +112,20 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     if (!terminalId) return // Skip if no terminal ID
 
     const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity - (item.discount || 0)), 0)
-    const tax = subtotal * 0.08 // Assuming 8% tax
-    const total = subtotal + tax
+
+    // Calculate tax based on business config
+    let tax: number
+    let total: number
+
+    if (businessConfig.taxIncludedInPrice) {
+      // Tax is embedded in prices - calculate for display
+      tax = subtotal * (businessConfig.taxRate / (100 + businessConfig.taxRate))
+      total = subtotal // Total equals subtotal (tax already included)
+    } else {
+      // Tax is added on top
+      tax = subtotal * (businessConfig.taxRate / 100)
+      total = subtotal + tax
+    }
 
     sendToDisplay('CART_STATE', {
       items: cartItems.map(item => ({
@@ -119,6 +142,62 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       total
     })
   }
+
+  // Fetch business configuration on mount
+  useEffect(() => {
+    async function fetchBusinessConfig() {
+      if (!businessId) return
+
+      try {
+        const response = await fetch(`/api/universal/business-config?businessId=${businessId}`)
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            setBusinessConfig({
+              taxIncludedInPrice: result.data.taxIncludedInPrice ?? true,
+              taxRate: result.data.taxRate ?? 8.0,
+              taxLabel: result.data.taxLabel || 'Tax'
+            })
+            console.log('✅ Business config loaded:', {
+              taxIncludedInPrice: result.data.taxIncludedInPrice,
+              taxRate: result.data.taxRate
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch business config:', error)
+      }
+    }
+
+    fetchBusinessConfig()
+  }, [businessId])
+
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    if (!businessId) return
+
+    try {
+      const savedCart = localStorage.getItem(`cart-${businessId}`)
+      if (savedCart) {
+        const parsedCart = JSON.parse(savedCart)
+        setCart(parsedCart)
+        console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+      }
+    } catch (error) {
+      console.error('Failed to load cart from localStorage:', error)
+    }
+  }, [businessId])
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    if (!businessId) return
+
+    try {
+      localStorage.setItem(`cart-${businessId}`, JSON.stringify(cart))
+    } catch (error) {
+      console.error('Failed to save cart to localStorage:', error)
+    }
+  }, [cart, businessId])
 
   // Fetch default printer on component mount
   useEffect(() => {
@@ -372,11 +451,25 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
   const calculateTax = () => {
     const subtotal = calculateSubtotal()
-    return subtotal * 0.08 // 8% tax rate
+
+    // If tax is included in price, don't add additional tax
+    if (businessConfig.taxIncludedInPrice) {
+      // Calculate the embedded tax amount for display purposes
+      // If price includes 8% tax: tax = subtotal * (0.08 / 1.08)
+      return subtotal * (businessConfig.taxRate / (100 + businessConfig.taxRate))
+    }
+
+    // Tax not included - add tax to subtotal
+    return subtotal * (businessConfig.taxRate / 100)
   }
 
   const calculateTotal = () => {
-    return calculateSubtotal() + calculateTax()
+    const subtotal = calculateSubtotal()
+    const tax = calculateTax()
+
+    // If tax is included, total equals subtotal (tax is embedded)
+    // If tax is not included, total = subtotal + tax
+    return businessConfig.taxIncludedInPrice ? subtotal : subtotal + tax
   }
 
   const requiresSupervisorOverride = () => {
@@ -799,7 +892,11 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 <span>{formatCurrency(calculateSubtotal())}</span>
               </div>
               <div className="flex justify-between">
-                <span>Tax:</span>
+                <span>
+                  {businessConfig.taxLabel || 'Tax'}
+                  {businessConfig.taxIncludedInPrice && <span className="text-xs text-gray-500 ml-1">(included)</span>}
+                  :
+                </span>
                 <span>{formatCurrency(calculateTax())}</span>
               </div>
               <div className="flex justify-between font-bold text-lg border-t pt-2">
