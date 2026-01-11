@@ -87,14 +87,56 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
     onError: (error) => console.error('[Customer Display] Sync error:', error)
   })
 
+  // Load cart from localStorage on mount (per-business persistence)
+  useEffect(() => {
+    if (!businessId) return
+
+    try {
+      const savedCart = localStorage.getItem(`cart-${businessId}`)
+      if (savedCart) {
+        const parsedCart = JSON.parse(savedCart)
+        setCart(parsedCart)
+        console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+      }
+    } catch (error) {
+      console.error('Failed to load cart from localStorage:', error)
+    }
+  }, [businessId])
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    if (!businessId) return
+
+    try {
+      localStorage.setItem(`cart-${businessId}`, JSON.stringify(cart))
+    } catch (error) {
+      console.error('Failed to save cart to localStorage:', error)
+    }
+  }, [cart, businessId])
+
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {
     if (!terminalId) return // Skip if no terminal ID
 
     const subtotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0)
-    const taxRate = config?.general?.taxEnabled ? (config?.general?.taxRate || 0) / 100 : 0
-    const taxAmount = subtotal * taxRate
-    const total = subtotal + taxAmount - discountAmount
+
+    // Get tax config from business config (at root level, not nested in general)
+    const taxIncludedInPrice = config?.taxIncludedInPrice ?? true
+    const taxRate = config?.taxRate ?? 0
+
+    // Calculate tax based on business config
+    let taxAmount: number
+    let total: number
+
+    if (taxIncludedInPrice) {
+      // Tax is embedded in prices - calculate for display
+      taxAmount = subtotal * (taxRate / (100 + taxRate))
+      total = subtotal - discountAmount // Total equals subtotal (tax already included)
+    } else {
+      // Tax not included - add to subtotal
+      taxAmount = subtotal * (taxRate / 100)
+      total = subtotal + taxAmount - discountAmount
+    }
 
     sendToDisplay('CART_STATE', {
       items: cartItems.map(item => ({
@@ -112,9 +154,24 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0)
-  const taxRate = config?.general?.taxEnabled ? (config?.general?.taxRate || 0) / 100 : 0
-  const taxAmount = subtotal * taxRate
-  const totalAmount = subtotal + taxAmount - discountAmount
+
+  // Get tax config from business config (at root level, not nested in general)
+  const taxIncludedInPrice = config?.taxIncludedInPrice ?? true
+  const taxRate = config?.taxRate ?? 0
+
+  // Calculate tax and total based on config
+  let taxAmount: number
+  let totalAmount: number
+
+  if (taxIncludedInPrice) {
+    // Tax is embedded in prices
+    taxAmount = subtotal * (taxRate / (100 + taxRate))
+    totalAmount = subtotal - discountAmount
+  } else {
+    // Tax not included - add to subtotal
+    taxAmount = subtotal * (taxRate / 100)
+    totalAmount = subtotal + taxAmount - discountAmount
+  }
 
   const addToCart = (product: UniversalProduct, variantId?: string, quantity = 1, scannedBarcode?: { code: string; type: string; isPrimary: boolean; isUniversal: boolean; label?: string }) => {
     const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined
@@ -551,9 +608,13 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                   <span className="font-semibold">{formatCurrency(subtotal)}</span>
                 </div>
 
-                {config?.general?.taxEnabled && (
+                {taxRate > 0 && (
                   <div className="flex justify-between text-gray-700 dark:text-gray-300">
-                    <span className="font-medium">Tax ({config.general.taxRate}%):</span>
+                    <span className="font-medium">
+                      {config?.taxLabel || 'Tax'} ({taxRate}%)
+                      {taxIncludedInPrice && <span className="text-xs text-gray-500 ml-1">(included)</span>}
+                      :
+                    </span>
                     <span className="font-semibold">{formatCurrency(taxAmount)}</span>
                   </div>
                 )}

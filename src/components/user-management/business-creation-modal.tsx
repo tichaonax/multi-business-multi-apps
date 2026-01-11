@@ -229,44 +229,42 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
               />
             </div>
 
-            {!formData.taxIncludedInPrice && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-primary mb-2">
-                    Tax Rate (%)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={formData.taxRate}
-                    onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
-                    className="input-field"
-                    placeholder="e.g., 13.50"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Enter the tax percentage (e.g., 13.50 for 13.5%)
-                  </p>
-                </div>
+            <div>
+              <label className="block text-sm font-medium text-primary mb-2">
+                Tax Rate (%)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={formData.taxRate}
+                onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
+                className="input-field"
+                placeholder="e.g., 13.50"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {formData.taxIncludedInPrice
+                  ? 'The tax percentage embedded in your prices (for display purposes only)'
+                  : 'Tax will be calculated and added at checkout'}
+              </p>
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-primary mb-2">
-                    Tax Label
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.taxLabel}
-                    onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
-                    className="input-field"
-                    placeholder="e.g., VAT, Sales Tax, GST"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    How the tax will be labeled on receipts (optional)
-                  </p>
-                </div>
-              </>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-primary mb-2">
+                Tax Label
+              </label>
+              <input
+                type="text"
+                value={formData.taxLabel}
+                onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
+                className="input-field"
+                placeholder="e.g., VAT, Sales Tax, GST"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                How the tax will be labeled on receipts (optional)
+              </p>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

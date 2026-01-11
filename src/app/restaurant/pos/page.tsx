@@ -116,6 +116,33 @@ export default function RestaurantPOS() {
   // Open Customer Display utility
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
 
+  // Load cart from localStorage on mount (per-business persistence)
+  useEffect(() => {
+    if (!currentBusinessId) return
+
+    try {
+      const savedCart = localStorage.getItem(`cart-${currentBusinessId}`)
+      if (savedCart) {
+        const parsedCart = JSON.parse(savedCart)
+        setCart(parsedCart)
+        console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+      }
+    } catch (error) {
+      console.error('Failed to load cart from localStorage:', error)
+    }
+  }, [currentBusinessId])
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    if (!currentBusinessId) return
+
+    try {
+      localStorage.setItem(`cart-${currentBusinessId}`, JSON.stringify(cart))
+    } catch (error) {
+      console.error('Failed to save cart to localStorage:', error)
+    }
+  }, [cart, currentBusinessId])
+
   // Signal active business to customer display when business changes
   useEffect(() => {
     if (!currentBusinessId) {
@@ -153,7 +180,7 @@ export default function RestaurantPOS() {
         // Store tax settings from business data
         if (businessData) {
           setTaxIncludedInPrice(businessData.taxIncludedInPrice ?? true)
-          setTaxRate(businessData.taxRate ? Number(businessData.taxRate) : 0.08)
+          setTaxRate(businessData.taxRate ? Number(businessData.taxRate) : 0) // Default to 0, let admin configure
           console.log('[POS] Tax settings:', {
             taxIncludedInPrice: businessData.taxIncludedInPrice,
             taxRate: businessData.taxRate
@@ -213,14 +240,13 @@ export default function RestaurantPOS() {
     let total: number
 
     if (taxIncludedInPrice) {
-      // Tax is already included in prices
-      // total = subtotal (prices already include tax)
-      // tax = 0 (or calculate embedded tax for display: subtotal / (1 + taxRate) * taxRate)
-      total = subtotal
-      tax = 0 // Don't show separate tax line when included
+      // Tax is embedded in prices - calculate for display
+      // Formula: embedded tax = subtotal * (rate / (100 + rate))
+      tax = subtotal * (taxRate / (100 + taxRate))
+      total = subtotal // Total equals subtotal (tax already included)
     } else {
       // Tax is NOT included, add it to subtotal
-      tax = subtotal * taxRate
+      tax = subtotal * (taxRate / 100)
       total = subtotal + tax
     }
 
@@ -284,8 +310,10 @@ export default function RestaurantPOS() {
     if (!showPaymentModal || !amountReceived) return
 
     const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
-    const tax = taxIncludedInPrice ? 0 : subtotal * taxRate
-    const total = subtotal + tax
+    const tax = taxIncludedInPrice
+      ? subtotal * (taxRate / (100 + taxRate))
+      : subtotal * (taxRate / 100)
+    const total = taxIncludedInPrice ? subtotal : subtotal + tax
     const tendered = parseFloat(amountReceived) || 0
 
     sendToDisplay('PAYMENT_AMOUNT', {
@@ -1184,8 +1212,10 @@ export default function RestaurantPOS() {
 
     // Calculate totals for payment broadcast
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    const tax = taxIncludedInPrice ? 0 : subtotal * taxRate
-    const total = subtotal + tax
+    const tax = taxIncludedInPrice
+      ? subtotal * (taxRate / (100 + taxRate))
+      : subtotal * (taxRate / 100)
+    const total = taxIncludedInPrice ? subtotal : subtotal + tax
 
     // Broadcast payment started to customer display
     sendToDisplay('PAYMENT_STARTED', {
@@ -1809,8 +1839,10 @@ export default function RestaurantPOS() {
                   onClick={() => {
                     // Broadcast payment cancelled to customer display
                     const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
-                    const tax = taxIncludedInPrice ? 0 : subtotal * taxRate
-                    const total = subtotal + tax
+                    const tax = taxIncludedInPrice
+                      ? subtotal * (taxRate / (100 + taxRate))
+                      : subtotal * (taxRate / 100)
+                    const total = taxIncludedInPrice ? subtotal : subtotal + tax
                     sendToDisplay('PAYMENT_CANCELLED', {
                       subtotal,
                       tax,

@@ -105,6 +105,17 @@ function GroceryPOSContent() {
   const [activeWiFiTab, setActiveWiFiTab] = useState<'esp32' | 'r710'>('esp32')
   const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
 
+  // Business tax configuration
+  const [businessConfig, setBusinessConfig] = useState<{
+    taxIncludedInPrice: boolean
+    taxRate: number
+    taxLabel: string
+  }>({
+    taxIncludedInPrice: true,
+    taxRate: 0,
+    taxLabel: 'Tax'
+  })
+
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const pluInputRef = useRef<HTMLInputElement>(null)
   const cashTenderInputRef = useRef<HTMLInputElement>(null)
@@ -145,12 +156,80 @@ function GroceryPOSContent() {
   // Open Customer Display utility
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
 
+  // Fetch business configuration on mount
+  useEffect(() => {
+    async function fetchBusinessConfig() {
+      if (!currentBusinessId) return
+
+      try {
+        const response = await fetch(`/api/universal/business-config?businessId=${currentBusinessId}`)
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            setBusinessConfig({
+              taxIncludedInPrice: result.data.taxIncludedInPrice ?? true,
+              taxRate: result.data.taxRate ?? 0,
+              taxLabel: result.data.taxLabel || 'Tax'
+            })
+            console.log('✅ Business config loaded:', {
+              taxIncludedInPrice: result.data.taxIncludedInPrice,
+              taxRate: result.data.taxRate
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch business config:', error)
+      }
+    }
+
+    fetchBusinessConfig()
+  }, [currentBusinessId])
+
+  // Load cart from localStorage on mount (per-business persistence)
+  useEffect(() => {
+    if (!currentBusinessId) return
+
+    try {
+      const savedCart = localStorage.getItem(`cart-${currentBusinessId}`)
+      if (savedCart) {
+        const parsedCart = JSON.parse(savedCart)
+        setCart(parsedCart)
+        console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+      }
+    } catch (error) {
+      console.error('Failed to load cart from localStorage:', error)
+    }
+  }, [currentBusinessId])
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    if (!currentBusinessId) return
+
+    try {
+      localStorage.setItem(`cart-${currentBusinessId}`, JSON.stringify(cart))
+    } catch (error) {
+      console.error('Failed to save cart to localStorage:', error)
+    }
+  }, [cart, currentBusinessId])
+
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {
     console.log('[Grocery POS] Broadcasting cart state, items:', cartItems.length)
     const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    const tax = subtotal * 0.08 // 8% tax rate
-    const total = subtotal + tax
+
+    // Calculate tax based on business config
+    let tax: number
+    let total: number
+
+    if (businessConfig.taxIncludedInPrice) {
+      // Tax is embedded in prices - calculate for display
+      tax = subtotal * (businessConfig.taxRate / (100 + businessConfig.taxRate))
+      total = subtotal // Total equals subtotal (tax already included)
+    } else {
+      // Tax is NOT included, add it to subtotal
+      tax = subtotal * (businessConfig.taxRate / 100)
+      total = subtotal + tax
+    }
 
     const cartMessage = {
       items: cartItems.map(item => ({
@@ -906,10 +985,23 @@ function GroceryPOSContent() {
   const calculateTotals = () => {
     const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0)
     const taxableAmount = cart.filter(item => item.taxable).reduce((sum, item) => sum + item.subtotal, 0)
-    const tax = taxableAmount * 0.08 // 8% tax rate
+
+    // Calculate tax based on business config
+    let tax: number
+    let total: number
+
+    if (businessConfig.taxIncludedInPrice) {
+      // Tax is embedded - calculate embedded tax amount for taxable items
+      tax = taxableAmount * (businessConfig.taxRate / (100 + businessConfig.taxRate))
+      total = subtotal // Total equals subtotal (tax already included)
+    } else {
+      // Tax not included - add tax to taxable items
+      tax = taxableAmount * (businessConfig.taxRate / 100)
+      total = subtotal + tax
+    }
+
     const snapEligibleAmount = cart.filter(item => item.snapEligible).reduce((sum, item) => sum + item.subtotal, 0)
     const loyaltyPoints = cart.reduce((sum, item) => sum + (item.loyaltyPoints || 0) * Math.ceil(item.quantity), 0)
-    const total = subtotal + tax
 
     return { subtotal, tax, total, snapEligibleAmount, loyaltyPoints }
   }
