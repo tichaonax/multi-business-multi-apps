@@ -41,6 +41,7 @@ interface MenuItem {
   spiceLevel?: number | null
   preparationTime?: number | null
   stockQuantity?: number
+  imageUrl?: string  // Product image for customer display
   variants?: Array<{ id: string; name?: string; price?: number; isAvailable?: boolean; stockQuantity?: number }>
 }
 
@@ -261,7 +262,8 @@ export default function RestaurantPOS() {
         name: item.name,
         quantity: item.quantity,
         price: Number(item.price),
-        variant: item.category
+        variant: item.category,
+        imageUrl: item.imageUrl // Include product image for customer display
       })),
       subtotal,
       tax,
@@ -467,6 +469,7 @@ export default function RestaurantPOS() {
         isAvailable: 'true',
         isActive: 'true',
         includeVariants: 'true', // Include variants to get stock quantities
+        includeImages: 'true', // Include product images for customer display
         limit: '500' // High limit to get all products
       })
 
@@ -511,6 +514,10 @@ export default function RestaurantPOS() {
                 return sum + (variant.stockQuantity || 0)
               }, 0)
 
+              // Get primary image or first image for customer display
+              const primaryImage = product.images?.find((img: any) => img.isPrimary) || product.images?.[0]
+              const imageUrl = primaryImage?.imageUrl || primaryImage?.url
+
               return {
                 id: product.id,
                 name: product.name,
@@ -524,6 +531,7 @@ export default function RestaurantPOS() {
                 spiceLevel: product.spiceLevel,
                 preparationTime: product.preparationTime,
                 stockQuantity: totalStock,
+                imageUrl: imageUrl, // Product image for customer display
                 variants: product.variants,
                 purchaseCount: purchaseCounts[product.id] || 0
               }
