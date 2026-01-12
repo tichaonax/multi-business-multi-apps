@@ -119,6 +119,9 @@ public/exports/payroll/*.xlsx
 public/exports/payroll/debug_*.json
 public/exports/payroll/
 
+# User-uploaded images (product images, menu items, etc.)
+public/uploads/images/
+
 # Temporary helper files created during development
 .temp_*
 .tmp_*
