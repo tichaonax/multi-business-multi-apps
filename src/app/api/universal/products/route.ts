@@ -416,7 +416,13 @@ export async function PUT(request: NextRequest) {
         include: {
           businesses: { select: { name: true, type: true } },
           business_brands: { select: { id: true, name: true } },
-          business_categories: { select: { id: true, name: true } }
+          business_categories: { select: { id: true, name: true } },
+          product_images: {
+            orderBy: [
+              { isPrimary: 'desc' },
+              { sortOrder: 'asc' }
+            ]
+          }
         }
       })
 
@@ -493,13 +499,20 @@ export async function PUT(request: NextRequest) {
           product_variants: {
             where: { isActive: true },
             orderBy: { name: 'asc' }
+          },
+          product_images: {
+            orderBy: [
+              { isPrimary: 'desc' },
+              { sortOrder: 'asc' }
+            ]
           }
         }
       })
 
       return {
         ...product,
-        variants: productWithVariants?.product_variants || []
+        variants: productWithVariants?.product_variants || [],
+        product_images: productWithVariants?.product_images || []
       }
     })
 
