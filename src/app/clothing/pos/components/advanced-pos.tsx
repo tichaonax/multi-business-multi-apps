@@ -243,50 +243,76 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
   // Load products from database
   const loadProducts = useCallback(async () => {
-    if (!currentBusiness?.businessId) return
+    console.log('🔍 [loadProducts] Called with businessId:', currentBusiness?.businessId)
+    if (!currentBusiness?.businessId) {
+      console.log('⚠️ [loadProducts] No businessId, skipping')
+      return
+    }
 
     setProductsLoading(true)
+    console.log('📥 [loadProducts] Fetching products...')
     try {
       const response = await fetch(
         `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&limit=50`
       )
 
+      console.log('📡 [loadProducts] Response status:', response.status)
       if (response.ok) {
         const result = await response.json()
+        console.log('📦 [loadProducts] Raw API data:', {
+          success: result.success,
+          totalProducts: result.data?.length || 0,
+          products: result.data
+        })
+
         if (result.success && result.data) {
           // Map API products to QuickAddProduct format
-          const products = result.data
-            .filter((p: any) => p.variants && p.variants.length > 0)
-            .map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              variants: p.variants
-                .filter((v: any) => parseFloat(v.price) > 0) // Only include variants with selling price > 0
-                .map((v: any) => ({
+          const productsWithVariants = result.data.filter((p: any) => p.variants && p.variants.length > 0)
+          console.log('🔍 [loadProducts] Products with variants:', productsWithVariants.length)
+
+          const products = productsWithVariants
+            .map((p: any) => {
+              const validVariants = p.variants.filter((v: any) => parseFloat(v.price) > 0)
+              console.log(`📦 [loadProducts] Product "${p.name}": ${p.variants.length} total variants, ${validVariants.length} with price > 0`)
+
+              return {
+                id: p.id,
+                name: p.name,
+                variants: validVariants.map((v: any) => ({
                   id: v.id,
                   sku: v.sku,
                   price: parseFloat(v.price),
                   attributes: v.attributes || {},
                   stock: v.stockQuantity || 0
                 }))
-            }))
+              }
+            })
             .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
 
+          console.log('✅ [loadProducts] Final products to display:', products.length)
+          console.log('📋 [loadProducts] Products:', products)
           setQuickAddProducts(products.slice(0, 20)) // Show first 20 products
-          console.log('✅ Products loaded:', products.length)
+          console.log('💾 [loadProducts] Set quickAddProducts state with', products.slice(0, 20).length, 'products')
         }
       }
     } catch (error) {
-      console.error('Failed to load products:', error)
+      console.error('❌ [loadProducts] Error:', error)
     } finally {
       setProductsLoading(false)
+      console.log('🏁 [loadProducts] Finished, loading=false')
     }
   }, [currentBusiness?.businessId])
 
   // Load products on mount and when business changes
   useEffect(() => {
+    console.log('🔄 [useEffect loadProducts] Effect triggered, calling loadProducts()')
     loadProducts()
   }, [loadProducts])
+
+  // Debug: Log whenever quickAddProducts changes
+  useEffect(() => {
+    console.log('📊 [quickAddProducts changed] New count:', quickAddProducts.length, 'products:', quickAddProducts)
+  }, [quickAddProducts])
 
   // Auto-reload products when window regains focus (e.g., after seeding)
   // DISABLED: This was causing issues when switching between businesses
@@ -304,43 +330,54 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // Search products with debounce
   useEffect(() => {
     const searchProducts = async () => {
+      console.log('🔍 [searchProducts] Search term:', productSearchTerm)
       if (!productSearchTerm.trim() || !currentBusiness?.businessId) {
+        console.log('⚠️ [searchProducts] Clearing search results (no term or businessId)')
         setSearchResults([])
         return
       }
 
       setSearchLoading(true)
+      console.log('🔎 [searchProducts] Searching for:', productSearchTerm)
       try {
-        const response = await fetch(
-          `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&search=${encodeURIComponent(productSearchTerm)}&limit=10`
-        )
+        const searchUrl = `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&search=${encodeURIComponent(productSearchTerm)}&limit=10`
+        console.log('🌐 [searchProducts] Fetching:', searchUrl)
+        const response = await fetch(searchUrl)
 
+        console.log('📡 [searchProducts] Response status:', response.status)
         if (response.ok) {
           const result = await response.json()
+          console.log('📦 [searchProducts] API results:', result.data?.length || 0, 'products')
+
           if (result.success && result.data) {
             // Map API products to same format as quick add products
-            const products = result.data
-              .filter((p: any) => p.variants && p.variants.length > 0)
-              .map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                variants: p.variants
-                  .filter((v: any) => parseFloat(v.price) > 0)
-                  .map((v: any) => ({
+            const productsWithVariants = result.data.filter((p: any) => p.variants && p.variants.length > 0)
+            console.log('🔍 [searchProducts] Products with variants:', productsWithVariants.length)
+
+            const products = productsWithVariants
+              .map((p: any) => {
+                const validVariants = p.variants.filter((v: any) => parseFloat(v.price) > 0)
+                console.log(`📦 [searchProducts] Product "${p.name}": ${validVariants.length} valid variants`)
+                return {
+                  id: p.id,
+                  name: p.name,
+                  variants: validVariants.map((v: any) => ({
                     id: v.id,
                     sku: v.sku,
                     price: parseFloat(v.price),
                     attributes: v.attributes || {},
                     stock: v.stockQuantity || 0
                   }))
-              }))
+                }
+              })
               .filter((p: any) => p.variants.length > 0)
 
+            console.log('✅ [searchProducts] Final search results:', products.length)
             setSearchResults(products)
           }
         }
       } catch (error) {
-        console.error('Failed to search products:', error)
+        console.error('❌ [searchProducts] Error:', error)
       } finally {
         setSearchLoading(false)
       }
