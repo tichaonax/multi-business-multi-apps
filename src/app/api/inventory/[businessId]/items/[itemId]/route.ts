@@ -254,6 +254,23 @@ export async function PUT(
       }
     })
 
+    // Update default variant price if basePrice was changed
+    if (updateData.basePrice !== undefined) {
+      const defaultVariant = await prisma.productVariants.findFirst({
+        where: { productId: itemId, name: 'Default' }
+      })
+
+      if (defaultVariant) {
+        await prisma.productVariants.update({
+          where: { id: defaultVariant.id },
+          data: {
+            price: updateData.basePrice,
+            updatedAt: new Date()
+          }
+        })
+      }
+    }
+
     // Handle stock adjustment if provided
     if (body._stockAdjustment && body._stockAdjustment !== 0) {
       // Get or create default variant for this product
