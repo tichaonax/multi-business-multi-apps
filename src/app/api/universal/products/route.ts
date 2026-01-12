@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const businessType = searchParams.get('businessType')
+    const productId = searchParams.get('productId')
     const categoryId = searchParams.get('categoryId')
     const brandId = searchParams.get('brandId')
     const productType = searchParams.get('productType')
@@ -93,6 +94,11 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     const where: any = {}
+
+    // If productId is provided, filter by specific product
+    if (productId) {
+      where.id = productId
+    }
 
     // If businessId is provided, filter by business
     if (businessId) {

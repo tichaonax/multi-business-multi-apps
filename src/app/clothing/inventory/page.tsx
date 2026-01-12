@@ -249,12 +249,21 @@ function ClothingInventoryContent() {
       // If only one variant, add directly to cart
       if (validVariants.length === 1) {
         const variant = validVariants[0]
+        const stock = variant.stockQuantity || 0
+
+        // Check if item has stock
+        if (stock <= 0) {
+          showToast('Product is out of stock', { type: 'error' })
+          return
+        }
+
         addToCart({
           productId: product.id,
           variantId: variant.id,
           name: product.name,
           sku: variant.sku,
           price: parseFloat(variant.price),
+          stock: stock,
           imageUrl: imageUrl || null,
           attributes: variant.attributes || {}
         })

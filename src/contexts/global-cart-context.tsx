@@ -11,6 +11,7 @@ export interface CartItem {
   sku: string
   price: number
   quantity: number
+  stock?: number // Available stock quantity
   imageUrl?: string | null
   attributes?: Record<string, any>
   discount?: number
@@ -101,6 +102,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Add item to cart
   const addToCart = useCallback((item: Omit<CartItem, 'id' | 'quantity'> & { quantity?: number }) => {
+    // Validation guards
+    if (item.price <= 0) {
+      console.error('❌ [GlobalCart] Cannot add item with price <= 0')
+      return
+    }
+
+    const quantityToAdd = item.quantity || 1
+    if (quantityToAdd <= 0) {
+      console.error('❌ [GlobalCart] Cannot add item with quantity <= 0')
+      return
+    }
+
     setCart(currentCart => {
       // Check if item already exists in cart
       const existingItemIndex = currentCart.findIndex(
@@ -109,18 +122,33 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       if (existingItemIndex > -1) {
         // Update quantity of existing item
+        const existingItem = currentCart[existingItemIndex]
+        const newQuantity = existingItem.quantity + quantityToAdd
+
+        // Check stock limit if available
+        if (item.stock !== undefined && newQuantity > item.stock) {
+          console.warn(`⚠️ [GlobalCart] Cannot add more than ${item.stock} items (stock limit)`)
+          return currentCart // Don't add, return unchanged cart
+        }
+
         const updatedCart = [...currentCart]
         updatedCart[existingItemIndex] = {
-          ...updatedCart[existingItemIndex],
-          quantity: updatedCart[existingItemIndex].quantity + (item.quantity || 1)
+          ...existingItem,
+          quantity: newQuantity
         }
         console.log('✅ [GlobalCart] Updated existing item quantity')
         return updatedCart
       } else {
+        // Check stock limit for new item
+        if (item.stock !== undefined && quantityToAdd > item.stock) {
+          console.warn(`⚠️ [GlobalCart] Cannot add ${quantityToAdd} items, only ${item.stock} in stock`)
+          return currentCart // Don't add, return unchanged cart
+        }
+
         // Add new item to cart
         const newItem: CartItem = {
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          quantity: item.quantity || 1,
+          quantity: quantityToAdd,
           ...item
         }
         console.log('✅ [GlobalCart] Added new item to cart')
@@ -146,9 +174,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     setCart(currentCart => {
-      const updatedCart = currentCart.map(item =>
-        item.id === itemId ? { ...item, quantity } : item
-      )
+      const updatedCart = currentCart.map(item => {
+        if (item.id === itemId) {
+          // Check stock limit if available
+          if (item.stock !== undefined && quantity > item.stock) {
+            console.warn(`⚠️ [GlobalCart] Cannot set quantity to ${quantity}, only ${item.stock} in stock`)
+            return item // Don't update, return unchanged item
+          }
+          return { ...item, quantity }
+        }
+        return item
+      })
       console.log('✅ [GlobalCart] Updated item quantity')
       return updatedCart
     })
