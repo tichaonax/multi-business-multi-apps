@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessContext } from '@/components/universal'
@@ -182,9 +182,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         const parsedCart = JSON.parse(savedCart)
         setCart(parsedCart)
         console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+      } else {
+        // CRITICAL: Clear cart when switching to a business with no saved cart
+        setCart([])
+        console.log('🔄 Switched to business with no saved cart - cart cleared')
       }
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
+      setCart([]) // Clear cart on error
     }
   }, [businessId])
 
@@ -228,49 +233,62 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   }, [])
 
   // Load products from database
-  useEffect(() => {
-    const loadProducts = async () => {
-      if (!currentBusiness?.businessId) return
+  const loadProducts = useCallback(async () => {
+    if (!currentBusiness?.businessId) return
 
-      setProductsLoading(true)
-      try {
-        const response = await fetch(
-          `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&limit=50`
-        )
+    setProductsLoading(true)
+    try {
+      const response = await fetch(
+        `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&limit=50`
+      )
 
-        if (response.ok) {
-          const result = await response.json()
-          if (result.success && result.data) {
-            // Map API products to QuickAddProduct format
-            const products = result.data
-              .filter((p: any) => p.variants && p.variants.length > 0)
-              .map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                variants: p.variants
-                  .filter((v: any) => parseFloat(v.price) > 0) // Only include variants with selling price > 0
-                  .map((v: any) => ({
-                    id: v.id,
-                    sku: v.sku,
-                    price: parseFloat(v.price),
-                    attributes: v.attributes || {},
-                    stock: v.stockQuantity || 0
-                  }))
-              }))
-              .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.data) {
+          // Map API products to QuickAddProduct format
+          const products = result.data
+            .filter((p: any) => p.variants && p.variants.length > 0)
+            .map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              variants: p.variants
+                .filter((v: any) => parseFloat(v.price) > 0) // Only include variants with selling price > 0
+                .map((v: any) => ({
+                  id: v.id,
+                  sku: v.sku,
+                  price: parseFloat(v.price),
+                  attributes: v.attributes || {},
+                  stock: v.stockQuantity || 0
+                }))
+            }))
+            .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
 
-            setQuickAddProducts(products.slice(0, 4)) // Show first 4 products
-          }
+          setQuickAddProducts(products.slice(0, 4)) // Show first 4 products
+          console.log('✅ Products loaded:', products.length)
         }
-      } catch (error) {
-        console.error('Failed to load products:', error)
-      } finally {
-        setProductsLoading(false)
       }
+    } catch (error) {
+      console.error('Failed to load products:', error)
+    } finally {
+      setProductsLoading(false)
+    }
+  }, [currentBusiness?.businessId])
+
+  // Load products on mount and when business changes
+  useEffect(() => {
+    loadProducts()
+  }, [loadProducts])
+
+  // Auto-reload products when window regains focus (e.g., after seeding)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('🔄 Window focused, reloading products...')
+      loadProducts()
     }
 
-    loadProducts()
-  }, [currentBusiness?.businessId])
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [loadProducts])
 
   const addToCart = (productId: string, variantId: string, quantity?: number) => {
     const product = quickAddProducts.find(p => p.id === productId)

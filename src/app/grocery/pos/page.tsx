@@ -195,9 +195,14 @@ function GroceryPOSContent() {
         const parsedCart = JSON.parse(savedCart)
         setCart(parsedCart)
         console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+      } else {
+        // CRITICAL: Clear cart when switching to a business with no saved cart
+        setCart([])
+        console.log('🔄 Switched to business with no saved cart - cart cleared')
       }
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
+      setCart([]) // Clear cart on error
     }
   }, [currentBusinessId])
 

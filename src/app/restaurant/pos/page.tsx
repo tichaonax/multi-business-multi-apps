@@ -126,9 +126,14 @@ export default function RestaurantPOS() {
         const parsedCart = JSON.parse(savedCart)
         setCart(parsedCart)
         console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+      } else {
+        // CRITICAL: Clear cart when switching to a business with no saved cart
+        setCart([])
+        console.log('🔄 Switched to business with no saved cart - cart cleared')
       }
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
+      setCart([]) // Clear cart on error
     }
   }, [currentBusinessId])
 
@@ -494,7 +499,7 @@ export default function RestaurantPOS() {
 
           // Transform universal products to menu items format
           const items = data.data
-            .filter((product: any) => product.isAvailable && product.isActive)
+            .filter((product: any) => product.isAvailable && product.isActive && Number(product.basePrice) > 0)
             .map((product: any) => {
               // Calculate total stock from all variants
               const totalStock = (product.variants || []).reduce((sum: number, variant: any) => {
