@@ -81,28 +81,47 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [cart, currentBusinessId, cartLoaded])
 
-  // Broadcast cart updates to customer display
-  const broadcastCartUpdate = useCallback(() => {
+  // Push cart updates to API for customer display
+  const broadcastCartUpdate = useCallback(async () => {
     if (typeof window === 'undefined' || !currentBusinessId) return
 
     try {
-      const channel = new BroadcastChannel('customer-display-sync')
-      const message = {
-        type: 'CART_UPDATE',
-        businessId: currentBusinessId,
-        payload: {
-          cart: cart
-        },
-        timestamp: Date.now()
+      // Try BroadcastChannel first (for same-origin displays)
+      try {
+        const channel = new BroadcastChannel('customer-display-sync')
+        const message = {
+          type: 'CART_UPDATE',
+          businessId: currentBusinessId,
+          payload: {
+            cart: cart
+          },
+          timestamp: Date.now()
+        }
+        channel.postMessage(message)
+        channel.close()
+        console.log('📡 [GlobalCart] Broadcasted to same-origin display')
+      } catch (bcError) {
+        // BroadcastChannel might not be supported or same-origin display not open
       }
-      channel.postMessage(message)
-      channel.close()
-      console.log('📡 [GlobalCart] Broadcasted cart to customer display:', {
-        businessId: currentBusinessId,
-        itemCount: cart.length
+
+      // Always push to API (for cross-origin displays on different ports)
+      const response = await fetch('/api/customer-display/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          cart: cart
+        })
       })
+
+      if (response.ok) {
+        console.log('📡 [GlobalCart] Pushed cart to API for customer display:', {
+          businessId: currentBusinessId,
+          itemCount: cart.length
+        })
+      }
     } catch (error) {
-      console.error('❌ [GlobalCart] Failed to broadcast cart:', error)
+      console.error('❌ [GlobalCart] Failed to update cart:', error)
     }
   }, [cart, currentBusinessId])
 
