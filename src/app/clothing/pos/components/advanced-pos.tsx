@@ -250,7 +250,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     setProductsLoading(true)
     try {
       const response = await fetch(
-        `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&limit=50`
+        `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&includeImages=true&isAvailable=true&limit=50`
       )
 
       if (response.ok) {
@@ -267,9 +267,16 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 return !isNaN(price) && price > 0
               })
 
+              // Get primary image or first image
+              const primaryImage = p.images?.find((img: any) => img.isPrimary) || p.images?.[0]
+              const imageUrl = primaryImage?.imageUrl || primaryImage?.url
+
               return {
                 id: p.id,
                 name: p.name,
+                imageUrl: imageUrl || null,
+                category: p.category?.name || '',
+                categoryEmoji: p.category?.emoji || '📦',
                 variants: validVariants.map((v: any) => ({
                   id: v.id,
                   sku: v.sku,
@@ -325,7 +332,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
       setSearchLoading(true)
       try {
-        const searchUrl = `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&search=${encodeURIComponent(productSearchTerm)}&limit=10`
+        const searchUrl = `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&includeImages=true&isAvailable=true&search=${encodeURIComponent(productSearchTerm)}&limit=10`
         const response = await fetch(searchUrl)
 
         if (response.ok) {
@@ -341,9 +348,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   const price = parseFloat(v.price)
                   return !isNaN(price) && price > 0
                 })
+
+                // Get primary image or first image
+                const primaryImage = p.images?.find((img: any) => img.isPrimary) || p.images?.[0]
+                const imageUrl = primaryImage?.imageUrl || primaryImage?.url
+
                 return {
                   id: p.id,
                   name: p.name,
+                  imageUrl: imageUrl || null,
+                  category: p.category?.name || '',
+                  categoryEmoji: p.category?.emoji || '📦',
                   variants: validVariants.map((v: any) => ({
                     id: v.id,
                     sku: v.sku,
@@ -933,8 +948,33 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
               {quickAddProducts.map((product) => (
-                <div key={product.id} className="border rounded-lg p-3">
-                  <h4 className="font-medium text-primary mb-2">{product.name}</h4>
+                <div key={product.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow">
+                  <div className="flex gap-3 mb-3">
+                    {/* Product Image */}
+                    <div className="flex-shrink-0">
+                      {product.imageUrl ? (
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-3xl">
+                          {product.categoryEmoji || '👕'}
+                        </div>
+                      )}
+                    </div>
+                    {/* Product Info */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-primary truncate">{product.name}</h4>
+                      {product.category && (
+                        <p className="text-xs text-secondary flex items-center gap-1">
+                          <span>{product.categoryEmoji}</span>
+                          <span>{product.category}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     {product.variants.map((variant: any) => (
                       <div key={variant.id} className="flex items-center justify-between">
