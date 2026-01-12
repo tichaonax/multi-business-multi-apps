@@ -272,8 +272,22 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
           const products = productsWithVariants
             .map((p: any) => {
+              console.log(`\n🔍 [loadProducts] Analyzing Product: "${p.name}"`)
+              console.log('📦 [loadProducts] Product variants:', p.variants)
+              p.variants.forEach((v: any, idx: number) => {
+                console.log(`  Variant ${idx + 1}:`, {
+                  id: v.id,
+                  sku: v.sku,
+                  price: v.price,
+                  sellingPrice: v.sellingPrice,
+                  basePrice: v.basePrice,
+                  salePrice: v.salePrice,
+                  allFields: Object.keys(v)
+                })
+              })
+
               const validVariants = p.variants.filter((v: any) => parseFloat(v.price) > 0)
-              console.log(`📦 [loadProducts] Product "${p.name}": ${p.variants.length} total variants, ${validVariants.length} with price > 0`)
+              console.log(`✅ [loadProducts] Product "${p.name}": ${p.variants.length} total variants, ${validVariants.length} with price > 0\n`)
 
               return {
                 id: p.id,
