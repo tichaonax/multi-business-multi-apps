@@ -87,6 +87,9 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
     onError: (error) => console.error('[Customer Display] Sync error:', error)
   })
 
+  // Track if cart has been loaded from localStorage to prevent overwriting on mount
+  const [cartLoaded, setCartLoaded] = useState(false)
+
   // Load cart from localStorage on mount (per-business persistence)
   useEffect(() => {
     if (!businessId) return
@@ -105,19 +108,22 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
       setCart([]) // Clear cart on error
+    } finally {
+      setCartLoaded(true)
     }
   }, [businessId])
 
-  // Save cart to localStorage whenever it changes
+  // Save cart to localStorage whenever it changes (but only after initial load)
   useEffect(() => {
-    if (!businessId) return
+    if (!businessId || !cartLoaded) return
 
     try {
       localStorage.setItem(`cart-${businessId}`, JSON.stringify(cart))
+      console.log('💾 Cart saved to localStorage:', cart.length, 'items')
     } catch (error) {
       console.error('Failed to save cart to localStorage:', error)
     }
-  }, [cart, businessId])
+  }, [cart, businessId, cartLoaded])
 
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {

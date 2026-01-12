@@ -186,6 +186,9 @@ function GroceryPOSContent() {
     fetchBusinessConfig()
   }, [currentBusinessId])
 
+  // Track if cart has been loaded from localStorage to prevent overwriting on mount
+  const [cartLoaded, setCartLoaded] = useState(false)
+
   // Load cart from localStorage on mount (per-business persistence)
   useEffect(() => {
     if (!currentBusinessId) return
@@ -204,19 +207,22 @@ function GroceryPOSContent() {
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
       setCart([]) // Clear cart on error
+    } finally {
+      setCartLoaded(true)
     }
   }, [currentBusinessId])
 
-  // Save cart to localStorage whenever it changes
+  // Save cart to localStorage whenever it changes (but only after initial load)
   useEffect(() => {
-    if (!currentBusinessId) return
+    if (!currentBusinessId || !cartLoaded) return
 
     try {
       localStorage.setItem(`cart-${currentBusinessId}`, JSON.stringify(cart))
+      console.log('💾 Cart saved to localStorage:', cart.length, 'items')
     } catch (error) {
       console.error('Failed to save cart to localStorage:', error)
     }
-  }, [cart, currentBusinessId])
+  }, [cart, currentBusinessId, cartLoaded])
 
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {

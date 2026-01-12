@@ -175,6 +175,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     fetchBusinessConfig()
   }, [businessId])
 
+  // Track if cart has been loaded from localStorage to prevent overwriting on mount
+  const [cartLoaded, setCartLoaded] = useState(false)
+
   // Load cart from localStorage on mount
   useEffect(() => {
     if (!businessId) return
@@ -193,19 +196,22 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
       setCart([]) // Clear cart on error
+    } finally {
+      setCartLoaded(true)
     }
   }, [businessId])
 
-  // Save cart to localStorage whenever it changes
+  // Save cart to localStorage whenever it changes (but only after initial load)
   useEffect(() => {
-    if (!businessId) return
+    if (!businessId || !cartLoaded) return
 
     try {
       localStorage.setItem(`cart-${businessId}`, JSON.stringify(cart))
+      console.log('💾 Cart saved to localStorage:', cart.length, 'items')
     } catch (error) {
       console.error('Failed to save cart to localStorage:', error)
     }
-  }, [cart, businessId])
+  }, [cart, businessId, cartLoaded])
 
   // Fetch default printer on component mount
   useEffect(() => {
