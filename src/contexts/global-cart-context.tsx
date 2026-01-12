@@ -87,14 +87,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     try {
       const channel = new BroadcastChannel('customer-display-sync')
-      channel.postMessage({
+      const message = {
         type: 'CART_UPDATE',
         businessId: currentBusinessId,
-        cart: cart,
+        payload: {
+          cart: cart
+        },
         timestamp: Date.now()
-      })
+      }
+      channel.postMessage(message)
       channel.close()
-      console.log('📡 [GlobalCart] Broadcasted cart to customer display')
+      console.log('📡 [GlobalCart] Broadcasted cart to customer display:', {
+        businessId: currentBusinessId,
+        itemCount: cart.length
+      })
     } catch (error) {
       console.error('❌ [GlobalCart] Failed to broadcast cart:', error)
     }
