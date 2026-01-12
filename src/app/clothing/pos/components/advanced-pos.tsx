@@ -7,6 +7,7 @@ import { useBusinessContext } from '@/components/universal'
 import { BarcodeScanner, UniversalProduct } from '@/components/universal'
 import { ReceiptPreview } from '@/components/printing/receipt-preview'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import type { ReceiptData } from '@/types/printing'
@@ -56,6 +57,7 @@ interface ClothingAdvancedPOSProps {
 export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrderComplete }: ClothingAdvancedPOSProps) {
   const { formatCurrency } = useBusinessContext()
   const { currentBusiness } = useBusinessPermissionsContext()
+  const { cart: globalCart, clearCart: clearGlobalCart } = useGlobalCart()
   const customAlert = useAlert()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -178,7 +180,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // Track if cart has been loaded from localStorage to prevent overwriting on mount
   const [cartLoaded, setCartLoaded] = useState(false)
 
-  // Load cart from localStorage on mount
+  // Load cart from localStorage on mount, and import from global cart if needed
   useEffect(() => {
     if (!businessId) return
 
@@ -189,9 +191,32 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         setCart(parsedCart)
         console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
       } else {
-        // CRITICAL: Clear cart when switching to a business with no saved cart
-        setCart([])
-        console.log('🔄 Switched to business with no saved cart - cart cleared')
+        // Check if global cart has items to import
+        if (globalCart && globalCart.length > 0) {
+          console.log('📥 [AdvancedPOS] Importing', globalCart.length, 'items from global cart')
+
+          // Convert global cart items to local cart format
+          const importedItems: CartItem[] = globalCart.map(item => ({
+            id: item.id,
+            productId: item.productId,
+            variantId: item.variantId,
+            name: item.name,
+            sku: item.sku,
+            price: item.price,
+            quantity: item.quantity,
+            attributes: item.attributes
+          }))
+
+          setCart(importedItems)
+          console.log('✅ [AdvancedPOS] Global cart items imported successfully')
+
+          // Clear global cart after import (items are now in POS cart)
+          clearGlobalCart()
+        } else {
+          // CRITICAL: Clear cart when switching to a business with no saved cart
+          setCart([])
+          console.log('🔄 Switched to business with no saved cart - cart cleared')
+        }
       }
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
@@ -199,7 +224,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     } finally {
       setCartLoaded(true)
     }
-  }, [businessId])
+  }, [businessId, globalCart, clearGlobalCart])
 
   // Save cart to localStorage whenever it changes (but only after initial load)
   useEffect(() => {

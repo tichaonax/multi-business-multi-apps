@@ -574,7 +574,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                 {cart.map((item, index) => (
-                  <div key={`${item.productId}-${item.variantId || 'default'}`} className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-shadow">
+                  <div key={item.id || `cart-item-${index}`} className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-shadow">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-gray-900 dark:text-white truncate">{(item as any).productName || item.product?.name || (item as any).name || 'Item'}</h4>
                       {item.variant?.name && (
