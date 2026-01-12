@@ -16,6 +16,8 @@ import {
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useGlobalCart } from '@/contexts/global-cart-context'
+import { useToast } from '@/components/ui/toast'
 
 function ClothingInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -35,6 +37,8 @@ function ClothingInventoryContent() {
 
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { addToCart } = useGlobalCart()
+  const { showToast } = useToast()
 
   const {
     currentBusiness,
@@ -210,9 +214,59 @@ function ClothingInventoryContent() {
     setShowViewModal(true)
   }
 
-  const handleItemAddToCart = (item: any) => {
-    // Navigate to POS with product ID to add to cart
-    router.push(`/clothing/pos?addProduct=${item.id}`)
+  const handleItemAddToCart = async (item: any) => {
+    try {
+      // Fetch product with variants
+      const response = await fetch(`/api/universal/products?businessId=${currentBusinessId}&productId=${item.id}&includeVariants=true&includeImages=true`)
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch product')
+      }
+
+      const result = await response.json()
+
+      if (!result.success || !result.data || result.data.length === 0) {
+        throw new Error('Product not found')
+      }
+
+      const product = result.data[0]
+
+      // Filter variants with valid prices
+      const validVariants = product.variants?.filter((v: any) => {
+        const price = parseFloat(v.price)
+        return !isNaN(price) && price > 0
+      }) || []
+
+      if (validVariants.length === 0) {
+        showToast('Product has no valid variants with prices', 'error')
+        return
+      }
+
+      // Get primary image
+      const primaryImage = product.images?.find((img: any) => img.isPrimary) || product.images?.[0]
+      const imageUrl = primaryImage?.imageUrl || primaryImage?.url
+
+      // If only one variant, add directly to cart
+      if (validVariants.length === 1) {
+        const variant = validVariants[0]
+        addToCart({
+          productId: product.id,
+          variantId: variant.id,
+          name: product.name,
+          sku: variant.sku,
+          price: parseFloat(variant.price),
+          imageUrl: imageUrl || null,
+          attributes: variant.attributes || {}
+        })
+        showToast(`Added ${product.name} to cart`, 'success')
+      } else {
+        // Multiple variants - navigate to POS for selection
+        router.push(`/clothing/pos?addProduct=${item.id}`)
+      }
+    } catch (error) {
+      console.error('Error adding to cart:', error)
+      showToast('Failed to add item to cart', 'error')
+    }
   }
 
   const handleItemDelete = async (item: any) => {

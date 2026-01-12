@@ -172,6 +172,42 @@ function CustomerDisplayContent() {
     setLastActivityTime(Date.now())
 
     switch (message.type) {
+      case 'CART_UPDATE':
+        // Global cart update from CartContext
+        if (message.payload.cart && Array.isArray(message.payload.cart)) {
+          const globalCart = message.payload.cart
+          const subtotal = globalCart.reduce((sum, item) => {
+            const itemPrice = item.price - (item.discount || 0)
+            return sum + (itemPrice * item.quantity)
+          }, 0)
+
+          const mappedCart = {
+            items: globalCart.map(item => ({
+              id: item.id,
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price,
+              variant: item.attributes?.size || item.attributes?.color ?
+                `${item.attributes.size || ''} ${item.attributes.color || ''}`.trim() : undefined,
+              imageUrl: item.imageUrl || undefined
+            })),
+            subtotal: subtotal,
+            tax: 0, // Tax calculated at POS during checkout
+            total: subtotal
+          }
+
+          console.log('🛒 [CustomerDisplay] Global cart update:', {
+            itemCount: mappedCart.items.length,
+            subtotal: mappedCart.subtotal
+          })
+          setCart(mappedCart)
+          // Set page context to POS when cart has items
+          if (mappedCart.items.length > 0) {
+            setPageContext('pos')
+          }
+        }
+        break
+
       case 'CART_STATE':
         // Full cart state update
         const newCart = {
