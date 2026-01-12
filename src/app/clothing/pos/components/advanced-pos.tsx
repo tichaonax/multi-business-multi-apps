@@ -86,6 +86,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // Product data loaded from database
   const [quickAddProducts, setQuickAddProducts] = useState<any[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
+  const [productSearchTerm, setProductSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
 
   // Business tax configuration
   const [businessConfig, setBusinessConfig] = useState<{
@@ -290,8 +293,58 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     return () => window.removeEventListener('focus', handleFocus)
   }, [loadProducts])
 
+  // Search products with debounce
+  useEffect(() => {
+    const searchProducts = async () => {
+      if (!productSearchTerm.trim() || !currentBusiness?.businessId) {
+        setSearchResults([])
+        return
+      }
+
+      setSearchLoading(true)
+      try {
+        const response = await fetch(
+          `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&isAvailable=true&search=${encodeURIComponent(productSearchTerm)}&limit=10`
+        )
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            // Map API products to same format as quick add products
+            const products = result.data
+              .filter((p: any) => p.variants && p.variants.length > 0)
+              .map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                variants: p.variants
+                  .filter((v: any) => parseFloat(v.price) > 0)
+                  .map((v: any) => ({
+                    id: v.id,
+                    sku: v.sku,
+                    price: parseFloat(v.price),
+                    attributes: v.attributes || {},
+                    stock: v.stockQuantity || 0
+                  }))
+              }))
+              .filter((p: any) => p.variants.length > 0)
+
+            setSearchResults(products)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to search products:', error)
+      } finally {
+        setSearchLoading(false)
+      }
+    }
+
+    const timer = setTimeout(searchProducts, 500)
+    return () => clearTimeout(timer)
+  }, [productSearchTerm, currentBusiness?.businessId])
+
   const addToCart = (productId: string, variantId: string, quantity?: number) => {
-    const product = quickAddProducts.find(p => p.id === productId)
+    // Search in both quick add products and search results
+    const product = quickAddProducts.find(p => p.id === productId) || searchResults.find(p => p.id === productId)
     const variant = product?.variants.find(v => v.id === variantId)
 
     if (!product || !variant) return
@@ -761,6 +814,64 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Product Search */}
+        <div className="card p-4">
+          <h3 className="font-semibold text-primary mb-4">Search Products</h3>
+          <input
+            type="text"
+            placeholder="Search products by name, SKU, or barcode..."
+            value={productSearchTerm}
+            onChange={(e) => setProductSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+
+          {/* Search Results */}
+          {productSearchTerm.trim() && (
+            <div className="mt-4">
+              {searchLoading ? (
+                <div className="text-center py-4 text-secondary">
+                  Searching...
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="text-center py-4 text-secondary">
+                  No products found for "{productSearchTerm}"
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {searchResults.map((product) => (
+                    <div key={product.id} className="border rounded-lg p-3">
+                      <h4 className="font-medium text-primary mb-2">{product.name}</h4>
+                      <div className="space-y-2">
+                        {product.variants.map((variant: any) => (
+                          <div key={variant.id} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">
+                                {variant.attributes?.size && `${variant.attributes.size} `}
+                                {variant.attributes?.color}
+                              </span>
+                              <span className="text-sm text-secondary">({variant.stock} left)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
+                              <button
+                                onClick={() => addToCart(product.id, variant.id)}
+                                disabled={variant.stock === 0}
+                                className="px-2 py-1 bg-primary text-white text-xs rounded hover:bg-primary/90 disabled:opacity-50"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Quick Add Products */}

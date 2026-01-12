@@ -210,6 +210,11 @@ function ClothingInventoryContent() {
     setShowViewModal(true)
   }
 
+  const handleItemAddToCart = (item: any) => {
+    // Navigate to POS with product ID to add to cart
+    router.push(`/clothing/pos?addProduct=${item.id}`)
+  }
+
   const handleItemDelete = async (item: any) => {
     const confirmed = await confirm({
       title: 'Delete item',
@@ -532,6 +537,7 @@ function ClothingInventoryContent() {
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
+                      onItemAddToCart={handleItemAddToCart}
                       onResetExternalFilters={handleResetExternalFilters}
                       refreshTrigger={refreshKey}
                       showActions={true}

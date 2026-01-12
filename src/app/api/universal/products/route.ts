@@ -488,7 +488,8 @@ export async function PUT(request: NextRequest) {
 
         return {
           ...product,
-          variants: updatedVariants
+          variants: updatedVariants,
+          product_images: product.product_images || []
         }
       }
 

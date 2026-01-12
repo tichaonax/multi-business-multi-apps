@@ -48,6 +48,7 @@ interface UniversalInventoryGridProps {
   onItemEdit?: (item: UniversalInventoryItem) => void
   onItemView?: (item: UniversalInventoryItem) => void
   onItemDelete?: (item: UniversalInventoryItem) => void
+  onItemAddToCart?: (item: UniversalInventoryItem) => void  // Add to cart callback
   onResetExternalFilters?: () => void  // Callback to reset parent filters
   refreshTrigger?: number  // Change this value to force a refresh
   showActions?: boolean
@@ -69,6 +70,7 @@ export function UniversalInventoryGrid({
   onItemEdit,
   onItemView,
   onItemDelete,
+  onItemAddToCart,
   onResetExternalFilters,  // Callback to reset parent filters
   refreshTrigger,  // Force refresh when this value changes
   showActions = true,
@@ -778,6 +780,18 @@ export function UniversalInventoryGrid({
                     {showActions && (
                       <td className="p-3">
                         <div className="flex gap-1 items-center">
+                          {onItemAddToCart && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onItemAddToCart?.(item)
+                              }}
+                              className="text-green-600 hover:text-green-800 text-xs w-8 h-8 flex items-center justify-center rounded"
+                              title="Add to cart"
+                            >
+                              🛒
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -934,7 +948,18 @@ export function UniversalInventoryGrid({
                   {/* Actions */}
                   {showActions && (
                     <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-                      <div className="flex justify-end space-x-2">
+                      <div className="flex justify-end space-x-2 flex-wrap gap-y-2">
+                        {onItemAddToCart && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onItemAddToCart?.(item)
+                            }}
+                            className="px-3 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                          >
+                            🛒 Add to Cart
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
