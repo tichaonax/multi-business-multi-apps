@@ -391,7 +391,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
         if (newFiles.length > 0) {
           const form = new FormData()
           newFiles.forEach(f => { if (f.file) form.append('files', f.file) })
-          let savedWithImages = saved
+          // Don't redeclare - use the outer savedWithImages variable
           try {
             const resp = await fetch(`/api/universal/products/${productId}/images`, { method: 'POST', body: form })
             const json = await resp.json()
