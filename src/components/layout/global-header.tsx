@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import { useTheme } from '@/contexts/theme-context'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
+import { MiniCart } from '@/components/global/mini-cart'
 
 interface GlobalHeaderProps {
   title?: string
@@ -257,6 +258,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
             )}
             {session?.user && (
               <>
+                {/* Mini Cart */}
+                <MiniCart />
                 <ThemeToggle
                   showMenu={showThemeMenu}
                   setShowMenu={setShowThemeMenu}

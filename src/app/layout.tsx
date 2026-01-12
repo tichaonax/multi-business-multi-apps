@@ -13,6 +13,7 @@ import { GlobalBarcodeModalManager } from '@/components/global/global-barcode-mo
 import { GlobalBarcodeProvider } from '@/contexts/global-barcode-context'
 import ConfirmProvider from '@/components/ui/confirm-modal'
 import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
+import { CartProvider } from '@/contexts/global-cart-context'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -61,20 +62,22 @@ export default function RootLayout({
               <ToastProvider>
                 <PromptProvider>
                   <BusinessPermissionsProvider>
-                    <NavigationProvider>
-                      <GlobalBarcodeProvider>
-                        <div className="min-h-screen">
-                          <ConditionalGlobalHeader />
-                          <ConfirmProvider>
-                            <main>
-                              {children}
-                            </main>
-                          </ConfirmProvider>
-                          <GlobalLoadingSpinner />
-                        </div>
-                        <GlobalBarcodeModalManager />
-                      </GlobalBarcodeProvider>
-                    </NavigationProvider>
+                    <CartProvider>
+                      <NavigationProvider>
+                        <GlobalBarcodeProvider>
+                          <div className="min-h-screen">
+                            <ConditionalGlobalHeader />
+                            <ConfirmProvider>
+                              <main>
+                                {children}
+                              </main>
+                            </ConfirmProvider>
+                            <GlobalLoadingSpinner />
+                          </div>
+                          <GlobalBarcodeModalManager />
+                        </GlobalBarcodeProvider>
+                      </NavigationProvider>
+                    </CartProvider>
                   </BusinessPermissionsProvider>
                 </PromptProvider>
               </ToastProvider>
