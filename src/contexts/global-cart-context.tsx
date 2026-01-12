@@ -81,47 +81,83 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [cart, currentBusinessId, cartLoaded])
 
-  // Push cart updates to API for customer display
+  // Push cart updates to customer display
   const broadcastCartUpdate = useCallback(async () => {
     if (typeof window === 'undefined' || !currentBusinessId) return
 
     try {
-      // Try BroadcastChannel first (for same-origin displays)
+      // Calculate totals
+      const subtotal = cart.reduce((sum, item) => {
+        const itemPrice = item.price - (item.discount || 0)
+        return sum + (itemPrice * item.quantity)
+      }, 0)
+
+      // Map cart items to customer display format
+      const displayItems = cart.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        variant: item.attributes?.size || item.attributes?.color ?
+          `${item.attributes.size || ''} ${item.attributes.color || ''}`.trim() : undefined,
+        imageUrl: item.imageUrl || undefined
+      }))
+
+      // BroadcastChannel for same-origin displays
       try {
         const channel = new BroadcastChannel('customer-display-sync')
-        const message = {
-          type: 'CART_UPDATE',
+
+        // CRITICAL: Signal which business is active FIRST
+        const setActiveMessage = {
+          type: 'SET_ACTIVE_BUSINESS',
           businessId: currentBusinessId,
           payload: {
-            cart: cart
+            subtotal: 0,
+            tax: 0,
+            total: 0
           },
           timestamp: Date.now()
         }
-        channel.postMessage(message)
+        channel.postMessage(setActiveMessage)
+
+        // Then send the cart state
+        const cartMessage = {
+          type: 'CART_STATE',
+          businessId: currentBusinessId,
+          payload: {
+            items: displayItems,
+            subtotal: subtotal,
+            tax: 0,
+            total: subtotal
+          },
+          timestamp: Date.now()
+        }
+        channel.postMessage(cartMessage)
         channel.close()
-        console.log('📡 [GlobalCart] Broadcasted to same-origin display')
+        console.log('📡 [GlobalCart] Broadcasted SET_ACTIVE_BUSINESS and CART_STATE to customer display:', {
+          businessId: currentBusinessId,
+          itemCount: displayItems.length,
+          subtotal: subtotal
+        })
       } catch (bcError) {
-        // BroadcastChannel might not be supported or same-origin display not open
+        console.error('❌ [GlobalCart] BroadcastChannel failed:', bcError)
       }
 
-      // Always push to API (for cross-origin displays on different ports)
-      const response = await fetch('/api/customer-display/cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businessId: currentBusinessId,
-          cart: cart
+      // API fallback for cross-origin displays
+      try {
+        await fetch('/api/customer-display/cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessId: currentBusinessId,
+            cart: cart
+          })
         })
-      })
-
-      if (response.ok) {
-        console.log('📡 [GlobalCart] Pushed cart to API for customer display:', {
-          businessId: currentBusinessId,
-          itemCount: cart.length
-        })
+      } catch (apiError) {
+        // Silent fail - API is just a fallback
       }
     } catch (error) {
-      console.error('❌ [GlobalCart] Failed to update cart:', error)
+      console.error('❌ [GlobalCart] Failed to broadcast cart:', error)
     }
   }, [cart, currentBusinessId])
 

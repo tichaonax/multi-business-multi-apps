@@ -989,7 +989,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                           <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
                           <button
                             onClick={() => addToCart(product.id, variant.id)}
-                            disabled={variant.stock === 0}
+                            disabled={variant.stock === 0 || variant.price <= 0}
                             className="px-2 py-1 bg-primary text-white text-xs rounded hover:bg-primary/90 disabled:opacity-50"
                           >
                             Add

@@ -172,42 +172,6 @@ function CustomerDisplayContent() {
     setLastActivityTime(Date.now())
 
     switch (message.type) {
-      case 'CART_UPDATE':
-        // Global cart update from CartContext
-        if (message.payload.cart && Array.isArray(message.payload.cart)) {
-          const globalCart = message.payload.cart
-          const subtotal = globalCart.reduce((sum, item) => {
-            const itemPrice = item.price - (item.discount || 0)
-            return sum + (itemPrice * item.quantity)
-          }, 0)
-
-          const mappedCart = {
-            items: globalCart.map(item => ({
-              id: item.id,
-              name: item.name,
-              quantity: item.quantity,
-              price: item.price,
-              variant: item.attributes?.size || item.attributes?.color ?
-                `${item.attributes.size || ''} ${item.attributes.color || ''}`.trim() : undefined,
-              imageUrl: item.imageUrl || undefined
-            })),
-            subtotal: subtotal,
-            tax: 0, // Tax calculated at POS during checkout
-            total: subtotal
-          }
-
-          console.log('🛒 [CustomerDisplay] Global cart update:', {
-            itemCount: mappedCart.items.length,
-            subtotal: mappedCart.subtotal
-          })
-          setCart(mappedCart)
-          // Set page context to POS when cart has items
-          if (mappedCart.items.length > 0) {
-            setPageContext('pos')
-          }
-        }
-        break
-
       case 'CART_STATE':
         // Full cart state update
         const newCart = {
@@ -396,58 +360,6 @@ function CustomerDisplayContent() {
       console.error('[CustomerDisplay] Sync error:', err)
     }
   })
-
-  // Poll cart from API (for cross-origin displays on different ports)
-  useEffect(() => {
-    if (!displayBusinessId) return
-
-    const pollCart = async () => {
-      try {
-        const response = await fetch(`/api/customer-display/cart?businessId=${displayBusinessId}`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.cart && Array.isArray(data.cart)) {
-            // Map global cart format to customer display format
-            const globalCart = data.cart
-            const subtotal = globalCart.reduce((sum, item) => {
-              const itemPrice = item.price - (item.discount || 0)
-              return sum + (itemPrice * item.quantity)
-            }, 0)
-
-            const mappedCart = {
-              items: globalCart.map(item => ({
-                id: item.id,
-                name: item.name,
-                quantity: item.quantity,
-                price: item.price,
-                variant: item.attributes?.size || item.attributes?.color ?
-                  `${item.attributes.size || ''} ${item.attributes.color || ''}`.trim() : undefined,
-                imageUrl: item.imageUrl || undefined
-              })),
-              subtotal: subtotal,
-              tax: 0,
-              total: subtotal
-            }
-
-            setCart(mappedCart)
-            if (mappedCart.items.length > 0) {
-              setPageContext('pos')
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[CustomerDisplay] Failed to poll cart:', error)
-      }
-    }
-
-    // Poll immediately
-    pollCart()
-
-    // Poll every 2 seconds
-    const interval = setInterval(pollCart, 2000)
-
-    return () => clearInterval(interval)
-  }, [displayBusinessId])
 
   // Fetch business information when business changes (dynamic)
   useEffect(() => {

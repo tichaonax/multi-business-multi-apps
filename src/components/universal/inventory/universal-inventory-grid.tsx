@@ -786,8 +786,9 @@ export function UniversalInventoryGrid({
                                 e.stopPropagation()
                                 onItemAddToCart?.(item)
                               }}
-                              className="text-green-600 hover:text-green-800 text-xs w-8 h-8 flex items-center justify-center rounded"
-                              title="Add to cart"
+                              disabled={item.currentStock === 0 || item.sellPrice <= 0}
+                              className="text-green-600 hover:text-green-800 text-xs w-8 h-8 flex items-center justify-center rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-green-600"
+                              title={item.currentStock === 0 ? "Out of stock" : item.sellPrice <= 0 ? "Invalid price" : "Add to cart"}
                             >
                               🛒
                             </button>
@@ -955,9 +956,10 @@ export function UniversalInventoryGrid({
                               e.stopPropagation()
                               onItemAddToCart?.(item)
                             }}
-                            className="px-3 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                            disabled={item.currentStock === 0 || item.sellPrice <= 0}
+                            className="px-3 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            🛒 Add to Cart
+                            🛒 {item.currentStock === 0 ? "Out of Stock" : item.sellPrice <= 0 ? "Invalid Price" : "Add to Cart"}
                           </button>
                         )}
                         <button
