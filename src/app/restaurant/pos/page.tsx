@@ -499,7 +499,12 @@ export default function RestaurantPOS() {
 
           // Transform universal products to menu items format
           const items = data.data
-            .filter((product: any) => product.isAvailable && product.isActive && Number(product.basePrice) > 0)
+            .filter((product: any) => {
+              // Only show available, active items with a valid price > 0
+              if (!product.isAvailable || !product.isActive) return false
+              const price = Number(product.basePrice)
+              return price > 0 && !isNaN(price)
+            })
             .map((product: any) => {
               // Calculate total stock from all variants
               const totalStock = (product.variants || []).reduce((sum: number, variant: any) => {

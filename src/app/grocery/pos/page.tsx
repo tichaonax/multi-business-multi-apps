@@ -394,7 +394,16 @@ function GroceryPOSContent() {
           if (result.success) {
             // Map API products to POSItem format
             const posItems: POSItem[] = []
-            result.data.forEach((product: any) => {
+
+            // Filter out products with invalid prices (null, 0, negative, NaN)
+            const validProducts = result.data.filter((product: any) => {
+              // Only show available, active items with a valid price > 0
+              if (!product.isAvailable || !product.isActive) return false
+              const price = Number(product.basePrice)
+              return price > 0 && !isNaN(price)
+            })
+
+            validProducts.forEach((product: any) => {
               if (product.variants && product.variants.length > 0) {
                 // Add each variant as a separate POS item
                 product.variants.forEach((variant: any) => {
