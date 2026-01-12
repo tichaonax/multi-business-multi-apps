@@ -272,7 +272,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             }))
             .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
 
-          setQuickAddProducts(products.slice(0, 4)) // Show first 4 products
+          setQuickAddProducts(products.slice(0, 20)) // Show first 20 products
           console.log('✅ Products loaded:', products.length)
         }
       }
@@ -289,15 +289,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   }, [loadProducts])
 
   // Auto-reload products when window regains focus (e.g., after seeding)
-  useEffect(() => {
-    const handleFocus = () => {
-      console.log('🔄 Window focused, reloading products...')
-      loadProducts()
-    }
+  // DISABLED: This was causing issues when switching between businesses
+  // Products are loaded when business changes, so focus reload is unnecessary
+  // useEffect(() => {
+  //   const handleFocus = () => {
+  //     console.log('🔄 Window focused, reloading products...')
+  //     loadProducts()
+  //   }
 
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [loadProducts])
+  //   window.addEventListener('focus', handleFocus)
+  //   return () => window.removeEventListener('focus', handleFocus)
+  // }, [loadProducts])
 
   // Search products with debounce
   useEffect(() => {
@@ -825,13 +827,24 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         {/* Product Search */}
         <div className="card p-4">
           <h3 className="font-semibold text-primary mb-4">Search Products</h3>
-          <input
-            type="text"
-            placeholder="Search products by name, SKU, or barcode..."
-            value={productSearchTerm}
-            onChange={(e) => setProductSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search products by name, SKU, or barcode..."
+              value={productSearchTerm}
+              onChange={(e) => setProductSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {productSearchTerm && (
+              <button
+                onClick={() => setProductSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
           {/* Search Results */}
           {productSearchTerm.trim() && (
@@ -882,17 +895,24 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
         {/* Quick Add Products */}
         <div className="card p-4">
-          <h3 className="font-semibold text-primary mb-4">Quick Add Products</h3>
+          <h3 className="font-semibold text-primary mb-4">
+            Quick Add Products
+            {!productsLoading && quickAddProducts.length > 0 && (
+              <span className="text-sm text-secondary ml-2">({quickAddProducts.length} available)</span>
+            )}
+          </h3>
           {productsLoading ? (
             <div className="text-center py-8 text-secondary">
               Loading products...
             </div>
           ) : quickAddProducts.length === 0 ? (
             <div className="text-center py-8 text-secondary">
-              No products available. Add products in the Products page.
+              <div className="text-4xl mb-2">📦</div>
+              <div className="font-medium">No products available</div>
+              <div className="text-sm mt-1">Add clothing products with variants in the Inventory page</div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
               {quickAddProducts.map((product) => (
                 <div key={product.id} className="border rounded-lg p-3">
                   <h4 className="font-medium text-primary mb-2">{product.name}</h4>
