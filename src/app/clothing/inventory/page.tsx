@@ -17,7 +17,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useGlobalCart } from '@/contexts/global-cart-context'
-import { useToast } from '@/components/ui/toast'
+import { useToastContext } from '@/components/ui/toast'
 
 function ClothingInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -38,7 +38,7 @@ function ClothingInventoryContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const { addToCart } = useGlobalCart()
-  const { showToast } = useToast()
+  const { push: showToast } = useToastContext()
 
   const {
     currentBusiness,
@@ -238,7 +238,7 @@ function ClothingInventoryContent() {
       }) || []
 
       if (validVariants.length === 0) {
-        showToast('Product has no valid variants with prices', 'error')
+        showToast('Product has no valid variants with prices', { type: 'error' })
         return
       }
 
@@ -258,14 +258,14 @@ function ClothingInventoryContent() {
           imageUrl: imageUrl || null,
           attributes: variant.attributes || {}
         })
-        showToast(`Added ${product.name} to cart`, 'success')
+        showToast(`Added ${product.name} to cart`, { type: 'success' })
       } else {
         // Multiple variants - navigate to POS for selection
         router.push(`/clothing/pos?addProduct=${item.id}`)
       }
     } catch (error) {
       console.error('Error adding to cart:', error)
-      showToast('Failed to add item to cart', 'error')
+      showToast('Failed to add item to cart', { type: 'error' })
     }
   }
 
