@@ -42,6 +42,7 @@ interface POSItem {
   snapEligible?: boolean
   organicCertified?: boolean
   loyaltyPoints?: number
+  imageUrl?: string  // Product image for customer display
 }
 
 interface CartItem extends POSItem {
@@ -242,7 +243,8 @@ function GroceryPOSContent() {
         name: item.name,
         quantity: item.quantity,
         price: item.price,
-        variant: item.unit || ''
+        variant: item.unit || '',
+        imageUrl: item.imageUrl  // Include product image for customer display
       })),
       subtotal,
       tax,
@@ -384,7 +386,7 @@ function GroceryPOSContent() {
     try {
       // Fetch products, ESP32 WiFi tokens, and R710 WiFi tokens
       const [response, wifiTokensResponse, r710IntegrationResponse] = await Promise.all([
-        fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true`),
+        fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true&includeImages=true`),
         fetch(`/api/business/${currentBusinessId}/wifi-tokens`),
         fetch(`/api/r710/integration?businessId=${currentBusinessId}`)
       ])
@@ -404,6 +406,10 @@ function GroceryPOSContent() {
             })
 
             validProducts.forEach((product: any) => {
+              // Get primary image or first image for customer display
+              const primaryImage = product.images?.find((img: any) => img.isPrimary) || product.images?.[0]
+              const imageUrl = primaryImage?.imageUrl || primaryImage?.url
+
               if (product.variants && product.variants.length > 0) {
                 // Add each variant as a separate POS item
                 product.variants.forEach((variant: any) => {
@@ -421,7 +427,8 @@ function GroceryPOSContent() {
                     ageRestricted: product.attributes?.ageRestricted || false,
                     snapEligible: product.attributes?.snapEligible || false,
                     organicCertified: product.attributes?.organicCertified || false,
-                    loyaltyPoints: product.attributes?.loyaltyPoints || 0
+                    loyaltyPoints: product.attributes?.loyaltyPoints || 0,
+                    imageUrl: imageUrl  // Product image for customer display
                   })
                 })
               } else {
@@ -440,7 +447,8 @@ function GroceryPOSContent() {
                   ageRestricted: product.attributes?.ageRestricted || false,
                   snapEligible: product.attributes?.snapEligible || false,
                   organicCertified: product.attributes?.organicCertified || false,
-                  loyaltyPoints: product.attributes?.loyaltyPoints || 0
+                  loyaltyPoints: product.attributes?.loyaltyPoints || 0,
+                  imageUrl: imageUrl  // Product image for customer display
                 })
               }
             })

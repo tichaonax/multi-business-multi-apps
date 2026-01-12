@@ -17,16 +17,25 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>('system')
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light')
-
-  // Load theme from localStorage on mount
-  useEffect(() => {
+  // Initialize theme from localStorage immediately to prevent flash
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'system'
     const stored = localStorage.getItem('theme') as Theme
-    if (stored && ['light', 'dark', 'system'].includes(stored)) {
-      setThemeState(stored)
+    return stored && ['light', 'dark', 'system'].includes(stored) ? stored : 'system'
+  })
+
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light'
+
+    // Determine initial resolved theme
+    const stored = localStorage.getItem('theme') as Theme
+    const initialTheme = stored && ['light', 'dark', 'system'].includes(stored) ? stored : 'system'
+
+    if (initialTheme === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     }
-  }, [])
+    return initialTheme
+  })
 
   // Update resolved theme based on system preference and current theme
   useEffect(() => {
