@@ -44,6 +44,23 @@ function normalizeProduct(product: any) {
   product.images = product.images || product.product_images || []
   product.business = product.business || null
 
+  // Convert Prisma Decimal prices to numbers for variants
+  if (product.variants && Array.isArray(product.variants)) {
+    product.variants = product.variants.map((v: any) => ({
+      ...v,
+      price: v.price ? Number(v.price) : null,
+      costPrice: v.costPrice ? Number(v.costPrice) : null
+    }))
+  }
+
+  // Convert Prisma Decimal prices to numbers for product
+  if (product.basePrice) {
+    product.basePrice = Number(product.basePrice)
+  }
+  if (product.costPrice) {
+    product.costPrice = Number(product.costPrice)
+  }
+
   // remove internal/plural fields so responses match previous shape
   delete product.business_brands
   delete product.business_categories
