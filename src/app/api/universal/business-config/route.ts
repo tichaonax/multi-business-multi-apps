@@ -178,6 +178,9 @@ export async function GET(request: NextRequest) {
         taxIncludedInPrice: true,
         taxRate: true,
         taxLabel: true,
+        defaultPage: true,
+        slogan: true,
+        showSlogan: true,
         settings: true,
         isActive: true
       }
@@ -351,6 +354,9 @@ export async function GET(request: NextRequest) {
       taxIncludedInPrice: business.taxIncludedInPrice ?? true,
       taxRate: business.taxRate ? Number(business.taxRate) : null,
       taxLabel: business.taxLabel,
+      defaultPage: business.defaultPage,
+      slogan: business.slogan || 'Where Customer Is King',
+      showSlogan: business.showSlogan ?? true,
       ...defaultConfig,
       ...currentSettings
     }

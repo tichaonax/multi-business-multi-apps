@@ -69,6 +69,7 @@ export function Sidebar() {
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
   const [r710IntegrationEnabled, setR710IntegrationEnabled] = useState(false)
   const [showWiFiPortalLinks, setShowWiFiPortalLinks] = useState(false)
+  const [businessCartCounts, setBusinessCartCounts] = useState<Record<string, number>>({})
 
   // Get business context
   const {
@@ -207,6 +208,52 @@ export function Sidebar() {
     }
   }, [currentBusiness?.businessType, businesses.length])
 
+  // Check cart counts for all businesses
+  useEffect(() => {
+    const checkCartCounts = () => {
+      const counts: Record<string, number> = {}
+
+      businesses.forEach(business => {
+        try {
+          const cartKey = `cart-${business.id}`
+          const cartData = localStorage.getItem(cartKey)
+          if (cartData) {
+            const cart = JSON.parse(cartData)
+            if (Array.isArray(cart) && cart.length > 0) {
+              // Count total items in cart
+              const itemCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0)
+              counts[business.id] = itemCount
+            }
+          }
+        } catch (error) {
+          // Ignore localStorage errors
+        }
+      })
+
+      setBusinessCartCounts(counts)
+    }
+
+    if (businesses.length > 0) {
+      checkCartCounts()
+
+      // Listen for storage events to update counts when carts change
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key?.startsWith('cart-')) {
+          checkCartCounts()
+        }
+      }
+      window.addEventListener('storage', handleStorageChange)
+
+      // Also poll every 2 seconds to catch same-tab changes
+      const interval = setInterval(checkCartCounts, 2000)
+
+      return () => {
+        window.removeEventListener('storage', handleStorageChange)
+        clearInterval(interval)
+      }
+    }
+  }, [businesses])
+
   // Debug logging removed to improve performance
 
   if (!currentUser || !isAuthenticated) return null
@@ -318,8 +365,18 @@ export function Sidebar() {
           }
         }
 
-        // console.log(`🔗 Navigating from ${currentPath} to: ${targetPath}`)
-        router.push(targetPath)
+        console.log(`🔗 [Sidebar] Navigating from ${currentPath} to: ${targetPath}`)
+
+        // Force navigation to the correct route
+        await router.push(targetPath)
+
+        // Verify navigation completed - retry if needed
+        setTimeout(() => {
+          if (window.location.pathname !== targetPath) {
+            console.warn(`⚠️ [Sidebar] Navigation didn't complete. Retrying: ${targetPath}`)
+            router.push(targetPath)
+          }
+        }, 100)
       } catch (error) {
         console.error('Failed to switch business:', error)
       }
@@ -434,7 +491,7 @@ export function Sidebar() {
                       <button
                         key={business.id}
                         onClick={() => handleBusinessClick(business)}
-                        className={`w-full text-left text-sm px-3 py-2 rounded transition-colors ${
+                        className={`w-full text-left text-sm px-3 py-2 rounded transition-colors relative ${
                           currentBusiness?.businessId === business.id
                             ? 'bg-blue-600 text-white'
                             : 'text-gray-300 hover:bg-gray-800 hover:text-white'
@@ -442,7 +499,15 @@ export function Sidebar() {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col truncate">
-                            <span className="truncate">{business.name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="truncate">{business.name}</span>
+                              {/* Cart indicator badge */}
+                              {businessCartCounts[business.id] > 0 && (
+                                <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full min-w-[20px]">
+                                  {businessCartCounts[business.id]}
+                                </span>
+                              )}
+                            </div>
                             {/* Show business type badge for "Other" category */}
                             {group.type === 'other' && (
                               <span className="text-xs text-gray-400 capitalize">

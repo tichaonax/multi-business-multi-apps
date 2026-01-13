@@ -1,3 +1,54 @@
+# Recent Changes
+
+## Default Page & Business Slogan Feature (January 12, 2026)
+
+### Overview
+Implemented ability for businesses to configure default landing pages and display business slogans on customer-facing screens.
+
+### Features Implemented
+1. **Default Landing Page Selection**
+   - Businesses can select which page users see first when navigating to the business
+   - Permission-based: `canChangeDefaultPage` (Managers and Admins have access)
+   - Business-type specific pages available (e.g., Restaurant: POS, Menu, Orders, etc.)
+   - Restaurant businesses default to POS page
+
+2. **Business Slogan**
+   - Text field for slogan (max 200 chars, default: "Where Customer Is King")
+   - "Show Slogan" checkbox to control display on customer screens
+   - Displayed below business name on customer display in italic, small font
+
+### Changes Made
+
+#### Database
+- Migration: `20260113000000_add_default_page` - Added `defaultPage` column
+- Migration: `20260113000001_add_business_slogan` - Added `slogan` and `showSlogan` columns
+- Updated Prisma schema with new fields
+
+#### Backend APIs
+- `/api/user/business-memberships` - Returns `defaultPage` for all businesses
+- `/api/admin/businesses` (POST) - Accepts `defaultPage`, `slogan`, `showSlogan` on create
+- `/api/admin/businesses/[id]` (PUT) - Accepts `defaultPage`, `slogan`, `showSlogan` on update
+- `/api/businesses/[businessId]` - Returns all new fields
+- `/api/customer-display/business/[businessId]` - Returns `slogan` and `showSlogan`
+
+#### Frontend
+- Created `src/lib/business-default-pages.ts` - Helper library for default page logic
+- Updated `business-creation-modal.tsx` - Added UI for default page and slogan
+- Updated `business-permissions-context.tsx` - Automatic navigation to default page on business switch
+- Updated `customer-display/page.tsx` - Displays slogan if enabled
+- Updated `permissions.ts` - Added `canChangeDefaultPage` permission to all role presets
+
+#### Bug Fixes
+- Fixed admin business switching to properly navigate to default pages
+- Fixed typo: `taxIncludedInProgress` → `taxIncludedInPrice` in business creation modal
+- Fixed navigation logic to only trigger when defaultPage is explicitly set
+
+### Current Businesses
+- **HXI Eats** (restaurant) - defaultPage: "pos"
+- **HXI Fashions** (clothing) - no defaultPage set
+
+---
+
 # Customer Display Improvements
 
 ## Issues to Fix

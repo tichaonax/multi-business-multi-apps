@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessContext } from '@/components/universal'
@@ -57,7 +57,7 @@ interface ClothingAdvancedPOSProps {
 export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrderComplete }: ClothingAdvancedPOSProps) {
   const { formatCurrency } = useBusinessContext()
   const { currentBusiness } = useBusinessPermissionsContext()
-  const { cart: globalCart, clearCart: clearGlobalCart } = useGlobalCart()
+  const { cart: globalCart, clearCart: clearGlobalCart, addToCart: addToGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
   const customAlert = useAlert()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -163,10 +163,6 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               taxRate: result.data.taxRate ?? 8.0,
               taxLabel: result.data.taxLabel || 'Tax'
             })
-            console.log('✅ Business config loaded:', {
-              taxIncludedInPrice: result.data.taxIncludedInPrice,
-              taxRate: result.data.taxRate
-            })
           }
         }
       } catch (error) {
@@ -177,47 +173,89 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     fetchBusinessConfig()
   }, [businessId])
 
+  // Send page context to customer display so it knows to show cart
+  useEffect(() => {
+    if (!terminalId) return // Skip if no terminal ID
+
+    sendToDisplay('SET_PAGE_CONTEXT', {
+      pageContext: 'pos'
+    })
+  }, [terminalId, sendToDisplay])
+
   // Track if cart has been loaded from localStorage to prevent overwriting on mount
   const [cartLoaded, setCartLoaded] = useState(false)
+  const hasImportedFromGlobalCart = useRef(false)
 
-  // Load cart from localStorage on mount, and import from global cart if needed
+  // Reset import flag when business changes
   useEffect(() => {
-    if (!businessId) return
+    hasImportedFromGlobalCart.current = false
+  }, [businessId])
+
+  // Load cart from localStorage on mount, and merge with global cart if needed
+  useEffect(() => {
+    if (!businessId || hasImportedFromGlobalCart.current) {
+      console.log('[Cart Load] Skipped - businessId:', businessId, 'alreadyImported:', hasImportedFromGlobalCart.current)
+      return
+    }
+    console.log('[Cart Load] Starting cart load for business:', businessId)
 
     try {
+      // Load saved cart from localStorage
       const savedCart = localStorage.getItem(`cart-${businessId}`)
+      let existingCart: CartItem[] = []
+
       if (savedCart) {
-        const parsedCart = JSON.parse(savedCart)
-        setCart(parsedCart)
-        console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
-      } else {
-        // Check if global cart has items to import
-        if (globalCart && globalCart.length > 0) {
-          console.log('📥 [AdvancedPOS] Importing', globalCart.length, 'items from global cart')
-
-          // Convert global cart items to local cart format
-          const importedItems: CartItem[] = globalCart.map(item => ({
-            id: item.id,
-            productId: item.productId,
-            variantId: item.variantId,
-            name: item.name,
-            sku: item.sku,
-            price: item.price,
-            quantity: item.quantity,
-            attributes: item.attributes
-          }))
-
-          setCart(importedItems)
-          console.log('✅ [AdvancedPOS] Global cart items imported successfully')
-
-          // Clear global cart after import (items are now in POS cart)
-          clearGlobalCart()
-        } else {
-          // CRITICAL: Clear cart when switching to a business with no saved cart
-          setCart([])
-          console.log('🔄 Switched to business with no saved cart - cart cleared')
-        }
+        existingCart = JSON.parse(savedCart)
       }
+
+      let finalCart: CartItem[] = existingCart
+
+      // Check if global cart has items to merge
+      if (globalCart && globalCart.length > 0) {
+        // Convert global cart items to local cart format
+        const importedItems: CartItem[] = globalCart.map(item => ({
+          id: item.id,
+          productId: item.productId,
+          variantId: item.variantId,
+          name: item.name,
+          sku: item.sku,
+          price: item.price,
+          quantity: item.quantity,
+          attributes: item.attributes
+        }))
+
+        // Merge carts - update quantity if variant already exists, otherwise add new items
+        const mergedCart = [...existingCart]
+        importedItems.forEach(newItem => {
+          console.log('📥 [Merge] Checking item:', {
+            name: newItem.name,
+            sku: newItem.sku,
+            variantId: newItem.variantId,
+            id: newItem.id
+          })
+          const existingIndex = mergedCart.findIndex(item => item.variantId === newItem.variantId)
+          if (existingIndex >= 0) {
+            console.log('  ✅ Found existing item, increasing quantity')
+            // Variant already exists - increase quantity
+            mergedCart[existingIndex].quantity += newItem.quantity
+          } else {
+            console.log('  ➕ No match found, adding as new item')
+            // New variant - add to cart
+            mergedCart.push(newItem)
+          }
+        })
+
+        finalCart = mergedCart
+        setCart(mergedCart)
+        // NOTE: We do NOT clear global cart here anymore
+        // Global cart will be cleared after successful payment
+      } else {
+        // No global cart items - just use existing cart
+        setCart(existingCart)
+      }
+
+      // Mark as imported to prevent re-importing
+      hasImportedFromGlobalCart.current = true
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
       setCart([]) // Clear cart on error
@@ -238,6 +276,46 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     }
   }, [cart, businessId, cartLoaded])
 
+  // Sync POS cart to global cart to keep mini cart in sync
+  useEffect(() => {
+    if (!businessId || !cartLoaded) return
+
+    try {
+      // Replace global cart to match POS cart exactly
+      const globalCartItems = cart.map(item => {
+        console.log('🔄 [POS Sync] Item:', {
+          name: item.name,
+          sku: item.sku,
+          variantId: item.variantId,
+          id: item.id
+        })
+        return {
+          productId: item.productId,
+          variantId: item.variantId!,
+          name: item.name,
+          sku: item.sku,
+          price: item.price,
+          quantity: item.quantity,
+          attributes: item.attributes,
+          stock: 0,
+          imageUrl: item.imageUrl
+        }
+      })
+      console.log('🔄 [POS] Syncing', globalCartItems.length, 'items to global cart')
+      replaceGlobalCart(globalCartItems)
+    } catch (error) {
+      console.error('❌ [POS] Failed to sync to global cart:', error)
+    }
+  }, [cart, businessId, cartLoaded, replaceGlobalCart])
+
+  // Broadcast cart state to customer display after cart is loaded
+  useEffect(() => {
+    if (!businessId || !cartLoaded || !terminalId) return
+
+    // Broadcast the current cart state to customer display
+    broadcastCartState(cart)
+  }, [cartLoaded, businessId, terminalId])
+
   // Fetch default printer on component mount
   useEffect(() => {
     async function fetchDefaultPrinter() {
@@ -253,9 +331,6 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               id: printers[0].id,
               name: printers[0].printerName
             })
-            console.log('✅ Default printer set:', printers[0].printerName)
-          } else {
-            console.log('⚠️ No printers configured')
           }
         }
       } catch (error) {
@@ -325,14 +400,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
   // Load products on mount and when business changes
   useEffect(() => {
-    console.log('🔄 [useEffect loadProducts] Effect triggered, calling loadProducts()')
     loadProducts()
   }, [loadProducts])
-
-  // Debug: Log whenever quickAddProducts changes
-  useEffect(() => {
-    console.log('📊 [quickAddProducts changed] New count:', quickAddProducts.length, 'products:', quickAddProducts)
-  }, [quickAddProducts])
 
   // Auto-reload products when window regains focus (e.g., after seeding)
   // DISABLED: This was causing issues when switching between businesses
@@ -441,6 +510,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     }
 
     setCart(newCart)
+    // Note: Global cart sync happens automatically via useEffect
+
     // Broadcast updated cart to customer display
     broadcastCartState(newCart)
   }
@@ -726,6 +797,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
       // Clear cart and reset state
       setCart([])
+      clearGlobalCart() // Also clear the global/mini cart after successful payment
       setPaymentMethods([])
       setSupervisorOverride(null)
       setCustomerInfo(null)
@@ -747,7 +819,6 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         console.log(`🖨️ Auto-printing to ${defaultPrinter.name}...`)
         try {
           await handlePrintReceipt(receiptData, defaultPrinter.id)
-          console.log('✅ Receipt printed successfully')
         } catch (printError) {
           console.error('Auto-print failed, showing manual selection:', printError)
           // Fall back to manual selection if auto-print fails
@@ -1001,27 +1072,34 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {product.variants.map((variant: any) => (
-                      <div key={variant.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">
-                            {variant.attributes?.size && `${variant.attributes.size} `}
-                            {variant.attributes?.color}
-                          </span>
-                          <span className="text-sm text-secondary">({variant.stock} left)</span>
+                    {product.variants.map((variant: any) => {
+                      // Build variant display name
+                      const variantName = [
+                        variant.attributes?.size,
+                        variant.attributes?.color
+                      ].filter(Boolean).join(' ') || 'Standard'
+
+                      return (
+                        <div key={variant.id} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {variantName}
+                            </span>
+                            <span className="text-sm text-secondary">({variant.stock} left)</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
+                            <button
+                              onClick={() => addToCart(product.id, variant.id)}
+                              disabled={variant.stock === 0 || variant.price <= 0}
+                              className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Add
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
-                          <button
-                            onClick={() => addToCart(product.id, variant.id)}
-                            disabled={variant.stock === 0 || variant.price <= 0}
-                            className="px-2 py-1 bg-primary text-white text-xs rounded hover:bg-primary/90 disabled:opacity-50"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -1123,7 +1201,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         </div>
 
         {/* Totals */}
-        {cart.length > 0 && (
+        {cart.length > 0 ? (
           <div className="card p-4">
             <div className="space-y-2">
               <div className="flex justify-between">
@@ -1160,10 +1238,16 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             <button
               onClick={() => setShowPaymentModal(true)}
               disabled={cart.length === 0}
-              className="w-full mt-4 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-lg"
             >
               {mode === 'return' ? 'Process Return' : 'Proceed to Payment'}
             </button>
+          </div>
+        ) : (
+          <div className="card p-4 bg-yellow-50 border-yellow-200">
+            <div className="text-yellow-800">
+              DEBUG: Cart length is {cart.length}, totals section hidden
+            </div>
           </div>
         )}
 

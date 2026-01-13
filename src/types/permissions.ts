@@ -102,6 +102,7 @@ export interface CoreBusinessPermissions {
   canDeleteBusiness: boolean;
   canManageBusinessUsers: boolean;
   canManageBusinessSettings: boolean;
+  canChangeDefaultPage: boolean;
 
   // User Management (within business)
   canViewUsers: boolean;
@@ -790,6 +791,7 @@ export const CORE_PERMISSIONS = {
     { key: 'canDeleteBusiness', label: 'Delete Business' },
     { key: 'canManageBusinessUsers', label: 'Manage Users' },
     { key: 'canManageBusinessSettings', label: 'Manage Settings' },
+    { key: 'canChangeDefaultPage', label: 'Change Default Page' },
   ],
   userManagement: [
     { key: 'canViewUsers', label: 'View Users' },
@@ -897,6 +899,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteBusiness: true,
   canManageBusinessUsers: true,
   canManageBusinessSettings: true,
+  canChangeDefaultPage: true,
 
   // User Management - Full access
   canViewUsers: true,
@@ -1021,6 +1024,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteBusiness: false,
   canManageBusinessUsers: true,
   canManageBusinessSettings: true,
+  canChangeDefaultPage: true,
 
   // User Management - Limited
   canViewUsers: true,
@@ -1147,6 +1151,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteBusiness: false,
   canManageBusinessUsers: false,
   canManageBusinessSettings: false,
+  canChangeDefaultPage: false,
 
   // User Management - View only
   canViewUsers: true,
@@ -1273,6 +1278,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteBusiness: false,
   canManageBusinessUsers: false,
   canManageBusinessSettings: false,
+  canChangeDefaultPage: false,
 
   // User Management - View only
   canViewUsers: true,
@@ -1398,6 +1404,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteBusiness: true,
   canManageBusinessUsers: true,
   canManageBusinessSettings: true,
+  canChangeDefaultPage: true,
 
   // User Management - Full access
   canViewUsers: true,
@@ -1769,6 +1776,7 @@ export interface BusinessMembership {
   isDemo?: boolean; // Flag to indicate demo business
   address?: string; // Business address for receipts
   phone?: string; // Business phone for receipts
+  defaultPage?: string | null; // Default landing page for business
   joinedAt: Date;
   lastAccessedAt: Date | null;
 }

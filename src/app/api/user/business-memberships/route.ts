@@ -30,6 +30,7 @@ export async function GET() {
           isDemo: true,
           address: true,
           phone: true,
+          defaultPage: true,
         },
         orderBy: {
           name: 'asc',
@@ -60,6 +61,7 @@ export async function GET() {
         isDemo: business.isDemo, // Include demo flag
         address: business.address, // Business address for receipts
         phone: business.phone, // Business phone for receipts
+        defaultPage: business.defaultPage, // Default landing page
         joinedAt: new Date(),
         lastAccessedAt: new Date(),
       }));
@@ -89,6 +91,7 @@ export async function GET() {
             isDemo: true,
             address: true,
             phone: true,
+            defaultPage: true,
           },
         },
       },
@@ -108,6 +111,7 @@ export async function GET() {
       isDemo: membership.businesses.isDemo, // Include demo flag
       address: membership.businesses.address, // Business address for receipts
       phone: membership.businesses.phone, // Business phone for receipts
+      defaultPage: membership.businesses.defaultPage, // Default landing page
       joinedAt: membership.joinedAt,
       lastAccessedAt: membership.lastAccessedAt,
     }));

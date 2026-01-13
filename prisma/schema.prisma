@@ -398,6 +398,9 @@ model Businesses {
   taxIncludedInPrice                                                       Boolean                       @default(true)
   taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
   taxLabel                                                                 String?
+  defaultPage                                                              String?                       @db.VarChar(50)
+  slogan                                                                   String?                       @default("Where Customer Is King") @db.VarChar(200)
+  showSlogan                                                               Boolean                       @default(true)
   barcode_inventory_items                                                  BarcodeInventoryItems[]
   barcode_print_jobs                                                       BarcodePrintJobs[]
   barcode_templates                                                        BarcodeTemplates[]

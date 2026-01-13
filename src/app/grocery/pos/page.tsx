@@ -26,6 +26,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { useGlobalCart } from '@/contexts/global-cart-context'
 
 interface POSItem {
   id: string
@@ -135,6 +136,9 @@ function GroceryPOSContent() {
   // Toast context for notifications
   const toast = useToastContext()
 
+  // Global cart context for mini cart sync
+  const { clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
+
   // Get or create terminal ID for this POS instance
   const [terminalId] = useState(() => {
     if (typeof window === 'undefined') return 'terminal-default'
@@ -223,6 +227,36 @@ function GroceryPOSContent() {
       console.error('Failed to save cart to localStorage:', error)
     }
   }, [cart, currentBusinessId, cartLoaded])
+
+  // Sync POS cart to global cart to keep mini cart in sync
+  useEffect(() => {
+    if (!currentBusinessId || !cartLoaded) return
+
+    try {
+      // Replace global cart to match POS cart exactly
+      const globalCartItems = cart.map(item => ({
+        productId: item.id,
+        variantId: item.id, // Grocery items don't have variants
+        name: item.name,
+        sku: item.barcode || item.pluCode || item.id,
+        price: item.price,
+        quantity: item.quantity,
+        attributes: {},
+        stock: 0
+      }))
+      replaceGlobalCart(globalCartItems)
+    } catch (error) {
+      console.error('❌ [Grocery POS] Failed to sync to global cart:', error)
+    }
+  }, [cart, currentBusinessId, cartLoaded, replaceGlobalCart])
+
+  // Broadcast cart state to customer display after cart is loaded
+  useEffect(() => {
+    if (!currentBusinessId || !cartLoaded || !terminalId) return
+
+    // Broadcast the current cart state to customer display
+    broadcastCartState(cart)
+  }, [cartLoaded, currentBusinessId, terminalId])
 
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {
@@ -1152,6 +1186,7 @@ function GroceryPOSContent() {
 
         // Clear cart after successful payment and broadcast to customer display
         setCart([])
+        clearGlobalCart()
         sendToDisplay('CLEAR_CART', {
           subtotal: 0,
           tax: 0,

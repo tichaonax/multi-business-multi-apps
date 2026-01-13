@@ -68,7 +68,10 @@ export async function POST(req: NextRequest) {
       receiptReturnPolicy,
       taxIncludedInPrice,
       taxRate,
-      taxLabel
+      taxLabel,
+      defaultPage,
+      slogan,
+      showSlogan
     } = await req.json()
 
     if (!name || !type) {
@@ -106,6 +109,9 @@ export async function POST(req: NextRequest) {
         taxIncludedInPrice: taxIncludedInPrice !== undefined ? taxIncludedInPrice : true,
         taxRate: taxRate ? parseFloat(taxRate) : null,
         taxLabel: taxLabel?.trim() || null,
+        defaultPage: defaultPage?.trim() || null,
+        slogan: slogan?.trim() || 'Where Customer Is King',
+        showSlogan: showSlogan !== undefined ? showSlogan : true,
         settings: {},
         createdBy: creatorId
       } as any)

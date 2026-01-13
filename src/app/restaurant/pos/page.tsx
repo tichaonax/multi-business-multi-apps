@@ -26,6 +26,7 @@ import type { ReceiptData } from '@/types/printing'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { useGlobalCart } from '@/contexts/global-cart-context'
 
 interface MenuItem {
   id: string
@@ -95,6 +96,9 @@ export default function RestaurantPOS() {
   // Toast context (hook) must be called unconditionally to preserve hooks order
   const toast = useToastContext()
 
+  // Global cart context for mini cart sync
+  const { clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
+
   // Get or create terminal ID for this POS instance
   const [terminalId] = useState(() => {
     if (typeof window === 'undefined') return 'terminal-default'
@@ -154,6 +158,37 @@ export default function RestaurantPOS() {
       console.error('Failed to save cart to localStorage:', error)
     }
   }, [cart, currentBusinessId, cartLoaded])
+
+  // Sync POS cart to global cart to keep mini cart in sync
+  useEffect(() => {
+    if (!currentBusinessId || !cartLoaded) return
+
+    try {
+      // Replace global cart to match POS cart exactly
+      const globalCartItems = cart.map(item => ({
+        productId: item.id,
+        variantId: item.variants?.[0]?.id || item.id, // Use first variant or item id
+        name: item.name,
+        sku: item.variants?.[0]?.sku || item.barcode || item.id, // Use variant SKU, barcode, or fallback to ID
+        price: item.price,
+        quantity: item.quantity,
+        attributes: {},
+        stock: item.stockQuantity || 0,
+        imageUrl: item.imageUrl
+      }))
+      replaceGlobalCart(globalCartItems)
+    } catch (error) {
+      console.error('❌ [Restaurant POS] Failed to sync to global cart:', error)
+    }
+  }, [cart, currentBusinessId, cartLoaded, replaceGlobalCart])
+
+  // Broadcast cart state to customer display after cart is loaded
+  useEffect(() => {
+    if (!currentBusinessId || !cartLoaded || !terminalId) return
+
+    // Broadcast the current cart state to customer display
+    broadcastCartState(cart)
+  }, [cartLoaded, currentBusinessId, terminalId])
 
   // Signal active business to customer display when business changes
   useEffect(() => {
@@ -1330,8 +1365,9 @@ export default function RestaurantPOS() {
           total: total
         })
 
-        // Clear cart on POS
+        // Clear cart on POS and global cart
         setCart([])
+        clearGlobalCart()
 
         // Reset payment fields
         setPaymentMethod('CASH')
@@ -1764,7 +1800,10 @@ export default function RestaurantPOS() {
               </button>
 
               <button
-                onClick={() => setCart([])}
+                onClick={() => {
+                  setCart([])
+                  clearGlobalCart()
+                }}
                 disabled={cart.length === 0}
                 className="w-full py-3 sm:py-2 mt-2 bg-gray-500 dark:bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
               >

@@ -50,6 +50,9 @@ function BusinessManagePageContent() {
     taxIncludedInPrice?: boolean
     taxRate?: string
     taxLabel?: string
+    defaultPage?: string
+    slogan?: string
+    showSlogan?: boolean
   } | null>(null)
   const [editBusinessId, setEditBusinessId] = useState<string | null>(null)
   const { format: globalDateFormat } = useDateFormat();
@@ -382,7 +385,10 @@ function BusinessManagePageContent() {
                               receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',
                               taxIncludedInPrice: biz?.taxIncludedInPrice !== undefined ? biz.taxIncludedInPrice : true,
                               taxRate: biz?.taxRate ? String(biz.taxRate) : '',
-                              taxLabel: biz?.taxLabel || ''
+                              taxLabel: biz?.taxLabel || '',
+                              defaultPage: biz?.defaultPage || '',
+                              slogan: biz?.slogan || 'Where Customer Is King',
+                              showSlogan: biz?.showSlogan !== undefined ? biz.showSlogan : true
                             })
                             setEditBusinessId(id)
                             setShowEditBusiness(true)

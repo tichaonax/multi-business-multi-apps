@@ -44,6 +44,8 @@ export async function GET(
         taxLabel: true,
         umbrellaBusinessName: true,
         umbrellaBusinessPhone: true,
+        slogan: true,
+        showSlogan: true,
         isActive: true
       }
     })
@@ -74,7 +76,9 @@ export async function GET(
       taxRate: business.taxRate ? Number(business.taxRate) : 0,
       taxLabel: business.taxLabel || 'Tax',
       umbrellaBusinessName: business.umbrellaBusinessName,
-      umbrellaBusinessPhone: business.umbrellaBusinessPhone
+      umbrellaBusinessPhone: business.umbrellaBusinessPhone,
+      slogan: business.slogan || 'Where Customer Is King',
+      showSlogan: business.showSlogan ?? true
     }
 
     return NextResponse.json({

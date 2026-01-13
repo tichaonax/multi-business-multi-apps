@@ -27,6 +27,7 @@ interface CartContextType {
   updateQuantity: (itemId: string, quantity: number) => void
   updateDiscount: (itemId: string, discount: number) => void
   clearCart: () => void
+  replaceCart: (items: Omit<CartItem, 'id'>[]) => void
   getCartTotal: () => number
   getCartSubtotal: () => number
   getCartItemCount: () => number
@@ -53,10 +54,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (savedCart) {
         const parsedCart = JSON.parse(savedCart)
         setCart(parsedCart)
-        console.log('✅ [GlobalCart] Restored cart:', parsedCart.length, 'items for business', currentBusinessId)
       } else {
         setCart([])
-        console.log('🔄 [GlobalCart] No saved cart for business', currentBusinessId)
       }
     } catch (error) {
       console.error('❌ [GlobalCart] Failed to load cart:', error)
@@ -72,10 +71,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     try {
       localStorage.setItem(`global-cart-${currentBusinessId}`, JSON.stringify(cart))
-      console.log('💾 [GlobalCart] Saved cart:', cart.length, 'items')
-
-      // Broadcast cart update to customer display
-      broadcastCartUpdate()
+      // NOTE: We do NOT broadcast to customer display from global cart
+      // Only POS broadcasts to customer display (with correct tax/totals)
+      // Global cart is just for browsing/shopping, not checkout
     } catch (error) {
       console.error('❌ [GlobalCart] Failed to save cart:', error)
     }
@@ -197,7 +195,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
           ...existingItem,
           quantity: newQuantity
         }
-        console.log('✅ [GlobalCart] Updated existing item quantity')
         return updatedCart
       } else {
         // Check stock limit for new item
@@ -208,11 +205,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
         // Add new item to cart
         const newItem: CartItem = {
+          ...item,
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          quantity: quantityToAdd,
-          ...item
+          quantity: quantityToAdd
         }
-        console.log('✅ [GlobalCart] Added new item to cart')
+        console.log('➕ [GlobalCart addToCart] Adding item:', {
+          name: newItem.name,
+          sku: newItem.sku,
+          variantId: newItem.variantId,
+          id: newItem.id
+        })
         return [...currentCart, newItem]
       }
     })
@@ -220,11 +222,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Remove item from cart
   const removeFromCart = useCallback((itemId: string) => {
-    setCart(currentCart => {
-      const updatedCart = currentCart.filter(item => item.id !== itemId)
-      console.log('🗑️ [GlobalCart] Removed item from cart')
-      return updatedCart
-    })
+    setCart(currentCart => currentCart.filter(item => item.id !== itemId))
   }, [])
 
   // Update item quantity
@@ -246,26 +244,40 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
         return item
       })
-      console.log('✅ [GlobalCart] Updated item quantity')
       return updatedCart
     })
   }, [removeFromCart])
 
   // Update item discount
   const updateDiscount = useCallback((itemId: string, discount: number) => {
-    setCart(currentCart => {
-      const updatedCart = currentCart.map(item =>
+    setCart(currentCart =>
+      currentCart.map(item =>
         item.id === itemId ? { ...item, discount } : item
       )
-      console.log('✅ [GlobalCart] Updated item discount')
-      return updatedCart
-    })
+    )
   }, [])
 
   // Clear entire cart
   const clearCart = useCallback(() => {
     setCart([])
-    console.log('🗑️ [GlobalCart] Cleared entire cart')
+  }, [])
+
+  // Replace entire cart with new items (used for syncing from POS)
+  const replaceCart = useCallback((items: Omit<CartItem, 'id'>[]) => {
+    const newCart: CartItem[] = items.map(item => {
+      const cartItem = {
+        ...item,
+        id: (item as any).id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      }
+      console.log('💾 [GlobalCart replaceCart] Creating item:', {
+        name: cartItem.name,
+        sku: cartItem.sku,
+        id: cartItem.id,
+        inputHadId: !!(item as any).id
+      })
+      return cartItem
+    })
+    setCart(newCart)
   }, [])
 
   // Calculate cart subtotal (before tax)
@@ -295,6 +307,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     updateQuantity,
     updateDiscount,
     clearCart,
+    replaceCart,
     getCartTotal,
     getCartSubtotal,
     getCartItemCount,

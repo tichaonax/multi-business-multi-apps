@@ -22,6 +22,11 @@ export function MiniCart() {
   }
 
   const handleGoToPOS = () => {
+    console.log('[MiniCart] Go to Checkout clicked', {
+      currentPath: window.location.pathname,
+      businessType: currentBusiness?.businessType,
+      targetPath: `/${currentBusiness?.businessType}/pos`
+    })
     setIsOpen(false)
     // Navigate to the appropriate POS based on business type
     const businessType = currentBusiness?.businessType || 'retail'

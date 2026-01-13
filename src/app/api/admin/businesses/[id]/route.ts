@@ -61,6 +61,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       updateData.taxLabel = payload.taxLabel?.trim() || null
     }
 
+    // Default page and slogan fields
+    if (payload.hasOwnProperty('defaultPage')) {
+      updateData.defaultPage = payload.defaultPage?.trim() || null
+    }
+    if (payload.hasOwnProperty('slogan')) {
+      updateData.slogan = payload.slogan?.trim() || 'Where Customer Is King'
+    }
+    if (payload.hasOwnProperty('showSlogan')) {
+      updateData.showSlogan = !!payload.showSlogan
+    }
+
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 })
     }

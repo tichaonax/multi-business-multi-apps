@@ -2,10 +2,12 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { BusinessPermissions, BusinessMembership, hasBusinessPermission, getActiveBusinesses } from "@/types/permissions";
 import { useToastContext } from '@/components/ui/toast'
 import AdminSeedPromptModal from '@/components/admin/admin-seed-prompt-modal'
 import { BroadcastSync } from '@/lib/customer-display/broadcast-sync'
+import { getDefaultPagePath } from '@/lib/business-default-pages'
 
 interface BusinessPermissionsContextType {
   currentBusinessId: string | null;
@@ -31,6 +33,7 @@ interface BusinessPermissionsProviderProps {
 
 export function BusinessPermissionsProvider({ children }: BusinessPermissionsProviderProps) {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const toast = useToastContext()
   const [showSeedModal, setShowSeedModal] = useState(false)
   const [seedTargetBusiness, setSeedTargetBusiness] = useState<string | null>(null)
@@ -244,6 +247,9 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
           try {
             const check = await fetch(`/api/businesses/${businessId}`)
             if (check.ok) {
+              const businessData = await check.json()
+              const business = businessData.success ? businessData.data : null
+
               // Attempt to set current business on server (admin path).
               await fetch('/api/user/set-current-business', {
                 method: 'POST',
@@ -267,6 +273,14 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
               if (typeof window !== 'undefined') {
                 localStorage.setItem('currentBusinessId', businessId);
               }
+
+              // Navigate to default page if configured (admin path)
+              if (typeof window !== 'undefined' && router && business?.defaultPage) {
+                const businessType = business.type || 'retail'
+                const path = getDefaultPagePath(businessType, business.defaultPage)
+                router.push(path)
+              }
+
               return
             }
           } catch (e) {
@@ -302,6 +316,14 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
       });
     } catch (err) {
       console.error("Failed to sync business switch with backend:", err);
+    }
+
+    // Navigate to default page if configured
+    // Only navigate if we have a membership with complete data
+    if (typeof window !== 'undefined' && router && membership?.defaultPage) {
+      const businessType = membership.businessType || 'retail'
+      const path = getDefaultPagePath(businessType, membership.defaultPage)
+      router.push(path)
     }
   };
 

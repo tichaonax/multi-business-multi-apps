@@ -98,6 +98,8 @@ function CustomerDisplayContent() {
   const [employeeName, setEmployeeName] = useState<string | null>(null)
   const [businessName, setBusinessName] = useState<string | null>(null)
   const [businessPhone, setBusinessPhone] = useState<string | null>(null)
+  const [slogan, setSlogan] = useState<string | null>(null)
+  const [showSlogan, setShowSlogan] = useState<boolean>(false)
   const [customMessage, setCustomMessage] = useState<string>('All sales are final')
   const [taxIncludedInPrice, setTaxIncludedInPrice] = useState<boolean>(false)
   const [taxRate, setTaxRate] = useState<number>(0)
@@ -432,6 +434,8 @@ function CustomerDisplayContent() {
         if (business) {
           setBusinessName(business.name || business.umbrellaBusinessName || 'Welcome')
           setBusinessPhone(business.phone || business.umbrellaBusinessPhone || null)
+          setSlogan(business.slogan || null)
+          setShowSlogan(business.showSlogan ?? false)
           setCustomMessage(business.receiptReturnPolicy || 'Thank you for your business')
           setEcocashEnabled(business.ecocashEnabled || false)
 
@@ -537,24 +541,26 @@ function CustomerDisplayContent() {
   }, [cart.items.length, pageContext, displayMode])
 
   // Auto-clear cart after inactivity (privacy feature)
-  useEffect(() => {
-    if (cart.items.length === 0) return
-
-    const checkInactivity = setInterval(() => {
-      const timeSinceActivity = Date.now() - lastActivityTime
-      if (timeSinceActivity >= INACTIVITY_TIMEOUT_MS) {
-        console.log('[CustomerDisplay] Auto-clearing cart due to inactivity')
-        setCart({
-          items: [],
-          subtotal: 0,
-          tax: 0,
-          total: 0
-        })
-      }
-    }, 5000) // Check every 5 seconds
-
-    return () => clearInterval(checkInactivity)
-  }, [cart.items.length, lastActivityTime])
+  // DISABLED: Cart should only clear on explicit CLEAR_CART message or payment complete
+  // The inactivity timer was clearing carts while cashiers were actively working
+  // useEffect(() => {
+  //   if (cart.items.length === 0) return
+  //
+  //   const checkInactivity = setInterval(() => {
+  //     const timeSinceActivity = Date.now() - lastActivityTime
+  //     if (timeSinceActivity >= INACTIVITY_TIMEOUT_MS) {
+  //       console.log('[CustomerDisplay] Auto-clearing cart due to inactivity')
+  //       setCart({
+  //         items: [],
+  //         subtotal: 0,
+  //         tax: 0,
+  //         total: 0
+  //       })
+  //     }
+  //   }, 5000) // Check every 5 seconds
+  //
+  //   return () => clearInterval(checkInactivity)
+  // }, [cart.items.length, lastActivityTime])
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-white relative">
@@ -565,6 +571,9 @@ function CustomerDisplayContent() {
           {businessName && (
             <div className="text-center mb-2">
               <p className="text-3xl font-bold">{businessName}</p>
+              {showSlogan && slogan && (
+                <p className="text-sm italic text-white/90 mt-1">"{slogan}"</p>
+              )}
             </div>
           )}
 

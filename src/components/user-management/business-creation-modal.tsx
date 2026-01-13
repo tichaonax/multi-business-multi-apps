@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { getDefaultPageOptions } from '@/lib/business-default-pages'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface BusinessCreationModalProps {
   onClose: () => void
@@ -21,6 +23,9 @@ interface BusinessCreationModalProps {
     taxIncludedInPrice?: boolean
     taxRate?: string
     taxLabel?: string
+    defaultPage?: string
+    slogan?: string
+    showSlogan?: boolean
   }
   // Optional: HTTP method override for the form (default POST). Use 'PUT' for edit.
   method?: 'POST' | 'PUT'
@@ -41,6 +46,7 @@ const BUSINESS_TYPES = [
 ]
 
 export function BusinessCreationModal({ onClose, onSuccess, onError, initial, method = 'POST', id }: BusinessCreationModalProps) {
+  const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const [formData, setFormData] = useState({
     name: initial?.name || '',
     type: initial?.type || 'other',
@@ -51,7 +57,10 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     receiptReturnPolicy: initial?.receiptReturnPolicy || 'All sales are final, returns not accepted',
     taxIncludedInPrice: initial?.taxIncludedInPrice !== undefined ? initial.taxIncludedInPrice : true,
     taxRate: initial?.taxRate || '',
-    taxLabel: initial?.taxLabel || ''
+    taxLabel: initial?.taxLabel || '',
+    defaultPage: initial?.defaultPage || '',
+    slogan: initial?.slogan || 'Where Customer Is King',
+    showSlogan: initial?.showSlogan !== undefined ? initial.showSlogan : true
   })
   const [loading, setLoading] = useState(false)
 
@@ -189,6 +198,62 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
               onChange={(e) => setFormData({ ...formData, ecocashEnabled: e.target.checked })}
               className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600"
             />
+          </div>
+
+          {/* Default Landing Page - Only for managers and above */}
+          {(hasPermission('canChangeDefaultPage') || isSystemAdmin) && (
+            <div>
+              <label className="block text-sm font-medium text-primary mb-2">
+                Default Landing Page
+              </label>
+              <select
+                className="input-field"
+                value={formData.defaultPage}
+                onChange={(e) => setFormData({ ...formData, defaultPage: e.target.value })}
+              >
+                <option value="">Home (Default)</option>
+                {getDefaultPageOptions(formData.type).map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.icon} {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Page users will see when they select this business
+              </p>
+            </div>
+          )}
+
+          {/* Business Slogan */}
+          <div>
+            <label className="block text-sm font-medium text-primary mb-2">
+              Business Slogan
+            </label>
+            <input
+              type="text"
+              maxLength={200}
+              className="input-field"
+              value={formData.slogan}
+              onChange={(e) => setFormData({ ...formData, slogan: e.target.value })}
+              placeholder="Where Customer Is King"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Displayed below business name on customer-facing screens
+            </p>
+          </div>
+
+          {/* Show Slogan Checkbox */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="showSlogan"
+              checked={formData.showSlogan}
+              onChange={(e) => setFormData({ ...formData, showSlogan: e.target.checked })}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600"
+            />
+            <label htmlFor="showSlogan" className="text-sm text-gray-700 dark:text-gray-300">
+              Show slogan on customer display
+            </label>
           </div>
 
           {/* Receipt Configuration Section */}
