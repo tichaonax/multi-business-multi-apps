@@ -12,6 +12,21 @@ import { generateReceipt } from '@/lib/printing/receipt-templates';
 import { queuePrintJob } from '@/lib/printing/print-job-queue';
 import type { ReceiptData, PrintJobFormData } from '@/types/printing';
 
+// Track recent print requests to prevent duplicates
+// Key: receiptNumber-receiptType, Value: timestamp
+const recentPrintRequests = new Map<string, number>();
+const DUPLICATE_WINDOW_MS = 5000; // 5 seconds window to detect duplicates
+
+// Clean up old entries periodically
+function cleanupRecentPrints() {
+  const now = Date.now();
+  for (const [key, timestamp] of recentPrintRequests.entries()) {
+    if (now - timestamp > DUPLICATE_WINDOW_MS * 2) {
+      recentPrintRequests.delete(key);
+    }
+  }
+}
+
 /**
  * POST /api/print/receipt
  * Generate a receipt and queue it for printing
@@ -81,6 +96,30 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Check for duplicate print requests
+    // This prevents the same receipt from being printed multiple times in quick succession
+    cleanupRecentPrints();
+    const receiptKey = `${data.receiptNumber?.formattedNumber || data.transactionId || 'unknown'}-${data.receiptType || 'default'}`;
+    const lastPrintTime = recentPrintRequests.get(receiptKey);
+    const now = Date.now();
+
+    if (lastPrintTime && (now - lastPrintTime) < DUPLICATE_WINDOW_MS) {
+      console.warn(`⚠️ [Print API] DUPLICATE BLOCKED: ${receiptKey} (${now - lastPrintTime}ms since last print)`);
+      return NextResponse.json(
+        {
+          success: true,
+          jobId: 'duplicate-blocked',
+          message: 'Duplicate print request blocked - receipt was recently printed',
+          isDuplicate: true
+        },
+        { status: 200 }
+      );
+    }
+
+    // Record this print request
+    recentPrintRequests.set(receiptKey, now);
+    console.log(`🖨️ [Print API] Processing print request: ${receiptKey}`);
 
     // Use provided receipt number OR generate a new one
     // This ensures dual receipts (business + customer copy) get the SAME receipt number

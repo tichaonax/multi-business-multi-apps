@@ -6,7 +6,10 @@ import { useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessContext } from '@/components/universal'
 import { BarcodeScanner, UniversalProduct } from '@/components/universal'
 import { ReceiptPreview } from '@/components/printing/receipt-preview'
+import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
+import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useToastContext } from '@/components/ui/toast'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
@@ -59,8 +62,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const { currentBusiness } = useBusinessPermissionsContext()
   const { cart: globalCart, clearCart: clearGlobalCart, addToCart: addToGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
   const customAlert = useAlert()
+  const toast = useToastContext()
   const searchParams = useSearchParams()
   const router = useRouter()
+
+  // Ref-based guard to prevent duplicate print calls
+  const printInFlightRef = useRef(false)
   const [cart, setCart] = useState<CartItem[]>([])
   const [mode, setMode] = useState<'sale' | 'return' | 'exchange'>('sale')
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -814,22 +821,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         })
       }
 
-      // Auto-print to default printer if configured, otherwise show preview
-      if (defaultPrinter) {
-        console.log(`🖨️ Auto-printing to ${defaultPrinter.name}...`)
-        try {
-          await handlePrintReceipt(receiptData, defaultPrinter.id)
-        } catch (printError) {
-          console.error('Auto-print failed, showing manual selection:', printError)
-          // Fall back to manual selection if auto-print fails
-          setCompletedOrderReceipt(receiptData)
-          setShowReceiptPreview(true)
-        }
-      } else {
-        // No default printer - show manual selection
-        setCompletedOrderReceipt(receiptData)
-        setShowReceiptPreview(true)
-      }
+      // Always show unified receipt preview modal (like restaurant)
+      // This gives user control over printing business copy, customer copy, and number of copies
+      setCompletedOrderReceipt(receiptData)
+      setShowReceiptPreview(true)
 
       onOrderComplete?.(result.data.id)
     } catch (error) {
@@ -1420,18 +1415,52 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         </div>
       )}
 
-      {/* Receipt Preview Modal */}
-      {showReceiptPreview && completedOrderReceipt && (
-        <ReceiptPreview
-          isOpen={showReceiptPreview}
-          onClose={() => {
+      {/* Unified Receipt Preview Modal (same as restaurant) */}
+      <UnifiedReceiptPreviewModal
+        isOpen={showReceiptPreview}
+        onClose={() => {
+          setShowReceiptPreview(false)
+          setCompletedOrderReceipt(null)
+        }}
+        receiptData={completedOrderReceipt}
+        businessType="clothing"
+        onPrintConfirm={async (options) => {
+          if (!completedOrderReceipt) return
+
+          // Guard against duplicate calls
+          if (printInFlightRef.current) {
+            console.log('⚠️ [Clothing POS] Print already in progress, ignoring')
+            return
+          }
+
+          printInFlightRef.current = true
+          console.log('🖨️ [Clothing POS] onPrintConfirm starting:', options)
+
+          try {
+            await ReceiptPrintManager.printReceipt(completedOrderReceipt, 'clothing', {
+              ...options,
+              autoPrint: true,
+              onSuccess: (jobId, receiptType) => {
+                toast.push(`${receiptType} receipt sent to printer`)
+              },
+              onError: (error, receiptType) => {
+                toast.push(`Error: ${error.message}`)
+              }
+            })
+
+            console.log('✅ [Clothing POS] Print completed successfully')
+
+            // Close modal
             setShowReceiptPreview(false)
             setCompletedOrderReceipt(null)
-          }}
-          receiptData={completedOrderReceipt}
-          onPrint={(printer) => handlePrintReceipt(completedOrderReceipt, printer.id)}
-        />
-      )}
+
+          } catch (error: any) {
+            toast.push(`Print error: ${error.message}`)
+          } finally {
+            printInFlightRef.current = false
+          }
+        }}
+      />
     </div>
   )
 }

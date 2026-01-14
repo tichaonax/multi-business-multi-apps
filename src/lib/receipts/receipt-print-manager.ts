@@ -47,6 +47,11 @@ export interface DualReceiptResult {
  * Unified Receipt Print Manager
  * Single entry point for all receipt printing
  */
+// Track in-flight print operations to prevent duplicates
+let printInProgress = false
+let lastPrintTime = 0
+const MIN_PRINT_INTERVAL_MS = 2000 // Minimum 2 seconds between prints
+
 export class ReceiptPrintManager {
   /**
    * Print receipt with unified flow
@@ -98,6 +103,32 @@ export class ReceiptPrintManager {
       businessCopy: { success: false, jobId: '' }
     }
 
+    const now = Date.now()
+    const receiptNumber = receiptData.receiptNumber?.formattedNumber || 'unknown'
+
+    // Guard against duplicate calls
+    if (printInProgress) {
+      console.warn('⚠️ [ReceiptPrintManager] executePrint BLOCKED - print already in progress')
+      console.warn('   Receipt #:', receiptNumber)
+      throw new Error('Print already in progress')
+    }
+
+    // Guard against rapid successive calls (debounce)
+    const timeSinceLastPrint = now - lastPrintTime
+    if (timeSinceLastPrint < MIN_PRINT_INTERVAL_MS && lastPrintTime > 0) {
+      console.warn(`⚠️ [ReceiptPrintManager] executePrint BLOCKED - too soon after last print (${timeSinceLastPrint}ms)`)
+      console.warn('   Receipt #:', receiptNumber)
+      throw new Error(`Please wait before printing again (${Math.ceil((MIN_PRINT_INTERVAL_MS - timeSinceLastPrint) / 1000)}s)`)
+    }
+
+    // Set guards
+    printInProgress = true
+    lastPrintTime = now
+
+    // Log call
+    console.log('📋 [ReceiptPrintManager] executePrint called at:', new Date().toISOString())
+    console.log('   Receipt #:', receiptNumber)
+
     try {
       // ALWAYS print business copy
       console.log('🖨️  [ReceiptPrintManager] Printing BUSINESS copy')
@@ -126,7 +157,8 @@ export class ReceiptPrintManager {
       }
 
       // RESTAURANT & GROCERY: Print customer copy if requested
-      if ((businessType === 'restaurant' || businessType === 'grocery') && options.printCustomerCopy) {
+      // Print customer copy if requested (restaurant, grocery, and clothing support dual receipts)
+      if ((businessType === 'restaurant' || businessType === 'grocery' || businessType === 'clothing') && options.printCustomerCopy) {
         console.log('🖨️  [ReceiptPrintManager] Printing CUSTOMER copy')
         console.log(`   Copies requested: ${options.copies || 1}`)
 
@@ -169,6 +201,10 @@ export class ReceiptPrintManager {
       }
 
       throw error
+    } finally {
+      // Always reset the in-progress flag
+      printInProgress = false
+      console.log('📋 [ReceiptPrintManager] executePrint finished, guard released')
     }
   }
 

@@ -480,12 +480,12 @@ model ReceiptSequences {
 }
 
 model SavedReports {
-  id             String   @id @default(cuid())
-  businessId     String
-  reportType     String   // 'END_OF_DAY' | 'END_OF_WEEK' | 'END_OF_MONTH'
-  reportDate     DateTime @db.Date // Business day date
-  periodStart    DateTime // Start of period
-  periodEnd      DateTime // End of period
+  id          String   @id @default(cuid())
+  businessId  String
+  reportType  String // 'END_OF_DAY' | 'END_OF_WEEK' | 'END_OF_MONTH'
+  reportDate  DateTime @db.Date // Business day date
+  periodStart DateTime // Start of period
+  periodEnd   DateTime // End of period
 
   // Snapshot data (JSON)
   reportData Json // Complete report data snapshot
@@ -3455,7 +3455,6 @@ model UserPermissions {
   @@unique([userId, permissionId])
   @@map("user_permissions")
 }
-
 
 model CustomerDisplaySession {
   id             String     @id @default(uuid())

@@ -425,16 +425,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create R710 expense account for this business
+    // Create R710 expense account for this business - REQUIRED
     console.log(`[R710 Integration] Creating expense account for ${business.name}...`);
-
-    try {
-      await getOrCreateR710ExpenseAccount(businessId, session.user.id);
-      console.log(`[R710 Integration] Expense account created/verified`);
-    } catch (error) {
-      console.error('[R710 Integration] Failed to create expense account:', error);
-      // Don't fail the integration if expense account creation fails
-    }
+    await getOrCreateR710ExpenseAccount(businessId, session.user.id);
+    console.log(`[R710 Integration] Expense account created/verified`);
 
     console.log(`[R710 Integration] Integration complete for ${business.name}`);
 
@@ -623,6 +617,11 @@ export async function PATCH(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Ensure R710 expense account exists (retro-fix for integrations created without accounts)
+    console.log(`[R710 Integration] Checking expense account for business ${businessId}...`);
+    const expenseAccount = await getOrCreateR710ExpenseAccount(businessId, session.user.id);
+    console.log(`[R710 Integration] Expense account verified: ${expenseAccount.accountName}`);
 
     // Update WLAN in database
     const wlan = await prisma.r710Wlans.findFirst({

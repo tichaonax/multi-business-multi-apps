@@ -56,6 +56,8 @@ export default function RestaurantPOS() {
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const submitInFlightRef = useRef<{ current: boolean } | any>({ current: false })
+  // Ref-based guard to prevent duplicate print calls (more reliable than state)
+  const printInFlightRef = useRef(false)
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
@@ -845,8 +847,24 @@ export default function RestaurantPOS() {
 
   // Handle receipt printing with unified system
   const handlePrintReceipt = async (receiptData: ReceiptData) => {
+    // Ref-based guard to prevent duplicate print calls
+    if (printInFlightRef.current) {
+      console.log('⚠️ [Restaurant POS] Print already in progress (ref guard), ignoring duplicate call')
+      return
+    }
+
+    // Also check state for consistency
+    if (isPrinting) {
+      console.log('⚠️ [Restaurant POS] Print already in progress (state guard), ignoring duplicate call')
+      return
+    }
+
+    // Set ref immediately (synchronous) to block subsequent calls
+    printInFlightRef.current = true
+
     try {
       setIsPrinting(true)
+      console.log('🖨️ [Restaurant POS] Starting print job at:', new Date().toISOString())
 
       await ReceiptPrintManager.printReceipt(receiptData, 'restaurant', {
         autoPrint: preferences.autoPrintReceipt,
@@ -879,14 +897,33 @@ export default function RestaurantPOS() {
       console.error('❌ Receipt print error:', error)
       toast.push(`Print error: ${error.message}`)
     } finally {
+      printInFlightRef.current = false
       setIsPrinting(false)
+      console.log('🖨️ [Restaurant POS] Print job finished at:', new Date().toISOString())
     }
   }
 
   // Auto-print receipt when order completes (if preference enabled)
+  // Track if we've already auto-printed for the current order to prevent duplicates
+  const autoPrintedOrderRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (showReceiptModal && completedOrder && preferences.autoPrintReceipt && currentBusiness) {
-      console.log('🖨️ Auto-printing receipt...')
+      // Prevent duplicate auto-prints for the same order
+      const orderNumber = completedOrder.orderNumber
+      if (autoPrintedOrderRef.current === orderNumber) {
+        console.log('⚠️ [Restaurant POS] Already auto-printed for order:', orderNumber)
+        return
+      }
+
+      // Also check if a print is already in progress
+      if (printInFlightRef.current) {
+        console.log('⚠️ [Restaurant POS] Print already in progress, skipping auto-print')
+        return
+      }
+
+      console.log('🖨️ [Restaurant POS] Auto-printing receipt for order:', orderNumber)
+      autoPrintedOrderRef.current = orderNumber
 
       // Build receipt data from completed order
       const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, businessDetails || currentBusiness)
@@ -2113,6 +2150,8 @@ export default function RestaurantPOS() {
                   onClick={() => {
                     setShowReceiptModal(false)
                     setCompletedOrder(null)
+                    // Reset auto-print tracker for next order
+                    autoPrintedOrderRef.current = null
                   }}
                   className="w-full py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 transition-colors"
                 >
@@ -2136,6 +2175,16 @@ export default function RestaurantPOS() {
         onPrintConfirm={async (options) => {
           if (!pendingReceiptData) return
 
+          // Guard against duplicate calls
+          if (printInFlightRef.current) {
+            console.log('⚠️ [Restaurant POS] onPrintConfirm: Print already in progress, ignoring')
+            return
+          }
+
+          printInFlightRef.current = true
+          console.log('🖨️ [Restaurant POS] onPrintConfirm starting at:', new Date().toISOString())
+          console.log('   Options:', JSON.stringify(options))
+
           try {
             await ReceiptPrintManager.printReceipt(pendingReceiptData, 'restaurant', {
               ...options,
@@ -2148,14 +2197,20 @@ export default function RestaurantPOS() {
               }
             })
 
+            console.log('✅ [Restaurant POS] onPrintConfirm completed successfully')
+
             // Close preview and completed order modal
             setShowReceiptPreview(false)
             setPendingReceiptData(null)
             setShowReceiptModal(false)
             setCompletedOrder(null)
+            // Reset auto-print tracker for next order
+            autoPrintedOrderRef.current = null
 
           } catch (error: any) {
             toast.push(`Print error: ${error.message}`)
+          } finally {
+            printInFlightRef.current = false
           }
         }}
       />

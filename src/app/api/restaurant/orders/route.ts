@@ -457,7 +457,7 @@ export async function POST(req: NextRequest) {
     const generatedESP32Tokens = []
     const generatedR710Tokens = []
 
-    // Get WiFi portal integration for expense account (needed for WiFi token sales)
+    // Get WiFi portal integration for expense account (needed for ESP32 WiFi token sales)
     let wifiExpenseAccountId: string | null = null
     const portalIntegration = await prisma.portalIntegrations.findUnique({
       where: { businessId: businessId },
@@ -695,21 +695,28 @@ export async function POST(req: NextRequest) {
         // Handle R710 WiFi token sales
         try {
           // Verify R710 integration exists and is active
-          const r710Integration = await prisma.r710BusinessIntegrations.findFirst({
+          const r710IntegrationForSale = await prisma.r710BusinessIntegrations.findFirst({
             where: {
               businessId: businessId,
               isActive: true
             }
           });
 
-          if (!r710Integration) {
+          if (!r710IntegrationForSale) {
             throw new Error('R710 integration not configured or not active');
           }
 
-          // Ensure we have expense account for R710 token sales
-          if (!wifiExpenseAccountId) {
+          // Look up R710 expense account using account number pattern
+          const r710AccountNumber = `R710-${businessId.slice(-6)}`;
+          const r710ExpenseAccount = await prisma.expenseAccounts.findFirst({
+            where: { accountNumber: r710AccountNumber }
+          });
+          
+          if (!r710ExpenseAccount) {
             throw new Error('WiFi expense account not configured. Please configure WiFi portal integration.');
           }
+
+          const r710ExpenseAccountId = r710ExpenseAccount.id;
 
           // Find available R710 tokens for this config
           const availableTokens = await prisma.r710Tokens.findMany({
@@ -757,7 +764,7 @@ export async function POST(req: NextRequest) {
               data: {
                 businessId: businessId,
                 tokenId: token.id,
-                expenseAccountId: wifiExpenseAccountId,
+                expenseAccountId: r710ExpenseAccountId,
                 saleAmount: itemPrice,
                 paymentMethod: paymentMethod,
                 saleChannel: 'POS',

@@ -12,7 +12,7 @@
  * - Print/Cancel actions
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Printer, X, Check, AlertCircle } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,9 @@ export function UnifiedReceiptPreviewModal({
   const [printersLoading, setPrintersLoading] = useState(true)
   const toast = useToastContext()
 
+  // Ref-based guard to prevent double-clicks (more reliable than state)
+  const isPrintingRef = useRef(false)
+
   // Load configured receipt printer on mount
   useEffect(() => {
     if (isOpen) {
@@ -54,6 +57,8 @@ export function UnifiedReceiptPreviewModal({
       // Reset copies to 1 when modal opens (don't persist from previous session)
       setCopies(1)
       setPrintCustomerCopy(true)
+      // Reset printing guard when modal opens
+      isPrintingRef.current = false
     }
   }, [isOpen])
 
@@ -109,21 +114,35 @@ export function UnifiedReceiptPreviewModal({
       return
     }
 
-    // Prevent double-click
-    if (loading) {
-      console.log('⚠️ Print already in progress, ignoring click')
+    // Ref-based guard to prevent double-clicks (synchronous, not subject to React batching)
+    if (isPrintingRef.current) {
+      console.log('⚠️ Print already in progress (ref guard), ignoring click')
       return
     }
 
+    // Also check state for UI consistency
+    if (loading) {
+      console.log('⚠️ Print already in progress (state guard), ignoring click')
+      return
+    }
+
+    // Set ref immediately (synchronous) to block subsequent clicks
+    isPrintingRef.current = true
     setLoading(true)
 
     try {
+      console.log('📋 [Modal] Calling onPrintConfirm at:', new Date().toISOString())
+      console.log('   printerId:', selectedPrinterId)
+      console.log('   copies:', copies)
+      console.log('   printCustomerCopy:', printCustomerCopy)
+
       await onPrintConfirm({
         printerId: selectedPrinterId,
         copies,
         printCustomerCopy,
       })
 
+      console.log('✅ [Modal] onPrintConfirm completed')
       toast.push('Receipt sent to printer')
       onClose()
 
@@ -131,13 +150,14 @@ export function UnifiedReceiptPreviewModal({
       console.error('Print failed:', error)
       toast.push('Error: Print failed - ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
+      isPrintingRef.current = false
       setLoading(false)
     }
   }
 
   const selectedPrinter = printers.find(p => p.id === selectedPrinterId)
   const isRestaurant = businessType === 'restaurant'
-  const supportsCustomerCopy = businessType === 'restaurant' || businessType === 'grocery'
+  const supportsCustomerCopy = businessType === 'restaurant' || businessType === 'grocery' || businessType === 'clothing'
 
   return (
     <Modal
