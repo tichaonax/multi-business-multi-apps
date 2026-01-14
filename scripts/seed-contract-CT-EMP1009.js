@@ -22,6 +22,35 @@ async function seedContractCTEMP1009(options = {}) {
   // Reasonable assumption: employeeNumber EMP1009 for this seeded contract
   const employeeNumber = 'EMP1009'
 
+  // Fetch or create required entities
+  let business = await prisma.businesses.findFirst({ where: { isActive: true } })
+  if (!business) {
+    console.log('ℹ️  No business found. Skipping CT-EMP1009 contract seeding.')
+    console.log('   This is normal for fresh installs. Create a business first, then run this seed if needed.')
+    await prisma.$disconnect()
+    return
+  }
+
+  let compensationType = await prisma.compensationTypes.findFirst({ where: { name: 'Salary' } })
+  if (!compensationType) {
+    compensationType = await prisma.compensationTypes.findFirst()
+    if (!compensationType) {
+      console.log('ℹ️  No compensation types found. Skipping CT-EMP1009 contract seeding.')
+      await prisma.$disconnect()
+      return
+    }
+  }
+
+  let jobTitle = await prisma.jobTitles.findFirst({ where: { title: 'General Worker' } })
+  if (!jobTitle) {
+    jobTitle = await prisma.jobTitles.findFirst()
+    if (!jobTitle) {
+      console.log('ℹ️  No job titles found. Skipping CT-EMP1009 contract seeding.')
+      await prisma.$disconnect()
+      return
+    }
+  }
+
   let employee = await prisma.employees.findUnique({ where: { employeeNumber } })
   if (!employee) {
       const newEmp = {

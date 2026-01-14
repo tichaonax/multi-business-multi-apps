@@ -764,8 +764,8 @@ export default function RestaurantPOS() {
         const response = await fetch(`/api/business/${currentBusinessId}`)
         if (response.ok) {
           const data = await response.json()
-          console.log('📍 [Business Details] Fetched:', data)
-          setBusinessDetails(data)
+          console.log('📍 [Business Details] Fetched:', data.business)
+          setBusinessDetails(data.business)  // Extract business object from response
         }
       } catch (error) {
         console.error('❌ Failed to fetch business details:', error)

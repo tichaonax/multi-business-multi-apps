@@ -50,35 +50,45 @@ const ALIGN_RIGHT = ESC + 'a' + String.fromCharCode(2);
 
 /**
  * Strip emojis and other special characters that thermal printers can't render
- * Thermal printers typically only support ASCII and limited extended ASCII
+ * Thermal printers typically only support ASCII (0x20-0x7E) and some extended ASCII
+ * This function aggressively removes ALL non-printable-ASCII characters
  */
 function stripEmojis(text: string): string {
   if (!text) return '';
 
-  // Remove emojis (Unicode ranges for most common emojis)
-  return text
-    // Emoticons (U+1F600 to U+1F64F)
+  // First pass: Remove common emoji ranges (helps with pattern matching)
+  let cleaned = text
+    // Variation selectors (emoji modifiers)
+    .replace(/[\uFE00-\uFE0F]/g, '')
+    // Emoticons
     .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
-    // Symbols & Pictographs (U+1F300 to U+1F5FF)
+    // Symbols & Pictographs (food emojis like 🍽️🍲)
     .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
-    // Transport & Map Symbols (U+1F680 to U+1F6FF)
+    // Transport & Map
     .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
-    // Misc Symbols and Pictographs (U+2600 to U+26FF)
+    // Misc Symbols
     .replace(/[\u{2600}-\u{26FF}]/gu, '')
-    // Dingbats (U+2700 to U+27BF)
+    // Dingbats
     .replace(/[\u{2700}-\u{27BF}]/gu, '')
-    // Supplemental Symbols and Pictographs (U+1F900 to U+1F9FF)
+    // Supplemental Symbols
     .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
-    // Symbols and Pictographs Extended-A (U+1FA70 to U+1FAFF)
+    // Extended-A
     .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')
-    // Additional symbols
-    .replace(/[\u{1F000}-\u{1F02F}]/gu, '')
-    .replace(/[\u{1F0A0}-\u{1F0FF}]/gu, '')
-    // Remove zero-width characters
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    // Trim any extra whitespace created by emoji removal
-    .replace(/\s+/g, ' ')
-    .trim();
+    // Additional ranges
+    .replace(/[\u{1F000}-\u{1F0FF}]/gu, '')
+    .replace(/[\u{1F100}-\u{1F1FF}]/gu, '')
+    .replace(/[\u{1F200}-\u{1F2FF}]/gu, '')
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, '')
+    // Zero-width and special chars
+    .replace(/[\u200B-\u200D\uFEFF\u2028\u2029]/g, '')
+    .replace(/[\u0300-\u036F]/g, '');
+
+  // Second pass: AGGRESSIVE - Keep only printable ASCII (space through tilde)
+  // This catches any remaining non-ASCII characters the regexes missed
+  cleaned = cleaned.replace(/[^\x20-\x7E]/g, '');
+
+  // Clean up whitespace
+  return cleaned.replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -253,9 +263,9 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   // ============================================================================
   // 6. TOTALS SECTION
   // ============================================================================
-  // Blank line only for customer copy
+  // Dotted line before Subtotal (customer copy only)
   if (isCustomerCopy) {
-    // receipt += LF;
+    receipt += line('.') + LF;
   }
   receipt += formatTotal('Subtotal', data.subtotal);
   // Only print tax line if tax > 0 AND tax is charged separately (not included in price)
@@ -265,6 +275,10 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   }
   if (data.discount && data.discount > 0) {
     receipt += formatTotal('Savings', -data.discount);
+  }
+  // Dotted line before TOTAL (customer copy only)
+  if (isCustomerCopy) {
+    receipt += line('.') + LF;
   }
   receipt += formatTotal('TOTAL', data.total, true);
 

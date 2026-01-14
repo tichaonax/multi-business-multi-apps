@@ -82,9 +82,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate receipt number (dual numbering system)
+    // Use provided receipt number OR generate a new one
+    // This ensures dual receipts (business + customer copy) get the SAME receipt number
     const timezone = data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const receiptNumber = await generateReceiptNumber(data.businessId, timezone);
+    const receiptNumber = data.receiptNumber && data.receiptNumber.formattedNumber
+      ? data.receiptNumber  // Use existing receipt number (for customer copy of dual receipt)
+      : await generateReceiptNumber(data.businessId, timezone);  // Generate new one
 
     // Prepare receipt data (handle both field naming conventions)
     const receiptData: ReceiptData = {

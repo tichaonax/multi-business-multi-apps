@@ -213,6 +213,34 @@ function line(char: string, width: number): string {
 }
 
 /**
+ * Strip emojis and special characters from text for thermal printer compatibility
+ * Aggressively removes ALL non-ASCII characters
+ */
+function stripEmojis(text: string): string {
+  if (!text) return '';
+
+  // First pass: Remove known emoji ranges
+  let cleaned = text
+    .replace(/[\uFE00-\uFE0F]/g, '')        // Variation selectors
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Symbols & Pictographs
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport & Map
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc Symbols
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental
+    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Extended-A
+    .replace(/[\u{1F000}-\u{1F2FF}]/gu, '')
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, '') // Skin tones
+    .replace(/[\u200B-\u200D\uFEFF\u2028\u2029]/g, '')
+    .replace(/[\u0300-\u036F]/g, '');
+
+  // Second pass: Keep only printable ASCII (catches any remaining non-ASCII)
+  cleaned = cleaned.replace(/[^\x20-\x7E]/g, '');
+
+  return cleaned.replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Format a line item with quantity and price
  */
 function formatLineItem(
@@ -223,7 +251,8 @@ function formatLineItem(
   width: number
 ): string {
   const qtyStr = qty > 1 ? `${qty}x ` : '';
-  const nameWithQty = `${qtyStr}${name}`;
+  const cleanName = stripEmojis(name); // Strip emojis for thermal printer
+  const nameWithQty = `${qtyStr}${cleanName}`;
   const totalStr = formatMoney(total);
 
   // Try to fit on one line

@@ -71,8 +71,8 @@ export function CartDisplay({
         </div>
       </div>
 
-      {/* Items List */}
-      <div className="flex-1 overflow-y-auto space-y-4 mb-8">
+      {/* Items List - extra padding to prevent emoji clipping on first item */}
+      <div className="flex-1 overflow-y-auto space-y-4 mb-8 pt-12 scroll-pt-12 [&>*:first-child]:mt-2">
         {items.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-400">
@@ -188,8 +188,8 @@ function CartItemRow({ item }: { item: CartItem }) {
   const lineTotal = item.quantity * item.price
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-200 hover:border-blue-400 transition-all">
-      <div className="flex items-center gap-6">
+    <div className="bg-white rounded-2xl shadow-lg px-6 py-3 border-2 border-gray-200 hover:border-blue-400 transition-all">
+      <div className="flex items-start gap-6">
         {/* Product Image */}
         {item.imageUrl ? (
           <div className="relative w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
@@ -208,9 +208,9 @@ function CartItemRow({ item }: { item: CartItem }) {
         )}
 
         {/* Item Details */}
-        <div className="flex-1 min-w-0 overflow-hidden">
-          {/* Item Name */}
-          <div className="text-4xl font-bold text-gray-900 mb-1 break-all overflow-wrap-anywhere">
+        <div className="flex-1 min-w-0">
+          {/* Item Name - leading-normal ensures emojis aren't clipped */}
+          <div className="text-4xl font-bold text-gray-900 mb-1 break-all overflow-wrap-anywhere leading-normal">
             {item.name}
           </div>
 

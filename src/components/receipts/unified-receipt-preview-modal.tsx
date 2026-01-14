@@ -109,6 +109,12 @@ export function UnifiedReceiptPreviewModal({
       return
     }
 
+    // Prevent double-click
+    if (loading) {
+      console.log('⚠️ Print already in progress, ignoring click')
+      return
+    }
+
     setLoading(true)
 
     try {

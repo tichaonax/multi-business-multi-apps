@@ -686,7 +686,7 @@ function GroceryPOSContent() {
         const response = await fetch(`/api/business/${currentBusinessId}`)
         if (response.ok) {
           const data = await response.json()
-          setBusinessDetails(data)
+          setBusinessDetails(data.business)  // Extract business object from response
         }
       } catch (error) {
         console.error('Failed to fetch business details:', error)

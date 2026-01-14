@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause for inventory items
     const where: any = {
-      template: templateWhere,
+      barcodeTemplate: templateWhere,
     };
 
     if (isActive !== null && isActive !== undefined) {

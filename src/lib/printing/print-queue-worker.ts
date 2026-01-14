@@ -394,27 +394,27 @@ async function processQueue(): Promise<void> {
 
     // Extract print content
     let printContent = '';
-    const printSettings = job.printSettings as any;
-    const jobType = printSettings?.jobType || 'label'; // Default to label for barcode jobs
+    const jobData = job.jobData as any;
+    const jobType = job.jobType || 'label'; // Use job.jobType from database column
 
     if (jobType === 'receipt') {
-      const receiptText = printSettings?.receiptText || '';
+      const receiptText = jobData?.receiptText || '';
       // Decode from base64 if it's encoded
       printContent = receiptText.startsWith('data:') || receiptText.length > 100
         ? Buffer.from(receiptText, 'base64').toString('binary')
         : receiptText;
     } else if (jobType === 'label') {
       // For label jobs, check if we have pre-formatted content or need to generate it
-      if (printSettings?.labelText) {
-        // Use the labelText from printSettings
-        printContent = printSettings.labelText;
-      } else if (printSettings?.formattedLabel) {
+      if (jobData?.labelText) {
+        // Use the labelText from jobData
+        printContent = jobData.labelText;
+      } else if (jobData?.formattedLabel) {
         // Legacy format with pre-formatted content
-        printContent = printSettings.formattedLabel;
+        printContent = jobData.formattedLabel;
       } else {
         // New format: generate label text from LabelData
         const { generateLabel } = await import('./label-generator');
-        const labelData = printSettings as LabelData;
+        const labelData = jobData as LabelData;
         printContent = generateLabel(labelData);
       }
     }

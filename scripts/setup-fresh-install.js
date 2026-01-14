@@ -146,36 +146,9 @@ async function main() {
     process.exit(1)
   }
 
-  // Load environment variables from .env.local first (takes precedence), then .env
-  require('dotenv').config({ path: envLocalPath })
-  require('dotenv').config({ path: envPath })
-
-  // Safety check: Verify this is a fresh installation
-  console.log('🔍 Checking if this is a fresh installation...\n')
-
-  const isEmpty = await checkDatabaseEmpty()
-
-  if (!isEmpty) {
-    console.log('⚠️  DATABASE NOT EMPTY!')
-    console.log('This script is for fresh installations only.')
-    console.log('The database already contains tables.\n')
-    console.log('If you pulled code updates, use instead:')
-    console.log('  npm run setup:update\n')
-    console.log('To force fresh installation (⚠️  DELETES ALL DATA):')
-    console.log('  npx prisma migrate reset')
-    console.log('  npm run setup\n')
-    process.exit(1)
-  }
-
-  console.log('✅ Database is empty - proceeding with fresh installation\n')
-
-  // Create database if it doesn't exist
-  console.log('🗄️  Ensuring database exists...\n')
-  const dbCreated = await createDatabaseIfNeeded()
-  if (!dbCreated) {
-    console.error('❌ Database creation failed. Cannot proceed with installation.\n')
-    process.exit(1)
-  }
+  // NOTE: Database checks moved to AFTER npm install and Prisma generation
+  // This avoids the "Cannot find module 'dotenv'" error since dependencies
+  // aren't installed yet at this point in the script
 
   // Clean up Prisma cache first to avoid Windows file lock issues
   console.log('🧹 Cleaning Prisma cache to avoid file lock issues...\n')
@@ -269,6 +242,11 @@ async function main() {
     {
       command: 'node scripts/prisma-generate-safe.js',
       description: 'Generating Prisma client (with retry logic)',
+      required: true
+    },
+    {
+      command: 'node scripts/check-and-setup-database.js',
+      description: 'Checking database state and creating if needed',
       required: true
     },
     {
