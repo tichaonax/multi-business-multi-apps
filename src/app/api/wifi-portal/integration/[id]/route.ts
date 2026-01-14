@@ -69,6 +69,33 @@ export async function PUT(
       }
     }
 
+    // Ensure ESP32 expense account exists (retro-fix for integrations created without accounts)
+    if (!existingIntegration.expenseAccountId) {
+      console.log(`[ESP32 Integration] Integration missing expense account, creating now...`);
+      const timestamp = Date.now();
+      const accountNumber = `WIFI-REV-${existingIntegration.businessId.slice(0, 8)}-${timestamp}`;
+
+      const expenseAccount = await prisma.expenseAccounts.create({
+        data: {
+          accountNumber: accountNumber,
+          accountName: 'WiFi Token Revenue',
+          balance: 0,
+          description: 'Automated revenue account for WiFi token sales',
+          createdBy: session.user.id,
+          lowBalanceThreshold: 0,
+          isActive: true,
+        },
+      });
+
+      // Update integration with expense account ID
+      await prisma.portalIntegrations.update({
+        where: { id: integrationId },
+        data: { expenseAccountId: expenseAccount.id },
+      });
+
+      console.log(`[ESP32 Integration] Created and linked expense account: ${expenseAccount.accountName}`);
+    }
+
     // If API key or portal address changed, test the new connection
     const shouldTestConnection =
       (apiKey && apiKey !== existingIntegration.apiKey) ||

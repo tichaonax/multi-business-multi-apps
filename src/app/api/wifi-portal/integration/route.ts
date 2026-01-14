@@ -115,47 +115,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create WiFi revenue expense account
-    let expenseAccount;
-    try {
-      // Check if WiFi revenue account already exists
-      expenseAccount = await prisma.expenseAccounts.findFirst({
-        where: {
-          accountName: 'WiFi Token Revenue',
-          creator: {
-            business_memberships: {
-              some: {
-                businessId: businessId,
-              },
-            },
-          },
-        },
-      });
+    // Create WiFi revenue expense account - REQUIRED
+    const timestamp = Date.now();
+    const accountNumber = `WIFI-REV-${businessId.slice(0, 8)}-${timestamp}`;
 
-      if (!expenseAccount) {
-        // Generate unique account number
-        const timestamp = Date.now();
-        const accountNumber = `WIFI-REV-${businessId.slice(0, 8)}-${timestamp}`;
-
-        expenseAccount = await prisma.expenseAccounts.create({
-          data: {
-            accountNumber: accountNumber,
-            accountName: 'WiFi Token Revenue',
-            balance: 0,
-            description: 'Automated revenue account for WiFi token sales',
-            createdBy: session.user.id,
-            lowBalanceThreshold: 0,
-            isActive: true,
-          },
-        });
-      }
-    } catch (error: any) {
-      console.error('Error creating expense account:', error);
-      return NextResponse.json(
-        { error: 'Failed to create WiFi revenue expense account', details: error.message },
-        { status: 500 }
-      );
-    }
+    const expenseAccount = await prisma.expenseAccounts.create({
+      data: {
+        accountNumber: accountNumber,
+        accountName: 'WiFi Token Revenue',
+        balance: 0,
+        description: 'Automated revenue account for WiFi token sales',
+        createdBy: session.user.id,
+        lowBalanceThreshold: 0,
+        isActive: true,
+      },
+    });
 
     // Create portal integration
     const integration = await prisma.portalIntegrations.create({
@@ -166,6 +140,7 @@ export async function POST(request: NextRequest) {
         portalPort: parseInt(portalPort.toString(), 10),
         isActive: true,
         showTokensInPOS: showTokensInPOS,
+        expenseAccountId: expenseAccount.id,
         createdBy: session.user.id,
       },
       include: {
