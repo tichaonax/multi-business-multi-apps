@@ -437,45 +437,39 @@ export async function POST(request: NextRequest) {
     // Skip duplicates to preserve historical data
     // Uniqueness is based on (username, password) composite key
     // If R710 returns a duplicate, we skip it to preserve the original token's history
-    const tokenKeys = tokensToCreate.map(t => ({ username: t.username, password: t.password }));
-
-    // Check which tokens already exist (by username+password combination)
-    const existingTokens = await prisma.r710Tokens.findMany({
-      where: {
-        OR: tokenKeys.map(key => ({
-          AND: [
-            { username: key.username },
-            { password: key.password }
-          ]
-        }))
-      },
-      select: {
-        username: true,
-        password: true,
-        status: true,
-        createdAt: true
-      }
-    });
-
-    // Create a Set of existing token keys for fast lookup
-    const existingTokenSet = new Set(
-      existingTokens.map(t => `${t.username}:${t.password}`)
-    );
-
     let createdCount = 0;
-    let skippedCount = 0;
+    let updatedCount = 0;
 
-    // Process each token - create only if it doesn't exist
+    // Process each token - upsert based on wlanId + username
+    // The R710 device is the source of truth - sync whatever it sends
     for (const tokenData of tokensToCreate) {
-      const tokenKey = `${tokenData.username}:${tokenData.password}`;
+      // Check if token with same username exists for this WLAN
+      const existing = await prisma.r710Tokens.findFirst({
+        where: {
+          wlanId: tokenData.wlanId,
+          username: tokenData.username
+        }
+      });
 
-      if (existingTokenSet.has(tokenKey)) {
-        // Token already exists - skip to preserve history
-        skippedCount++;
-        const existing = existingTokens.find(t => `${t.username}:${t.password}` === tokenKey);
-        console.log(`[R710 Tokens] ⏩ Skipped duplicate token: ${tokenData.username} (exists since ${existing?.createdAt}, status: ${existing?.status})`);
+      if (existing) {
+        // Update existing token with new password from R710
+        await prisma.r710Tokens.update({
+          where: { id: existing.id },
+          data: {
+            password: tokenData.password,
+            status: 'AVAILABLE', // Reset status since R710 regenerated it
+            createdAtR710: tokenData.createdAtR710,
+            expiresAtR710: tokenData.expiresAtR710,
+            validTimeSeconds: tokenData.validTimeSeconds,
+            firstUsedAt: null,
+            connectedMac: null,
+            lastSyncedAt: new Date()
+          }
+        });
+        updatedCount++;
+        console.log(`[R710 Tokens] 🔄 Updated token: ${tokenData.username} with new password`);
       } else {
-        // Token doesn't exist - create it
+        // Create new token
         await prisma.r710Tokens.create({
           data: tokenData
         });
@@ -484,11 +478,7 @@ export async function POST(request: NextRequest) {
     }
 
     const totalRequested = tokensToCreate.length;
-    console.log(`[R710 Tokens] Processed ${totalRequested} tokens: ${createdCount} created, ${skippedCount} skipped (duplicates)`);
-
-    if (skippedCount > 0) {
-      console.log(`[R710 Tokens] ℹ️  ${skippedCount} duplicate token(s) were skipped to preserve historical data. These will expire on the R710 device.`);
-    }
+    console.log(`[R710 Tokens] Processed ${totalRequested} tokens: ${createdCount} created, ${updatedCount} updated`);
 
     console.log('[R710 Tokens] Sample tokens:');
     tokensToCreate.slice(0, 3).forEach((token, index) => {
@@ -496,15 +486,16 @@ export async function POST(request: NextRequest) {
     });
 
     // Build response message
-    const message = skippedCount > 0
-      ? `Created ${createdCount} new token${createdCount !== 1 ? 's' : ''}, skipped ${skippedCount} duplicate${skippedCount !== 1 ? 's' : ''}`
-      : `Generated ${createdCount} token${createdCount !== 1 ? 's' : ''} successfully`;
+    const messageParts = [];
+    if (createdCount > 0) messageParts.push(`${createdCount} created`);
+    if (updatedCount > 0) messageParts.push(`${updatedCount} refreshed`);
+    const message = `Tokens synced: ${messageParts.join(', ') || 'none'}`;
 
     return NextResponse.json({
       success: true,
       message,
       tokensCreated: createdCount,
-      tokensSkipped: skippedCount,
+      tokensUpdated: updatedCount,
       totalRequested: totalRequested,
       config: {
         name: config.name,

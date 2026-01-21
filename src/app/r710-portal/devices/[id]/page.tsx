@@ -11,7 +11,7 @@ import { useSession } from 'next-auth/react'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
-import { useAlert } from '@/components/ui/confirm-modal'
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { useAlert as useToastAlert } from '@/hooks/use-alert'
 
 interface TestResult {
@@ -21,6 +21,15 @@ interface TestResult {
   model?: string
   online?: boolean
   authenticated?: boolean
+}
+
+interface BusinessIntegration {
+  id: string | null
+  name: string
+  type: string
+  integrationId: string
+  isActive: boolean
+  isOrphaned?: boolean
 }
 
 interface DeviceData {
@@ -35,6 +44,7 @@ interface DeviceData {
   lastError: string | null
   firmwareVersion: string | null
   model: string
+  businesses: BusinessIntegration[]
   usage: {
     businessCount: number
     wlanCount: number
@@ -54,10 +64,10 @@ export default function EditR710DevicePage() {
 }
 
 function EditR710DeviceContent() {
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const router = useRouter()
   const params = useParams()
-  const alert = useAlert()
+  const confirm = useConfirm()
   const { showSuccess, showError } = useToastAlert()
   const user = session?.user as any
   const deviceId = params?.id as string
@@ -75,6 +85,8 @@ function EditR710DeviceContent() {
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [removingIntegration, setRemovingIntegration] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // Load device data
   useEffect(() => {
@@ -134,6 +146,16 @@ function EditR710DeviceContent() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
+    if (!formData.ipAddress) {
+      newErrors.ipAddress = 'IP address is required'
+    } else {
+      // Basic IP address validation
+      const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/
+      if (!ipRegex.test(formData.ipAddress)) {
+        newErrors.ipAddress = 'Please enter a valid IP address'
+      }
+    }
+
     if (!formData.adminUsername) {
       newErrors.adminUsername = 'Admin username is required'
     }
@@ -149,10 +171,7 @@ function EditR710DeviceContent() {
 
     // If password is empty, we can't test new credentials
     if (!formData.adminPassword) {
-      await alert({
-        title: 'Password Required',
-        description: 'Please enter the device password to test the connection.'
-      })
+      showError('Please enter the device password to test the connection.', 'Password Required')
       return
     }
 
@@ -213,11 +232,16 @@ function EditR710DeviceContent() {
     try {
       setSubmitting(true)
 
-      // Build update payload - only include password if provided
+      // Build update payload - only include changed fields
       const updatePayload: any = {
         adminUsername: formData.adminUsername,
         description: formData.description || null,
         isActive: formData.isActive
+      }
+
+      // Include IP address if changed
+      if (formData.ipAddress !== device?.ipAddress) {
+        updatePayload.ipAddress = formData.ipAddress
       }
 
       // Only include password if it was changed
@@ -257,39 +281,141 @@ function EditR710DeviceContent() {
   }
 
   const handleDelete = async () => {
-    const confirmed = await alert({
+    console.log('[Delete] handleDelete called, device:', device?.id, 'businessCount:', device?.usage.businessCount)
+
+    // Check if there are linked items
+    if (device && (device.usage.businessCount > 0)) {
+      console.log('[Delete] Blocked - has business integrations')
+      showError(
+        'Please remove all business integrations before deleting this device.',
+        'Cannot Delete'
+      )
+      return
+    }
+
+    const hasOrphanedWlans = device && device.usage.wlanCount > 0 && device.usage.businessCount === 0
+    console.log('[Delete] hasOrphanedWlans:', hasOrphanedWlans)
+
+    const confirmed = await confirm({
       title: 'Delete Device?',
-      description: `Are you sure you want to delete this R710 device (${device?.ipAddress})? This action cannot be undone.`,
+      description: hasOrphanedWlans
+        ? `This device has ${device.usage.wlanCount} orphaned WLAN(s) that will also be deleted. Are you sure you want to delete this R710 device (${device?.ipAddress})?`
+        : `Are you sure you want to delete this R710 device (${device?.ipAddress})? This action cannot be undone.`,
       confirmText: 'Delete',
       cancelText: 'Cancel'
     })
 
+    console.log('[Delete] Confirmation result:', confirmed)
     if (!confirmed) return
 
     try {
+      setDeleting(true)
+      console.log('[Delete] Starting deletion process...')
+
+      // If there are orphaned WLANs, delete them first
+      if (hasOrphanedWlans && device) {
+        console.log('[Delete] Cleaning up orphaned WLANs first...')
+        const wlanDeleteResponse = await fetch(`/api/admin/r710/devices/${deviceId}/cleanup-wlans`, {
+          method: 'POST',
+          credentials: 'include'
+        })
+
+        if (!wlanDeleteResponse.ok) {
+          // Try direct deletion anyway
+          console.warn('[Delete] WLAN cleanup failed, proceeding with device deletion')
+        }
+      }
+
+      console.log('[Delete] Calling DELETE API for device:', deviceId)
       const response = await fetch(`/api/admin/r710/devices/${deviceId}`, {
         method: 'DELETE',
         credentials: 'include'
       })
 
       const data = await response.json()
+      console.log('[Delete] API response:', response.status, data)
 
       if (response.ok) {
-        showSuccess('Device deleted successfully', '✅ Deleted')
+        showSuccess('Device deleted successfully', 'Deleted')
         router.push('/r710-portal/devices')
       } else {
         showError(
           data.message || data.error || 'Failed to delete device',
-          '❌ Delete Failed'
+          'Delete Failed'
         )
       }
     } catch (error) {
-      console.error('Delete error:', error)
-      showError('Failed to delete device. Please try again.', '❌ Delete Failed')
+      console.error('[Delete] Error:', error)
+      showError('Failed to delete device. Please try again.', 'Delete Failed')
+    } finally {
+      setDeleting(false)
     }
   }
 
-  // Check if user is admin
+  const handleRemoveIntegration = async (business: BusinessIntegration) => {
+    const confirmed = await confirm({
+      title: business.isOrphaned ? 'Remove Orphaned Integration?' : 'Remove Integration?',
+      description: business.isOrphaned
+        ? `This integration belongs to a deleted business. Remove it to allow device deletion.`
+        : `Are you sure you want to remove the R710 integration for "${business.name}"? This will delete the WLAN from the device and remove all associated records.`,
+      confirmText: 'Remove',
+      cancelText: 'Cancel'
+    })
+
+    if (!confirmed) return
+
+    try {
+      setRemovingIntegration(business.integrationId)
+
+      let response: Response
+
+      if (business.isOrphaned) {
+        // Use cleanup endpoint for orphaned integrations
+        response = await fetch(`/api/admin/r710/devices/${deviceId}/cleanup-wlans?integrationId=${business.integrationId}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        })
+      } else {
+        // Use normal integration endpoint for valid businesses
+        response = await fetch(`/api/r710/integration?businessId=${business.id}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        })
+      }
+
+      const data = await response.json()
+
+      if (response.ok) {
+        showSuccess(`Integration removed for ${business.name}`, '✅ Removed')
+        // Reload device data to update the list
+        await loadDevice()
+      } else {
+        showError(
+          data.message || data.error || 'Failed to remove integration',
+          '❌ Remove Failed'
+        )
+      }
+    } catch (error) {
+      console.error('Remove integration error:', error)
+      showError('Failed to remove integration. Please try again.', '❌ Remove Failed')
+    } finally {
+      setRemovingIntegration(null)
+    }
+  }
+
+  // Show loading while session or device is loading
+  if (sessionStatus === 'loading' || loading) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="mt-4 text-gray-500 dark:text-gray-400">Loading device...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user is admin (after session is loaded)
   if (!isSystemAdmin(user)) {
     return (
       <div className="container mx-auto px-4 py-6">
@@ -300,17 +426,6 @@ function EditR710DeviceContent() {
           <p className="text-yellow-800 dark:text-yellow-300">
             Only system administrators can edit R710 devices.
           </p>
-        </div>
-      </div>
-    )
-  }
-
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-6">
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="mt-4 text-gray-500 dark:text-gray-400">Loading device...</p>
         </div>
       </div>
     )
@@ -411,24 +526,101 @@ function EditR710DeviceContent() {
         )}
       </div>
 
+      {/* Linked Businesses Card */}
+      {device.businesses && device.businesses.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Linked Businesses</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Remove a business integration to unlink it from this device. This will delete the WLAN from the device.
+          </p>
+          <div className="space-y-3">
+            {device.businesses.map((business) => (
+              <div
+                key={business.integrationId}
+                className={`flex items-center justify-between p-3 rounded-lg ${
+                  business.isOrphaned
+                    ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+                    : 'bg-gray-50 dark:bg-gray-700'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="flex-shrink-0">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      business.isOrphaned
+                        ? 'bg-yellow-100 dark:bg-yellow-900/30'
+                        : 'bg-primary/10'
+                    }`}>
+                      {business.isOrphaned ? (
+                        <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      business.isOrphaned
+                        ? 'text-yellow-800 dark:text-yellow-200'
+                        : 'text-gray-900 dark:text-white'
+                    }`}>
+                      {business.name}
+                      {business.isOrphaned && (
+                        <span className="ml-2 text-xs font-normal text-yellow-600 dark:text-yellow-400">(Orphaned)</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{business.type}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveIntegration(business)}
+                  disabled={removingIntegration === business.integrationId}
+                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {removingIntegration === business.integrationId ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Removing...
+                    </>
+                  ) : (
+                    'Remove'
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Edit Form */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* IP Address (Read-only) */}
+          {/* IP Address */}
           <div>
             <label htmlFor="ipAddress" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              IP Address
+              IP Address <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               id="ipAddress"
               name="ipAddress"
               value={formData.ipAddress}
-              disabled
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+              onChange={handleChange}
+              placeholder="192.168.1.1"
+              className={`w-full px-3 py-2 border ${errors.ipAddress ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white`}
             />
+            {errors.ipAddress && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.ipAddress}</p>
+            )}
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              IP address cannot be changed after registration
+              Update if the device IP address has changed
             </p>
           </div>
 
@@ -569,11 +761,21 @@ function EditR710DeviceContent() {
             <button
               type="button"
               onClick={handleDelete}
-              disabled={device.usage.businessCount > 0 || device.usage.wlanCount > 0}
-              className="px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={device.usage.businessCount > 0 || device.usage.wlanCount > 0 ? 'Cannot delete device that is in use' : ''}
+              disabled={deleting || device.usage.businessCount > 0}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={device.usage.businessCount > 0 ? 'Remove all business integrations first' : ''}
             >
-              Delete Device
+              {deleting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Deleting...
+                </>
+              ) : (
+                'Delete Device'
+              )}
             </button>
             <div className="flex items-center space-x-3">
               <Link

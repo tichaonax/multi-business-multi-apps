@@ -1244,12 +1244,13 @@ model ExpenseAccounts {
   siblingNumber       Int?
   isSibling           Boolean                  @default(false)
   canMerge            Boolean                  @default(true)
-  deposits            ExpenseAccountDeposits[]
-  payments            ExpenseAccountPayments[]
-  creator             Users                    @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
-  portal_integrations PortalIntegrations[]     @relation("PortalIntegrationExpenseAccount")
-  r710_token_sales    R710TokenSales[]         @relation("R710TokenSaleToExpenseAccount")
-  wifi_token_sales    WifiTokenSales[]
+  deposits                   ExpenseAccountDeposits[]
+  payments                   ExpenseAccountPayments[]
+  creator                    Users                        @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
+  portal_integrations        PortalIntegrations[]         @relation("PortalIntegrationExpenseAccount")
+  r710_business_integrations R710BusinessIntegrations[]   @relation("R710IntegrationExpenseAccount")
+  r710_token_sales           R710TokenSales[]             @relation("R710TokenSaleToExpenseAccount")
+  wifi_token_sales           WifiTokenSales[]
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -2914,15 +2915,18 @@ model R710BusinessIntegrations {
   id               String             @id @default(uuid())
   businessId       String
   deviceRegistryId String
+  expenseAccountId String?            @map("expense_account_id")
   isActive         Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @default(now()) @updatedAt
   businesses       Businesses         @relation("R710BusinessIntegration", fields: [businessId], references: [id], onDelete: Cascade)
   device_registry  R710DeviceRegistry @relation(fields: [deviceRegistryId], references: [id])
+  expense_account  ExpenseAccounts?   @relation("R710IntegrationExpenseAccount", fields: [expenseAccountId], references: [id])
 
   @@unique([businessId, deviceRegistryId])
   @@index([businessId])
   @@index([deviceRegistryId])
+  @@index([expenseAccountId])
   @@map("r710_business_integrations")
 }
 

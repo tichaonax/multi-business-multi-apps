@@ -85,6 +85,30 @@ export async function GET(
       );
     }
 
+    // Map integrations, handling orphaned ones (where business may have been deleted)
+    const businesses = device.r710_business_integrations.map(integration => {
+      if (integration.businesses) {
+        return {
+          id: integration.businesses.id,
+          name: integration.businesses.name,
+          type: integration.businesses.type,
+          integrationId: integration.id,
+          isActive: integration.isActive,
+          isOrphaned: false
+        };
+      } else {
+        // Orphaned integration - business was deleted but integration remains
+        return {
+          id: null,
+          name: `[Deleted Business]`,
+          type: 'Unknown',
+          integrationId: integration.id,
+          isActive: integration.isActive,
+          isOrphaned: true
+        };
+      }
+    });
+
     return NextResponse.json({
       device: {
         id: device.id,
@@ -105,13 +129,7 @@ export async function GET(
         },
         createdAt: device.createdAt,
         updatedAt: device.updatedAt,
-        businesses: device.r710_business_integrations.map(integration => ({
-          id: integration.businesses.id,
-          name: integration.businesses.name,
-          type: integration.businesses.type,
-          integrationId: integration.id,
-          isActive: integration.isActive
-        })),
+        businesses,
         wlans: device.r710_wlans,
         usage: {
           businessCount: device._count.r710_business_integrations,
@@ -173,6 +191,7 @@ export async function PUT(
 
     const body = await request.json();
     const {
+      ipAddress,
       adminUsername,
       adminPassword,
       description,
@@ -190,6 +209,30 @@ export async function PUT(
       updateData.isActive = isActive;
     }
 
+    // Handle IP address change
+    let ipAddressChanged = false;
+    const newIpAddress = ipAddress && ipAddress !== device.ipAddress ? ipAddress : device.ipAddress;
+
+    if (ipAddress && ipAddress !== device.ipAddress) {
+      // Check if new IP is already registered
+      const existingDevice = await prisma.r710DeviceRegistry.findUnique({
+        where: { ipAddress }
+      });
+
+      if (existingDevice) {
+        return NextResponse.json(
+          {
+            error: 'IP address already registered',
+            message: 'Another device is already registered with this IP address'
+          },
+          { status: 409 }
+        );
+      }
+
+      updateData.ipAddress = ipAddress;
+      ipAddressChanged = true;
+    }
+
     // Handle credential updates
     let credentialsChanged = false;
 
@@ -203,12 +246,12 @@ export async function PUT(
       credentialsChanged = true;
     }
 
-    // If credentials changed, test connectivity with new credentials
-    if (credentialsChanged) {
-      console.log(`[R710 Device Update] Testing new credentials for ${device.ipAddress}...`);
+    // If IP or credentials changed, test connectivity
+    if (ipAddressChanged || credentialsChanged) {
+      console.log(`[R710 Device Update] Testing connection for ${newIpAddress}...`);
 
       const r710Service = new RuckusR710ApiService({
-        ipAddress: device.ipAddress,
+        ipAddress: newIpAddress,
         adminUsername: adminUsername || device.adminUsername,
         adminPassword: adminPassword || decrypt(device.encryptedAdminPassword),
         timeout: 30000
@@ -243,13 +286,18 @@ export async function PUT(
       const sessionManager = getR710SessionManager();
       await sessionManager.invalidateSession(device.ipAddress);
 
+      // If IP changed, also invalidate any session for the new IP
+      if (ipAddressChanged) {
+        await sessionManager.invalidateSession(newIpAddress);
+      }
+
       // Update connection status
       updateData.connectionStatus = 'CONNECTED';
       updateData.lastHealthCheck = new Date();
       updateData.lastConnectedAt = new Date();
       updateData.lastError = null;
 
-      console.log(`[R710 Device Update] Credentials updated and session invalidated for ${device.ipAddress}`);
+      console.log(`[R710 Device Update] ${ipAddressChanged ? 'IP address and ' : ''}Credentials updated and session invalidated`);
     }
 
     // Perform update
@@ -275,8 +323,12 @@ export async function PUT(
 
     return NextResponse.json({
       success: true,
-      message: credentialsChanged
-        ? 'Device credentials updated and session invalidated'
+      message: ipAddressChanged && credentialsChanged
+        ? 'Device IP address and credentials updated'
+        : ipAddressChanged
+        ? 'Device IP address updated'
+        : credentialsChanged
+        ? 'Device credentials updated'
         : 'Device updated successfully',
       device: {
         id: updatedDevice.id,
@@ -351,27 +403,55 @@ export async function DELETE(
       );
     }
 
-    // Check if device is still in use
+    // Check if device is still in use by businesses
     if (device._count.r710_business_integrations > 0) {
       return NextResponse.json(
         {
           error: 'Device still in use',
-          message: `Cannot delete device: ${device._count.r710_business_integrations} business(es) are still using this device`,
+          message: `Cannot delete device: ${device._count.r710_business_integrations} business(es) are still using this device. Remove all business integrations first.`,
           businessCount: device._count.r710_business_integrations
         },
         { status: 409 }
       );
     }
 
+    // Auto-cleanup orphaned WLANs (WLANs without business integrations)
     if (device._count.r710_wlans > 0) {
-      return NextResponse.json(
-        {
-          error: 'Device has active WLANs',
-          message: `Cannot delete device: ${device._count.r710_wlans} WLAN(s) still exist on this device`,
-          wlanCount: device._count.r710_wlans
-        },
-        { status: 409 }
-      );
+      console.log(`[R710 Device Delete] Cleaning up ${device._count.r710_wlans} orphaned WLAN(s)...`);
+
+      // Get the WLANs to delete
+      const wlans = await prisma.r710Wlans.findMany({
+        where: { deviceRegistryId: id }
+      });
+
+      // Try to delete from device (best effort)
+      try {
+        const adminPassword = decrypt(device.encryptedAdminPassword);
+        const r710Service = new RuckusR710ApiService({
+          ipAddress: device.ipAddress,
+          adminUsername: device.adminUsername,
+          adminPassword,
+          timeout: 30000
+        });
+
+        for (const wlan of wlans) {
+          try {
+            await r710Service.deleteWlan(wlan.wlanId);
+            console.log(`[R710 Device Delete] Deleted WLAN ${wlan.wlanId} from device`);
+          } catch (e) {
+            console.warn(`[R710 Device Delete] Could not delete WLAN ${wlan.wlanId} from device:`, e);
+          }
+        }
+      } catch (e) {
+        console.warn('[R710 Device Delete] Could not connect to device to delete WLANs:', e);
+      }
+
+      // Delete from database
+      await prisma.r710Wlans.deleteMany({
+        where: { deviceRegistryId: id }
+      });
+
+      console.log(`[R710 Device Delete] Cleaned up ${wlans.length} orphaned WLAN(s)`);
     }
 
     // Invalidate cached session
