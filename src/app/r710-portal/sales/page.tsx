@@ -16,6 +16,8 @@ import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import type { ReceiptData } from '@/types/printing'
 import { useToastContext } from '@/components/ui/toast'
 import { formatDateTime } from '@/lib/date-format'
+import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
+import { SyncMode } from '@/lib/customer-display/sync-manager'
 
 interface R710TokenConfig {
   id: string
@@ -84,6 +86,25 @@ export default function R710SalesPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [amountReceived, setAmountReceived] = useState('')
 
+  // Terminal ID for customer display
+  const [terminalId] = useState(() => {
+    if (typeof window === 'undefined') return 'r710-terminal-default'
+    const stored = localStorage.getItem('r710-terminal-id')
+    if (stored) return stored
+    const newId = `r710-terminal-${Date.now()}`
+    localStorage.setItem('r710-terminal-id', newId)
+    return newId
+  })
+
+  // Customer display sync
+  const { send: sendToDisplay } = useCustomerDisplaySync({
+    businessId: currentBusinessId || '',
+    terminalId,
+    mode: SyncMode.BROADCAST,
+    autoConnect: true,
+    onError: (error) => console.error('[R710 Customer Display] Sync error:', error)
+  })
+
   const canSell = session?.user ? hasPermission(session.user, 'canSellWifiTokens') : false
 
   useEffect(() => {
@@ -103,6 +124,40 @@ export default function R710SalesPage() {
 
     fetchData()
   }, [currentBusinessId, businessLoading])
+
+  // Send greeting to customer display when page loads
+  useEffect(() => {
+    if (currentBusinessId && businessDetails && session?.user) {
+      sendToDisplay('SET_GREETING', {
+        employeeName: session.user.name || 'Staff',
+        businessName: businessDetails.name || businessDetails.businessName,
+        businessPhone: businessDetails.phone || businessDetails.umbrellaBusinessPhone
+      })
+      sendToDisplay('SET_PAGE_CONTEXT', {
+        pageContext: 'pos'
+      })
+    }
+  }, [currentBusinessId, businessDetails, session?.user])
+
+  // Update customer display when price changes
+  useEffect(() => {
+    if (selectedConfig && customPrice) {
+      const price = parseFloat(customPrice) || 0
+      const cartItem = {
+        id: selectedConfig.id,
+        name: `WiFi: ${selectedConfig.name}`,
+        quantity: 1,
+        price: price,
+        imageUrl: null
+      }
+      sendToDisplay('CART_STATE', {
+        items: [cartItem],
+        subtotal: price,
+        tax: 0,
+        total: price
+      })
+    }
+  }, [customPrice, selectedConfig])
 
   const fetchData = async () => {
     if (!currentBusinessId) return
@@ -173,9 +228,30 @@ export default function R710SalesPage() {
     if (selectedConfig?.id === config.id) {
       setSelectedConfig(null)
       setCustomPrice('')
+      // Clear customer display
+      sendToDisplay('CLEAR_CART', {
+        items: [],
+        subtotal: 0,
+        tax: 0,
+        total: 0
+      })
     } else {
       setSelectedConfig(config)
       setCustomPrice(config.basePrice.toString())
+      // Send to customer display
+      const cartItem = {
+        id: config.id,
+        name: `WiFi: ${config.name}`,
+        quantity: 1,
+        price: Number(config.basePrice),
+        imageUrl: null
+      }
+      sendToDisplay('CART_STATE', {
+        items: [cartItem],
+        subtotal: Number(config.basePrice),
+        tax: 0,
+        total: Number(config.basePrice)
+      })
     }
 
     setErrorMessage(null)
@@ -215,6 +291,14 @@ export default function R710SalesPage() {
         setCustomPrice('')
         setShowPaymentModal(false)
         setAmountReceived('')
+
+        // Clear customer display after successful sale
+        sendToDisplay('CLEAR_CART', {
+          items: [],
+          subtotal: 0,
+          tax: 0,
+          total: 0
+        })
 
         // Refresh configs to update available counts
         await fetchData()
