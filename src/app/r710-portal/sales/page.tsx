@@ -72,7 +72,7 @@ export default function R710SalesPage() {
   const [loading, setLoading] = useState(true)
   const [tokenConfigs, setTokenConfigs] = useState<R710TokenConfig[]>([])
   const [selectedConfig, setSelectedConfig] = useState<R710TokenConfig | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE' | 'MOBILE_MONEY'>('CASH')
   const [customPrice, setCustomPrice] = useState<string>('')
   const [generatingToken, setGeneratingToken] = useState(false)
   const [generatedTokenData, setGeneratedTokenData] = useState<GeneratedR710TokenSale | null>(null)
@@ -131,10 +131,16 @@ export default function R710SalesPage() {
       sendToDisplay('SET_GREETING', {
         employeeName: session.user.name || 'Staff',
         businessName: businessDetails.name || businessDetails.businessName,
-        businessPhone: businessDetails.phone || businessDetails.umbrellaBusinessPhone
+        businessPhone: businessDetails.phone || businessDetails.umbrellaBusinessPhone,
+        subtotal: 0,
+        tax: 0,
+        total: 0
       })
       sendToDisplay('SET_PAGE_CONTEXT', {
-        pageContext: 'pos'
+        pageContext: 'pos',
+        subtotal: 0,
+        tax: 0,
+        total: 0
       })
     }
   }, [currentBusinessId, businessDetails, session?.user])
@@ -148,7 +154,7 @@ export default function R710SalesPage() {
         name: `WiFi: ${selectedConfig.name}`,
         quantity: 1,
         price: price,
-        imageUrl: null
+        imageUrl: undefined
       }
       sendToDisplay('CART_STATE', {
         items: [cartItem],
@@ -244,7 +250,7 @@ export default function R710SalesPage() {
         name: `WiFi: ${config.name}`,
         quantity: 1,
         price: Number(config.basePrice),
-        imageUrl: null
+        imageUrl: undefined
       }
       sendToDisplay('CART_STATE', {
         items: [cartItem],
@@ -387,10 +393,12 @@ export default function R710SalesPage() {
         amountPaid: Number(generatedTokenData.sale.saleAmount),
         changeDue: 0,
         r710Tokens: [{
+          username: generatedTokenData.token.username,
           password: generatedTokenData.token.password,
           packageName: generatedTokenData.token.tokenConfig.name,
           durationValue: generatedTokenData.token.tokenConfig.durationValue,
           durationUnit: generatedTokenData.token.tokenConfig.durationUnit,
+          deviceLimit: generatedTokenData.token.tokenConfig.deviceLimit,
           expiresAt: expiresAt.toISOString(),
           ssid: generatedTokenData.wlanSsid,
           success: true
@@ -606,9 +614,7 @@ export default function R710SalesPage() {
                     className={`cursor-pointer border-2 rounded-lg p-5 transition-all ${
                       selectedConfig?.id === config.id
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                        : config.availableCount > 0
-                        ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 hover:shadow-md'
-                        : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 opacity-60 cursor-not-allowed'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 hover:shadow-md'
                     }`}
                   >
                     <div className="flex justify-between items-start mb-3">
@@ -664,7 +670,7 @@ export default function R710SalesPage() {
                       {formatDuration(selectedConfig.durationValue, selectedConfig.durationUnit)}
                     </div>
                     <div className="text-xs text-green-600 dark:text-green-400 mt-2 font-medium">
-                      {selectedConfig.availableCount} token{selectedConfig.availableCount !== 1 ? 's' : ''} available
+                      Tokens generated on-demand
                     </div>
                   </div>
 
@@ -703,7 +709,7 @@ export default function R710SalesPage() {
                             name="paymentMethod"
                             value={method}
                             checked={paymentMethod === method}
-                            onChange={(e) => setPaymentMethod(e.target.value)}
+                            onChange={(e) => setPaymentMethod(e.target.value as 'CASH' | 'CARD' | 'MOBILE' | 'MOBILE_MONEY')}
                             disabled={parseFloat(customPrice) <= 0}
                             className="h-4 w-4 text-blue-600"
                           />

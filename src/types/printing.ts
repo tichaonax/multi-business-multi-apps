@@ -122,6 +122,7 @@ export interface R710TokenInfo {
   ssid?: string; // WiFi network name (if available)
   portalUrl?: string; // URL to access the R710 portal
   instructions?: string; // How to connect
+  expiresAt?: string; // ISO date string for token expiration
 
   // Sale status (for order responses)
   success?: boolean;
