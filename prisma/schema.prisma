@@ -1512,18 +1512,21 @@ model LoanTransactions {
 }
 
 model MenuComboItems {
-  id                String           @id @default(uuid())
-  comboId           String
-  productId         String
-  variantId         String?
-  quantity          Int              @default(1)
-  isRequired        Boolean          @default(true)
-  sortOrder         Int              @default(0)
-  createdAt         DateTime         @default(now())
-  menu_combos       MenuCombos       @relation(fields: [comboId], references: [id], onDelete: Cascade)
-  business_products BusinessProducts @relation(fields: [productId], references: [id], onDelete: Cascade)
-  product_variants  ProductVariants? @relation(fields: [variantId], references: [id])
+  id                 String            @id @default(uuid())
+  comboId            String
+  productId          String?
+  variantId          String?
+  tokenConfigId      String?
+  quantity           Int               @default(1)
+  isRequired         Boolean           @default(true)
+  sortOrder          Int               @default(0)
+  createdAt          DateTime          @default(now())
+  menu_combos        MenuCombos        @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  business_products  BusinessProducts? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product_variants   ProductVariants?  @relation(fields: [variantId], references: [id])
+  r710_token_configs R710TokenConfigs? @relation(fields: [tokenConfigId], references: [id], onDelete: Cascade)
 
+  @@index([tokenConfigId])
   @@map("menu_combo_items")
 }
 
@@ -1542,7 +1545,7 @@ model MenuCombos {
   promotionStartDate DateTime?
   promotionEndDate   DateTime?
   createdAt          DateTime         @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime         @default(now()) @updatedAt
   menu_combo_items   MenuComboItems[]
   businesses         Businesses       @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
@@ -2979,6 +2982,7 @@ model R710TokenConfigs {
   businesses                     Businesses                   @relation("R710TokenConfigToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
   r710_wlans                     R710Wlans                    @relation(fields: [wlanId], references: [id], onDelete: Cascade)
   r710_tokens                    R710Tokens[]
+  menu_combo_items               MenuComboItems[]
 
   @@index([businessId])
   @@index([wlanId])

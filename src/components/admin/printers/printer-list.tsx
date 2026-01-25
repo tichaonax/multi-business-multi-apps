@@ -29,7 +29,7 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
   const { push } = useToast()
   const confirm = useConfirm()
 
-  const currentNodeId = process.env.NEXT_PUBLIC_NODE_ID || 'default-node'
+  const currentNodeId = process.env.NEXT_PUBLIC_NODE_ID || 'local-node'
 
   async function handleTestPrint(printer: NetworkPrinter) {
     setTestingPrinter(printer.id)

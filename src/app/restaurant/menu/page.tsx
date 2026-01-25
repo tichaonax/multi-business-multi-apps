@@ -610,18 +610,18 @@ export default function MenuManagementPage() {
         )}
 
         {/* Combo Builder Tab */}
-        {activeTab === 'combos' && (
+        {activeTab === 'combos' && currentBusinessId && (
           <ComboBuilder
-            businessId="restaurant"
+            businessId={currentBusinessId}
             menuItems={menuItems}
             onComboChange={loadMenuData}
           />
         )}
 
         {/* Promotions Tab */}
-        {activeTab === 'promotions' && (
+        {activeTab === 'promotions' && currentBusinessId && (
           <PromotionManager
-            businessId="restaurant"
+            businessId={currentBusinessId}
             categories={categories}
             menuItems={menuItems}
             onPromotionChange={loadMenuData}

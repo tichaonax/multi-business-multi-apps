@@ -36,6 +36,7 @@ interface MenuItem {
   // optional/extended fields mapped from UniversalProduct
   isAvailable?: boolean
   isCombo?: boolean
+  comboItems?: any[]  // Combo contents for display (products, WiFi tokens, etc.)
   requiresCompanionItem?: boolean
   originalPrice?: number | null
   discountPercent?: number | null
@@ -176,7 +177,10 @@ export default function RestaurantPOS() {
         quantity: item.quantity,
         attributes: {},
         stock: item.stockQuantity || 0,
-        imageUrl: item.imageUrl
+        imageUrl: item.imageUrl,
+        // Include combo data for mini cart display
+        isCombo: (item as any).isCombo || false,
+        comboItems: (item as any).comboItems || null
       }))
       replaceGlobalCart(globalCartItems)
     } catch (error) {
@@ -306,7 +310,9 @@ export default function RestaurantPOS() {
         quantity: item.quantity,
         price: Number(item.price),
         variant: item.category,
-        imageUrl: item.imageUrl // Include product image for customer display
+        imageUrl: item.imageUrl, // Include product image for customer display
+        isCombo: (item as any).isCombo || false,
+        comboItems: (item as any).comboItems || null // Include combo items for display
       })),
       subtotal,
       tax,
@@ -521,11 +527,12 @@ export default function RestaurantPOS() {
         queryParams.set('businessId', currentBusinessId)
       }
 
-      // Fetch products, purchase statistics, and WiFi tokens in parallel
-      const [productsResponse, statsResponse, wifiTokensResponse] = await Promise.all([
+      // Fetch products, purchase statistics, WiFi tokens, and menu combos in parallel
+      const [productsResponse, statsResponse, wifiTokensResponse, combosResponse] = await Promise.all([
         fetch(`/api/universal/products?${queryParams.toString()}`),
         fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId || ''}`),
-        currentBusinessId ? fetch(`/api/business/${currentBusinessId}/wifi-tokens`) : Promise.resolve({ ok: false })
+        currentBusinessId ? fetch(`/api/business/${currentBusinessId}/wifi-tokens`) : Promise.resolve({ ok: false }),
+        currentBusinessId ? fetch(`/api/universal/menu-combos?businessId=${currentBusinessId}`) : Promise.resolve({ ok: false })
       ])
 
       if (productsResponse.ok) {
@@ -739,8 +746,37 @@ export default function RestaurantPOS() {
             // Don't fail if R710 tokens fail to load
           }
 
-          // Merge regular items, ESP32 WiFi tokens, and R710 WiFi tokens
-          setMenuItems([...items, ...wifiTokenItems, ...r710TokenItems])
+          // Process menu combos
+          let comboItems: any[] = []
+          if (combosResponse.ok) {
+            try {
+              const combosData = await combosResponse.json()
+              if (combosData.success && combosData.data) {
+                comboItems = combosData.data
+                  .filter((combo: any) => combo.isActive && combo.isAvailable && Number(combo.totalPrice) > 0)
+                  .map((combo: any) => ({
+                    id: `combo-${combo.id}`,
+                    name: `🍽️ ${combo.name}`,
+                    price: Number(combo.totalPrice),
+                    category: 'combos',
+                    isAvailable: true,
+                    isCombo: true,
+                    comboId: combo.id,
+                    comboData: combo, // Store full combo data for order processing
+                    originalPrice: combo.originalTotalPrice ? Number(combo.originalTotalPrice) : null,
+                    discountPercent: combo.discountPercent ? Number(combo.discountPercent) : null,
+                    preparationTime: combo.preparationTime,
+                    comboItems: combo.comboItems, // Include combo items for display
+                  }))
+                console.log(`✅ Loaded ${comboItems.length} menu combos`)
+              }
+            } catch (comboError) {
+              console.error('Error processing combos:', comboError)
+            }
+          }
+
+          // Merge regular items, combos, ESP32 WiFi tokens, and R710 WiFi tokens
+          setMenuItems([...items, ...comboItems, ...wifiTokenItems, ...r710TokenItems])
         }
       }
     } catch (error) {
@@ -1676,6 +1712,15 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
+                    {/* Combo with WiFi indicator */}
+                    {(item as any).isCombo && (item as any).comboItems?.some((ci: any) => ci.tokenConfigId || ci.wifiToken) && (
+                      <div className="mt-1 flex items-center gap-1">
+                        <span className="text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                          📶 Includes WiFi
+                        </span>
+                      </div>
+                    )}
+
                     {/* WiFi token quantity indicator */}
                     {((item as any).esp32Token || (item as any).r710Token) && (() => {
                       const remaining = (item.availableQuantity || 0) - cartQuantity;
@@ -1794,26 +1839,51 @@ export default function RestaurantPOS() {
             
             <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
               {cart.map(item => (
-                <div key={item.id} className="flex justify-between items-center">
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">{item.name}</div>
-                    <div className="text-green-600">${Number(item.price).toFixed(2)}</div>
+                <div key={item.id} className="border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0">
+                  <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{item.name}</div>
+                      <div className="text-green-600">${Number(item.price).toFixed(2)}</div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        className="w-10 h-10 sm:w-8 sm:h-8 bg-gray-200 dark:bg-gray-600 rounded text-center hover:bg-gray-300 dark:hover:bg-gray-500 text-primary dark:text-gray-100 touch-manipulation"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-medium">{item.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        className="w-10 h-10 sm:w-8 sm:h-8 bg-gray-200 dark:bg-gray-600 rounded text-center hover:bg-gray-300 dark:hover:bg-gray-500 text-primary dark:text-gray-100 touch-manipulation"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      className="w-10 h-10 sm:w-8 sm:h-8 bg-gray-200 dark:bg-gray-600 rounded text-center hover:bg-gray-300 dark:hover:bg-gray-500 text-primary dark:text-gray-100 touch-manipulation"
-                    >
-                      -
-                    </button>
-                    <span className="w-8 text-center font-medium">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="w-10 h-10 sm:w-8 sm:h-8 bg-gray-200 dark:bg-gray-600 rounded text-center hover:bg-gray-300 dark:hover:bg-gray-500 text-primary dark:text-gray-100 touch-manipulation"
-                    >
-                      +
-                    </button>
-                  </div>
+                  {/* Show combo contents including WiFi tokens */}
+                  {(item as any).isCombo && (item as any).comboItems && (
+                    <div className="mt-1 ml-2 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="font-medium text-gray-600 dark:text-gray-300">Includes:</div>
+                      {(item as any).comboItems.map((ci: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-1 ml-2">
+                          {ci.tokenConfigId || ci.wifiToken ? (
+                            <>
+                              <span className="text-blue-500">📶</span>
+                              <span>{ci.wifiToken?.name || ci.product?.name || 'WiFi Access'}</span>
+                              <span className="text-blue-400">(WiFi)</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>•</span>
+                              <span>{ci.product?.name || ci.name || 'Item'}</span>
+                              {ci.quantity > 1 && <span className="text-gray-400">x{ci.quantity}</span>}
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -18,6 +18,9 @@ export interface CartItem {
   notes?: string
   isReturn?: boolean
   returnReason?: string
+  // Combo support
+  isCombo?: boolean
+  comboItems?: any[]
 }
 
 interface CartContextType {

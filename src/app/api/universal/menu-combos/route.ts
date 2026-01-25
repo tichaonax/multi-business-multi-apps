@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
                 product_variants: true
               }
             },
-            product_variants: true
+            product_variants: true,
+            r710_token_configs: true
           },
           orderBy: {
             sortOrder: 'asc'
@@ -60,15 +61,25 @@ export async function GET(request: NextRequest) {
         id: item.id,
         productId: item.productId,
         variantId: item.variantId,
+        tokenConfigId: item.tokenConfigId,
         quantity: item.quantity,
         isRequired: item.isRequired,
         sortOrder: item.sortOrder,
-        product: item.businessProducts ? {
-          ...item.businessProducts,
-          images: item.businessProducts.product_images ?? [],
-          variants: item.businessProducts.product_variants ?? []
+        product: item.business_products ? {
+          ...item.business_products,
+          images: item.business_products.product_images ?? [],
+          variants: item.business_products.product_variants ?? []
         } : null,
-        variant: item.product_variants ?? null
+        variant: item.product_variants ?? null,
+        wifiToken: item.r710_token_configs ? {
+          id: item.r710_token_configs.id,
+          name: item.r710_token_configs.name,
+          description: item.r710_token_configs.description,
+          durationValue: item.r710_token_configs.durationValue,
+          durationUnit: item.r710_token_configs.durationUnit,
+          deviceLimit: item.r710_token_configs.deviceLimit,
+          basePrice: item.r710_token_configs.basePrice
+        } : null
       }))
     }))
 
@@ -118,20 +129,54 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Validate that all products exist
-    const productIds = comboItems.map((item: any) => item.productId)
-    const existingProducts = await prisma.businessProducts.findMany({
-      where: {
-        id: { in: productIds },
-        businessId
-      }
-    })
+    // Separate product items from WiFi token items
+    const productItems = comboItems.filter((item: any) => item.productId)
+    const tokenItems = comboItems.filter((item: any) => item.tokenConfigId)
 
-    if (existingProducts.length !== productIds.length) {
+    // Validate each item has either productId or tokenConfigId
+    const invalidItems = comboItems.filter((item: any) => !item.productId && !item.tokenConfigId)
+    if (invalidItems.length > 0) {
       return NextResponse.json({
         success: false,
-        error: 'Some products in the combo do not exist'
+        error: 'Each combo item must have either a productId or tokenConfigId'
       }, { status: 400 })
+    }
+
+    // Validate that all products exist
+    if (productItems.length > 0) {
+      const productIds = productItems.map((item: any) => item.productId)
+      const existingProducts = await prisma.businessProducts.findMany({
+        where: {
+          id: { in: productIds },
+          businessId
+        }
+      })
+
+      if (existingProducts.length !== productIds.length) {
+        return NextResponse.json({
+          success: false,
+          error: 'Some products in the combo do not exist'
+        }, { status: 400 })
+      }
+    }
+
+    // Validate that all WiFi token configs exist
+    if (tokenItems.length > 0) {
+      const tokenConfigIds = tokenItems.map((item: any) => item.tokenConfigId)
+      const existingTokenConfigs = await prisma.r710TokenConfigs.findMany({
+        where: {
+          id: { in: tokenConfigIds },
+          businessId,
+          isActive: true
+        }
+      })
+
+      if (existingTokenConfigs.length !== tokenConfigIds.length) {
+        return NextResponse.json({
+          success: false,
+          error: 'Some WiFi token configs in the combo do not exist or are not active'
+        }, { status: 400 })
+      }
     }
 
     // Create the combo with items in a transaction
@@ -150,11 +195,12 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      // Create combo items
+      // Create combo items (supports both products and WiFi tokens)
       const comboItemsData = comboItems.map((item: any, index: number) => ({
         comboId: newCombo.id,
-        productId: item.productId,
+        productId: item.productId || null,
         variantId: item.variantId || null,
+        tokenConfigId: item.tokenConfigId || null,
         quantity: item.quantity || 1,
         isRequired: item.isRequired ?? true,
         sortOrder: item.sortOrder ?? index
@@ -173,11 +219,12 @@ export async function POST(request: NextRequest) {
               business_products: {
                 include: {
                   business_categories: true,
-                  ProductImages: true,
+                  product_images: true,
                   product_variants: true
                 }
               },
-              productVariants: true
+              product_variants: true,
+              r710_token_configs: true
             },
             orderBy: {
               sortOrder: 'asc'
@@ -190,14 +237,29 @@ export async function POST(request: NextRequest) {
     // Map the created combo to the same transformed shape as GET
     const resp = combo ? {
       ...combo,
-      menuComboItems: (combo.menuComboItems ?? []).map((item: any) => ({
-        ...item,
-        product: item.businessProducts ? {
-          ...item.businessProducts,
-          images: item.businessProducts.product_images ?? [],
-          variants: item.businessProducts.product_variants ?? []
+      comboItems: (combo.menu_combo_items ?? []).map((item: any) => ({
+        id: item.id,
+        productId: item.productId,
+        variantId: item.variantId,
+        tokenConfigId: item.tokenConfigId,
+        quantity: item.quantity,
+        isRequired: item.isRequired,
+        sortOrder: item.sortOrder,
+        product: item.business_products ? {
+          ...item.business_products,
+          images: item.business_products.product_images ?? [],
+          variants: item.business_products.product_variants ?? []
         } : null,
-        variant: item.product_variants ?? null
+        variant: item.product_variants ?? null,
+        wifiToken: item.r710_token_configs ? {
+          id: item.r710_token_configs.id,
+          name: item.r710_token_configs.name,
+          description: item.r710_token_configs.description,
+          durationValue: item.r710_token_configs.durationValue,
+          durationUnit: item.r710_token_configs.durationUnit,
+          deviceLimit: item.r710_token_configs.deviceLimit,
+          basePrice: item.r710_token_configs.basePrice
+        } : null
       }))
     } : null
 

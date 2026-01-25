@@ -4,8 +4,15 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog, auditCreate } from '@/lib/audit'
 import { hasPermission } from '@/lib/rbac'
+import { R710SessionManager } from '@/lib/r710-session-manager'
+import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
+import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
+import { decrypt } from '@/lib/encryption'
 
 import { randomBytes } from 'crypto';
+
+// R710 session manager for on-the-fly token generation
+const r710SessionManager = new R710SessionManager()
 // Simple in-memory idempotency store: maps idempotencyKey -> response payload
 // Note: this is ephemeral (process memory). It prevents duplicate orders for
 // repeated client retries while the server process is running. For durable
@@ -824,6 +831,190 @@ export async function POST(req: NextRequest) {
             success: false,
             rollback: true,
             r710TokenError: errorMessage
+          }, { status: 400 });
+        }
+      } else if ((item as any).isCombo === true) {
+        // Handle combo items - check if combo contains WiFi tokens
+        try {
+          const comboItems = (item as any).comboItems || [];
+
+          // Find any WiFi tokens in the combo items
+          const wifiTokenItems = comboItems.filter((ci: any) => ci.tokenConfigId);
+
+          if (wifiTokenItems.length > 0) {
+            // Verify R710 integration exists and is active
+            const r710IntegrationForCombo = await prisma.r710BusinessIntegrations.findFirst({
+              where: {
+                businessId: businessId,
+                isActive: true
+              },
+              include: {
+                device_registry: true
+              }
+            });
+
+            if (!r710IntegrationForCombo) {
+              throw new Error('R710 integration not configured or not active for WiFi tokens in combo');
+            }
+
+            if (!r710IntegrationForCombo.device_registry) {
+              throw new Error('R710 device not found in registry');
+            }
+
+            // Get or create R710 expense account
+            const r710ExpenseAccount = await getOrCreateR710ExpenseAccount(businessId, session.user.id);
+
+            // Decrypt device password for on-the-fly token generation
+            const decryptedPassword = decrypt(r710IntegrationForCombo.device_registry.encryptedAdminPassword);
+
+            // Duration unit mapping for R710 API
+            const durationUnitMap: { [key: string]: 'hour' | 'day' | 'week' } = {
+              'hour_Hours': 'hour',
+              'day_Days': 'day',
+              'week_Weeks': 'week'
+            };
+
+            // Process each WiFi token in the combo - generate on-the-fly
+            for (const wifiItem of wifiTokenItems) {
+              const tokenQuantity = (wifiItem.quantity || 1) * itemQuantity; // Multiply by combo quantity
+
+              // Get token config details
+              const tokenConfig = await prisma.r710TokenConfigs.findUnique({
+                where: { id: wifiItem.tokenConfigId },
+                include: {
+                  r710_wlans: {
+                    select: {
+                      id: true,
+                      ssid: true,
+                      wlanId: true
+                    }
+                  }
+                }
+              });
+
+              if (!tokenConfig) {
+                throw new Error(`Token configuration not found: ${wifiItem.tokenConfigId}`);
+              }
+
+              const apiDurationUnit = durationUnitMap[tokenConfig.durationUnit] || 'hour';
+
+              // Generate tokens on-the-fly for the combo
+              for (let i = 0; i < tokenQuantity; i++) {
+                const customUsername = generateDirectSaleUsername();
+
+                console.log(`[Combo WiFi Token] Generating token on-the-fly: ${customUsername}`);
+                console.log(`[Combo WiFi Token] WLAN SSID: ${tokenConfig.r710_wlans?.ssid}`);
+
+                // Generate token on R710 device
+                const tokenResult = await r710SessionManager.withSession(
+                  {
+                    ipAddress: r710IntegrationForCombo.device_registry!.ipAddress,
+                    adminUsername: r710IntegrationForCombo.device_registry!.adminUsername,
+                    adminPassword: decryptedPassword
+                  },
+                  async (r710Service) => {
+                    return await r710Service.generateSingleGuestPass({
+                      wlanName: tokenConfig.r710_wlans?.ssid || '',
+                      username: customUsername,
+                      duration: tokenConfig.durationValue,
+                      durationUnit: apiDurationUnit,
+                      deviceLimit: tokenConfig.deviceLimit || 2
+                    });
+                  }
+                );
+
+                if (!tokenResult.success || !tokenResult.token) {
+                  throw new Error(`Failed to generate WiFi token on R710 device: ${tokenResult.error || 'Unknown error'}`);
+                }
+
+                console.log(`[Combo WiFi Token] Token generated successfully: ${tokenResult.token.username}`);
+
+                // Save token to database as SOLD
+                const newToken = await prisma.r710Tokens.create({
+                  data: {
+                    businessId,
+                    wlanId: tokenConfig.r710_wlans!.id,
+                    tokenConfigId: tokenConfig.id,
+                    username: tokenResult.token.username,
+                    password: tokenResult.token.password,
+                    status: 'SOLD',
+                    expiresAtR710: tokenResult.token.expiresAt,
+                    createdAt: new Date()
+                  }
+                });
+
+                // Create sale record
+                await prisma.r710TokenSales.create({
+                  data: {
+                    businessId: businessId,
+                    tokenId: newToken.id,
+                    expenseAccountId: r710ExpenseAccount.id,
+                    saleAmount: 0, // Complimentary in combo
+                    paymentMethod: paymentMethod,
+                    saleChannel: 'POS',
+                    soldBy: session.user.id,
+                    soldAt: new Date()
+                  }
+                });
+
+                // Add to generatedR710Tokens for receipt
+                generatedR710Tokens.push({
+                  itemName: `${item.name} - WiFi Access`,
+                  password: tokenResult.token.password,
+                  packageName: tokenConfig.name || 'WiFi Access',
+                  durationValue: tokenConfig.durationValue || 0,
+                  durationUnit: tokenConfig.durationUnit || 'hour_Hours',
+                  expiresAt: tokenResult.token.expiresAt,
+                  ssid: tokenConfig.r710_wlans?.ssid,
+                  success: true,
+                  fromCombo: true
+                });
+              }
+            }
+          }
+
+          // Create order item for the combo
+          await prisma.businessOrderItems.create({
+            data: {
+              orderId: newOrder.id,
+              productVariantId: null, // Combos don't have variants
+              quantity: itemQuantity,
+              unitPrice: itemPrice,
+              discountAmount: 0,
+              totalPrice: itemTotal,
+              attributes: {
+                productName: item.name,
+                category: 'combos',
+                isCombo: true,
+                comboId: (item as any).comboId,
+                comboItems: comboItems.map((ci: any) => ({
+                  name: ci.name || ci.business_products?.name || ci.r710_token_configs?.name,
+                  quantity: ci.quantity,
+                  isWifiToken: !!ci.tokenConfigId
+                }))
+              }
+            }
+          });
+
+          // Skip regular product handling for combos
+          continue;
+        } catch (comboError) {
+          console.error('❌ Combo processing error - rolling back order:', comboError);
+
+          // Rollback the order
+          await prisma.businessOrderItems.deleteMany({
+            where: { orderId: newOrder.id }
+          });
+          await prisma.businessOrders.delete({
+            where: { id: newOrder.id }
+          });
+
+          const errorMessage = comboError instanceof Error ? comboError.message : 'Unknown error';
+          return NextResponse.json({
+            error: `Combo Error: ${errorMessage}\n\nTransaction cancelled. Please try again or contact support.`,
+            success: false,
+            rollback: true,
+            comboError: errorMessage
           }, { status: 400 });
         }
       }

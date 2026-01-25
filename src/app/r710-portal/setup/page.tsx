@@ -218,6 +218,50 @@ function R710SetupContent() {
           description: `R710 WiFi integration created successfully!\n\nSSID: ${data.wlan?.ssid || 'Guest WiFi'}\n\nYou can now configure WiFi token packages in the R710 Portal.`
         })
         await loadData()
+      } else if (data.type === 'DUPLICATE_SSID_UNASSOCIATED' && data.canAssociate) {
+        // Offer to associate with existing WLAN
+        const shouldAssociate = await confirm({
+          title: 'WLAN Already Exists',
+          description: `${data.details}\n\nWould you like to associate your business with this existing WLAN?\n\nSSID: ${data.existingWlan?.ssid}`,
+          confirmText: 'Use Existing WLAN',
+          cancelText: 'Cancel'
+        })
+
+        if (shouldAssociate && data.existingWlan?.id) {
+          // Retry with association flag
+          try {
+            const associateResponse = await fetch('/api/r710/integration', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                businessId: currentBusinessId,
+                deviceRegistryId: selectedDeviceId,
+                logoType: logoType,
+                title: title,
+                validDays: validDays,
+                enableFriendlyKey: enableFriendlyKey,
+                enableZeroIt: enableZeroIt,
+                associateExistingWlanId: data.existingWlan.id
+              })
+            })
+
+            const associateData = await associateResponse.json()
+
+            if (associateResponse.ok) {
+              await alert({
+                title: 'Integration Created!',
+                description: `R710 WiFi integration created successfully!\n\nSSID: ${associateData.wlan?.ssid || data.existingWlan?.ssid}\n\nYour business is now associated with the existing WLAN.`
+              })
+              await loadData()
+            } else {
+              setErrorMessage(associateData.error || 'Failed to associate with existing WLAN')
+            }
+          } catch (associateError) {
+            console.error('Error associating with existing WLAN:', associateError)
+            setErrorMessage('Failed to associate with existing WLAN. Please try again.')
+          }
+        }
       } else {
         setErrorMessage(data.error || 'Failed to create integration')
       }

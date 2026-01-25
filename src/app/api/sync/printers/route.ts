@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const printers = await getShareablePrinters();
 
     // Get current node ID from environment or session
-    const nodeId = process.env.NODE_ID || 'default-node';
+    const nodeId = process.env.NODE_ID || 'local-node';
 
     return NextResponse.json({
       nodeId,

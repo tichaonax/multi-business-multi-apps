@@ -30,15 +30,27 @@ interface MenuItem {
   }>
 }
 
+interface WifiToken {
+  id: string
+  name: string
+  description?: string
+  durationValue: number
+  durationUnit: string
+  deviceLimit: number
+  basePrice: number
+}
+
 interface ComboItem {
   id?: string
-  productId: string
+  productId?: string
   variantId?: string
+  tokenConfigId?: string
   quantity: number
   isRequired: boolean
   sortOrder: number
   product?: MenuItem
   variant?: NonNullable<MenuItem['variants']>[number]
+  wifiToken?: WifiToken
 }
 
 interface Combo {
@@ -84,9 +96,12 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
   const [comboItems, setComboItems] = useState<ComboItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [wifiTokens, setWifiTokens] = useState<WifiToken[]>([])
+  const [itemTab, setItemTab] = useState<'menu' | 'wifi'>('menu')
 
   useEffect(() => {
     loadCombos()
+    loadWifiTokens()
   }, [businessId])
 
   const loadCombos = async () => {
@@ -104,6 +119,21 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
       setError('Network error while loading combos')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadWifiTokens = async () => {
+    try {
+      const response = await fetch(`/api/r710/token-configs?businessId=${businessId}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.configs) {
+          setWifiTokens(data.configs.filter((c: any) => c.isActive))
+        }
+      }
+    } catch (err) {
+      // WiFi tokens are optional, don't show error
+      console.log('WiFi tokens not available for this business')
     }
   }
 
@@ -141,7 +171,6 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
   const addItemToCombo = (menuItem: MenuItem, variantId?: string) => {
     const variant = variantId ? menuItem.variants?.find(v => v.id === variantId) : undefined
-    const price = variant?.price || menuItem.basePrice
 
     const newItem: ComboItem = {
       productId: menuItem.id,
@@ -151,6 +180,21 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
       sortOrder: comboItems.length,
       product: menuItem,
       variant
+    }
+
+    setComboItems(prev => [...prev, newItem])
+
+    // Auto-calculate total price
+    calculateTotalPrice([...comboItems, newItem])
+  }
+
+  const addWifiTokenToCombo = (token: WifiToken) => {
+    const newItem: ComboItem = {
+      tokenConfigId: token.id,
+      quantity: 1,
+      isRequired: true,
+      sortOrder: comboItems.length,
+      wifiToken: token
     }
 
     setComboItems(prev => [...prev, newItem])
@@ -178,8 +222,9 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
   const calculateTotalPrice = (items: ComboItem[]) => {
     const total = items.reduce((sum, item) => {
-      const price = item.variant?.price || item.product?.basePrice || 0
-      return sum + (price * item.quantity)
+      // Handle both menu items and WiFi tokens
+      const price = item.wifiToken?.basePrice || item.variant?.price || item.product?.basePrice || 0
+      return sum + (Number(price) * item.quantity)
     }, 0)
 
     setFormData(prev => ({
@@ -206,7 +251,11 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
         originalTotalPrice: formData.originalTotalPrice ? parseFloat(formData.originalTotalPrice) : undefined,
         discountPercent: formData.discountPercent ? parseFloat(formData.discountPercent) : undefined,
         comboItems: comboItems.map((item, index) => ({
-          ...item,
+          productId: item.productId || null,
+          variantId: item.variantId || null,
+          tokenConfigId: item.tokenConfigId || null,
+          quantity: item.quantity,
+          isRequired: item.isRequired,
           sortOrder: index
         }))
       }
@@ -292,9 +341,10 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
     }).filter(Boolean) as Array<{ id: string; name: string }>
   }
 
-  const filteredMenuItems = selectedCategory === 'all'
-    ? menuItems
-    : menuItems.filter(item => item.categoryId === selectedCategory)
+  // Filter menu items: exclude zero-price items and apply category filter
+  const filteredMenuItems = menuItems
+    .filter(item => item.basePrice > 0) // Exclude zero-price items from combo builder
+    .filter(item => selectedCategory === 'all' || item.categoryId === selectedCategory)
 
   if (loading) {
     return (
@@ -347,7 +397,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
           {combos.map(combo => (
             <div key={combo.id} className="card overflow-hidden">
               {/* Combo Image */}
-              <div className="relative h-32 bg-gray-100">
+              <div className="relative h-32 bg-gray-100 dark:bg-gray-700">
                 {combo.imageUrl ? (
                   <Image
                     src={combo.imageUrl}
@@ -359,7 +409,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
                       <div className="text-3xl mb-1">🍽️</div>
-                      <p className="text-xs text-gray-500">Combo Deal</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Combo Deal</p>
                     </div>
                   </div>
                 )}
@@ -367,7 +417,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                 <div className="absolute top-2 left-2">
                   <Badge
                     variant={combo.isAvailable ? "success" : "outline"}
-                    className={combo.isAvailable ? "bg-green-100 text-green-800" : ""}
+                    className={combo.isAvailable ? "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300" : ""}
                   >
                     {combo.isAvailable ? '✅ Available' : '❌ Unavailable'}
                   </Badge>
@@ -384,21 +434,21 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
               {/* Combo Details */}
               <div className="p-4">
-                <h4 className="font-semibold text-lg text-gray-900 mb-1">{combo.name}</h4>
+                <h4 className="font-semibold text-lg text-gray-900 dark:text-white mb-1">{combo.name}</h4>
 
                 {combo.description && (
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">{combo.description}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">{combo.description}</p>
                 )}
 
                 {/* Price */}
                 <div className="mb-3">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-lg text-primary">
-                      ${combo.totalPrice.toFixed(2)}
+                      ${Number(combo.totalPrice).toFixed(2)}
                     </span>
-                    {combo.originalTotalPrice && combo.originalTotalPrice > combo.totalPrice && (
-                      <span className="text-gray-500 line-through text-sm">
-                        ${combo.originalTotalPrice.toFixed(2)}
+                    {combo.originalTotalPrice && Number(combo.originalTotalPrice) > Number(combo.totalPrice) && (
+                      <span className="text-gray-500 dark:text-gray-400 line-through text-sm">
+                        ${Number(combo.originalTotalPrice).toFixed(2)}
                       </span>
                     )}
                   </div>
@@ -406,13 +456,19 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
                 {/* Combo Items */}
                 <div className="mb-4">
-                  <p className="text-xs text-gray-500 mb-1">Includes:</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Includes:</p>
                   <div className="space-y-1">
                     {combo.comboItems.slice(0, 3).map((item, index) => (
                       <div key={index} className="flex items-center justify-between text-xs">
-                        <span className="text-gray-700">
-                          {item.quantity}x {item.product?.name}
-                          {item.variant?.name && ` (${item.variant.name})`}
+                        <span className="text-gray-700 dark:text-gray-300">
+                          {item.wifiToken ? (
+                            <>📶 {item.quantity}x {item.wifiToken.name}</>
+                          ) : (
+                            <>
+                              {item.quantity}x {item.product?.name}
+                              {item.variant?.name && ` (${item.variant.name})`}
+                            </>
+                          )}
                         </span>
                         {item.isRequired && (
                           <Badge variant="outline" className="text-xs">Required</Badge>
@@ -420,7 +476,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                       </div>
                     ))}
                     {combo.comboItems.length > 3 && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         +{combo.comboItems.length - 3} more items
                       </div>
                     )}
@@ -587,21 +643,35 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                     <h4 className="text-md font-medium mb-3">Combo Items ({comboItems.length})</h4>
 
                     {comboItems.length === 0 ? (
-                      <div className="text-center py-6 bg-gray-50 rounded-lg">
-                        <p className="text-gray-500">No items added yet</p>
+                      <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <p className="text-gray-500 dark:text-gray-400">No items added yet</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
                         {comboItems.map((item, index) => (
-                          <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                             <div className="flex-1">
-                              <p className="font-medium text-sm">{item.product?.name}</p>
-                              {item.variant && (
-                                <p className="text-xs text-gray-600">{item.variant.name}</p>
+                              {item.wifiToken ? (
+                                <>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white">📶 {item.wifiToken.name}</p>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    {item.wifiToken.durationValue} {item.wifiToken.durationUnit.replace('DURATION_', '').toLowerCase()}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    ${(Number(item.wifiToken.basePrice) * item.quantity).toFixed(2)}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white">{item.product?.name}</p>
+                                  {item.variant && (
+                                    <p className="text-xs text-gray-600 dark:text-gray-400">{item.variant.name}</p>
+                                  )}
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    ${((item.variant?.price || item.product?.basePrice || 0) * item.quantity).toFixed(2)}
+                                  </p>
+                                </>
                               )}
-                              <p className="text-xs text-gray-500">
-                                ${((item.variant?.price || item.product?.basePrice || 0) * item.quantity).toFixed(2)}
-                              </p>
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -628,7 +698,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                                 variant="outline"
                                 size="sm"
                                 onClick={() => removeItemFromCombo(index)}
-                                className="text-red-600 hover:bg-red-50"
+                                className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                               >
                                 🗑️
                               </Button>
@@ -640,112 +710,190 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
                     {/* Total Calculation */}
                     {comboItems.length > 0 && (
-                      <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                        <div className="flex justify-between text-sm">
+                      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                           <span>Individual Total:</span>
-                          <span>${comboItems.reduce((sum, item) => sum + ((item.variant?.price || item.product?.basePrice || 0) * item.quantity), 0).toFixed(2)}</span>
+                          <span>${comboItems.reduce((sum, item) => sum + (Number(item.wifiToken?.basePrice || item.variant?.price || item.product?.basePrice || 0) * item.quantity), 0).toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between text-sm font-medium">
+                        <div className="flex justify-between text-sm font-medium text-gray-900 dark:text-white">
                           <span>Combo Price:</span>
                           <span className="text-primary">${formData.totalPrice.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between text-sm text-green-600">
+                        <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                           <span>You Save:</span>
-                          <span>${Math.max(0, comboItems.reduce((sum, item) => sum + ((item.variant?.price || item.product?.basePrice || 0) * item.quantity), 0) - formData.totalPrice).toFixed(2)}</span>
+                          <span>${Math.max(0, comboItems.reduce((sum, item) => sum + (Number(item.wifiToken?.basePrice || item.variant?.price || item.product?.basePrice || 0) * item.quantity), 0) - formData.totalPrice).toFixed(2)}</span>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Right Column - Menu Items */}
+                {/* Right Column - Menu Items & WiFi Tokens */}
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-medium mb-4">Add Menu Items</h3>
+                    <h3 className="text-lg font-medium mb-4">Add Items to Combo</h3>
 
-                    {/* Category Filter */}
-                    <div className="mb-4">
-                      <select
-                        value={selectedCategory}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="input-field"
+                    {/* Tabs for Menu Items vs WiFi Tokens */}
+                    <div className="flex border-b border-gray-200 dark:border-gray-600 mb-4">
+                      <button
+                        type="button"
+                        onClick={() => setItemTab('menu')}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 ${
+                          itemTab === 'menu'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                        }`}
                       >
-                        <option value="all">All Categories</option>
-                        {getUniqueCategories().map(category => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
+                        🍽️ Menu Items
+                      </button>
+                      {wifiTokens.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setItemTab('wifi')}
+                          className={`px-4 py-2 text-sm font-medium border-b-2 ${
+                            itemTab === 'wifi'
+                              ? 'border-primary text-primary'
+                              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          📶 WiFi Tokens ({wifiTokens.length})
+                        </button>
+                      )}
                     </div>
 
-                    {/* Menu Items Grid */}
-                    <div className="max-h-96 overflow-y-auto">
-                      <div className="grid grid-cols-1 gap-3">
-                        {filteredMenuItems.map(item => {
-                          const primaryImage = item.images?.find(img => img.isPrimary) || item.images?.[0]
+                    {itemTab === 'menu' && (
+                      <>
+                        {/* Category Filter */}
+                        <div className="mb-4">
+                          <select
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="input-field"
+                          >
+                            <option value="all">All Categories</option>
+                            {getUniqueCategories().map(category => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
-                          return (
-                            <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                                  {primaryImage ? (
-                                    <Image
-                                      src={primaryImage.imageUrl}
-                                      alt={item.name}
-                                      width={48}
-                                      height={48}
-                                      className="object-cover w-full h-full"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                      🍽️
+                        {/* Menu Items Grid */}
+                        <div className="max-h-96 overflow-y-auto">
+                          <div className="grid grid-cols-1 gap-3">
+                            {filteredMenuItems.map(item => {
+                              const primaryImage = item.images?.find(img => img.isPrimary) || item.images?.[0]
+
+                              return (
+                                <div key={item.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-gray-100 dark:bg-gray-600 rounded-lg overflow-hidden flex-shrink-0">
+                                      {primaryImage ? (
+                                        <Image
+                                          src={primaryImage.imageUrl}
+                                          alt={item.name}
+                                          width={48}
+                                          height={48}
+                                          className="object-cover w-full h-full"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                          🍽️
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
+
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm text-gray-900 dark:text-white">{item.name}</p>
+                                      <p className="text-xs text-gray-600 dark:text-gray-400">{item.category?.name}</p>
+                                      <p className="text-sm font-medium text-primary">${item.basePrice.toFixed(2)}</p>
+                                    </div>
+
+                                    <div className="flex flex-col gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => addItemToCombo(item)}
+                                        className="text-xs"
+                                      >
+                                        + Add
+                                      </Button>
+
+                                      {item.variants && item.variants.length > 0 && (
+                                        <select
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              addItemToCombo(item, e.target.value)
+                                              e.target.value = ''
+                                            }
+                                          }}
+                                          className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-700 dark:text-white"
+                                        >
+                                          <option value="">+ Variant</option>
+                                          {item.variants.map(variant => (
+                                            <option key={variant.id} value={variant.id}>
+                                              {variant.name} (${variant.price})
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {itemTab === 'wifi' && (
+                      <div className="max-h-96 overflow-y-auto">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                          Add complimentary WiFi access to your combo
+                        </p>
+                        <div className="grid grid-cols-1 gap-3">
+                          {wifiTokens.map(token => (
+                            <div key={token.id} className="border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <span className="text-2xl">📶</span>
                                 </div>
 
                                 <div className="flex-1">
-                                  <p className="font-medium text-sm">{item.name}</p>
-                                  <p className="text-xs text-gray-600">{item.category?.name}</p>
-                                  <p className="text-sm font-medium text-primary">${item.basePrice.toFixed(2)}</p>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white">{token.name}</p>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    {token.durationValue} {token.durationUnit.replace('DURATION_', '').toLowerCase()}
+                                    {token.deviceLimit > 1 ? ` • ${token.deviceLimit} devices` : ''}
+                                  </p>
+                                  <p className="text-sm font-medium text-primary">${Number(token.basePrice).toFixed(2)}</p>
                                 </div>
 
-                                <div className="flex flex-col gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => addItemToCombo(item)}
-                                    className="text-xs"
-                                  >
-                                    + Add
-                                  </Button>
-
-                                  {item.variants && item.variants.length > 0 && (
-                                    <select
-                                      onChange={(e) => {
-                                        if (e.target.value) {
-                                          addItemToCombo(item, e.target.value)
-                                          e.target.value = ''
-                                        }
-                                      }}
-                                      className="text-xs px-2 py-1 border border-gray-300 rounded"
-                                    >
-                                      <option value="">+ Variant</option>
-                                      {item.variants.map(variant => (
-                                        <option key={variant.id} value={variant.id}>
-                                          {variant.name} (${variant.price})
-                                        </option>
-                                      ))}
-                                    </select>
-                                  )}
-                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => addWifiTokenToCombo(token)}
+                                  className="text-xs bg-white dark:bg-gray-700"
+                                >
+                                  + Add WiFi
+                                </Button>
                               </div>
                             </div>
-                          )
-                        })}
+                          ))}
+                          {wifiTokens.length === 0 && (
+                            <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                              <p className="text-gray-500 dark:text-gray-400">No WiFi tokens available</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                Configure WiFi tokens in R710 Portal first
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>

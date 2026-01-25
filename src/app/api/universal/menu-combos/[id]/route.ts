@@ -46,12 +46,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           where: { comboId }
         })
 
-        // Create new combo items
+        // Create new combo items (supports both products and WiFi tokens)
         if (comboItems.length > 0) {
           const comboItemsData = comboItems.map((item: any, index: number) => ({
             comboId,
-            productId: item.productId,
+            productId: item.productId || null,
             variantId: item.variantId || null,
+            tokenConfigId: item.tokenConfigId || null,
             quantity: item.quantity || 1,
             isRequired: item.isRequired ?? true,
             sortOrder: item.sortOrder ?? index
@@ -76,7 +77,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
                   product_variants: true
                 }
               },
-              product_variants: true
+              product_variants: true,
+              r710_token_configs: true
             },
             orderBy: {
               sortOrder: 'asc'

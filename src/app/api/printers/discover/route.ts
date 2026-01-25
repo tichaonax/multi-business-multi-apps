@@ -52,40 +52,107 @@ export async function GET(request: NextRequest) {
     const source = searchParams.get('source') || 'all'; // 'local', 'network', or 'all'
 
     let discoveredPrinters: DiscoveredPrinter[] = [];
+    const discoveryLog: string[] = [];
 
     // Discover local USB/system printers
     if (source === 'local' || source === 'all') {
-      const localPrinters = await discoverLocalPrinters();
-      discoveredPrinters = [...discoveredPrinters, ...localPrinters];
+      discoveryLog.push('Starting local printer discovery...');
+      try {
+        const localPrinters = await discoverLocalPrinters();
+        discoveryLog.push(`Local discovery found ${localPrinters.length} printer(s)`);
+        discoveredPrinters = [...discoveredPrinters, ...localPrinters];
+      } catch (localError) {
+        discoveryLog.push(`Local discovery error: ${localError instanceof Error ? localError.message : 'Unknown'}`);
+      }
     }
 
     // Discover network printers via mDNS
     if (source === 'network' || source === 'all') {
-      const networkPrinters = await discoverPrinters(timeout, printerType);
-      discoveredPrinters = [...discoveredPrinters, ...networkPrinters];
+      discoveryLog.push('Starting network printer discovery...');
+      try {
+        const networkPrinters = await discoverPrinters(timeout, printerType);
+        discoveryLog.push(`Network discovery found ${networkPrinters.length} printer(s)`);
+        discoveredPrinters = [...discoveredPrinters, ...networkPrinters];
+      } catch (networkError) {
+        discoveryLog.push(`Network discovery error: ${networkError instanceof Error ? networkError.message : 'Unknown'}`);
+      }
     }
 
     // Filter by type if specified
     if (printerType) {
+      const beforeFilter = discoveredPrinters.length;
       discoveredPrinters = discoveredPrinters.filter(p => p.printerType === printerType);
+      discoveryLog.push(`Filtered by type '${printerType}': ${beforeFilter} -> ${discoveredPrinters.length}`);
     }
+
+    discoveryLog.push(`Total printers discovered: ${discoveredPrinters.length}`);
 
     return NextResponse.json({
       printers: discoveredPrinters,
       count: discoveredPrinters.length,
       timeout,
       source,
+      discoveryLog, // Include discovery log for debugging
       message: discoveredPrinters.length === 0
-        ? 'No printers discovered'
+        ? 'No printers discovered. Check server console for details.'
         : `Found ${discoveredPrinters.length} printer(s)`,
     });
   } catch (error) {
     console.error('Error discovering printers:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined
+      },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Check if a printer is a virtual/software printer that should be filtered out
+ */
+function isVirtualPrinter(printerName: string, portName: string): boolean {
+  const lower = printerName.toLowerCase();
+  const portLower = (portName || '').toLowerCase();
+
+  // Common virtual printer patterns
+  const virtualPatterns = [
+    'microsoft print to pdf',
+    'microsoft xps',
+    'xps document',
+    'onenote',
+    'fax',
+    'send to onenote',
+    'snagit',
+    'cutepdf',
+    'pdf24',
+    'bullzip',
+    'dopdf',
+    'foxit reader pdf',
+    'adobe pdf',
+    'primopdf',
+    'nitro pdf',
+    'pdf creator',
+    'print to evernote',
+    'google cloud print',
+    'remote desktop',
+    'redirected',
+  ];
+
+  // Check printer name against virtual patterns
+  if (virtualPatterns.some(pattern => lower.includes(pattern))) {
+    return true;
+  }
+
+  // Check for virtual port patterns
+  const virtualPorts = ['file:', 'nul:', 'portprompt:', 'pdf', 'xps'];
+  if (virtualPorts.some(pattern => portLower.includes(pattern))) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -93,26 +160,50 @@ export async function GET(request: NextRequest) {
  */
 async function discoverLocalPrinters(): Promise<DiscoveredPrinter[]> {
   try {
+    console.log('[PrinterDiscover] Starting local printer discovery...');
     const systemPrinters = await listWindowsPrinters();
+    console.log(`[PrinterDiscover] Found ${systemPrinters.length} system printer(s)`);
 
-    return systemPrinters.map(printer => ({
-      printerId: `local-${printer.name.toLowerCase().replace(/\s+/g, '-')}`,
-      printerName: printer.name,
-      printerType: detectPrinterType(printer.name),
-      ipAddress: printer.portName.match(/(USB|COM|LPT|TMUSB|RongtaUSB)/i)
-        ? '' // Direct ports (USB/COM/LPT/TMUSB/RongtaUSB)
-        : 'localhost', // Network printers on localhost
-      port: printer.portName.match(/(USB|COM|LPT|TMUSB|RongtaUSB)/i)
-        ? 0 // Not applicable for direct ports
-        : 9100, // Default network port
-      portName: printer.portName, // Include actual port name
-      capabilities: detectCapabilities(printer.name),
-      manufacturer: extractManufacturer(printer.name),
-      model: extractModel(printer.name, printer.name),
-      status: printer.status === 'Normal' || printer.status === 'Idle' ? 'available' as const : 'offline' as const,
-    }));
+    // Filter out virtual printers
+    const physicalPrinters = systemPrinters.filter(printer => {
+      const isVirtual = isVirtualPrinter(printer.name, printer.portName);
+      if (isVirtual) {
+        console.log(`[PrinterDiscover] Filtered out virtual printer: ${printer.name}`);
+      }
+      return !isVirtual;
+    });
+
+    console.log(`[PrinterDiscover] ${physicalPrinters.length} physical printer(s) after filtering`);
+
+    return physicalPrinters.map(printer => {
+      // Check for available/online status - accept common "ready" states
+      const availableStatuses = ['Normal', 'Idle', 'Printing', 'Busy', 'Waiting', 'Processing'];
+      const isAvailable = availableStatuses.some(s =>
+        printer.status.toLowerCase().includes(s.toLowerCase())
+      );
+
+      const discovered: DiscoveredPrinter = {
+        printerId: `local-${printer.name.toLowerCase().replace(/\s+/g, '-')}`,
+        printerName: printer.name,
+        printerType: detectPrinterType(printer.name),
+        ipAddress: printer.portName.match(/(USB|COM|LPT|TMUSB|RongtaUSB)/i)
+          ? '' // Direct ports (USB/COM/LPT/TMUSB/RongtaUSB)
+          : 'localhost', // Network printers on localhost
+        port: printer.portName.match(/(USB|COM|LPT|TMUSB|RongtaUSB)/i)
+          ? 0 // Not applicable for direct ports
+          : 9100, // Default network port
+        portName: printer.portName, // Include actual port name
+        capabilities: detectCapabilities(printer.name),
+        manufacturer: extractManufacturer(printer.name),
+        model: extractModel(printer.name, printer.name),
+        status: isAvailable ? 'available' as const : 'offline' as const,
+      };
+
+      console.log(`[PrinterDiscover] Physical printer: ${printer.name} (${printer.status}) -> ${discovered.status}`);
+      return discovered;
+    });
   } catch (error) {
-    console.error('Failed to discover local printers:', error);
+    console.error('[PrinterDiscover] Failed to discover local printers:', error);
     return [];
   }
 }

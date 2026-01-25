@@ -9,6 +9,15 @@
 
 import Image from 'next/image'
 
+interface ComboItem {
+  productId?: string
+  tokenConfigId?: string
+  quantity?: number
+  product?: { name: string }
+  wifiToken?: { name: string }
+  name?: string
+}
+
 interface CartItem {
   id: string
   name: string
@@ -16,6 +25,8 @@ interface CartItem {
   price: number
   variant?: string
   imageUrl?: string
+  isCombo?: boolean
+  comboItems?: ComboItem[]
 }
 
 interface CartDisplayProps {
@@ -203,7 +214,7 @@ function CartItemRow({ item }: { item: CartItem }) {
           </div>
         ) : (
           <div className="w-24 h-24 flex-shrink-0 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-            <div className="text-4xl">📦</div>
+            <div className="text-4xl">{item.isCombo ? '🍽️' : '📦'}</div>
           </div>
         )}
 
@@ -215,14 +226,46 @@ function CartItemRow({ item }: { item: CartItem }) {
           </div>
 
           {/* Variant (if exists) */}
-          {item.variant && (
+          {item.variant && !item.isCombo && (
             <div className="text-2xl text-gray-600 mb-2 break-all overflow-wrap-anywhere">
               {item.variant}
             </div>
           )}
 
+          {/* Combo Contents */}
+          {item.isCombo && item.comboItems && item.comboItems.length > 0 && (
+            <div className="mt-2 bg-gray-50 rounded-xl p-3 border border-gray-200">
+              <div className="text-xl font-semibold text-gray-700 mb-2">Includes:</div>
+              <div className="space-y-1">
+                {item.comboItems.map((ci, idx) => {
+                  const isWiFiToken = ci.tokenConfigId || ci.wifiToken
+                  const itemName = ci.wifiToken?.name || ci.product?.name || ci.name || 'Item'
+                  return (
+                    <div key={idx} className="flex items-center gap-2 text-xl text-gray-600">
+                      {isWiFiToken ? (
+                        <>
+                          <span className="text-2xl">📶</span>
+                          <span className="text-blue-600 font-medium">{itemName}</span>
+                          <span className="text-blue-400 text-lg">(WiFi Access)</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-lg">•</span>
+                          <span>{itemName}</span>
+                          {ci.quantity && ci.quantity > 1 && (
+                            <span className="text-gray-400">x{ci.quantity}</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Price per unit */}
-          <div className="text-2xl text-gray-500">
+          <div className="text-2xl text-gray-500 mt-2">
             {formatCurrency(item.price)} each
           </div>
         </div>

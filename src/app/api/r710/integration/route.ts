@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
       title,
       validDays,
       enableFriendlyKey,
-      enableZeroIt
+      enableZeroIt,
+      associateExistingWlanId  // Optional: If provided, associate with existing WLAN instead of creating new
     } = body;
 
     // Validate required fields
@@ -272,6 +273,128 @@ export async function POST(request: NextRequest) {
 
     // Check if SSID already exists
     const existingWlan = discoveryResult.wlans.find(w => w.ssid === wlanSsid && w.isGuest);
+
+    // Handle association with existing WLAN
+    if (associateExistingWlanId) {
+      console.log(`[R710 Integration] Associating with existing WLAN ID: ${associateExistingWlanId}`);
+
+      // Find the WLAN on the device
+      const wlanToAssociate = discoveryResult.wlans.find(w => w.id === associateExistingWlanId && w.isGuest);
+
+      if (!wlanToAssociate) {
+        return NextResponse.json(
+          {
+            error: 'WLAN not found on device',
+            details: `Could not find guest WLAN with ID "${associateExistingWlanId}" on the R710 device.`
+          },
+          { status: 404 }
+        );
+      }
+
+      // Check if this WLAN is already associated with another business
+      const existingAssociation = await prisma.r710Wlans.findFirst({
+        where: {
+          deviceRegistryId,
+          wlanId: associateExistingWlanId
+        },
+        include: {
+          businesses: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      if (existingAssociation) {
+        return NextResponse.json(
+          {
+            error: 'WLAN already associated',
+            type: 'DUPLICATE_SSID_ASSOCIATED',
+            details: `This WLAN is already associated with business "${existingAssociation.businesses.name}".`
+          },
+          { status: 409 }
+        );
+      }
+
+      // Create database records for association (no WLAN creation on device needed)
+      console.log(`[R710 Integration] Creating database records for existing WLAN "${wlanToAssociate.ssid}"...`);
+
+      let integration;
+      let wlan;
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          // Create integration record
+          const newIntegration = await tx.r710BusinessIntegrations.create({
+            data: {
+              businessId,
+              deviceRegistryId,
+              isActive: true
+            }
+          });
+
+          // Create WLAN record linking to existing device WLAN
+          const newWlan = await tx.r710Wlans.create({
+            data: {
+              businessId,
+              deviceRegistryId,
+              wlanId: associateExistingWlanId,
+              ssid: wlanToAssociate.ssid,
+              guestServiceId: '1',
+              logoType: logoType || 'none',
+              title: title || 'Welcome to Guest WiFi !',
+              validDays: validDays || 1,
+              enableFriendlyKey: enableFriendlyKey || false,
+              enableZeroIt: enableZeroIt !== undefined ? enableZeroIt : true,
+              isActive: true
+            }
+          });
+
+          return { integration: newIntegration, wlan: newWlan };
+        });
+
+        integration = result.integration;
+        wlan = result.wlan;
+
+        console.log(`[R710 Integration] Database records created successfully for association`);
+      } catch (dbError) {
+        console.error('[R710 Integration] Database transaction failed:', dbError);
+        return NextResponse.json(
+          {
+            error: 'Failed to create integration records in database',
+            details: dbError instanceof Error ? dbError.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
+      }
+
+      // Create R710 expense account for this business
+      console.log(`[R710 Integration] Creating expense account for ${business.name}...`);
+      await getOrCreateR710ExpenseAccount(businessId, session.user.id);
+      console.log(`[R710 Integration] Expense account created/verified`);
+
+      console.log(`[R710 Integration] Association complete for ${business.name} with existing WLAN`);
+
+      return NextResponse.json({
+        success: true,
+        message: 'R710 integration created successfully (associated with existing WLAN)',
+        integration: {
+          id: integration.id,
+          businessId: integration.businessId,
+          deviceRegistryId: integration.deviceRegistryId,
+          isActive: integration.isActive,
+          createdAt: integration.createdAt
+        },
+        wlan: {
+          id: wlan.id,
+          wlanId: wlan.wlanId,
+          ssid: wlan.ssid,
+          isActive: wlan.isActive
+        }
+      }, { status: 201 });
+    }
 
     if (existingWlan) {
       console.log(`[R710 Integration] WLAN with SSID "${wlanSsid}" already exists on device (ID: ${existingWlan.id})`);

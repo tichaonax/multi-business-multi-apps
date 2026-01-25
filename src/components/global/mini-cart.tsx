@@ -120,7 +120,7 @@ export function MiniCart() {
                         />
                       ) : (
                         <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center text-2xl">
-                          📦
+                          {(item as any).isCombo ? '🍽️' : '📦'}
                         </div>
                       )}
 
@@ -129,9 +129,11 @@ export function MiniCart() {
                         <h4 className="font-medium text-gray-900 dark:text-white text-sm truncate">
                           {item.name}
                         </h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {item.sku}
-                        </p>
+                        {item.sku && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {item.sku}
+                          </p>
+                        )}
                         {item.attributes && Object.keys(item.attributes).length > 0 && (
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {Object.entries(item.attributes)
@@ -139,6 +141,32 @@ export function MiniCart() {
                               .map(([_, value]) => value)
                               .join(' • ')}
                           </p>
+                        )}
+                        {/* Combo Contents */}
+                        {(item as any).isCombo && (item as any).comboItems && (
+                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-600/50 rounded p-1.5">
+                            <div className="font-medium text-gray-600 dark:text-gray-300 mb-0.5">Includes:</div>
+                            {(item as any).comboItems.map((ci: any, idx: number) => {
+                              const isWiFiToken = ci.tokenConfigId || ci.wifiToken
+                              const itemName = ci.wifiToken?.name || ci.product?.name || ci.name || 'Item'
+                              return (
+                                <div key={idx} className="flex items-center gap-1 ml-1">
+                                  {isWiFiToken ? (
+                                    <>
+                                      <span>📶</span>
+                                      <span className="text-blue-600 dark:text-blue-400">{itemName}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>•</span>
+                                      <span>{itemName}</span>
+                                      {ci.quantity > 1 && <span className="text-gray-400">x{ci.quantity}</span>}
+                                    </>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
                         )}
                         <div className="flex items-center gap-2 mt-2">
                           <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600">

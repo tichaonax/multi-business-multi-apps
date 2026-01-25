@@ -234,6 +234,47 @@ export async function checkPrinterAvailable(printerName: string): Promise<boolea
 }
 
 /**
+ * Map Windows printer status codes to readable strings
+ * See: https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-printer
+ */
+function mapPrinterStatus(status: number | string | undefined): string {
+  // If already a string, return it
+  if (typeof status === 'string') return status;
+
+  // Map numeric status codes
+  const statusMap: Record<number, string> = {
+    0: 'Normal',
+    1: 'Paused',
+    2: 'Error',
+    3: 'Pending Deletion',
+    4: 'Paper Jam',
+    5: 'Paper Out',
+    6: 'Manual Feed',
+    7: 'Paper Problem',
+    8: 'Offline',
+    9: 'IO Active',
+    10: 'Busy',
+    11: 'Printing',
+    12: 'Output Bin Full',
+    13: 'Not Available',
+    14: 'Waiting',
+    15: 'Processing',
+    16: 'Initializing',
+    17: 'Warming Up',
+    18: 'Toner Low',
+    19: 'No Toner',
+    20: 'Page Punt',
+    21: 'User Intervention',
+    22: 'Out of Memory',
+    23: 'Door Open',
+    24: 'Server Unknown',
+    25: 'Power Save',
+  };
+
+  return statusMap[status as number] || 'Unknown';
+}
+
+/**
  * List all available Windows printers
  */
 export async function listWindowsPrinters(): Promise<Array<{
@@ -242,22 +283,107 @@ export async function listWindowsPrinters(): Promise<Array<{
   status: string;
 }>> {
   try {
-    const result = execSync(
-      'powershell -Command "Get-Printer | Select-Object Name, PortName, PrinterStatus | ConvertTo-Json"',
-      {
-        encoding: 'utf8',
-        timeout: 10000,
+    console.log('[WindowsRAW] Listing Windows printers...');
+
+    // Try primary method: Get-Printer cmdlet
+    try {
+      const result = execSync(
+        'powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Printer | Select-Object Name, PortName, PrinterStatus | ConvertTo-Json"',
+        {
+          encoding: 'utf8',
+          timeout: 15000,
+          windowsHide: true,
+        }
+      );
+
+      console.log('[WindowsRAW] PowerShell Get-Printer result:', result ? result.substring(0, 200) : 'empty');
+
+      // Handle empty result
+      if (!result || result.trim() === '' || result.trim() === 'null') {
+        console.log('[WindowsRAW] Get-Printer returned empty, trying fallback...');
+        throw new Error('Empty result from Get-Printer');
       }
-    );
 
-    const printers = JSON.parse(result);
-    const printerArray = Array.isArray(printers) ? printers : [printers];
+      const printers = JSON.parse(result);
+      const printerArray = Array.isArray(printers) ? printers : (printers ? [printers] : []);
 
-    return printerArray.map(p => ({
-      name: p.Name,
-      portName: p.PortName,
-      status: p.PrinterStatus || 'Unknown',
-    }));
+      console.log(`[WindowsRAW] Found ${printerArray.length} printer(s) via Get-Printer`);
+
+      return printerArray.map(p => ({
+        name: p.Name,
+        portName: p.PortName || '',
+        status: mapPrinterStatus(p.PrinterStatus),
+      }));
+
+    } catch (getPrinterError) {
+      console.warn('[WindowsRAW] Get-Printer failed, trying WMI fallback:', getPrinterError);
+    }
+
+    // Fallback: Use WMI Win32_Printer (works on more Windows versions)
+    try {
+      const wmiResult = execSync(
+        'powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-WmiObject Win32_Printer | Select-Object Name, PortName, PrinterStatus | ConvertTo-Json"',
+        {
+          encoding: 'utf8',
+          timeout: 15000,
+          windowsHide: true,
+        }
+      );
+
+      console.log('[WindowsRAW] WMI fallback result:', wmiResult ? wmiResult.substring(0, 200) : 'empty');
+
+      if (!wmiResult || wmiResult.trim() === '' || wmiResult.trim() === 'null') {
+        console.log('[WindowsRAW] WMI returned empty result');
+        return [];
+      }
+
+      const printers = JSON.parse(wmiResult);
+      const printerArray = Array.isArray(printers) ? printers : (printers ? [printers] : []);
+
+      console.log(`[WindowsRAW] Found ${printerArray.length} printer(s) via WMI`);
+
+      return printerArray.map(p => ({
+        name: p.Name,
+        portName: p.PortName || '',
+        status: mapPrinterStatus(p.PrinterStatus),
+      }));
+
+    } catch (wmiError) {
+      console.error('[WindowsRAW] WMI fallback also failed:', wmiError);
+    }
+
+    // Last resort: Try WMIC (older Windows versions)
+    try {
+      const wmicResult = execSync(
+        'wmic printer get Name,PortName,PrinterStatus /format:csv',
+        {
+          encoding: 'utf8',
+          timeout: 15000,
+          windowsHide: true,
+        }
+      );
+
+      console.log('[WindowsRAW] WMIC result:', wmicResult ? wmicResult.substring(0, 200) : 'empty');
+
+      // Parse CSV format
+      const lines = wmicResult.split('\n').filter(line => line.trim() && !line.includes('Node'));
+      const printers = lines.slice(1).map(line => {
+        const parts = line.split(',');
+        return {
+          name: parts[1]?.trim() || '',
+          portName: parts[2]?.trim() || '',
+          status: mapPrinterStatus(parseInt(parts[3]?.trim() || '0')),
+        };
+      }).filter(p => p.name);
+
+      console.log(`[WindowsRAW] Found ${printers.length} printer(s) via WMIC`);
+      return printers;
+
+    } catch (wmicError) {
+      console.error('[WindowsRAW] WMIC fallback also failed:', wmicError);
+    }
+
+    return [];
 
   } catch (error) {
     console.error('[WindowsRAW] Failed to list printers:', error);

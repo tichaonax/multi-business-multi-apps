@@ -52,6 +52,8 @@ interface CartItem {
   price: number
   variant?: string
   imageUrl?: string
+  isCombo?: boolean
+  comboItems?: any[]
 }
 
 interface CartState {
