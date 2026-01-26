@@ -461,7 +461,10 @@ export default function EmployeesPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-xl sm:text-2xl font-bold text-primary">
-                  {employees.filter(e => e.currentContract && e.currentContract.status === 'pending_approval').length}
+                  {employees.filter(e => {
+                    const contracts = e.contracts || e.employeeContracts || []
+                    return contracts.some((c: any) => c.status === 'pending_signature' || c.status === 'pending_approval' || c.status === 'draft')
+                  }).length}
                 </p>
                 <p className="text-xs sm:text-sm text-secondary">Pending Contracts</p>
               </div>
@@ -500,7 +503,7 @@ export default function EmployeesPage() {
                 {employees.map((employee) => {
                   const contracts = employee.contracts || employee.employeeContracts || []
                   const activeContract = contracts.find(c => c.status === 'active')
-                  const pendingContract = contracts.find(c => c.status === 'pending_approval') || contracts.find(c => c.status === 'draft')
+                  const pendingContract = contracts.find((c: any) => c.status === 'pending_signature' || c.status === 'pending_approval' || c.status === 'draft')
                   const currentContract = activeContract || pendingContract || contracts[0]
 
                   return (
@@ -668,8 +671,8 @@ export default function EmployeesPage() {
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {employees.map((employee) => {
                       const contracts = employee.contracts || employee.employeeContracts || []
-                      const activeContract = contracts.find(c => c.status === 'active')
-                      const pendingContract = contracts.find(c => c.status === 'pendingApproval') || contracts.find(c => c.status === 'draft')
+                      const activeContract = contracts.find((c: any) => c.status === 'active')
+                      const pendingContract = contracts.find((c: any) => c.status === 'pending_signature' || c.status === 'pending_approval' || c.status === 'draft')
                       const currentContract = activeContract || pendingContract || contracts[0]
 
                       return (

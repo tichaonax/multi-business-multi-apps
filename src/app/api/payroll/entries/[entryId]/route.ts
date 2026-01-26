@@ -386,7 +386,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         overtimePay: recomputed.overtimePay ?? 0,
         // store adjustmentsTotal as additions only (positive adjustments)
         adjustmentsTotal: recomputed.additionsTotal ?? 0,
-        totalDeductions: Number(existingEntry.totalDeductions ?? 0) + Number(recomputed.adjustmentsAsDeductions ?? 0),
+        // Use derived totalDeductions (advances + loans + misc + adjustmentsAsDeductions), NOT cumulative
+        totalDeductions: Number(recomputed.totalDeductions ?? 0),
         updatedAt: new Date()
       },
       include: {

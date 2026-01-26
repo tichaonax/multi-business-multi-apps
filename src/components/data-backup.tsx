@@ -1238,19 +1238,27 @@ export function DataBackup() {
               </div>
             )}
 
-            {restoreProgress && !restoreResult && restoreProgress.total > 0 && (
-              <div className="mt-2">
-                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="h-2 bg-green-600 dark:bg-green-400 transition-all duration-300"
-                    style={{ width: `${Math.min(100, Math.round(((restoreProgress.processed ?? 0) / (restoreProgress.total || 1)) * 100))}%` }}
-                  />
+            {restoreProgress && !restoreResult && restoreProgress.total > 0 && (() => {
+              // Include skipped records in progress to reach 100%
+              const processed = restoreProgress.processed ?? 0;
+              const skipped = restoreProgress.skipped ?? 0;
+              const effectiveProgress = processed + skipped;
+              const total = restoreProgress.total || 1;
+              const percent = Math.min(100, Math.round((effectiveProgress / total) * 100));
+              return (
+                <div className="mt-2">
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="h-2 bg-green-600 dark:bg-green-400 transition-all duration-300"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 text-right mt-1">
+                    {percent}% complete{skipped > 0 ? ` (${skipped} skipped)` : ''}
+                  </div>
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 text-right mt-1">
-                  {Math.min(100, Math.round(((restoreProgress.processed ?? 0) / (restoreProgress.total || 1)) * 100))}% complete
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {(restoreResult?.results?.errors?.length > 0 || (restoreProgress?.errors?.length ?? 0) > 0) && (
               <div>

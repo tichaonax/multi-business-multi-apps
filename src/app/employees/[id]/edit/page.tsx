@@ -56,6 +56,7 @@ export default function EmployeeEditPage() {
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [hasActiveContract, setHasActiveContract] = useState(false)
   const [currentContract, setCurrentContract] = useState<any>(null)
+  const [supervisors, setSupervisors] = useState<Array<{ id: string; fullName: string; employeeNumber: string }>>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -79,6 +80,7 @@ export default function EmployeeEditPage() {
     hireDateCountryCode: 'ZW',
     employmentStatus: 'active',
     contractStatus: 'pending_signature',
+    supervisorId: '',
     notes: ''
   })
 
@@ -114,8 +116,25 @@ export default function EmployeeEditPage() {
           hireDate: data.hireDate ? data.hireDate.split('T')[0] : '',
           hireDateCountryCode: 'ZW',
           employmentStatus: data.employmentStatus || 'active',
+          supervisorId: data.supervisor?.id || '',
           notes: data.notes || ''
         })
+
+        // Load potential supervisors (excluding current employee)
+        const supervisorsResponse = await fetch('/api/employees?limit=100')
+        if (supervisorsResponse.ok) {
+          const supervisorsData = await supervisorsResponse.json()
+          console.log('[EditEmployee] Loaded employees for supervisor dropdown:', supervisorsData.employees?.length)
+          // Filter to include active and pending contract employees (handle both naming conventions)
+          const eligibleSupervisors = (supervisorsData.employees || []).filter((emp: any) => {
+            const status = emp.employmentStatus?.toLowerCase() || ''
+            const isEligible = emp.id !== employeeId && // Exclude self
+              (status === 'active' || status === 'pendingcontract' || status === 'pending_contract')
+            return isEligible
+          })
+          console.log('[EditEmployee] Eligible supervisors:', eligibleSupervisors.length, eligibleSupervisors.map((e: any) => e.fullName))
+          setSupervisors(eligibleSupervisors)
+        }
 
         // Check if employee has contracts and get current contract status
         const contractsResponse = await fetch(`/api/employees/${employeeId}/contracts`)
@@ -174,7 +193,7 @@ export default function EmployeeEditPage() {
         jobTitleId: employee.jobTitle.id,
         compensationTypeId: employee.compensationType.id,
         primaryBusinessId: employee.primaryBusiness.id,
-        supervisorId: employee.supervisor?.id || null
+        supervisorId: formData.supervisorId || null
       }
 
       // If contract signing is happening and employee status is "pending_contract",
@@ -555,6 +574,28 @@ export default function EmployeeEditPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-secondary mb-2">
+                      Supervisor
+                    </label>
+                    <select
+                      name="supervisorId"
+                      value={formData.supervisorId}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">No Supervisor</option>
+                      {[...supervisors].sort((a, b) => a.fullName.localeCompare(b.fullName)).map((supervisor) => (
+                        <option key={supervisor.id} value={supervisor.id}>
+                          {supervisor.fullName} ({supervisor.employeeNumber})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-secondary mt-1">
+                      Assign a supervisor/manager to this employee
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
                       Employee Status
                     </label>
                     <select
@@ -644,11 +685,11 @@ export default function EmployeeEditPage() {
               <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
-                  onClick={() => router.back()}
+                  onClick={() => router.push(`/employees/${employeeId}`)}
                   className="btn-secondary"
                   disabled={saving}
                 >
-                  Cancel
+                  Close
                 </button>
                 <button
                   type="submit"

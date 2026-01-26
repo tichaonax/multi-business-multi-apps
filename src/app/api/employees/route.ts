@@ -161,14 +161,16 @@ export async function GET(req: NextRequest) {
     const compensationTypeMap = new Map(compensationTypes.map(ct => [ct.id, ct]))
     const businessMap = new Map(businesses.map(b => [b.id, b]))
 
-    // Fetch active employee contracts separately to avoid relying on fragile relation include names
+    // Fetch employee contracts separately to avoid relying on fragile relation include names
+    // Include active and pending contracts for proper status display
     const employeeIds = employees.map(e => e.id)
     const contracts = employeeIds.length > 0 ? await prisma.employeeContracts.findMany({
       where: {
         employeeId: { in: employeeIds },
-        status: 'active'
+        status: { in: ['active', 'pending_signature', 'pending_approval', 'draft'] }
       },
-      select: { id: true, employeeId: true, status: true, baseSalary: true, employeeSignedAt: true, managerSignedAt: true, notes: true }
+      select: { id: true, employeeId: true, status: true, baseSalary: true, employeeSignedAt: true, managerSignedAt: true, notes: true },
+      orderBy: { createdAt: 'desc' }
     }) : []
 
     const contractsByEmployee = new Map<string, any[]>()

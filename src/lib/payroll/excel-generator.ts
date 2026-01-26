@@ -512,8 +512,8 @@ export async function generatePayrollExcel(
     // Derived total deductions excludes explicit 'absence' so it aligns with the preview
     const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
     const serverTotalDeductionsVal = (entry.totalDeductions !== undefined && entry.totalDeductions !== null) ? Number(entry.totalDeductions) : null
-    // Preview prefers the derived total when it differs from server-provided aggregated total
-    const totalDeductions = (serverTotalDeductionsVal !== derivedTotalDeductions && derivedTotalDeductions !== 0) ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
+    // Always prefer derived value when it differs from server (matches preview logic in period detail route)
+    const totalDeductions = serverTotalDeductionsVal !== derivedTotalDeductions ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
 
   // Net = Gross (deductions are NOT subtracted - they are shown separately)
   const netInclBenefits = grossInclBenefits

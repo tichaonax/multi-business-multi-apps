@@ -159,11 +159,18 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError, userId }
       }
 
 
-      // Load potential supervisors (all active employees can be supervisors)
-      const supervisorsResponse = await fetch('/api/employees?status=active&limit=100')
+      // Load potential supervisors (active employees and those with pending contracts can be supervisors)
+      const supervisorsResponse = await fetch('/api/employees?limit=100')
       if (supervisorsResponse.ok) {
         const supervisorsData = await supervisorsResponse.json()
-        setSupervisors(supervisorsData.employees || [])
+        console.log('[AddEmployee] Loaded employees for supervisor dropdown:', supervisorsData.employees?.length)
+        // Filter to include active employees and those with pending contracts (handle both naming conventions)
+        const eligibleSupervisors = (supervisorsData.employees || []).filter((emp: any) => {
+          const status = emp.employmentStatus?.toLowerCase() || ''
+          return status === 'active' || status === 'pendingcontract' || status === 'pending_contract'
+        })
+        console.log('[AddEmployee] Eligible supervisors:', eligibleSupervisors.length)
+        setSupervisors(eligibleSupervisors)
       }
     } catch (error) {
       console.error('Error loading form data:', error)

@@ -14,11 +14,14 @@ export type ProgressEntry = {
   model?: string;
   recordId?: number | string | null;
   processed?: number;
+  skipped?: number;
   total?: number;
   startedAt?: string;
   updatedAt?: string;
   counts?: Record<string, { processed?: number; total?: number }>
   errors?: string[]
+  // Track the highest processed value to prevent backward progress
+  _maxProcessed?: number;
 }
 
 const _progress = new Map<string, ProgressEntry>()
@@ -56,6 +59,29 @@ export function updateProgress(id: string, entry: Partial<ProgressEntry>) {
       merged.counts[entry.model] = merged.counts[entry.model] ?? {}
       if (typeof entry.processed === 'number') merged.counts[entry.model].processed = entry.processed
       if (typeof entry.total === 'number') merged.counts[entry.model].total = entry.total
+    }
+
+    // Aggregate total processed from all model counts for top-level progress
+    let aggregatedProcessed = 0
+    for (const countEntry of Object.values(merged.counts)) {
+      aggregatedProcessed += (countEntry as any).processed ?? 0
+    }
+
+    // Track max processed to ensure progress only moves forward (never backward)
+    const currentMax = merged._maxProcessed ?? 0
+
+    // Only update top-level processed if not explicitly set by caller
+    if (typeof entry.processed !== 'number' || entry.model !== 'completed') {
+      // Ensure progress only increases - use max of current and aggregated
+      const newProcessed = Math.max(currentMax, aggregatedProcessed)
+      merged.processed = newProcessed
+      merged._maxProcessed = newProcessed
+    } else {
+      // For completion, include skipped records in progress to reach 100%
+      const skipped = (entry as any).skipped ?? 0
+      const finalProcessed = (entry.processed ?? 0) + skipped
+      merged.processed = Math.max(currentMax, finalProcessed)
+      merged._maxProcessed = merged.processed
     }
   } catch (e) {
     console.warn('[backup-progress] updateProgress counts update failed', e)

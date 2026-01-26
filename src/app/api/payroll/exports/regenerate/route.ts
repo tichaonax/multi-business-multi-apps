@@ -88,7 +88,8 @@ export async function POST(req: NextRequest) {
       const adjustmentsAsDeductions = Number(totals.adjustmentsAsDeductions || 0)
       const derivedTotalDeductions = advances + loans + misc + adjustmentsAsDeductions
       const serverTotalDeductionsVal = (entry.totalDeductions !== undefined && entry.totalDeductions !== null) ? Number(entry.totalDeductions) : null
-      const totalDeductions = (serverTotalDeductionsVal !== derivedTotalDeductions && derivedTotalDeductions !== 0) ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
+      // Always prefer derived value when it differs from server (matches preview logic in period detail route)
+      const totalDeductions = serverTotalDeductionsVal !== derivedTotalDeductions ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
 
     const additionsTotal = Number(totals.additionsTotal || 0)
     const absenceDeduction = Number(totals.absenceDeduction || 0)
