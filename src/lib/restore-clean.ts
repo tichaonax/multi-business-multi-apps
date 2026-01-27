@@ -81,25 +81,27 @@ const RESTORE_ORDER = [
   // Users and authentication
   'users',
   'accounts',
+  'permissions',  // Security permissions (no FK dependencies)
+  'userPermissions',  // Depends on users and permissions
   'permissionTemplates',  // Depends on users via createdBy FK
   'seedDataTemplates',  // Depends on users via createdBy FK
-  
+
   // Businesses (core entity)
   'businesses',
   'businessMemberships',
   'businessAccounts',
   'businessLocations',
   'businessBrands',
-  
+
   // Business categories and suppliers (shared data)
   'businessCategories',
   'businessSuppliers',
   'inventorySubcategories',
-  
+
   // Persons (for various associations)
   'persons',
-  
-  // Employees and HR
+
+  // Employees and HR (two-pass: first without supervisorId, then update)
   'employees',
   'employeeContracts',
   'employeeBusinessAssignments',
@@ -118,7 +120,7 @@ const RESTORE_ORDER = [
   'employeeLoanPayments',
   'contractBenefits',
   'contractRenewals',
-  
+
   // Products and inventory
   'businessProducts',
   'productVariants',
@@ -126,7 +128,8 @@ const RESTORE_ORDER = [
   'productImages',
   'productAttributes',
   'businessStockMovements',
-  
+  'productPriceChanges',  // Product price audit trail
+
   // Customers and orders
   'businessCustomers',
   'businessOrders',
@@ -134,25 +137,27 @@ const RESTORE_ORDER = [
   'businessTransactions',
   'customerLaybys',
   'customerLaybyPayments',
-  
+
   // Expense accounts
   'expenseAccounts',
   'expenseAccountDeposits',
   'expenseAccountPayments',
-  
+
   // Payroll
   'payrollAccounts',
+  'payrollAccountDeposits',  // Depends on payrollAccounts
+  'payrollAccountPayments',  // Depends on payrollAccounts
   'payrollPeriods',
   'payrollEntries',
   'payrollEntryBenefits',
   'payrollExports',
   'payrollAdjustments',
-  
+
   // Personal finance
   'fundSources',
   'personalBudgets',
   'personalExpenses',
-  
+
   // Projects
   'projects',
   'projectStages',
@@ -161,7 +166,7 @@ const RESTORE_ORDER = [
   'constructionProjects',
   'constructionExpenses',
   'stageContractorAssignments',
-  
+
   // Vehicles
   'vehicles',
   'vehicleDrivers',
@@ -173,21 +178,75 @@ const RESTORE_ORDER = [
   'vehicleMaintenanceServiceExpenses',
   'vehicleTrips',  // Depends on driverAuthorizations via composite FK
   'vehicleReimbursements',
-  
-  // Restaurant/Menu
+
+  // WiFi Portal - Token Configurations (ESP32 system)
+  'tokenConfigurations',  // Must come before wifiTokens and businessTokenMenuItems
+  'businessTokenMenuItems',  // Depends on tokenConfigurations and businesses
+  'wifiTokens',  // Depends on tokenConfigurations and businesses
+  'wifiTokenDevices',  // Depends on wifiTokens
+  'wifiTokenSales',  // Depends on wifiTokens and businesses
+  'wiFiUsageAnalytics',  // Depends on businesses
+
+  // WiFi Portal - R710 System (must come before menuComboItems!)
+  'r710DeviceRegistry',  // No FK dependencies
+  'r710BusinessIntegrations',  // Depends on businesses and r710DeviceRegistry
+  'r710Wlans',  // Depends on businesses and r710DeviceRegistry
+  'r710TokenConfigs',  // Depends on businesses - CRITICAL: menuComboItems references this!
+  'r710Tokens',  // Depends on r710TokenConfigs and businesses
+  'r710TokenSales',  // Depends on r710Tokens and businesses
+  'r710DeviceTokens',  // Depends on r710Tokens
+  'r710BusinessTokenMenuItems',  // Depends on r710TokenConfigs and businesses
+  'r710SyncLogs',  // No critical FKs
+
+  // Restaurant/Menu (AFTER r710TokenConfigs!)
   'menuItems',
   'menuCombos',
-  'menuComboItems',
+  'menuComboItems',  // Depends on menuCombos AND r710TokenConfigs (tokenConfigId FK)
   'menuPromotions',
   'orders',
   'orderItems',
-  
+
+  // Barcode Management System
+  'networkPrinters',  // No FK dependencies (device-level)
+  'barcodeTemplates',  // Depends on businesses
+  'barcodeInventoryItems',  // Depends on businesses
+  'barcodePrintJobs',  // Depends on businesses
+  'printJobs',  // Depends on businesses
+  'reprintLog',  // Depends on businesses
+
+  // Portal Integrations
+  'portalIntegrations',  // Depends on businesses
+
+  // SKU Sequences
+  'skuSequences',  // Depends on businesses
+
+  // MAC ACL
+  'macAclEntry',  // No FK dependencies
+
   // Miscellaneous
   'supplierProducts',
   'interBusinessLoans',
   'loanTransactions',
   'receiptSequences'
 ]
+
+/**
+ * Tables with self-referential foreign keys that need two-pass restore
+ * First pass: insert with self-ref FK set to null
+ * Second pass: update with actual self-ref FK values
+ */
+const SELF_REFERENTIAL_TABLES: Record<string, string[]> = {
+  'employees': ['supervisorId']
+}
+
+/**
+ * Tables with unique constraints on non-ID fields
+ * Maps table name to the unique field(s) to use for upsert matching
+ */
+const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = {
+  'payrollAccounts': 'accountNumber',
+  'expenseAccounts': 'accountNumber'
+}
 
 /**
  * Model name mappings (backup table names to Prisma model names)
@@ -310,6 +369,9 @@ export async function restoreCleanBackup(
     dataSources.push({ source: backupData.deviceData, sourceType: 'device' })
   }
 
+  // Track self-referential updates for second pass
+  const selfRefUpdates: Array<{ tableName: string; recordId: string; updates: Record<string, any> }> = []
+
   // Process each data source
   for (const { source, sourceType } of dataSources) {
     console.log(`[restore-clean] Processing ${sourceType} data...`)
@@ -317,143 +379,208 @@ export async function restoreCleanBackup(
     // Process each table in dependency order
     for (const tableName of RESTORE_ORDER) {
       const data = source[tableName]
-    
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      continue
-    }
 
-    const modelName = findPrismaModelName(prisma, tableName)
-    const model = prisma[modelName]
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        continue
+      }
 
-    if (!model || typeof model.upsert !== 'function') {
-      console.warn(`[restore-clean] Model ${modelName} not found or doesn't support upsert`)
-      continue
-    }
+      const modelName = findPrismaModelName(prisma, tableName)
+      const model = prisma[modelName]
 
-    console.log(`[restore-clean] Restoring ${tableName}: ${data.length} records`)
+      if (!model || typeof model.upsert !== 'function') {
+        console.warn(`[restore-clean] Model ${modelName} not found or doesn't support upsert`)
+        continue
+      }
 
-    // Initialize model counts
-    if (!modelCounts[tableName]) {
-      modelCounts[tableName] = { attempted: 0, successful: 0, skipped: 0 }
-    }
+      console.log(`[restore-clean] Restoring ${tableName}: ${data.length} records`)
 
-    // Process records in batches to prevent timeouts
-    const totalRecords = data.length
-    for (let batchStart = 0; batchStart < totalRecords; batchStart += batchSize) {
-      const batchEnd = Math.min(batchStart + batchSize, totalRecords)
-      const batch = data.slice(batchStart, batchEnd)
+      // Check if this table has self-referential FKs
+      const selfRefFields = SELF_REFERENTIAL_TABLES[tableName] || []
+      const hasSelfRef = selfRefFields.length > 0
 
-      console.log(`[restore-clean] Processing ${tableName} batch: ${batchStart + 1}-${batchEnd}/${totalRecords}`)
+      // Check if this table has unique constraints on non-ID fields
+      const uniqueConstraint = UNIQUE_CONSTRAINT_FIELDS[tableName]
 
-      // Clean nested relations from records (backup should be flat)
-      const cleanedBatch = batch.map((record: any) => {
-        const cleaned = { ...record }
-        // Remove common nested relation fields
-        delete cleaned.product_variants
-        delete cleaned.product_images
-        delete cleaned.product_attributes
-        delete cleaned.business_products
-        delete cleaned.businesses
-        delete cleaned.users
-        delete cleaned.r710_tokens
-        delete cleaned.wifi_tokens
-        delete cleaned.menu_items
-        // Remove any other array fields (likely relations)
-        Object.keys(cleaned).forEach(key => {
-          if (Array.isArray(cleaned[key])) {
-            delete cleaned[key]
-          }
-        })
-        return cleaned
-      })
+      if (hasSelfRef) {
+        console.log(`[restore-clean] ${tableName} has self-referential FK(s): ${selfRefFields.join(', ')} - using two-pass restore`)
+      }
 
-      for (let i = 0; i < cleanedBatch.length; i++) {
-        const record = cleanedBatch[i]
-        const globalIndex = batchStart + i
-        const recordId = record.id
+      // Initialize model counts
+      if (!modelCounts[tableName]) {
+        modelCounts[tableName] = { attempted: 0, successful: 0, skipped: 0 }
+      }
 
-        modelCounts[tableName].attempted++
+      // Process records in batches to prevent timeouts
+      const totalRecords = data.length
+      for (let batchStart = 0; batchStart < totalRecords; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize, totalRecords)
+        const batch = data.slice(batchStart, batchEnd)
 
-        if (!recordId) {
-          console.warn(`[restore-clean] Record in ${tableName} has no ID, skipping`)
-          totalErrors++
-          totalSkipped++
-          modelCounts[tableName].skipped++
-          skippedReasons.validationErrors++
-          errorLog.push({
-            model: tableName,
-            recordId: undefined,
-            error: 'Record has no ID'
-          })
-          continue
-        }
+        console.log(`[restore-clean] Processing ${tableName} batch: ${batchStart + 1}-${batchEnd}/${totalRecords}`)
 
-        try {
-          // Use upsert to create or update
-          // IMPORTANT: Preserves original IDs and timestamps
-          // - create: record → Uses original ID, createdAt, updatedAt
-          // - update: record → Explicitly provides updatedAt, overriding @updatedAt directive
-          // This ensures restored data matches source database exactly
-
-          // Special handling for models with composite unique constraints
-          if (tableName === 'emojiLookup') {
-            // EmojiLookup has unique constraint on [emoji, description]
-            await model.upsert({
-              where: {
-                emoji_description: {
-                  emoji: record.emoji,
-                  description: record.description
-                }
-              },
-              create: record,  // ← Preserves original ID, createdAt, updatedAt
-              update: record   // ← Explicitly sets updatedAt, overriding @updatedAt
-            })
-          } else {
-            // Default: use id for upsert
-            await model.upsert({
-              where: { id: recordId },
-              create: record,  // ← Preserves original ID, createdAt, updatedAt
-              update: record   // ← Explicitly sets updatedAt, overriding @updatedAt
-            })
-          }
-
-          totalProcessed++
-          modelCounts[tableName].successful++
-
-          // Report progress every 10 records or at end of batch
-          if ((globalIndex + 1) % 10 === 0 || globalIndex + 1 === totalRecords) {
-            if (onProgress) {
-              onProgress(tableName, globalIndex + 1, totalRecords)
+        // Clean nested relations from records (backup should be flat)
+        const cleanedBatch = batch.map((record: any) => {
+          const cleaned = { ...record }
+          // Remove common nested relation fields
+          delete cleaned.product_variants
+          delete cleaned.product_images
+          delete cleaned.product_attributes
+          delete cleaned.business_products
+          delete cleaned.businesses
+          delete cleaned.users
+          delete cleaned.r710_tokens
+          delete cleaned.wifi_tokens
+          delete cleaned.menu_items
+          // Remove any other array fields (likely relations)
+          Object.keys(cleaned).forEach(key => {
+            if (Array.isArray(cleaned[key])) {
+              delete cleaned[key]
             }
-          }
-        } catch (error: any) {
-          const errorMsg = error.message || 'Unknown error'
-          const isForeignKeyError = error.code === 'P2003' || errorMsg.includes('Foreign key constraint')
-          const isValidationError = error.code === 'P2002' || errorMsg.includes('Unique constraint') || errorMsg.includes('validation')
+          })
+          return cleaned
+        })
 
-          if (isForeignKeyError) {
-            // Skip records with missing foreign key references - they're likely from incomplete backup data
-            console.warn(`[restore-clean] Skipping ${tableName} record ${recordId} due to missing foreign key reference`)
+        for (let i = 0; i < cleanedBatch.length; i++) {
+          const record = cleanedBatch[i]
+          const globalIndex = batchStart + i
+          const recordId = record.id
+
+          modelCounts[tableName].attempted++
+
+          if (!recordId) {
+            console.warn(`[restore-clean] Record in ${tableName} has no ID, skipping`)
+            totalErrors++
             totalSkipped++
             modelCounts[tableName].skipped++
-            skippedReasons.foreignKeyErrors++
+            skippedReasons.validationErrors++
             errorLog.push({
               model: tableName,
-              recordId,
-              error: `Foreign key constraint: ${errorMsg}`
+              recordId: undefined,
+              error: 'Record has no ID'
             })
             continue
           }
 
-          totalErrors++
-          totalSkipped++
-          modelCounts[tableName].skipped++
+          try {
+            // Prepare record for insert
+            let recordToInsert = { ...record }
 
-          if (isValidationError) {
-            skippedReasons.validationErrors++
-          } else {
-            skippedReasons.otherErrors++
-          }
+            // For self-referential tables: nullify self-ref FKs for first pass
+            // and queue update for second pass
+            if (hasSelfRef) {
+              const selfRefValues: Record<string, any> = {}
+              for (const field of selfRefFields) {
+                if (record[field] != null) {
+                  selfRefValues[field] = record[field]
+                  recordToInsert[field] = null  // Nullify for first pass
+                }
+              }
+              // Queue update for second pass if there are self-ref values
+              if (Object.keys(selfRefValues).length > 0) {
+                selfRefUpdates.push({
+                  tableName,
+                  recordId,
+                  updates: selfRefValues
+                })
+              }
+            }
+
+            // Use upsert to create or update
+            // IMPORTANT: Preserves original IDs and timestamps
+            // - create: record → Uses original ID, createdAt, updatedAt
+            // - update: record → Explicitly provides updatedAt, overriding @updatedAt directive
+            // This ensures restored data matches source database exactly
+
+            // Special handling for models with composite unique constraints
+            if (tableName === 'emojiLookup') {
+              // EmojiLookup has unique constraint on [emoji, description]
+              await model.upsert({
+                where: {
+                  emoji_description: {
+                    emoji: record.emoji,
+                    description: record.description
+                  }
+                },
+                create: recordToInsert,
+                update: recordToInsert
+              })
+            } else if (uniqueConstraint) {
+              // Handle tables with unique constraints on non-ID fields
+              // First try to find by unique field, then upsert
+              const uniqueField = typeof uniqueConstraint === 'string' ? uniqueConstraint : null
+
+              if (uniqueField && record[uniqueField]) {
+                // Check if record exists by unique field
+                const existing = await model.findFirst({
+                  where: { [uniqueField]: record[uniqueField] }
+                })
+
+                if (existing) {
+                  // Update existing record by its ID
+                  await model.update({
+                    where: { id: existing.id },
+                    data: recordToInsert
+                  })
+                } else {
+                  // Create new record
+                  await model.create({
+                    data: recordToInsert
+                  })
+                }
+              } else {
+                // Fallback to standard upsert by id
+                await model.upsert({
+                  where: { id: recordId },
+                  create: recordToInsert,
+                  update: recordToInsert
+                })
+              }
+            } else {
+              // Default: use id for upsert
+              await model.upsert({
+                where: { id: recordId },
+                create: recordToInsert,
+                update: recordToInsert
+              })
+            }
+
+            totalProcessed++
+            modelCounts[tableName].successful++
+
+            // Report progress every 10 records or at end of batch
+            if ((globalIndex + 1) % 10 === 0 || globalIndex + 1 === totalRecords) {
+              if (onProgress) {
+                onProgress(tableName, globalIndex + 1, totalRecords)
+              }
+            }
+          } catch (error: any) {
+            const errorMsg = error.message || 'Unknown error'
+            const isForeignKeyError = error.code === 'P2003' || errorMsg.includes('Foreign key constraint')
+            const isValidationError = error.code === 'P2002' || errorMsg.includes('Unique constraint') || errorMsg.includes('validation')
+
+            if (isForeignKeyError) {
+              // Skip records with missing foreign key references - they're likely from incomplete backup data
+              console.warn(`[restore-clean] Skipping ${tableName} record ${recordId} due to missing foreign key reference`)
+              totalSkipped++
+              modelCounts[tableName].skipped++
+              skippedReasons.foreignKeyErrors++
+              errorLog.push({
+                model: tableName,
+                recordId,
+                error: `Foreign key constraint: ${errorMsg}`
+              })
+              continue
+            }
+
+            totalErrors++
+            totalSkipped++
+            modelCounts[tableName].skipped++
+
+            if (isValidationError) {
+              skippedReasons.validationErrors++
+            } else {
+              skippedReasons.otherErrors++
+            }
 
           errorLog.push({
             model: tableName,
@@ -482,6 +609,38 @@ export async function restoreCleanBackup(
   }
 
   } // End dataSources loop
+
+  // === SECOND PASS: Update self-referential foreign keys ===
+  if (selfRefUpdates.length > 0) {
+    console.log(`[restore-clean] Second pass: updating ${selfRefUpdates.length} self-referential FK(s)...`)
+
+    for (const { tableName, recordId, updates } of selfRefUpdates) {
+      try {
+        const modelName = findPrismaModelName(prisma, tableName)
+        const model = prisma[modelName]
+
+        if (model && typeof model.update === 'function') {
+          await model.update({
+            where: { id: recordId },
+            data: updates
+          })
+          console.log(`[restore-clean] Updated ${tableName} ${recordId} with self-ref FK: ${JSON.stringify(updates)}`)
+        }
+      } catch (error: any) {
+        const errorMsg = error.message || 'Unknown error'
+        console.warn(`[restore-clean] Failed to update self-ref FK for ${tableName} ${recordId}: ${errorMsg}`)
+        // Don't count as error - the record was created successfully, just the self-ref update failed
+        // This can happen if the referenced record doesn't exist (data integrity issue in backup)
+        errorLog.push({
+          model: tableName,
+          recordId,
+          error: `Self-ref FK update failed: ${errorMsg}`
+        })
+      }
+    }
+
+    console.log(`[restore-clean] Second pass complete`)
+  }
 
   console.log(`[restore-clean] Restore complete: ${totalProcessed} records processed, ${totalSkipped} skipped, ${totalErrors} errors`)
   console.log(`[restore-clean] Skip reasons: Foreign Keys=${skippedReasons.foreignKeyErrors}, Validation=${skippedReasons.validationErrors}, Other=${skippedReasons.otherErrors}`)
