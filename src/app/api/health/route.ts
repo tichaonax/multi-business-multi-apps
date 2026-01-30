@@ -6,8 +6,6 @@ const SERVER_START_TIME = Date.now()
 
 /**
  * Format uptime milliseconds to human-readable string
- * @param ms - Milliseconds of uptime
- * @returns Formatted string like "2d 5h 23m"
  */
 function formatUptime(ms: number): string {
   const seconds = Math.floor(ms / 1000)
@@ -24,18 +22,12 @@ function formatUptime(ms: number): string {
 }
 
 export async function GET() {
-  console.log('🏥 Health check API route hit at:', new Date().toISOString())
-  
   try {
-    console.log('🔍 Testing database connection...')
-    
     // Test database connection
-    const result = await prisma.$executeRaw`SELECT 1 as test`
-    console.log('✅ Database connection successful:', result)
-    
+    await prisma.$executeRaw`SELECT 1 as test`
+
     // Get user count as an additional test
     const userCount = await prisma.users.count()
-    console.log('👥 Total users in database:', userCount)
 
     // Calculate uptime
     const uptimeMs = Date.now() - SERVER_START_TIME
@@ -53,10 +45,7 @@ export async function GET() {
       userCount,
       environment: process.env.NODE_ENV
     }
-    
-    console.log('🏥 Health check response:', response)
-    
-    // Return response with headers that might help avoid extension blocking
+
     return new Response(JSON.stringify(response), {
       status: 200,
       headers: {
@@ -64,12 +53,12 @@ export async function GET() {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0',
-        'X-Health-Check': 'true', // Custom header to identify health checks
+        'X-Health-Check': 'true',
       }
     })
   } catch (error) {
-    console.error('❌ Health check failed:', error)
-    
+    console.error('Health check failed:', error)
+
     const errorResponse = {
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
@@ -77,7 +66,7 @@ export async function GET() {
       error: error instanceof Error ? error.message : 'Unknown error',
       environment: process.env.NODE_ENV
     }
-    
+
     return new Response(JSON.stringify(errorResponse), {
       status: 500,
       headers: {

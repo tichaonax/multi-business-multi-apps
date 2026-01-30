@@ -6,6 +6,9 @@
 import { Prisma } from '@prisma/client'
 import { SyncHelper } from './sync-helper'
 
+// Disable verbose sync logging in production for performance
+const VERBOSE_SYNC_LOGGING = process.env.VERBOSE_SYNC_LOGGING === 'true'
+
 // Tables to exclude from sync tracking (sync infrastructure only)
 // NOTE: Users and Accounts ARE synced for authentication across servers
 const EXCLUDED_TABLES = new Set([
@@ -93,7 +96,7 @@ export function createSyncExtension(syncHelper: SyncHelper) {
             try {
               result = await query(args)
             } catch (error) {
-              console.warn(`Update failed for ${model}, attempting fallback:`, error)
+              if (VERBOSE_SYNC_LOGGING) console.warn(`Update failed for ${model}, attempting fallback:`, error)
               try {
                 const normalizedWhere = normalizeWhere(args.where)
                 if (normalizedWhere) {
@@ -157,7 +160,7 @@ export function createSyncExtension(syncHelper: SyncHelper) {
             try {
               result = await query(args)
             } catch (error) {
-              console.warn(`Delete failed for ${model}, attempting fallback:`, error)
+              if (VERBOSE_SYNC_LOGGING) console.warn(`Delete failed for ${model}, attempting fallback:`, error)
               try {
                 const normalizedWhere = normalizeWhere(args.where)
                 if (normalizedWhere) {
@@ -228,7 +231,7 @@ export function createSyncExtension(syncHelper: SyncHelper) {
               // 'where' uses a key Prisma doesn't expect, attempt a graceful fallback:
               // perform a findFirst on normalized where, and then do an update or create
               // using id-based where if we can find an existing record.
-              console.warn(`Upsert failed for ${model}, attempting fallback:`, error)
+              if (VERBOSE_SYNC_LOGGING) console.warn(`Upsert failed for ${model}, attempting fallback:`, error)
               try {
                 const normalizedWhere = normalizeWhere(args.where)
                 let existing = null

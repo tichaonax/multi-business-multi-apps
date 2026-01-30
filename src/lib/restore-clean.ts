@@ -13,6 +13,9 @@ import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 import os from 'os'
 
+// Disable verbose logging in production for performance
+const VERBOSE_LOGGING = process.env.VERBOSE_RESTORE_LOGGING === 'true'
+
 type AnyPrismaClient = PrismaClient & any
 
 /**
@@ -231,12 +234,17 @@ const RESTORE_ORDER = [
 ]
 
 /**
- * Tables with self-referential foreign keys that need two-pass restore
- * First pass: insert with self-ref FK set to null
- * Second pass: update with actual self-ref FK values
+ * Tables with self-referential or circular foreign keys that need two-pass restore
+ * First pass: insert with these FK fields set to null
+ * Second pass: update with actual FK values
+ *
+ * This handles:
+ * - Self-referential FKs (e.g., employees.supervisorId → employees.id)
+ * - Cross-table FKs that may reference records not yet created (e.g., employeeContracts.supervisorId → employees.id)
  */
 const SELF_REFERENTIAL_TABLES: Record<string, string[]> = {
-  'employees': ['supervisorId']
+  'employees': ['supervisorId'],
+  'employeeContracts': ['supervisorId']  // References employees.id - needs deferred insert
 }
 
 /**
@@ -416,7 +424,7 @@ export async function restoreCleanBackup(
         const batchEnd = Math.min(batchStart + batchSize, totalRecords)
         const batch = data.slice(batchStart, batchEnd)
 
-        console.log(`[restore-clean] Processing ${tableName} batch: ${batchStart + 1}-${batchEnd}/${totalRecords}`)
+        if (VERBOSE_LOGGING) console.log(`[restore-clean] Processing ${tableName} batch: ${batchStart + 1}-${batchEnd}/${totalRecords}`)
 
         // Clean nested relations from records (backup should be flat)
         const cleanedBatch = batch.map((record: any) => {

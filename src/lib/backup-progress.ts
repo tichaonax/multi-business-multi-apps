@@ -2,6 +2,9 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
+// Disable verbose logging in production for performance
+const VERBOSE_LOGGING = process.env.VERBOSE_BACKUP_LOGGING === 'true'
+
 const _progressDir = path.join(os.tmpdir(), 'mbma-backup-progress')
 try {
   if (!fs.existsSync(_progressDir)) {
@@ -38,7 +41,7 @@ export function createProgressId() {
   } catch (e) {
     console.warn('[backup-progress] createProgressId file write failed', e)
   }
-  console.log(`[backup-progress] createProgressId: id=${id}, pid=${process.pid}, startedAt=${startedAt}`)
+  if (VERBOSE_LOGGING) console.log(`[backup-progress] createProgressId: id=${id}, pid=${process.pid}, startedAt=${startedAt}`)
   return id
 }
 
@@ -96,9 +99,11 @@ export function updateProgress(id: string, entry: Partial<ProgressEntry>) {
     console.warn('[backup-progress] updateProgress errors update failed', e)
   }
   _progress.set(id, merged)
-  try {
-    console.log(`[backup-progress] updateProgress: id=${id}, pid=${process.pid}, processed=${merged.processed}, total=${merged.total}, model=${merged.model}, recordId=${merged.recordId}`)
-  } catch (_) {}
+  if (VERBOSE_LOGGING) {
+    try {
+      console.log(`[backup-progress] updateProgress: id=${id}, pid=${process.pid}, processed=${merged.processed}, total=${merged.total}, model=${merged.model}`)
+    } catch (_) {}
+  }
   try {
     const filePath = path.join(_progressDir, `progress-${id}.json`)
     fs.writeFileSync(filePath, JSON.stringify(merged), { encoding: 'utf-8' })
@@ -146,7 +151,7 @@ export function getProgress(id: string) {
         const fileUpdated = parsed.updatedAt ? Date.parse(parsed.updatedAt) : 0
         if (fileUpdated > resUpdated) {
           _progress.set(id, parsed)
-          console.log(`[backup-progress] getProgress: id=${id} rehydrated from file (pid=${process.pid}) parsed=${JSON.stringify(parsed)}`)
+          if (VERBOSE_LOGGING) console.log(`[backup-progress] getProgress: id=${id} rehydrated from file (pid=${process.pid})`)
           return parsed
         }
       }
@@ -162,15 +167,15 @@ export function getProgress(id: string) {
         const txt = fs.readFileSync(filePath, { encoding: 'utf-8' })
         const parsed = JSON.parse(txt) as ProgressEntry
         _progress.set(id, parsed)
-        console.log(`[backup-progress] getProgress: id=${id} rehydrated from file (pid=${process.pid}) parsed=${JSON.stringify(parsed)}`)
+        if (VERBOSE_LOGGING) console.log(`[backup-progress] getProgress: id=${id} rehydrated from file (pid=${process.pid})`)
         return parsed
       }
     } catch (e) {
       console.warn('[backup-progress] getProgress file read failed', e)
     }
-    console.log(`[backup-progress] getProgress: id=${id} not found (pid=${process.pid})`)
+    if (VERBOSE_LOGGING) console.log(`[backup-progress] getProgress: id=${id} not found`)
   } else {
-    console.log(`[backup-progress] getProgress: id=${id} found (pid=${process.pid}) processed=${res.processed} total=${res.total} updatedAt=${res.updatedAt}`)
+    if (VERBOSE_LOGGING) console.log(`[backup-progress] getProgress: id=${id} found, processed=${res.processed}/${res.total}`)
   }
   return res
 }

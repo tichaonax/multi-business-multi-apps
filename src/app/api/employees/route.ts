@@ -117,6 +117,7 @@ export async function GET(req: NextRequest) {
           jobTitleId: true,
           compensationTypeId: true,
           primaryBusinessId: true,
+          supervisorId: true,  // Include supervisor reference
           // Only include absolutely essential related data
           users: {
             select: {
@@ -140,8 +141,9 @@ export async function GET(req: NextRequest) {
     const jobTitleIds = [...new Set(employees.map(e => e.jobTitleId).filter(Boolean))]
     const compensationTypeIds = [...new Set(employees.map(e => e.compensationTypeId).filter(Boolean))]
     const businessIds = [...new Set(employees.map(e => e.primaryBusinessId).filter(Boolean))]
+    const supervisorIds = [...new Set(employees.map(e => e.supervisorId).filter(Boolean))]
 
-    const [jobTitles, compensationTypes, businesses] = await Promise.all([
+    const [jobTitles, compensationTypes, businesses, supervisors] = await Promise.all([
       jobTitleIds.length > 0 ? prisma.jobTitles.findMany({
         where: { id: { in: jobTitleIds } },
         select: { id: true, title: true, department: true, level: true }
@@ -153,6 +155,17 @@ export async function GET(req: NextRequest) {
       businessIds.length > 0 ? prisma.businesses.findMany({
         where: { id: { in: businessIds } },
         select: { id: true, name: true, type: true }
+      }) : [],
+      supervisorIds.length > 0 ? prisma.employees.findMany({
+        where: { id: { in: supervisorIds } },
+        select: {
+          id: true,
+          fullName: true,
+          employeeNumber: true,
+          job_titles: {
+            select: { title: true }
+          }
+        }
       }) : []
     ])
 
@@ -160,6 +173,7 @@ export async function GET(req: NextRequest) {
     const jobTitleMap = new Map(jobTitles.map(jt => [jt.id, jt]))
     const compensationTypeMap = new Map(compensationTypes.map(ct => [ct.id, ct]))
     const businessMap = new Map(businesses.map(b => [b.id, b]))
+    const supervisorMap = new Map(supervisors.map(s => [s.id, s]))
 
     // Fetch employee contracts separately to avoid relying on fragile relation include names
     // Include active and pending contracts for proper status display
@@ -185,6 +199,7 @@ export async function GET(req: NextRequest) {
       const jobTitle = jobTitleMap.get(employee.jobTitleId)
       const compensationType = compensationTypeMap.get(employee.compensationTypeId)
       const business = businessMap.get(employee.primaryBusinessId)
+      const supervisor = employee.supervisorId ? supervisorMap.get(employee.supervisorId) : null
 
       return {
         id: employee.id,
@@ -214,9 +229,15 @@ export async function GET(req: NextRequest) {
           name: business.name,
           type: business.type
         } : null,
-  // Include active contract data for salary increase functionality
-  employeeContracts: contractsByEmployee.get(employee.id) || [],
-  contractCount: (contractsByEmployee.get(employee.id) || []).length
+        supervisor: supervisor ? {
+          id: supervisor.id,
+          fullName: supervisor.fullName,
+          employeeNumber: supervisor.employeeNumber,
+          jobTitle: supervisor.job_titles?.title || null
+        } : null,
+        // Include active contract data for salary increase functionality
+        employeeContracts: contractsByEmployee.get(employee.id) || [],
+        contractCount: (contractsByEmployee.get(employee.id) || []).length
       }
     })
 
