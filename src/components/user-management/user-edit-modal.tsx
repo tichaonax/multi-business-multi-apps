@@ -373,6 +373,7 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
                     onChange={(e) => setBasicInfo({ ...basicInfo, systemRole: e.target.value })}
                   >
                     <option value="user">User</option>
+                    <option value="salesperson">Salesperson</option>
                     <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
                     <option value="admin">System Admin</option>
@@ -789,8 +790,9 @@ function BusinessSelectorModal({
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value as keyof typeof BUSINESS_PERMISSION_PRESETS)}
             >
+              <option value="salesperson">Salesperson</option>
               <option value="employee">Employee</option>
-              <option value="manager">Manager</option>
+              <option value="business-manager">Manager</option>
               <option value="business-owner">Business Owner</option>
             </select>
           </div>
@@ -834,6 +836,7 @@ function CustomPermissionsEditor({ permissions, businessType, onChange, currentR
     { title: 'Employee Management', permissions: CORE_PERMISSIONS.employeeManagement },
     { title: 'Data Management', permissions: CORE_PERMISSIONS.dataManagement },
     { title: 'Payroll Management', permissions: CORE_PERMISSIONS.payrollManagement },
+    { title: 'WiFi Portal Integration', permissions: CORE_PERMISSIONS.wifiPortalIntegration },
   ]
 
   // ⚠️ CRITICAL: Only show Manager Payroll Actions for business-owner and business-manager roles

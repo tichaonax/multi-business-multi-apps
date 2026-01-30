@@ -25,8 +25,12 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   // Business permissions context
   const {
     currentBusiness,
-    isAuthenticated
+    isAuthenticated,
+    hasPermission
   } = useBusinessPermissionsContext()
+
+  const user = session?.user as SessionUser
+  const isAdmin = isSystemAdmin(user)
 
   // Business menu hover handlers
   const handleBusinessMenuEnter = () => {
@@ -47,9 +51,17 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     }, 150) // 150ms delay to hide
   }
 
-  // Get business-specific menu links
+  // Get business-specific menu links with permission checks
   const getBusinessMenuLinks = (businessType: string, currentPathname: string) => {
-    const baseLinks = [
+    // Define links with their required permissions
+    type MenuLink = {
+      href: string
+      icon: string
+      label: string
+      permissions?: string[]  // Required permissions (OR logic - any one grants access)
+    }
+
+    const baseLinks: MenuLink[] = [
       {
         href: `/${businessType}`,
         icon: '🏠',
@@ -57,32 +69,32 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       }
     ]
 
-    const businessSpecificLinks = {
+    const businessSpecificLinks: Record<string, MenuLink[]> = {
       restaurant: [
         { href: `/${businessType}/pos`, icon: '🍽️', label: 'POS System' },
-        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports' },
-        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
-        { href: `/${businessType}/menu`, icon: '📋', label: 'Menu Management' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
+        { href: `/${businessType}/menu`, icon: '📋', label: 'Menu Management', permissions: ['canManageMenu'] },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
       ],
       grocery: [
         { href: `/${businessType}/pos`, icon: '🛒', label: 'POS System' },
-        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports' },
-        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
         { href: `/${businessType}/products`, icon: '📦', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
       ],
       clothing: [
         { href: `/${businessType}/pos`, icon: '👕', label: 'POS System' },
-        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports' },
-        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
         { href: `/${businessType}/products`, icon: '👗', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
       ],
       hardware: [
         { href: `/${businessType}/pos`, icon: '🔧', label: 'POS System' },
-        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports' },
-        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
         { href: `/${businessType}/products`, icon: '🛠️', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
       ]
@@ -90,11 +102,16 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
     const allLinks = [
       ...baseLinks,
-      ...(businessSpecificLinks[businessType as keyof typeof businessSpecificLinks] || [])
+      ...(businessSpecificLinks[businessType] || [])
     ]
 
-    // Filter out the current page from the menu
+    // Filter based on permissions and current page
     return allLinks.filter(link => {
+      // Check permissions first (admin always has access)
+      if (link.permissions && link.permissions.length > 0) {
+        const hasAccess = isAdmin || link.permissions.some(perm => hasPermission(perm as any))
+        if (!hasAccess) return false
+      }
       // If we're on the exact business home page, exclude the home link
       if (currentPathname === `/${businessType}` && link.href === `/${businessType}`) {
         return false
