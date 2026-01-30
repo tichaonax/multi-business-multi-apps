@@ -88,7 +88,8 @@ export default function RestaurantPOS() {
     currentBusinessId,
     isAuthenticated,
     loading: businessLoading,
-    businesses
+    businesses,
+    hasPermission
   } = useBusinessPermissionsContext()
 
   // Get user info
@@ -1510,29 +1511,35 @@ export default function RestaurantPOS() {
                 >
                   ⚙️ Settings
                 </button>
-                <Link
-                  href="/restaurant/menu"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  📋 Menu
-                </Link>
+                {/* Menu Management - Only for users with canManageMenu permission */}
+                {(isAdmin || hasPermission('canManageMenu')) && (
+                  <Link
+                    href="/restaurant/menu"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    📋 Menu
+                  </Link>
+                )}
                 <Link
                   href="/restaurant/orders"
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
                 >
                   📦 Orders
                 </Link>
-                <Link
-                  href="/restaurant/reports/end-of-day"
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                >
-                  📊 Reports
-                </Link>
+                {/* Reports - Only for users with report access */}
+                {(isAdmin || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
+                  <Link
+                    href="/restaurant/reports/end-of-day"
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    📊 Reports
+                  </Link>
+                )}
               </div>
             </div>
 
-            {/* Daily Sales Summary Widget */}
-            {dailySales && (
+            {/* Daily Sales Summary Widget - Only for users with financial access */}
+            {dailySales && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (
               <div className="card bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 p-4 rounded-lg shadow">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-bold text-primary flex items-center gap-2">

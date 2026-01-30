@@ -130,7 +130,8 @@ function GroceryPOSContent() {
     currentBusiness,
     currentBusinessId,
     isAuthenticated,
-    loading: businessLoading
+    loading: businessLoading,
+    hasPermission
   } = useBusinessPermissionsContext()
 
   // Toast context for notifications
@@ -1684,12 +1685,15 @@ function GroceryPOSContent() {
         >
           🖥️ Open Customer Display
         </button>
-        <a
-          href="/grocery/reports"
-          className="inline-block px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md hover:shadow-lg font-medium"
-        >
-          📊 View Sales Reports & Analytics
-        </a>
+        {/* Reports - Only for users with report access */}
+        {(isAdmin || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
+          <a
+            href="/grocery/reports"
+            className="inline-block px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md hover:shadow-lg font-medium"
+          >
+            📊 View Sales Reports & Analytics
+          </a>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">

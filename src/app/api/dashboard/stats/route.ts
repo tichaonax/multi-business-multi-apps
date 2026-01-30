@@ -129,8 +129,8 @@ export async function GET(req: NextRequest) {
               projectWhereClause.AND = [
                 {
                   OR: [
-                    { project: { businessId: null } },
-                    { project: { businessId: { in: userBusinessIds } } }
+                    { projects: { businessId: null } },
+                    { projects: { businessId: { in: userBusinessIds } } }
                   ]
                 }
               ]

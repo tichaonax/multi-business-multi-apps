@@ -45,10 +45,13 @@ export async function GET(request: NextRequest) {
 
     const user = session.user as SessionUser;
 
-    // Check permission: admin OR has canSetupPortalIntegration permission
-    if (!isSystemAdmin(user) && !hasPermission(user, 'canSetupPortalIntegration', businessId)) {
+    // Check permission: admin OR canSetupPortalIntegration OR canSellWifiTokens (read-only for salespersons)
+    const canSetup = hasPermission(user, 'canSetupPortalIntegration', businessId);
+    const canSell = hasPermission(user, 'canSellWifiTokens', businessId);
+
+    if (!isSystemAdmin(user) && !canSetup && !canSell) {
       return NextResponse.json(
-        { error: 'Access denied. You need portal setup permission for this business.' },
+        { error: 'Access denied. You need WiFi token permissions for this business.' },
         { status: 403 }
       );
     }

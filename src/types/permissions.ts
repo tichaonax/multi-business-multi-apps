@@ -869,6 +869,13 @@ export const CORE_PERMISSIONS = {
     { key: 'canEditLocations', label: 'Edit Locations' },
     { key: 'canDeleteLocations', label: 'Delete Locations' },
   ],
+  wifiPortalIntegration: [
+    { key: 'canSetupPortalIntegration', label: 'Setup Portal Integration' },
+    { key: 'canConfigureWifiTokens', label: 'Configure Token Packages' },
+    { key: 'canSellWifiTokens', label: 'Sell WiFi Tokens' },
+    { key: 'canViewWifiReports', label: 'View WiFi Reports' },
+    { key: 'canManageBusinessWifiMenu', label: 'Manage Business WiFi Menu' },
+  ],
   payrollManagement: [
     { key: 'canAccessPayroll', label: 'Access Payroll' },
     { key: 'canManagePayroll', label: 'Manage Payroll' },
@@ -1396,6 +1403,134 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessWifiMenu: false,
 };
 
+// Salesperson permissions - Minimal access for sales staff only
+// Can: process sales, sell tokens, view basic customer info
+// Cannot: view reports, manage employees, configure systems
+export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
+  // Business Management - Minimal
+  canViewBusiness: true,
+  canEditBusiness: false,
+  canDeleteBusiness: false,
+  canManageBusinessUsers: false,
+  canManageBusinessSettings: false,
+  canChangeDefaultPage: false,
+
+  // User Management - No access
+  canViewUsers: false,
+  canInviteUsers: false,
+  canEditUserPermissions: false,
+  canRemoveUsers: false,
+  canViewAuditLogs: false,
+
+  // Data Management - No access
+  canExportBusinessData: false,
+  canImportBusinessData: false,
+  canBackupBusiness: false,
+  canRestoreBusiness: false,
+
+  // Employee Management - No access
+  canViewEmployees: false,
+  canCreateEmployees: false,
+  canEditEmployees: false,
+  canDeleteEmployees: false,
+  canManageEmployees: false,
+  canViewEmployeeContracts: false,
+  canCreateEmployeeContracts: false,
+  canEditEmployeeContracts: false,
+  canApproveEmployeeContracts: false,
+  canDeleteEmployeeContracts: false,
+  canManageJobTitles: false,
+  canManageBenefitTypes: false,
+  canManageCompensationTypes: false,
+  canManageDisciplinaryActions: false,
+  canViewEmployeeReports: false,
+  canExportEmployeeData: false,
+  canApproveSalaryIncreases: false,
+  canProcessSalaryIncreases: false,
+
+  // Financial Management - No access
+  canAccessFinancialData: false,
+  canManageProjectBudgets: false,
+  canManageProjectPayments: false,
+  canViewCostReports: false,
+  canApproveBudgetChanges: false,
+  canViewProfitabilityReports: false,
+
+  // Customer Management - Sales-level access (view/create for sales)
+  canAccessCustomers: true,
+  canViewCustomers: true,
+  canManageCustomers: false,
+  canCreateCustomers: true,  // Salesperson can register new customers
+  canEditCustomers: false,
+  canDeleteCustomers: false,
+  canManageDivisionAccounts: false,
+  canManageLaybys: false,
+  canManageCredit: false,
+  canViewCustomerReports: false,  // No reports access
+  canExportCustomerData: false,
+  canLinkCustomerAccounts: false,
+
+  // Payroll Management - No access
+  canAccessPayroll: false,
+  canManagePayroll: false,
+  canCreatePayrollPeriod: false,
+  canEditPayrollEntry: false,
+  canApprovePayroll: false,
+  canExportPayroll: false,
+  canResetExportedPayrollToPreview: false,
+  canDeletePayroll: false,
+  canPrintPayrollEntryDetails: false,
+  canEnterPaySlips: false,
+  canReconcilePayroll: false,
+  canViewPayrollReports: false,
+  canManageAdvances: false,
+
+  // Payroll Account Management - No access
+  canAccessPayrollAccount: false,
+  canViewPayrollAccountBalance: false,
+  canMakePayrollDeposits: false,
+  canMakePayrollPayments: false,
+  canAdjustPaymentAmounts: false,
+  canIssuePaymentVouchers: false,
+  canCompletePayments: false,
+  canViewPayrollHistory: false,
+  canExportPayrollPayments: false,
+
+  // Expense Account Management - No access
+  canAccessExpenseAccount: false,
+  canCreateExpenseAccount: false,
+  canMakeExpenseDeposits: false,
+  canMakeExpensePayments: false,
+  canViewExpenseReports: false,
+  canCreateIndividualPayees: false,
+  canDeleteExpenseAccounts: false,
+  canAdjustExpensePayments: false,
+  canEditExpenseTransactions: false,
+  canCreateSiblingAccounts: false,
+  canEnterHistoricalData: false,
+  canMergeSiblingAccounts: false,
+
+  // Supplier Management - No access
+  canViewSuppliers: false,
+  canCreateSuppliers: false,
+  canEditSuppliers: false,
+  canDeleteSuppliers: false,
+  canManageSupplierCatalog: false,
+
+  // Location Management - No access
+  canViewLocations: false,
+  canCreateLocations: false,
+  canEditLocations: false,
+  canDeleteLocations: false,
+
+  // WiFi Portal Integration - Sales only (no config, no reports)
+  canSetupPortalIntegration: false,
+  canConfigureWifiTokens: false,
+  canSellWifiTokens: true,  // ✅ Can sell tokens
+  canViewWifiReports: false,
+  canManageBusinessWifiMenu: false,
+};
+
 // System admin permissions (cross-business)
 export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   // Business Management - Full system access
@@ -1759,6 +1894,7 @@ export const BUSINESS_PERMISSION_PRESETS = {
   'business-owner': BUSINESS_OWNER_PERMISSIONS,
   'business-manager': BUSINESS_MANAGER_PERMISSIONS,
   'employee': BUSINESS_EMPLOYEE_PERMISSIONS,
+  'salesperson': BUSINESS_SALESPERSON_PERMISSIONS,
   'read-only': BUSINESS_READ_ONLY_PERMISSIONS,
   'system-admin': SYSTEM_ADMIN_PERMISSIONS,
 } as const;
