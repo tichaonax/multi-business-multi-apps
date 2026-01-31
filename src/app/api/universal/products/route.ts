@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     const includeVariants = searchParams.get('includeVariants') === 'true'
     const includeImages = searchParams.get('includeImages') === 'true'
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 500)
     const skip = (page - 1) * limit
 
     const where: any = {}
@@ -254,11 +254,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify category exists
+    // Verify category exists (either owned by this business or shared by businessType)
     const category = await prisma.businessCategories.findFirst({
       where: {
         id: productData.categoryId,
-        businessId: productData.businessId
+        OR: [
+          { businessId: productData.businessId },
+          { businessId: null, businessType: productData.businessType }
+        ]
       }
     })
 
@@ -307,7 +310,8 @@ export async function POST(request: NextRequest) {
       const product = await tx.businessProducts.create({
           data: {
             ...productData,
-            businessType: productData.businessType || business.type
+            businessType: productData.businessType || business.type,
+            updatedAt: new Date()
           },
           include: {
             businesses: { select: { name: true, type: true } },

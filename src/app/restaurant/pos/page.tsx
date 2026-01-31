@@ -1983,8 +1983,8 @@ export default function RestaurantPOS() {
                 </div>
               </div>
 
-              {/* Amount Received (for Cash) */}
-              {paymentMethod === 'CASH' && (
+              {/* Amount Received (for Cash) - only show if total > 0 */}
+              {paymentMethod === 'CASH' && total > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-primary mb-2">Amount Received</label>
                   <input
@@ -2007,6 +2007,13 @@ export default function RestaurantPOS() {
                       ⚠️ Amount received is less than total (${total.toFixed(2)})
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Free item notice */}
+              {paymentMethod === 'CASH' && total === 0 && (
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-800 dark:text-green-200">
+                  ✅ Free item - no payment required
                 </div>
               )}
 
@@ -2035,7 +2042,7 @@ export default function RestaurantPOS() {
                 </button>
                 <button
                   onClick={completeOrderWithPayment}
-                  disabled={paymentMethod === 'CASH' && (!amountReceived || parseFloat(amountReceived) < total)}
+                  disabled={paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total)}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Complete Order

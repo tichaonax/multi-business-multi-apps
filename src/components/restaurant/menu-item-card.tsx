@@ -42,11 +42,12 @@ export interface MenuItem {
 interface MenuItemCardProps {
   item: MenuItem
   onEdit: (item: MenuItem) => void
+  onClone?: (item: MenuItem) => void
   onDelete: (itemId: string) => void
   onToggleAvailability: (itemId: string, currentAvailability: boolean) => void
 }
 
-export function MenuItemCard({ item, onEdit, onDelete, onToggleAvailability }: MenuItemCardProps) {
+export function MenuItemCard({ item, onEdit, onClone, onDelete, onToggleAvailability }: MenuItemCardProps) {
   const [imageError, setImageError] = useState(false)
 
   const primaryImage = item.images?.find(img => img.isPrimary) || item.images?.[0]
@@ -265,6 +266,18 @@ export function MenuItemCard({ item, onEdit, onDelete, onToggleAvailability }: M
           >
             ✏️ Edit
           </Button>
+
+          {onClone && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onClone(item)}
+              className="hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200"
+              title="Clone this item"
+            >
+              📋
+            </Button>
+          )}
 
           <Button
             variant="outline"

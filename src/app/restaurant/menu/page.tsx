@@ -270,13 +270,32 @@ export default function MenuManagementPage() {
     setShowForm(true)
   }
 
+  const handleCloneItem = (item: MenuItem) => {
+    // Create a copy of the item without the ID (so form treats it as new)
+    // Also remove image IDs and variant IDs since those belong to the original
+    const clonedItem: MenuItem = {
+      ...item,
+      id: '', // Empty ID so form treats it as a new item
+      name: `${item.name} (Copy)`, // Append " (Copy)" to help identify
+      images: [], // Don't copy images - they reference the original
+      variants: item.variants?.map(v => ({
+        ...v,
+        id: '', // Remove variant IDs so new ones are created
+      })) || []
+    }
+    setEditingItem(clonedItem)
+    setShowForm(true)
+  }
+
   const handleFormSubmit = async (formData: any) => {
     try {
-      const url = editingItem
-        ? `/api/universal/products/${editingItem.id}`
+      // Check for editingItem.id to determine if this is an update or create (clone has empty id)
+      const isUpdate = editingItem?.id ? true : false
+      const url = isUpdate
+        ? `/api/universal/products/${editingItem!.id}`
         : '/api/universal/products'
 
-      const method = editingItem ? 'PUT' : 'POST'
+      const method = isUpdate ? 'PUT' : 'POST'
 
       // For new items, we need to add required fields
       let submitData = {
@@ -284,10 +303,10 @@ export default function MenuManagementPage() {
         businessType: 'restaurant'
       }
 
-      // Add required fields for new items
-      if (!editingItem) {
-        // Use the restaurant demo business ID
-        const businessId = 'restaurant-demo-business'
+      // Add required fields for new items (including cloned items)
+      if (!isUpdate) {
+        // Use current business ID or fallback to demo
+        const businessId = currentBusinessId || 'restaurant-demo-business'
 
         submitData = {
           ...submitData,
@@ -299,7 +318,7 @@ export default function MenuManagementPage() {
         // For updates, include the product ID
         submitData = {
           ...submitData,
-          id: editingItem.id
+          id: editingItem!.id
         }
       }
 
@@ -600,6 +619,7 @@ export default function MenuManagementPage() {
                     key={item.id}
                     item={item}
                     onEdit={handleEditItem}
+                    onClone={handleCloneItem}
                     onDelete={handleDeleteItem}
                     onToggleAvailability={handleToggleAvailability}
                   />

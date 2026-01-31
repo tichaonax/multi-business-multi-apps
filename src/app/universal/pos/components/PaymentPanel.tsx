@@ -132,8 +132,8 @@ export function PaymentPanel({
           </button>
         ))}
 
-        {/* Cash Amount Input */}
-        {showCashInput && selectedMethod === 'cash' && (
+        {/* Cash Amount Input - only show if total > 0 */}
+        {showCashInput && selectedMethod === 'cash' && totals.total > 0 && (
           <div className="mt-4 space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Amount Received
@@ -165,15 +165,22 @@ export function PaymentPanel({
             )}
           </div>
         )}
+
+        {/* Free item notice */}
+        {selectedMethod === 'cash' && totals.total === 0 && (
+          <div className="mt-4 p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-800 dark:text-green-200">
+            ✅ Free item - no payment required
+          </div>
+        )}
       </div>
 
       {/* Checkout Button */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <button
           onClick={handleCheckout}
-          disabled={isDisabled || (selectedMethod === 'cash' && !cashAmount)}
+          disabled={isDisabled || (selectedMethod === 'cash' && totals.total > 0 && !cashAmount)}
           className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-all ${
-            isDisabled || (selectedMethod === 'cash' && !cashAmount)
+            isDisabled || (selectedMethod === 'cash' && totals.total > 0 && !cashAmount)
               ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 active:scale-95'
           }`}

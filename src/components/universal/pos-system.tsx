@@ -671,8 +671,8 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                 </select>
               </div>
 
-              {/* Cash Tender Input */}
-              {paymentMethod === 'CASH' && (
+              {/* Cash Tender Input - only show if total > 0 */}
+              {paymentMethod === 'CASH' && totalAmount > 0 && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                     💵 Cash Tendered
@@ -700,6 +700,13 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                       ⚠️ Amount tendered is less than total
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Free item notice */}
+              {paymentMethod === 'CASH' && totalAmount === 0 && (
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-800 dark:text-green-200">
+                  ✅ Free item - no payment required
                 </div>
               )}
 
@@ -732,7 +739,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           {cart.length > 0 && (
             <button
               onClick={processOrder}
-              disabled={isProcessing || (paymentMethod === 'CASH' && (!cashTendered || parseFloat(cashTendered) < totalAmount))}
+              disabled={isProcessing || (paymentMethod === 'CASH' && totalAmount > 0 && (!cashTendered || parseFloat(cashTendered) < totalAmount))}
               className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-4 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
             >
               {isProcessing ? (

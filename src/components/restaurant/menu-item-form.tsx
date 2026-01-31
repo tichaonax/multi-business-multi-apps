@@ -171,7 +171,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
 
     if (!formData.name.trim()) errors.name = 'Name is required'
     if (!formData.categoryId) errors.categoryId = 'Category is required'
-    if (formData.basePrice <= 0) errors.basePrice = 'Price must be greater than 0'
+    if (formData.basePrice < 0) errors.basePrice = 'Price cannot be negative'
     if (formData.originalPrice && parseFloat(formData.originalPrice) <= formData.basePrice) {
       errors.originalPrice = 'Original price must be greater than current price'
     }
@@ -449,7 +449,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-primary">
           <h2 className="text-2xl font-bold text-primary">
-            {item ? 'Edit Menu Item' : 'Add New Menu Item'}
+            {item?.id ? 'Edit Menu Item' : item ? 'Clone Menu Item' : 'Add New Menu Item'}
           </h2>
           <button
             onClick={onCancel}
@@ -935,7 +935,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
               disabled={isSubmitting}
               className="bg-primary hover:bg-primary/90"
             >
-              {isSubmitting ? 'Saving...' : item ? 'Update Item' : 'Create Item'}
+              {isSubmitting ? 'Saving...' : item?.id ? 'Update Item' : 'Create Item'}
             </Button>
           </div>
         </form>

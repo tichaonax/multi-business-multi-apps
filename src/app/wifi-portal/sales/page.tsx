@@ -3,7 +3,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -89,6 +89,9 @@ export default function WiFiTokenSalesPage() {
   const [printCustomerCopy, setPrintCustomerCopy] = useState(false)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const toast = useToastContext()
+
+  // Ref-based guard to prevent duplicate print calls (state updates are async)
+  const printInFlightRef = useRef(false)
 
   const canSell = session?.user ? hasPermission(session.user, 'canSellWifiTokens') : false
 
@@ -262,6 +265,12 @@ export default function WiFiTokenSalesPage() {
 
   // Handle receipt printing with unified thermal system
   const handlePrintReceipt = async () => {
+    // Ref-based guard to prevent duplicate print calls (React state updates are async)
+    if (printInFlightRef.current) {
+      console.log('⚠️ [WiFi Portal] Print already in progress (ref guard), ignoring duplicate call')
+      return
+    }
+
     if (!generatedTokenData) {
       toast.push('No token data available')
       return
@@ -276,6 +285,10 @@ export default function WiFiTokenSalesPage() {
       toast.push('No printer configured for this business')
       return
     }
+
+    // Set ref guard immediately (synchronous)
+    printInFlightRef.current = true
+    console.log('🖨️ [WiFi Portal] Starting print job at:', new Date().toISOString())
 
     try {
       setIsPrinting(true)
@@ -345,6 +358,11 @@ export default function WiFiTokenSalesPage() {
       toast.push(`Failed to print receipt: ${error.message}`)
     } finally {
       setIsPrinting(false)
+      // Reset ref guard after a small delay to prevent rapid re-clicks
+      setTimeout(() => {
+        printInFlightRef.current = false
+        console.log('📋 [WiFi Portal] Print guard released')
+      }, 1000)
     }
   }
 
@@ -412,6 +430,22 @@ export default function WiFiTokenSalesPage() {
         {successMessage && (
           <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <p className="text-green-800 dark:text-green-200">{successMessage}</p>
+          </div>
+        )}
+
+        {/* Printer Warning */}
+        {!printerId && (
+          <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <p className="text-yellow-800 dark:text-yellow-200">
+              ⚠️ No printer configured. Receipts cannot be printed.
+              {session?.user && hasPermission(session.user, 'canManageNetworkPrinters') ? (
+                <Link href="/admin/printers" className="ml-2 underline font-medium hover:text-yellow-900 dark:hover:text-yellow-100">
+                  Configure Printer →
+                </Link>
+              ) : (
+                <span className="ml-1">Please ask an administrator to configure a printer.</span>
+              )}
+            </p>
           </div>
         )}
 
@@ -700,8 +734,8 @@ export default function WiFiTokenSalesPage() {
                 </div>
               </div>
 
-              {/* Amount Received (for Cash) */}
-              {paymentMethod === 'CASH' && (
+              {/* Amount Received (for Cash) - only show if total > 0 */}
+              {paymentMethod === 'CASH' && parseFloat(customPrice || '0') > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Amount Received</label>
                   <input
@@ -727,6 +761,13 @@ export default function WiFiTokenSalesPage() {
                 </div>
               )}
 
+              {/* Free item notice */}
+              {paymentMethod === 'CASH' && parseFloat(customPrice || '0') === 0 && (
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-800 dark:text-green-200">
+                  ✅ Free item - no payment required
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex gap-3 mt-6">
                 <button
@@ -740,7 +781,7 @@ export default function WiFiTokenSalesPage() {
                 </button>
                 <button
                   onClick={handleGenerateToken}
-                  disabled={paymentMethod === 'CASH' && (!amountReceived || parseFloat(amountReceived) < parseFloat(customPrice || '0'))}
+                  disabled={paymentMethod === 'CASH' && parseFloat(customPrice || '0') > 0 && (!amountReceived || parseFloat(amountReceived) < parseFloat(customPrice || '0'))}
                   className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Complete Sale

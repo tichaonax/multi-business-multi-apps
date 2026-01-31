@@ -96,6 +96,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
   const [comboItems, setComboItems] = useState<ComboItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [searchTerm, setSearchTerm] = useState<string>('')
   const [wifiTokens, setWifiTokens] = useState<WifiToken[]>([])
   const [itemTab, setItemTab] = useState<'menu' | 'wifi'>('menu')
 
@@ -150,6 +151,8 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
       isAvailable: true
     })
     setComboItems([])
+    setSearchTerm('')
+    setSelectedCategory('all')
     setShowForm(true)
   }
 
@@ -158,7 +161,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
     setFormData({
       name: combo.name,
       description: combo.description || '',
-      totalPrice: combo.totalPrice,
+      totalPrice: Number(combo.totalPrice) || 0,
       originalTotalPrice: combo.originalTotalPrice?.toString() || '',
       preparationTime: combo.preparationTime,
       discountPercent: combo.discountPercent?.toString() || '',
@@ -166,6 +169,8 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
       isAvailable: combo.isAvailable
     })
     setComboItems(combo.comboItems)
+    setSearchTerm('')
+    setSelectedCategory('all')
     setShowForm(true)
   }
 
@@ -185,7 +190,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
     setComboItems(prev => [...prev, newItem])
 
     // Auto-calculate total price
-    calculateTotalPrice([...comboItems, newItem])
+    calculateOriginalTotal([...comboItems, newItem])
   }
 
   const addWifiTokenToCombo = (token: WifiToken) => {
@@ -200,13 +205,13 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
     setComboItems(prev => [...prev, newItem])
 
     // Auto-calculate total price
-    calculateTotalPrice([...comboItems, newItem])
+    calculateOriginalTotal([...comboItems, newItem])
   }
 
   const removeItemFromCombo = (index: number) => {
     const updatedItems = comboItems.filter((_, i) => i !== index)
     setComboItems(updatedItems)
-    calculateTotalPrice(updatedItems)
+    calculateOriginalTotal(updatedItems)
   }
 
   const updateComboItem = (index: number, field: string, value: any) => {
@@ -216,23 +221,22 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
     setComboItems(updatedItems)
 
     if (field === 'quantity') {
-      calculateTotalPrice(updatedItems)
+      calculateOriginalTotal(updatedItems)
     }
   }
 
-  const calculateTotalPrice = (items: ComboItem[]) => {
+  const calculateOriginalTotal = (items: ComboItem[]) => {
+    // Only calculate the original total (sum of individual items) for reference
+    // User must manually set the combo price
     const total = items.reduce((sum, item) => {
-      // Handle both menu items and WiFi tokens
       const price = item.wifiToken?.basePrice || item.variant?.price || item.product?.basePrice || 0
       return sum + (Number(price) * item.quantity)
     }, 0)
 
     setFormData(prev => ({
       ...prev,
-      originalTotalPrice: total.toString(),
-      totalPrice: prev.discountPercent
-        ? total * (1 - parseFloat(prev.discountPercent) / 100)
-        : total
+      originalTotalPrice: total.toString()
+      // Don't auto-set totalPrice - user must enter it manually
     }))
   }
 
@@ -341,10 +345,15 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
     }).filter(Boolean) as Array<{ id: string; name: string }>
   }
 
-  // Filter menu items: exclude zero-price items and apply category filter
+  // Filter menu items: apply category filter and search (allow zero-price items since combo has overriding price)
   const filteredMenuItems = menuItems
-    .filter(item => item.basePrice > 0) // Exclude zero-price items from combo builder
     .filter(item => selectedCategory === 'all' || item.categoryId === selectedCategory)
+    .filter(item => {
+      if (!searchTerm) return true
+      const search = searchTerm.toLowerCase()
+      return item.name.toLowerCase().includes(search) ||
+             item.category?.name.toLowerCase().includes(search)
+    })
 
   if (loading) {
     return (
@@ -588,11 +597,16 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                           <Input
                             type="number"
                             step="0.01"
-                            min="0"
-                            value={formData.totalPrice}
+                            min="0.01"
+                            value={formData.totalPrice || ''}
                             onChange={(e) => setFormData(prev => ({ ...prev, totalPrice: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
+                            placeholder="Enter combo price"
+                            className={!formData.totalPrice || Number(formData.totalPrice) <= 0 ? 'border-orange-300 focus:border-orange-500' : ''}
                             required
                           />
+                          {(!formData.totalPrice || Number(formData.totalPrice) <= 0) && (
+                            <p className="text-orange-600 text-xs mt-1">Set combo price to enable save</p>
+                          )}
                         </div>
 
                         <div>
@@ -717,11 +731,11 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                         </div>
                         <div className="flex justify-between text-sm font-medium text-gray-900 dark:text-white">
                           <span>Combo Price:</span>
-                          <span className="text-primary">${formData.totalPrice.toFixed(2)}</span>
+                          <span className="text-primary">${Number(formData.totalPrice || 0).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                           <span>You Save:</span>
-                          <span>${Math.max(0, comboItems.reduce((sum, item) => sum + (Number(item.wifiToken?.basePrice || item.variant?.price || item.product?.basePrice || 0) * item.quantity), 0) - formData.totalPrice).toFixed(2)}</span>
+                          <span>${Math.max(0, comboItems.reduce((sum, item) => sum + (Number(item.wifiToken?.basePrice || item.variant?.price || item.product?.basePrice || 0) * item.quantity), 0) - Number(formData.totalPrice || 0)).toFixed(2)}</span>
                         </div>
                       </div>
                     )}
@@ -763,8 +777,15 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
                     {itemTab === 'menu' && (
                       <>
-                        {/* Category Filter */}
-                        <div className="mb-4">
+                        {/* Search and Category Filter */}
+                        <div className="mb-4 space-y-2">
+                          <Input
+                            type="text"
+                            placeholder="Search menu items..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full"
+                          />
                           <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -807,7 +828,11 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                                     <div className="flex-1">
                                       <p className="font-medium text-sm text-gray-900 dark:text-white">{item.name}</p>
                                       <p className="text-xs text-gray-600 dark:text-gray-400">{item.category?.name}</p>
-                                      <p className="text-sm font-medium text-primary">${item.basePrice.toFixed(2)}</p>
+                                      <p className="text-sm font-medium text-primary">
+                                        {Number(item.basePrice || 0) > 0
+                                          ? `$${Number(item.basePrice).toFixed(2)}`
+                                          : <span className="text-gray-400">$0.00</span>}
+                                      </p>
                                     </div>
 
                                     <div className="flex flex-col gap-1">
@@ -906,7 +931,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                 <Button
                   type="submit"
                   className="bg-primary hover:bg-primary/90"
-                  disabled={comboItems.length === 0}
+                  disabled={comboItems.length === 0 || !formData.totalPrice || Number(formData.totalPrice) <= 0}
                 >
                   {editingCombo ? 'Update Combo' : 'Create Combo'}
                 </Button>
