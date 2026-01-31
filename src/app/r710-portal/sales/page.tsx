@@ -131,6 +131,15 @@ export default function R710SalesPage() {
   // Send greeting to customer display when page loads
   useEffect(() => {
     if (currentBusinessId && businessDetails && session?.user) {
+      // CRITICAL: Signal which business is active FIRST
+      // This allows customer display to work with multiple businesses
+      console.log('[R710 Sales] Signaling active business:', currentBusinessId)
+      sendToDisplay('SET_ACTIVE_BUSINESS', {
+        subtotal: 0,
+        tax: 0,
+        total: 0
+      })
+
       sendToDisplay('SET_GREETING', {
         employeeName: session.user.name || 'Staff',
         businessName: businessDetails.name || businessDetails.businessName,
@@ -150,7 +159,7 @@ export default function R710SalesPage() {
 
   // Update customer display when price changes
   useEffect(() => {
-    if (selectedConfig && customPrice) {
+    if (selectedConfig && customPrice && currentBusinessId) {
       const price = parseFloat(customPrice) || 0
       const cartItem = {
         id: selectedConfig.id,
@@ -159,6 +168,22 @@ export default function R710SalesPage() {
         price: price,
         imageUrl: undefined
       }
+
+      // CRITICAL: Signal active business, page context, then cart state
+      // This ensures customer display shows the correct business even if it opens after POS
+      sendToDisplay('SET_ACTIVE_BUSINESS', {
+        subtotal: 0,
+        tax: 0,
+        total: 0
+      })
+
+      sendToDisplay('SET_PAGE_CONTEXT', {
+        pageContext: 'pos',
+        subtotal: price,
+        tax: 0,
+        total: price
+      })
+
       sendToDisplay('CART_STATE', {
         items: [cartItem],
         subtotal: price,
@@ -166,7 +191,7 @@ export default function R710SalesPage() {
         total: price
       })
     }
-  }, [customPrice, selectedConfig])
+  }, [customPrice, selectedConfig, currentBusinessId])
 
   const fetchData = async () => {
     if (!currentBusinessId) return
