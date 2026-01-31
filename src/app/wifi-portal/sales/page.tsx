@@ -99,8 +99,8 @@ export default function WiFiTokenSalesPage() {
     if (businessLoading || !currentBusinessId) return
 
     // Check business type
-    if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery') {
-      setErrorMessage('WiFi token sales are only available for restaurant and grocery businesses')
+    if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery' && currentBusiness?.businessType !== 'clothing' && currentBusiness?.businessType !== 'services') {
+      setErrorMessage('WiFi token sales are only available for restaurant, grocery, clothing, and services businesses')
       setLoading(false)
       return
     }
@@ -384,7 +384,7 @@ export default function WiFiTokenSalesPage() {
       <ContentLayout title="WiFi Token Sales">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-yellow-800">
-            WiFi token sales are only available for restaurant and grocery businesses.
+            WiFi token sales are only available for restaurant, grocery, clothing, and services businesses.
           </p>
         </div>
       </ContentLayout>

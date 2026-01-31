@@ -114,8 +114,8 @@ export default function R710SalesPage() {
     if (businessLoading || !currentBusinessId) return
 
     // Check business type
-    if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery') {
-      setErrorMessage('R710 WiFi token sales are only available for restaurant and grocery businesses')
+    if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery' && currentBusiness?.businessType !== 'clothing' && currentBusiness?.businessType !== 'services') {
+      setErrorMessage('R710 WiFi token sales are only available for restaurant, grocery, clothing, and services businesses')
       setLoading(false)
       return
     }
@@ -491,7 +491,7 @@ export default function R710SalesPage() {
       <ContentLayout title="R710 WiFi Token Sales">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-yellow-800">
-            R710 WiFi token sales are only available for restaurant and grocery businesses.
+            R710 WiFi token sales are only available for restaurant, grocery, clothing, and services businesses.
           </p>
         </div>
       </ContentLayout>
