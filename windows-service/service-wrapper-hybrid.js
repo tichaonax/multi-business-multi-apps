@@ -93,6 +93,7 @@ class HybridServiceWrapper extends EventEmitter {
     super();
     this.childProcess = null;
     this.appProcess = null;
+    this.electronProcess = null;
     this.appRoot = path.join(__dirname, '..');
     this.isShuttingDown = false;
     this.restartAttempts = 0;
@@ -1243,10 +1244,16 @@ class HybridServiceWrapper extends EventEmitter {
         await this.verifyNextJsStarted();
         console.log(`🚀 SERVICE STARTUP COMPLETE: Next.js application started successfully!`);
         console.log(`🌐 Application available at: http://localhost:${appPort}`);
+
+        // Start Electron after Next.js is confirmed running
+        await this.startElectron();
       } catch (verifyError) {
         console.warn(`⚠️  Next.js verification failed: ${verifyError.message}`);
         console.warn(`⚠️  Next.js process may still be starting or failed to bind to port ${appPort}`);
         console.warn(`⚠️  Sync service will continue running, but web interface may not be available`);
+
+        // Still try to start Electron - it may work if the server is just slow
+        await this.startElectron();
       }
     } catch (error) {
       console.error(`❌ Failed to start Next.js application: ${error.message}`);
@@ -1256,12 +1263,147 @@ class HybridServiceWrapper extends EventEmitter {
   }
 
   /**
+   * Start the Electron kiosk application
+   */
+  async startElectron() {
+    // Check if Electron should be started (default enabled)
+    const startElectron = process.env.SYNC_START_ELECTRON !== '0';
+    if (!startElectron) {
+      console.log('SYNC_START_ELECTRON=0: skipping Electron startup');
+      return;
+    }
+
+    console.log('🖥️  Starting Electron kiosk application...');
+
+    try {
+      const electronPath = path.join(this.appRoot, 'electron');
+      const appPort = process.env.PORT || '8080';
+
+      // Check if electron directory exists
+      if (!fs.existsSync(electronPath)) {
+        console.warn(`⚠️  Electron directory not found: ${electronPath}`);
+        console.warn('⚠️  Skipping Electron startup');
+        return;
+      }
+
+      // Check if electron node_modules exist
+      const electronNodeModules = path.join(electronPath, 'node_modules', 'electron');
+      if (!fs.existsSync(electronNodeModules)) {
+        console.warn('⚠️  Electron node_modules not installed');
+        console.warn('⚠️  Run: cd electron && npm install');
+        return;
+      }
+
+      // Use the direct electron.exe path for Windows
+      const electronExe = path.join(electronPath, 'node_modules', 'electron', 'dist', 'electron.exe');
+      const electronMain = path.join(electronPath, 'main.js');
+
+      if (fs.existsSync(electronExe)) {
+        console.log(`📝 Spawning: ${electronExe} ${electronMain}`);
+        this.electronProcess = spawn(electronExe, [electronMain], {
+          cwd: electronPath,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: {
+            ...process.env,
+            PORT: appPort,
+            NODE_ENV: 'production'
+          },
+          detached: false,
+          windowsHide: true
+        });
+      } else {
+        // Fallback to npm start
+        console.log('📝 Spawning: npm start (in electron directory)');
+        this.electronProcess = spawn('npm', ['start'], {
+          cwd: electronPath,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: {
+            ...process.env,
+            PORT: appPort,
+            NODE_ENV: 'production'
+          },
+          shell: true,
+          detached: false
+        });
+      }
+
+      console.log(`📌 Electron process spawned with PID: ${this.electronProcess.pid}`);
+
+      this.electronProcess.stdout.on('data', (data) => {
+        const output = data.toString().trim();
+        if (output) {
+          console.log(`[Electron] ${output}`);
+        }
+      });
+
+      this.electronProcess.stderr.on('data', (data) => {
+        const output = data.toString().trim();
+        if (output) {
+          console.error(`[Electron ERROR] ${output}`);
+        }
+      });
+
+      this.electronProcess.on('error', (err) => {
+        console.error(`❌ Failed to start Electron process: ${err.message}`);
+      });
+
+      this.electronProcess.on('exit', (code, signal) => {
+        console.warn(`⚠️  Electron process exited with code ${code} and signal ${signal}`);
+
+        if (!this.isShuttingDown) {
+          // Restart Electron if it crashes (but don't restart the whole service)
+          console.log('🔄 Electron crashed, restarting Electron in 3 seconds...');
+          setTimeout(() => {
+            if (!this.isShuttingDown) {
+              this.startElectron();
+            }
+          }, 3000);
+        }
+      });
+
+      console.log('✅ Electron kiosk application started');
+    } catch (error) {
+      console.error(`❌ Error starting Electron: ${error.message}`);
+    }
+  }
+
+  /**
+   * Stop the Electron process
+   */
+  async stopElectron() {
+    if (this.electronProcess && !this.electronProcess.killed) {
+      console.log('⏹️  Stopping Electron...');
+      this.electronProcess.kill('SIGTERM');
+
+      await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          if (this.electronProcess && !this.electronProcess.killed) {
+            console.log('🔪 Force killing Electron...');
+            this.electronProcess.kill('SIGKILL');
+          }
+          resolve();
+        }, 5000);
+
+        this.electronProcess.on('exit', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+
+      console.log('✅ Electron stopped');
+    }
+  }
+
+  /**
    * Stop the sync service and app
    */
   async stop() {
     this.isShuttingDown = true;
 
-    // Stop the Next.js app first
+    // Stop Electron first
+    await this.stopElectron();
+
+    // Stop the Next.js app
     if (this.appProcess) {
       try {
         console.log('⏹️  Stopping Next.js application...');

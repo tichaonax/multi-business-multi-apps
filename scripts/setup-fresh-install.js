@@ -24,11 +24,27 @@ function run(command, description) {
   console.log(`${'='.repeat(60)}`)
   console.log(`Running: ${command}\n`)
 
+  // For Prisma commands, verify DATABASE_URL is available
+  if (command.includes('prisma')) {
+    if (process.env.DATABASE_URL) {
+      // Mask password in URL for logging
+      const maskedUrl = process.env.DATABASE_URL.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@')
+      console.log(`🔗 DATABASE_URL: ${maskedUrl}\n`)
+    } else {
+      console.warn(`⚠️  WARNING: DATABASE_URL is not set! Prisma command may fail.\n`)
+    }
+  }
+
   try {
     execSync(command, {
       cwd: ROOT_DIR,
       stdio: 'inherit',
-      shell: true
+      shell: true,
+      env: {
+        ...process.env,
+        // Explicitly pass DATABASE_URL to ensure Prisma can access it
+        DATABASE_URL: process.env.DATABASE_URL
+      }
     })
     console.log(`\n✅ ${description} - COMPLETED\n`)
     return true
@@ -145,6 +161,61 @@ async function main() {
     console.log('See SETUP.md for required environment variables.\n')
     process.exit(1)
   }
+
+  // Load environment variables BEFORE running any steps
+  // This ensures DATABASE_URL is available for Prisma commands
+  console.log('🔧 Loading environment variables...\n')
+  try {
+    // Try to load dotenv if it exists (from a previous install)
+    const dotenvPath = path.join(ROOT_DIR, 'node_modules', 'dotenv')
+    if (fs.existsSync(dotenvPath)) {
+      const dotenv = require('dotenv')
+      dotenv.config({ path: envLocalPath })
+      dotenv.config({ path: envPath })
+      console.log(`✅ Environment loaded via dotenv`)
+      if (process.env.DATABASE_URL) {
+        console.log(`✅ DATABASE_URL is set`)
+      } else {
+        console.warn(`⚠️  DATABASE_URL not found in environment files`)
+      }
+    } else {
+      // Manually parse .env.local to set DATABASE_URL
+      // This is needed when running setup before npm install
+      console.log('📦 dotenv not installed yet, manually parsing environment file...')
+      const envContent = fs.existsSync(envLocalPath)
+        ? fs.readFileSync(envLocalPath, 'utf8')
+        : fs.readFileSync(envPath, 'utf8')
+
+      envContent.split('\n').forEach(line => {
+        const trimmed = line.trim()
+        if (trimmed && !trimmed.startsWith('#')) {
+          const equalsIndex = trimmed.indexOf('=')
+          if (equalsIndex > 0) {
+            const key = trimmed.substring(0, equalsIndex).trim()
+            let value = trimmed.substring(equalsIndex + 1).trim()
+            // Remove surrounding quotes if present
+            if ((value.startsWith('"') && value.endsWith('"')) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
+              value = value.slice(1, -1)
+            }
+            if (!process.env[key]) {
+              process.env[key] = value
+            }
+          }
+        }
+      })
+
+      if (process.env.DATABASE_URL) {
+        console.log(`✅ DATABASE_URL manually loaded from environment file`)
+      } else {
+        console.warn(`⚠️  DATABASE_URL not found in environment files`)
+      }
+    }
+  } catch (error) {
+    console.warn(`⚠️  Could not load environment: ${error.message}`)
+    console.warn(`   Will try to continue - some steps may fail`)
+  }
+  console.log('')
 
   // NOTE: Database checks moved to AFTER npm install and Prisma generation
   // This avoids the "Cannot find module 'dotenv'" error since dependencies
