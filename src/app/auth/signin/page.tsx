@@ -69,7 +69,7 @@ export default function SignIn() {
                 type="text"
                 required
                 className="input-field"
-                placeholder="admin@business.local or username"
+                placeholder={process.env.NODE_ENV === 'development' ? "admin@business.local or username" : "Enter your email or username"}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
               />
@@ -123,12 +123,14 @@ export default function SignIn() {
                 Create one here
               </a>
             </div>
-            <div className="text-center text-sm text-gray-500">
-              <p className="mb-2">Demo Credentials:</p>
-              <p><strong>Login:</strong> admin@business.local</p>
-              <p><strong>Password:</strong> admin123</p>
-              <p className="mt-2 text-xs">Note: You can login with email or username</p>
-            </div>
+            {process.env.NODE_ENV === 'development' && (
+              <div className="text-center text-sm text-gray-500">
+                <p className="mb-2">Demo Credentials:</p>
+                <p><strong>Login:</strong> admin@business.local</p>
+                <p><strong>Password:</strong> admin123</p>
+                <p className="mt-2 text-xs">Note: You can login with email or username</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

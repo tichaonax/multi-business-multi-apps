@@ -9,6 +9,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface Business {
   id: string
@@ -28,6 +29,7 @@ interface Business {
 export default function AdminBusinessesPage() {
   const { data: session } = useSession()
   const { format: globalDateFormat } = useDateFormat()
+  const { refreshBusinesses } = useBusinessPermissionsContext()
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -97,6 +99,7 @@ export default function AdminBusinessesPage() {
         })
         setShowCreateModal(false)
         fetchBusinesses() // Refresh the list
+        await refreshBusinesses() // Update header/sidebar
       } else {
         setMessage(`Error: ${result.error}`)
       }
@@ -143,6 +146,7 @@ export default function AdminBusinessesPage() {
         setShowEditModal(false)
         setSelectedBusiness(null)
         fetchBusinesses() // Refresh the list
+        await refreshBusinesses() // Update header/sidebar
       } else {
         setMessage(`Error: ${result.error}`)
       }
@@ -214,6 +218,7 @@ export default function AdminBusinessesPage() {
         setDetailsModalMode('view')
         setSelectedBusiness({ ...selectedBusiness, ...formData })
         fetchBusinesses() // Refresh the list
+        await refreshBusinesses() // Update header/sidebar
       } else {
         setMessage(`Error: ${result.error}`)
       }

@@ -458,6 +458,21 @@ export class RuckusR710ApiService {
         bypassCna
       });
 
+      // CRITICAL: Ensure the Guest Service has onboarding='true' for Zero-IT to work
+      // The Guest Service's onboarding attribute MUST be enabled in addition to WLAN's bypass-cna
+      if (enableZeroIt) {
+        console.log(`[R710] Ensuring Guest Service ${guestServiceId} has onboarding enabled...`);
+        const guestServiceResult = await this.ensureGuestServiceOnboarding(guestServiceId, {
+          title,
+          validDays,
+          logoType
+        });
+        if (!guestServiceResult.success) {
+          console.warn(`[R710] Warning: Could not ensure Guest Service onboarding: ${guestServiceResult.error}`);
+          // Continue anyway - the WLAN creation might still work
+        }
+      }
+
       const updaterId = this.generateUpdaterId('wlansvc-list');
 
       // Build the WLAN XML payload with all required configurations (from working test script)
@@ -588,6 +603,88 @@ export class RuckusR710ApiService {
       if (axiosError.response) {
         console.error('[R710] Response data:', axiosError.response.data);
       }
+      return { success: false, error: axiosError.message };
+    }
+  }
+
+  /**
+   * Ensure a Guest Service has onboarding='true' enabled for Zero-IT to work
+   * This is CRITICAL for Zero-IT device registration to function properly
+   */
+  async ensureGuestServiceOnboarding(
+    guestServiceId: string,
+    options: {
+      title?: string;
+      validDays?: number;
+      logoType?: string;
+    } = {}
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const {
+        title = 'Welcome to Guest WiFi !',
+        validDays = 1,
+        logoType = 'none'
+      } = options;
+
+      // First, get the current Guest Service name
+      const updaterId = this.generateUpdaterId('guestservice-list');
+      const getPayload = `<ajax-request action='getconf' DECRYPT_X='true' caller='unleashed_web' updater='${updaterId}' comp='guestservice-list'/>`;
+
+      const getResponse = await this.client.post('/admin/_conf.jsp', getPayload, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-CSRF-Token': this.csrfToken || '',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': `${this.baseUrl}/admin/dashboard.jsp`
+        }
+      });
+
+      const getResponseText = getResponse.data;
+
+      // Find the Guest Service name by ID
+      const guestServiceRegex = new RegExp(`<guestservice[^>]*\\sid="${guestServiceId}"[^>]*name="([^"]+)"`, 'i');
+      const nameMatch = getResponseText.match(guestServiceRegex);
+
+      // Also try alternative pattern where name comes before id
+      const altGuestServiceRegex = new RegExp(`<guestservice[^>]*name="([^"]+)"[^>]*\\sid="${guestServiceId}"`, 'i');
+      const altNameMatch = getResponseText.match(altGuestServiceRegex);
+
+      const serviceName = nameMatch?.[1] || altNameMatch?.[1] || `Guest Access ${guestServiceId}`;
+
+      console.log(`[R710] Found Guest Service name: "${serviceName}" for ID ${guestServiceId}`);
+
+      // Now update the Guest Service with onboarding='true'
+      const updateUpdaterId = this.generateUpdaterId('guestservice-list');
+      const updatePayload = `<ajax-request action='updobj' updater='${updateUpdaterId}' comp='guestservice-list'><guestservice name='${serviceName}' onboarding='true' onboarding-aspect='both' auth-by='guestpass' countdown-by-issued='false' show-tou='true' tou='Terms of Use
+
+By accepting this agreement and accessing the wireless network, you acknowledge that you are of legal age, you have read and understood, and agree to be bound by this agreement.
+(*) The wireless network service is provided by the property owners and is completely at their discretion. Your access to the network may be blocked, suspended, or terminated at any time for any reason.
+(*) You agree not to use the wireless network for any purpose that is unlawful or otherwise prohibited and you are fully responsible for your use.
+(*) The wireless network is provided &quot;as is&quot; without warranties of any kind, either expressed or implied.' redirect='orig' redirect-url='' company-logo='ruckus' poweredby='Ruckus Wireless' poweredby-url='http://www.ruckuswireless.com/' desc='Type or paste in the text of your guest pass.' self-service='false' rule6='' title='${title}' opacity='1.0' background-opacity='1' background-color='#516a8c' logo-type='${logoType}' banner-type='default' bgimage-type='default' bgimage-display-type='fill' enable-portal='true' wifi4eu='false' wifi4eu-network-id='' wifi4eu-language='en' wifi4eu-debug='false' wg='' show-lang='true' portal-lang='en_US' random-key='999' valid='${validDays}' old-self-service='false' old-auth-by='guestpass' id='${guestServiceId}'><rule action='accept' type='layer 2' ether-type='0x0806'></rule><rule action='accept' type='layer 2' ether-type='0x8863'></rule><rule action='accept' type='layer 2' ether-type='0x8864'></rule><rule action='accept' type='layer 3' protocol='17' dst-port='53'></rule><rule action='accept' type='layer 3' protocol='6' dst-port='53'></rule><rule action='accept' type='layer 3' protocol='' dst-port='67' app='DHCP'></rule><rule action='deny' type='layer 3' protocol='' dst-port='68'></rule><rule action='accept' type='layer 3' protocol='6' dst-addr='host' dst-port='80' app='HTTP'></rule><rule action='accept' type='layer 3' protocol='6' dst-addr='host' dst-port='443' app='HTTPS'></rule><rule action='deny' type='layer 3' dst-addr='local' protocol='' EDITABLE='false'></rule><rule action='deny' type='layer 3' dst-addr='10.0.0.0/8' protocol=''></rule><rule action='deny' type='layer 3' dst-addr='172.16.0.0/12' protocol=''></rule><rule action='deny' type='layer 3' dst-addr='192.168.0.0/16' protocol=''></rule><rule action='accept' type='layer 3' protocol='1'></rule><rule action='accept' type='layer 3' protocol='' dst-port='0'></rule></guestservice></ajax-request>`;
+
+      const updateResponse = await this.client.post('/admin/_conf.jsp', updatePayload, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'Accept': '*/*',
+          'X-CSRF-Token': this.csrfToken || '',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': `${this.baseUrl}/admin/dashboard.jsp`
+        }
+      });
+
+      const updateResponseText = updateResponse.data;
+
+      if (updateResponseText.includes('<response') && !updateResponseText.includes('<error')) {
+        console.log(`[R710] ✅ Guest Service ${guestServiceId} updated with onboarding='true'`);
+        return { success: true };
+      } else {
+        console.warn(`[R710] Guest Service update response: ${updateResponseText.substring(0, 300)}`);
+        return { success: false, error: 'Update response did not confirm success' };
+      }
+
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('[R710] Failed to ensure Guest Service onboarding:', axiosError.message);
       return { success: false, error: axiosError.message };
     }
   }
@@ -795,14 +892,17 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
         }
       });
 
+      // Sanitize XML to handle unescaped special characters in attribute values
+      const sanitizedData = this.sanitizeXmlResponse(response.data);
+
       // DEBUG: Log first part of response to see structure
-      console.log('[R710 Discovery] Response (first 2000 chars):', response.data.substring(0, 2000));
+      console.log('[R710 Discovery] Response (first 2000 chars):', sanitizedData.substring(0, 2000));
 
       // Parse WLANs using regex
       // CRITICAL: Need to capture the FULL <wlansvc> opening tag including all attributes up to the first >
       // The pattern needs to be greedy enough to get all attributes including 'id'
       const wlanPattern = /<wlansvc\s+[^>]*>/g;
-      const matches = response.data.match(wlanPattern);
+      const matches = sanitizedData.match(wlanPattern);
 
       console.log(`[R710 Discovery] Found ${matches?.length || 0} <wlansvc> tags`);
 
@@ -877,10 +977,11 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
         }
       });
 
-      // Parse XML response
+      // Parse XML response (with sanitization for unescaped special characters)
       const xml2js = require('xml2js');
       const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
-      const result = await parser.parseStringPromise(response.data);
+      const sanitizedXml = this.sanitizeXmlResponse(response.data);
+      const result = await parser.parseStringPromise(sanitizedXml);
 
       // Extract WLANs from response
       if (result && result['ajax-response'] && result['ajax-response'].response) {
@@ -1497,10 +1598,11 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
         }
       });
 
-      // Parse XML response
+      // Parse XML response (with sanitization for unescaped special characters)
       const xml2js = require('xml2js');
       const parser = new xml2js.Parser();
-      const result = await parser.parseStringPromise(response.data);
+      const sanitizedXml = this.sanitizeXmlResponse(response.data);
+      const result = await parser.parseStringPromise(sanitizedXml);
 
       const statData = result?.['ajax-response']?.response?.[0]?.['apstamgr-stat']?.[0];
 
@@ -1560,6 +1662,33 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
+  }
+
+  /**
+   * Sanitize XML response from R710
+   *
+   * The R710 sometimes returns XML with unescaped special characters
+   * in attribute values (e.g., & in SSID names). This method fixes
+   * those issues before parsing.
+   */
+  private sanitizeXmlResponse(xml: string): string {
+    // Fix unescaped & in attribute values
+    // Match attribute="value" and escape any unescaped & characters
+    // Only fix & that is not already part of an entity (& followed by word chars and ;)
+    return xml.replace(
+      /(\w+)=['"]([^'"]*)['"]/g,
+      (match, attrName, attrValue) => {
+        // Escape unescaped & characters in the attribute value
+        // Don't double-escape already escaped entities like &amp; &lt; &gt; &quot; &apos;
+        const sanitizedValue = attrValue.replace(
+          /&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g,
+          '&amp;'
+        );
+        // Preserve original quote type
+        const quote = match.includes("'") ? "'" : '"';
+        return `${attrName}=${quote}${sanitizedValue}${quote}`;
+      }
+    );
   }
 
   /**

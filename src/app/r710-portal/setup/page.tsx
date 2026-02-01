@@ -344,24 +344,163 @@ function R710SetupContent() {
       const data = await response.json()
 
       if (response.ok) {
-        if (data.changed) {
+        // Check for warnings
+        if (data.warning === 'SSID_MISMATCH') {
+          // SSID mismatch - user needs to decide
+          const shouldAccept = await confirm({
+            title: 'SSID Mismatch Detected',
+            description: `The WLAN on the device has a different name than expected.\n\nExpected: "${data.expectedSsid}"\nFound on device: "${data.deviceSsid}"\n\nThis could mean:\n• The WLAN was renamed on the R710 device\n• The original WLAN was deleted and a different one now has this ID\n\nIs "${data.deviceSsid}" the correct WLAN for this business?`,
+            confirmText: 'Yes, Accept New Name',
+            cancelText: 'No, Recreate Integration'
+          })
+
+          if (shouldAccept) {
+            // User confirms it's the same WLAN, just renamed
+            await handleAcceptSsidChange(data.deviceSsid)
+          } else {
+            // User says it's a different WLAN - recreate
+            await handleRecreateIntegration()
+          }
+        } else if (data.warning) {
+          // WLAN missing on device
+          const shouldRecreate = await confirm({
+            title: 'WLAN Missing on Device',
+            description: `The WLAN "${data.wlan?.ssid}" (ID: ${data.wlan?.wlanId}) was not found on the R710 device. It may have been deleted manually.\n\nWould you like to recreate the integration?\n\n• Token package configurations will be preserved\n• Unsold tokens will be deleted (they cannot be redeemed)\n• A new WLAN will be created with the same settings`,
+            confirmText: 'Recreate Integration',
+            cancelText: 'Cancel'
+          })
+
+          if (shouldRecreate) {
+            await handleRecreateIntegration()
+          }
+        } else if (data.changed) {
           await alert({
             title: 'WLAN Configuration Synced',
             description: `WLAN configuration has been synced from the R710 device.\n\nPrevious SSID: ${data.previousSsid}\nCurrent SSID: ${data.currentSsid}\n\nReceipts will now show the correct network name.`
           })
+          await loadData()
         } else {
           await alert({
             title: 'WLAN Already Up to Date',
             description: 'The WLAN configuration is already synchronized with the R710 device.'
           })
         }
-        await loadData()
       } else {
         setErrorMessage(data.error || 'Failed to sync WLAN configuration')
       }
     } catch (error) {
       console.error('Error syncing WLAN:', error)
       setErrorMessage('Failed to sync WLAN configuration. Please try again.')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleRecreateIntegration = async () => {
+    try {
+      setUpdating(true)
+      setErrorMessage(null)
+
+      const response = await fetch('/api/r710/integration/recreate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          businessId: currentBusinessId
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        await alert({
+          title: 'Integration Recreated',
+          description: `The WLAN has been recreated successfully.\n\nNew WLAN ID: ${data.wlan?.wlanId}\nSSID: ${data.wlan?.ssid}\n\n${data.deletedTokensCount > 0 ? `${data.deletedTokensCount} unsold token(s) were removed.` : 'No unsold tokens were affected.'}`
+        })
+        await loadData()
+      } else {
+        setErrorMessage(data.error || 'Failed to recreate integration')
+      }
+    } catch (error) {
+      console.error('Error recreating integration:', error)
+      setErrorMessage('Failed to recreate integration. Please try again.')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleAcceptSsidChange = async (newSsid: string) => {
+    try {
+      setUpdating(true)
+      setErrorMessage(null)
+
+      const response = await fetch('/api/r710/integration/sync', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          newSsid
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        await alert({
+          title: 'SSID Updated',
+          description: `The SSID has been updated successfully.\n\nPrevious: ${data.previousSsid}\nNew: ${data.currentSsid}\n\nReceipts will now show the correct network name.`
+        })
+        await loadData()
+      } else {
+        setErrorMessage(data.error || 'Failed to update SSID')
+      }
+    } catch (error) {
+      console.error('Error accepting SSID change:', error)
+      setErrorMessage('Failed to update SSID. Please try again.')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleDeleteAndRecreate = async () => {
+    const confirmed = await confirm({
+      title: 'Delete & Recreate Integration',
+      description: 'Are you sure you want to delete and recreate this WLAN integration?\n\nThis will:\n• Delete the current WLAN from the R710 device\n• Delete all unsold tokens (they cannot be redeemed)\n• Create a new WLAN with the same settings\n• Preserve all token package configurations\n\nSold/used tokens will remain in the system for records.',
+      confirmText: 'Delete & Recreate',
+      cancelText: 'Cancel'
+    })
+
+    if (!confirmed) return
+
+    try {
+      setUpdating(true)
+      setErrorMessage(null)
+
+      const response = await fetch('/api/r710/integration/recreate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          forceDelete: true
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        await alert({
+          title: 'Integration Recreated',
+          description: `The WLAN has been deleted and recreated successfully.\n\nNew WLAN ID: ${data.wlan?.wlanId}\nSSID: ${data.wlan?.ssid}\nPrevious WLAN ID: ${data.wlan?.previousWlanId}\n\n${data.deletedTokensCount > 0 ? `${data.deletedTokensCount} unsold token(s) were removed.` : 'No unsold tokens were affected.'}\n${data.preservedTokenConfigs > 0 ? `${data.preservedTokenConfigs} token package(s) preserved.` : ''}`
+        })
+        await loadData()
+      } else {
+        setErrorMessage(data.error || 'Failed to delete and recreate integration')
+      }
+    } catch (error) {
+      console.error('Error deleting and recreating integration:', error)
+      setErrorMessage('Failed to delete and recreate integration. Please try again.')
     } finally {
       setUpdating(false)
     }
@@ -419,6 +558,15 @@ function R710SetupContent() {
     <div className="container mx-auto px-4 py-6 max-w-4xl">
       {/* Header */}
       <div className="mb-6">
+        <button
+          onClick={() => router.push('/r710-portal')}
+          className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4 transition-colors"
+        >
+          <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to R710 Portal
+        </button>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           📶 R710 WiFi Integration Setup
         </h1>
@@ -570,6 +718,13 @@ function R710SetupContent() {
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
                   {updating ? 'Syncing...' : '🔄 Sync from Device'}
+                </button>
+                <button
+                  onClick={handleDeleteAndRecreate}
+                  disabled={updating}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors disabled:opacity-50"
+                >
+                  {updating ? 'Recreating...' : '🔁 Delete & Recreate'}
                 </button>
                 <button
                   onClick={() => router.push('/r710-portal/token-configs')}

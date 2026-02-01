@@ -341,15 +341,24 @@ async function createDatabase() {
 }
 
 async function checkHasUsers() {
+  let prisma = null;
   try {
     const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
+    prisma = new PrismaClient();
     const count = await prisma.users.count();
-    await prisma.$disconnect();
     return count > 0;
   } catch (error) {
     // Table doesn't exist or other error - assume no users
     return false;
+  } finally {
+    // Always ensure proper cleanup
+    if (prisma) {
+      try {
+        await prisma.$disconnect();
+      } catch (e) {
+        // Ignore disconnect errors
+      }
+    }
   }
 }
 
@@ -419,7 +428,11 @@ async function main() {
       console.log('   This will seed reference data and create admin user\n');
     }
 
-    process.exit(0);
+    // Force exit after a short delay to ensure all connections are closed
+    // This prevents the script from hanging on lingering DB connections
+    setTimeout(() => {
+      process.exit(0);
+    }, 1000);
 
   } catch (error) {
     console.log('\n============================================================');
@@ -427,7 +440,10 @@ async function main() {
     console.log('============================================================');
     console.error('\nError:', error.message);
     console.log('\n');
-    process.exit(1);
+    // Force exit after a short delay
+    setTimeout(() => {
+      process.exit(1);
+    }, 1000);
   }
 }
 
