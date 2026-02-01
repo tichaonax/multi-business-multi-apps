@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BusinessPermissions, BusinessType } from '@/types/permissions'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
-import { randomBytes } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 
 interface TemplateCreateRequest {
   name: string

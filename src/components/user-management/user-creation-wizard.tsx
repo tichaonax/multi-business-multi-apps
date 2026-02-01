@@ -38,6 +38,19 @@ interface PermissionTemplate {
   permissions: Partial<BusinessPermissions>
 }
 
+interface UserForCloning {
+  userId: string
+  userName: string
+  userEmail: string
+  businessPermissions: {
+    businessId: string
+    businessName: string
+    businessType: string
+    role: string
+    permissions: Partial<BusinessPermissions>
+  }[]
+}
+
 export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }: UserCreationWizardProps) {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -58,6 +71,8 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
   const [availableBusinesses, setAvailableBusinesses] = useState<any[]>([])
   const [loadingBusinesses, setLoadingBusinesses] = useState(false)
   const [permissionTemplates, setPermissionTemplates] = useState<PermissionTemplate[]>([])
+  const [usersForCloning, setUsersForCloning] = useState<UserForCloning[]>([])
+  const [loadingUsersForCloning, setLoadingUsersForCloning] = useState(false)
 
   // Employee selection
   const [availableEmployees, setAvailableEmployees] = useState<any[]>([])
@@ -97,6 +112,41 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
       }
     } catch (error) {
       console.error('Error loading permission templates:', error)
+    }
+  }
+
+  const loadUsersForCloning = async () => {
+    setLoadingUsersForCloning(true)
+    try {
+      // First get all users
+      const usersResponse = await fetch('/api/admin/users')
+      if (!usersResponse.ok) {
+        console.error('Failed to load users for cloning')
+        return
+      }
+      const users = await usersResponse.json()
+
+      // For each user, we already have their businessMemberships with permissions
+      const clonableUsers: UserForCloning[] = users
+        .filter((u: any) => u.businessMemberships && u.businessMemberships.length > 0)
+        .map((u: any) => ({
+          userId: u.id,
+          userName: u.name,
+          userEmail: u.email,
+          businessPermissions: u.businessMemberships.map((m: any) => ({
+            businessId: m.businessId,
+            businessName: m.businesses?.name || m.business?.name || 'Unknown',
+            businessType: m.businesses?.type || m.business?.type || 'other',
+            role: m.role,
+            permissions: m.permissions || {}
+          }))
+        }))
+
+      setUsersForCloning(clonableUsers)
+    } catch (error) {
+      console.error('Error loading users for cloning:', error)
+    } finally {
+      setLoadingUsersForCloning(false)
     }
   }
 
@@ -143,13 +193,16 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
     }
     
     setStep(2)
-    
-    // Load businesses and templates when moving to step 2
+
+    // Load businesses, templates, and users for cloning when moving to step 2
     if (availableBusinesses.length === 0) {
       await loadAvailableBusinesses()
     }
     if (permissionTemplates.length === 0) {
       loadPermissionTemplates()
+    }
+    if (usersForCloning.length === 0) {
+      loadUsersForCloning()
     }
   }
 
@@ -532,6 +585,8 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                       assignment={assignment}
                       availableBusinesses={availableBusinesses}
                       permissionTemplates={permissionTemplates}
+                      usersForCloning={usersForCloning}
+                      loadingUsersForCloning={loadingUsersForCloning}
                       onUpdate={(updates) => updateBusinessAssignment(index, updates)}
                       onRemove={() => removeBusinessAssignment(index)}
                       canRemove={businessAssignments.length > 1}
@@ -567,22 +622,30 @@ interface BusinessAssignmentCardProps {
   assignment: BusinessAssignment
   availableBusinesses: any[]
   permissionTemplates: PermissionTemplate[]
+  usersForCloning: UserForCloning[]
+  loadingUsersForCloning: boolean
   onUpdate: (updates: Partial<BusinessAssignment>) => void
   onRemove: () => void
   canRemove: boolean
 }
 
-function BusinessAssignmentCard({ 
-  assignment, 
+function BusinessAssignmentCard({
+  assignment,
   availableBusinesses,
   permissionTemplates,
-  onUpdate, 
-  onRemove, 
-  canRemove 
+  usersForCloning,
+  loadingUsersForCloning,
+  onUpdate,
+  onRemove,
+  canRemove
 }: BusinessAssignmentCardProps) {
   const [showCustomPermissions, setShowCustomPermissions] = useState(assignment.useCustomPermissions)
   // Default collapsed if already has custom permissions or template, expanded otherwise
   const [isCollapsed, setIsCollapsed] = useState(assignment.useCustomPermissions || !!assignment.selectedTemplate)
+  const [cloneFromUserId, setCloneFromUserId] = useState<string>('')
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -633,12 +696,12 @@ function BusinessAssignmentCard({
             onChange={(e) => {
               const value = e.target.value
               const isTemplate = value.startsWith('template-')
-              
+
               if (isTemplate) {
                 const templateId = value.replace('template-', '')
                 const template = permissionTemplates.find(t => t.id === templateId)
                 if (template) {
-                  onUpdate({ 
+                  onUpdate({
                     selectedTemplate: templateId,
                     role: 'employee', // Default role when using template
                     useCustomPermissions: true,
@@ -649,7 +712,7 @@ function BusinessAssignmentCard({
                   setIsCollapsed(false)
                 }
               } else {
-                onUpdate({ 
+                onUpdate({
                   selectedTemplate: undefined,
                   role: value as keyof typeof BUSINESS_PERMISSION_PRESETS,
                   useCustomPermissions: false,
@@ -681,6 +744,68 @@ function BusinessAssignmentCard({
             )}
           </select>
         </div>
+      </div>
+
+      {/* Clone from User Section */}
+      <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Clone Permissions from Existing User
+        </label>
+        <div className="flex gap-2 items-start">
+          <select
+            className="input-field flex-1"
+            value={cloneFromUserId}
+            onChange={(e) => setCloneFromUserId(e.target.value)}
+            disabled={loadingUsersForCloning}
+          >
+            <option value="">-- Select a user to clone from --</option>
+            {usersForCloning
+              .filter(user => {
+                // Show users who have permissions for the selected business
+                return user.businessPermissions.some(bp => bp.businessId === assignment.businessId)
+              })
+              .map(user => (
+                <option key={user.userId} value={user.userId}>
+                  {user.userName} ({user.userEmail})
+                </option>
+              ))
+            }
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              if (!cloneFromUserId) return
+              const sourceUser = usersForCloning.find(u => u.userId === cloneFromUserId)
+              if (!sourceUser) return
+
+              // Find permissions for the current business
+              const businessPerms = sourceUser.businessPermissions.find(
+                bp => bp.businessId === assignment.businessId
+              )
+              if (businessPerms) {
+                onUpdate({
+                  role: businessPerms.role as keyof typeof BUSINESS_PERMISSION_PRESETS,
+                  useCustomPermissions: true,
+                  customPermissions: businessPerms.permissions,
+                  selectedTemplate: undefined
+                })
+                setShowCustomPermissions(true)
+                setIsCollapsed(false)
+              }
+            }}
+            disabled={!cloneFromUserId || loadingUsersForCloning}
+            className="btn-primary text-sm whitespace-nowrap"
+          >
+            Clone
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          {loadingUsersForCloning
+            ? 'Loading users...'
+            : usersForCloning.filter(u => u.businessPermissions.some(bp => bp.businessId === assignment.businessId)).length === 0
+              ? 'No users with permissions for this business'
+              : 'Select a user to copy their permissions for this business'}
+        </p>
       </div>
 
       <div className="mt-4">
@@ -728,26 +853,41 @@ function BusinessAssignmentCard({
                 </p>
               )}
             </div>
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="flex items-center px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md border border-gray-200 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 hover:border-gray-300 dark:hover:border-gray-400 transition-colors duration-150"
-            >
-              {isCollapsed ? (
-                <>
+            <div className="flex gap-2">
+              {/* Save as Template Button */}
+              {Object.keys(assignment.customPermissions || {}).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTemplateDialog(true)}
+                  className="flex items-center px-3 py-1.5 text-sm font-medium bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 rounded-md border border-green-200 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-700 transition-colors duration-150"
+                >
                   <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                   </svg>
-                  Expand Permissions
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>
-                  Collapse Permissions
-                </>
+                  Save as Template
+                </button>
               )}
-            </button>
+              <button
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md border border-gray-200 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 hover:border-gray-300 dark:hover:border-gray-400 transition-colors duration-150"
+              >
+                {isCollapsed ? (
+                  <>
+                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                    Expand Permissions
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                    Collapse Permissions
+                  </>
+                )}
+              </button>
+            </div>
           </div>
           {!isCollapsed && (
             <CustomPermissionsEditor 
@@ -763,6 +903,85 @@ function BusinessAssignmentCard({
               Custom permissions are collapsed. Click "Expand" above to view and edit permissions.
             </div>
           )}
+        </div>
+      )}
+
+      {/* Save as Template Dialog */}
+      {showSaveTemplateDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Save Permissions as Template
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Template Name *
+                </label>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  className="input-field"
+                  placeholder="e.g., Restaurant Shift Manager"
+                  autoFocus
+                />
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                <p>Business Type: <strong className="capitalize">{assignment.businessType || 'other'}</strong></p>
+                <p className="mt-1">
+                  This template will be available for {assignment.businessType || 'all'} businesses.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSaveTemplateDialog(false)
+                  setTemplateName('')
+                }}
+                className="btn-secondary"
+                disabled={savingTemplate}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!templateName.trim()) return
+                  setSavingTemplate(true)
+                  try {
+                    const response = await fetch('/api/admin/permission-templates', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        name: templateName.trim(),
+                        businessType: assignment.businessType || 'other',
+                        permissions: assignment.customPermissions
+                      })
+                    })
+                    const data = await response.json()
+                    if (response.ok) {
+                      alert('Template saved successfully!')
+                      setShowSaveTemplateDialog(false)
+                      setTemplateName('')
+                    } else {
+                      alert(data.error || 'Failed to save template')
+                    }
+                  } catch (error) {
+                    alert('Failed to save template')
+                  } finally {
+                    setSavingTemplate(false)
+                  }
+                }}
+                className="btn-primary"
+                disabled={!templateName.trim() || savingTemplate}
+              >
+                {savingTemplate ? 'Saving...' : 'Save Template'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

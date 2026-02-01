@@ -349,7 +349,7 @@ function R710SetupContent() {
           // SSID mismatch - user needs to decide
           const shouldAccept = await confirm({
             title: 'SSID Mismatch Detected',
-            description: `The WLAN on the device has a different name than expected.\n\nExpected: "${data.expectedSsid}"\nFound on device: "${data.deviceSsid}"\n\nThis could mean:\n• The WLAN was renamed on the R710 device\n• The original WLAN was deleted and a different one now has this ID\n\nIs "${data.deviceSsid}" the correct WLAN for this business?`,
+            description: `The WLAN on the device has a different name than expected.\n\nExpected: "${data.expectedSsid}"\nFound on device: "${data.deviceSsid}"\n\nNote: Guest WiFi networks should follow the naming format "[Business Name] Guest WiFi".\n\nThis could mean:\n• The WLAN was renamed on the R710 device\n• The original WLAN was deleted and a different one now has this ID\n\nIs "${data.deviceSsid}" the correct guest WiFi network for this business?`,
             confirmText: 'Yes, Accept New Name',
             cancelText: 'No, Recreate Integration'
           })

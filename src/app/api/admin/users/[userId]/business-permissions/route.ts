@@ -3,11 +3,118 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BusinessPermissions } from '@/types/permissions'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-utils'
 
 interface BusinessPermissionUpdateRequest {
   businessId: string
   permissions: Partial<BusinessPermissions>
+}
+
+/**
+ * GET /api/admin/users/[userId]/business-permissions
+ *
+ * Fetch a user's permissions across all their business memberships.
+ * Used for cloning permissions when creating new users.
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ userId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const currentUser = session.user as SessionUser
+    const { userId } = await params
+
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    }
+
+    // Only system admins or users with canManageBusinessUsers permission can view permissions
+    if (!isSystemAdmin(currentUser)) {
+      const userMembership = await prisma.businessMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          isActive: true,
+        },
+      })
+
+      if (!userMembership) {
+        return NextResponse.json({ error: 'No business access' }, { status: 403 })
+      }
+
+      const permissions = userMembership.permissions as any
+      if (!permissions.canManageBusinessUsers) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
+    }
+
+    // Get the target user and their business memberships
+    const targetUser = await prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        business_memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            businessId: true,
+            role: true,
+            permissions: true,
+            templateId: true,
+            businesses: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
+            },
+            permission_templates: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    // Transform for frontend consumption
+    const response = {
+      userId: targetUser.id,
+      userName: targetUser.name,
+      userEmail: targetUser.email,
+      systemRole: targetUser.role,
+      businessPermissions: targetUser.business_memberships.map((membership) => ({
+        businessId: membership.businessId,
+        businessName: membership.businesses?.name || 'Unknown Business',
+        businessType: membership.businesses?.type || 'other',
+        role: membership.role,
+        permissions: membership.permissions as Partial<BusinessPermissions>,
+        templateId: membership.templateId,
+        templateName: membership.permission_templates?.name || null,
+      })),
+    }
+
+    return NextResponse.json(response)
+  } catch (error) {
+    console.error('Error fetching user permissions:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch user permissions' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function PATCH(
