@@ -242,8 +242,10 @@ export default function MenuManagementPage() {
     }
   }
 
-  // Filter menu items based on search and filters
+  // Filter menu items based on search and filters (exclude WiFi items - they have their own tab)
   const filteredMenuItems = menuItems.filter(item => {
+    if (item.category?.name?.toUpperCase().includes('WIFI')) return false
+
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.description?.toLowerCase().includes(searchTerm.toLowerCase())
 
@@ -556,7 +558,7 @@ export default function MenuManagementPage() {
 
                 {/* Category Filter */}
                 <MenuCategoryFilter
-                  categories={categories}
+                  categories={categories.filter(c => !c.name?.toUpperCase().includes('WIFI'))}
                   selectedCategory={selectedCategory}
                   onCategoryChange={setSelectedCategory}
                 />
@@ -633,7 +635,7 @@ export default function MenuManagementPage() {
         {activeTab === 'combos' && currentBusinessId && (
           <ComboBuilder
             businessId={currentBusinessId}
-            menuItems={menuItems}
+            menuItems={menuItems.filter(item => !item.category?.name?.toUpperCase().includes('WIFI'))}
             onComboChange={loadMenuData}
           />
         )}

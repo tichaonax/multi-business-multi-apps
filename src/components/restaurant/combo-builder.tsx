@@ -335,18 +335,20 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
   const getUniqueCategories = () => {
     const categories = new Set<string>()
     menuItems.forEach(item => {
-      if (item.category) {
+      if (item.category && !item.name.toUpperCase().includes('WIFI')) {
         categories.add(item.category.id)
       }
     })
     return Array.from(categories).map(id => {
       const item = menuItems.find(i => i.category?.id === id)
       return item?.category
-    }).filter(Boolean) as Array<{ id: string; name: string }>
+    }).filter((c): c is { id: string; name: string } => Boolean(c) && !c.name.toUpperCase().includes('WIFI'))
   }
 
   // Filter menu items: apply category filter and search (allow zero-price items since combo has overriding price)
+  // Exclude WiFi products - they have their own dedicated tab
   const filteredMenuItems = menuItems
+    .filter(item => !item.name.toUpperCase().includes('WIFI'))
     .filter(item => selectedCategory === 'all' || item.categoryId === selectedCategory)
     .filter(item => {
       if (!searchTerm) return true

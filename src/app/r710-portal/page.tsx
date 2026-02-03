@@ -60,6 +60,10 @@ function R710PortalContent() {
   const [hasIntegration, setHasIntegration] = useState(false)
   const [deviceOnline, setDeviceOnline] = useState(false)
   const [checkingIntegration, setCheckingIntegration] = useState(true)
+  const [tokenConfigCount, setTokenConfigCount] = useState<number>(0)
+  const [integrationIpAddress, setIntegrationIpAddress] = useState<string | null>(null)
+  const [directSalesCount, setDirectSalesCount] = useState<number>(0)
+  const [purging, setPurging] = useState(false)
 
   // Permission checks for UI visibility
   const canSetup = hasPermission('canSetupPortalIntegration')
@@ -91,6 +95,35 @@ function R710PortalContent() {
           const data = await response.json()
           setHasIntegration(data.hasIntegration || false)
           setDeviceOnline(isDeviceTrulyOnline(data.integration))
+
+          // Store IP address if integration exists
+          if (data.hasIntegration && data.integration?.device?.ipAddress) {
+            setIntegrationIpAddress(data.integration.device.ipAddress)
+          }
+
+          // Fetch token config count if integration exists
+          if (data.hasIntegration && data.integration?.wlans?.[0]?.id) {
+            try {
+              const configResponse = await fetch(`/api/r710/token-configs?businessId=${currentBusinessId}`)
+              if (configResponse.ok) {
+                const configData = await configResponse.json()
+                setTokenConfigCount(configData.configs?.length || 0)
+              }
+            } catch (configError) {
+              console.error('Failed to fetch token configs:', configError)
+            }
+
+            // Fetch direct sales count
+            try {
+              const salesResponse = await fetch(`/api/r710/sales?businessId=${currentBusinessId}`)
+              if (salesResponse.ok) {
+                const salesData = await salesResponse.json()
+                setDirectSalesCount(salesData.stats?.totalSales || 0)
+              }
+            } catch (salesError) {
+              console.error('Failed to fetch sales count:', salesError)
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to check R710 integration:', error)
@@ -124,6 +157,41 @@ function R710PortalContent() {
       console.error('Failed to load R710 stats:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePurgeAvailableTokens = async () => {
+    if (!currentBusinessId) return
+
+    const confirmed = window.confirm(
+      'This will permanently delete ALL available (unsold) tokens for this business.\n\n' +
+      'Token package configurations will be preserved.\n' +
+      'Sold/active/expired tokens will NOT be affected.\n\n' +
+      'Continue?'
+    )
+
+    if (!confirmed) return
+
+    setPurging(true)
+    try {
+      const response = await fetch(`/api/r710/tokens/purge-available?businessId=${currentBusinessId}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        alert(`Deleted ${data.deletedCount} available token(s).\n${data.preservedConfigs} token configuration(s) preserved.`)
+        // Reload stats to reflect the change
+        loadStats()
+      } else {
+        alert(`Error: ${data.error || 'Failed to purge tokens'}`)
+      }
+    } catch (error) {
+      console.error('Failed to purge tokens:', error)
+      alert('Failed to purge tokens. Check console for details.')
+    } finally {
+      setPurging(false)
     }
   }
 
@@ -220,6 +288,11 @@ function R710PortalContent() {
               >
                 <span className="mr-2">⚙️</span>
                 Integration Setup
+                {integrationIpAddress && (
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 text-xs font-medium text-indigo-700 bg-indigo-100 dark:text-indigo-200 dark:bg-indigo-900/50 rounded">
+                    {integrationIpAddress}
+                  </span>
+                )}
               </Link>
             )}
 
@@ -265,6 +338,11 @@ function R710PortalContent() {
               >
                 <span className="mr-2">💰</span>
                 Sell Tokens
+                {directSalesCount > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-green-600 rounded-full">
+                    {directSalesCount}
+                  </span>
+                )}
               </button>
             )}
 
@@ -282,6 +360,11 @@ function R710PortalContent() {
               >
                 <span className="mr-2">🎫</span>
                 Token Packages
+                {tokenConfigCount > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-purple-600 rounded-full">
+                    {tokenConfigCount}
+                  </span>
+                )}
               </button>
             )}
 
@@ -445,9 +528,18 @@ function R710PortalContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">Integration Setup</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Connect your business</p>
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <p className="font-medium text-gray-900 dark:text-white">Integration Setup</p>
+                      {integrationIpAddress && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 text-xs font-medium text-indigo-700 bg-indigo-100 dark:text-indigo-200 dark:bg-indigo-900/50 rounded">
+                          {integrationIpAddress}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {hasIntegration ? 'Manage integration' : 'Connect your business'}
+                    </p>
                   </div>
                 </Link>
               )}
@@ -495,8 +587,15 @@ function R710PortalContent() {
                   <svg className="w-8 h-8 text-green-600 dark:text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">Sell WiFi Tokens</p>
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <p className="font-medium text-gray-900 dark:text-white">Sell WiFi Tokens</p>
+                      {directSalesCount > 0 && (
+                        <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-green-600 rounded-full">
+                          {directSalesCount}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Process token sales</p>
                   </div>
                 </div>
@@ -515,8 +614,15 @@ function R710PortalContent() {
                   <svg className="w-8 h-8 text-purple-600 dark:text-purple-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
                   </svg>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">Token Packages</p>
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <p className="font-medium text-gray-900 dark:text-white">Token Packages</p>
+                      {tokenConfigCount > 0 && (
+                        <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-purple-600 rounded-full">
+                          {tokenConfigCount}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Configure pricing & duration</p>
                   </div>
                 </div>
@@ -560,6 +666,27 @@ function R710PortalContent() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">Manage device whitelist/blacklist</p>
                   </div>
                 </div>
+              )}
+
+              {/* Purge Available Tokens - Admin only */}
+              {canSetup && hasIntegration && (
+                <button
+                  onClick={handlePurgeAvailableTokens}
+                  disabled={purging}
+                  className="flex items-center p-4 border-2 border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors text-left disabled:opacity-50"
+                >
+                  <svg className="w-8 h-8 text-orange-600 dark:text-orange-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {purging ? 'Deleting...' : 'Delete Available Tokens'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Purge unsold tokens (configs preserved)
+                    </p>
+                  </div>
+                </button>
               )}
             </div>
           </div>

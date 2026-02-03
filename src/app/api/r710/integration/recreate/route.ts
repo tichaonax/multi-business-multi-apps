@@ -129,20 +129,17 @@ export async function POST(request: NextRequest) {
       console.log(`[R710 Recreate] Confirmed WLAN ${wlanRecord.wlanId} is missing from device`);
     }
 
-    // Delete unsold/unredeemed tokens - they can't be redeemed on the new WLAN
-    // AVAILABLE = generated but not assigned to anyone
-    // REQUESTED = generated and assigned but not yet sold/printed
-    // Both are invalid after WLAN recreation since they were created for the old WLAN
+    // Delete unsold tokens - they can't be redeemed on the new WLAN
+    // AVAILABLE = generated but not yet sold
+    // These are invalid after WLAN recreation since they were created for the old WLAN
     const deleteResult = await prisma.r710Tokens.deleteMany({
       where: {
         wlanId: wlanRecord.id,
-        status: {
-          in: ['AVAILABLE', 'REQUESTED']
-        }
+        status: 'AVAILABLE'
       }
     });
 
-    console.log(`[R710 Recreate] Deleted ${deleteResult.count} invalid tokens (AVAILABLE + REQUESTED)`);
+    console.log(`[R710 Recreate] Deleted ${deleteResult.count} invalid AVAILABLE tokens`);
 
     // Create new WLAN on device with same settings
     console.log(`[R710 Recreate] Creating new WLAN on device...`);
@@ -168,6 +165,26 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[R710 Recreate] New WLAN created with ID: ${wlanResult.wlanId}`);
+
+    // CRITICAL: Validate and fix Guest Service firewall rules AFTER WLAN creation
+    // The R710 may reset guest service rules to defaults (deny) when a new WLAN binds to it
+    const guestServiceId = wlanRecord.guestServiceId || '1';
+    console.log(`[R710 Recreate] Validating Guest Service ${guestServiceId} firewall rules...`);
+    const firewallValidation = await r710Service.validateGuestServiceFirewallRules(guestServiceId, {
+      title: wlanRecord.title || 'Welcome to Guest WiFi !',
+      validDays: wlanRecord.validDays || 1,
+      logoType: wlanRecord.logoType || 'none',
+      autoFix: true
+    });
+
+    if (firewallValidation.valid) {
+      console.log(`[R710 Recreate] ✅ Firewall rules validated: ${JSON.stringify(firewallValidation.details)}`);
+    } else if (firewallValidation.fixed) {
+      console.log(`[R710 Recreate] 🔧 Firewall rules were misconfigured and have been fixed: ${JSON.stringify(firewallValidation.details)}`);
+    } else {
+      console.warn(`[R710 Recreate] ⚠️ Firewall rules validation issue: ${firewallValidation.error}`);
+      // Don't fail the recreate - WLAN is already created, warn in response
+    }
 
     // Update database record with new wlanId
     const updatedWlan = await prisma.r710Wlans.update({
@@ -197,7 +214,12 @@ export async function POST(request: NextRequest) {
         previousWlanId: wlanRecord.wlanId
       },
       deletedTokensCount: deleteResult.count,
-      preservedTokenConfigs: tokenConfigCount
+      preservedTokenConfigs: tokenConfigCount,
+      firewallRules: {
+        valid: firewallValidation.valid,
+        fixed: firewallValidation.fixed || false,
+        details: firewallValidation.details
+      }
     });
 
   } catch (error) {

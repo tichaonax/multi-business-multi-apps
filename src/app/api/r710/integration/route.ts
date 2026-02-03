@@ -480,6 +480,24 @@ export async function POST(request: NextRequest) {
 
     console.log(`[R710 Integration] WLAN created: ${wlanResult.wlanId}`);
 
+    // Validate and fix Guest Service firewall rules AFTER WLAN creation
+    // The R710 may reset guest service rules when a new WLAN binds to the guest service
+    console.log(`[R710 Integration] Validating Guest Service firewall rules...`);
+    const firewallValidation = await r710Service.validateGuestServiceFirewallRules('1', {
+      title: title || 'Welcome to Guest WiFi !',
+      validDays: validDays || 1,
+      logoType: logoType || 'none',
+      autoFix: true
+    });
+
+    if (firewallValidation.valid) {
+      console.log(`[R710 Integration] ✅ Firewall rules validated: ${JSON.stringify(firewallValidation.details)}`);
+    } else if (firewallValidation.fixed) {
+      console.log(`[R710 Integration] 🔧 Firewall rules were misconfigured and have been fixed`);
+    } else {
+      console.warn(`[R710 Integration] ⚠️ Firewall rules validation issue: ${firewallValidation.error}`);
+    }
+
     // Create business integration and WLAN record in database (atomic transaction)
     // If any database operation fails, both integration and WLAN records will be rolled back
     let integration;

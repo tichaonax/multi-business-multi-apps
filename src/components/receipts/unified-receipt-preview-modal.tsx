@@ -157,7 +157,7 @@ export function UnifiedReceiptPreviewModal({
 
   const selectedPrinter = printers.find(p => p.id === selectedPrinterId)
   const isRestaurant = businessType === 'restaurant'
-  const supportsCustomerCopy = businessType === 'restaurant' || businessType === 'grocery' || businessType === 'clothing'
+  const supportsCustomerCopy = ['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)
 
   return (
     <Modal

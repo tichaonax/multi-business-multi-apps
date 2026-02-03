@@ -29,6 +29,14 @@ interface CartItem {
     size?: string
     color?: string
     condition?: string
+    // WiFi token attributes
+    isWiFiToken?: boolean
+    r710Token?: boolean
+    wifiToken?: boolean
+    tokenConfigId?: string
+    packageName?: string
+    description?: string
+    [key: string]: any
   }
   product?: UniversalProduct
   variant?: any
@@ -395,7 +403,46 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             })
             .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
 
-          setQuickAddProducts(products.slice(0, 20)) // Show first 20 products
+          // Load R710 WiFi tokens and add as products
+          let wifiTokenProducts: any[] = []
+          try {
+            const r710Response = await fetch(`/api/business/${currentBusiness.businessId}/r710-tokens`)
+            if (r710Response.ok) {
+              const r710Data = await r710Response.json()
+              if (r710Data.menuItems && r710Data.menuItems.length > 0) {
+                wifiTokenProducts = r710Data.menuItems
+                  .filter((item: any) => item.isActive && item.tokenConfig?.isActive)
+                  .map((item: any) => {
+                    const config = item.tokenConfig
+                    return {
+                      id: `r710_${config.id}`,
+                      name: `📶 ${config.name}`,
+                      imageUrl: null,
+                      category: 'WiFi Passes',
+                      categoryEmoji: '📶',
+                      variants: [{
+                        id: `r710_variant_${config.id}`,
+                        sku: `R710-${config.id.slice(0, 8)}`,
+                        price: parseFloat(item.businessPrice || config.basePrice || 0),
+                        attributes: {
+                          isWiFiToken: true,
+                          r710Token: true,
+                          tokenConfigId: config.id,
+                          packageName: config.name,
+                          description: config.description
+                        },
+                        stock: 999 // R710 tokens are generated on demand
+                      }]
+                    }
+                  })
+                console.log(`📶 Loaded ${wifiTokenProducts.length} R710 WiFi token products for clothing POS`)
+              }
+            }
+          } catch (wifiError) {
+            console.warn('Failed to load R710 WiFi tokens for clothing POS:', wifiError)
+          }
+
+          setQuickAddProducts([...wifiTokenProducts, ...products].slice(0, 20)) // WiFi tokens first, then products
         }
       }
     } catch (error) {
@@ -471,7 +518,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               })
               .filter((p: any) => p.variants.length > 0)
 
-            setSearchResults(products)
+            // Also include WiFi token products that match search term
+            const searchLower = productSearchTerm.toLowerCase()
+            const matchingWifiTokens = quickAddProducts.filter(p =>
+              p.id.startsWith('r710_') && p.name.toLowerCase().includes(searchLower)
+            )
+
+            setSearchResults([...matchingWifiTokens, ...products])
           }
         }
       } catch (error) {
@@ -483,7 +536,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
     const timer = setTimeout(searchProducts, 500)
     return () => clearTimeout(timer)
-  }, [productSearchTerm, currentBusiness?.businessId])
+  }, [productSearchTerm, currentBusiness?.businessId, quickAddProducts])
 
   const addToCart = (productId: string, variantId: string, quantity?: number) => {
     // Search in both quick add products and search results
@@ -742,21 +795,31 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           cashTendered: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
           change: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined
         },
-        items: cart.map(item => ({
-          productVariantId: item.variantId || item.id,
-          quantity: item.isReturn ? -item.quantity : item.quantity,
-          unitPrice: item.price,
-          discountAmount: item.discount || 0,
-          attributes: {
-            productName: item.name,
-            variantName: item.attributes?.size || item.attributes?.color ?
-              `${item.attributes.size || ''} ${item.attributes.color || ''}`.trim() : null,
-            sku: item.sku,
-            isReturn: item.isReturn || false,
-            returnReason: item.returnReason || null,
-            ...item.attributes
+        items: cart.map(item => {
+          const isWiFiToken = item.attributes?.isWiFiToken === true
+          return {
+            productVariantId: isWiFiToken ? null : (item.variantId || item.id),
+            quantity: item.isReturn ? -item.quantity : item.quantity,
+            unitPrice: item.price,
+            discountAmount: item.discount || 0,
+            attributes: {
+              productName: item.name,
+              variantName: item.attributes?.size || item.attributes?.color ?
+                `${item.attributes.size || ''} ${item.attributes.color || ''}`.trim() : null,
+              sku: item.sku,
+              isReturn: item.isReturn || false,
+              returnReason: item.returnReason || null,
+              ...item.attributes,
+              // Ensure WiFi token attributes are passed for order processing
+              ...(isWiFiToken ? {
+                wifiToken: item.attributes?.r710Token ? false : true,
+                r710Token: item.attributes?.r710Token || false,
+                tokenConfigId: item.attributes?.tokenConfigId,
+                packageName: item.attributes?.packageName
+              } : {})
+            }
           }
-        }))
+        })
       }
 
       // Create order via API
@@ -799,7 +862,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         cashierName: employeeId ? 'Employee' : undefined,
         businessSpecificData: {
           supervisorOverride: supervisorOverride?.supervisorId ? 'Yes' : 'No'
-        }
+        },
+        // Include WiFi tokens from order result for receipt printing
+        wifiTokens: result.data.wifiTokens || []
       }
 
       // Clear cart and reset state

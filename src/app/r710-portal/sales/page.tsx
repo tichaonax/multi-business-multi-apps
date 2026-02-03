@@ -18,6 +18,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { formatDateTime } from '@/lib/date-format'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 
 interface R710TokenConfig {
   id: string
@@ -85,6 +86,8 @@ export default function R710SalesPage() {
   const [printCustomerCopy, setPrintCustomerCopy] = useState(true)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [amountReceived, setAmountReceived] = useState('')
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [receiptPreviewData, setReceiptPreviewData] = useState<ReceiptData | null>(null)
 
   // Ref-based guard to prevent duplicate print calls (state updates are async)
   const printInFlightRef = useRef(false)
@@ -379,6 +382,13 @@ export default function R710SalesPage() {
     // Ref-based guard to prevent duplicate print calls (React state updates are async)
     if (printInFlightRef.current) {
       console.log('⚠️ [R710 Sales] Print already in progress (ref guard), ignoring duplicate call')
+      toast.push('Print already in progress, please wait...')
+      return
+    }
+
+    // Also check isPrinting state
+    if (isPrinting) {
+      console.log('⚠️ [R710 Sales] Print already in progress (state guard), ignoring duplicate call')
       return
     }
 
@@ -390,6 +400,7 @@ export default function R710SalesPage() {
     // Set ref guard immediately (synchronous)
     printInFlightRef.current = true
     console.log('🖨️ [R710 Sales] Starting print job at:', new Date().toISOString())
+    console.log('🖨️ [R710 Sales] Customer copy checkbox:', printCustomerCopy)
 
     try {
       setIsPrinting(true)
@@ -444,9 +455,15 @@ export default function R710SalesPage() {
         footerMessage: 'Enjoy your WiFi access!'
       }
 
-      console.log('📄 [R710 Direct Sale] Printing receipt:', receiptData)
+      const businessTypeForPrint = currentBusiness?.businessType || 'restaurant'
+      console.log('📄 [R710 Direct Sale] Printing receipt:', {
+        businessType: businessTypeForPrint,
+        printCustomerCopy: printCustomerCopy,
+        printerId: printerId,
+        receiptNumber: receiptData.receiptNumber
+      })
 
-      await ReceiptPrintManager.printReceipt(receiptData, (currentBusiness?.businessType as any) || 'restaurant', {
+      await ReceiptPrintManager.printReceipt(receiptData, businessTypeForPrint as any, {
         autoPrint: true,
         printerId: printerId,
         printCustomerCopy: printCustomerCopy,
@@ -473,6 +490,98 @@ export default function R710SalesPage() {
     }
   }
 
+  // Build receipt data for preview
+  const buildReceiptData = (): ReceiptData | null => {
+    if (!generatedTokenData || !businessDetails) return null
+
+    const expiresAt = calculateExpirationDate(
+      generatedTokenData.token.tokenConfig.durationValue,
+      generatedTokenData.token.tokenConfig.durationUnit
+    )
+
+    return {
+      receiptNumber: {
+        globalId: generatedTokenData.sale.id,
+        dailySequence: '001',
+        formattedNumber: `R710-${generatedTokenData.sale.id.substring(0, 8)}`
+      },
+      businessId: currentBusinessId || '',
+      businessType: currentBusiness?.businessType || 'restaurant',
+      businessName: businessDetails.name || businessDetails.businessName || 'Business',
+      businessAddress: businessDetails.address || businessDetails.umbrellaBusinessAddress || '',
+      businessPhone: businessDetails.phone || businessDetails.umbrellaBusinessPhone || '',
+      transactionId: generatedTokenData.sale.id,
+      transactionDate: new Date(generatedTokenData.sale.soldAt),
+      salespersonName: session?.user?.name || 'Staff',
+      salespersonId: session?.user?.id || '',
+      items: [{
+        name: generatedTokenData.token.tokenConfig.name,
+        sku: 'R710-TOKEN',
+        quantity: 1,
+        unitPrice: Number(generatedTokenData.sale.saleAmount),
+        totalPrice: Number(generatedTokenData.sale.saleAmount)
+      }],
+      subtotal: Number(generatedTokenData.sale.saleAmount),
+      tax: 0,
+      discount: 0,
+      total: Number(generatedTokenData.sale.saleAmount),
+      paymentMethod: generatedTokenData.sale.paymentMethod,
+      amountPaid: Number(generatedTokenData.sale.saleAmount),
+      changeDue: 0,
+      r710Tokens: [{
+        username: generatedTokenData.token.username,
+        password: generatedTokenData.token.password,
+        packageName: generatedTokenData.token.tokenConfig.name,
+        durationValue: generatedTokenData.token.tokenConfig.durationValue,
+        durationUnit: generatedTokenData.token.tokenConfig.durationUnit,
+        deviceLimit: generatedTokenData.token.tokenConfig.deviceLimit,
+        expiresAt: expiresAt.toISOString(),
+        ssid: generatedTokenData.wlanSsid,
+        success: true
+      }],
+      footerMessage: 'Enjoy your WiFi access!'
+    }
+  }
+
+  // Show receipt preview modal
+  const handleShowReceiptPreview = () => {
+    const receiptData = buildReceiptData()
+    if (receiptData) {
+      setReceiptPreviewData(receiptData)
+      setShowReceiptPreview(true)
+    } else {
+      toast.push('No receipt data to preview')
+    }
+  }
+
+  // Handle print from preview modal
+  const handlePrintFromPreview = async (options: {
+    printerId?: string
+    copies: number
+    printCustomerCopy: boolean
+  }) => {
+    const receiptData = buildReceiptData()
+    if (!receiptData) {
+      throw new Error('No receipt data')
+    }
+
+    const businessTypeForPrint = currentBusiness?.businessType || 'restaurant'
+
+    await ReceiptPrintManager.printReceipt(receiptData, businessTypeForPrint as any, {
+      autoPrint: true,
+      printerId: options.printerId,
+      printCustomerCopy: options.printCustomerCopy,
+      copies: options.copies,
+      onSuccess: (jobId, receiptType) => {
+        console.log(`✅ ${receiptType} copy printed:`, jobId)
+      },
+      onError: (error, receiptType) => {
+        console.error(`❌ Receipt print failed:`, error)
+        throw error
+      }
+    })
+  }
+
   if (businessLoading || loading) {
     return (
       <ContentLayout title="R710 WiFi Token Sales">
@@ -486,7 +595,7 @@ export default function R710SalesPage() {
     )
   }
 
-  if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery') {
+  if (!['restaurant', 'grocery', 'clothing', 'services'].includes(currentBusiness?.businessType || '')) {
     return (
       <ContentLayout title="R710 WiFi Token Sales">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -604,30 +713,26 @@ export default function R710SalesPage() {
                     </svg>
                   </button>
 
-                  {/* Customer Copy Checkbox */}
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={printCustomerCopy}
-                      onChange={(e) => setPrintCustomerCopy(e.target.checked)}
-                      className="h-4 w-4 text-blue-600 rounded"
-                    />
-                    <span className="text-sm text-blue-800 dark:text-blue-200">
-                      Print customer copy
-                    </span>
-                  </label>
+                  {/* Preview Receipt Button */}
+                  <button
+                    onClick={handleShowReceiptPreview}
+                    className="px-4 py-2 rounded-lg font-medium transition-colors bg-indigo-600 text-white hover:bg-indigo-700"
+                  >
+                    👁️ Preview Receipt
+                  </button>
 
+                  {/* Quick Print Button */}
                   <button
                     onClick={handlePrintReceipt}
-                    disabled={isPrinting || !printerId}
+                    disabled={isPrinting || !printerId || printInFlightRef.current}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                       isPrinting || !printerId
                         ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                         : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
-                    title={!printerId ? 'No printer configured' : ''}
+                    title={!printerId ? 'No printer configured' : 'Quick print (business + customer copy)'}
                   >
-                    {isPrinting ? '⏳ Printing...' : '🖨️ Print Receipt'}
+                    {isPrinting ? '⏳ Printing...' : '🖨️ Quick Print'}
                   </button>
                 </div>
               </div>
@@ -925,6 +1030,15 @@ export default function R710SalesPage() {
           </div>
         </div>
       )}
+
+      {/* Receipt Preview Modal */}
+      <UnifiedReceiptPreviewModal
+        isOpen={showReceiptPreview}
+        onClose={() => setShowReceiptPreview(false)}
+        receiptData={receiptPreviewData}
+        businessType={(currentBusiness?.businessType || 'restaurant') as any}
+        onPrintConfirm={handlePrintFromPreview}
+      />
     </ContentLayout>
   )
 }

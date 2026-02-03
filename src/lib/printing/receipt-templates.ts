@@ -512,93 +512,36 @@ function generateRestaurantReceipt(data: ReceiptData): string {
 
 /**
  * 2. Clothing Receipt Template
+ * Uses standard template with clothing-specific sections (size, color, brand)
  */
 function generateClothingReceipt(data: ReceiptData): string {
   const clothingData = data.businessSpecificData as ClothingReceiptData;
 
-  // ESC/POS commands
-  const ESC = '\x1B'; // ESC
-  const GS = '\x1D'; // GS
-  const LF = '\x0A'; // Line feed
-  const CUT = GS + 'V' + '\x41' + String.fromCharCode(3); // Partial cut paper
-
-  let receipt = '';
-
-  // Initialize printer and reset margins
-  receipt += ESC + '@';  // Initialize printer (reset all settings)
-  receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
-
-  // Header - center align
-  receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += centerText(data.businessName) + LF;
-  if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
-
-  // Left align for content
-  receipt += ESC + 'a' + String.fromCharCode(0);
-
-  // Receipt info
-  receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
-  if (data.salespersonName) {
-    receipt += `Salesperson: ${data.salespersonName}` + LF;
-  }
-
-  // Items with size/color
-  data.items.forEach((item, index) => {
+  // Item details renderer: Show size, color, brand
+  const itemDetailsRenderer = (item: any, index: number) => {
     const clothingItem = clothingData?.items?.[index] as ClothingReceiptItem;
-    let itemLine = `${item.quantity}x ${item.name}`;
+    if (!clothingItem) return '';
 
-    if (clothingItem?.size || clothingItem?.color) {
-      const details = [];
-      if (clothingItem.size) details.push(`Size: ${clothingItem.size}`);
-      if (clothingItem.color) details.push(`Color: ${clothingItem.color}`);
-      itemLine += ` (${details.join(', ')})`;
+    let details = '';
+
+    // Size and color
+    if (clothingItem.size) {
+      details += `  Size: ${clothingItem.size}` + LF;
+    }
+    if (clothingItem.color) {
+      details += `  Color: ${clothingItem.color}` + LF;
+    }
+    if (clothingItem.brand) {
+      details += `  Brand: ${clothingItem.brand}` + LF;
     }
 
-    receipt += formatLineItem(itemLine, 1, item.totalPrice, item.totalPrice);
-    if (item.barcode) {
-      receipt += `  UPC: ${item.barcode.code} (${item.barcode.type})` + LF;
-    } else if (item.sku) {
-      receipt += `  SKU: ${item.sku}` + LF;
-    }
-    if (clothingItem?.brand) {
-      receipt += `  Brand: ${clothingItem.brand}` + LF;
-    }
+    return details;
+  };
+
+  // Use standard template (includes R710 token section)
+  return generateStandardReceipt(data, {
+    itemDetailsRenderer,
   });
-  // Totals
-  receipt += formatTotal('Subtotal', data.subtotal);
-  // Only print tax line if tax > 0 AND tax is charged separately
-  if (data.tax > 0 && !data.taxIncludedInPrice) {
-    const taxLabel = data.taxLabel || 'Tax';
-    receipt += formatTotal(taxLabel, data.tax);
-  }
-  if (data.discount) {
-    receipt += formatTotal('Discount', -data.discount);
-  }
-  receipt += formatTotal('TOTAL', data.total, true);
-
-  // Payment
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
-
-  // Return policy - center align (use business config first, then clothing data, then default)
-  const returnPolicy = data.returnPolicy || clothingData?.returnPolicy || 'All sales are final, returns not accepted';
-  receipt += LF;
-  receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += 'RETURN POLICY' + LF;
-  receipt += wrapText(stripEmojis(returnPolicy)) + LF;
-
-  // Footer
-  receipt += LF;
-  if (data.umbrellaPhone) {
-    receipt += centerText(data.umbrellaPhone) + LF;
-  }
-  receipt += centerText('Thank you for shopping with us!') + LF;
-
-  // Cut paper
-  receipt += CUT;
-
-  return receipt;
 }
 
 /**

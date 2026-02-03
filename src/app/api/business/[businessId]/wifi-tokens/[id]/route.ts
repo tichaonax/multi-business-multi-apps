@@ -159,9 +159,9 @@ export async function PUT(
 
     // Validate business type
     const businessType = membership.businesses.type;
-    if (businessType !== 'restaurant' && businessType !== 'grocery') {
+    if (!['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)) {
       return NextResponse.json(
-        { error: 'WiFi tokens are only available for restaurant and grocery businesses' },
+        { error: 'WiFi tokens are only available for restaurant, grocery, clothing, and services businesses' },
         { status: 403 }
       );
     }
@@ -312,9 +312,9 @@ export async function DELETE(
 
     // Validate business type
     const businessType = membership.businesses.type;
-    if (businessType !== 'restaurant' && businessType !== 'grocery') {
+    if (!['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)) {
       return NextResponse.json(
-        { error: 'WiFi tokens are only available for restaurant and grocery businesses' },
+        { error: 'WiFi tokens are only available for restaurant, grocery, clothing, and services businesses' },
         { status: 403 }
       );
     }

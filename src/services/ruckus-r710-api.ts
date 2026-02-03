@@ -409,14 +409,53 @@ export class RuckusR710ApiService {
         await this.initializeSession();
       }
 
-      // Guest service creation logic would go here
-      // This is a placeholder - actual implementation would require the exact XML payload
+      const {
+        title = 'Welcome to Guest WiFi !',
+        validDays = 1,
+        logoType = 'none'
+      } = options;
+
       console.log('[R710] Creating guest service:', serviceName);
 
-      // For now, return success with a placeholder ID
-      return { success: true, serviceId: 'guest-service-1' };
+      const updaterId = this.generateUpdaterId('guestservice-list');
+
+      // Use action='addobj' to CREATE a new guest service (not updobj which requires existing)
+      // Payload matches the working test script test-guest-wlan-creation.js
+      const xmlPayload = `<ajax-request action='addobj' updater='${updaterId}' comp='guestservice-list'><guestservice name='${serviceName}' onboarding='true' onboarding-aspect='both' auth-by='guestpass' countdown-by-issued='false' show-tou='true' tou='Terms of Use
+
+By accepting this agreement and accessing the wireless network, you acknowledge that you are of legal age, you have read and understood, and agree to be bound by this agreement.
+(*) The wireless network service is provided by the property owners and is completely at their discretion. Your access to the network may be blocked, suspended, or terminated at any time for any reason.
+(*) You agree not to use the wireless network for any purpose that is unlawful or otherwise prohibited and you are fully responsible for your use.
+(*) The wireless network is provided &quot;as is&quot; without warranties of any kind, either expressed or implied.' redirect='orig' redirect-url='' company-logo='ruckus' poweredby='Ruckus Wireless' poweredby-url='http://www.ruckuswireless.com/' desc='Type or paste in the text of your guest pass.' self-service='false' rule6='' title='${title}' opacity='1.0' background-opacity='1' background-color='#516a8c' logo-type='${logoType}' banner-type='default' bgimage-type='default' bgimage-display-type='fill' enable-portal='true' wifi4eu='false' wifi4eu-network-id='' wifi4eu-language='en' wifi4eu-debug='false' wg='' show-lang='true' portal-lang='en_US' random-key='999' valid='${validDays}' old-self-service='false' old-auth-by='guestpass'><rule action='accept' type='layer 2' ether-type='0x0806'></rule><rule action='accept' type='layer 2' ether-type='0x8863'></rule><rule action='accept' type='layer 2' ether-type='0x8864'></rule><rule action='accept' type='layer 3' protocol='17' dst-port='53'></rule><rule action='accept' type='layer 3' protocol='6' dst-port='53'></rule><rule action='accept' type='layer 3' protocol='' dst-port='67' app='DHCP'></rule><rule action='deny' type='layer 3' protocol='' dst-port='68'></rule><rule action='accept' type='layer 3' protocol='6' dst-addr='host' dst-port='80' app='HTTP'></rule><rule action='accept' type='layer 3' protocol='6' dst-addr='host' dst-port='443' app='HTTPS'></rule><rule action='deny' type='layer 3' dst-addr='local' protocol='' EDITABLE='false'></rule><rule action='accept' type='layer 3' dst-addr='10.0.0.0/8' protocol=''></rule><rule action='deny' type='layer 3' dst-addr='172.16.0.0/12' protocol=''></rule><rule action='accept' type='layer 3' dst-addr='192.168.0.0/16' protocol=''></rule><rule action='accept' type='layer 3' protocol='1'></rule><rule action='accept' type='layer 3' protocol='' dst-port='0'></rule></guestservice></ajax-request>`;
+
+      const response = await this.client.post('/admin/_conf.jsp', xmlPayload, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'Accept': '*/*',
+          'X-CSRF-Token': this.csrfToken || '',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': `${this.baseUrl}/admin/dashboard.jsp`
+        }
+      });
+
+      const responseText = response.data;
+      const idMatch = responseText.match(/id="(\d+)"/);
+
+      if (idMatch) {
+        const guestServiceId = idMatch[1];
+        console.log(`[R710] Guest Service created with ID: ${guestServiceId}`);
+        return { success: true, serviceId: guestServiceId };
+      } else if (responseText.includes('<response') && !responseText.includes('<error')) {
+        console.log('[R710] Guest Service created but ID not found in response');
+        console.log('[R710] Response:', responseText.substring(0, 500));
+        return { success: true, serviceId: '1' };
+      } else {
+        console.error('[R710] Guest Service creation failed:', responseText.substring(0, 500));
+        return { success: false, error: 'Guest service creation failed' };
+      }
     } catch (error) {
       const axiosError = error as AxiosError;
+      console.error('[R710] Failed to create guest service:', axiosError.message);
       return { success: false, error: axiosError.message };
     }
   }
@@ -458,21 +497,6 @@ export class RuckusR710ApiService {
         bypassCna
       });
 
-      // CRITICAL: Ensure the Guest Service has onboarding='true' for Zero-IT to work
-      // The Guest Service's onboarding attribute MUST be enabled in addition to WLAN's bypass-cna
-      if (enableZeroIt) {
-        console.log(`[R710] Ensuring Guest Service ${guestServiceId} has onboarding enabled...`);
-        const guestServiceResult = await this.ensureGuestServiceOnboarding(guestServiceId, {
-          title,
-          validDays,
-          logoType
-        });
-        if (!guestServiceResult.success) {
-          console.warn(`[R710] Warning: Could not ensure Guest Service onboarding: ${guestServiceResult.error}`);
-          // Continue anyway - the WLAN creation might still work
-        }
-      }
-
       const updaterId = this.generateUpdaterId('wlansvc-list');
 
       // Build the WLAN XML payload with all required configurations (from working test script)
@@ -501,9 +525,36 @@ export class RuckusR710ApiService {
       // Use \s to match space before id to avoid matching -id suffixes
       const wlansvcMatch = responseText.match(/<wlansvc[^>]+\sid="(\d+)"/);
 
+      // Helper: After WLAN creation, update guest service with correct firewall rules
+      // MUST happen AFTER WLAN creation because the R710 resets guest service
+      // restricted subnet rules to defaults (all deny) when a new WLAN binds to it
+      const applyGuestServiceRulesAfterCreate = async (wlanId: string) => {
+        if (enableZeroIt) {
+          // Wait for R710 to finish settling after WLAN creation
+          console.log(`[R710] Waiting 2s for R710 to settle after WLAN ${wlanId} creation...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          console.log(`[R710] Applying Guest Service ${guestServiceId} firewall rules AFTER WLAN creation...`);
+          const guestServiceResult = await this.ensureGuestServiceOnboarding(guestServiceId, {
+            title,
+            validDays,
+            logoType
+          });
+
+          if (!guestServiceResult.success) {
+            console.warn(`[R710] Warning: Could not update Guest Service after WLAN creation: ${guestServiceResult.error}`);
+          } else {
+            console.log(`[R710] ✅ Guest Service ${guestServiceId} updated after WLAN creation`);
+          }
+        }
+      };
+
       if (wlansvcMatch) {
         const numericWlanId = wlansvcMatch[1];
         console.log(`[R710] ✅ WLAN created successfully with NUMERIC ID: ${numericWlanId} (SSID: ${ssid})`);
+
+        // Apply guest service rules AFTER WLAN creation (R710 resets rules during WLAN binding)
+        await applyGuestServiceRulesAfterCreate(numericWlanId);
 
         // CRITICAL: Return the NUMERIC ID from device, not the SSID
         return { success: true, wlanId: numericWlanId };
@@ -514,6 +565,10 @@ export class RuckusR710ApiService {
       if (anyNumericIdMatch) {
         const numericWlanId = anyNumericIdMatch[1];
         console.log(`[R710] ✅ WLAN created (fallback ID extraction): ${numericWlanId} (SSID: ${ssid})`);
+
+        // Apply guest service rules AFTER WLAN creation
+        await applyGuestServiceRulesAfterCreate(numericWlanId);
+
         return { success: true, wlanId: numericWlanId };
       }
 
@@ -641,13 +696,45 @@ export class RuckusR710ApiService {
 
       const getResponseText = getResponse.data;
 
+      // Check if guest service list is empty (no guest services exist on device)
+      const isEmptyList = getResponseText.includes('<guestservice-list />') ||
+                          getResponseText.includes('<guestservice-list/>') ||
+                          !getResponseText.includes('<guestservice');
+
+      if (isEmptyList) {
+        console.log(`[R710] No guest services found on device - creating new guest service...`);
+        const createResult = await this.createGuestService(`Guest Access ${guestServiceId}`, {
+          title, validDays: validDays as any, logoType
+        } as any);
+        if (createResult.success) {
+          console.log(`[R710] Guest Service created with ID: ${createResult.serviceId}`);
+          return { success: true };
+        } else {
+          return { success: false, error: `Failed to create guest service: ${createResult.error}` };
+        }
+      }
+
       // Find the Guest Service name by ID
-      const guestServiceRegex = new RegExp(`<guestservice[^>]*\\sid="${guestServiceId}"[^>]*name="([^"]+)"`, 'i');
+      const guestServiceRegex = new RegExp(`<guestservice[^>]*\\sid=["']${guestServiceId}["'][^>]*name=["']([^"']+)["']`, 'i');
       const nameMatch = getResponseText.match(guestServiceRegex);
 
       // Also try alternative pattern where name comes before id
-      const altGuestServiceRegex = new RegExp(`<guestservice[^>]*name="([^"]+)"[^>]*\\sid="${guestServiceId}"`, 'i');
+      const altGuestServiceRegex = new RegExp(`<guestservice[^>]*name=["']([^"']+)["'][^>]*\\sid=["']${guestServiceId}["']`, 'i');
       const altNameMatch = getResponseText.match(altGuestServiceRegex);
+
+      // If the specific guest service ID doesn't exist but others do, create a new one
+      if (!nameMatch && !altNameMatch) {
+        console.log(`[R710] Guest Service ID ${guestServiceId} not found - creating new guest service...`);
+        const createResult = await this.createGuestService(`Guest Access ${guestServiceId}`, {
+          title, validDays: validDays as any, logoType
+        } as any);
+        if (createResult.success) {
+          console.log(`[R710] Guest Service created with ID: ${createResult.serviceId}`);
+          return { success: true };
+        } else {
+          return { success: false, error: `Failed to create guest service: ${createResult.error}` };
+        }
+      }
 
       const serviceName = nameMatch?.[1] || altNameMatch?.[1] || `Guest Access ${guestServiceId}`;
 
@@ -761,6 +848,179 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
         console.error('[R710] Response data:', axiosError.response.data);
       }
       return { success: false, error: axiosError.message };
+    }
+  }
+
+  /**
+   * Validate and fix Guest Service firewall rules for subnet access
+   * Fetches the current guest service config from the R710 device and checks
+   * that 10.0.0.0/8 and 192.168.0.0/16 have 'accept' access (not 'deny').
+   * If misconfigured, automatically fixes by re-applying correct rules.
+   */
+  async validateGuestServiceFirewallRules(
+    guestServiceId: string,
+    options: {
+      title?: string;
+      validDays?: number;
+      logoType?: string;
+      autoFix?: boolean;
+    } = {}
+  ): Promise<{ success: boolean; valid: boolean; fixed?: boolean; details?: Record<string, string>; error?: string }> {
+    try {
+      const { autoFix = true } = options;
+
+      if (!this.isAuthenticated) {
+        const loginResult = await this.login();
+        if (!loginResult.success) {
+          throw new Error('Authentication failed');
+        }
+        await this.initializeSession();
+      }
+
+      console.log(`[R710] Validating Guest Service ${guestServiceId} firewall rules...`);
+
+      // Fetch current guest service configuration from device
+      const updaterId = this.generateUpdaterId('guestservice-list');
+      const getPayload = `<ajax-request action='getconf' DECRYPT_X='true' updater='${updaterId}' comp='guestservice-list'/>`;
+
+      const response = await this.client.post('/admin/_conf.jsp', getPayload, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'Accept': '*/*',
+          'X-CSRF-Token': this.csrfToken || '',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': `${this.baseUrl}/admin/dashboard.jsp`
+        }
+      });
+
+      const responseText = response.data;
+
+      // Extract the guest service block by ID
+      // The response contains <guestservice id="1" ...> <rule .../> ... </guestservice>
+      // Try both double quotes (from R710) and single quotes
+      const gsRegex = new RegExp(`<guestservice[^>]*\\sid=["']${guestServiceId}["'][^>]*>([\\s\\S]*?)</guestservice>`, 'i');
+      const gsMatch = responseText.match(gsRegex);
+
+      // Also try self-closing format or alternative pattern
+      const gsAltRegex = new RegExp(`<guestservice[^>]*\\sid=["']${guestServiceId}["'][^>]*/?>`, 'i');
+      const gsAltMatch = responseText.match(gsAltRegex);
+
+      if (!gsMatch && !gsAltMatch) {
+        console.warn(`[R710] Guest Service ID ${guestServiceId} not found in device config`);
+
+        // If autoFix is enabled, create the guest service instead of failing
+        if (autoFix) {
+          console.log(`[R710] Auto-creating Guest Service since it does not exist...`);
+          const createResult = await this.createGuestService(`Guest Access ${guestServiceId}`, {
+            title: options.title,
+            validDays: options.validDays as any,
+            logoType: options.logoType
+          } as any);
+
+          if (createResult.success) {
+            console.log(`[R710] Guest Service created with ID: ${createResult.serviceId}`);
+            // Wait for R710 to settle, then re-validate
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return await this.validateGuestServiceFirewallRules(createResult.serviceId || guestServiceId, {
+              ...options,
+              autoFix: false // Prevent infinite recursion
+            });
+          } else {
+            return { success: false, valid: false, error: `Failed to create guest service: ${createResult.error}` };
+          }
+        }
+
+        return { success: false, valid: false, error: `Guest Service ${guestServiceId} not found on device` };
+      }
+
+      const gsBlock = gsMatch ? gsMatch[0] : gsAltMatch![0];
+
+      // Log the guest service block for debugging
+      console.log(`[R710] Guest Service ${guestServiceId} rules block (first 500 chars):`, gsBlock.substring(0, 500));
+
+      // Check firewall rules for the required subnets
+      const subnetsToCheck: Record<string, string> = {
+        '10.0.0.0/8': 'accept',
+        '192.168.0.0/16': 'accept',
+      };
+
+      const details: Record<string, string> = {};
+      let allValid = true;
+
+      for (const [subnet, expectedAction] of Object.entries(subnetsToCheck)) {
+        const escapedSubnet = subnet.replace(/\./g, '\\.').replace(/\//g, '\\/');
+
+        // Try single quotes: action='accept' ... dst-addr='10.0.0.0/8'
+        const ruleRegex = new RegExp(`<rule[^>]*action='([^']*)'[^>]*dst-addr='${escapedSubnet}'`, 'i');
+        const ruleMatch = gsBlock.match(ruleRegex);
+
+        // Try reversed attribute order
+        const ruleAltRegex = new RegExp(`<rule[^>]*dst-addr='${escapedSubnet}'[^>]*action='([^']*)'`, 'i');
+        const ruleAltMatch = gsBlock.match(ruleAltRegex);
+
+        // Try double quotes: action="accept" ... dst-addr="10.0.0.0/8"
+        const ruleDblRegex = new RegExp(`<rule[^>]*action="([^"]*)"[^>]*dst-addr="${escapedSubnet}"`, 'i');
+        const ruleDblMatch = gsBlock.match(ruleDblRegex);
+
+        // Try reversed with double quotes
+        const ruleDblAltRegex = new RegExp(`<rule[^>]*dst-addr="${escapedSubnet}"[^>]*action="([^"]*)"`, 'i');
+        const ruleDblAltMatch = gsBlock.match(ruleDblAltRegex);
+
+        const actualAction = ruleMatch?.[1] || ruleAltMatch?.[1] || ruleDblMatch?.[1] || ruleDblAltMatch?.[1] || 'not found';
+        details[subnet] = actualAction;
+
+        if (actualAction !== expectedAction) {
+          allValid = false;
+          console.warn(`[R710] ⚠️ Subnet ${subnet}: expected '${expectedAction}', found '${actualAction}'`);
+        } else {
+          console.log(`[R710] ✅ Subnet ${subnet}: correctly set to '${actualAction}'`);
+        }
+      }
+
+      if (allValid) {
+        console.log(`[R710] ✅ All Guest Service firewall rules are valid`);
+        return { success: true, valid: true, details };
+      }
+
+      console.warn(`[R710] ⚠️ Guest Service firewall rules are MISCONFIGURED`);
+
+      // Auto-fix if requested
+      if (autoFix) {
+        console.log(`[R710] 🔧 Auto-fixing Guest Service firewall rules...`);
+        const fixResult = await this.ensureGuestServiceOnboarding(guestServiceId, {
+          title: options.title,
+          validDays: options.validDays,
+          logoType: options.logoType
+        });
+
+        if (fixResult.success) {
+          console.log(`[R710] ✅ Guest Service firewall rules update sent, waiting 2s for R710 to apply...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Re-validate after fix
+          const revalidateResult = await this.validateGuestServiceFirewallRules(guestServiceId, {
+            ...options,
+            autoFix: false // Prevent infinite recursion
+          });
+
+          return {
+            success: true,
+            valid: revalidateResult.valid,
+            fixed: true,
+            details: revalidateResult.details
+          };
+        } else {
+          console.error(`[R710] ❌ Failed to fix Guest Service firewall rules: ${fixResult.error}`);
+          return { success: false, valid: false, fixed: false, details, error: fixResult.error };
+        }
+      }
+
+      return { success: true, valid: false, details };
+
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('[R710] Failed to validate Guest Service firewall rules:', axiosError.message);
+      return { success: false, valid: false, error: axiosError.message };
     }
   }
 

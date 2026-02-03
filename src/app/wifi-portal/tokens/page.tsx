@@ -100,8 +100,8 @@ export default function WiFiTokensPage() {
     if (businessLoading || !currentBusinessId) return
 
     // Check business type
-    if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery') {
-      setErrorMessage('WiFi tokens are only available for restaurant and grocery businesses')
+    if (!['restaurant', 'grocery', 'clothing', 'services'].includes(currentBusiness?.businessType || '')) {
+      setErrorMessage('WiFi tokens are only available for restaurant, grocery, clothing, and services businesses')
       setLoading(false)
       return
     }
@@ -1065,12 +1065,12 @@ export default function WiFiTokensPage() {
     )
   }
 
-  if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery') {
+  if (!['restaurant', 'grocery', 'clothing', 'services'].includes(currentBusiness?.businessType || '')) {
     return (
       <ContentLayout title="WiFi Token Management">
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <p className="text-yellow-800 dark:text-yellow-200">
-            WiFi tokens are only available for restaurant and grocery businesses.
+            WiFi tokens are only available for restaurant, grocery, clothing, and services businesses.
           </p>
         </div>
       </ContentLayout>
