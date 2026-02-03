@@ -3,8 +3,9 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { UniversalPOSLayout } from './components/UniversalPOSLayout'
@@ -22,6 +23,8 @@ import { toast } from 'sonner'
  */
 export default function UniversalPOS() {
   const { currentBusiness, currentBusinessId } = useBusinessPermissionsContext()
+  const globalCart = useGlobalCart()
+  const hasImportedGlobalCart = useRef(false)
 
   // Get business type and configuration
   const businessType = currentBusiness?.businessType || 'other'
@@ -104,6 +107,41 @@ export default function UniversalPOS() {
       toast.error(`Failed to load products: ${productsError}`)
     }
   }, [productsError])
+
+  // Import global cart items when POS page loads
+  // This handles the case when user adds items via mini-cart from another page
+  // then navigates to POS
+  useEffect(() => {
+    if (hasImportedGlobalCart.current) return
+    if (globalCart.cart.length === 0) return
+
+    const itemCount = globalCart.cart.length
+    console.log('🛒 [UniversalPOS] Importing global cart items:', itemCount)
+
+    // Import each item from global cart to local cart
+    globalCart.cart.forEach(item => {
+      addToCart({
+        id: item.id,
+        name: item.name,
+        sku: item.sku || '',
+        quantity: item.quantity,
+        unitPrice: item.price,
+        productId: item.productId,
+        variantId: item.variantId,
+        imageUrl: item.imageUrl || undefined,
+        isCombo: item.isCombo,
+        comboItems: item.comboItems
+      })
+    })
+
+    // Mark as imported first to prevent re-runs
+    hasImportedGlobalCart.current = true
+
+    // Clear global cart after importing to avoid duplicates
+    globalCart.clearCart()
+
+    toast.success(`Loaded ${itemCount} item(s) from cart`)
+  }, [globalCart.cart, addToCart, globalCart.clearCart])
 
   // Handle checkout
   const handleCheckout = async (paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty', amountPaid?: number) => {

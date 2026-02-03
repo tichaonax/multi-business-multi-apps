@@ -129,15 +129,20 @@ export async function POST(request: NextRequest) {
       console.log(`[R710 Recreate] Confirmed WLAN ${wlanRecord.wlanId} is missing from device`);
     }
 
-    // Delete unsold tokens (AVAILABLE status) - they can't be redeemed anymore
+    // Delete unsold/unredeemed tokens - they can't be redeemed on the new WLAN
+    // AVAILABLE = generated but not assigned to anyone
+    // REQUESTED = generated and assigned but not yet sold/printed
+    // Both are invalid after WLAN recreation since they were created for the old WLAN
     const deleteResult = await prisma.r710Tokens.deleteMany({
       where: {
         wlanId: wlanRecord.id,
-        status: 'AVAILABLE'
+        status: {
+          in: ['AVAILABLE', 'REQUESTED']
+        }
       }
     });
 
-    console.log(`[R710 Recreate] Deleted ${deleteResult.count} unsold tokens`);
+    console.log(`[R710 Recreate] Deleted ${deleteResult.count} invalid tokens (AVAILABLE + REQUESTED)`);
 
     // Create new WLAN on device with same settings
     console.log(`[R710 Recreate] Creating new WLAN on device...`);
