@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
-
-const prisma = new PrismaClient();
 
 /**
  * POST /api/expense-categories/subcategories
@@ -125,7 +123,5 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to create subcategory' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

@@ -1682,7 +1682,7 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
-                    <h3 className="font-semibold text-xs sm:text-sm line-clamp-2 mt-2">
+                    <h3 className="font-semibold text-[10px] sm:text-xs line-clamp-2 mt-2">
                       {item.name}
                       {item.requiresCompanionItem && (
                         <span className="ml-1 text-xs bg-orange-500 text-white px-1 rounded" title="Requires main item">+</span>
@@ -1690,7 +1690,7 @@ export default function RestaurantPOS() {
                     </h3>
 
                     <div className="flex items-center gap-1 mt-1">
-                      <p className={`text-base sm:text-lg font-bold ${hasDiscount ? 'text-red-600' : 'text-green-600'}`}>
+                      <p className={`text-sm sm:text-base font-bold ${hasDiscount ? 'text-red-600' : 'text-green-600'}`}>
                         ${Number(item.price).toFixed(2)}
                       </p>
                       {hasDiscount && (

@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getGlobalBarcodeScanningAccess } from '@/lib/permission-utils'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
@@ -102,6 +100,7 @@ export async function GET(
 
     // Group results by business
     const businessInventory: any[] = []
+    const matchedProductIds = new Set<string>()
 
     for (const productBarcode of productBarcodes) {
       let businessId: string
@@ -127,6 +126,8 @@ export async function GET(
       } else {
         continue // Skip orphaned barcodes
       }
+
+      matchedProductIds.add(product.id)
 
       // Check if user has access to this business
       const hasAccess = accessibleBusinessIds.includes(businessId)
@@ -186,6 +187,55 @@ export async function GET(
       })
     }
 
+    // Fallback: also search by SKU if no barcode matches found
+    // Products may have SKU set but no entry in product_barcodes table
+    if (businessInventory.length === 0) {
+      const skuProducts = await prisma.businessProducts.findMany({
+        where: {
+          sku: { equals: barcode, mode: 'insensitive' },
+          isActive: true
+        },
+        include: {
+          businesses: { select: { id: true, name: true, type: true } },
+          product_variants: {
+            where: { isActive: true },
+            select: { id: true, name: true, price: true, stockQuantity: true, attributes: true }
+          }
+        }
+      })
+
+      for (const product of skuProducts) {
+        const businessId = product.businesses.id
+        const hasAccess = accessibleBusinessIds.includes(businessId)
+        const isInformational = access.canViewAcrossBusinesses && !hasAccess
+
+        if (!hasAccess && !isInformational) continue
+
+        const stockQuantity = product.product_variants.reduce((sum: number, v: any) => sum + (v.stockQuantity || 0), 0)
+        const price = product.product_variants[0]?.price || product.basePrice || 0
+        const variant = product.product_variants.length === 1 ? product.product_variants[0] : null
+
+        businessInventory.push({
+          businessId,
+          businessName: product.businesses.name,
+          businessType: product.businesses.type,
+          productId: product.id,
+          variantId: variant?.id || null,
+          productName: product.name,
+          variantName: variant?.name || null,
+          description: product.description,
+          productAttributes: product.attributes || {},
+          variantAttributes: variant?.attributes || {},
+          stockQuantity,
+          price: Number(price),
+          hasAccess,
+          isInformational,
+          barcodeType: 'SKU',
+          barcodeLabel: 'Matched by SKU'
+        })
+      }
+    }
+
     // Sort by accessibility (accessible businesses first, then informational)
     businessInventory.sort((a, b) => {
       if (a.hasAccess && !b.hasAccess) return -1
@@ -224,7 +274,5 @@ export async function GET(
       { success: false, error: userMessage },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

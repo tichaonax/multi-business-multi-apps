@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { hasUserPermission } from '@/lib/permission-utils';
 import { SessionUser } from '@/lib/permission-utils';
-
-const prisma = new PrismaClient();
 
 /**
  * PUT /api/inventory/categories/[id]
@@ -153,8 +151,6 @@ export async function PUT(
       { error: 'Failed to update category' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -261,7 +257,5 @@ export async function DELETE(
       { error: 'Failed to delete category' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

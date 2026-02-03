@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // List of all tables to validate (sessions excluded - not backed up/restored)
 const ALL_TABLES = [
@@ -241,7 +239,5 @@ export async function POST(request: NextRequest) {
       success: false,
       error: error.message
     }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

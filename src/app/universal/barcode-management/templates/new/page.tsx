@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import ProductSearchModal from '@/components/barcode-management/product-search-modal';
 import { useToastContext } from '@/components/ui/toast';
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context';
 import { Package } from 'lucide-react';
 
 interface SKUPattern {
@@ -23,6 +24,7 @@ function NewTemplatePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToastContext();
+  const { currentBusinessId } = useBusinessPermissionsContext();
 
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,21 +73,20 @@ function NewTemplatePageContent() {
   }, []);
 
   useEffect(() => {
-    // Auto-detect business from URL or auto-select if only one
+    // Auto-detect business: URL param > header's current business > first in list
     if (businesses.length > 0 && !formData.businessId) {
       const businessIdFromUrl = searchParams.get('businessId');
 
       if (businessIdFromUrl && businesses.find(b => b.id === businessIdFromUrl)) {
         setFormData(prev => ({ ...prev, businessId: businessIdFromUrl }));
-      } else if (businesses.length === 1) {
-        // Only one business - auto-select it
-        setFormData(prev => ({ ...prev, businessId: businesses[0].id }));
+      } else if (currentBusinessId && businesses.find(b => b.id === currentBusinessId)) {
+        // Use the currently selected business from the header navigation
+        setFormData(prev => ({ ...prev, businessId: currentBusinessId }));
       } else if (businesses.length > 0) {
-        // Multiple businesses - select first one
         setFormData(prev => ({ ...prev, businessId: businesses[0].id }));
       }
     }
-  }, [businesses, searchParams]);
+  }, [businesses, searchParams, currentBusinessId]);
 
   useEffect(() => {
     // Auto-generate barcode when name changes (debounced)

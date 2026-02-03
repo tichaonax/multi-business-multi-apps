@@ -3,10 +3,8 @@
  * Includes users, employees, vehicles, projects, personal finances, etc.
  */
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import * as crypto from 'crypto'
-
-const prisma = new PrismaClient()
 
 interface TransferStats {
   transferred: number

@@ -5,13 +5,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import * as crypto from 'crypto'
-
-const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
   try {

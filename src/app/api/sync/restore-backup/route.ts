@@ -8,9 +8,7 @@ import * as crypto from 'crypto'
 import { spawn } from 'child_process'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   console.log('🔄 [RESTORE-BACKUP ENDPOINT] Request received!')

@@ -12,15 +12,13 @@
  * - Re-runnable (UPSERT logic)
  */
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { spawn } from 'child_process'
 import { isPgDumpAvailable, installPgDumpHint } from '@/lib/pg-utils'
 import * as crypto from 'crypto'
 import { createReadStream, statSync, unlinkSync, existsSync } from 'fs'
 import { mkdir } from 'fs/promises'
 import * as path from 'path'
-
-const prisma = new PrismaClient()
 
 interface BackupTransferOptions {
   compressionEnabled?: boolean

@@ -4,13 +4,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import * as crypto from 'crypto'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
-
-const prisma = new PrismaClient()
 
 /**
  * Write image file to disk
@@ -35,7 +33,7 @@ async function writeImageFile(imageUrl: string, base64Content: string): Promise<
 /**
  * Apply a sync event change to the actual database tables
  */
-async function applyChangeToDatabase(prisma: PrismaClient, event: any): Promise<void> {
+async function applyChangeToDatabase(prismaClient: typeof prisma, event: any): Promise<void> {
   const { table: tableName, recordId, operation, data, metadata } = event
 
   // For ProductImages, write the file first if we have content

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
@@ -129,8 +127,6 @@ export async function GET(
       return hasCutToSizeAttr || hasCutInNotes
     }).length
 
-    await prisma.$disconnect()
-
     return NextResponse.json({
       success: true,
       data: {
@@ -144,7 +140,6 @@ export async function GET(
 
   } catch (error) {
     console.error('Error fetching hardware dashboard stats:', error)
-    await prisma.$disconnect()
     return NextResponse.json(
       { 
         error: 'Failed to fetch dashboard statistics',

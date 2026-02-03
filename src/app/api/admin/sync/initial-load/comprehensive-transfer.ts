@@ -3,10 +3,8 @@
  * This is the new implementation that transfers complete business data
  */
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import * as crypto from 'crypto'
-
-const prisma = new PrismaClient()
 
 interface TransferStats {
   transferred: number

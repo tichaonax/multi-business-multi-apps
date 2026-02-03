@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
 interface InventoryReport {
   id: string
@@ -18,9 +19,6 @@ interface InventoryReport {
 
 // Generate real report data from database
 async function generateInventoryValueReport(businessId: string, startDate: string, endDate: string) {
-  const { PrismaClient } = require('@prisma/client')
-  const prisma = new PrismaClient()
-
   try {
     // Get all products with variants for this business
     const products = await prisma.businessProducts.findMany({
@@ -93,8 +91,6 @@ async function generateInventoryValueReport(businessId: string, startDate: strin
       return sum + (m.quantity > 0 ? value : -value)
     }, 0)
 
-    await prisma.$disconnect()
-
     return {
       totalInventoryValue: Math.round(totalInventoryValue * 100) / 100,
       totalItems,
@@ -112,7 +108,6 @@ async function generateInventoryValueReport(businessId: string, startDate: strin
     }
   } catch (error) {
     console.error('Error calculating inventory value:', error)
-    await prisma.$disconnect()
     // Return empty data structure on error
     return {
       totalInventoryValue: 0,

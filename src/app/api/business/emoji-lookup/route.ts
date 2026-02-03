@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
 import { EMOJI_DATABASE } from '@/lib/data/emoji-database';
-
-const prisma = new PrismaClient();
 
 /**
  * GET /api/business/emoji-lookup
@@ -109,8 +107,6 @@ export async function GET(request: NextRequest) {
       { error: 'Failed to search emoji lookup' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -205,7 +201,5 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to save emoji' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

@@ -135,6 +135,63 @@ async function lookupProductByBarcode(
       },
     });
 
+    // Fallback: search by SKU if no barcode match
+    if (!matchedBarcode) {
+      const skuProduct = await prisma.businessProducts.findFirst({
+        where: {
+          sku: { equals: barcode, mode: 'insensitive' },
+          businessId: businessId,
+          isActive: true
+        },
+        include: {
+          businesses: {
+            select: { id: true, name: true, shortName: true, businessType: true },
+          },
+          business_categories: {
+            select: { id: true, name: true, emoji: true },
+          },
+          product_variants: {
+            select: { id: true, name: true, sku: true, price: true, stockQuantity: true, attributes: true },
+          },
+        },
+      });
+
+      if (skuProduct) {
+        return {
+          product: {
+            id: skuProduct.id,
+            name: skuProduct.name,
+            description: skuProduct.description,
+            basePrice: skuProduct.basePrice,
+            sku: skuProduct.sku,
+            businessType: skuProduct.businesses?.businessType,
+            productType: skuProduct.productType,
+            condition: skuProduct.condition,
+            category: skuProduct.business_categories
+              ? { id: skuProduct.business_categories.id, name: skuProduct.business_categories.name, emoji: skuProduct.business_categories.emoji }
+              : null,
+            barcode: barcode,
+            barcodes: [],
+            isActive: skuProduct.isActive,
+            variants: skuProduct.product_variants?.map((v: any) => ({
+              id: v.id, name: v.name, sku: v.sku, price: v.price,
+              stockQuantity: v.stockQuantity, attributes: v.attributes,
+              barcode: null, barcodes: [],
+            })),
+          },
+          matchedBarcode: {
+            id: 'sku-match',
+            code: barcode,
+            type: 'SKU',
+            isPrimary: false,
+            isUniversal: false,
+            label: 'Matched by SKU',
+            source: 'sku',
+          },
+        };
+      }
+    }
+
     if (matchedBarcode) {
       const product = matchedBarcode.product;
 
