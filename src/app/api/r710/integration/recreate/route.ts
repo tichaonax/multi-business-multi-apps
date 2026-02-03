@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       title: wlanRecord.title || 'Welcome to Guest WiFi !',
       validDays: wlanRecord.validDays || 1,
       enableFriendlyKey: wlanRecord.enableFriendlyKey || false,
-      enableZeroIt: wlanRecord.enableZeroIt !== false
+      enableZeroIt: wlanRecord.enableZeroIt === true
     });
 
     if (!wlanResult.success || !wlanResult.wlanId) {

@@ -156,9 +156,8 @@ export class ReceiptPrintManager {
         options.onSuccess(result.businessCopy.jobId!, 'business')
       }
 
-      // RESTAURANT & GROCERY: Print customer copy if requested
-      // Print customer copy if requested (restaurant, grocery, and clothing support dual receipts)
-      if ((businessType === 'restaurant' || businessType === 'grocery' || businessType === 'clothing') && options.printCustomerCopy) {
+      // Print customer copy if requested (all business types that sell WiFi tokens support dual receipts)
+      if (['restaurant', 'grocery', 'clothing', 'services'].includes(businessType) && options.printCustomerCopy) {
         console.log('🖨️  [ReceiptPrintManager] Printing CUSTOMER copy')
         console.log(`   Copies requested: ${options.copies || 1}`)
 
