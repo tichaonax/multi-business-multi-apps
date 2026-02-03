@@ -107,7 +107,7 @@ export function useProductLoader(
         }))
       }))
 
-      // Load WiFi tokens if business supports them
+      // Load WiFi tokens if business supports them (ESP32)
       let wifiTokenProducts: Product[] = []
       try {
         const wifiResponse = await fetch(
@@ -135,11 +135,48 @@ export function useProductLoader(
             }))
         }
       } catch (wifiError) {
-        console.warn('Failed to load WiFi tokens, continuing without them:', wifiError)
+        console.warn('Failed to load ESP32 WiFi tokens, continuing without them:', wifiError)
       }
 
-      // Combine regular products and WiFi tokens
-      setProducts([...transformedProducts, ...wifiTokenProducts])
+      // Load R710 WiFi tokens if business supports them
+      let r710TokenProducts: Product[] = []
+      try {
+        const r710Response = await fetch(
+          `/api/business/${businessId}/r710-tokens`
+        )
+
+        if (r710Response.ok) {
+          const r710Data = await r710Response.json()
+
+          if (r710Data.menuItems && r710Data.menuItems.length > 0) {
+            // Transform R710 menu items to products
+            r710TokenProducts = r710Data.menuItems
+              .filter((item: any) => item.isActive && item.tokenConfig?.isActive)
+              .map((item: any) => {
+                const config = item.tokenConfig
+                const durationText = `${config.durationValue} ${config.durationUnit.replace('day_', '').replace('week_', '').replace('month_', '')}`
+                return {
+                  id: `r710_${config.id}`,
+                  name: `📶 ${config.name}`,
+                  description: config.description || durationText,
+                  basePrice: parseFloat(item.businessPrice || config.basePrice || 0),
+                  isWiFiToken: true,
+                  tokenConfigId: config.id,
+                  packageName: config.name,
+                  duration: config.durationValue,
+                  category: 'WiFi Passes',
+                  stockQuantity: 999 // R710 tokens are generated on demand
+                }
+              })
+            console.log(`📶 Loaded ${r710TokenProducts.length} R710 WiFi token products`)
+          }
+        }
+      } catch (r710Error) {
+        console.warn('Failed to load R710 WiFi tokens, continuing without them:', r710Error)
+      }
+
+      // Combine regular products, ESP32 WiFi tokens, and R710 tokens
+      setProducts([...transformedProducts, ...wifiTokenProducts, ...r710TokenProducts])
     } catch (err) {
       console.error('Error loading products:', err)
       setError(err instanceof Error ? err.message : 'Failed to load products')
