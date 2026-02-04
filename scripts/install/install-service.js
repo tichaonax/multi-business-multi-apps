@@ -96,6 +96,9 @@ class ServiceInstaller {
       // Step 2: Create directories
       await this.createDirectories()
 
+      // Step 2b: Build service (compile TypeScript)
+      await this.buildService()
+
       // Step 3: Install database (if requested)
       if (this.options.installDatabase) {
           // If a fresh install is requested, drop existing database first
@@ -227,6 +230,37 @@ class ServiceInstaller {
     }
 
     logSuccess('Directories created successfully')
+  }
+
+  async buildService() {
+    logStep('2b/9', 'Building service (compiling TypeScript)...')
+
+    try {
+      // Check if dist/lib/sync/sync-service.js exists
+      const syncServicePath = path.join(this.projectRoot, 'dist', 'lib', 'sync', 'sync-service.js')
+
+      if (fs.existsSync(syncServicePath)) {
+        log('Service already built, skipping build step')
+        logSuccess('Service build verified')
+        return
+      }
+
+      log('Running npm run build:service...')
+      execSync('npm run build:service', {
+        stdio: 'inherit',
+        cwd: this.projectRoot
+      })
+
+      // Verify build succeeded
+      if (!fs.existsSync(syncServicePath)) {
+        throw new Error('Build completed but sync-service.js not found in dist/lib/sync/')
+      }
+
+      logSuccess('Service build completed successfully')
+
+    } catch (error) {
+      throw new Error(`Service build failed: ${error.message}`)
+    }
   }
 
   async installDatabase() {
