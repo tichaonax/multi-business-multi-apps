@@ -9,7 +9,8 @@ const fs = require('fs')
 const path = require('path')
 
 const ROOT_DIR = path.join(__dirname, '..')
-const ENV_FILE = path.join(ROOT_DIR, '.env')
+const ENV_FILE = path.join(ROOT_DIR, '.env.local')
+const ENV_FALLBACK = path.join(ROOT_DIR, '.env')
 const ENV_EXAMPLE_FILE = path.join(ROOT_DIR, '.env.example')
 const SERVICE_CONFIG_FILE = path.join(ROOT_DIR, 'config', 'service-config.json')
 const SYNC_CONFIG_FILE = path.join(ROOT_DIR, 'data', 'sync', 'config.json')
@@ -65,7 +66,7 @@ function checkEnvironmentMigration() {
   return {
     needsMigration: legacyFiles.length > 0,
     legacyFiles,
-    hasEnvFile: fs.existsSync(ENV_FILE)
+    hasEnvFile: fs.existsSync(ENV_FILE) || fs.existsSync(ENV_FALLBACK)
   }
 }
 
@@ -74,9 +75,9 @@ function checkEnvironmentMigration() {
  */
 async function isFreshInstall() {
   try {
-    // Check 1: Does .env file exist?
-    if (!fs.existsSync(ENV_FILE)) {
-      return { fresh: true, reason: 'No .env file found' }
+    // Check 1: Does .env.local or .env file exist?
+    if (!fs.existsSync(ENV_FILE) && !fs.existsSync(ENV_FALLBACK)) {
+      return { fresh: true, reason: 'No .env.local or .env file found' }
     }
 
     // Check 2: Can we connect to database?
@@ -115,15 +116,19 @@ async function isFreshInstall() {
  * Check environment configuration completeness
  */
 function checkEnvironmentConfig() {
-  if (!fs.existsSync(ENV_FILE)) {
-    return { 
-      configured: false, 
-      missing: ['Complete .env file missing'],
+  // Check for .env.local first, then fall back to .env
+  const envFilePath = fs.existsSync(ENV_FILE) ? ENV_FILE :
+                      fs.existsSync(ENV_FALLBACK) ? ENV_FALLBACK : null
+
+  if (!envFilePath) {
+    return {
+      configured: false,
+      missing: ['Complete .env.local or .env file missing'],
       critical: true
     }
   }
 
-  const envContent = fs.readFileSync(ENV_FILE, 'utf8')
+  const envContent = fs.readFileSync(envFilePath, 'utf8')
   const missing = []
   const warnings = []
 
@@ -238,9 +243,9 @@ function generateFreshInstallInstructions() {
   log('📋 STEP 1: Configure Environment Variables', 'WARN')
   log('=' .repeat(50))
   
-  if (!fs.existsSync(ENV_FILE)) {
+  if (!fs.existsSync(ENV_FILE) && !fs.existsSync(ENV_FALLBACK)) {
     log('✓ Copy environment template:', 'INFO')
-    log('   copy .env.example .env', 'INFO')
+    log('   copy .env.example .env.local', 'INFO')
     log('')
   }
   

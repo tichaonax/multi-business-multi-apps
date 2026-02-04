@@ -19,7 +19,8 @@ const { execSync, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-// Load environment variables
+// Load environment variables (.env.local takes precedence over .env)
+require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 function log(message, type = 'INFO') {

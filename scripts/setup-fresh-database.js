@@ -15,7 +15,8 @@ const { Client } = require('pg');
 const { execSync } = require('child_process');
 const path = require('path');
 
-// Load environment variables
+// Load environment variables (.env.local takes precedence over .env)
+require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const { checkDatabaseState } = require('./check-database-state');
