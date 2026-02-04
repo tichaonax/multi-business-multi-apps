@@ -18,7 +18,7 @@ async function initializeSyncSystem() {
     const nodeName = os.hostname() || 'Unknown Node'
 
     // Initialize node state
-    await prisma.nodeState.upsert({
+    await prisma.nodeStates.upsert({
       where: { nodeId },
       update: {
         nodeName,

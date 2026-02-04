@@ -804,7 +804,7 @@ async function initializeSyncSystem() {
     const nodeName = os.hostname() || 'Unknown Node'
 
     // Initialize node state
-    await prisma.nodeState.upsert({
+    await prisma.nodeStates.upsert({
       where: { nodeId },
       update: {
         nodeName,
@@ -867,8 +867,8 @@ module.exports = { initializeSyncSystem }`
       // Check key tables exist and have data. Be resilient to renamed/missing models.
       const counts = {}
       try { counts.users = await prisma.users.count() } catch (e) { logWarning('Model prisma.user missing or inaccessible') }
-      try { counts.jobTitles = await prisma.jobTitle.count() } catch (e) { logWarning('Model prisma.jobTitle missing or inaccessible') }
-      try { counts.nodeStates = await prisma.nodeState.count() } catch (e) { logWarning('Model prisma.nodeState missing or inaccessible') }
+      try { counts.jobTitles = await prisma.jobTitles.count() } catch (e) { logWarning('Model prisma.jobTitles missing or inaccessible') }
+      try { counts.nodeStates = await prisma.nodeStates.count() } catch (e) { logWarning('Model prisma.nodeStates missing or inaccessible') }
 
       log(`Database verification:`)
       log(`  - Users: ${counts.users ?? 'n/a'}`)
