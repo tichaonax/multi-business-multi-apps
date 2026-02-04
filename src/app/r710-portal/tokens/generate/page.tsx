@@ -209,7 +209,7 @@ function GenerateTokensContent() {
           </p>
           <Link
             href="/r710-portal/token-configs"
-            className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
+            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
           >
             Go to Token Packages
           </Link>
@@ -377,7 +377,7 @@ function GenerateTokensContent() {
                 className={`px-6 py-2 rounded-md font-medium transition-colors ${
                   generating || !selectedConfigId
                     ? 'bg-gray-400 cursor-not-allowed text-white'
-                    : 'bg-primary text-white hover:bg-primary-dark'
+                    : 'bg-primary-600 text-white hover:bg-primary-700'
                 }`}
               >
                 {generating ? (

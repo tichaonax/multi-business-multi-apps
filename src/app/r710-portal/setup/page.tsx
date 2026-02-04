@@ -728,7 +728,7 @@ function R710SetupContent() {
                 </button>
                 <button
                   onClick={() => router.push('/r710-portal/token-configs')}
-                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
                 >
                   Manage Token Packages
                 </button>
@@ -902,7 +902,7 @@ function R710SetupContent() {
               <button
                 onClick={handleCreateIntegration}
                 disabled={!selectedDeviceId || creating}
-                className="w-full px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {creating ? 'Creating Integration...' : 'Create Integration'}
               </button>

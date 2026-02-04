@@ -248,7 +248,7 @@ function AclDetailContent({ params }: { params: Promise<{ id: string }> }) {
         <div className="mt-6">
           <Link
             href="/r710-portal/acl"
-            className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
+            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
           >
             Back to ACL List
           </Link>
@@ -526,7 +526,7 @@ function AclDetailContent({ params }: { params: Promise<{ id: string }> }) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>

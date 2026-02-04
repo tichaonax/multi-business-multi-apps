@@ -192,7 +192,7 @@ function WLANDetailContent({ id }: { id: string }) {
         </p>
         <Link
           href="/r710-portal/wlans"
-          className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+          className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
         >
           Back to WLANs
         </Link>
@@ -225,7 +225,7 @@ function WLANDetailContent({ id }: { id: string }) {
             {!editMode ? (
               <button
                 onClick={() => setEditMode(true)}
-                className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -244,7 +244,7 @@ function WLANDetailContent({ id }: { id: string }) {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
+                  className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
                 >
                   {saving ? (
                     <>
