@@ -354,14 +354,6 @@ LOG_LEVEL=${config.logging.level}
   async createServiceRunner() {
     logStep('5/9', 'Creating service runner...')
 
-    // Check if service runner already exists in repo (it has correct fallback logic)
-    const runnerPath = path.join(this.projectRoot, 'service', 'sync-service-runner.js')
-    if (fs.existsSync(runnerPath)) {
-      log(`Service runner already exists: ${runnerPath}`)
-      logSuccess('Service runner verified (using existing file)')
-      return
-    }
-
     const runnerContent = `/**
  * Multi-Business Sync Service Runner
  * Runs the sync service as a system service
@@ -369,7 +361,19 @@ LOG_LEVEL=${config.logging.level}
 
 const path = require('path')
 const fs = require('fs')
-const { SyncService } = require('../src/lib/sync/sync-service')
+
+// Prefer compiled dist module when available (production). Fallback to src for dev.
+let SyncService
+try {
+  SyncService = require('../dist/lib/sync/sync-service').SyncService
+} catch (e1) {
+  try {
+    SyncService = require('../src/lib/sync/sync-service').SyncService
+  } catch (e2) {
+    // Leave undefined; errors will surface when attempting to start the service.
+    SyncService = undefined
+  }
+}
 
 // Load configuration
 const configPath = path.join(__dirname, '../config/service-config.json')
