@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+
+// Force dynamic rendering for all pages (app uses sessions throughout)
+export const dynamic = 'force-dynamic'
 import { CustomSessionProvider } from '@/components/providers/session-provider'
 import { ThemeProvider } from '@/contexts/theme-context'
 import { SettingsProvider } from '@/contexts/settings-context'
