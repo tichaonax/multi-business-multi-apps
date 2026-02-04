@@ -107,16 +107,22 @@ class DatabaseInstaller {
     logStep('1/8', 'Checking PostgreSQL availability...')
 
     try {
-      // Try to connect to PostgreSQL server (not specific database) using psql
-      const testUrl = `postgresql://${this.dbConfig.superuser}:${this.dbConfig.password}@${this.dbConfig.host}:${this.dbConfig.port}/postgres`
-
-      // Use psql to run a simple SELECT 1; this avoids prisma CLI flag conflicts
-      execSync(`psql "${testUrl}" -t -c "SELECT 1;"`, {
-        stdio: 'pipe',
-        cwd: this.projectRoot
+      // Use pg module directly to test connection (doesn't require psql in PATH)
+      const { Client } = require('pg')
+      const client = new Client({
+        host: this.dbConfig.host,
+        port: parseInt(this.dbConfig.port),
+        user: this.dbConfig.superuser,
+        password: this.dbConfig.password,
+        database: 'postgres',
+        connectionTimeoutMillis: 10000
       })
 
-      logSuccess('PostgreSQL is running and accessible (psql)')
+      await client.connect()
+      await client.query('SELECT 1')
+      await client.end()
+
+      logSuccess('PostgreSQL is running and accessible')
     } catch (error) {
       throw new Error(
         `PostgreSQL is not accessible. Please ensure PostgreSQL is installed and running.\n` +
@@ -130,49 +136,50 @@ class DatabaseInstaller {
     logStep('2/8', 'Creating database...')
 
     try {
+      const { Client } = require('pg')
+      const client = new Client({
+        host: this.dbConfig.host,
+        port: parseInt(this.dbConfig.port),
+        user: this.dbConfig.superuser,
+        password: this.dbConfig.password,
+        database: 'postgres'
+      })
+
+      await client.connect()
+
       // Check if database exists
-      const checkDbQuery = `SELECT 1 FROM pg_database WHERE datname = '${this.dbConfig.database}'`
-      const postgresUrl = `postgresql://${this.dbConfig.superuser}:${this.dbConfig.password}@${this.dbConfig.host}:${this.dbConfig.port}/postgres`
+      const checkResult = await client.query(
+        `SELECT 1 FROM pg_database WHERE datname = $1`,
+        [this.dbConfig.database]
+      )
 
-      try {
-        const result = execSync(
-          `psql "${postgresUrl}" -t -c "${checkDbQuery}"`,
-          { stdio: 'pipe', encoding: 'utf8' }
-        )
-
-        if (result.trim()) {
-          logSuccess(`Database '${this.dbConfig.database}' already exists`)
-          return
-        }
-      } catch (error) {
-        // Database doesn't exist, continue to create it
+      if (checkResult.rows.length > 0) {
+        logSuccess(`Database '${this.dbConfig.database}' already exists`)
+        await client.end()
+        return
       }
 
       // Create database
       log(`Creating database '${this.dbConfig.database}'...`)
-      execSync(
-        `psql "${postgresUrl}" -c "CREATE DATABASE ${this.dbConfig.database};"`,
-        { stdio: 'pipe' }
-      )
+      await client.query(`CREATE DATABASE "${this.dbConfig.database}"`)
 
       // Create user if it doesn't exist (and not the superuser)
       if (this.dbConfig.user !== this.dbConfig.superuser) {
         try {
-          execSync(
-            `psql "${postgresUrl}" -c "CREATE USER ${this.dbConfig.user} WITH PASSWORD '${this.dbConfig.password}';"`,
-            { stdio: 'pipe' }
+          await client.query(
+            `CREATE USER "${this.dbConfig.user}" WITH PASSWORD '${this.dbConfig.password}'`
           )
         } catch (error) {
-          // User might already exist, grant privileges anyway
+          // User might already exist, continue
         }
 
         // Grant privileges
-        execSync(
-          `psql "${postgresUrl}" -c "GRANT ALL PRIVILEGES ON DATABASE ${this.dbConfig.database} TO ${this.dbConfig.user};"`,
-          { stdio: 'pipe' }
+        await client.query(
+          `GRANT ALL PRIVILEGES ON DATABASE "${this.dbConfig.database}" TO "${this.dbConfig.user}"`
         )
       }
 
+      await client.end()
       logSuccess(`Database '${this.dbConfig.database}' created successfully`)
 
     } catch (error) {
@@ -184,33 +191,42 @@ class DatabaseInstaller {
     logStep('2b/8', 'Dropping database (if exists)...')
 
     try {
-      const postgresUrl = `postgresql://${this.dbConfig.superuser}:${this.dbConfig.password}@${this.dbConfig.host}:${this.dbConfig.port}/postgres`
+      const { Client } = require('pg')
+      const client = new Client({
+        host: this.dbConfig.host,
+        port: parseInt(this.dbConfig.port),
+        user: this.dbConfig.superuser,
+        password: this.dbConfig.password,
+        database: 'postgres'
+      })
+
+      await client.connect()
 
       // Check if database exists
-      const checkDbQuery = `SELECT 1 FROM pg_database WHERE datname = '${this.dbConfig.database}'`
-      const result = execSync(
-        `psql "${postgresUrl}" -t -c "${checkDbQuery}"`,
-        { stdio: 'pipe', encoding: 'utf8' }
+      const checkResult = await client.query(
+        `SELECT 1 FROM pg_database WHERE datname = $1`,
+        [this.dbConfig.database]
       )
 
-      if (!result.trim()) {
+      if (checkResult.rows.length === 0) {
         log(`Database '${this.dbConfig.database}' does not exist, nothing to drop`)
+        await client.end()
         return
       }
 
       logWarning(`Terminating connections to database '${this.dbConfig.database}'`)
 
       // Terminate other connections (required to drop DB)
-      const terminateSql = `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${this.dbConfig.database}' AND pid <> pg_backend_pid();`
-      execSync(`psql "${postgresUrl}" -c "${terminateSql}"`, { stdio: 'pipe' })
+      await client.query(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+        [this.dbConfig.database]
+      )
 
       // Drop database
       log(`Dropping database '${this.dbConfig.database}'...`)
-      execSync(
-        `psql "${postgresUrl}" -c \"DROP DATABASE IF EXISTS ${this.dbConfig.database};\"`,
-        { stdio: 'pipe' }
-      )
+      await client.query(`DROP DATABASE IF EXISTS "${this.dbConfig.database}"`)
 
+      await client.end()
       logSuccess(`Database '${this.dbConfig.database}' dropped successfully`)
 
     } catch (error) {
@@ -244,21 +260,20 @@ class DatabaseInstaller {
 
     try {
       // Check if this is a fresh install or an update
-      const migrationStatus = this.checkMigrationStatus()
+      const migrationStatus = await this.checkMigrationStatus()
 
       if (migrationStatus === 'fresh') {
         log('Fresh installation detected, pushing schema...')
-        execSync('npx prisma migrate deploy', {
-          cwd: ROOT_DIR,
-          stdio: 'inherit'
-        })
       } else {
         log('Existing installation detected, running migrations...')
-        execSync('npx prisma migrate deploy', {
-          stdio: 'inherit',
-          cwd: this.projectRoot
-        })
       }
+
+      // Use prisma migrate deploy for both cases
+      execSync('npx prisma migrate deploy', {
+        stdio: 'inherit',
+        cwd: this.projectRoot,
+        env: { ...process.env, DATABASE_URL: this.databaseUrl }
+      })
 
       logSuccess('Database migrations completed successfully')
 
@@ -267,13 +282,16 @@ class DatabaseInstaller {
     }
   }
 
-  checkMigrationStatus() {
+  async checkMigrationStatus() {
     try {
-      // Try to query the _prisma_migrations table
-      execSync(
-        `psql "${this.databaseUrl}" -c "SELECT COUNT(*) FROM _prisma_migrations;" > /dev/null 2>&1`,
-        { stdio: 'pipe' }
-      )
+      const { Client } = require('pg')
+      const client = new Client({
+        connectionString: this.databaseUrl
+      })
+
+      await client.connect()
+      await client.query('SELECT COUNT(*) FROM _prisma_migrations')
+      await client.end()
       return 'existing'
     } catch (error) {
       return 'fresh'
