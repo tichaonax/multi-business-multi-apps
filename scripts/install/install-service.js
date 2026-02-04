@@ -354,6 +354,14 @@ LOG_LEVEL=${config.logging.level}
   async createServiceRunner() {
     logStep('5/9', 'Creating service runner...')
 
+    // Check if service runner already exists in repo (it has correct fallback logic)
+    const runnerPath = path.join(this.projectRoot, 'service', 'sync-service-runner.js')
+    if (fs.existsSync(runnerPath)) {
+      log(`Service runner already exists: ${runnerPath}`)
+      logSuccess('Service runner verified (using existing file)')
+      return
+    }
+
     const runnerContent = `/**
  * Multi-Business Sync Service Runner
  * Runs the sync service as a system service
