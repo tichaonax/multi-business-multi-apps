@@ -97,36 +97,121 @@ async function checkServiceInstalled() {
 // ============================================================================
 
 /**
- * Check if database exists and is accessible
- * Returns: true if exists and accessible, false if not
+ * Clear Prisma client from Node.js require cache
+ * This ensures we get a freshly generated client after npx prisma generate
  */
-async function checkDatabaseExists() {
+function clearPrismaRequireCache() {
   try {
-    log('  Checking if database exists...', 'INFO')
+    // Clear all .prisma and @prisma modules from cache
+    Object.keys(require.cache).forEach(key => {
+      if (key.includes('.prisma') || key.includes('@prisma')) {
+        delete require.cache[key]
+      }
+    })
+    log('  Cleared Prisma require cache', 'INFO')
+  } catch (err) {
+    // Ignore cache clearing errors
+  }
+}
 
-    // Try to connect to database using Prisma
-    const { PrismaClient } = require('@prisma/client')
-    const prisma = new PrismaClient()
+/**
+ * Check database using pg client directly (fallback method)
+ * This doesn't depend on Prisma client state
+ */
+async function checkDatabaseWithPg() {
+  try {
+    // Load dotenv to ensure DATABASE_URL is available
+    require('dotenv').config({ path: path.join(ROOT_DIR, '.env.local') })
+    require('dotenv').config({ path: path.join(ROOT_DIR, '.env') })
 
-    // Try a simple query to verify database connection
-    await prisma.$queryRaw`SELECT 1`
-    await prisma.$disconnect()
+    const databaseUrl = process.env.DATABASE_URL
+    if (!databaseUrl) {
+      log('  DATABASE_URL not found', 'WARN')
+      return false
+    }
 
-    log('  ✓ Database: EXISTS and ACCESSIBLE', 'SUCCESS')
+    const { Client } = require('pg')
+    const client = new Client({ connectionString: databaseUrl })
+
+    await client.connect()
+    await client.query('SELECT 1')
+    await client.end()
+
     return true
   } catch (error) {
-    // Database doesn't exist or cannot connect
-    if (error.message.includes('does not exist') ||
-        error.message.includes('Unknown database') ||
-        error.message.includes('cannot connect') ||
-        error.code === 'P1003' || // Database doesn't exist
-        error.code === 'P1001') { // Can't reach database server
-      log('  ✓ Database: DOES NOT EXIST', 'WARN')
+    const errorMsg = error.message || String(error)
+    if (errorMsg.includes('does not exist') || error.code === '3D000') {
+      log('  Database does not exist (pg check)', 'WARN')
     } else {
-      log('  ✓ Database: NOT ACCESSIBLE', 'WARN')
+      log(`  Database check failed (pg): ${errorMsg}`, 'WARN')
     }
     return false
   }
+}
+
+/**
+ * Check if database exists and is accessible
+ * Returns: true if exists and accessible, false if not
+ * Uses retry logic and multiple check methods for reliability
+ */
+async function checkDatabaseExists() {
+  const MAX_RETRIES = 3
+  const RETRY_DELAY_MS = 2000
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      log(`  Checking if database exists... (attempt ${attempt}/${MAX_RETRIES})`, 'INFO')
+
+      // Clear Prisma require cache before each attempt
+      // This ensures we get the freshly generated client after build
+      clearPrismaRequireCache()
+
+      // Try to connect to database using Prisma
+      const { PrismaClient } = require('@prisma/client')
+      const prisma = new PrismaClient()
+
+      // Try a simple query to verify database connection
+      await prisma.$queryRaw`SELECT 1`
+      await prisma.$disconnect()
+
+      log('  ✓ Database: EXISTS and ACCESSIBLE', 'SUCCESS')
+      return true
+    } catch (error) {
+      const errorMsg = error.message || String(error)
+      const errorCode = error.code || 'UNKNOWN'
+
+      // Log the actual error for debugging
+      log(`  Database check error (attempt ${attempt}): [${errorCode}] ${errorMsg}`, 'WARN')
+
+      // Database doesn't exist or cannot connect - these are definitive failures
+      if (errorMsg.includes('does not exist') ||
+          errorMsg.includes('Unknown database') ||
+          errorMsg.includes('ECONNREFUSED') ||
+          errorCode === 'P1003' || // Database doesn't exist
+          errorCode === 'P1001') { // Can't reach database server
+        log('  ✓ Database: DOES NOT EXIST', 'WARN')
+        return false
+      }
+
+      // For other errors, retry with delay
+      if (attempt < MAX_RETRIES) {
+        log(`  Retrying in ${RETRY_DELAY_MS}ms...`, 'INFO')
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
+      }
+    }
+  }
+
+  // Prisma checks failed - try fallback with pg client directly
+  log('  Prisma checks failed, trying direct pg connection...', 'INFO')
+  const pgResult = await checkDatabaseWithPg()
+
+  if (pgResult) {
+    log('  ✓ Database: EXISTS and ACCESSIBLE (confirmed via pg)', 'SUCCESS')
+    return true
+  }
+
+  log('  ✓ Database: NOT ACCESSIBLE (all checks failed)', 'WARN')
+  return false
 }
 
 /**
@@ -137,6 +222,9 @@ async function checkDatabaseExists() {
 async function checkHasUsers() {
   try {
     log('  Checking user count in database...', 'INFO')
+
+    // Clear cache to ensure fresh Prisma client
+    clearPrismaRequireCache()
 
     const { PrismaClient } = require('@prisma/client')
     const prisma = new PrismaClient()
@@ -152,8 +240,9 @@ async function checkHasUsers() {
     log(`  ✓ User count: ${count}`, 'SUCCESS')
     return true
   } catch (error) {
+    const errorMsg = error.message || String(error)
     // Table doesn't exist or other error - treat as empty
-    log('  ✓ User count: 0 (table not found or error)', 'WARN')
+    log(`  ✓ User count: 0 (error: ${errorMsg})`, 'WARN')
     return false
   }
 }

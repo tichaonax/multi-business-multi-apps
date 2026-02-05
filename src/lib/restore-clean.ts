@@ -510,8 +510,13 @@ export async function restoreCleanBackup(
             // This ensures restored data matches source database exactly
 
             // Special handling for models with composite unique constraints
+            // CRITICAL: For tables with composite unique keys, we must preserve the backup's ID
+            // because child records reference it. If an existing record has a different ID,
+            // we must delete it first and recreate with the backup's ID.
+
             if (tableName === 'emojiLookup') {
               // EmojiLookup has unique constraint on [emoji, description]
+              // This table has no child references, so simple upsert is fine
               await model.upsert({
                 where: {
                   emoji_description: {
@@ -522,90 +527,136 @@ export async function restoreCleanBackup(
                 create: recordToInsert,
                 update: recordToInsert
               })
-            } else if (tableName === 'r710BusinessTokenMenuItems') {
-              // R710BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigId]
-              await model.upsert({
-                where: {
-                  businessId_tokenConfigId: {
-                    businessId: record.businessId,
-                    tokenConfigId: record.tokenConfigId
-                  }
-                },
-                create: recordToInsert,
-                update: recordToInsert
-              })
-            } else if (tableName === 'businessTokenMenuItems') {
-              // ESP32 BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigId]
-              await model.upsert({
-                where: {
-                  businessId_tokenConfigurationId: {
-                    businessId: record.businessId,
-                    tokenConfigurationId: record.tokenConfigurationId
-                  }
-                },
-                create: recordToInsert,
-                update: recordToInsert
-              })
-            } else if (tableName === 'employeeBusinessAssignments') {
-              // EmployeeBusinessAssignments has unique constraint on [employeeId, businessId]
-              await model.upsert({
-                where: {
-                  employeeId_businessId: {
-                    employeeId: record.employeeId,
-                    businessId: record.businessId
-                  }
-                },
-                create: recordToInsert,
-                update: recordToInsert
-              })
-            } else if (tableName === 'businessMemberships') {
-              // BusinessMemberships has unique constraint on [userId, businessId]
-              await model.upsert({
-                where: {
-                  userId_businessId: {
-                    userId: record.userId,
-                    businessId: record.businessId
-                  }
-                },
-                create: recordToInsert,
-                update: recordToInsert
-              })
-            } else if (tableName === 'userPermissions') {
-              // UserPermissions has unique constraint on [userId, permissionId]
-              await model.upsert({
-                where: {
-                  userId_permissionId: {
-                    userId: record.userId,
-                    permissionId: record.permissionId
-                  }
-                },
-                create: recordToInsert,
-                update: recordToInsert
-              })
-            } else if (tableName === 'r710BusinessIntegrations') {
-              // R710BusinessIntegrations has unique constraint on [businessId, deviceRegistryId]
-              await model.upsert({
-                where: {
-                  businessId_deviceRegistryId: {
-                    businessId: record.businessId,
-                    deviceRegistryId: record.deviceRegistryId
-                  }
-                },
-                create: recordToInsert,
-                update: recordToInsert
-              })
             } else if (tableName === 'r710Wlans') {
               // R710Wlans has unique constraint on [deviceRegistryId, wlanId]
-              await model.upsert({
+              // CRITICAL: r710TokenConfigs references r710Wlans.id, so we must preserve backup ID
+              const existing = await model.findFirst({
                 where: {
-                  deviceRegistryId_wlanId: {
-                    deviceRegistryId: record.deviceRegistryId,
-                    wlanId: record.wlanId
-                  }
-                },
-                create: recordToInsert,
-                update: recordToInsert
+                  deviceRegistryId: record.deviceRegistryId,
+                  wlanId: record.wlanId
+                }
               })
+
+              if (existing && existing.id !== record.id) {
+                // Different ID - delete existing and create with backup ID
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] r710Wlans: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                // Same ID - just update
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                // Doesn't exist - create
+                await model.create({ data: recordToInsert })
+              }
+            } else if (tableName === 'r710BusinessIntegrations') {
+              // R710BusinessIntegrations has unique constraint on [businessId, deviceRegistryId]
+              const existing = await model.findFirst({
+                where: {
+                  businessId: record.businessId,
+                  deviceRegistryId: record.deviceRegistryId
+                }
+              })
+
+              if (existing && existing.id !== record.id) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] r710BusinessIntegrations: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                await model.create({ data: recordToInsert })
+              }
+            } else if (tableName === 'r710BusinessTokenMenuItems') {
+              // R710BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigId]
+              const existing = await model.findFirst({
+                where: {
+                  businessId: record.businessId,
+                  tokenConfigId: record.tokenConfigId
+                }
+              })
+
+              if (existing && existing.id !== record.id) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] r710BusinessTokenMenuItems: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                await model.create({ data: recordToInsert })
+              }
+            } else if (tableName === 'businessTokenMenuItems') {
+              // ESP32 BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigurationId]
+              const existing = await model.findFirst({
+                where: {
+                  businessId: record.businessId,
+                  tokenConfigurationId: record.tokenConfigurationId
+                }
+              })
+
+              if (existing && existing.id !== record.id) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] businessTokenMenuItems: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                await model.create({ data: recordToInsert })
+              }
+            } else if (tableName === 'employeeBusinessAssignments') {
+              // EmployeeBusinessAssignments has unique constraint on [employeeId, businessId]
+              const existing = await model.findFirst({
+                where: {
+                  employeeId: record.employeeId,
+                  businessId: record.businessId
+                }
+              })
+
+              if (existing && existing.id !== record.id) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] employeeBusinessAssignments: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                await model.create({ data: recordToInsert })
+              }
+            } else if (tableName === 'businessMemberships') {
+              // BusinessMemberships has unique constraint on [userId, businessId]
+              const existing = await model.findFirst({
+                where: {
+                  userId: record.userId,
+                  businessId: record.businessId
+                }
+              })
+
+              if (existing && existing.id !== record.id) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] businessMemberships: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                await model.create({ data: recordToInsert })
+              }
+            } else if (tableName === 'userPermissions') {
+              // UserPermissions has unique constraint on [userId, permissionId]
+              const existing = await model.findFirst({
+                where: {
+                  userId: record.userId,
+                  permissionId: record.permissionId
+                }
+              })
+
+              if (existing && existing.id !== record.id) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] userPermissions: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                await model.create({ data: recordToInsert })
+              }
             } else if (uniqueConstraint) {
               // Handle tables with unique constraints on non-ID fields
               // First try to find by unique field, then upsert

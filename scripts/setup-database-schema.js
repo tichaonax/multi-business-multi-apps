@@ -51,7 +51,7 @@ function execCommand(command, description) {
  */
 function stopWindowsService() {
   try {
-    const SERVICE_NAME = 'multibusinesssyncservice';
+    const SERVICE_NAME = 'multibusinesssyncservice.exe';
     const SC = process.env.SC_COMMAND || 'sc.exe';
 
     log('Checking Windows service status...', 'INFO');
@@ -386,7 +386,7 @@ async function main() {
     if (!serviceStopped) {
       log('⚠️  WARNING: Could not stop Windows service', 'WARN');
       log('If Prisma generation fails with EPERM errors, manually stop the service:', 'WARN');
-      log('  1. Run as Administrator: sc stop multibusinesssyncservice', 'WARN');
+      log('  1. Run as Administrator: sc stop multibusinesssyncservice.exe', 'WARN');
       log('  2. Or use: npm run service:stop', 'WARN');
       console.log('');
     }
