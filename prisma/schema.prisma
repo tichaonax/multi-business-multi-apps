@@ -1474,17 +1474,26 @@ model InterBusinessLoans {
 }
 
 model JobTitles {
-  id                 String              @id @default(uuid())
-  title              String              @unique
-  description        String?
-  responsibilities   String[]
-  department         String?
-  level              String?
-  isActive           Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @default(now())
-  employee_contracts EmployeeContracts[]
-  employees          Employees[]
+  id                      String              @id @default(uuid())
+  title                   String              @unique
+  description             String?
+  responsibilities        String[]
+  department              String?
+  level                   String?
+  isActive                Boolean             @default(true)
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @default(now())
+  employee_contracts      EmployeeContracts[]
+  employees               Employees[]
+
+  // Role template fields
+  jobSummary              String?
+  skillsRequired          String[]
+  qualifications          String[]
+  businessType            String?
+  isRoleTemplate          Boolean             @default(false)
+  defaultNotes            String?
+  defaultPermissionPreset String?
 
   @@map("job_titles")
 }

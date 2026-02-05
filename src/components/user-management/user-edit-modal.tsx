@@ -409,7 +409,9 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
                   >
                     <option value="user">User</option>
                     <option value="salesperson">Salesperson</option>
-                    <option value="pos-associate">POS Associate</option>
+                    <option value="restaurant-associate">Food Prep & POS Associate</option>
+                    <option value="grocery-associate">Grocery Shop Associate</option>
+                    <option value="clothing-associate">Clothing Shop Associate</option>
                     <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
                     <option value="admin">System Admin</option>
@@ -949,13 +951,15 @@ function BusinessSelectorModal({
               onChange={(e) => setSelectedRole(e.target.value as keyof typeof BUSINESS_PERMISSION_PRESETS)}
             >
               <option value="salesperson">Salesperson</option>
-              <option value="pos-associate">POS Associate</option>
+              <option value="restaurant-associate">Food Prep & POS Associate</option>
+              <option value="grocery-associate">Grocery Shop Associate</option>
+              <option value="clothing-associate">Clothing Shop Associate</option>
               <option value="employee">Employee</option>
               <option value="business-manager">Manager</option>
               <option value="business-owner">Business Owner</option>
             </select>
           </div>
-          
+
           <div className="flex justify-end space-x-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary">
               Cancel

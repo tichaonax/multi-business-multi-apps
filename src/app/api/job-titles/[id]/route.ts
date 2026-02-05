@@ -66,7 +66,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       responsibilities,
       department,
       level,
-      isActive
+      isActive,
+      // Role template fields
+      jobSummary,
+      skillsRequired,
+      qualifications,
+      businessType,
+      isRoleTemplate,
+      defaultNotes,
+      defaultPermissionPreset
     } = data
 
     // Validation
@@ -111,7 +119,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         responsibilities: Array.isArray(responsibilities) ? responsibilities : [],
         department: department || null,
         level: level || null,
-        isActive: isActive !== undefined ? isActive : existingJobTitle.isActive
+        isActive: isActive !== undefined ? isActive : existingJobTitle.isActive,
+        // Role template fields (only update if provided)
+        ...(jobSummary !== undefined && { jobSummary: jobSummary || null }),
+        ...(skillsRequired !== undefined && { skillsRequired: Array.isArray(skillsRequired) ? skillsRequired : [] }),
+        ...(qualifications !== undefined && { qualifications: Array.isArray(qualifications) ? qualifications : [] }),
+        ...(businessType !== undefined && { businessType: businessType || null }),
+        ...(isRoleTemplate !== undefined && { isRoleTemplate: isRoleTemplate === true }),
+        ...(defaultNotes !== undefined && { defaultNotes: defaultNotes || null }),
+        ...(defaultPermissionPreset !== undefined && { defaultPermissionPreset: defaultPermissionPreset || null })
       },
       include: {
         _count: {

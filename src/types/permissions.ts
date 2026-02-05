@@ -401,7 +401,7 @@ export interface ConsultingPermissions {
 }
 
 // Restaurant Permission Presets (for business-type-specific permissions)
-export const RESTAURANT_POS_ASSOCIATE_PERMISSIONS: RestaurantPermissions = {
+export const RESTAURANT_ASSOCIATE_PERMISSIONS: RestaurantPermissions = {
   // Project Management - No access
   canViewProjects: false,
   canCreateProjects: false,
@@ -558,10 +558,116 @@ export const RESTAURANT_PERMISSION_PRESETS = {
   'business-owner': RESTAURANT_OWNER_PERMISSIONS,
   'business-manager': RESTAURANT_MANAGER_PERMISSIONS,
   'employee': RESTAURANT_EMPLOYEE_PERMISSIONS,
-  'pos-associate': RESTAURANT_POS_ASSOCIATE_PERMISSIONS,
+  'restaurant-associate': RESTAURANT_ASSOCIATE_PERMISSIONS,
   'salesperson': RESTAURANT_EMPLOYEE_PERMISSIONS,  // Same as employee
   'read-only': RESTAURANT_EMPLOYEE_PERMISSIONS,    // Same as employee (view only)
   'system-admin': RESTAURANT_OWNER_PERMISSIONS,    // Same as owner
+} as const;
+
+// Grocery Associate permissions - Sales floor and checkout operations
+// Can: view/process sales, manage checkout, view inventory, sell WiFi tokens
+// Cannot: view ANY reports, manage employees, configure systems
+export const GROCERY_ASSOCIATE_PERMISSIONS: GroceryPermissions = {
+  // Project Management - No access
+  canViewProjects: false,
+  canCreateProjects: false,
+  canEditProjects: false,
+  canDeleteProjects: false,
+  canManageProjectTypes: false,
+  canViewProjectReports: false,
+
+  // Inventory Management - View only (check stock for customers)
+  canViewInventory: true,
+  canManageInventory: false,
+  canManagePerishableItems: false,
+  canManageExpirationDates: false,
+  canViewStockAlerts: false,
+  canManageStockRotation: false,
+
+  // Sales Operations - Core POS functions
+  canProcessSales: true,
+  canManageCheckout: true,
+  canManagePromos: false,
+  canViewSalesReports: false,  // NO REPORTS
+  canManageCustomerLoyalty: false,
+
+  // Supplier Management - No access
+  canManageSuppliers: false,
+  canManageOrders: false,
+  canManageDeliveries: false,
+  canViewSupplierReports: false,  // NO REPORTS
+  canManagePricing: false,
+
+  // Department Management - No access
+  canManageDepartments: false,
+  canViewDepartmentReports: false,  // NO REPORTS
+  canManageSeasonalItems: false,
+};
+
+// Grocery permission presets mapping
+export const GROCERY_PERMISSION_PRESETS = {
+  'business-owner': GROCERY_ASSOCIATE_PERMISSIONS,  // Placeholder - use same until owner presets created
+  'business-manager': GROCERY_ASSOCIATE_PERMISSIONS,
+  'employee': GROCERY_ASSOCIATE_PERMISSIONS,
+  'grocery-associate': GROCERY_ASSOCIATE_PERMISSIONS,
+  'restaurant-associate': GROCERY_ASSOCIATE_PERMISSIONS,
+  'salesperson': GROCERY_ASSOCIATE_PERMISSIONS,
+  'read-only': GROCERY_ASSOCIATE_PERMISSIONS,
+  'system-admin': GROCERY_ASSOCIATE_PERMISSIONS,
+} as const;
+
+// Clothing Associate permissions - Sales floor and retail operations
+// Can: view/process sales, view inventory, process returns, sell WiFi tokens
+// Cannot: view ANY reports, manage employees, configure systems
+export const CLOTHING_ASSOCIATE_PERMISSIONS: ClothingPermissions = {
+  // Project Management - No access
+  canViewProjects: false,
+  canCreateProjects: false,
+  canEditProjects: false,
+  canDeleteProjects: false,
+  canManageProjectTypes: false,
+  canViewProjectReports: false,
+
+  // Inventory Management - View stock levels only
+  canViewInventory: true,
+  canManageInventory: false,
+  canManageSizeVariants: false,
+  canManageColorVariants: false,
+  canViewStockLevels: true,
+  canReceiveStock: false,
+  canTransferStock: false,
+
+  // Sales & Retail - Core POS functions
+  canProcessSales: true,
+  canProcessReturns: true,
+  canManageDiscounts: false,
+  canViewSalesReports: false,  // NO REPORTS
+  canViewCustomerAnalytics: false,  // NO REPORTS
+
+  // Product Management - No access
+  canManageProducts: false,
+  canManageBrands: false,
+  canManageSeasons: false,
+  canViewSeasonalReports: false,  // NO REPORTS
+  canManagePriceLists: false,
+
+  // Supplier & Purchasing - No access
+  canManageSuppliers: false,
+  canCreatePurchaseOrders: false,
+  canApprovePurchaseOrders: false,
+  canViewSupplierReports: false,  // NO REPORTS
+};
+
+// Clothing permission presets mapping
+export const CLOTHING_PERMISSION_PRESETS = {
+  'business-owner': CLOTHING_ASSOCIATE_PERMISSIONS,  // Placeholder - use same until owner presets created
+  'business-manager': CLOTHING_ASSOCIATE_PERMISSIONS,
+  'employee': CLOTHING_ASSOCIATE_PERMISSIONS,
+  'clothing-associate': CLOTHING_ASSOCIATE_PERMISSIONS,
+  'restaurant-associate': CLOTHING_ASSOCIATE_PERMISSIONS,
+  'salesperson': CLOTHING_ASSOCIATE_PERMISSIONS,
+  'read-only': CLOTHING_ASSOCIATE_PERMISSIONS,
+  'system-admin': CLOTHING_ASSOCIATE_PERMISSIONS,
 } as const;
 
 // Combined permission structure (includes both user-level and business-level permissions)
@@ -1567,10 +1673,10 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessWifiMenu: false,
 };
 
-// POS Associate permissions - Food prep and POS operations
+// Restaurant Associate permissions - Food prep and POS operations
 // Can: view/process orders, food prep, sell tokens, print receipts
 // Cannot: view ANY reports, manage employees, configure systems
-export const BUSINESS_POS_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions = {
+export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions = {
   // Business Management - View only
   canViewBusiness: true,
   canEditBusiness: false,
@@ -2181,8 +2287,8 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canEditPayees: false,
 };
 
-// POS Associate Permission Preset - Minimal permissions with receipt printing for POS operations
-export const POS_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
+// Restaurant Associate Permission Preset - Minimal permissions with receipt printing for POS operations
+export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
   // Personal Finance - No access
   canAccessPersonalFinance: false,
   canAddPersonalExpenses: false,
@@ -2264,7 +2370,9 @@ export const BUSINESS_PERMISSION_PRESETS = {
   'business-owner': BUSINESS_OWNER_PERMISSIONS,
   'business-manager': BUSINESS_MANAGER_PERMISSIONS,
   'employee': BUSINESS_EMPLOYEE_PERMISSIONS,
-  'pos-associate': BUSINESS_POS_ASSOCIATE_PERMISSIONS,
+  'restaurant-associate': BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS,
+  'grocery-associate': BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS,  // Same core business perms as restaurant
+  'clothing-associate': BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS, // Same core business perms as restaurant
   'salesperson': BUSINESS_SALESPERSON_PERMISSIONS,
   'read-only': BUSINESS_READ_ONLY_PERMISSIONS,
   'system-admin': SYSTEM_ADMIN_PERMISSIONS,
@@ -2277,7 +2385,9 @@ export const USER_LEVEL_PERMISSION_PRESETS = {
   'business-owner': ADMIN_USER_PERMISSIONS,
   'business-manager': DEFAULT_USER_PERMISSIONS,
   'employee': DEFAULT_USER_PERMISSIONS,
-  'pos-associate': POS_ASSOCIATE_USER_PERMISSIONS,
+  'restaurant-associate': RESTAURANT_ASSOCIATE_USER_PERMISSIONS,
+  'grocery-associate': RESTAURANT_ASSOCIATE_USER_PERMISSIONS,   // Same user perms (print receipts)
+  'clothing-associate': RESTAURANT_ASSOCIATE_USER_PERMISSIONS,  // Same user perms (print receipts)
   'salesperson': DEFAULT_USER_PERMISSIONS,
   'read-only': DEFAULT_USER_PERMISSIONS,
   'system-admin': ADMIN_USER_PERMISSIONS,

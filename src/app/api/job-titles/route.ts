@@ -62,7 +62,15 @@ export async function POST(req: NextRequest) {
       description,
       responsibilities,
       department,
-      level
+      level,
+      // Role template fields
+      jobSummary,
+      skillsRequired,
+      qualifications,
+      businessType,
+      isRoleTemplate,
+      defaultNotes,
+      defaultPermissionPreset
     } = data
 
     // Validation
@@ -91,7 +99,15 @@ export async function POST(req: NextRequest) {
         description: description || null,
         responsibilities: Array.isArray(responsibilities) ? responsibilities : [],
         department: department || null,
-        level: level || null
+        level: level || null,
+        // Role template fields
+        jobSummary: jobSummary || null,
+        skillsRequired: Array.isArray(skillsRequired) ? skillsRequired : [],
+        qualifications: Array.isArray(qualifications) ? qualifications : [],
+        businessType: businessType || null,
+        isRoleTemplate: isRoleTemplate === true,
+        defaultNotes: defaultNotes || null,
+        defaultPermissionPreset: defaultPermissionPreset || null
       }
     })
 
