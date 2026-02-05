@@ -657,6 +657,40 @@ export async function restoreCleanBackup(
               } else {
                 await model.create({ data: recordToInsert })
               }
+            } else if (tableName === 'r710Tokens') {
+              // R710Tokens has unique constraint on [username, password]
+              // Also referenced by r710TokenSales, r710DeviceTokens
+              const existing = await model.findFirst({
+                where: {
+                  username: record.username,
+                  password: record.password
+                }
+              })
+
+              if (existing && existing.id !== record.id) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] r710Tokens: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                await model.create({ data: recordToInsert })
+              }
+            } else if (tableName === 'wifiTokens') {
+              // WifiTokens (ESP32) has unique constraint on [token] field
+              const existing = await model.findFirst({
+                where: { token: record.token }
+              })
+
+              if (existing && existing.id !== record.id) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] wifiTokens: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+                await model.delete({ where: { id: existing.id } })
+                await model.create({ data: recordToInsert })
+              } else if (existing) {
+                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              } else {
+                await model.create({ data: recordToInsert })
+              }
             } else if (uniqueConstraint) {
               // Handle tables with unique constraints on non-ID fields
               // First try to find by unique field, then upsert
