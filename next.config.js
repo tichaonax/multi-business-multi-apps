@@ -54,6 +54,10 @@ const nextConfig = {
             key: 'Access-Control-Allow-Credentials',
             value: 'true',
           },
+          {
+            key: 'Access-Control-Expose-Headers',
+            value: 'Content-Disposition, Content-Type',
+          },
         ],
       },
     ]
