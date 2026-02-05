@@ -3,18 +3,21 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { UniversalPOSLayout } from './components/UniversalPOSLayout'
+import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
+import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { useUniversalCart } from './hooks/useUniversalCart'
 import { useProductLoader } from './hooks/useProductLoader'
 import { usePaymentProcessor } from './hooks/usePaymentProcessor'
 import { useWiFiTokenSync } from './hooks/useWiFiTokenSync'
 import { getBusinessTypeConfig, getSupportedBusinessTypes } from './config/business-type-config'
 import { toast } from 'sonner'
+import type { ReceiptData } from '@/types/printing'
 
 /**
  * Universal POS Page
@@ -29,6 +32,11 @@ export default function UniversalPOS() {
   // Get business type and configuration
   const businessType = currentBusiness?.businessType || 'other'
   const config = getBusinessTypeConfig(businessType)
+
+  // Receipt preview modal state (modal handles its own printer selection)
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
+  const printInFlightRef = useRef(false)
 
   // Initialize cart
   const {
@@ -51,7 +59,7 @@ export default function UniversalPOS() {
   // WiFi token sync (if business supports WiFi tokens)
   const { syncESP32TokenQuantities } = useWiFiTokenSync()
 
-  // Payment processor with business info
+  // Payment processor with business info - no auto-print, show preview instead
   const { processCheckout, isProcessing, lastReceipt } = usePaymentProcessor(
     currentBusiness && currentBusinessId
       ? {
@@ -63,12 +71,14 @@ export default function UniversalPOS() {
         }
       : null,
     {
-      autoPrint: true,
-      printCopies: 1,
+      autoPrint: false, // Don't auto-print - show preview modal instead
       onSuccess: (orderId, receiptData) => {
         console.log('✅ Order completed:', orderId)
         clearCart()
         reloadProducts()
+        // Show receipt preview modal
+        setPendingReceiptData(receiptData)
+        setShowReceiptPreview(true)
       },
       onError: (error) => {
         console.error('❌ Checkout error:', error)
@@ -76,23 +86,23 @@ export default function UniversalPOS() {
     }
   )
 
-  // Sync WiFi tokens on mount if business supports them
+  // Sync ESP32 WiFi tokens on mount (only for ESP32 tokens, not R710)
   useEffect(() => {
     if (!currentBusinessId || !config.features.wifiTokens) return
 
     const syncTokens = async () => {
       try {
-        // Get WiFi token config IDs from products
-        const tokenConfigIds = products
-          .filter((p) => p.isWiFiToken && p.tokenConfigId)
+        // Only sync ESP32 tokens (id starts with 'wifi_'), not R710 tokens (id starts with 'r710_')
+        const esp32TokenConfigIds = products
+          .filter((p) => p.isWiFiToken && p.tokenConfigId && p.id.startsWith('wifi_'))
           .map((p) => p.tokenConfigId!)
 
-        if (tokenConfigIds.length > 0) {
-          console.log('🔄 Syncing WiFi token quantities...')
-          await syncESP32TokenQuantities(currentBusinessId, tokenConfigIds)
+        if (esp32TokenConfigIds.length > 0) {
+          console.log('🔄 Syncing ESP32 WiFi token quantities...')
+          await syncESP32TokenQuantities(currentBusinessId, esp32TokenConfigIds)
         }
       } catch (error) {
-        console.error('Failed to sync WiFi tokens:', error)
+        console.error('Failed to sync ESP32 WiFi tokens:', error)
       }
     }
 
@@ -174,6 +184,49 @@ export default function UniversalPOS() {
           config={config}
           isProcessing={isProcessing}
           onCheckout={handleCheckout}
+          businessId={currentBusinessId || undefined}
+          onProductsReload={reloadProducts}
+        />
+
+        {/* Receipt Preview Modal - same pattern as restaurant POS */}
+        <UnifiedReceiptPreviewModal
+          isOpen={showReceiptPreview}
+          onClose={() => {
+            setShowReceiptPreview(false)
+            setPendingReceiptData(null)
+          }}
+          receiptData={pendingReceiptData}
+          businessType={businessType as any}
+          onPrintConfirm={async (options) => {
+            if (!pendingReceiptData) return
+
+            if (printInFlightRef.current) {
+              console.log('⚠️ [UniversalPOS] Print already in progress, ignoring')
+              return
+            }
+
+            printInFlightRef.current = true
+
+            try {
+              await ReceiptPrintManager.printReceipt(pendingReceiptData, businessType as any, {
+                ...options,
+                autoPrint: true,
+                onSuccess: (jobId, receiptType) => {
+                  console.log(`🖨️ [UniversalPOS] ${receiptType} copy printed:`, jobId)
+                },
+                onError: (err, receiptType) => {
+                  console.error(`❌ [UniversalPOS] ${receiptType} copy failed:`, err)
+                }
+              })
+
+              setShowReceiptPreview(false)
+              setPendingReceiptData(null)
+            } catch (error: any) {
+              toast.error(`Print error: ${error.message}`)
+            } finally {
+              printInFlightRef.current = false
+            }
+          }}
         />
       </ContentLayout>
     </BusinessTypeRoute>

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { Search, Barcode, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Product } from '../hooks/useProductLoader'
 import type { UniversalCartItem } from '../hooks/useUniversalCart'
 import type { BusinessTypeConfig } from '../config/business-type-config'
@@ -10,7 +11,10 @@ interface ProductPanelProps {
   products: Product[]
   config: BusinessTypeConfig
   loading: boolean
+  cart: UniversalCartItem[]
+  businessId?: string
   onAddToCart: (item: Omit<UniversalCartItem, 'totalPrice'>) => void
+  onProductsReload?: () => void
 }
 
 /**
@@ -21,11 +25,15 @@ export function ProductPanel({
   products,
   config,
   loading,
-  onAddToCart
+  cart,
+  businessId,
+  onAddToCart,
+  onProductsReload
 }: ProductPanelProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [barcodeInput, setBarcodeInput] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
 
   // Extract unique categories from products
   const categories = useMemo(() => {
@@ -64,7 +72,63 @@ export function ProductPanel({
     return filtered
   }, [products, searchTerm, barcodeInput, selectedCategory, config.features.barcodeScan])
 
+  const handleRequestMore = async (product: Product) => {
+    if (!businessId || !product.tokenConfigId) return
+
+    setRequestingMore(prev => new Set(prev).add(product.tokenConfigId!))
+
+    try {
+      const isR710 = product.isR710Token
+      const apiUrl = isR710 ? '/api/r710/tokens' : '/api/wifi-portal/tokens/bulk'
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          tokenConfigId: product.tokenConfigId,
+          quantity: 5
+        })
+      })
+
+      if (response.ok) {
+        toast.success(`Requested 5 more ${isR710 ? 'R710' : 'WiFi'} tokens for "${product.packageName}"`)
+        onProductsReload?.()
+      } else {
+        const errorData = await response.json().catch(() => null)
+        toast.error(errorData?.error || 'Failed to request more tokens')
+      }
+    } catch (err) {
+      toast.error('Failed to request more tokens')
+    } finally {
+      setRequestingMore(prev => {
+        const next = new Set(prev)
+        next.delete(product.tokenConfigId!)
+        return next
+      })
+    }
+  }
+
   const handleAddToCart = (product: Product, variant?: any) => {
+    // Check WiFi token availability before adding to cart
+    if (product.isWiFiToken && product.availableQuantity !== undefined) {
+      const currentCartQuantity = cart.find(c => c.id === product.id)?.quantity || 0
+      const tokenType = product.isR710Token ? 'R710 WiFi' : 'ESP32 WiFi'
+
+      if (product.availableQuantity <= currentCartQuantity) {
+        if (product.availableQuantity === 0) {
+          toast.warning(`No ${tokenType} tokens available for "${product.packageName}". Please request more tokens.`, {
+            duration: 7000
+          })
+        } else {
+          toast.warning(`Only ${product.availableQuantity} ${tokenType} token${product.availableQuantity === 1 ? '' : 's'} available for "${product.packageName}".`, {
+            duration: 6000
+          })
+        }
+        return
+      }
+    }
+
     const cartItem: Omit<UniversalCartItem, 'totalPrice'> = {
       id: variant ? `${product.id}_${variant.id}` : product.id,
       name: variant ? `${product.name} - ${variant.name}` : product.name,
@@ -174,42 +238,71 @@ export function ProductPanel({
             {/* Grid Mode (Restaurant, Retail, Clothing) */}
             {config.productDisplayMode === 'grid' && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {filteredProducts.map((product) => (
-                  <button
-                    key={product.id}
-                    onClick={() => handleAddToCart(product)}
-                    className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all text-left bg-white dark:bg-gray-700"
-                  >
-                    {product.imageUrl && (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-full h-24 object-cover rounded-md mb-2"
-                      />
-                    )}
-                    <h3 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-2">
-                      {product.name}
-                    </h3>
-                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">
-                      ${product.basePrice.toFixed(2)}
-                    </p>
-                    {product.isWiFiToken && (
-                      <span className="inline-block px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded mt-2">
-                        WiFi Token
-                      </span>
-                    )}
-                    {product.isCombo && (
-                      <span className="inline-block px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded mt-2">
-                        Combo
-                      </span>
-                    )}
-                    {product.stockQuantity !== undefined && product.stockQuantity <= 0 && (
-                      <span className="inline-block px-2 py-1 text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded mt-2">
-                        Out of Stock
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {filteredProducts.map((product) => {
+                  const cartQty = cart.find(c => c.id === product.id)?.quantity || 0
+                  const remaining = product.isWiFiToken ? (product.availableQuantity || 0) - cartQty : undefined
+                  return (
+                    <div
+                      key={product.id}
+                      className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all text-left bg-white dark:bg-gray-700"
+                    >
+                      <button
+                        onClick={() => handleAddToCart(product)}
+                        className="w-full text-left"
+                      >
+                        {product.imageUrl && (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-full h-24 object-cover rounded-md mb-2"
+                          />
+                        )}
+                        <h3 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-2">
+                          {product.name}
+                        </h3>
+                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">
+                          ${product.basePrice.toFixed(2)}
+                        </p>
+                        {product.isWiFiToken && product.duration && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">
+                            {product.duration} {product.durationUnit || 'Days'}
+                          </span>
+                        )}
+                        {product.isCombo && (
+                          <span className="inline-block px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded mt-2">
+                            Combo
+                          </span>
+                        )}
+                        {/* WiFi token availability indicator */}
+                        {product.isWiFiToken && remaining !== undefined && (
+                          <span className={`text-xs font-medium block mt-1 ${
+                            remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'
+                          }`}>
+                            {remaining} available
+                          </span>
+                        )}
+                        {!product.isWiFiToken && product.stockQuantity !== undefined && product.stockQuantity <= 0 && (
+                          <span className="inline-block px-2 py-1 text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded mt-2">
+                            Out of Stock
+                          </span>
+                        )}
+                      </button>
+                      {/* Request more tokens button - show when quantity < 5 */}
+                      {product.isWiFiToken && (product.availableQuantity || 0) < 5 && businessId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRequestMore(product)
+                          }}
+                          disabled={requestingMore.has(product.tokenConfigId || '')}
+                          className="mt-2 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-2 py-1 rounded w-full transition-colors"
+                        >
+                          {requestingMore.has(product.tokenConfigId || '') ? 'Requesting...' : '+ Request 5 More'}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
 
@@ -248,34 +341,58 @@ export function ProductPanel({
             {/* List Mode (Construction, Vehicles, Consulting, Services) */}
             {config.productDisplayMode === 'list' && (
               <div className="space-y-2">
-                {filteredProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 dark:text-white">
-                          {product.name}
-                        </h3>
-                        {product.description && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            {product.description}
+                {filteredProducts.map((product) => {
+                  const cartQty = cart.find(c => c.id === product.id)?.quantity || 0
+                  const remaining = product.isWiFiToken ? (product.availableQuantity || 0) - cartQty : undefined
+                  return (
+                    <div
+                      key={product.id}
+                      className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-gray-900 dark:text-white">
+                            {product.name}
+                          </h3>
+                          {product.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              {product.description}
+                            </p>
+                          )}
+                          <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-2">
+                            ${product.basePrice.toFixed(2)}
                           </p>
-                        )}
-                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-2">
-                          ${product.basePrice.toFixed(2)}
-                        </p>
+                          {/* WiFi token availability indicator */}
+                          {product.isWiFiToken && remaining !== undefined && (
+                            <span className={`text-xs font-medium block mt-1 ${
+                              remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'
+                            }`}>
+                              {remaining} available
+                            </span>
+                          )}
+                        </div>
+                        <div className="ml-3 flex flex-col items-end gap-2">
+                          <button
+                            onClick={() => handleAddToCart(product)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"
+                          >
+                            Add to Cart
+                          </button>
+                          {/* Request more tokens button */}
+                          {product.isWiFiToken && (product.availableQuantity || 0) < 5 && businessId && (
+                            <button
+                              onClick={() => handleRequestMore(product)}
+                              disabled={requestingMore.has(product.tokenConfigId || '')}
+                              className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-2 py-1 rounded transition-colors"
+                            >
+                              {requestingMore.has(product.tokenConfigId || '') ? 'Requesting...' : '+ Request 5 More'}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        className="ml-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"
-                      >
-                        Add to Cart
-                      </button>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </>

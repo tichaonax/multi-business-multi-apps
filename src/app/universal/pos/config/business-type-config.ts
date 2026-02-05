@@ -146,7 +146,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
     features: {
       timeTracking: true,
       customerLookup: true,
-      projectTracking: true
+      projectTracking: true,
+      wifiTokens: true
     },
     receiptType: 'services',
     quickActionsEnabled: true

@@ -57,7 +57,7 @@ export function PaymentPanel({
     setShowCashInput(false)
   }
 
-  const isDisabled = disabled || totals.total <= 0 || isProcessing
+  const isDisabled = disabled || totals.total < 0 || isProcessing
 
   const change =
     selectedMethod === 'cash' && cashAmount

@@ -147,7 +147,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                 </>
               ) : (
                 <div className="text-[10px] text-red-600 dark:text-red-400 text-center">
-                  ❌ Token generation failed: {token.error || 'Unknown error'}
+                  ❌ Token unavailable: {token.error || 'Please request more tokens'}
                 </div>
               )}
             </div>
@@ -188,7 +188,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                 </>
               ) : (
                 <div className="text-[10px] text-red-600 dark:text-red-400 text-center">
-                  ❌ Token generation failed: {token.error || 'Unknown error'}
+                  ❌ Token unavailable: {token.error || 'Please request more tokens'}
                 </div>
               )}
             </div>

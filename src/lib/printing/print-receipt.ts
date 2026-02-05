@@ -274,6 +274,33 @@ export function printReceiptBrowser(receiptData: ReceiptData): void {
         </div>` : ''}
       </div>
 
+      ${receiptData.r710Tokens && receiptData.r710Tokens.length > 0 ? `
+      <div style="border-top: 2px dashed #000; margin-top: 15px; padding-top: 10px;">
+        <div style="text-align: center; font-weight: bold; margin-bottom: 10px;">R710 WiFi ACCESS</div>
+        ${receiptData.r710Tokens.map((token: any) => `
+          <div style="margin-bottom: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div><strong>Package:</strong> ${token.packageName}</div>
+            <div style="font-size: 14px; font-weight: bold; margin: 4px 0;"><strong>Password:</strong> ${token.password}</div>
+            ${token.durationValue && token.durationUnit ? `<div><strong>Duration:</strong> ${token.durationValue} ${(token.durationUnit || '').split('_')[1] || token.durationUnit}</div>` : ''}
+            ${token.expiresAt ? `<div><strong>Expires:</strong> ${new Date(token.expiresAt).toLocaleString()}</div>` : ''}
+            ${token.ssid ? `<div><strong>Network:</strong> ${token.ssid}</div>` : ''}
+            <div style="font-size: 10px; margin-top: 4px;">1. Connect to WiFi network above<br>2. Use password to log in</div>
+          </div>
+        `).join('')}
+      </div>` : ''}
+
+      ${receiptData.wifiTokens && receiptData.wifiTokens.length > 0 ? `
+      <div style="border-top: 2px dashed #000; margin-top: 15px; padding-top: 10px;">
+        <div style="text-align: center; font-weight: bold; margin-bottom: 10px;">WiFi ACCESS TOKENS</div>
+        ${receiptData.wifiTokens.map((token: any) => `
+          <div style="margin-bottom: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div><strong>Package:</strong> ${token.packageName}</div>
+            <div style="font-size: 14px; font-weight: bold; margin: 4px 0;"><strong>Token:</strong> ${token.tokenCode}</div>
+            ${token.ssid ? `<div><strong>Network:</strong> ${token.ssid}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>` : ''}
+
       <div class="footer">
         <div style="margin-bottom: 5px;">${receiptData.footerMessage || 'Thank you for your business!'}</div>
         <div>Please come again</div>

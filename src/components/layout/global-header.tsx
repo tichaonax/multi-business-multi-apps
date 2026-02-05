@@ -97,6 +97,12 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
         { href: `/${businessType}/products`, icon: '🛠️', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+      ],
+      services: [
+        { href: '/universal/pos', icon: '💼', label: 'POS System' },
+        { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
+        { href: `/${businessType}/list`, icon: '📋', label: 'Services List' },
+        { href: `/${businessType}/categories`, icon: '📂', label: 'Categories' }
       ]
     }
 

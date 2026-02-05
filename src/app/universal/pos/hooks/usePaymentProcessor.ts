@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
-import { printReceipt } from '@/lib/printing/print-receipt'
 import type { UniversalCartItem, CartTotals } from './useUniversalCart'
 import type { ReceiptData } from '@/types/printing'
 
@@ -18,7 +17,6 @@ export interface BusinessInfo {
 
 export interface PaymentProcessorOptions {
   autoPrint?: boolean
-  printCopies?: number
   onSuccess?: (orderId: string, receiptData: ReceiptData) => void
   onError?: (error: Error) => void
 }
@@ -35,7 +33,8 @@ export interface CheckoutData {
 
 /**
  * Payment Processor Hook
- * Handles checkout, order creation, and receipt generation
+ * Handles checkout, order creation, and receipt generation.
+ * Printing is handled by the page via UnifiedReceiptPreviewModal.
  */
 export function usePaymentProcessor(
   businessInfo: BusinessInfo | null,
@@ -75,41 +74,49 @@ export function usePaymentProcessor(
           total: totals.total
         })
 
-        // Separate WiFi tokens from regular items
-        const wifiTokenItems = cart.filter((item) => item.isWiFiToken)
-        const regularItems = cart.filter((item) => !item.isWiFiToken)
-
-        // Build order items
-        const orderItems = regularItems.map((item) => ({
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-          name: item.name,
-          sku: item.sku,
-          attributes: {
-            weight: item.weight,
-            size: item.size,
-            color: item.color,
-            projectRef: item.projectRef,
-            vin: item.vin,
-            hours: item.hours
+        // Build order items - include ALL items (regular + WiFi tokens)
+        const orderItems = cart.map((item) => {
+          if (item.isWiFiToken) {
+            const isR710 = item.id.startsWith('r710_')
+            return {
+              productVariantId: null,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discountAmount: 0,
+              attributes: {
+                ...(isR710 ? { r710Token: true } : { wifiToken: true }),
+                tokenConfigId: item.tokenConfigId,
+                productName: item.name,
+                packageName: item.packageName,
+                duration: item.duration,
+                bandwidthDownMb: item.bandwidthDownMb,
+                bandwidthUpMb: item.bandwidthUpMb
+              }
+            }
           }
-        }))
 
-        // Build WiFi token requests
-        const wifiTokenRequests = wifiTokenItems.map((item) => ({
-          tokenConfigId: item.tokenConfigId!,
-          quantity: item.quantity
-        }))
+          return {
+            productVariantId: item.variantId || null,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discountAmount: 0,
+            attributes: {
+              productName: item.name,
+              weight: item.weight,
+              size: item.size,
+              color: item.color,
+              projectRef: item.projectRef,
+              vin: item.vin,
+              hours: item.hours
+            }
+          }
+        })
 
         // Submit order to API
         const orderPayload = {
           businessId: businessInfo.businessId,
           businessType: businessInfo.businessType,
           items: orderItems,
-          wifiTokens: wifiTokenRequests,
           subtotal: totals.subtotal,
           taxAmount: totals.tax,
           discountAmount: totals.discount,
@@ -141,6 +148,13 @@ export function usePaymentProcessor(
         const result = await response.json()
 
         console.log('✅ [Payment] Order created:', result.data)
+
+        // Check for failed R710 tokens and warn user
+        const failedR710Tokens = result.data.r710Tokens?.filter((t: any) => t.success === false) || []
+        if (failedR710Tokens.length > 0) {
+          const errorMsg = failedR710Tokens[0]?.error || 'No available tokens'
+          toast.warning(`WiFi token issue: ${errorMsg}. Please request more tokens.`, { duration: 8000 })
+        }
 
         // Build receipt data with CORRECT BusinessMembership fields
         const receiptData = buildReceiptWithBusinessInfo(
@@ -179,14 +193,27 @@ export function usePaymentProcessor(
               success: token.success !== false,
               error: token.error
             })),
+            r710Tokens: result.data.r710Tokens?.map((token: any) => ({
+              itemName: token.itemName || token.packageName || 'R710 WiFi Access',
+              username: token.username,
+              password: token.password,
+              packageName: token.packageName || 'R710 WiFi Access',
+              durationValue: token.durationValue || 0,
+              durationUnit: token.durationUnit || '',
+              deviceLimit: token.deviceLimit || 1,
+              ssid: token.ssid,
+              expiresAt: token.expiresAt,
+              success: token.success !== false,
+              error: token.error
+            })),
             attributes: checkoutData.attributes
           },
           {
             id: businessInfo.businessId,
-            name: businessInfo.businessName,  // ← CRITICAL: businessName (not just name)
+            name: businessInfo.businessName,
             type: businessInfo.businessType,
-            address: businessInfo.address,    // ← CRITICAL: Direct from BusinessMembership
-            phone: businessInfo.phone         // ← CRITICAL: Direct from BusinessMembership
+            address: businessInfo.address,
+            phone: businessInfo.phone
           }
         )
 
@@ -194,16 +221,7 @@ export function usePaymentProcessor(
 
         setLastReceipt(receiptData)
 
-        // Auto-print if enabled
-        if (options.autoPrint) {
-          const printCopies = options.printCopies || 1
-          for (let i = 0; i < printCopies; i++) {
-            await printReceipt(receiptData)
-          }
-          toast.success(`Receipt printed (${printCopies} ${printCopies === 1 ? 'copy' : 'copies'})`)
-        }
-
-        // Call success callback
+        // Call success callback (page handles printing via modal)
         if (options.onSuccess) {
           options.onSuccess(result.data.id, receiptData)
         }
@@ -230,36 +248,8 @@ export function usePaymentProcessor(
     [businessInfo, session, options]
   )
 
-  /**
-   * Reprint last receipt
-   */
-  const reprintLastReceipt = useCallback(async () => {
-    if (!lastReceipt) {
-      toast.error('No receipt to reprint')
-      return
-    }
-
-    try {
-      // Add reprint metadata
-      const reprintData: ReceiptData = {
-        ...lastReceipt,
-        isReprint: true,
-        originalPrintDate: lastReceipt.transactionDate,
-        reprintedBy: session?.user?.name || 'Unknown',
-        transactionDate: new Date() // Update print time
-      }
-
-      await printReceipt(reprintData)
-      toast.success('Receipt reprinted')
-    } catch (error) {
-      console.error('❌ [Payment] Reprint error:', error)
-      toast.error('Failed to reprint receipt')
-    }
-  }, [lastReceipt, session])
-
   return {
     processCheckout,
-    reprintLastReceipt,
     isProcessing,
     lastReceipt
   }

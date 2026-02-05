@@ -745,8 +745,19 @@ export function Sidebar() {
             {/* Services Features */}
             {currentBusiness.businessType === 'services' && (
               <>
-                <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                <Link href="/universal/pos" className={getLinkClasses('/universal/pos')}>
                   <span className="text-lg">💼</span>
+                  <span>POS System</span>
+                </Link>
+                {/* Sales Reports - Only for managers/admins */}
+                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
+                  <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
+                    <span className="text-lg">📊</span>
+                    <span>Sales Reports</span>
+                  </Link>
+                )}
+                <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                  <span className="text-lg">📋</span>
                   <span>Services List</span>
                 </Link>
                 <Link href="/services/categories" className={getLinkClasses('/services/categories')}>
@@ -757,6 +768,34 @@ export function Sidebar() {
                   <span className="text-lg">🤝</span>
                   <span>Suppliers</span>
                 </Link>
+                {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
+                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
+                  <Link href="/services/wifi-tokens" className={getLinkClasses('/services/wifi-tokens')}>
+                    <span className="text-lg">📡</span>
+                    <span>ESP32 Menu Config</span>
+                  </Link>
+                )}
+                {/* R710 Menu Config - Requires canConfigureWifiTokens */}
+                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && r710IntegrationEnabled && (
+                  <Link href="/services/r710-tokens" className={getLinkClasses('/services/r710-tokens')}>
+                    <span className="text-lg">📶</span>
+                    <span>R710 Menu Config</span>
+                  </Link>
+                )}
+                {/* ESP32 WiFi Sales - For users who can sell tokens */}
+                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && esp32IntegrationEnabled && (
+                  <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
+                    <span className="text-lg">🎫</span>
+                    <span>ESP32 WiFi Sales</span>
+                  </Link>
+                )}
+                {/* R710 WiFi Sales - For users who can sell tokens */}
+                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && r710IntegrationEnabled && (
+                  <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
+                    <span className="text-lg">💵</span>
+                    <span>R710 WiFi Sales</span>
+                  </Link>
+                )}
               </>
             )}
 

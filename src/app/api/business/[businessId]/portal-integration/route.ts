@@ -50,10 +50,10 @@ export async function GET(
     });
 
     if (!integration) {
-      return NextResponse.json(
-        { error: 'No portal integration found for this business' },
-        { status: 404 }
-      );
+      return NextResponse.json({
+        success: true,
+        integration: null,
+      });
     }
 
     return NextResponse.json({

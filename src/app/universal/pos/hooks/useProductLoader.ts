@@ -25,6 +25,7 @@ export interface Product {
   stockQuantity?: number
   barcode?: string
   isWiFiToken?: boolean
+  isR710Token?: boolean
 
   // Product variants
   variants?: ProductVariant[]
@@ -33,8 +34,10 @@ export interface Product {
   tokenConfigId?: string
   packageName?: string
   duration?: number
+  durationUnit?: string
   bandwidthDownMb?: number
   bandwidthUpMb?: number
+  availableQuantity?: number
 
   // Business specific
   isCombo?: boolean
@@ -79,7 +82,8 @@ export function useProductLoader(
         throw new Error(`Failed to load products: ${productsResponse.statusText}`)
       }
 
-      const productsData = await productsResponse.json()
+      const productsJson = await productsResponse.json()
+      const productsData = Array.isArray(productsJson) ? productsJson : (productsJson.data || [])
 
       // Transform products to match our interface
       const transformedProducts: Product[] = productsData.map((product: any) => ({
@@ -107,32 +111,42 @@ export function useProductLoader(
         }))
       }))
 
-      // Load WiFi tokens if business supports them (ESP32)
+      // Load ESP32 WiFi tokens only if ESP32 integration is enabled
       let wifiTokenProducts: Product[] = []
       try {
-        const wifiResponse = await fetch(
-          `/api/business/${businessId}/wifi-tokens?includeConfig=true`
+        // Check if ESP32 portal integration exists for this business
+        const integrationResponse = await fetch(
+          `/api/business/${businessId}/portal-integration`
         )
+        const hasEsp32Integration = integrationResponse.ok && (await integrationResponse.json()).integration
 
-        if (wifiResponse.ok) {
-          const wifiData = await wifiResponse.json()
+        if (hasEsp32Integration) {
+          const wifiResponse = await fetch(
+            `/api/business/${businessId}/wifi-tokens?includeConfig=true`
+          )
 
-          // Transform WiFi tokens to products
-          wifiTokenProducts = wifiData
-            .filter((token: any) => token.config) // Only tokens with configs
-            .map((token: any) => ({
-              id: `wifi_${token.config.id}`,
-              name: `WiFi: ${token.config.packageName}`,
-              description: `${Math.floor(token.config.durationMinutes / 60)}h ${token.config.durationMinutes % 60}m - ${token.config.bandwidthDownMb}MB Down / ${token.config.bandwidthUpMb}MB Up`,
-              basePrice: parseFloat(token.config.priceAmount || 0),
-              isWiFiToken: true,
-              tokenConfigId: token.config.id,
-              packageName: token.config.packageName,
-              duration: token.config.durationMinutes,
-              bandwidthDownMb: token.config.bandwidthDownMb,
-              bandwidthUpMb: token.config.bandwidthUpMb,
-              stockQuantity: token.availableCount || 0
-            }))
+          if (wifiResponse.ok) {
+            const wifiData = await wifiResponse.json()
+
+            // Transform WiFi tokens to products
+            wifiTokenProducts = wifiData
+              .filter((token: any) => token.config) // Only tokens with configs
+              .map((token: any) => ({
+                id: `wifi_${token.config.id}`,
+                name: `WiFi: ${token.config.packageName}`,
+                description: `${Math.floor(token.config.durationMinutes / 60)}h ${token.config.durationMinutes % 60}m - ${token.config.bandwidthDownMb}MB Down / ${token.config.bandwidthUpMb}MB Up`,
+                basePrice: parseFloat(token.config.priceAmount || 0),
+                isWiFiToken: true,
+                isR710Token: false,
+                tokenConfigId: token.config.id,
+                packageName: token.config.packageName,
+                duration: token.config.durationMinutes,
+                bandwidthDownMb: token.config.bandwidthDownMb,
+                bandwidthUpMb: token.config.bandwidthUpMb,
+                stockQuantity: token.availableCount || 0,
+                availableQuantity: token.availableCount || 0
+              }))
+          }
         }
       } catch (wifiError) {
         console.warn('Failed to load ESP32 WiFi tokens, continuing without them:', wifiError)
@@ -154,18 +168,23 @@ export function useProductLoader(
               .filter((item: any) => item.isActive && item.tokenConfig?.isActive)
               .map((item: any) => {
                 const config = item.tokenConfig
-                const durationText = `${config.durationValue} ${config.durationUnit.replace('day_', '').replace('week_', '').replace('month_', '')}`
+                const durationUnit = (config.durationUnit || '').replace('day_', '').replace('week_', '').replace('month_', '')
+                const durationText = `${config.durationValue} ${durationUnit}`
+                const available = item.availableCount || 0
                 return {
                   id: `r710_${config.id}`,
                   name: `📶 ${config.name}`,
                   description: config.description || durationText,
                   basePrice: parseFloat(item.businessPrice || config.basePrice || 0),
                   isWiFiToken: true,
+                  isR710Token: true,
                   tokenConfigId: config.id,
                   packageName: config.name,
                   duration: config.durationValue,
+                  durationUnit: durationUnit,
                   category: 'WiFi Passes',
-                  stockQuantity: 999 // R710 tokens are generated on demand
+                  stockQuantity: available,
+                  availableQuantity: available
                 }
               })
             console.log(`📶 Loaded ${r710TokenProducts.length} R710 WiFi token products`)

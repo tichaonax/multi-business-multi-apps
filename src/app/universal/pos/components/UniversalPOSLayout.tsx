@@ -24,6 +24,10 @@ interface UniversalPOSLayoutProps {
   config: BusinessTypeConfig
   isProcessing: boolean
   onCheckout: (paymentMethod: PaymentMethod, amountPaid?: number) => void
+
+  // Business info
+  businessId?: string
+  onProductsReload?: () => void
 }
 
 /**
@@ -41,7 +45,9 @@ export function UniversalPOSLayout({
   onClearCart,
   config,
   isProcessing,
-  onCheckout
+  onCheckout,
+  businessId,
+  onProductsReload
 }: UniversalPOSLayoutProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-200px)]">
@@ -51,7 +57,10 @@ export function UniversalPOSLayout({
           products={products}
           config={config}
           loading={productsLoading}
+          cart={cart}
+          businessId={businessId}
           onAddToCart={onAddToCart}
+          onProductsReload={onProductsReload}
         />
       </div>
 

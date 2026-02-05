@@ -1115,105 +1115,49 @@ function generateRetailReceipt(data: ReceiptData): string {
 
 /**
  * 9. Services Receipt Template
+ * Uses standard template (which includes R710 WiFi token section) with service-specific sections
  */
 function generateServicesReceipt(data: ReceiptData): string {
   const servicesData = data.businessSpecificData as ServicesReceiptData;
+  const LF = '\x0A';
 
-  // ESC/POS commands
-  const ESC = '\x1B'; // ESC
-  const GS = '\x1D'; // GS
-  const LF = '\x0A'; // Line feed
-  const CUT = GS + 'V' + '\x41' + String.fromCharCode(3); // Partial cut paper
-
-  let receipt = '';
-
-  // Initialize printer and reset margins
-  receipt += ESC + '@';  // Initialize printer (reset all settings)
-  receipt += ESC + 'l' + String.fromCharCode(0);  // Set left margin to 0
-
-  // Header - center align
-  receipt += ESC + 'a' + String.fromCharCode(1);
-  receipt += centerText(data.businessName) + LF;
-  if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
-  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
-  receipt += centerText('SERVICE RECEIPT') + LF;
-
-  // Left align for content
-  receipt += ESC + 'a' + String.fromCharCode(0);
-
-  // Receipt info
-  receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
-  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
-  if (data.salespersonName) {
-    receipt += `Salesperson: ${data.salespersonName}` + LF;
-  }
+  // Business-specific section: Technician, service description, labor, parts
+  let businessSpecific = '';
   if (servicesData?.technicianName && servicesData.technicianName !== data.salespersonName) {
-    receipt += `Technician: ${servicesData.technicianName}` + LF;
+    businessSpecific += `Technician: ${stripEmojis(servicesData.technicianName)}` + LF;
     if (servicesData?.technicianId) {
-      receipt += `Tech ID: ${servicesData.technicianId}` + LF;
+      businessSpecific += `Tech ID: ${servicesData.technicianId}` + LF;
     }
   }
-
-  // Service description
   if (servicesData?.serviceDescription) {
-    receipt += 'Service:' + LF;
-    receipt += wrapText(servicesData.serviceDescription) + LF;
+    businessSpecific += 'Service:' + LF;
+    businessSpecific += wrapText(stripEmojis(servicesData.serviceDescription)) + LF;
   }
-
-  // Labor
   if (servicesData?.laborHours && servicesData?.hourlyRate) {
-    receipt += formatTotal(`Labor (${servicesData.laborHours}hrs @ $${servicesData.hourlyRate}/hr)`,
+    businessSpecific += formatTotal(`Labor (${servicesData.laborHours}hrs @ $${servicesData.hourlyRate}/hr)`,
       servicesData.laborHours * servicesData.hourlyRate);
-    receipt += LF;
   }
-
-  // Parts
   if (servicesData?.partsUsed && servicesData.partsUsed.length > 0) {
-    receipt += 'Parts:' + LF;
+    businessSpecific += 'Parts:' + LF;
     servicesData.partsUsed.forEach(part => {
-      receipt += formatLineItem(part.name, part.quantity, part.price, part.price * part.quantity);
+      businessSpecific += formatLineItem(part.name, part.quantity, part.price, part.price * part.quantity);
     });
-    receipt += LF;
   }
-  // Totals
-  receipt += formatTotal('Subtotal', data.subtotal);
-  // Only print tax line if tax > 0 AND tax is charged separately
-  if (data.tax > 0 && !data.taxIncludedInPrice) {
-    receipt += formatTotal('Tax', data.tax);
-  }
-  receipt += formatTotal('TOTAL', data.total, true);
 
-  // Payment
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
-
-  // Warranty
+  // Footer additions: warranty, follow-up
+  let footerAdditions = '';
   if (servicesData?.warranty) {
-    receipt += LF;
-    receipt += `Warranty: ${servicesData.warranty}` + LF;
+    footerAdditions += `Warranty: ${stripEmojis(servicesData.warranty)}` + LF;
   }
-
-  // Follow-up
   if (servicesData?.followUpDate) {
-    receipt += `Follow-up: ${formatDateOnly(servicesData.followUpDate)}` + LF;
+    footerAdditions += `Follow-up: ${formatDateOnly(servicesData.followUpDate)}` + LF;
   }
 
-  // Return policy (always print - use default if not configured)
-  const servicesReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
-  receipt += LF;
-  receipt += wrapText(stripEmojis(servicesReturnPolicy), RECEIPT_WIDTH) + LF;
-
-  // Footer - center align
-  receipt += LF;
-  receipt += ESC + 'a' + String.fromCharCode(1);
-  if (data.umbrellaPhone) {
-    receipt += centerText(data.umbrellaPhone) + LF;
-  }
-  receipt += centerText('Thank you for your business!') + LF;
-
-  // Cut paper
-  receipt += CUT;
-
-  return receipt;
+  // Use standard template (includes R710 WiFi token section)
+  return generateStandardReceipt(data, {
+    businessSpecific,
+    footerAdditions,
+  });
 }
 
 /**

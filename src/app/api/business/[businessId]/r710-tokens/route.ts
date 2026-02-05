@@ -96,6 +96,21 @@ export async function GET(
       ],
     });
 
+    // Get available token counts per config
+    const configIds = menuItems.map(item => item.r710_token_configs.id);
+    const availableCounts = await prisma.r710Tokens.groupBy({
+      by: ['tokenConfigId'],
+      where: {
+        businessId: businessId,
+        tokenConfigId: { in: configIds },
+        status: 'AVAILABLE',
+        r710_token_sales: { none: {} },
+      },
+      _count: { id: true },
+    });
+
+    const countMap = new Map(availableCounts.map(c => [c.tokenConfigId, c._count.id]));
+
     return NextResponse.json({
       success: true,
       business: {
@@ -111,6 +126,7 @@ export async function GET(
         displayOrder: item.displayOrder,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
+        availableCount: countMap.get(item.r710_token_configs.id) || 0,
         tokenConfig: {
           id: item.r710_token_configs.id,
           name: item.r710_token_configs.name,
