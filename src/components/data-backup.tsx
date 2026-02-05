@@ -235,15 +235,8 @@ export function DataBackup() {
       const a = document.createElement('a');
       a.href = url;
 
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `MultiBusinessSyncService-backup_${backupOptions.type}_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json`;
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
-        }
-      }
+      // API always compresses backups by default, so always use .json.gz
+      const filename = `MultiBusinessSyncService-backup_${backupOptions.type}_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json.gz`;
 
       a.download = filename;
       document.body.appendChild(a);
