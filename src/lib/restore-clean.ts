@@ -522,6 +522,90 @@ export async function restoreCleanBackup(
                 create: recordToInsert,
                 update: recordToInsert
               })
+            } else if (tableName === 'r710BusinessTokenMenuItems') {
+              // R710BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigId]
+              await model.upsert({
+                where: {
+                  businessId_tokenConfigId: {
+                    businessId: record.businessId,
+                    tokenConfigId: record.tokenConfigId
+                  }
+                },
+                create: recordToInsert,
+                update: recordToInsert
+              })
+            } else if (tableName === 'businessTokenMenuItems') {
+              // ESP32 BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigId]
+              await model.upsert({
+                where: {
+                  businessId_tokenConfigurationId: {
+                    businessId: record.businessId,
+                    tokenConfigurationId: record.tokenConfigurationId
+                  }
+                },
+                create: recordToInsert,
+                update: recordToInsert
+              })
+            } else if (tableName === 'employeeBusinessAssignments') {
+              // EmployeeBusinessAssignments has unique constraint on [employeeId, businessId]
+              await model.upsert({
+                where: {
+                  employeeId_businessId: {
+                    employeeId: record.employeeId,
+                    businessId: record.businessId
+                  }
+                },
+                create: recordToInsert,
+                update: recordToInsert
+              })
+            } else if (tableName === 'businessMemberships') {
+              // BusinessMemberships has unique constraint on [userId, businessId]
+              await model.upsert({
+                where: {
+                  userId_businessId: {
+                    userId: record.userId,
+                    businessId: record.businessId
+                  }
+                },
+                create: recordToInsert,
+                update: recordToInsert
+              })
+            } else if (tableName === 'userPermissions') {
+              // UserPermissions has unique constraint on [userId, permissionId]
+              await model.upsert({
+                where: {
+                  userId_permissionId: {
+                    userId: record.userId,
+                    permissionId: record.permissionId
+                  }
+                },
+                create: recordToInsert,
+                update: recordToInsert
+              })
+            } else if (tableName === 'r710BusinessIntegrations') {
+              // R710BusinessIntegrations has unique constraint on [businessId, deviceRegistryId]
+              await model.upsert({
+                where: {
+                  businessId_deviceRegistryId: {
+                    businessId: record.businessId,
+                    deviceRegistryId: record.deviceRegistryId
+                  }
+                },
+                create: recordToInsert,
+                update: recordToInsert
+              })
+            } else if (tableName === 'r710Wlans') {
+              // R710Wlans has unique constraint on [deviceRegistryId, wlanId]
+              await model.upsert({
+                where: {
+                  deviceRegistryId_wlanId: {
+                    deviceRegistryId: record.deviceRegistryId,
+                    wlanId: record.wlanId
+                  }
+                },
+                create: recordToInsert,
+                update: recordToInsert
+              })
             } else if (uniqueConstraint) {
               // Handle tables with unique constraints on non-ID fields
               // First try to find by unique field, then upsert
