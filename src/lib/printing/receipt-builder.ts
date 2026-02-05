@@ -55,6 +55,19 @@ interface OrderData {
     instructions?: string
     success: boolean
   }>
+  r710Tokens?: Array<{
+    itemName: string
+    username: string
+    password: string
+    packageName: string
+    durationValue: number
+    durationUnit: string
+    deviceLimit: number
+    ssid?: string
+    expiresAt?: string
+    success: boolean
+    error?: string
+  }>
   items: Array<{
     name: string
     quantity: number
@@ -170,13 +183,26 @@ export function buildReceiptData(
     amountPaid: order.paymentStatus === 'PAID' ? order.totalAmount : undefined,
     changeDue: undefined,
     wifiTokens: order.wifiTokens?.filter(token => token.success).map(token => ({
-      token: token.tokenCode,
-      durationMinutes: token.duration,
+      tokenCode: token.tokenCode,
+      packageName: token.packageName || 'WiFi Access',
+      duration: token.duration,
       bandwidthDownMb: token.bandwidthDownMb,
       bandwidthUpMb: token.bandwidthUpMb,
       ssid: token.ssid,
       portalUrl: token.portalUrl,
-      instructions: token.instructions
+      instructions: token.instructions,
+      success: true
+    })),
+    r710Tokens: order.r710Tokens?.filter(token => token.success).map(token => ({
+      username: token.username,
+      password: token.password,
+      packageName: token.packageName,
+      durationValue: token.durationValue,
+      durationUnit: token.durationUnit,
+      deviceLimit: token.deviceLimit,
+      ssid: token.ssid,
+      expiresAt: token.expiresAt,
+      success: true
     })),
     businessSpecificData: buildBusinessSpecificData(order, business.type),
     footerMessage: settings.receiptFooter || config.footerMessage,
