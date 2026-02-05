@@ -55,7 +55,7 @@ export async function GET() {
       // Transform the response to match frontend expectations
       const transformedUsers = users.map(user => ({
         ...user,
-        employee: user.employees?.[0] || null, // Transform employees array to single employee object
+        employee: user.employees || null, // One-to-one relation (not an array)
         businessMemberships: user.business_memberships?.map(membership => ({
           ...membership,
           business: membership.businesses,
@@ -128,7 +128,7 @@ export async function GET() {
     // Transform the response to match frontend expectations
     const transformedUsers = users.map(user => ({
       ...user,
-      employee: user.employees?.[0] || null, // Transform employees array to single employee object
+      employee: user.employees || null, // One-to-one relation (not an array)
       businessMemberships: user.business_memberships?.map(membership => ({
         ...membership,
         business: membership.businesses,

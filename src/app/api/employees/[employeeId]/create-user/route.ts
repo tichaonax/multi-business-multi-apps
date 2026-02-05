@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { randomBytes, randomUUID } from 'crypto';
 import { hasPermission } from '@/lib/permission-utils';
+import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 
 export async function POST(
   req: NextRequest,
@@ -139,36 +140,36 @@ export async function POST(
 
       // Create business memberships based on employee's business assignments
       const businessMemberships = [];
-      
-      // Primary business membership
+
+      // Determine permissions based on role (use presets or fallback to basic)
+      const rolePermissions = BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS]
+        || BUSINESS_PERMISSION_PRESETS['employee'];
+
+      // Primary business membership - use the role passed from the request
       businessMemberships.push({
         userId: user.id,
         businessId: employee.primaryBusinessId,
-        role: 'employee',
-        permissions: {
-          // Basic employee permissions based on job role
-          canViewBusiness: true,
-          canViewEmployees: false,
-          canViewReports: false,
-        },
+        role: role, // Use the passed role instead of hardcoded 'employee'
+        permissions: rolePermissions,
         isActive: true,
         invitedBy: session.user.id,
         joinedAt: new Date(),
         lastAccessedAt: new Date(),
       });
 
-      // Additional business assignments
-      for (const assignment of (employee as any).employeeBusinessAssignments || []) {
+      // Additional business assignments - FIX: use correct field name (snake_case)
+      for (const assignment of (employee as any).employee_business_assignments || []) {
         if (assignment.businessId !== employee.primaryBusinessId) {
+          // Use the assignment's role if specified, otherwise use the requested role
+          const assignmentRole = assignment.role || role;
+          const assignmentPermissions = BUSINESS_PERMISSION_PRESETS[assignmentRole as keyof typeof BUSINESS_PERMISSION_PRESETS]
+            || BUSINESS_PERMISSION_PRESETS['employee'];
+
           businessMemberships.push({
             userId: user.id,
             businessId: assignment.businessId,
-            role: assignment.role || 'employee',
-            permissions: {
-                canViewBusiness: true,
-              canViewEmployees: false,
-              canViewReports: false,
-            },
+            role: assignmentRole,
+            permissions: assignmentPermissions,
             isActive: true,
             invitedBy: session.user.id,
             joinedAt: new Date(),

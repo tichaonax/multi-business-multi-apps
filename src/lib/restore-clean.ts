@@ -252,8 +252,18 @@ const SELF_REFERENTIAL_TABLES: Record<string, string[]> = {
  * Maps table name to the unique field(s) to use for upsert matching
  */
 const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = {
+  // Account tables with unique accountNumber
   'payrollAccounts': 'accountNumber',
-  'expenseAccounts': 'accountNumber'
+  'expenseAccounts': 'accountNumber',
+
+  // Type/lookup tables with unique name
+  'projectTypes': 'name',
+  'benefitTypes': 'name',
+  'compensationTypes': 'name',
+  'expenseDomains': 'name',
+  'inventoryDomains': 'name',
+  'permissions': 'name',
+  'jobTitles': 'title'
 }
 
 /**

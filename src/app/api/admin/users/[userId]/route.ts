@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 import { randomBytes } from 'crypto'
+import { hash } from 'bcryptjs'
 import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions, UserLevelPermissions } from '@/types/permissions'
 
 interface UserUpdateRequest {
@@ -24,6 +25,9 @@ interface UserUpdateRequest {
     customPermissions: Partial<BusinessPermissions>
     selectedTemplate?: string
   }[]
+  // Password management fields
+  newPassword?: string
+  forcePasswordReset?: boolean
 }
 
 export async function GET(
@@ -158,12 +162,20 @@ export async function PATCH(
       }
     }
 
-    const { basicInfo, userLevelPermissions, businessMemberships }: UserUpdateRequest = await req.json()
+    const { basicInfo, userLevelPermissions, businessMemberships, newPassword, forcePasswordReset }: UserUpdateRequest = await req.json()
 
     // Validate required fields
     if (!basicInfo.name || !basicInfo.email) {
       return NextResponse.json(
         { error: 'Name and email are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate password if provided
+    if (newPassword && newPassword.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters' },
         { status: 400 }
       )
     }
@@ -213,16 +225,29 @@ export async function PATCH(
 
     // Update user and business memberships with transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Build update data
+      const updateData: any = {
+        name: basicInfo.name,
+        email: basicInfo.email,
+        role: basicInfo.systemRole,
+        isActive: basicInfo.isActive,
+        permissions: userLevelPermissions || {},
+      }
+
+      // Handle password update if provided
+      if (newPassword) {
+        updateData.passwordHash = await hash(newPassword, 12)
+        // Clear password reset flag when setting new password (unless explicitly forcing reset)
+        updateData.passwordResetRequired = forcePasswordReset === true
+      } else if (forcePasswordReset !== undefined) {
+        // Allow setting password reset flag without changing password
+        updateData.passwordResetRequired = forcePasswordReset
+      }
+
       // Update basic user info and user-level permissions
       const updatedUser = await tx.users.update({
         where: { id: userId },
-        data: {
-          name: basicInfo.name,
-          email: basicInfo.email,
-          role: basicInfo.systemRole,
-          isActive: basicInfo.isActive,
-          permissions: userLevelPermissions || {},
-        }
+        data: updateData
       })
 
       // Get current business memberships
