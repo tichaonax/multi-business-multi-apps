@@ -658,22 +658,29 @@ export async function restoreCleanBackup(
                 await model.create({ data: recordToInsert })
               }
             } else if (tableName === 'r710Tokens') {
-              // R710Tokens has unique constraint on [username, password]
-              // Also referenced by r710TokenSales, r710DeviceTokens
-              const existing = await model.findFirst({
-                where: {
-                  username: record.username,
-                  password: record.password
-                }
-              })
+              // R710Tokens has unique constraint on [username, password] (new schema)
+              // But older databases may have unique on just [username]
+              // Check both to handle migration differences between source/target databases
 
-              if (existing && existing.id !== record.id) {
-                if (VERBOSE_LOGGING) console.log(`[restore-clean] r710Tokens: Replacing existing record (${existing.id}) with backup record (${record.id})`)
-                await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
-              } else if (existing) {
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+              // First, check if record with same ID exists
+              const existingById = await model.findUnique({ where: { id: record.id } })
+
+              if (existingById) {
+                // Record with same ID exists - update it
+                await model.update({ where: { id: record.id }, data: recordToInsert })
               } else {
+                // Check for conflict by username (handles old unique constraint on just username)
+                const existingByUsername = await model.findFirst({
+                  where: { username: record.username }
+                })
+
+                if (existingByUsername) {
+                  // Delete existing record with same username to avoid constraint violation
+                  if (VERBOSE_LOGGING) console.log(`[restore-clean] r710Tokens: Deleting existing record with username=${record.username} (${existingByUsername.id}) to restore backup record (${record.id})`)
+                  await model.delete({ where: { id: existingByUsername.id } })
+                }
+
+                // Create the new record
                 await model.create({ data: recordToInsert })
               }
             } else if (tableName === 'wifiTokens') {
