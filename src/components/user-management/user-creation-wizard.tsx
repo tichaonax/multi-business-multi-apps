@@ -14,7 +14,7 @@ interface UserCreationWizardProps {
 interface UserCreationStep1Data {
   name: string
   email: string
-  systemRole: 'admin' | 'manager' | 'employee' | 'user'
+  systemRole: 'admin' | 'manager' | 'employee' | 'salesperson' | 'pos-associate' | 'user'
   password: string
   sendInvite: boolean
   linkToEmployee: boolean
@@ -373,6 +373,8 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setBasicInfo({ ...basicInfo, systemRole: e.target.value as UserCreationStep1Data['systemRole'] })}
                   >
                     <option value="user">User</option>
+                    <option value="salesperson">Salesperson</option>
+                    <option value="pos-associate">POS Associate</option>
                     <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
                     <option value="admin">System Admin</option>

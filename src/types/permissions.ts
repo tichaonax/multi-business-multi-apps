@@ -400,6 +400,170 @@ export interface ConsultingPermissions {
   canManageMethodologies: boolean;
 }
 
+// Restaurant Permission Presets (for business-type-specific permissions)
+export const RESTAURANT_POS_ASSOCIATE_PERMISSIONS: RestaurantPermissions = {
+  // Project Management - No access
+  canViewProjects: false,
+  canCreateProjects: false,
+  canEditProjects: false,
+  canDeleteProjects: false,
+  canManageProjectTypes: false,
+  canViewProjectReports: false,
+
+  // Menu Management - View only (needed for taking orders)
+  canViewMenu: true,
+  canManageMenu: false,
+  canManageMenuCategories: false,
+  canManageRecipes: false,
+  canManageIngredients: false,
+  canViewMenuAnalytics: false,  // ❌ NO REPORTS
+
+  // Kitchen Operations - Order viewing and management (food prep)
+  canViewKitchenOrders: true,  // ✅ View orders for food prep
+  canManageKitchenOrders: true,  // ✅ Update order status
+  canManageKitchenStaff: false,
+  canViewKitchenReports: false,  // ❌ NO REPORTS
+  canManageKitchenInventory: false,
+
+  // Front of House - Order processing (POS)
+  canManageReservations: false,
+  canManageTables: false,
+  canProcessOrders: true,  // ✅ Core POS function
+  canManageCustomers: false,
+  canViewTableTurnover: false,  // ❌ NO REPORTS
+
+  // Food Safety & Compliance - No access
+  canManageFoodSafety: false,
+  canViewHealthReports: false,  // ❌ NO REPORTS
+  canManageAllergenInfo: false,
+  canViewComplianceReports: false,  // ❌ NO REPORTS
+};
+
+export const RESTAURANT_EMPLOYEE_PERMISSIONS: RestaurantPermissions = {
+  // Project Management - View only
+  canViewProjects: true,
+  canCreateProjects: false,
+  canEditProjects: false,
+  canDeleteProjects: false,
+  canManageProjectTypes: false,
+  canViewProjectReports: true,
+
+  // Menu Management - View only
+  canViewMenu: true,
+  canManageMenu: false,
+  canManageMenuCategories: false,
+  canManageRecipes: false,
+  canManageIngredients: false,
+  canViewMenuAnalytics: false,
+
+  // Kitchen Operations - View only
+  canViewKitchenOrders: true,
+  canManageKitchenOrders: false,
+  canManageKitchenStaff: false,
+  canViewKitchenReports: false,
+  canManageKitchenInventory: false,
+
+  // Front of House - View only
+  canManageReservations: false,
+  canManageTables: false,
+  canProcessOrders: false,
+  canManageCustomers: false,
+  canViewTableTurnover: false,
+
+  // Food Safety & Compliance - No access
+  canManageFoodSafety: false,
+  canViewHealthReports: false,
+  canManageAllergenInfo: false,
+  canViewComplianceReports: false,
+};
+
+export const RESTAURANT_MANAGER_PERMISSIONS: RestaurantPermissions = {
+  // Project Management - Full access except delete
+  canViewProjects: true,
+  canCreateProjects: true,
+  canEditProjects: true,
+  canDeleteProjects: false,
+  canManageProjectTypes: true,
+  canViewProjectReports: true,
+
+  // Menu Management - Full access
+  canViewMenu: true,
+  canManageMenu: true,
+  canManageMenuCategories: true,
+  canManageRecipes: true,
+  canManageIngredients: true,
+  canViewMenuAnalytics: true,
+
+  // Kitchen Operations - Full access
+  canViewKitchenOrders: true,
+  canManageKitchenOrders: true,
+  canManageKitchenStaff: true,
+  canViewKitchenReports: true,
+  canManageKitchenInventory: true,
+
+  // Front of House - Full access
+  canManageReservations: true,
+  canManageTables: true,
+  canProcessOrders: true,
+  canManageCustomers: true,
+  canViewTableTurnover: true,
+
+  // Food Safety & Compliance - Full access
+  canManageFoodSafety: true,
+  canViewHealthReports: true,
+  canManageAllergenInfo: true,
+  canViewComplianceReports: true,
+};
+
+export const RESTAURANT_OWNER_PERMISSIONS: RestaurantPermissions = {
+  // Project Management - Full access
+  canViewProjects: true,
+  canCreateProjects: true,
+  canEditProjects: true,
+  canDeleteProjects: true,
+  canManageProjectTypes: true,
+  canViewProjectReports: true,
+
+  // Menu Management - Full access
+  canViewMenu: true,
+  canManageMenu: true,
+  canManageMenuCategories: true,
+  canManageRecipes: true,
+  canManageIngredients: true,
+  canViewMenuAnalytics: true,
+
+  // Kitchen Operations - Full access
+  canViewKitchenOrders: true,
+  canManageKitchenOrders: true,
+  canManageKitchenStaff: true,
+  canViewKitchenReports: true,
+  canManageKitchenInventory: true,
+
+  // Front of House - Full access
+  canManageReservations: true,
+  canManageTables: true,
+  canProcessOrders: true,
+  canManageCustomers: true,
+  canViewTableTurnover: true,
+
+  // Food Safety & Compliance - Full access
+  canManageFoodSafety: true,
+  canViewHealthReports: true,
+  canManageAllergenInfo: true,
+  canViewComplianceReports: true,
+};
+
+// Restaurant permission presets mapping
+export const RESTAURANT_PERMISSION_PRESETS = {
+  'business-owner': RESTAURANT_OWNER_PERMISSIONS,
+  'business-manager': RESTAURANT_MANAGER_PERMISSIONS,
+  'employee': RESTAURANT_EMPLOYEE_PERMISSIONS,
+  'pos-associate': RESTAURANT_POS_ASSOCIATE_PERMISSIONS,
+  'salesperson': RESTAURANT_EMPLOYEE_PERMISSIONS,  // Same as employee
+  'read-only': RESTAURANT_EMPLOYEE_PERMISSIONS,    // Same as employee (view only)
+  'system-admin': RESTAURANT_OWNER_PERMISSIONS,    // Same as owner
+} as const;
+
 // Combined permission structure (includes both user-level and business-level permissions)
 export interface BusinessPermissions extends UserLevelPermissions, CoreBusinessPermissions {
   // Business-type specific modules (optional based on business type)
@@ -1403,6 +1567,134 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessWifiMenu: false,
 };
 
+// POS Associate permissions - Food prep and POS operations
+// Can: view/process orders, food prep, sell tokens, print receipts
+// Cannot: view ANY reports, manage employees, configure systems
+export const BUSINESS_POS_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions = {
+  // Business Management - View only
+  canViewBusiness: true,
+  canEditBusiness: false,
+  canDeleteBusiness: false,
+  canManageBusinessUsers: false,
+  canManageBusinessSettings: false,
+  canChangeDefaultPage: false,
+
+  // User Management - No access
+  canViewUsers: false,
+  canInviteUsers: false,
+  canEditUserPermissions: false,
+  canRemoveUsers: false,
+  canViewAuditLogs: false,
+
+  // Data Management - No access
+  canExportBusinessData: false,
+  canImportBusinessData: false,
+  canBackupBusiness: false,
+  canRestoreBusiness: false,
+
+  // Employee Management - No access
+  canViewEmployees: false,
+  canCreateEmployees: false,
+  canEditEmployees: false,
+  canDeleteEmployees: false,
+  canManageEmployees: false,
+  canViewEmployeeContracts: false,
+  canCreateEmployeeContracts: false,
+  canEditEmployeeContracts: false,
+  canApproveEmployeeContracts: false,
+  canDeleteEmployeeContracts: false,
+  canManageJobTitles: false,
+  canManageBenefitTypes: false,
+  canManageCompensationTypes: false,
+  canManageDisciplinaryActions: false,
+  canViewEmployeeReports: false,
+  canExportEmployeeData: false,
+  canApproveSalaryIncreases: false,
+  canProcessSalaryIncreases: false,
+
+  // Financial Management - No access
+  canAccessFinancialData: false,
+  canManageProjectBudgets: false,
+  canManageProjectPayments: false,
+  canViewCostReports: false,
+  canApproveBudgetChanges: false,
+  canViewProfitabilityReports: false,
+
+  // Customer Management - Sales-level access (view/create for POS)
+  canAccessCustomers: true,
+  canViewCustomers: true,
+  canManageCustomers: false,
+  canCreateCustomers: true,  // Can register new walk-in customers
+  canEditCustomers: false,
+  canDeleteCustomers: false,
+  canManageDivisionAccounts: false,
+  canManageLaybys: false,
+  canManageCredit: false,
+  canViewCustomerReports: false,  // ❌ NO REPORTS
+  canExportCustomerData: false,
+  canLinkCustomerAccounts: false,
+
+  // Payroll Management - No access
+  canAccessPayroll: false,
+  canManagePayroll: false,
+  canCreatePayrollPeriod: false,
+  canEditPayrollEntry: false,
+  canApprovePayroll: false,
+  canExportPayroll: false,
+  canResetExportedPayrollToPreview: false,
+  canDeletePayroll: false,
+  canPrintPayrollEntryDetails: false,
+  canEnterPaySlips: false,
+  canReconcilePayroll: false,
+  canViewPayrollReports: false,
+  canManageAdvances: false,
+
+  // Payroll Account Management - No access
+  canAccessPayrollAccount: false,
+  canViewPayrollAccountBalance: false,
+  canMakePayrollDeposits: false,
+  canMakePayrollPayments: false,
+  canAdjustPaymentAmounts: false,
+  canIssuePaymentVouchers: false,
+  canCompletePayments: false,
+  canViewPayrollHistory: false,
+  canExportPayrollPayments: false,
+
+  // Expense Account Management - No access
+  canAccessExpenseAccount: false,
+  canCreateExpenseAccount: false,
+  canMakeExpenseDeposits: false,
+  canMakeExpensePayments: false,
+  canViewExpenseReports: false,
+  canCreateIndividualPayees: false,
+  canDeleteExpenseAccounts: false,
+  canAdjustExpensePayments: false,
+  canEditExpenseTransactions: false,
+  canCreateSiblingAccounts: false,
+  canEnterHistoricalData: false,
+  canMergeSiblingAccounts: false,
+
+  // Supplier Management - View only (for ingredient info)
+  canViewSuppliers: true,
+  canCreateSuppliers: false,
+  canEditSuppliers: false,
+  canDeleteSuppliers: false,
+  canManageSupplierCatalog: false,
+
+  // Location Management - View only
+  canViewLocations: true,
+  canCreateLocations: false,
+  canEditLocations: false,
+  canDeleteLocations: false,
+
+  // WiFi Portal Integration - Sales only (no config, no reports)
+  canSetupPortalIntegration: false,
+  canConfigureWifiTokens: false,
+  canSellWifiTokens: true,  // ✅ Can sell tokens
+  canViewWifiReports: false,  // ❌ NO REPORTS
+  canManageBusinessWifiMenu: false,
+};
+
 // Salesperson permissions - Minimal access for sales staff only
 // Can: process sales, sell tokens, view basic customer info
 // Cannot: view reports, manage employees, configure systems
@@ -1889,17 +2181,107 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canEditPayees: false,
 };
 
+// POS Associate Permission Preset - Minimal permissions with receipt printing for POS operations
+export const POS_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
+  // Personal Finance - No access
+  canAccessPersonalFinance: false,
+  canAddPersonalExpenses: false,
+  canEditPersonalExpenses: false,
+  canDeletePersonalExpenses: false,
+  canAddMoney: false,
+  canManagePersonalCategories: false,
+  canManagePersonalContractors: false,
+  canManagePersonalProjects: false,
+  canViewPersonalReports: false,
+  canExportPersonalData: false,
+
+  // Project Management - No access
+  canViewProjects: false,
+  canCreatePersonalProjects: false,
+  canCreateBusinessProjects: false,
+  canEditProjects: false,
+  canDeleteProjects: false,
+  canManageProjectTypes: false,
+  canViewProjectReports: false,
+  canAccessCrossBusinessProjects: false,
+
+  // Vehicle Management - No access
+  canAccessVehicles: false,
+  canViewVehicles: false,
+  canManageVehicles: false,
+  canManageDrivers: false,
+  canManageTrips: false,
+  canLogDriverTrips: false,
+  canLogDriverMaintenance: false,
+  canManageVehicleMaintenance: false,
+  canViewVehicleReports: false,
+  canExportVehicleData: false,
+
+  // System Administration - No access
+  canManageSystemSettings: false,
+  canViewSystemLogs: false,
+  canManageAllBusinesses: false,
+
+  // Business-Agnostic Manager Payroll Actions - No access
+  canAccessUmbrellaPayroll: false,
+  canExportPayrollAcrossBusinesses: false,
+  canResetPayrollAcrossBusinesses: false,
+  canDeletePayrollAcrossBusinesses: false,
+
+  // Inventory Categories - No access
+  canCreateInventoryCategories: false,
+  canEditInventoryCategories: false,
+  canDeleteInventoryCategories: false,
+  canCreateInventorySubcategories: false,
+  canEditInventorySubcategories: false,
+  canDeleteInventorySubcategories: false,
+
+  // Universal Printing Module - Receipt printing only
+  canManageNetworkPrinters: false,
+  canUseLabelPrinters: false,
+  canPrintReceipts: true,  // ✅ Can print customer receipts at POS
+  canPrintInventoryLabels: false,
+  canViewPrintQueue: false,
+
+  // Global Barcode Scanning - No access
+  canAccessGlobalBarcodeScanning: false,
+  canViewGlobalInventoryAcrossBusinesses: false,
+  canStockInventoryFromModal: false,
+
+  // Seed Data Template Management - No access
+  canManageSeedTemplates: false,
+  canExportSeedTemplates: false,
+  canApplySeedTemplates: false,
+
+  // Payee Management - No access
+  canViewPayees: false,
+  canCreatePayees: false,
+  canEditPayees: false,
+};
+
 // Permission presets for easy management
 export const BUSINESS_PERMISSION_PRESETS = {
   'business-owner': BUSINESS_OWNER_PERMISSIONS,
   'business-manager': BUSINESS_MANAGER_PERMISSIONS,
   'employee': BUSINESS_EMPLOYEE_PERMISSIONS,
+  'pos-associate': BUSINESS_POS_ASSOCIATE_PERMISSIONS,
   'salesperson': BUSINESS_SALESPERSON_PERMISSIONS,
   'read-only': BUSINESS_READ_ONLY_PERMISSIONS,
   'system-admin': SYSTEM_ADMIN_PERMISSIONS,
 } as const;
 
 export type BusinessPermissionPreset = keyof typeof BUSINESS_PERMISSION_PRESETS;
+
+// User-level permission presets mapping (for role-based user permission defaults)
+export const USER_LEVEL_PERMISSION_PRESETS = {
+  'business-owner': ADMIN_USER_PERMISSIONS,
+  'business-manager': DEFAULT_USER_PERMISSIONS,
+  'employee': DEFAULT_USER_PERMISSIONS,
+  'pos-associate': POS_ASSOCIATE_USER_PERMISSIONS,
+  'salesperson': DEFAULT_USER_PERMISSIONS,
+  'read-only': DEFAULT_USER_PERMISSIONS,
+  'system-admin': ADMIN_USER_PERMISSIONS,
+} as const;
 
 // Business membership interface
 export interface BusinessMembership {

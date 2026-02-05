@@ -84,6 +84,16 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
     isActive: user.isActive
   })
 
+  // Password management
+  const [passwordSection, setPasswordSection] = useState({
+    newPassword: '',
+    confirmPassword: '',
+    forcePasswordReset: user.passwordResetRequired
+  })
+  const [showPasswordFields, setShowPasswordFields] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+
   // User-level permissions (business-agnostic)
   const [userLevelPermissions, setUserLevelPermissions] = useState<Partial<UserLevelPermissions>>({})
 
@@ -173,19 +183,44 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
   }, [user])
 
   const handleSave = async () => {
+    // Validate password if being changed
+    if (showPasswordFields && passwordSection.newPassword) {
+      if (passwordSection.newPassword.length < 6) {
+        setPasswordError('Password must be at least 6 characters')
+        return
+      }
+      if (passwordSection.newPassword !== passwordSection.confirmPassword) {
+        setPasswordError('Passwords do not match')
+        return
+      }
+    }
+    setPasswordError('')
+
     setLoading(true)
     try {
       console.log('🔄 Updating user:', user.id)
       console.log('📤 Request data:', { basicInfo, userLevelPermissions, businessMemberships: businessMemberships.length })
-      
+
+      // Build request body
+      const requestBody: any = {
+        basicInfo,
+        userLevelPermissions,
+        businessMemberships
+      }
+
+      // Add password fields if being changed
+      if (showPasswordFields && passwordSection.newPassword) {
+        requestBody.newPassword = passwordSection.newPassword
+        requestBody.forcePasswordReset = passwordSection.forcePasswordReset
+      } else if (passwordSection.forcePasswordReset !== user.passwordResetRequired) {
+        // Just updating the force reset flag without changing password
+        requestBody.forcePasswordReset = passwordSection.forcePasswordReset
+      }
+
       const response = await fetch(`/api/admin/users/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          basicInfo,
-          userLevelPermissions,
-          businessMemberships
-        })
+        body: JSON.stringify(requestBody)
       })
       
       console.log('📥 Response status:', response.status, response.statusText)
@@ -374,6 +409,7 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
                   >
                     <option value="user">User</option>
                     <option value="salesperson">Salesperson</option>
+                    <option value="pos-associate">POS Associate</option>
                     <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
                     <option value="admin">System Admin</option>
@@ -682,16 +718,138 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
             )}
           </div>
 
-          {/* Password Reset */}
+          {/* Password Management */}
           <div className="border-t pt-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Security Actions</h3>
-            <div className="flex space-x-4">
-              <button className="btn-secondary">
-                Force Password Reset
-              </button>
-              <button className="btn-secondary">
-                Send Password Reset Email
-              </button>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Password & Security</h3>
+
+            {/* Current status */}
+            {user.passwordResetRequired && (
+              <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  ⚠️ This user is required to change their password on next login.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Toggle to show password fields */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Set New Password</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Manually set a new password for this user</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordFields(!showPasswordFields)}
+                  className={`px-4 py-2 text-sm rounded-md ${
+                    showPasswordFields
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                      : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {showPasswordFields ? 'Cancel' : 'Change Password'}
+                </button>
+              </div>
+
+              {/* Password input fields */}
+              {showPasswordFields && (
+                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-4">
+                  {passwordError && (
+                    <div className="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-600 dark:text-red-400">
+                      {passwordError}
+                    </div>
+                  )}
+
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          New Password
+                        </label>
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          className="input-field"
+                          placeholder="Enter new password"
+                          value={passwordSection.newPassword}
+                          onChange={(e) => {
+                            setPasswordSection({ ...passwordSection, newPassword: e.target.value })
+                            setPasswordError('')
+                          }}
+                          minLength={6}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Confirm Password
+                        </label>
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          className="input-field"
+                          placeholder="Confirm new password"
+                          value={passwordSection.confirmPassword}
+                          onChange={(e) => {
+                            setPasswordSection({ ...passwordSection, confirmPassword: e.target.value })
+                            setPasswordError('')
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="p-2 mb-0.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                      title={showPassword ? "Hide passwords" : "Show passwords"}
+                    >
+                      {showPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="forceReset"
+                      checked={passwordSection.forcePasswordReset}
+                      onChange={(e) => setPasswordSection({ ...passwordSection, forcePasswordReset: e.target.checked })}
+                      className="rounded mr-2"
+                    />
+                    <label htmlFor="forceReset" className="text-sm text-gray-700 dark:text-gray-300">
+                      Require user to change password on next login
+                    </label>
+                  </div>
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Password must be at least 6 characters. The user will receive their new password and can use it immediately.
+                  </p>
+                </div>
+              )}
+
+              {/* Force password reset toggle (when not changing password) */}
+              {!showPasswordFields && (
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Force Password Reset on Next Login</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">User will be required to change their password</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={passwordSection.forcePasswordReset}
+                      onChange={(e) => setPasswordSection({ ...passwordSection, forcePasswordReset: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -791,6 +949,7 @@ function BusinessSelectorModal({
               onChange={(e) => setSelectedRole(e.target.value as keyof typeof BUSINESS_PERMISSION_PRESETS)}
             >
               <option value="salesperson">Salesperson</option>
+              <option value="pos-associate">POS Associate</option>
               <option value="employee">Employee</option>
               <option value="business-manager">Manager</option>
               <option value="business-owner">Business Owner</option>

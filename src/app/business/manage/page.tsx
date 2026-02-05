@@ -550,6 +550,7 @@ function BusinessManagePageContent() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="employee">Employee</option>
+                      <option value="pos-associate">POS Associate</option>
                       <option value="business-manager">Business Manager</option>
                       <option value="read-only">Read Only</option>
                       {hasPermission('canManageBusinessUsers') && (
@@ -749,6 +750,7 @@ function BusinessManagePageContent() {
                   required
                 >
                   <option value="employee">Employee</option>
+                  <option value="pos-associate">POS Associate</option>
                   <option value="business-manager">Business Manager</option>
                   <option value="read-only">Read Only</option>
                   {hasPermission('canManageBusinessUsers') && (
