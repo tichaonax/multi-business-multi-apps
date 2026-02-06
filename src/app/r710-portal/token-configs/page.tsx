@@ -11,6 +11,7 @@ import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import Link from 'next/link'
+import { CloneTokenConfigsModal } from '@/components/r710/clone-token-configs-modal'
 
 interface TokenConfig {
   id: string
@@ -50,6 +51,7 @@ function TokenConfigsContent() {
   const user = session?.user as any
   const [configs, setConfigs] = useState<TokenConfig[]>([])
   const [loading, setLoading] = useState(true)
+  const [showCloneModal, setShowCloneModal] = useState(false)
 
   useEffect(() => {
     loadTokenConfigs()
@@ -115,18 +117,39 @@ function TokenConfigsContent() {
           </div>
 
           {isSystemAdmin(user) && (
-            <Link
-              href="/r710-portal/token-configs/create"
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Create Package
-            </Link>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowCloneModal(true)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Clone from Business
+              </button>
+              <Link
+                href="/r710-portal/token-configs/create"
+                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create Package
+              </Link>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Clone Modal */}
+      {currentBusiness?.businessId && (
+        <CloneTokenConfigsModal
+          isOpen={showCloneModal}
+          onClose={() => setShowCloneModal(false)}
+          onCloned={loadTokenConfigs}
+          currentBusinessId={currentBusiness.businessId}
+        />
+      )}
 
       {/* Loading State */}
       {loading && (
@@ -275,18 +298,29 @@ function TokenConfigsContent() {
             No Token Packages
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-4">
-            Create token packages to offer WiFi access to customers.
+            Create token packages or clone from another business.
           </p>
           {isSystemAdmin(user) && (
-            <Link
-              href="/r710-portal/token-configs/create"
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Create Package
-            </Link>
+            <div className="flex items-center justify-center space-x-3">
+              <button
+                onClick={() => setShowCloneModal(true)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Clone from Business
+              </button>
+              <Link
+                href="/r710-portal/token-configs/create"
+                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create Package
+              </Link>
+            </div>
           )}
         </div>
       )}

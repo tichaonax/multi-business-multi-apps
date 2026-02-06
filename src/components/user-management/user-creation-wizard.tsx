@@ -155,8 +155,8 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
     try {
       const response = await fetch('/api/employees/available-for-users')
       if (response.ok) {
-        const employees = await response.json()
-        setAvailableEmployees(employees)
+        const data = await response.json()
+        setAvailableEmployees(data.employees || [])
       } else {
         onError('Failed to load available employees')
       }
@@ -339,7 +339,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                     value={basicInfo.name}
                     readOnly={basicInfo.linkToEmployee}
                     onChange={(e) => !basicInfo.linkToEmployee && setBasicInfo({ ...basicInfo, name: e.target.value })}
-                    placeholder={basicInfo.linkToEmployee ? 'Select an employee above' : 'Enter full name'}
+                    placeholder={basicInfo.linkToEmployee ? 'Select an employee below' : 'Enter full name'}
                   />
                 </div>
 
@@ -357,7 +357,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                     value={basicInfo.email}
                     readOnly={basicInfo.linkToEmployee}
                     onChange={(e) => !basicInfo.linkToEmployee && setBasicInfo({ ...basicInfo, email: e.target.value })}
-                    placeholder={basicInfo.linkToEmployee ? 'Select an employee above' : 'Enter email address'}
+                    placeholder={basicInfo.linkToEmployee ? 'Select an employee below' : 'Enter email address'}
                   />
                 </div>
               </div>
@@ -455,9 +455,11 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                                   <span className="text-xs bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 px-2 py-1 rounded">
                                     {employee.employmentStatus}
                                   </span>
-                                  {employee.jobTitle && (
+                                  {(employee.jobTitle || employee.job_titles) && (
                                     <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 px-2 py-1 rounded">
-                                      {typeof employee.jobTitle === 'string' ? employee.jobTitle : (employee.jobTitle?.title || '')}
+                                      {typeof (employee.jobTitle || employee.job_titles) === 'string'
+                                        ? (employee.jobTitle || employee.job_titles)
+                                        : ((employee.jobTitle || employee.job_titles)?.title || '')}
                                     </span>
                                   )}
                                 </div>

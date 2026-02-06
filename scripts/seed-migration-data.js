@@ -186,7 +186,83 @@ async function seedJobTitles() {
     { id: 'job-customer-service-manager', title: 'Customer Service Manager', description: 'Manages customer service operations', department: 'Customer Service', level: 'manager' },
 
     // General
-    { id: 'job-driver', title: 'Driver', description: 'Operates company vehicles for transportation', department: 'Operations', level: 'support' }
+    { id: 'job-driver', title: 'Driver', description: 'Operates company vehicles for transportation', department: 'Operations', level: 'support' },
+
+    // Role Templates (business-type-specific)
+    {
+      id: 'job-food-prep-pos-associate',
+      title: 'Food Preparation & POS Associate',
+      description: 'Restaurant associate handling food prep and point-of-sale operations',
+      department: 'Restaurant',
+      level: 'junior',
+      businessType: 'restaurant',
+      isRoleTemplate: true,
+      jobSummary: 'The Food Preparation & POS Associate is responsible for preparing menu items to standard, operating the point-of-sale system, and delivering friendly, efficient service to every guest.',
+      responsibilities: [
+        'Prepare food items according to recipes and portion standards.',
+        'Wash, chop, and portion ingredients, and set up/stock workstations.',
+        'Follow all food safety, hygiene, and cleaning procedures.',
+        'Accurately take customer orders and enter them into the POS system.',
+        'Process cash, card, and digital payments, issue receipts, and handle cash responsibly.',
+        'Check order accuracy before serving or handing over takeaway items.',
+        'Handle guest issues politely and escalate to a supervisor when needed.',
+        'Follow opening, shift-change, and closing checklists.',
+        'Work cooperatively with the kitchen and service team to meet speed and quality targets.'
+      ],
+      skillsRequired: ['Basic food preparation and kitchen safety knowledge', 'Familiarity with POS systems', 'Basic math and cash-handling skills', 'Customer service skills'],
+      qualifications: ['High school education or equivalent', 'Food handler\'s certification preferred', 'Available for flexible shifts including evenings/weekends'],
+      defaultNotes: 'Temporarily assumes supervisor-on-duty responsibilities when the supervisor/manager is not present.',
+      defaultPermissionPreset: 'restaurant-associate'
+    },
+    {
+      id: 'job-grocery-shop-associate',
+      title: 'Grocery Shop Associate',
+      description: 'Grocery store associate handling sales and store operations',
+      department: 'Sales',
+      level: 'junior',
+      businessType: 'grocery',
+      isRoleTemplate: true,
+      jobSummary: 'The Grocery Shop Associate handles customer transactions, stocks shelves, maintains store cleanliness, and sells WiFi access tokens to provide internet connectivity for shoppers.',
+      responsibilities: [
+        'Greet customers, assist with product selection, and answer inquiries about groceries, pricing, and availability.',
+        'Operate cash register, process payments accurately, and manage returns or exchanges.',
+        'Sell WiFi tokens: Explain access plans, process token purchases (cash/card), issue codes/credentials.',
+        'Stock shelves, rotate products for freshness, and organize displays to enhance product visibility.',
+        'Monitor inventory levels, report low stock, and assist with receiving deliveries.',
+        'Maintain cleanliness of checkout areas, aisles, and restrooms; follow health and safety protocols.',
+        'Temporarily assume supervisor duties when manager is absent.',
+        'Promote store loyalty programs, specials, and up-sell complementary items like WiFi bundles.'
+      ],
+      skillsRequired: ['Customer service experience in retail or grocery preferred', 'Basic math and cash-handling skills', 'Familiarity with POS systems', 'Ability to learn WiFi token sales software quickly'],
+      qualifications: ['High school education or equivalent', 'Physical ability to lift 10-23 kgs', 'Available for flexible shifts including evenings/weekends'],
+      defaultNotes: 'Temporarily assumes supervisor duties when manager is absent: Oversee shift operations, handle escalated customer issues, ensure cash handling and security standards.',
+      defaultPermissionPreset: 'grocery-associate'
+    },
+    {
+      id: 'job-clothing-shop-associate',
+      title: 'Clothing Shop Associate',
+      description: 'Clothing retail associate handling sales and store operations',
+      department: 'Sales',
+      level: 'junior',
+      businessType: 'clothing',
+      isRoleTemplate: true,
+      jobSummary: 'The Clothing Shop Associate provides exceptional customer service, manages sales floor operations, and drives clothing sales through styling advice and merchandising.',
+      responsibilities: [
+        'Engage customers with personalized service: Recommend outfits, sizes, and styles based on needs and trends.',
+        'Process sales via POS system, handle payments, gift wrapping, and loyalty sign-ups.',
+        'Maintain visual merchandising: Fold/stack clothes neatly, set up displays, and dress mannequins.',
+        'Stock inventory from deliveries, tag items, and track sizes/styles for quick replenishment.',
+        'Manage fitting rooms: Assist with try-ons, restock hangers, and ensure privacy/sanitation.',
+        'Sell WiFi tokens: Explain access plans, process token purchases (cash/card), issue codes/credentials.',
+        'Handle customer complaints professionally and escalate to supervisor as needed.',
+        'Temporarily assume supervisor duties when manager is absent.',
+        'Stay updated on fashion trends, promotions, and inventory to support sales goals.'
+      ],
+      skillsRequired: ['Retail sales experience preferred', 'Passion for fashion/clothing', 'Strong interpersonal skills', 'Comfortable with POS/cash handling'],
+      qualifications: ['High school education or equivalent', 'Flexible for peak hours (evenings, weekends, holidays)', 'Able to stand and lift 13 kgs repeatedly'],
+      defaultNotes: 'Temporarily assumes supervisor duties when manager is absent: Direct team workflow, resolve issues, enforce policies on returns/security.',
+      defaultPermissionPreset: 'clothing-associate'
+    }
   ]
 
   let seededCount = 0
@@ -202,7 +278,9 @@ async function seedJobTitles() {
       create: {
         id: jobTitle.id,
         ...jobTitle,
-        responsibilities: [],
+        responsibilities: jobTitle.responsibilities || [],
+        skillsRequired: jobTitle.skillsRequired || [],
+        qualifications: jobTitle.qualifications || [],
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date()
