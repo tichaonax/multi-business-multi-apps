@@ -735,6 +735,15 @@ export function canManageNetworkPrinters(user: SessionUser | null | undefined): 
 }
 
 /**
+ * Check if user can select from existing printers (for receipt printing etc.)
+ */
+export function canSelectPrinters(user: SessionUser | null | undefined): boolean {
+  if (!user) return false
+  if (isSystemAdmin(user)) return true
+  return hasUserPermission(user, 'canSelectPrinters') || hasUserPermission(user, 'canManageNetworkPrinters')
+}
+
+/**
  * Check if user can use label printers
  */
 export function canUseLabelPrinters(user: SessionUser | null | undefined): boolean {

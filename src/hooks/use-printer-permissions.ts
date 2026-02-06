@@ -15,6 +15,12 @@ export function usePrinterPermissions() {
     user?.role === 'SYSTEM_ADMIN'
   )
 
+  // Check if user can select from existing printers
+  const canSelectPrinters = Boolean(
+    user?.userLevelPermissions?.canSelectPrinters ||
+    canManageNetworkPrinters
+  )
+
   // Check if user can use label printers
   const canUseLabelPrinters = Boolean(
     user?.userLevelPermissions?.canUseLabelPrinters ||
@@ -49,6 +55,7 @@ export function usePrinterPermissions() {
 
   return {
     canManageNetworkPrinters,
+    canSelectPrinters,
     canUseLabelPrinters,
     canPrintReceipts,
     canPrintInventoryLabels,

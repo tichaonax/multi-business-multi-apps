@@ -57,6 +57,7 @@ export interface UserLevelPermissions {
 
   // Universal Printing Module (User-level - cross-business capability)
   canManageNetworkPrinters: boolean;  // Admin only - register, configure, delete printers
+  canSelectPrinters: boolean;         // Select from existing printers for printing
   canUseLabelPrinters: boolean;       // Print labels from inventory
   canPrintReceipts: boolean;          // Print sales receipts
   canPrintInventoryLabels: boolean;   // Print SKU labels for inventory items
@@ -2111,6 +2112,7 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Universal Printing Module - Limited access by default
   canManageNetworkPrinters: false,      // Admin only
+  canSelectPrinters: false,             // Must be granted
   canUseLabelPrinters: false,           // Must be granted
   canPrintReceipts: false,              // Must be granted
   canPrintInventoryLabels: false,       // Must be granted
@@ -2188,6 +2190,7 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Universal Printing Module - Full access
   canManageNetworkPrinters: true,       // Admins can manage printers
+  canSelectPrinters: true,             // Admins can select printers
   canUseLabelPrinters: true,           // Admins can use label printers
   canPrintReceipts: true,              // Admins can print receipts
   canPrintInventoryLabels: true,       // Admins can print inventory labels
@@ -2344,6 +2347,7 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Universal Printing Module - Receipt printing only
   canManageNetworkPrinters: false,
+  canSelectPrinters: true,  // ✅ Can select from existing printers for receipt printing
   canUseLabelPrinters: false,
   canPrintReceipts: true,  // ✅ Can print customer receipts at POS
   canPrintInventoryLabels: false,

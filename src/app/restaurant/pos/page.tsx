@@ -61,6 +61,7 @@ export default function RestaurantPOS() {
   const printInFlightRef = useRef(false)
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
@@ -1330,11 +1331,15 @@ export default function RestaurantPOS() {
     return categoryMap[filterName] || filterName
   }
 
-  const filteredItems = selectedCategory === 'all'
+  const categoryFiltered = selectedCategory === 'all'
     ? menuItems
     : selectedCategory === 'combos'
     ? menuItems.filter(item => item.isCombo === true)
     : menuItems.filter(item => item.category === getCategoryFilter(selectedCategory))
+
+  const filteredItems = searchTerm.trim()
+    ? categoryFiltered.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    : categoryFiltered
 
   const handleProcessOrderClick = () => {
     console.log('🔄 Process Order clicked')
@@ -1620,12 +1625,34 @@ export default function RestaurantPOS() {
               </div>
             )}
 
-            <BarcodeScanner
-              onProductScanned={handleProductScanned}
-              businessId={businessId}
-              showScanner={showBarcodeScanner}
-              onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
-            />
+            <div className="flex items-center gap-2 mb-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-8 pr-8 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-primary dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                  🔍
+                </span>
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <BarcodeScanner
+                onProductScanned={handleProductScanned}
+                businessId={businessId}
+                showScanner={showBarcodeScanner}
+                onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
+              />
+            </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-2">
               {categories.map(category => (
@@ -1737,7 +1764,7 @@ export default function RestaurantPOS() {
                           📦 {remaining} available
                         </span>
                         {/* Request more tokens button - only show when quantity < 5 and user has permission */}
-                        {item.availableQuantity < 5 && isAdmin && (
+                        {item.availableQuantity < 5 && (isAdmin || hasPermission('canSellWifiTokens')) && (
                           <button
                             onClick={async (e) => {
                               e.stopPropagation(); // Prevent adding to cart

@@ -286,9 +286,13 @@ export async function POST(req: NextRequest) {
   const isAdmin = session.user.role === 'admin'
 
   if (!isAdmin) {
-    // Non-admin users need specific permissions
+    // Non-admin users need specific permissions via RBAC or active business membership
     const userPermissions = session.user.permissions || {}
-    if (!hasPermission(userPermissions, 'restaurant', 'pos')) {
+    const hasRbacPos = hasPermission(userPermissions, 'restaurant', 'pos')
+    const hasActiveMembership = (session.user as any).businessMemberships?.some(
+      (m: any) => m.isActive
+    )
+    if (!hasRbacPos && !hasActiveMembership) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
   }
