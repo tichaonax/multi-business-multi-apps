@@ -1310,6 +1310,18 @@ export default function RestaurantPOS() {
       removeFromCart(itemId)
       return
     }
+    // Cap WiFi token items at available quantity
+    const cartItem = cart.find(i => i.id === itemId)
+    if (cartItem && ((cartItem as any).esp32Token || (cartItem as any).r710Token)) {
+      const available = (cartItem as any).availableQuantity || 0
+      if (quantity > available) {
+        toast.push(`Only ${available} token${available === 1 ? '' : 's'} available for "${cartItem.name}".`, {
+          type: 'warning',
+          duration: 4000
+        })
+        return
+      }
+    }
     setCart(prev => {
       const newCart = prev.map(i => i.id === itemId ? { ...i, quantity } : i)
       // Broadcast updated cart to customer display

@@ -40,8 +40,12 @@ export async function GET(request: NextRequest) {
 
     const user = session.user as SessionUser;
 
-    // Check permission: admin OR has canSellWifiTokens permission
-    if (!isSystemAdmin(user) && !hasPermission(user, 'canSellWifiTokens', businessId)) {
+    // Check permission: admin OR has canSellWifiTokens permission (via preset or active membership)
+    const hasWifiSellPermission = isSystemAdmin(user) || hasPermission(user, 'canSellWifiTokens', businessId);
+    const hasActiveMembership = user.businessMemberships?.some(
+      (m: any) => m.businessId === businessId && m.isActive
+    );
+    if (!hasWifiSellPermission && !hasActiveMembership) {
       return NextResponse.json(
         { error: 'Access denied. You need WiFi token sales permission for this business.' },
         { status: 403 }
@@ -232,8 +236,12 @@ export async function POST(request: NextRequest) {
 
     const user = session.user as SessionUser;
 
-    // Check permission: admin OR has canSellWifiTokens permission
-    if (!isSystemAdmin(user) && !hasPermission(user, 'canSellWifiTokens', businessId)) {
+    // Check permission: admin OR has canSellWifiTokens permission (via preset or active membership)
+    const hasWifiSellPermission = isSystemAdmin(user) || hasPermission(user, 'canSellWifiTokens', businessId);
+    const hasActiveMembership = user.businessMemberships?.some(
+      (m: any) => m.businessId === businessId && m.isActive
+    );
+    if (!hasWifiSellPermission && !hasActiveMembership) {
       return NextResponse.json(
         { error: 'Access denied. You need WiFi token sales permission for this business.' },
         { status: 403 }
