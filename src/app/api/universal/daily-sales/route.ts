@@ -101,40 +101,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause - include manual backdated entries via transactionDate
-    const whereClause: any = {
-      businessId: businessId,
-      OR: [
-        { transactionDate: { gte: start, lt: end } },
-        { transactionDate: null, createdAt: { gte: start, lt: end } },
-      ],
-    }
+    const baseWhere: any = { businessId }
+    if (businessType) baseWhere.businessType = businessType
+    if (employeeId) baseWhere.employeeId = employeeId
 
-    // Add business type filter if specified
-    if (businessType) {
-      whereClause.businessType = businessType
-    }
-
-    // Add employee filter if specified (for commission reports)
-    if (employeeId) {
-      whereClause.employeeId = employeeId
-    }
-
-    // Get all orders for today
-    const orders = await prisma.businessOrders.findMany({
-      where: whereClause,
-      include: {
-        business_order_items: {
-          include: {
-            product_variants: {
-              include: {
-                business_products: {
-                  select: {
-                    categoryId: true,
-                    business_categories: {
-                      select: {
-                        id: true,
-                        name: true,
-                      },
+    const orderInclude = {
+      business_order_items: {
+        include: {
+          product_variants: {
+            include: {
+              business_products: {
+                select: {
+                  categoryId: true,
+                  business_categories: {
+                    select: {
+                      id: true,
+                      name: true,
                     },
                   },
                 },
@@ -142,15 +124,40 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        employees: {
-          select: {
-            id: true,
-            fullName: true,
-            employeeNumber: true,
-          },
+      },
+      employees: {
+        select: {
+          id: true,
+          fullName: true,
+          employeeNumber: true,
         },
       },
-    })
+    }
+
+    // Query orders for the period
+    // Try transactionDate OR filter first (for backdated manual entries)
+    // Falls back to createdAt-only if transactionDate field not yet available in Prisma client
+    let orders: any[]
+    try {
+      orders = await prisma.businessOrders.findMany({
+        where: {
+          ...baseWhere,
+          OR: [
+            { transactionDate: { gte: start, lt: end } },
+            { transactionDate: null, createdAt: { gte: start, lt: end } },
+          ],
+        },
+        include: orderInclude,
+      })
+    } catch {
+      orders = await prisma.businessOrders.findMany({
+        where: {
+          ...baseWhere,
+          createdAt: { gte: start, lt: end },
+        },
+        include: orderInclude,
+      })
+    }
 
     // Calculate totals
     const totalOrders = orders.length

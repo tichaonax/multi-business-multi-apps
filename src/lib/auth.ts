@@ -8,6 +8,9 @@ import { SessionUser } from './permission-utils'
 console.log('🔐 Auth configuration loading at:', new Date().toISOString())
 console.log('🔑 NEXTAUTH_SECRET configured:', !!process.env.NEXTAUTH_SECRET)
 
+// Allow HTTP cookies when NEXTAUTH_URL explicitly uses http:// (e.g., LAN access)
+const useSecureCookies = process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.startsWith('http://')
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions['adapter'],
   session: {
@@ -20,7 +23,7 @@ export const authOptions: NextAuthOptions = {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production',
+        secure: useSecureCookies,
       },
     },
     csrfToken: {
@@ -29,7 +32,7 @@ export const authOptions: NextAuthOptions = {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production',
+        secure: useSecureCookies,
       },
     },
     callbackUrl: {
@@ -37,7 +40,7 @@ export const authOptions: NextAuthOptions = {
       options: {
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production',
+        secure: useSecureCookies,
       },
     },
   },

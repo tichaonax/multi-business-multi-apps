@@ -46,6 +46,28 @@ function getTodayBusinessDay(timezone: string = 'America/New_York'): { start: Da
   return { start, end, dateStr }
 }
 
+const ORDER_INCLUDE = {
+  business_order_items: {
+    include: {
+      product_variants: {
+        include: {
+          business_products: {
+            select: {
+              categoryId: true,
+              business_categories: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -90,48 +112,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
-    // Get all orders for today (support all business types)
-    // Include manual backdated entries via transactionDate, plus regular orders via createdAt
-    const orders = await prisma.businessOrders.findMany({
-      where: {
-        businessId: businessId,
-        businessType: business.type,
-        OR: [
-          { transactionDate: { gte: start, lt: end } },
-          { transactionDate: null, createdAt: { gte: start, lt: end } },
-        ],
-      },
-      include: {
-        business_order_items: {
-          include: {
-            product_variants: {
-              include: {
-                business_products: {
-                  select: {
-                    categoryId: true,
-                    business_categories: {
-                      select: {
-                        id: true,
-                        name: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
+    // Query orders for today
+    // Try transactionDate OR filter first (for backdated manual entries)
+    // Falls back to createdAt-only if transactionDate field not yet available in Prisma client
+    let orders: any[]
+    try {
+      orders = await prisma.businessOrders.findMany({
+        where: {
+          businessId,
+          businessType: business.type,
+          OR: [
+            { transactionDate: { gte: start, lt: end } },
+            { transactionDate: null, createdAt: { gte: start, lt: end } },
+          ],
         },
-      },
-    })
+        include: ORDER_INCLUDE,
+      })
+    } catch {
+      orders = await prisma.businessOrders.findMany({
+        where: {
+          businessId,
+          businessType: business.type,
+          createdAt: { gte: start, lt: end },
+        },
+        include: ORDER_INCLUDE,
+      })
+    }
 
     // Calculate totals
     const totalOrders = orders.length
-    const totalSales = orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0)
-    const totalTax = orders.reduce((sum, order) => sum + Number(order.taxAmount || 0), 0)
+    const totalSales = orders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0)
+    const totalTax = orders.reduce((sum: number, order: any) => sum + Number(order.taxAmount || 0), 0)
 
     // Group by payment method
     const paymentMethods: Record<string, { count: number; total: number }> = {}
-    orders.forEach(order => {
+    orders.forEach((order: any) => {
       const method = (order.paymentMethod || 'UNKNOWN').toUpperCase()
       if (!paymentMethods[method]) {
         paymentMethods[method] = { count: 0, total: 0 }
@@ -142,7 +157,7 @@ export async function GET(request: NextRequest) {
 
     // Group by employee/salesperson
     const employeeSales: Record<string, { name: string; orders: number; sales: number }> = {}
-    orders.forEach(order => {
+    orders.forEach((order: any) => {
       const employeeName = (order.attributes as any)?.employeeName || 'Unknown'
       if (!employeeSales[employeeName]) {
         employeeSales[employeeName] = {
@@ -161,8 +176,8 @@ export async function GET(request: NextRequest) {
       { name: string; itemCount: number; totalSales: number }
     > = {}
 
-    orders.forEach(order => {
-      order.business_order_items.forEach(item => {
+    orders.forEach((order: any) => {
+      order.business_order_items.forEach((item: any) => {
         const product = item.product_variants?.business_products
         const category = product?.business_categories
         const categoryId = category?.id || 'uncategorized'

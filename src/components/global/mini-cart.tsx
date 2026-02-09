@@ -6,10 +6,34 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useRouter } from 'next/navigation'
 
 export function MiniCart() {
-  const { cart, removeFromCart, updateQuantity, getCartItemCount, getCartSubtotal, isCartEmpty } = useGlobalCart()
-  const { currentBusiness } = useBusinessPermissionsContext()
+  const { cart, removeFromCart, updateQuantity, clearCart, getCartItemCount, getCartSubtotal, isCartEmpty } = useGlobalCart()
+  const { currentBusiness, currentBusinessId } = useBusinessPermissionsContext()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+
+  // Clear cart from both global context and POS-specific localStorage
+  const handleClearCart = () => {
+    clearCart()
+    if (currentBusinessId) {
+      // Also clear POS-specific localStorage keys so POS pages pick up the empty state
+      try {
+        localStorage.removeItem(`cart-${currentBusinessId}`)
+        localStorage.removeItem(`global-cart-${currentBusinessId}`)
+      } catch {}
+    }
+  }
+
+  // Remove single item and also sync to POS localStorage
+  const handleRemoveItem = (itemId: string) => {
+    removeFromCart(itemId)
+    // After removing, sync the updated cart to POS-specific localStorage
+    if (currentBusinessId) {
+      try {
+        const updatedCart = cart.filter(item => item.id !== itemId)
+        localStorage.setItem(`cart-${currentBusinessId}`, JSON.stringify(updatedCart))
+      } catch {}
+    }
+  }
 
   const itemCount = getCartItemCount()
   const subtotal = getCartSubtotal()
@@ -93,6 +117,14 @@ export function MiniCart() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 {currentBusiness.businessName}
               </p>
+              {!isCartEmpty && (
+                <button
+                  onClick={handleClearCart}
+                  className="mt-2 text-xs text-red-500 hover:text-red-700 font-medium"
+                >
+                  Clear All Items
+                </button>
+              )}
             </div>
 
             {/* Cart Items */}
@@ -190,7 +222,7 @@ export function MiniCart() {
                             {formatCurrency(item.price * item.quantity)}
                           </span>
                           <button
-                            onClick={() => removeFromCart(item.id)}
+                            onClick={() => handleRemoveItem(item.id)}
                             className="ml-auto text-red-500 hover:text-red-700 text-xs"
                           >
                             Remove
