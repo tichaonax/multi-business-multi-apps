@@ -28,6 +28,8 @@ import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCusto
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
+import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
+import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 import { CloseBooksBanner } from '@/components/pos/close-books-banner'
 
 interface MenuItem {
@@ -47,6 +49,7 @@ interface MenuItem {
   stockQuantity?: number
   imageUrl?: string  // Product image for customer display
   variants?: Array<{ id: string; name?: string; price?: number; isAvailable?: boolean; stockQuantity?: number }>
+  soldToday?: number
 }
 
 interface CartItem extends MenuItem {
@@ -65,6 +68,7 @@ export default function RestaurantPOS() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
+  const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
@@ -545,13 +549,14 @@ export default function RestaurantPOS() {
         if (data.success) {
           // Get purchase counts if available
           let purchaseCounts: Record<string, number> = {}
+          let soldTodayCounts: Record<string, number> = {}
           if (statsResponse.ok) {
             const statsData = await statsResponse.json()
             if (statsData.success && statsData.data) {
-              purchaseCounts = statsData.data.reduce((acc: any, item: any) => {
-                acc[item.productId] = item.totalSold || 0
-                return acc
-              }, {})
+              statsData.data.forEach((item: any) => {
+                purchaseCounts[item.productId] = item.totalSold || 0
+                soldTodayCounts[item.productId] = item.soldToday || 0
+              })
             }
           }
 
@@ -588,7 +593,8 @@ export default function RestaurantPOS() {
                 stockQuantity: totalStock,
                 imageUrl: imageUrl, // Product image for customer display
                 variants: product.variants,
-                purchaseCount: purchaseCounts[product.id] || 0
+                purchaseCount: purchaseCounts[product.id] || 0,
+                soldToday: soldTodayCounts[product.id] || 0
               }
             })
             // Sort by: (1) items with price > 0 first, (2) most purchased, (3) name
@@ -1335,6 +1341,34 @@ export default function RestaurantPOS() {
 
   const total = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
 
+  // Manual cart helpers
+  const addToManualCart = (item: ManualCartItem) => {
+    setManualCart(prev => {
+      // For custom items, always add as new entry
+      if (item.isCustom) return [...prev, item]
+      // For menu items, increment quantity if already in cart
+      const existing = prev.find(c => c.id === item.id)
+      if (existing) {
+        return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c)
+      }
+      return [...prev, item]
+    })
+  }
+
+  const updateManualCartQuantity = (id: string, qty: number) => {
+    if (qty <= 0) {
+      setManualCart(prev => prev.filter(c => c.id !== id))
+    } else {
+      setManualCart(prev => prev.map(c => c.id === id ? { ...c, quantity: qty } : c))
+    }
+  }
+
+  const removeFromManualCart = (id: string) => {
+    setManualCart(prev => prev.filter(c => c.id !== id))
+  }
+
+  const clearManualCart = () => setManualCart([])
+
   // Map category filter names to actual database category names
   const getCategoryFilter = (filterName: string): string => {
     const categoryMap: Record<string, string> = {
@@ -1678,7 +1712,16 @@ export default function RestaurantPOS() {
 
             {/* Manual Entry Mode */}
             {posMode === 'manual' && currentBusinessId && (
-              <ManualEntryTab businessId={currentBusinessId} businessType="restaurant" />
+              <ManualEntryTab
+                businessId={currentBusinessId}
+                businessType="restaurant"
+                menuItems={menuItems}
+                categories={categories}
+                getCategoryLabel={getCategoryLabel}
+                getCategoryFilter={getCategoryFilter}
+                onAddItem={addToManualCart}
+                manualCartItems={manualCart}
+              />
             )}
 
             {/* Live POS Mode */}
@@ -1716,7 +1759,7 @@ export default function RestaurantPOS() {
               {categories.map(category => (
                 <button
                   key={category}
-                  onClick={() => setSelectedCategory(category)}
+                  onClick={() => { setSelectedCategory(category); setSearchTerm('') }}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     selectedCategory === category
                       ? 'bg-blue-600 text-white'
@@ -1784,6 +1827,13 @@ export default function RestaurantPOS() {
                         </p>
                       )}
                     </div>
+
+                    {/* Sold today badge */}
+                    {item.soldToday != null && item.soldToday > 0 && (
+                      <span className="text-[10px] text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block">
+                        {item.soldToday} sold
+                      </span>
+                    )}
 
                     {/* WiFi token details - Duration and Bandwidth (ESP32 only) */}
                     {(item as any).esp32Token && (item as any).tokenConfig && (
@@ -1927,6 +1977,20 @@ export default function RestaurantPOS() {
             </>)}
           </div>
 
+          {/* Manual Order Summary (right panel) */}
+          {posMode === 'manual' && currentBusinessId && (
+            <ManualOrderSummary
+              businessId={currentBusinessId}
+              businessType="restaurant"
+              items={manualCart}
+              onUpdateQuantity={updateManualCartQuantity}
+              onRemoveItem={removeFromManualCart}
+              onClearAll={clearManualCart}
+            />
+          )}
+
+          {/* Live Order Summary (right panel) */}
+          {posMode === 'live' && (
           <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
             <h2 className="text-xl font-bold text-primary mb-4">Order Summary</h2>
             
@@ -2011,6 +2075,7 @@ export default function RestaurantPOS() {
               </button>
             </div>
           </div>
+          )}
         </div>
       </div>
 

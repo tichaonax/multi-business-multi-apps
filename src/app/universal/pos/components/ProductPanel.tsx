@@ -202,7 +202,7 @@ export function ProductPanel({
             {categories.map((cat) => (
               <button
                 key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => { setSelectedCategory(cat); setSearchTerm('') }}
                 className={`px-3 py-1 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
                   selectedCategory === cat
                     ? 'bg-blue-600 text-white'

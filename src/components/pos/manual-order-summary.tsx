@@ -1,0 +1,324 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Lock, CheckCircle, AlertCircle, Trash2 } from 'lucide-react'
+import type { ManualCartItem } from './manual-entry-tab'
+
+// Get past 7 days as YYYY-MM-DD strings
+function getPast7Days(): string[] {
+  const days: string[] = []
+  const now = new Date()
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now)
+    d.setDate(d.getDate() - i)
+    days.push(d.toISOString().split('T')[0])
+  }
+  return days
+}
+
+interface ManualOrderSummaryProps {
+  businessId: string
+  businessType: string
+  items: ManualCartItem[]
+  onUpdateQuantity: (id: string, qty: number) => void
+  onRemoveItem: (id: string) => void
+  onClearAll: () => void
+}
+
+export function ManualOrderSummary({
+  businessId,
+  businessType,
+  items,
+  onUpdateQuantity,
+  onRemoveItem,
+  onClearAll,
+}: ManualOrderSummaryProps) {
+  const [transactionDate, setTransactionDate] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('CASH')
+  const [notes, setNotes] = useState('')
+  const [isDateClosed, setIsDateClosed] = useState(false)
+  const [closedBy, setClosedBy] = useState<string | null>(null)
+  const [checkingDate, setCheckingDate] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [successOrder, setSuccessOrder] = useState<{ orderNumber: string; totalAmount: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const availableDates = getPast7Days()
+
+  // Check if selected date's books are closed
+  useEffect(() => {
+    if (!transactionDate || !businessId) {
+      setIsDateClosed(false)
+      setClosedBy(null)
+      return
+    }
+
+    let cancelled = false
+    setCheckingDate(true)
+
+    fetch(`/api/universal/close-books?businessId=${businessId}&date=${transactionDate}`)
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return
+        setIsDateClosed(data.isClosed || false)
+        setClosedBy(data.closedBy || null)
+      })
+      .catch(() => {
+        if (!cancelled) setIsDateClosed(false)
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingDate(false)
+      })
+
+    return () => { cancelled = true }
+  }, [transactionDate, businessId])
+
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+
+  const canSubmit =
+    transactionDate &&
+    !isDateClosed &&
+    !submitting &&
+    items.length > 0
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return
+    setSubmitting(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/universal/orders/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          businessType,
+          transactionDate,
+          paymentMethod,
+          notes: notes || 'Manual entry from book records',
+          items: items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            productVariantId: item.productVariantId || undefined,
+            discountAmount: 0,
+          })),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to create manual order')
+        return
+      }
+
+      setSuccessOrder({
+        orderNumber: data.data.orderNumber,
+        totalAmount: data.data.totalAmount,
+      })
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleReset = () => {
+    setSuccessOrder(null)
+    setError(null)
+    setNotes('')
+    onClearAll()
+  }
+
+  // Success state
+  if (successOrder) {
+    return (
+      <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
+        <div className="text-center space-y-4">
+          <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Order Created</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="font-mono font-bold">{successOrder.orderNumber}</span>
+            <br />recorded for {transactionDate}
+          </p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">
+            ${successOrder.totalAmount.toFixed(2)}
+          </p>
+          <button
+            onClick={handleReset}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+          >
+            Enter Another Order
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
+      <h2 className="text-lg font-bold text-orange-600 dark:text-orange-400 mb-3">
+        Manual Order
+      </h2>
+
+      {/* Date Selection */}
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          Transaction Date
+        </label>
+        <select
+          value={transactionDate}
+          onChange={(e) => setTransactionDate(e.target.value)}
+          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+        >
+          <option value="">Select date...</option>
+          {availableDates.map(date => (
+            <option key={date} value={date}>
+              {date} {date === availableDates[0] ? '(Today)' : ''}
+            </option>
+          ))}
+        </select>
+
+        {checkingDate && (
+          <p className="text-xs text-gray-500 mt-1">Checking...</p>
+        )}
+
+        {isDateClosed && (
+          <div className="flex items-center gap-1 mt-1 p-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs">
+            <Lock className="w-3 h-3 text-red-500 flex-shrink-0" />
+            <span className="text-red-700 dark:text-red-400">
+              Books closed{closedBy ? ` by ${closedBy}` : ''}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Items List */}
+      <div className="space-y-2 max-h-64 overflow-y-auto mb-3">
+        {items.length === 0 ? (
+          <div className="text-center py-6 text-gray-400 dark:text-gray-500 text-sm">
+            Click menu items to add them
+          </div>
+        ) : (
+          items.map(item => (
+            <div key={item.id} className="border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0">
+              <div className="flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">
+                    {item.name}
+                    {item.isCustom && (
+                      <span className="ml-1 text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-1 py-0.5 rounded">
+                        Custom
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-green-600 text-sm">${Number(item.price).toFixed(2)}</div>
+                </div>
+                <button
+                  onClick={() => onRemoveItem(item.id)}
+                  className="p-1 text-red-400 hover:text-red-600 ml-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                  className="w-7 h-7 bg-gray-200 dark:bg-gray-600 rounded text-center hover:bg-gray-300 dark:hover:bg-gray-500 text-sm"
+                >
+                  -
+                </button>
+                <span className="w-6 text-center font-medium text-sm">{item.quantity}</span>
+                <button
+                  onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                  className="w-7 h-7 bg-gray-200 dark:bg-gray-600 rounded text-center hover:bg-gray-300 dark:hover:bg-gray-500 text-sm"
+                >
+                  +
+                </button>
+                <span className="ml-auto font-medium text-sm">
+                  ${(item.price * item.quantity).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Clear All */}
+      {items.length > 0 && (
+        <button
+          onClick={onClearAll}
+          className="text-xs text-red-500 hover:text-red-700 mb-2"
+        >
+          Clear All Items
+        </button>
+      )}
+
+      {/* Payment Method */}
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          Payment
+        </label>
+        <div className="flex gap-1">
+          {['CASH', 'CARD', 'MOBILE'].map(method => (
+            <button
+              key={method}
+              onClick={() => setPaymentMethod(method)}
+              className={`flex-1 px-2 py-1 text-xs rounded border ${
+                paymentMethod === method
+                  ? 'bg-orange-600 text-white border-orange-600'
+                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+              }`}
+            >
+              {method}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div className="mb-3">
+        <input
+          type="text"
+          placeholder="Notes (optional)"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+        />
+      </div>
+
+      {/* Total */}
+      <div className="pt-2 border-t border-gray-200 dark:border-gray-700 mb-3">
+        <div className="flex justify-between items-center text-lg font-bold text-gray-900 dark:text-white">
+          <span>Total</span>
+          <span>${subtotal.toFixed(2)}</span>
+        </div>
+        <p className="text-xs text-gray-500">
+          {items.length} item(s)
+        </p>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-1 p-2 mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs">
+          <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+          <span className="text-red-700 dark:text-red-400">{error}</span>
+        </div>
+      )}
+
+      {/* Submit */}
+      <button
+        onClick={handleSubmit}
+        disabled={!canSubmit}
+        className={`w-full py-2.5 rounded-lg font-medium text-white text-sm ${
+          canSubmit
+            ? 'bg-orange-600 hover:bg-orange-700'
+            : 'bg-gray-400 cursor-not-allowed'
+        }`}
+      >
+        {submitting ? 'Creating...' : !transactionDate ? 'Select a Date' : items.length === 0 ? 'Add Items First' : 'Submit Manual Order'}
+      </button>
+    </div>
+  )
+}
