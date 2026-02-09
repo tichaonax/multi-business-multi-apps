@@ -434,6 +434,7 @@ model Businesses {
   employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     EmployeeContracts[]           @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
   employees                                                                Employees[]
   esp32_connected_clients                                                  ESP32ConnectedClients[]
+  expense_accounts                                                         ExpenseAccounts[]             @relation("BusinessExpenseAccounts")
   expense_account_deposits                                                 ExpenseAccountDeposits[]      @relation("ExpenseAccountDepositSource")
   expense_account_payments_as_payee                                        ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeBusiness")
   inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
@@ -1248,6 +1249,8 @@ model ExpenseAccounts {
   siblingNumber       Int?
   isSibling           Boolean                  @default(false)
   canMerge            Boolean                  @default(true)
+  businessId          String?
+  business                   Businesses?                  @relation("BusinessExpenseAccounts", fields: [businessId], references: [id])
   deposits                   ExpenseAccountDeposits[]
   payments                   ExpenseAccountPayments[]
   creator                    Users                        @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
@@ -1261,6 +1264,7 @@ model ExpenseAccounts {
   @@index([createdAt(sort: Desc)], map: "idx_expense_accounts_created")
   @@index([parentAccountId], map: "idx_expense_accounts_parent")
   @@index([isSibling], map: "idx_expense_accounts_sibling")
+  @@index([businessId], map: "idx_expense_accounts_business")
   @@map("expense_accounts")
 }
 

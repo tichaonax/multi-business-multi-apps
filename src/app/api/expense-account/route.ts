@@ -25,8 +25,18 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get all expense accounts
+    // Build where clause based on user role
+    // Admins see all accounts; non-admins see only their businesses' accounts
+    const isAdmin = session.user.role === 'admin'
+    const userBusinessIds = (session.user as any).businessMemberships
+      ?.map((m: any) => m.businessId) || []
+
+    const whereClause = isAdmin
+      ? {}
+      : { businessId: { in: userBusinessIds } }
+
     const accounts = await prisma.expenseAccounts.findMany({
+      where: whereClause,
       include: {
         creator: {
           select: {
