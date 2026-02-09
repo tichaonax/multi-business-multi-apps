@@ -125,6 +125,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Look up employee record for this user (employeeId FK references Employees table, not Users)
+    const employee = await prisma.employees.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    })
+
     // Calculate totals
     const subtotal = items.reduce((sum: number, item: any) => {
       const discount = item.discountAmount || 0
@@ -149,7 +155,7 @@ export async function POST(request: NextRequest) {
           businessId,
           orderNumber,
           customerId: customerId || null,
-          employeeId: session.user.id,
+          employeeId: employee?.id || null,
           orderType: 'SALE',
           status: 'COMPLETED',
           subtotal,

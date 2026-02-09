@@ -286,6 +286,13 @@ export function ProductPanel({
                             Out of Stock
                           </span>
                         )}
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                          (product.soldToday || 0) > 0
+                            ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
+                            : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                        }`}>
+                          <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
+                        </span>
                       </button>
                       {/* Request more tokens button - show when quantity < 5 */}
                       {product.isWiFiToken && (product.availableQuantity || 0) < 5 && businessId && (
@@ -326,6 +333,13 @@ export function ProductPanel({
                       <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">
                         ${product.basePrice.toFixed(2)}
                       </p>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                        (product.soldToday || 0) > 0
+                          ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
+                          : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                      }`}>
+                        <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
+                      </span>
                     </div>
                     <button
                       onClick={() => handleAddToCart(product)}
@@ -370,6 +384,13 @@ export function ProductPanel({
                               {remaining} available
                             </span>
                           )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                            (product.soldToday || 0) > 0
+                              ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
+                              : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                          }`}>
+                            <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
+                          </span>
                         </div>
                         <div className="ml-3 flex flex-col items-end gap-2">
                           <button

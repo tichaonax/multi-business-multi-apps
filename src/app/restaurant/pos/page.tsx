@@ -552,12 +552,15 @@ export default function RestaurantPOS() {
           let soldTodayCounts: Record<string, number> = {}
           if (statsResponse.ok) {
             const statsData = await statsResponse.json()
+            console.log('[POS] Stats API response:', { success: statsData.success, dataCount: statsData.data?.length, sample: statsData.data?.slice(0, 3) })
             if (statsData.success && statsData.data) {
               statsData.data.forEach((item: any) => {
                 purchaseCounts[item.productId] = item.totalSold || 0
                 soldTodayCounts[item.productId] = item.soldToday || 0
               })
             }
+          } else {
+            console.warn('[POS] Stats API failed:', statsResponse.status, statsResponse.statusText)
           }
 
           // Transform universal products to menu items format
@@ -597,6 +600,17 @@ export default function RestaurantPOS() {
                 soldToday: soldTodayCounts[product.id] || 0
               }
             })
+
+
+          // Debug: log mapping results
+          const itemsWithSoldToday = items.filter((i: any) => i.soldToday > 0)
+          console.log(`[POS] Menu items: ${items.length}, with soldToday > 0: ${itemsWithSoldToday.length}`)
+          if (items.length > 0) {
+            console.log('[POS] Sample product IDs:', items.slice(0, 3).map((i: any) => i.id))
+            console.log('[POS] soldTodayCounts keys:', Object.keys(soldTodayCounts).slice(0, 3))
+          }
+
+          items
             // Sort by: (1) items with price > 0 first, (2) most purchased, (3) name
             .sort((a: any, b: any) => {
               const aHasPrice = Number(a.price) > 0
@@ -1804,7 +1818,7 @@ export default function RestaurantPOS() {
                     )}
 
                     {/* Spice level indicator */}
-                    {item.spiceLevel && item.spiceLevel > 0 && (
+                    {item.spiceLevel != null && item.spiceLevel > 0 && (
                       <div className="absolute top-1 left-1">
                         <span className="text-xs">{'🌶️'.repeat(Math.min(item.spiceLevel, 3))}</span>
                       </div>
@@ -1828,12 +1842,14 @@ export default function RestaurantPOS() {
                       )}
                     </div>
 
-                    {/* Sold today badge */}
-                    {item.soldToday != null && item.soldToday > 0 && (
-                      <span className="text-[10px] text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block">
-                        {item.soldToday} sold
-                      </span>
-                    )}
+                    {/* Sold today badge - always visible */}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                      (item.soldToday || 0) > 0
+                        ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
+                        : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                    }`}>
+                      <span className={(item.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{item.soldToday || 0}</span> sold today
+                    </span>
 
                     {/* WiFi token details - Duration and Bandwidth (ESP32 only) */}
                     {(item as any).esp32Token && (item as any).tokenConfig && (
@@ -1952,7 +1968,7 @@ export default function RestaurantPOS() {
                     })()}
 
                     {/* Preparation time */}
-                    {item.preparationTime && item.preparationTime > 0 && (
+                    {item.preparationTime != null && item.preparationTime > 0 && (
                       <p className="text-xs text-secondary mt-1">
                         ⏱️ {item.preparationTime}min
                       </p>

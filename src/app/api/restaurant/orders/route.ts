@@ -1024,10 +1024,9 @@ export async function POST(req: NextRequest) {
       }
 
       // Find the product variant for this item
-      // First check if it's a product ID and get its default variant
-      let variantId = item.id;
+      let variantId: string | null = null
 
-      // Try to find as a product first
+      // Try to find as a product first and get its default variant
       const product = await prisma.businessProducts.findUnique({
         where: { id: item.id },
         include: {
@@ -1046,13 +1045,15 @@ export async function POST(req: NextRequest) {
           where: { id: item.id }
         }).catch(() => null)
 
-        if (!existingVariant) {
-          console.warn('Could not find variant for item:', item.id, item.name)
-          continue // Skip this item if we can't find a variant
+        if (existingVariant) {
+          variantId = existingVariant.id
+        } else {
+          // No variant found — still create the order item with productId in attributes
+          console.warn('No variant for item:', item.id, item.name, '— creating order item without variant link')
         }
       }
 
-      // Create order item using business_order_items table
+      // Create order item (always, even without a variant)
       await prisma.businessOrderItems.create({
         data: {
           orderId: newOrder.id,
@@ -1062,6 +1063,7 @@ export async function POST(req: NextRequest) {
           discountAmount: 0,
           totalPrice: itemTotal,
           attributes: {
+            productId: item.id,
             productName: item.name,
             category: item.category
           }
@@ -1154,7 +1156,6 @@ export async function POST(req: NextRequest) {
           name: true,
           address: true,
           phone: true,
-          email: true,
           umbrellaBusinessId: true,
           umbrellaBusinessName: true,
           umbrellaBusinessAddress: true,

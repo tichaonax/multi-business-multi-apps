@@ -1,115 +1,90 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// Get today's business day (5AM cutoff)
-function getTodayBusinessDay(timezone: string = 'America/New_York'): { start: Date; end: Date } {
-  const now = new Date()
-  const hourFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    hour: '2-digit',
-    hour12: false,
-  })
-  const currentHour = parseInt(hourFormatter.format(now), 10)
-
-  let businessDayDate = now
-  if (currentHour < 5) {
-    businessDayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  }
-
-  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-  const dateStr = dateFormatter.format(businessDayDate)
-  const [year, month, day] = dateStr.split('-').map(Number)
-  const start = new Date(year, month - 1, day, 5, 0, 0)
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
-  return { start, end }
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
-    const timezone = searchParams.get('timezone') || 'America/New_York'
 
-    // Build where clause for orders
-    const orderWhere: any = {
-      businessType: 'restaurant',
-      status: { not: 'CANCELLED' }
+    if (!businessId) {
+      return NextResponse.json({ success: true, data: [] })
     }
 
-    if (businessId) {
-      orderWhere.businessId = businessId
-    }
+    // Today at midnight (server local time) — resets daily
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
 
-    // Get today's business day window
-    const { start, end } = getTodayBusinessDay(timezone)
-
-    // Get all order items for restaurant orders
-    const orderItems = await prisma.businessOrderItems.findMany({
+    // Query ALL of today's order items for this business (including those without variants)
+    const todayItems = await prisma.businessOrderItems.findMany({
       where: {
-        business_orders: orderWhere
-      },
-      include: {
         business_orders: {
-          select: { createdAt: true }
+          businessId,
+          status: { not: 'CANCELLED' },
+          createdAt: { gte: todayStart },
         },
+      },
+      select: {
+        quantity: true,
+        attributes: true,
         product_variants: {
-          include: {
+          select: {
+            productId: true,
             business_products: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        }
-      }
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
     })
 
-    // Aggregate purchase counts by product (all-time + today)
+    console.log(`[product-stats] businessId=${businessId}, todayStart=${todayStart.toISOString()}, found ${todayItems.length} order items today`)
+
+    // Aggregate by product — use variant linkage OR attributes.productId fallback
     const productStats: Record<string, { productId: string; productName: string; totalSold: number; soldToday: number }> = {}
 
-    orderItems.forEach(item => {
-      const product = item.product_variants?.business_products
-      if (product) {
-        if (!productStats[product.id]) {
-          productStats[product.id] = {
-            productId: product.id,
-            productName: product.name,
-            totalSold: 0,
-            soldToday: 0
-          }
-        }
-        const qty = Number(item.quantity)
-        productStats[product.id].totalSold += qty
+    todayItems.forEach(item => {
+      // Try to get product from variant linkage first
+      let productId = item.product_variants?.business_products?.id
+      let productName = item.product_variants?.business_products?.name
 
-        // Check if this order item is from today's business day
-        const orderDate = item.business_orders?.createdAt
-        if (orderDate && orderDate >= start && orderDate < end) {
-          productStats[product.id].soldToday += qty
+      // Fallback: use productId from attributes (for items without variant)
+      if (!productId && item.attributes) {
+        const attrs = item.attributes as Record<string, any>
+        productId = attrs.productId
+        productName = attrs.productName || 'Unknown'
+      }
+
+      if (!productId) return
+
+      if (!productStats[productId]) {
+        productStats[productId] = {
+          productId,
+          productName: productName || 'Unknown',
+          totalSold: 0,
+          soldToday: 0,
         }
       }
+
+      const qty = Number(item.quantity)
+      productStats[productId].totalSold += qty
+      productStats[productId].soldToday += qty
     })
 
-    // Convert to array and sort by total sold descending
-    const statsArray = Object.values(productStats).sort((a, b) => b.totalSold - a.totalSold)
+    const statsArray = Object.values(productStats).sort((a, b) => b.soldToday - a.soldToday)
+
+    console.log(`[product-stats] Returning ${statsArray.length} products. Sample:`, statsArray.slice(0, 3).map(s => `${s.productName}: ${s.soldToday} sold today`))
 
     return NextResponse.json({
       success: true,
-      data: statsArray
+      data: statsArray,
     })
-
   } catch (error: any) {
     console.error('Error fetching product stats:', error)
     return NextResponse.json(
       {
         success: false,
         error: 'Failed to fetch product statistics',
-        details: error.message
+        details: error.message,
       },
       { status: 500 }
     )

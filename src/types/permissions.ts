@@ -1803,13 +1803,13 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canViewPayrollHistory: false,
   canExportPayrollPayments: false,
 
-  // Expense Account Management - No access
-  canAccessExpenseAccount: false,
+  // Expense Account Management - Can record expenses but NOT deposit
+  canAccessExpenseAccount: true,   // ✅ Can access expense accounts
   canCreateExpenseAccount: false,
-  canMakeExpenseDeposits: false,
-  canMakeExpensePayments: false,
-  canViewExpenseReports: false,
-  canCreateIndividualPayees: false,
+  canMakeExpenseDeposits: false,   // ❌ Cannot deposit money
+  canMakeExpensePayments: true,    // ✅ Can record expenses
+  canViewExpenseReports: true,     // ✅ Can view expense reports
+  canCreateIndividualPayees: true, // ✅ Can create payees for expenses
   canDeleteExpenseAccounts: false,
   canAdjustExpensePayments: false,
   canEditExpenseTransactions: false,

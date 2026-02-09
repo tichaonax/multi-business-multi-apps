@@ -42,6 +42,7 @@ export interface Product {
   // Business specific
   isCombo?: boolean
   comboItems?: any[]
+  soldToday?: number
 }
 
 interface UseProductLoaderResult {
@@ -194,8 +195,29 @@ export function useProductLoader(
         console.warn('Failed to load R710 WiFi tokens, continuing without them:', r710Error)
       }
 
+      // Load sold today stats
+      let soldTodayCounts: Record<string, number> = {}
+      try {
+        const statsResponse = await fetch(`/api/restaurant/product-stats?businessId=${businessId}`)
+        if (statsResponse.ok) {
+          const statsJson = await statsResponse.json()
+          const statsData = statsJson.data || []
+          statsData.forEach((stat: any) => {
+            soldTodayCounts[stat.productId] = stat.soldToday || 0
+          })
+        }
+      } catch (statsError) {
+        console.warn('Failed to load product stats, continuing without them:', statsError)
+      }
+
+      // Merge soldToday into all products
+      const allProducts = [...transformedProducts, ...wifiTokenProducts, ...r710TokenProducts]
+      allProducts.forEach(p => {
+        p.soldToday = soldTodayCounts[p.id] || 0
+      })
+
       // Combine regular products, ESP32 WiFi tokens, and R710 tokens
-      setProducts([...transformedProducts, ...wifiTokenProducts, ...r710TokenProducts])
+      setProducts(allProducts)
     } catch (err) {
       console.error('Error loading products:', err)
       setError(err instanceof Error ? err.message : 'Failed to load products')
