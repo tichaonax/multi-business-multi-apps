@@ -221,6 +221,10 @@ export interface CoreBusinessPermissions {
   canSellWifiTokens: boolean;              // Sell tokens directly from WiFi portal module
   canViewWifiReports: boolean;             // View WiFi sales and usage reports
   canManageBusinessWifiMenu: boolean;      // Manage business-specific WiFi token menu with custom pricing
+
+  // Manual Transaction Entry & Book Closing
+  canEnterManualOrders: boolean;           // Enter backdated manual transactions from book records
+  canCloseBooks: boolean;                  // Close books for a day (manager+ only, blocks further manual entries)
 }
 
 // Business-Type-Specific Permission Modules
@@ -1293,6 +1297,8 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canSellWifiTokens: true,
   canViewWifiReports: true,
   canManageBusinessWifiMenu: true,
+  canEnterManualOrders: true,
+  canCloseBooks: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1420,6 +1426,8 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canSellWifiTokens: true,
   canViewWifiReports: true,
   canManageBusinessWifiMenu: true,
+  canEnterManualOrders: true,
+  canCloseBooks: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -1547,6 +1555,8 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canSellWifiTokens: true,
   canViewWifiReports: false,
   canManageBusinessWifiMenu: false,
+  canEnterManualOrders: true,
+  canCloseBooks: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -1672,6 +1682,8 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canSellWifiTokens: false,
   canViewWifiReports: false,
   canManageBusinessWifiMenu: false,
+  canEnterManualOrders: false,
+  canCloseBooks: false,
 };
 
 // Restaurant Associate permissions - Food prep and POS operations
@@ -1800,6 +1812,8 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canSellWifiTokens: true,  // ✅ Can sell tokens
   canViewWifiReports: false,  // ❌ NO REPORTS
   canManageBusinessWifiMenu: false,
+  canEnterManualOrders: true,  // ✅ Can enter backdated manual orders
+  canCloseBooks: false,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
@@ -1928,6 +1942,8 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canSellWifiTokens: true,  // ✅ Can sell tokens
   canViewWifiReports: false,
   canManageBusinessWifiMenu: false,
+  canEnterManualOrders: true,
+  canCloseBooks: false,
 };
 
 // System admin permissions (cross-business)
@@ -2053,6 +2069,8 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canSellWifiTokens: true,
   canViewWifiReports: true,
   canManageBusinessWifiMenu: true,
+  canEnterManualOrders: true,
+  canCloseBooks: true,
 };
 
 // User-Level Permission Presets

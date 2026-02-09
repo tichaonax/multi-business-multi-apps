@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { useOpenCustomerDisplay, useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 
 // This would typically come from session/auth
 // const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
@@ -29,6 +30,7 @@ import { useAlert } from '@/components/ui/confirm-modal'
 export default function ClothingPOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
   const [useAdvancedPOS, setUseAdvancedPOS] = useState(true)
+  const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
   const [dailySales, setDailySales] = useState<any>(null)
   const { data: session, status} = useSession()
   const router = useRouter()
@@ -40,7 +42,8 @@ export default function ClothingPOSPage() {
     currentBusinessId,
     isAuthenticated,
     loading: businessLoading,
-    businesses
+    businesses,
+    hasPermission
   } = useBusinessPermissionsContext()
 
   // Get user info
@@ -351,8 +354,39 @@ export default function ClothingPOSPage() {
               </div>
             </div>
 
+            {/* Live / Manual Entry Mode Toggle */}
+            {hasPermission('canEnterManualOrders') && (
+              <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
+                <button
+                  onClick={() => setPosMode('live')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    posMode === 'live'
+                      ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  Live POS
+                </button>
+                <button
+                  onClick={() => setPosMode('manual')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    posMode === 'manual'
+                      ? 'bg-white dark:bg-gray-700 text-orange-600 dark:text-orange-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  Manual Entry
+                </button>
+              </div>
+            )}
+
+            {/* Manual Entry Mode */}
+            {posMode === 'manual' && currentBusinessId && (
+              <ManualEntryTab businessId={currentBusinessId} businessType="clothing" />
+            )}
+
             {/* POS System */}
-            {useAdvancedPOS ? (
+            {posMode === 'live' && (useAdvancedPOS ? (
               <ClothingAdvancedPOS
                 businessId={businessId}
                 employeeId={employeeId!}
@@ -392,7 +426,7 @@ export default function ClothingPOSPage() {
                   </div>
                 )}
               </div>
-            )}
+            ))}
 
             {/* Reports Link */}
             <div className="mb-4">
@@ -409,6 +443,9 @@ export default function ClothingPOSPage() {
               dailySales={dailySales}
               businessType="clothing"
               onRefresh={loadDailySales}
+              businessId={currentBusinessId || undefined}
+              canCloseBooks={hasPermission('canCloseBooks')}
+              managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
             />
 
             {/* Features Showcase */}

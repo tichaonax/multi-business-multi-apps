@@ -27,6 +27,8 @@ import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { useGlobalCart } from '@/contexts/global-cart-context'
+import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
+import { CloseBooksBanner } from '@/components/pos/close-books-banner'
 
 interface MenuItem {
   id: string
@@ -62,6 +64,7 @@ export default function RestaurantPOS() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
@@ -1555,6 +1558,32 @@ export default function RestaurantPOS() {
               </div>
             </div>
 
+            {/* Live / Manual Entry Mode Toggle */}
+            {(isAdmin || hasPermission('canEnterManualOrders')) && (
+              <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
+                <button
+                  onClick={() => setPosMode('live')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    posMode === 'live'
+                      ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  Live POS
+                </button>
+                <button
+                  onClick={() => setPosMode('manual')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    posMode === 'manual'
+                      ? 'bg-white dark:bg-gray-700 text-orange-600 dark:text-orange-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  Manual Entry
+                </button>
+              </div>
+            )}
+
             {/* Daily Sales Summary Widget - Only for users with financial access */}
             {dailySales && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (
               <div className="card bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 p-4 rounded-lg shadow">
@@ -1632,11 +1661,28 @@ export default function RestaurantPOS() {
                         </div>
                       </div>
                     )}
+                  {/* Close Books Button */}
+                  {(isAdmin || hasPermission('canCloseBooks')) && currentBusinessId && (
+                    <div className="pt-2">
+                      <CloseBooksBanner
+                        businessId={currentBusinessId}
+                        date={dailySales.businessDay.date}
+                        managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
+                      />
+                    </div>
+                  )}
                   </div>
                 )}
               </div>
             )}
 
+            {/* Manual Entry Mode */}
+            {posMode === 'manual' && currentBusinessId && (
+              <ManualEntryTab businessId={currentBusinessId} businessType="restaurant" />
+            )}
+
+            {/* Live POS Mode */}
+            {posMode === 'live' && (<>
             <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
                 <input
@@ -1878,6 +1924,7 @@ export default function RestaurantPOS() {
                 )
               })}
             </div>
+            </>)}
           </div>
 
           <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">

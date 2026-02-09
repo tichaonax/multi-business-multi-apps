@@ -91,14 +91,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all orders for today (support all business types)
+    // Include manual backdated entries via transactionDate, plus regular orders via createdAt
     const orders = await prisma.businessOrders.findMany({
       where: {
         businessId: businessId,
         businessType: business.type,
-        createdAt: {
-          gte: start,
-          lt: end,
-        },
+        OR: [
+          { transactionDate: { gte: start, lt: end } },
+          { transactionDate: null, createdAt: { gte: start, lt: end } },
+        ],
       },
       include: {
         business_order_items: {

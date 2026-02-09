@@ -43,10 +43,17 @@ interface DailySalesWidgetProps {
   dailySales: DailySalesData | null
   businessType?: string
   onRefresh?: () => void
+  businessId?: string
+  canCloseBooks?: boolean
+  managerName?: string
 }
 
-export function DailySalesWidget({ dailySales, businessType = 'retail', onRefresh }: DailySalesWidgetProps) {
+export function DailySalesWidget({ dailySales, businessType = 'retail', onRefresh, businessId, canCloseBooks = false, managerName }: DailySalesWidgetProps) {
   const [showDetails, setShowDetails] = useState(false)
+  const [closingBooks, setClosingBooks] = useState(false)
+  const [booksClosed, setBooksClosed] = useState(false)
+  const [closeBooksError, setCloseBooksError] = useState<string | null>(null)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
   if (!dailySales) {
     return null
@@ -208,7 +215,7 @@ export function DailySalesWidget({ dailySales, businessType = 'retail', onRefres
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-2 flex-wrap">
             <Link
               href={`/${businessType}/reports/end-of-day`}
               className="flex-1 text-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -221,6 +228,74 @@ export function DailySalesWidget({ dailySales, businessType = 'retail', onRefres
             >
               📅 View Report History
             </Link>
+            {canCloseBooks && businessId && !booksClosed && (
+              <>
+                {!showCloseConfirm ? (
+                  <button
+                    onClick={() => setShowCloseConfirm(true)}
+                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    🔒 Close Books for Today
+                  </button>
+                ) : (
+                  <div className="w-full mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-700 dark:text-red-400 mb-2 font-medium">
+                      Close books for {businessDay.date}? This will prevent any more manual entries for this date.
+                    </p>
+                    {closeBooksError && (
+                      <p className="text-sm text-red-600 mb-2">{closeBooksError}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          setClosingBooks(true)
+                          setCloseBooksError(null)
+                          try {
+                            const res = await fetch('/api/universal/close-books', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                businessId,
+                                date: businessDay.date,
+                                managerName: managerName || 'Manager',
+                              }),
+                            })
+                            const data = await res.json()
+                            if (!res.ok) {
+                              setCloseBooksError(data.error || 'Failed to close books')
+                            } else {
+                              setBooksClosed(true)
+                              setShowCloseConfirm(false)
+                            }
+                          } catch {
+                            setCloseBooksError('Network error')
+                          } finally {
+                            setClosingBooks(false)
+                          }
+                        }}
+                        disabled={closingBooks}
+                        className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {closingBooks ? 'Closing...' : 'Confirm Close'}
+                      </button>
+                      <button
+                        onClick={() => { setShowCloseConfirm(false); setCloseBooksError(null) }}
+                        className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-300 dark:hover:bg-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            {booksClosed && (
+              <div className="w-full mt-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center">
+                <span className="text-sm text-green-700 dark:text-green-400 font-medium">
+                  🔒 Books closed for {businessDay.date}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

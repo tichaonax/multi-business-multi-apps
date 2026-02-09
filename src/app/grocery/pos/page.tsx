@@ -27,6 +27,7 @@ import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { useGlobalCart } from '@/contexts/global-cart-context'
+import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 
 interface POSItem {
   id: string
@@ -79,6 +80,7 @@ function GroceryPOSContent() {
   const [isScaleConnected, setIsScaleConnected] = useState(true)
   const [currentWeight, setCurrentWeight] = useState(0)
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
+  const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
   const [showScanner, setShowScanner] = useState(false)
   const [products, setProducts] = useState<POSItem[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
@@ -1668,6 +1670,9 @@ function GroceryPOSContent() {
           dailySales={dailySales}
           businessType="grocery"
           onRefresh={loadDailySales}
+          businessId={currentBusinessId || undefined}
+          canCloseBooks={isAdmin || hasPermission('canCloseBooks')}
+          managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
         />
       </div>
 
@@ -1696,6 +1701,38 @@ function GroceryPOSContent() {
         )}
       </div>
 
+      {/* Live / Manual Entry Mode Toggle */}
+      {(isAdmin || hasPermission('canEnterManualOrders')) && (
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit mb-4">
+          <button
+            onClick={() => setPosMode('live')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              posMode === 'live'
+                ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            Live POS
+          </button>
+          <button
+            onClick={() => setPosMode('manual')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              posMode === 'manual'
+                ? 'bg-white dark:bg-gray-700 text-orange-600 dark:text-orange-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            Manual Entry
+          </button>
+        </div>
+      )}
+
+      {/* Manual Entry Mode */}
+      {posMode === 'manual' && currentBusinessId && (
+        <ManualEntryTab businessId={currentBusinessId} businessType="grocery" />
+      )}
+
+      {posMode === 'live' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Main POS Area */}
         <div className="lg:col-span-2 space-y-4">
@@ -2301,6 +2338,7 @@ function GroceryPOSContent() {
           </div>
         </div>
       </div>
+      )}
     </ContentLayout>
 
     {/* Loading Overlay for Auto-Add Product */}

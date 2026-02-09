@@ -1,0 +1,186 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { isSystemAdmin, hasPermission, SessionUser } from '@/lib/permission-utils'
+
+/**
+ * GET /api/universal/close-books?businessId=X&date=YYYY-MM-DD
+ * Check if books are closed for a specific date
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const businessId = searchParams.get('businessId')
+    const date = searchParams.get('date')
+
+    if (!businessId || !date) {
+      return NextResponse.json(
+        { error: 'businessId and date parameters required' },
+        { status: 400 }
+      )
+    }
+
+    const closedBooks = await prisma.savedReports.findUnique({
+      where: {
+        businessId_reportType_reportDate: {
+          businessId,
+          reportType: 'DAILY_BOOKS_CLOSE',
+          reportDate: new Date(date + 'T00:00:00Z'),
+        },
+      },
+      select: {
+        id: true,
+        managerName: true,
+        signedAt: true,
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      isClosed: !!closedBooks,
+      closedBy: closedBooks?.managerName || null,
+      closedAt: closedBooks?.signedAt || null,
+    })
+  } catch (error) {
+    console.error('Error checking book closure:', error)
+    return NextResponse.json({ error: 'Failed to check book status' }, { status: 500 })
+  }
+}
+
+/**
+ * POST /api/universal/close-books
+ * Close books for a specific business day (manager+ only)
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = session.user as SessionUser
+
+    // Check permission: must be manager+ or system admin
+    if (!isSystemAdmin(user) && !hasPermission(user, 'canCloseBooks')) {
+      return NextResponse.json(
+        { error: 'Only managers and above can close books.' },
+        { status: 403 }
+      )
+    }
+
+    const { businessId, date, managerName } = await request.json()
+
+    if (!businessId || !date || !managerName) {
+      return NextResponse.json(
+        { error: 'businessId, date, and managerName are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate date is within 7 days
+    const closeDate = new Date(date + 'T00:00:00Z')
+    const now = new Date()
+    const sevenDaysAgo = new Date(now)
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    sevenDaysAgo.setHours(0, 0, 0, 0)
+
+    if (closeDate > now) {
+      return NextResponse.json({ error: 'Cannot close books for a future date' }, { status: 400 })
+    }
+
+    if (closeDate < sevenDaysAgo) {
+      return NextResponse.json(
+        { error: 'Cannot close books for dates older than 7 days' },
+        { status: 400 }
+      )
+    }
+
+    // Check if already closed
+    const existing = await prisma.savedReports.findUnique({
+      where: {
+        businessId_reportType_reportDate: {
+          businessId,
+          reportType: 'DAILY_BOOKS_CLOSE',
+          reportDate: closeDate,
+        },
+      },
+    })
+
+    if (existing) {
+      return NextResponse.json(
+        { error: `Books for ${date} are already closed by ${existing.managerName}` },
+        { status: 409 }
+      )
+    }
+
+    // Get daily summary for the report snapshot
+    const dayStart = new Date(date + 'T00:00:00Z')
+    const dayEnd = new Date(date + 'T23:59:59.999Z')
+
+    const orders = await prisma.businessOrders.findMany({
+      where: {
+        businessId,
+        OR: [
+          { transactionDate: { gte: dayStart, lte: dayEnd } },
+          { transactionDate: null, createdAt: { gte: dayStart, lte: dayEnd } },
+        ],
+      },
+      select: {
+        totalAmount: true,
+        isManualEntry: true,
+      },
+    })
+
+    const totalSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0)
+    const totalOrders = orders.length
+    const manualEntries = orders.filter(o => o.isManualEntry).length
+
+    // Create the close-books report
+    const report = await prisma.savedReports.create({
+      data: {
+        businessId,
+        reportType: 'DAILY_BOOKS_CLOSE',
+        reportDate: closeDate,
+        periodStart: dayStart,
+        periodEnd: dayEnd,
+        managerName,
+        managerUserId: session.user.id,
+        signedAt: new Date(),
+        isLocked: true,
+        totalSales,
+        totalOrders,
+        receiptsIssued: totalOrders,
+        reportData: {
+          totalSales,
+          totalOrders,
+          manualEntries,
+          closedAt: new Date().toISOString(),
+          closedBy: managerName,
+        },
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: `Books closed for ${date}. ${totalOrders} orders (${manualEntries} manual).`,
+      reportId: report.id,
+    })
+  } catch (error: any) {
+    console.error('Error closing books:', error)
+
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Books for this date are already closed' },
+        { status: 409 }
+      )
+    }
+
+    return NextResponse.json({ error: 'Failed to close books' }, { status: 500 })
+  }
+}

@@ -100,13 +100,13 @@ export async function GET(request: NextRequest) {
       dateStr = today.dateStr
     }
 
-    // Build where clause
+    // Build where clause - include manual backdated entries via transactionDate
     const whereClause: any = {
       businessId: businessId,
-      createdAt: {
-        gte: start,
-        lt: end,
-      },
+      OR: [
+        { transactionDate: { gte: start, lt: end } },
+        { transactionDate: null, createdAt: { gte: start, lt: end } },
+      ],
     }
 
     // Add business type filter if specified
