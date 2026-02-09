@@ -11,7 +11,7 @@ import next from 'next'
 import { initSocketServer } from './src/lib/customer-display/socket-server'
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = 'localhost'
+const hostname = '0.0.0.0'
 const port = parseInt(process.env.PORT || '8080', 10)
 
 // Initialize Next.js app
