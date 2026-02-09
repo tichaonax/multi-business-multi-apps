@@ -263,7 +263,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'expenseDomains': 'name',
   'inventoryDomains': 'name',
   'permissions': 'name',
-  'jobTitles': 'title'
+  'jobTitles': 'title',
+
+  // Composite unique constraints
+  'businessOrders': { fields: ['businessId', 'orderNumber'] }
 }
 
 /**
@@ -700,25 +703,54 @@ export async function restoreCleanBackup(
               }
             } else if (uniqueConstraint) {
               // Handle tables with unique constraints on non-ID fields
-              // First try to find by unique field, then upsert
-              const uniqueField = typeof uniqueConstraint === 'string' ? uniqueConstraint : null
-
-              if (uniqueField && record[uniqueField]) {
-                // Check if record exists by unique field
+              if (typeof uniqueConstraint === 'string' && record[uniqueConstraint]) {
+                // Single-field unique constraint
                 const existing = await model.findFirst({
-                  where: { [uniqueField]: record[uniqueField] }
+                  where: { [uniqueConstraint]: record[uniqueConstraint] }
                 })
 
                 if (existing) {
-                  // Update existing record by its ID
                   await model.update({
                     where: { id: existing.id },
                     data: recordToInsert
                   })
                 } else {
-                  // Create new record
                   await model.create({
                     data: recordToInsert
+                  })
+                }
+              } else if (typeof uniqueConstraint === 'object' && uniqueConstraint.fields) {
+                // Composite unique constraint (e.g. businessOrders: [businessId, orderNumber])
+                const whereClause: Record<string, any> = {}
+                let hasAllFields = true
+                for (const field of uniqueConstraint.fields) {
+                  if (record[field] !== undefined && record[field] !== null) {
+                    whereClause[field] = record[field]
+                  } else {
+                    hasAllFields = false
+                    break
+                  }
+                }
+
+                if (hasAllFields) {
+                  const existing = await model.findFirst({ where: whereClause })
+
+                  if (existing) {
+                    await model.update({
+                      where: { id: existing.id },
+                      data: recordToInsert
+                    })
+                  } else {
+                    await model.create({
+                      data: recordToInsert
+                    })
+                  }
+                } else {
+                  // Missing composite fields, fallback to upsert by id
+                  await model.upsert({
+                    where: { id: recordId },
+                    create: recordToInsert,
+                    update: recordToInsert
                   })
                 }
               } else {

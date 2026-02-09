@@ -78,6 +78,90 @@ function isDateLike(obj: any): boolean {
           (typeof obj.$date === 'string') || (typeof obj.$date === 'number'))
 }
 
+/**
+ * Extract unique constraint field names from a Prisma P2002 error.
+ * Handles both formats: individual field names ['businessId', 'orderNumber']
+ * and constraint name ['business_orders_businessId_orderNumber_key'].
+ * Falls back to parsing the error message.
+ */
+function extractP2002Fields(error: any): string[] {
+  const target: string[] | undefined = error?.meta?.target
+  if (target && Array.isArray(target) && target.length > 0) {
+    // If target has multiple entries, they are individual field names
+    if (target.length > 1) return target
+    // Single entry could be a constraint name — try to extract field names from it
+    // e.g. "business_orders_businessId_orderNumber_key"
+    const constraintName = target[0]
+    if (constraintName && constraintName.endsWith('_key')) {
+      // Remove table prefix and _key suffix, then extract camelCase field names
+      const parts = constraintName.replace(/_key$/, '').split('_')
+      const fields: string[] = []
+      let current = ''
+      for (const part of parts) {
+        if (current && part[0] && part[0] === part[0].toUpperCase()) {
+          // This looks like a camelCase field continuation
+          current += part
+        } else if (current && part[0] && part[0] === part[0].toLowerCase() && current.length > 0) {
+          // Might be a new segment — check if current looks like a field name
+          fields.push(current)
+          current = part
+        } else {
+          current += (current ? '_' : '') + part
+        }
+      }
+      if (current) fields.push(current)
+      // Only return if we got 2+ field-like strings
+      if (fields.length >= 2) return fields
+    }
+    // Single field name
+    return target
+  }
+
+  // Fallback: parse from error message "Unique constraint failed on the fields: (`businessId`,`orderNumber`)"
+  const msg = error?.message || ''
+  const match = msg.match(/fields:\s*\(([^)]+)\)/)
+  if (match) {
+    return match[1].split(',').map((f: string) => f.trim().replace(/`/g, ''))
+  }
+  return []
+}
+
+/**
+ * Handle Prisma P2002 unique constraint error by updating the existing record
+ * via the conflicting unique fields instead of creating a new one.
+ * Returns true if the conflict was resolved, false otherwise.
+ */
+async function handleUniqueConstraintConflict(
+  client: any,
+  resolvedName: string,
+  cleanRow: any,
+  error: any
+): Promise<boolean> {
+  const code = error?.code
+  if (code !== 'P2002') return false
+
+  const fields = extractP2002Fields(error)
+  if (fields.length === 0) return false
+
+  // Build where clause from the conflicting fields
+  const where: Record<string, any> = {}
+  for (const field of fields) {
+    if (cleanRow[field] !== undefined && cleanRow[field] !== null) {
+      where[field] = cleanRow[field]
+    }
+  }
+
+  // Only proceed if we have values for all conflicting fields
+  if (Object.keys(where).length !== fields.length) return false
+
+  try {
+    await client[resolvedName].updateMany({ where, data: cleanRow })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function findPrismaModelName(prisma: AnyPrismaClient, name: string) {
   // direct match
   if ((prisma as any)[name]) return name
@@ -151,10 +235,9 @@ export async function upsertModelInBatches(
         for (let ri = 0; ri < batch.length; ri++) {
           const row = batch[ri]
           const where = { id: row.id }
+          // Strip nested relations outside try so it's accessible in catch
+          const cleanRow = stripNestedRelations(row)
           try {
-            // Strip nested relations from the data to avoid Prisma validation errors
-            const cleanRow = stripNestedRelations(row)
-
             // If `id` is not present, fall back to create or skip
             if (!row.id) {
               await tx[resolvedName].create({ data: cleanRow })
@@ -162,7 +245,15 @@ export async function upsertModelInBatches(
               await tx[resolvedName].upsert({ where, create: cleanRow, update: cleanRow })
             }
             processedIdsInTx.push(row?.id ?? null)
-          } catch (e) {
+          } catch (e: any) {
+            // For unique constraint violations, try updating via conflicting fields within the tx
+            if (e?.code === 'P2002') {
+              const resolved = await handleUniqueConstraintConflict(tx, resolvedName, cleanRow, e)
+              if (resolved) {
+                processedIdsInTx.push(row?.id ?? null)
+                continue
+              }
+            }
             const msg = e instanceof Error ? e.message : String(e)
             console.warn(`Failed to upsert (transaction) ${resolvedName} id=${row.id}:`, msg)
             if (onError) {
@@ -187,16 +278,20 @@ export async function upsertModelInBatches(
       for (let ri = 0; ri < batch.length; ri++) {
         const row = batch[ri]
         const where = { id: row.id }
+        // Strip nested relations outside try so it's accessible in catch
+        const cleanRow = stripNestedRelations(row)
         try {
-          // Strip nested relations from the data to avoid Prisma validation errors
-          const cleanRow = stripNestedRelations(row)
-
           if (!row.id) {
             await prisma[resolvedName].create({ data: cleanRow })
           } else {
             await prisma[resolvedName].upsert({ where, create: cleanRow, update: cleanRow })
           }
-        } catch (e) {
+        } catch (e: any) {
+          // For unique constraint violations, try updating via conflicting fields
+          if (e?.code === 'P2002') {
+            const resolved = await handleUniqueConstraintConflict(prisma, resolvedName, cleanRow, e)
+            if (resolved) continue
+          }
           const msg = e instanceof Error ? e.message : String(e)
           console.warn(`Failed to upsert ${resolvedName} id=${row.id}:`, msg)
           if (onError) {
