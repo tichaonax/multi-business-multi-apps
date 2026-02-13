@@ -270,6 +270,76 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 }
 
 /**
+ * Tables with composite unique constraints AND child dependencies.
+ * When restoring from a different machine, seeded data may have the same
+ * unique key values but different IDs. We must replace the old record
+ * (preserving the backup's ID) so that child records' FK references work.
+ *
+ * For each table: uniqueFields to find conflicts, and children to clear
+ * before deleting the conflicting parent record.
+ */
+const COMPOSITE_UNIQUE_WITH_CHILDREN: Record<string, {
+  uniqueFields: string[]
+  children: Array<{ table: string; fk: string }>
+}> = {
+  'businessCategories': {
+    uniqueFields: ['businessType', 'domainId', 'name'],
+    children: [
+      { table: 'inventorySubcategories', fk: 'categoryId' },
+      { table: 'businessProducts', fk: 'categoryId' }
+    ]
+  },
+  'expenseCategories': {
+    uniqueFields: ['domainId', 'name'],
+    children: [
+      { table: 'expenseSubcategories', fk: 'categoryId' }
+    ]
+  },
+  'inventorySubcategories': {
+    uniqueFields: ['categoryId', 'name'],
+    children: [
+      { table: 'businessProducts', fk: 'subcategoryId' }
+    ]
+  },
+  'expenseSubcategories': {
+    uniqueFields: ['categoryId', 'name'],
+    children: []
+  },
+  'businessSuppliers': {
+    uniqueFields: ['businessType', 'supplierNumber'],
+    children: [
+      { table: 'supplierProducts', fk: 'supplierId' }
+    ]
+  },
+  'businessBrands': {
+    uniqueFields: ['businessId', 'name'],
+    children: [
+      { table: 'businessProducts', fk: 'brandId' }
+    ]
+  },
+  'businessLocations': {
+    uniqueFields: ['businessId', 'locationCode'],
+    children: [
+      { table: 'businessProducts', fk: 'locationId' }
+    ]
+  }
+}
+
+/**
+ * Parent tables with single-field unique constraints that have child dependencies.
+ * When the backup's ID differs from the existing record's ID, we must delete
+ * children first, then replace the parent to preserve the backup's ID.
+ */
+const SINGLE_UNIQUE_WITH_CHILDREN: Record<string, Array<{ table: string; fk: string }>> = {
+  'inventoryDomains': [
+    { table: 'businessCategories', fk: 'domainId' }
+  ],
+  'expenseDomains': [
+    { table: 'expenseCategories', fk: 'domainId' }
+  ]
+}
+
+/**
  * Model name mappings (backup table names to Prisma model names)
  */
 const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
@@ -305,9 +375,41 @@ function findPrismaModelName(prisma: AnyPrismaClient, name: string): string {
 }
 
 /**
+ * Replace an existing record that has a different ID from the backup.
+ * Deletes child records first (they'll be re-created from backup later),
+ * then deletes the old parent and creates with the backup's ID.
+ */
+async function replaceWithBackupId(
+  prisma: AnyPrismaClient,
+  model: any,
+  tableName: string,
+  existingId: string,
+  recordToInsert: any,
+  children: Array<{ table: string; fk: string }>
+): Promise<void> {
+  // Delete child records that reference the OLD ID (they'll be restored from backup)
+  for (const child of children) {
+    const childModelName = findPrismaModelName(prisma, child.table)
+    const childModel = prisma[childModelName]
+    if (childModel && typeof childModel.deleteMany === 'function') {
+      const deleted = await childModel.deleteMany({
+        where: { [child.fk]: existingId }
+      })
+      if (deleted.count > 0) {
+        console.log(`[restore-clean] Cleared ${deleted.count} ${child.table} records referencing old ${tableName} ID ${existingId}`)
+      }
+    }
+  }
+
+  // Delete the old record and create with backup's ID
+  await model.delete({ where: { id: existingId } })
+  await model.create({ data: recordToInsert })
+}
+
+/**
  * Restore data from backup using upsert operations
  * This ensures deterministic results - same backup = same database state
- * 
+ *
  * Features:
  * - Batch processing to prevent timeouts
  * - Progress callbacks for UI updates
@@ -517,7 +619,40 @@ export async function restoreCleanBackup(
             // because child records reference it. If an existing record has a different ID,
             // we must delete it first and recreate with the backup's ID.
 
-            if (tableName === 'emojiLookup') {
+            // === GENERIC: Tables with composite unique constraints + child dependencies ===
+            // Handles cross-machine restore where seeded data has same names but different IDs
+            const compositeConfig = COMPOSITE_UNIQUE_WITH_CHILDREN[tableName]
+            if (compositeConfig) {
+              // Build where clause from unique fields
+              const whereClause: Record<string, any> = {}
+              let hasAllFields = true
+              for (const field of compositeConfig.uniqueFields) {
+                if (record[field] !== undefined && record[field] !== null) {
+                  whereClause[field] = record[field]
+                } else {
+                  hasAllFields = false
+                  break
+                }
+              }
+
+              if (hasAllFields) {
+                const existing = await model.findFirst({ where: whereClause })
+                if (existing && existing.id !== recordId) {
+                  // Different ID - replace with backup's ID (clear children first)
+                  if (VERBOSE_LOGGING) console.log(`[restore-clean] ${tableName}: Replacing ID ${existing.id} → ${recordId}`)
+                  await replaceWithBackupId(prisma, model, tableName, existing.id, recordToInsert, compositeConfig.children)
+                } else if (existing) {
+                  // Same ID - just update
+                  await model.update({ where: { id: existing.id }, data: recordToInsert })
+                } else {
+                  // Doesn't exist - create
+                  await model.create({ data: recordToInsert })
+                }
+              } else {
+                // Missing unique fields, fallback to upsert by id
+                await model.upsert({ where: { id: recordId }, create: recordToInsert, update: recordToInsert })
+              }
+            } else if (tableName === 'emojiLookup') {
               // EmojiLookup has unique constraint on [emoji, description]
               // This table has no child references, so simple upsert is fine
               await model.upsert({
@@ -709,7 +844,19 @@ export async function restoreCleanBackup(
                   where: { [uniqueConstraint]: record[uniqueConstraint] }
                 })
 
-                if (existing) {
+                if (existing && existing.id !== recordId) {
+                  // Different ID — need to replace to preserve backup's ID
+                  const childDeps = SINGLE_UNIQUE_WITH_CHILDREN[tableName] || []
+                  if (childDeps.length > 0) {
+                    await replaceWithBackupId(prisma, model, tableName, existing.id, recordToInsert, childDeps)
+                  } else {
+                    // No known children — safe to delete and recreate
+                    await model.delete({ where: { id: existing.id } })
+                    await model.create({ data: recordToInsert })
+                  }
+                  if (VERBOSE_LOGGING) console.log(`[restore-clean] ${tableName}: Replaced ID ${existing.id} → ${recordId}`)
+                } else if (existing) {
+                  // Same ID — just update
                   await model.update({
                     where: { id: existing.id },
                     data: recordToInsert
@@ -735,7 +882,12 @@ export async function restoreCleanBackup(
                 if (hasAllFields) {
                   const existing = await model.findFirst({ where: whereClause })
 
-                  if (existing) {
+                  if (existing && existing.id !== recordId) {
+                    // Different ID — delete and recreate to preserve backup's ID
+                    await model.delete({ where: { id: existing.id } })
+                    await model.create({ data: recordToInsert })
+                    if (VERBOSE_LOGGING) console.log(`[restore-clean] ${tableName}: Replaced ID ${existing.id} → ${recordId}`)
+                  } else if (existing) {
                     await model.update({
                       where: { id: existing.id },
                       data: recordToInsert
