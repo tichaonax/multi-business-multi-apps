@@ -604,7 +604,7 @@ export function Sidebar() {
                 </Link>
                 {/* Sales Reports - Only for managers/admins */}
                 {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
-                  <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
+                  <Link href="/grocery/reports" className={getLinkClasses('/grocery/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
                   </Link>
@@ -653,7 +653,7 @@ export function Sidebar() {
                 </Link>
                 {/* Sales Reports - Only for managers/admins */}
                 {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
-                  <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
+                  <Link href="/clothing/reports" className={getLinkClasses('/clothing/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
                   </Link>
@@ -702,7 +702,7 @@ export function Sidebar() {
                 </Link>
                 {/* Sales Reports - Only for managers/admins */}
                 {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
-                  <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
+                  <Link href="/hardware/reports" className={getLinkClasses('/hardware/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
                   </Link>

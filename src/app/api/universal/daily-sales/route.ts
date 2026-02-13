@@ -266,6 +266,18 @@ export async function GET(request: NextRequest) {
       hourlyBreakdown[hour].sales += Number(order.totalAmount || 0)
     })
 
+    // Calculate daily breakdown (for date range trends)
+    const dailyBreakdown: Record<string, { date: string; orders: number; sales: number }> = {}
+    orders.forEach(order => {
+      const orderDate = order.transactionDate || order.createdAt
+      const dayStr = new Date(orderDate).toISOString().split('T')[0]
+      if (!dailyBreakdown[dayStr]) {
+        dailyBreakdown[dayStr] = { date: dayStr, orders: 0, sales: 0 }
+      }
+      dailyBreakdown[dayStr].orders++
+      dailyBreakdown[dayStr].sales += Number(order.totalAmount || 0)
+    })
+
     return NextResponse.json({
       success: true,
       data: {
@@ -293,6 +305,9 @@ export async function GET(request: NextRequest) {
         orderStatusBreakdown,
         hourlyBreakdown: Object.values(hourlyBreakdown).sort(
           (a, b) => a.hour - b.hour
+        ),
+        dailyBreakdown: Object.values(dailyBreakdown).sort(
+          (a, b) => a.date.localeCompare(b.date)
         ),
       },
     })

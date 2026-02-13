@@ -7,6 +7,9 @@ import { isSystemAdmin, hasPermission, SessionUser } from '@/lib/permission-util
 /**
  * GET /api/universal/close-books?businessId=X&date=YYYY-MM-DD
  * Check if books are closed for a specific date
+ *
+ * GET /api/universal/close-books?businessId=X&days=7
+ * Get all closed dates within the past N days
  */
 export async function GET(request: NextRequest) {
   try {
@@ -18,21 +21,74 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const date = searchParams.get('date')
+    const days = searchParams.get('days')
 
-    if (!businessId || !date) {
+    if (!businessId) {
       return NextResponse.json(
-        { error: 'businessId and date parameters required' },
+        { error: 'businessId parameter required' },
         { status: 400 }
       )
     }
 
-    const closedBooks = await prisma.savedReports.findUnique({
-      where: {
-        businessId_reportType_reportDate: {
+    // Batch mode: return all closed dates within past N days
+    if (days) {
+      const numDays = Math.min(parseInt(days) || 7, 30)
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - (numDays - 1))
+      startDate.setHours(0, 0, 0, 0)
+
+      // Check both explicit book closures AND locked end-of-day reports
+      const closedReports = await prisma.savedReports.findMany({
+        where: {
           businessId,
-          reportType: 'DAILY_BOOKS_CLOSE',
-          reportDate: new Date(date + 'T00:00:00Z'),
+          reportDate: { gte: startDate },
+          OR: [
+            { reportType: 'DAILY_BOOKS_CLOSE' },
+            { reportType: 'END_OF_DAY', isLocked: true },
+          ],
         },
+        select: {
+          reportDate: true,
+          managerName: true,
+          reportType: true,
+        },
+      })
+
+      // Deduplicate by date (a date may have both types)
+      const dateMap = new Map<string, string>()
+      for (const r of closedReports) {
+        const dateStr = r.reportDate.toISOString().split('T')[0]
+        if (!dateMap.has(dateStr)) {
+          dateMap.set(dateStr, r.managerName)
+        }
+      }
+
+      const closedDates = Array.from(dateMap.entries()).map(([date, closedBy]) => ({
+        date,
+        closedBy,
+      }))
+
+      return NextResponse.json({ success: true, closedDates })
+    }
+
+    // Single date mode
+    if (!date) {
+      return NextResponse.json(
+        { error: 'date or days parameter required' },
+        { status: 400 }
+      )
+    }
+
+    const reportDate = new Date(date + 'T00:00:00Z')
+
+    const closedBooks = await prisma.savedReports.findFirst({
+      where: {
+        businessId,
+        reportDate,
+        OR: [
+          { reportType: 'DAILY_BOOKS_CLOSE' },
+          { reportType: 'END_OF_DAY', isLocked: true },
+        ],
       },
       select: {
         id: true,

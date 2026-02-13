@@ -44,7 +44,7 @@ export default function EndOfDayReport() {
 
       try {
         setLoading(true)
-        const response = await fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}`)
+        const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}`)
         if (response.ok) {
           const data = await response.json()
           setDailySales(data.data)

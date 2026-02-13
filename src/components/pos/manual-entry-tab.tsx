@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, Calendar, Trash2, Lock, CheckCircle, AlertCircle } from 'lucide-react'
+import { BarcodeScanner } from '@/components/universal'
 
 export interface ManualCartItem {
   id: string
@@ -52,6 +53,7 @@ export function ManualEntryTab({
   const [showCustomForm, setShowCustomForm] = useState(false)
   const [customName, setCustomName] = useState('')
   const [customPrice, setCustomPrice] = useState('')
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
 
   // If no menuItems provided, show legacy form (for grocery/clothing POS)
   if (!menuItems || !categories || !onAddItem) {
@@ -60,6 +62,34 @@ export function ManualEntryTab({
 
   const labelFn = getCategoryLabel || ((c: string) => c.charAt(0).toUpperCase() + c.slice(1))
   const cartItems = manualCartItems || []
+
+  // Handle barcode scan - match scanned product against menu items and add to cart
+  const handleProductScanned = (product: any, variantId?: string) => {
+    const matchedItem = menuItems.find(item => item.id === product.id)
+    if (matchedItem) {
+      const variant = variantId
+        ? matchedItem.variants?.find(v => v.id === variantId)
+        : matchedItem.variants?.[0]
+      onAddItem({
+        id: matchedItem.id,
+        name: matchedItem.name,
+        price: Number(variant?.price || matchedItem.price),
+        quantity: 1,
+        isCustom: false,
+        productVariantId: variant?.id || variantId,
+      })
+    } else {
+      // Product found via barcode but not in menuItems - add directly from scanned data
+      onAddItem({
+        id: product.id,
+        name: product.name,
+        price: Number(product.basePrice || product.price || 0),
+        quantity: 1,
+        isCustom: false,
+        productVariantId: variantId || product.variants?.[0]?.id,
+      })
+    }
+  }
 
   // Filter out WiFi token items (manual entries cannot include WiFi tokens)
   const availableItems = menuItems.filter(item =>
@@ -151,6 +181,14 @@ export function ManualEntryTab({
           Custom Item
         </button>
       </div>
+
+      {/* Barcode Scanner */}
+      <BarcodeScanner
+        onProductScanned={handleProductScanned}
+        businessId={businessId}
+        showScanner={showBarcodeScanner}
+        onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
+      />
 
       {/* Custom Item Form */}
       {showCustomForm && (
@@ -298,16 +336,18 @@ function getPast7Days(): string[] {
   for (let i = 0; i < 7; i++) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
-    days.push(d.toISOString().split('T')[0])
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    days.push(`${yyyy}-${mm}-${dd}`)
   }
   return days
 }
 
 function LegacyManualEntryForm({ businessId, businessType }: { businessId: string; businessType: string }) {
   const [transactionDate, setTransactionDate] = useState('')
-  const [isDateClosed, setIsDateClosed] = useState(false)
-  const [closedBy, setClosedBy] = useState<string | null>(null)
-  const [checkingDate, setCheckingDate] = useState(false)
+  const [closedDatesSet, setClosedDatesSet] = useState<Set<string>>(new Set())
+  const [loadingDates, setLoadingDates] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<LegacyItem[]>([
@@ -317,19 +357,33 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
   const [successOrder, setSuccessOrder] = useState<{ orderNumber: string; totalAmount: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const availableDates = getPast7Days()
+  const allDates = getPast7Days()
 
   useEffect(() => {
-    if (!transactionDate || !businessId) { setIsDateClosed(false); setClosedBy(null); return }
+    if (!businessId) { setLoadingDates(false); return }
     let cancelled = false
-    setCheckingDate(true)
-    fetch(`/api/universal/close-books?businessId=${businessId}&date=${transactionDate}`)
+    setLoadingDates(true)
+    fetch(`/api/universal/close-books?businessId=${businessId}&days=7`)
       .then(res => res.json())
-      .then(data => { if (!cancelled) { setIsDateClosed(data.isClosed || false); setClosedBy(data.closedBy || null) } })
-      .catch(() => { if (!cancelled) setIsDateClosed(false) })
-      .finally(() => { if (!cancelled) setCheckingDate(false) })
+      .then(data => {
+        if (!cancelled) {
+          // Convert UTC dates from API to local dates to match the dropdown
+          const closed = new Set<string>((data.closedDates || []).map((d: any) => {
+            const utc = new Date(d.date + 'T00:00:00Z')
+            const yyyy = utc.getFullYear()
+            const mm = String(utc.getMonth() + 1).padStart(2, '0')
+            const dd = String(utc.getDate()).padStart(2, '0')
+            return `${yyyy}-${mm}-${dd}`
+          }))
+          setClosedDatesSet(closed)
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingDates(false) })
     return () => { cancelled = true }
-  }, [transactionDate, businessId])
+  }, [businessId])
+
+  const availableDates = allDates.filter(d => !closedDatesSet.has(d))
 
   const addItem = () => setItems(prev => [...prev, { id: generateTempId(), name: '', quantity: 1, unitPrice: 0, discountAmount: 0 }])
   const removeItem = (id: string) => setItems(prev => prev.length > 1 ? prev.filter(i => i.id !== id) : prev)
@@ -339,7 +393,7 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
 
   const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice) - item.discountAmount, 0)
 
-  const canSubmit = transactionDate && !isDateClosed && !submitting &&
+  const canSubmit = transactionDate && !submitting &&
     items.every(item => item.name.trim() && item.quantity > 0 && item.unitPrice >= 0) && items.length > 0
 
   const handleSubmit = async () => {
@@ -392,16 +446,15 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Transaction Date</label>
-        <select value={transactionDate} onChange={(e) => setTransactionDate(e.target.value)}
+        <select value={transactionDate} onChange={(e) => setTransactionDate(e.target.value)} disabled={loadingDates}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-          <option value="">Select a date...</option>
-          {availableDates.map(date => (<option key={date} value={date}>{date} {date === availableDates[0] ? '(Today)' : ''}</option>))}
+          <option value="">{loadingDates ? 'Loading dates...' : 'Select a date...'}</option>
+          {availableDates.map(date => (<option key={date} value={date}>{date} {date === allDates[0] ? '(Today)' : ''}</option>))}
         </select>
-        {checkingDate && <p className="text-sm text-gray-500 mt-1">Checking date status...</p>}
-        {isDateClosed && (
-          <div className="flex items-center gap-2 mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <Lock className="w-4 h-4 text-red-500" />
-            <span className="text-sm text-red-700 dark:text-red-400">Books closed{closedBy ? ` by ${closedBy}` : ''}. No entries allowed.</span>
+        {!loadingDates && availableDates.length === 0 && (
+          <div className="flex items-center gap-2 mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <Lock className="w-4 h-4 text-yellow-600" />
+            <span className="text-sm text-yellow-700 dark:text-yellow-400">All dates in the past 7 days are closed. Release a day first.</span>
           </div>
         )}
       </div>

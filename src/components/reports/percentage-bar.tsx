@@ -25,8 +25,8 @@ export function PercentageBar({
     orange: 'bg-orange-500 dark:bg-orange-600',
   }
 
-  // Ensure percentage is between 0 and 100
-  const clampedPercentage = Math.min(100, Math.max(0, percentage))
+  // Ensure percentage is between 0 and 100, rounded to 2 decimal places
+  const clampedPercentage = Math.round(Math.min(100, Math.max(0, percentage)) * 100) / 100
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>

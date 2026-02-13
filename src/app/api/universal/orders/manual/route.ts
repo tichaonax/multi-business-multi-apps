@@ -72,33 +72,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate transaction date
+    // Validate transaction date (compare date strings only, not timestamps)
     const txDate = new Date(transactionDate + 'T12:00:00Z')
     const now = new Date()
+    const todayStr = now.toISOString().split('T')[0] // YYYY-MM-DD
     const sevenDaysAgo = new Date(now)
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    sevenDaysAgo.setHours(0, 0, 0, 0)
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
 
     if (isNaN(txDate.getTime())) {
       return NextResponse.json({ error: 'Invalid transaction date' }, { status: 400 })
     }
 
-    if (txDate > now) {
+    if (transactionDate > todayStr) {
       return NextResponse.json({ error: 'Transaction date cannot be in the future' }, { status: 400 })
     }
 
-    if (txDate < sevenDaysAgo) {
+    if (transactionDate < sevenDaysAgoStr) {
       return NextResponse.json({ error: 'Transaction date cannot be more than 7 days ago' }, { status: 400 })
     }
 
-    // Check if books are closed for this date
-    const closedBooks = await prisma.savedReports.findUnique({
+    // Check if books are closed for this date (explicit close OR locked end-of-day)
+    const closedBooks = await prisma.savedReports.findFirst({
       where: {
-        businessId_reportType_reportDate: {
-          businessId,
-          reportType: 'DAILY_BOOKS_CLOSE',
-          reportDate: new Date(transactionDate + 'T00:00:00Z'),
-        },
+        businessId,
+        reportDate: new Date(transactionDate + 'T00:00:00Z'),
+        OR: [
+          { reportType: 'DAILY_BOOKS_CLOSE' },
+          { reportType: 'END_OF_DAY', isLocked: true },
+        ],
       },
     })
 
@@ -175,7 +177,7 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Create order items
+      // Create order items and deduct stock
       for (const item of items) {
         const itemTotal = (item.quantity * item.unitPrice) - (item.discountAmount || 0)
         await tx.businessOrderItems.create({
@@ -189,6 +191,36 @@ export async function POST(request: NextRequest) {
             attributes: { name: item.name, isManualEntry: true },
           },
         })
+
+        // Deduct stock for items linked to a product variant
+        if (item.productVariantId) {
+          await tx.productVariants.update({
+            where: { id: item.productVariantId },
+            data: {
+              stockQuantity: {
+                decrement: item.quantity
+              }
+            }
+          })
+
+          await tx.businessStockMovements.create({
+            data: {
+              businessId,
+              productVariantId: item.productVariantId,
+              movementType: 'SALE',
+              quantity: -item.quantity,
+              unitCost: item.unitPrice,
+              reference: orderNumber,
+              employeeId: employee?.id || null,
+              businessType,
+              attributes: {
+                orderId: newOrder.id,
+                orderType: 'MANUAL_ENTRY',
+                isManualEntry: true,
+              }
+            }
+          })
+        }
       }
 
       return newOrder

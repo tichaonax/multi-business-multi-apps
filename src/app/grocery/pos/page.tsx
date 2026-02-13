@@ -28,6 +28,8 @@ import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCusto
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
+import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
+import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 
 interface POSItem {
   id: string
@@ -81,6 +83,7 @@ function GroceryPOSContent() {
   const [currentWeight, setCurrentWeight] = useState(0)
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
+  const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [showScanner, setShowScanner] = useState(false)
   const [products, setProducts] = useState<POSItem[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
@@ -667,6 +670,40 @@ function GroceryPOSContent() {
   useEffect(() => {
     fetchProducts()
   }, [currentBusinessId, fetchProducts])
+
+  // Manual cart helpers
+  const addToManualCart = (item: ManualCartItem) => {
+    setManualCart(prev => {
+      if (item.isCustom) return [...prev, item]
+      const existing = prev.find(c => c.id === item.id)
+      if (existing) {
+        return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c)
+      }
+      return [...prev, item]
+    })
+  }
+  const updateManualCartQuantity = (id: string, qty: number) => {
+    if (qty <= 0) { setManualCart(prev => prev.filter(c => c.id !== id)); return }
+    setManualCart(prev => prev.map(c => c.id === id ? { ...c, quantity: qty } : c))
+  }
+  const removeFromManualCart = (id: string) => setManualCart(prev => prev.filter(c => c.id !== id))
+  const clearManualCart = () => setManualCart([])
+
+  // Derive categories from loaded products for manual entry
+  // Convert POSItem[] to MenuItemLike[] for ManualEntryTab (exclude WiFi tokens and zero-price items)
+  const manualMenuItems = products
+    .filter(p => p.category !== 'ESP32 WiFi' && p.category !== 'R710 WiFi' && p.price > 0)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      category: p.category,
+      isAvailable: true,
+      barcode: p.barcode,
+      variants: [{ id: p.id, name: p.name, price: p.price }],
+    }))
+
+  const manualCategories = ['all', ...Array.from(new Set(manualMenuItems.filter(p => p.category).map(p => p.category)))]
 
   // Set default active WiFi tab based on enabled integrations
   useEffect(() => {
@@ -1736,7 +1773,26 @@ function GroceryPOSContent() {
 
       {/* Manual Entry Mode */}
       {posMode === 'manual' && currentBusinessId && (
-        <ManualEntryTab businessId={currentBusinessId} businessType="grocery" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="lg:col-span-2">
+            <ManualEntryTab
+              businessId={currentBusinessId}
+              businessType="grocery"
+              menuItems={manualMenuItems}
+              categories={manualCategories}
+              onAddItem={addToManualCart}
+              manualCartItems={manualCart}
+            />
+          </div>
+          <ManualOrderSummary
+            businessId={currentBusinessId}
+            businessType="grocery"
+            items={manualCart}
+            onUpdateQuantity={updateManualCartQuantity}
+            onRemoveItem={removeFromManualCart}
+            onClearAll={clearManualCart}
+          />
+        </div>
       )}
 
       {posMode === 'live' && (

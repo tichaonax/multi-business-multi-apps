@@ -5,19 +5,18 @@ import { prisma } from '@/lib/prisma';
 import {
   getGlobalPayrollAccount,
   generateDepositNote,
-  debitBusinessAccount,
   updatePayrollAccountBalance,
 } from '@/lib/payroll-account-utils';
 
 /**
  * GET /api/business/[businessId]/expenses
- * Fetch business expenses with filtering options
+ * Fetch business expenses (via ExpenseAccountPayments through ExpenseAccounts)
  *
  * Query params:
  * - startDate: Filter expenses from this date
  * - endDate: Filter expenses up to this date
  * - categoryId: Filter by expense category
- * - employeeId: Filter by employee who recorded expense
+ * - employeeId: Filter by employee payee
  */
 export async function GET(
   request: NextRequest,
@@ -36,19 +35,41 @@ export async function GET(
     const categoryId = searchParams.get('categoryId');
     const employeeId = searchParams.get('employeeId');
 
-    // Build where clause
+    // Find the business's expense accounts
+    const businessAccounts = await prisma.expenseAccounts.findMany({
+      where: { businessId, isActive: true },
+      select: { id: true },
+    });
+
+    const accountIds = businessAccounts.map(a => a.id);
+
+    // If business has no expense accounts, return empty
+    if (accountIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        expenses: [],
+        summary: {
+          total: 0,
+          byCategory: [],
+          count: 0,
+          dateRange: { start: startDate, end: endDate }
+        }
+      });
+    }
+
+    // Build where clause for payments
     const where: any = {
-      businessId: businessId
+      expenseAccountId: { in: accountIds },
     };
 
     // Date filtering
     if (startDate || endDate) {
-      where.expenseDate = {};
+      where.paymentDate = {};
       if (startDate) {
-        where.expenseDate.gte = new Date(startDate);
+        where.paymentDate.gte = new Date(startDate);
       }
       if (endDate) {
-        where.expenseDate.lte = new Date(endDate);
+        where.paymentDate.lte = new Date(endDate);
       }
     }
 
@@ -59,14 +80,14 @@ export async function GET(
 
     // Employee filtering
     if (employeeId) {
-      where.employeeId = employeeId;
+      where.payeeEmployeeId = employeeId;
     }
 
-    // Fetch expenses with related data
-    const expenses = await prisma.businessExpenses.findMany({
+    // Fetch expense payments with related data
+    const expenses = await prisma.expenseAccountPayments.findMany({
       where,
       include: {
-        expense_categories: {
+        category: {
           select: {
             id: true,
             name: true,
@@ -74,14 +95,14 @@ export async function GET(
             color: true
           }
         },
-        expense_subcategories: {
+        subcategory: {
           select: {
             id: true,
             name: true,
             emoji: true
           }
         },
-        employees: {
+        payeeEmployee: {
           select: {
             id: true,
             fullName: true
@@ -89,7 +110,7 @@ export async function GET(
         }
       },
       orderBy: {
-        expenseDate: 'desc'
+        paymentDate: 'desc'
       }
     });
 
@@ -100,8 +121,8 @@ export async function GET(
     const byCategory: Record<string, { name: string; emoji: string; value: number; percentage: number }> = {};
 
     expenses.forEach(exp => {
-      const catName = exp.expense_categories.name;
-      const catEmoji = exp.expense_categories.emoji;
+      const catName = exp.category.name;
+      const catEmoji = exp.category.emoji;
 
       if (!byCategory[catName]) {
         byCategory[catName] = {
@@ -127,24 +148,24 @@ export async function GET(
       expenses: expenses.map(exp => ({
         id: exp.id,
         amount: Number(exp.amount),
-        description: exp.description,
-        expenseDate: exp.expenseDate,
+        description: exp.notes || exp.receiptReason || '',
+        expenseDate: exp.paymentDate,
         category: {
-          id: exp.expense_categories.id,
-          name: exp.expense_categories.name,
-          emoji: exp.expense_categories.emoji,
-          color: exp.expense_categories.color
+          id: exp.category.id,
+          name: exp.category.name,
+          emoji: exp.category.emoji,
+          color: exp.category.color
         },
-        subcategory: exp.expense_subcategories ? {
-          id: exp.expense_subcategories.id,
-          name: exp.expense_subcategories.name,
-          emoji: exp.expense_subcategories.emoji
+        subcategory: exp.subcategory ? {
+          id: exp.subcategory.id,
+          name: exp.subcategory.name,
+          emoji: exp.subcategory.emoji
         } : null,
-        employee: exp.employees ? {
-          id: exp.employees.id,
-          name: exp.employees.fullName
+        employee: exp.payeeEmployee ? {
+          id: exp.payeeEmployee.id,
+          name: exp.payeeEmployee.fullName
         } : null,
-        receiptUrl: exp.receiptUrl,
+        receiptUrl: null,
         notes: exp.notes
       })),
       summary: {
@@ -169,7 +190,7 @@ export async function GET(
 
 /**
  * POST /api/business/[businessId]/expenses
- * Create a new business expense record
+ * Create a new expense payment record
  */
 export async function POST(
   request: NextRequest,
@@ -185,43 +206,55 @@ export async function POST(
     const body = await request.json();
 
     // Validate required fields
-    if (!body.categoryId || !body.amount || !body.description || !body.expenseDate) {
+    if (!body.categoryId || !body.amount || !body.expenseDate) {
       return NextResponse.json(
-        { error: 'Missing required fields: categoryId, amount, description, expenseDate' },
+        { error: 'Missing required fields: categoryId, amount, expenseDate' },
         { status: 400 }
       );
     }
 
-    // Create expense
-    const expense = await prisma.businessExpenses.create({
+    // Find the business's expense account
+    const expenseAccount = await prisma.expenseAccounts.findFirst({
+      where: { businessId, isActive: true },
+    });
+
+    if (!expenseAccount) {
+      return NextResponse.json(
+        { error: 'No active expense account found for this business' },
+        { status: 404 }
+      );
+    }
+
+    // Create expense payment
+    const expense = await prisma.expenseAccountPayments.create({
       data: {
-        businessId: businessId,
+        expenseAccountId: expenseAccount.id,
+        payeeType: body.employeeId ? 'EMPLOYEE' : 'OTHER',
+        payeeEmployeeId: body.employeeId || null,
         categoryId: body.categoryId,
         subcategoryId: body.subcategoryId || null,
-        employeeId: body.employeeId || null,
         amount: parseFloat(body.amount),
-        description: body.description,
-        expenseDate: new Date(body.expenseDate),
-        receiptUrl: body.receiptUrl || null,
-        notes: body.notes || null,
-        createdBy: session.user.id
+        paymentDate: new Date(body.expenseDate),
+        notes: body.description || body.notes || null,
+        receiptReason: body.description || null,
+        createdBy: session.user.id,
       },
       include: {
-        expense_categories: {
+        category: {
           select: {
             id: true,
             name: true,
             emoji: true
           }
         },
-        expense_subcategories: {
+        subcategory: {
           select: {
             id: true,
             name: true,
             emoji: true
           }
         },
-        employees: {
+        payeeEmployee: {
           select: {
             id: true,
             fullName: true
@@ -231,12 +264,10 @@ export async function POST(
     });
 
     // Auto-create payroll deposit if expense category is "Payroll"
-    let payrollDeposit = null;
-    if (expense.expense_categories.name.toLowerCase().includes('payroll')) {
+    if (expense.category.name.toLowerCase().includes('payroll')) {
       try {
         const payrollAccount = await getGlobalPayrollAccount();
         if (payrollAccount) {
-          // Get business info
           const business = await prisma.businesses.findUnique({
             where: { id: businessId },
             select: { name: true },
@@ -245,11 +276,10 @@ export async function POST(
           if (business) {
             const depositNote = generateDepositNote(business.name, 'PAYROLL_EXPENSE');
 
-            // Create deposit record (business account already debited by the expense)
-            payrollDeposit = await prisma.payrollAccountDeposits.create({
+            await prisma.payrollAccountDeposits.create({
               data: {
                 payrollAccountId: payrollAccount.id,
-                sourceBusinessId: businessId,
+                businessId: businessId,
                 amount: parseFloat(body.amount),
                 autoGeneratedNote: depositNote,
                 transactionType: 'PAYROLL_EXPENSE',
@@ -258,14 +288,11 @@ export async function POST(
               },
             });
 
-            // Update payroll account balance
             await updatePayrollAccountBalance(payrollAccount.id);
           }
         }
       } catch (payrollError) {
         console.error('Error auto-creating payroll deposit:', payrollError);
-        // Don't fail the expense creation if payroll deposit fails
-        // Just log the error
       }
     }
 
@@ -274,23 +301,22 @@ export async function POST(
       expense: {
         id: expense.id,
         amount: Number(expense.amount),
-        description: expense.description,
-        expenseDate: expense.expenseDate,
+        description: expense.notes || '',
+        expenseDate: expense.paymentDate,
         category: {
-          id: expense.expense_categories.id,
-          name: expense.expense_categories.name,
-          emoji: expense.expense_categories.emoji
+          id: expense.category.id,
+          name: expense.category.name,
+          emoji: expense.category.emoji
         },
-        subcategory: expense.expense_subcategories ? {
-          id: expense.expense_subcategories.id,
-          name: expense.expense_subcategories.name,
-          emoji: expense.expense_subcategories.emoji
+        subcategory: expense.subcategory ? {
+          id: expense.subcategory.id,
+          name: expense.subcategory.name,
+          emoji: expense.subcategory.emoji
         } : null,
-        employee: expense.employees ? {
-          id: expense.employees.id,
-          name: expense.employees.fullName
+        employee: expense.payeeEmployee ? {
+          id: expense.payeeEmployee.id,
+          name: expense.payeeEmployee.fullName
         } : null,
-        receiptUrl: expense.receiptUrl,
         notes: expense.notes
       }
     }, { status: 201 });

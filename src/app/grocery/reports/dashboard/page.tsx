@@ -73,6 +73,7 @@ export default function ReportsDashboard() {
         }
 
         // Load real expense data from API
+        let expensesList: any[] = []
         const expenseParams = new URLSearchParams({ startDate, endDate })
         if (selectedEmployeeId) expenseParams.append('employeeId', selectedEmployeeId)
         const expenseResponse = await fetch(
@@ -84,42 +85,50 @@ export default function ReportsDashboard() {
           if (expenseResult.success && expenseResult.summary) {
             setExpenseData(expenseResult.summary.byCategory)
             setTotalExpenses(expenseResult.summary.total)
+            expensesList = expenseResult.expenses || []
           } else {
-            // No expense data available
             setExpenseData([])
             setTotalExpenses(0)
           }
         } else {
-          // API error - show empty state
           setExpenseData([])
           setTotalExpenses(0)
         }
-      }
 
-      // TODO: Load historical data for trends chart
-      // For now, create mock trend data based on selected date range
-      const daysDiff = Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24))
-      const mockTrends = Array.from({ length: daysDiff + 1 }, (_, i) => {
-        const date = new Date(dateRange.start)
-        date.setDate(date.getDate() + i)
-        // Format as dd/mm (Zimbabwe/UK format)
-        const day = String(date.getDate()).padStart(2, '0')
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const dateStr = `${day}/${month}`
-
-        // Random data for demonstration
-        const income = Math.random() * 300 + 50
-        const expense = Math.random() * 350 + 50
-        const savings = income - expense
-
-        return {
-          date: dateStr,
-          income,
-          expense,
-          savings
+        // Build daily trends from real data
+        const dailySalesByDate: Record<string, number> = {}
+        if (data.data?.dailyBreakdown) {
+          data.data.dailyBreakdown.forEach((d: any) => {
+            dailySalesByDate[d.date] = d.sales
+          })
         }
-      })
-      setTrendsData(mockTrends)
+
+        // Build expense totals by date from already-loaded expenses
+        const expensesByDate: Record<string, number> = {}
+        expensesList.forEach((exp: any) => {
+          const expDate = new Date(exp.expenseDate).toISOString().split('T')[0]
+          expensesByDate[expDate] = (expensesByDate[expDate] || 0) + exp.amount
+        })
+
+        // Generate trends for each day in range
+        const daysDiff = Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24))
+        const realTrends = Array.from({ length: daysDiff + 1 }, (_, i) => {
+          const date = new Date(dateRange.start)
+          date.setDate(date.getDate() + i)
+          const isoDate = date.toISOString().split('T')[0]
+          const day = String(date.getDate()).padStart(2, '0')
+          const month = String(date.getMonth() + 1).padStart(2, '0')
+          const income = dailySalesByDate[isoDate] || 0
+          const expense = expensesByDate[isoDate] || 0
+          return {
+            date: `${day}/${month}`,
+            income,
+            expense,
+            savings: income - expense
+          }
+        })
+        setTrendsData(realTrends)
+      }
 
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
@@ -150,13 +159,13 @@ export default function ReportsDashboard() {
           ← Back to POS
         </Link>
         <Link
-          href="/restaurant/reports"
+          href="/grocery/reports"
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           ← Back to Reports
         </Link>
         <Link
-          href="/restaurant/reports/end-of-day"
+          href="/grocery/reports/end-of-day"
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
         >
           📊 End-of-Day Report

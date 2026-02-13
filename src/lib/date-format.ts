@@ -21,6 +21,7 @@ export function formatDate(
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
+    timeZone: DEFAULT_TIMEZONE,
     ...options,
   }
 
@@ -44,6 +45,7 @@ export function formatDateTime(
     minute: '2-digit',
     second: '2-digit',
     hour12: false, // 24-hour format
+    timeZone: DEFAULT_TIMEZONE,
     ...options,
   }
 
@@ -60,6 +62,7 @@ export function formatDateLong(date: Date | string): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: DEFAULT_TIMEZONE,
   }).format(dateObj)
 }
 
@@ -74,6 +77,7 @@ export function formatDateFull(date: Date | string): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: DEFAULT_TIMEZONE,
   }).format(dateObj)
 }
 
@@ -88,6 +92,7 @@ export function formatTime(date: Date | string): string {
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
+    timeZone: DEFAULT_TIMEZONE,
   }).format(dateObj)
 }
 

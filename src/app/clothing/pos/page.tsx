@@ -12,7 +12,7 @@ import {
 } from '@/components/universal'
 import { ClothingAdvancedPOS } from './components/advanced-pos'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
@@ -22,6 +22,8 @@ import { useOpenCustomerDisplay, useCustomerDisplaySync } from '@/hooks/useCusto
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
+import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
+import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 
 // This would typically come from session/auth
 // const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
@@ -31,6 +33,8 @@ export default function ClothingPOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
   const [useAdvancedPOS, setUseAdvancedPOS] = useState(true)
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
+  const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
+  const [manualProducts, setManualProducts] = useState<any[]>([])
   const [dailySales, setDailySales] = useState<any>(null)
   const { data: session, status} = useSession()
   const router = useRouter()
@@ -110,6 +114,55 @@ export default function ClothingPOSPage() {
     const interval = setInterval(() => loadDailySales(), 30000)
     return () => clearInterval(interval)
   }, [currentBusinessId, isClothingBusiness])
+
+  // Fetch products for manual entry mode
+  const fetchManualProducts = useCallback(async () => {
+    if (!currentBusinessId) return
+    try {
+      const response = await fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=clothing&includeVariants=true&isAvailable=true&isActive=true&limit=500`)
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          const items = result.data
+            .filter((p: any) => { const price = Number(p.basePrice); return price > 0 && !isNaN(price) })
+            .map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              price: Number(p.basePrice),
+              category: p.category?.name || 'General',
+              isAvailable: true,
+              barcode: p.barcode || p.sku,
+              variants: p.variants?.map((v: any) => ({ id: v.id, name: v.name, price: Number(v.price || p.basePrice) })) || [{ id: p.id, name: p.name, price: Number(p.basePrice) }],
+            }))
+          setManualProducts(items)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch products for manual entry:', error)
+    }
+  }, [currentBusinessId])
+
+  useEffect(() => {
+    if (currentBusinessId && isClothingBusiness) fetchManualProducts()
+  }, [currentBusinessId, isClothingBusiness, fetchManualProducts])
+
+  // Manual cart helpers
+  const addToManualCart = (item: ManualCartItem) => {
+    setManualCart(prev => {
+      if (item.isCustom) return [...prev, item]
+      const existing = prev.find(c => c.id === item.id)
+      if (existing) return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c)
+      return [...prev, item]
+    })
+  }
+  const updateManualCartQuantity = (id: string, qty: number) => {
+    if (qty <= 0) { setManualCart(prev => prev.filter(c => c.id !== id)); return }
+    setManualCart(prev => prev.map(c => c.id === id ? { ...c, quantity: qty } : c))
+  }
+  const removeFromManualCart = (id: string) => setManualCart(prev => prev.filter(c => c.id !== id))
+  const clearManualCart = () => setManualCart([])
+
+  const manualCategories = ['all', ...Array.from(new Set(manualProducts.filter((p: any) => p.category).map((p: any) => p.category as string)))]
 
   // Auto-open customer display and send greeting/context on mount
   useEffect(() => {
@@ -389,7 +442,26 @@ export default function ClothingPOSPage() {
 
             {/* Manual Entry Mode */}
             {posMode === 'manual' && currentBusinessId && (
-              <ManualEntryTab businessId={currentBusinessId} businessType="clothing" />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                <div className="lg:col-span-2">
+                  <ManualEntryTab
+                    businessId={currentBusinessId}
+                    businessType="clothing"
+                    menuItems={manualProducts}
+                    categories={manualCategories}
+                    onAddItem={addToManualCart}
+                    manualCartItems={manualCart}
+                  />
+                </div>
+                <ManualOrderSummary
+                  businessId={currentBusinessId}
+                  businessType="clothing"
+                  items={manualCart}
+                  onUpdateQuantity={updateManualCartQuantity}
+                  onRemoveItem={removeFromManualCart}
+                  onClearAll={clearManualCart}
+                />
+              </div>
             )}
 
             {/* POS System */}

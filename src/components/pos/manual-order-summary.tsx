@@ -4,14 +4,17 @@ import { useState, useEffect } from 'react'
 import { Lock, CheckCircle, AlertCircle, Trash2 } from 'lucide-react'
 import type { ManualCartItem } from './manual-entry-tab'
 
-// Get past 7 days as YYYY-MM-DD strings
+// Get past 7 days as YYYY-MM-DD strings (local timezone)
 function getPast7Days(): string[] {
   const days: string[] = []
   const now = new Date()
   for (let i = 0; i < 7; i++) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
-    days.push(d.toISOString().split('T')[0])
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    days.push(`${yyyy}-${mm}-${dd}`)
   }
   return days
 }
@@ -36,48 +39,47 @@ export function ManualOrderSummary({
   const [transactionDate, setTransactionDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [notes, setNotes] = useState('')
-  const [isDateClosed, setIsDateClosed] = useState(false)
-  const [closedBy, setClosedBy] = useState<string | null>(null)
-  const [checkingDate, setCheckingDate] = useState(false)
+  const [closedDatesSet, setClosedDatesSet] = useState<Set<string>>(new Set())
+  const [loadingDates, setLoadingDates] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [successOrder, setSuccessOrder] = useState<{ orderNumber: string; totalAmount: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const availableDates = getPast7Days()
+  const allDates = getPast7Days()
 
-  // Check if selected date's books are closed
+  // Fetch all closed dates on mount
   useEffect(() => {
-    if (!transactionDate || !businessId) {
-      setIsDateClosed(false)
-      setClosedBy(null)
-      return
-    }
-
+    if (!businessId) { setLoadingDates(false); return }
     let cancelled = false
-    setCheckingDate(true)
+    setLoadingDates(true)
 
-    fetch(`/api/universal/close-books?businessId=${businessId}&date=${transactionDate}`)
+    fetch(`/api/universal/close-books?businessId=${businessId}&days=7`)
       .then(res => res.json())
       .then(data => {
         if (cancelled) return
-        setIsDateClosed(data.isClosed || false)
-        setClosedBy(data.closedBy || null)
+        // Convert UTC dates from API to local dates to match the dropdown
+        // e.g., API returns "2026-02-09" (UTC) → browser in UTC-6 shows as Feb 8
+        const closed = new Set<string>((data.closedDates || []).map((d: any) => {
+          const utc = new Date(d.date + 'T00:00:00Z')
+          const yyyy = utc.getFullYear()
+          const mm = String(utc.getMonth() + 1).padStart(2, '0')
+          const dd = String(utc.getDate()).padStart(2, '0')
+          return `${yyyy}-${mm}-${dd}`
+        }))
+        setClosedDatesSet(closed)
       })
-      .catch(() => {
-        if (!cancelled) setIsDateClosed(false)
-      })
-      .finally(() => {
-        if (!cancelled) setCheckingDate(false)
-      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingDates(false) })
 
     return () => { cancelled = true }
-  }, [transactionDate, businessId])
+  }, [businessId])
+
+  const availableDates = allDates.filter(d => !closedDatesSet.has(d))
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
   const canSubmit =
     transactionDate &&
-    !isDateClosed &&
     !submitting &&
     items.length > 0
 
@@ -171,24 +173,20 @@ export function ManualOrderSummary({
           value={transactionDate}
           onChange={(e) => setTransactionDate(e.target.value)}
           className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          disabled={loadingDates}
         >
-          <option value="">Select date...</option>
+          <option value="">{loadingDates ? 'Loading dates...' : 'Select date...'}</option>
           {availableDates.map(date => (
             <option key={date} value={date}>
-              {date} {date === availableDates[0] ? '(Today)' : ''}
+              {date} {date === allDates[0] ? '(Today)' : ''}
             </option>
           ))}
         </select>
-
-        {checkingDate && (
-          <p className="text-xs text-gray-500 mt-1">Checking...</p>
-        )}
-
-        {isDateClosed && (
-          <div className="flex items-center gap-1 mt-1 p-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs">
-            <Lock className="w-3 h-3 text-red-500 flex-shrink-0" />
-            <span className="text-red-700 dark:text-red-400">
-              Books closed{closedBy ? ` by ${closedBy}` : ''}
+        {!loadingDates && availableDates.length === 0 && (
+          <div className="flex items-center gap-1 mt-1 p-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+            <Lock className="w-3 h-3 text-yellow-600 flex-shrink-0" />
+            <span className="text-yellow-700 dark:text-yellow-400">
+              All dates in the past 7 days are closed. Release a day first.
             </span>
           </div>
         )}
