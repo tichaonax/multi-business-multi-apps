@@ -115,6 +115,13 @@ export function NationalIdInput({
     return formatted
   }
 
+  // Common Zimbabwe national ID patterns (DD-DDDDDDDLDD or DD-DDDDDDDDDD)
+  const ZIMBABWE_ID_PATTERNS = [
+    /^\d{2}-\d{7}[A-Za-z]\d{2}$/,   // e.g. 27-2018980D27, 22-0216080A04
+    /^\d{2}-\d{6,7}[A-Za-z]\d{2,3}$/, // slight variations
+    /^\d{2}-\d{9,10}$/,               // all-numeric format
+  ]
+
   // Validate national ID against template
   const validateNationalId = (idValue: string, template?: IdFormatTemplate) => {
     if (!autoValidate || !template || !idValue) {
@@ -124,17 +131,24 @@ export function NationalIdInput({
 
     try {
       const regex = new RegExp(template.pattern)
-      if (!regex.test(idValue)) {
-        setValidationError(`Invalid format. Expected: ${template.example}`)
-        return false
+      if (regex.test(idValue)) {
+        setValidationError('')
+        return true
       }
+
+      // Fallback: check against common Zimbabwe ID patterns
+      const matchesZimFormat = ZIMBABWE_ID_PATTERNS.some(p => p.test(idValue))
+      if (matchesZimFormat) {
+        setValidationError('')
+        return true
+      }
+
+      setValidationError(`Invalid format. Expected: ${template.example}`)
+      return false
     } catch (e) {
       setValidationError('Invalid template pattern')
       return false
     }
-
-    setValidationError('')
-    return true
   }
 
   // Handle template change

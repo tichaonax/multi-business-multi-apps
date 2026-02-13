@@ -634,13 +634,20 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError, userId }
                         <label className="block text-sm font-medium text-secondary mb-1">
                           Role
                         </label>
-                        <input
-                          type="text"
+                        <select
                           value={newAssignment.role}
                           onChange={(e) => setNewAssignment({...newAssignment, role: e.target.value})}
-                          placeholder="Employee role in this business"
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
+                        >
+                          <option value="">Select a role</option>
+                          <option value="employee">Employee</option>
+                          <option value="restaurant-associate">Food Prep & POS Associate</option>
+                          <option value="grocery-associate">Grocery Shop Associate</option>
+                          <option value="clothing-associate">Clothing Shop Associate</option>
+                          <option value="business-manager">Business Manager</option>
+                          <option value="read-only">Read Only</option>
+                          <option value="business-owner">Business Owner</option>
+                        </select>
                       </div>
                     </div>
 

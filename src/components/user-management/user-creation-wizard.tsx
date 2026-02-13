@@ -236,12 +236,16 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
       }
     }
     
-    if (businessesToUse.length === 0) {
-      onError('No businesses available. Please create a business first.')
+    // Filter out businesses already assigned
+    const assignedIds = businessAssignments.map(a => a.businessId)
+    const unassignedBusinesses = businessesToUse.filter(b => !assignedIds.includes(b.businessId))
+
+    if (unassignedBusinesses.length === 0) {
+      onError('All businesses have already been assigned.')
       return
     }
-    
-    const firstAvailableBusiness = businessesToUse[0]
+
+    const firstAvailableBusiness = unassignedBusinesses[0]
     setBusinessAssignments([...businessAssignments, {
       businessId: firstAvailableBusiness.businessId,
       businessName: firstAvailableBusiness.businessName,
@@ -590,6 +594,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
                       key={index}
                       assignment={assignment}
                       availableBusinesses={availableBusinesses}
+                      assignedBusinessIds={businessAssignments.filter((_, i) => i !== index).map(a => a.businessId)}
                       permissionTemplates={permissionTemplates}
                       usersForCloning={usersForCloning}
                       loadingUsersForCloning={loadingUsersForCloning}
@@ -627,6 +632,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
 interface BusinessAssignmentCardProps {
   assignment: BusinessAssignment
   availableBusinesses: any[]
+  assignedBusinessIds: string[]
   permissionTemplates: PermissionTemplate[]
   usersForCloning: UserForCloning[]
   loadingUsersForCloning: boolean
@@ -638,6 +644,7 @@ interface BusinessAssignmentCardProps {
 function BusinessAssignmentCard({
   assignment,
   availableBusinesses,
+  assignedBusinessIds,
   permissionTemplates,
   usersForCloning,
   loadingUsersForCloning,
@@ -684,7 +691,9 @@ function BusinessAssignmentCard({
               })
             }}
           >
-            {availableBusinesses.map(business => (
+            {availableBusinesses
+              .filter(b => !assignedBusinessIds.includes(b.businessId))
+              .map(business => (
               <option key={business.businessId} value={business.businessId}>
                 {business.businessName}
               </option>
