@@ -269,75 +269,7 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'businessOrders': { fields: ['businessId', 'orderNumber'] }
 }
 
-/**
- * Tables with composite unique constraints AND child dependencies.
- * When restoring from a different machine, seeded data may have the same
- * unique key values but different IDs. We must replace the old record
- * (preserving the backup's ID) so that child records' FK references work.
- *
- * For each table: uniqueFields to find conflicts, and children to clear
- * before deleting the conflicting parent record.
- */
-const COMPOSITE_UNIQUE_WITH_CHILDREN: Record<string, {
-  uniqueFields: string[]
-  children: Array<{ table: string; fk: string }>
-}> = {
-  'businessCategories': {
-    uniqueFields: ['businessType', 'domainId', 'name'],
-    children: [
-      { table: 'inventorySubcategories', fk: 'categoryId' },
-      { table: 'businessProducts', fk: 'categoryId' }
-    ]
-  },
-  'expenseCategories': {
-    uniqueFields: ['domainId', 'name'],
-    children: [
-      { table: 'expenseSubcategories', fk: 'categoryId' }
-    ]
-  },
-  'inventorySubcategories': {
-    uniqueFields: ['categoryId', 'name'],
-    children: [
-      { table: 'businessProducts', fk: 'subcategoryId' }
-    ]
-  },
-  'expenseSubcategories': {
-    uniqueFields: ['categoryId', 'name'],
-    children: []
-  },
-  'businessSuppliers': {
-    uniqueFields: ['businessType', 'supplierNumber'],
-    children: [
-      { table: 'supplierProducts', fk: 'supplierId' }
-    ]
-  },
-  'businessBrands': {
-    uniqueFields: ['businessId', 'name'],
-    children: [
-      { table: 'businessProducts', fk: 'brandId' }
-    ]
-  },
-  'businessLocations': {
-    uniqueFields: ['businessId', 'locationCode'],
-    children: [
-      { table: 'businessProducts', fk: 'locationId' }
-    ]
-  }
-}
-
-/**
- * Parent tables with single-field unique constraints that have child dependencies.
- * When the backup's ID differs from the existing record's ID, we must delete
- * children first, then replace the parent to preserve the backup's ID.
- */
-const SINGLE_UNIQUE_WITH_CHILDREN: Record<string, Array<{ table: string; fk: string }>> = {
-  'inventoryDomains': [
-    { table: 'businessCategories', fk: 'domainId' }
-  ],
-  'expenseDomains': [
-    { table: 'expenseCategories', fk: 'domainId' }
-  ]
-}
+// (Composite unique and child dependency configs removed — replaced by ID remapping approach)
 
 /**
  * Model name mappings (backup table names to Prisma model names)
@@ -372,38 +304,6 @@ function findPrismaModelName(prisma: AnyPrismaClient, name: string): string {
   }
 
   return name
-}
-
-/**
- * Replace an existing record that has a different ID from the backup.
- * Deletes child records first (they'll be re-created from backup later),
- * then deletes the old parent and creates with the backup's ID.
- */
-async function replaceWithBackupId(
-  prisma: AnyPrismaClient,
-  model: any,
-  tableName: string,
-  existingId: string,
-  recordToInsert: any,
-  children: Array<{ table: string; fk: string }>
-): Promise<void> {
-  // Delete child records that reference the OLD ID (they'll be restored from backup)
-  for (const child of children) {
-    const childModelName = findPrismaModelName(prisma, child.table)
-    const childModel = prisma[childModelName]
-    if (childModel && typeof childModel.deleteMany === 'function') {
-      const deleted = await childModel.deleteMany({
-        where: { [child.fk]: existingId }
-      })
-      if (deleted.count > 0) {
-        console.log(`[restore-clean] Cleared ${deleted.count} ${child.table} records referencing old ${tableName} ID ${existingId}`)
-      }
-    }
-  }
-
-  // Delete the old record and create with backup's ID
-  await model.delete({ where: { id: existingId } })
-  await model.create({ data: recordToInsert })
 }
 
 /**
@@ -492,6 +392,125 @@ export async function restoreCleanBackup(
     dataSources.push({ source: backupData.deviceData, sourceType: 'device' })
   }
 
+  // === ID REMAPPING for cross-machine restores ===
+  // When restoring from a different machine, reference data (domains, categories, etc.) may exist
+  // on the target with different UUIDs but same unique key values. Instead of deleting target data,
+  // we build a mapping: backup_id → target_id. Then for every record being restored, we remap
+  // FK fields to use the target's IDs. This preserves ALL target data.
+  const idRemap: Map<string, string> = new Map()
+
+  if (!isSameDevice) {
+    console.log('[restore-clean] Cross-machine restore — building ID remap for reference data...')
+    const bd = backupData.businessData || backupData
+
+    // Build remap for tables with single-field unique constraints (name-based)
+    const SINGLE_UNIQUE_REMAP: Record<string, string> = {
+      'inventoryDomains': 'name',
+      'expenseDomains': 'name',
+      'projectTypes': 'name',
+      'benefitTypes': 'name',
+      'compensationTypes': 'name',
+      'jobTitles': 'title',
+      'permissions': 'name',
+    }
+
+    for (const [tableName, uniqueField] of Object.entries(SINGLE_UNIQUE_REMAP)) {
+      const backupRecords = bd[tableName]
+      if (!backupRecords || !Array.isArray(backupRecords) || backupRecords.length === 0) continue
+
+      const modelName = findPrismaModelName(prisma, tableName)
+      const model = prisma[modelName]
+      if (!model || typeof model.findFirst !== 'function') continue
+
+      for (const record of backupRecords) {
+        if (!record.id || !record[uniqueField]) continue
+        try {
+          const existing = await model.findFirst({
+            where: { [uniqueField]: record[uniqueField] },
+            select: { id: true }
+          })
+          if (existing && existing.id !== record.id) {
+            idRemap.set(record.id, existing.id)
+          }
+        } catch { /* skip on error */ }
+      }
+    }
+
+    // Build remap for tables with composite unique constraints
+    const COMPOSITE_UNIQUE_REMAP: Record<string, string[]> = {
+      'businessCategories': ['businessType', 'name'],  // domainId excluded — it may itself be remapped
+      'expenseCategories': ['name'],                    // domainId excluded — may be remapped
+      'inventorySubcategories': ['name'],               // categoryId excluded — may be remapped
+      'expenseSubcategories': ['name'],                 // categoryId excluded — may be remapped
+    }
+
+    // Process in dependency order so parent remaps are available for children
+    const REMAP_ORDER = ['businessCategories', 'expenseCategories', 'inventorySubcategories', 'expenseSubcategories']
+
+    for (const tableName of REMAP_ORDER) {
+      const uniqueFields = COMPOSITE_UNIQUE_REMAP[tableName]
+      if (!uniqueFields) continue
+
+      const backupRecords = bd[tableName]
+      if (!backupRecords || !Array.isArray(backupRecords) || backupRecords.length === 0) continue
+
+      const modelName = findPrismaModelName(prisma, tableName)
+      const model = prisma[modelName]
+      if (!model || typeof model.findFirst !== 'function') continue
+
+      for (const record of backupRecords) {
+        if (!record.id) continue
+
+        // Build where clause using unique fields + any FK fields (remapped)
+        const whereClause: Record<string, any> = {}
+        let hasAllFields = true
+
+        // Add the simple unique fields
+        for (const field of uniqueFields) {
+          if (record[field] !== undefined && record[field] !== null) {
+            whereClause[field] = record[field]
+          } else {
+            hasAllFields = false
+            break
+          }
+        }
+
+        // Add FK fields (remapped) for more precise matching
+        if (tableName === 'businessCategories' && record.domainId) {
+          whereClause.domainId = idRemap.get(record.domainId) || record.domainId
+        }
+        if (tableName === 'expenseCategories' && record.domainId) {
+          whereClause.domainId = idRemap.get(record.domainId) || record.domainId
+        }
+        if (tableName === 'inventorySubcategories' && record.categoryId) {
+          whereClause.categoryId = idRemap.get(record.categoryId) || record.categoryId
+        }
+        if (tableName === 'expenseSubcategories' && record.categoryId) {
+          whereClause.categoryId = idRemap.get(record.categoryId) || record.categoryId
+        }
+
+        if (!hasAllFields) continue
+
+        try {
+          const existing = await model.findFirst({
+            where: whereClause,
+            select: { id: true }
+          })
+          if (existing && existing.id !== record.id) {
+            idRemap.set(record.id, existing.id)
+          }
+        } catch { /* skip on error */ }
+      }
+    }
+
+    console.log(`[restore-clean] ID remap built: ${idRemap.size} IDs need remapping`)
+    if (VERBOSE_LOGGING) {
+      for (const [from, to] of idRemap) {
+        console.log(`  ${from} → ${to}`)
+      }
+    }
+  }
+
   // Track self-referential updates for second pass
   const selfRefUpdates: Array<{ tableName: string; recordId: string; updates: Record<string, any> }> = []
 
@@ -566,7 +585,7 @@ export async function restoreCleanBackup(
         for (let i = 0; i < cleanedBatch.length; i++) {
           const record = cleanedBatch[i]
           const globalIndex = batchStart + i
-          const recordId = record.id
+          let recordId = record.id
 
           modelCounts[tableName].attempted++
 
@@ -608,6 +627,32 @@ export async function restoreCleanBackup(
               }
             }
 
+            // === FK REMAPPING ===
+            // For cross-machine restores, remap FK fields that reference IDs from the
+            // source machine to the corresponding IDs on the target machine.
+            // Also remap the record's own ID if it's in the mapping (i.e., the target
+            // already has a record with the same unique key but different ID).
+            if (idRemap.size > 0) {
+              // Remap the record's own ID if needed
+              const remappedId = idRemap.get(recordToInsert.id)
+              if (remappedId) {
+                recordToInsert.id = remappedId
+              }
+
+              // Remap all FK fields (any field ending in 'Id' except 'id' itself)
+              for (const key of Object.keys(recordToInsert)) {
+                if (key !== 'id' && key.endsWith('Id') && typeof recordToInsert[key] === 'string') {
+                  const remapped = idRemap.get(recordToInsert[key])
+                  if (remapped) {
+                    recordToInsert[key] = remapped
+                  }
+                }
+              }
+
+              // Update recordId to match the remapped ID for upsert where clauses
+              recordId = recordToInsert.id
+            }
+
             // Use upsert to create or update
             // IMPORTANT: Preserves original IDs and timestamps
             // - create: record → Uses original ID, createdAt, updatedAt
@@ -619,40 +664,7 @@ export async function restoreCleanBackup(
             // because child records reference it. If an existing record has a different ID,
             // we must delete it first and recreate with the backup's ID.
 
-            // === GENERIC: Tables with composite unique constraints + child dependencies ===
-            // Handles cross-machine restore where seeded data has same names but different IDs
-            const compositeConfig = COMPOSITE_UNIQUE_WITH_CHILDREN[tableName]
-            if (compositeConfig) {
-              // Build where clause from unique fields
-              const whereClause: Record<string, any> = {}
-              let hasAllFields = true
-              for (const field of compositeConfig.uniqueFields) {
-                if (record[field] !== undefined && record[field] !== null) {
-                  whereClause[field] = record[field]
-                } else {
-                  hasAllFields = false
-                  break
-                }
-              }
-
-              if (hasAllFields) {
-                const existing = await model.findFirst({ where: whereClause })
-                if (existing && existing.id !== recordId) {
-                  // Different ID - replace with backup's ID (clear children first)
-                  if (VERBOSE_LOGGING) console.log(`[restore-clean] ${tableName}: Replacing ID ${existing.id} → ${recordId}`)
-                  await replaceWithBackupId(prisma, model, tableName, existing.id, recordToInsert, compositeConfig.children)
-                } else if (existing) {
-                  // Same ID - just update
-                  await model.update({ where: { id: existing.id }, data: recordToInsert })
-                } else {
-                  // Doesn't exist - create
-                  await model.create({ data: recordToInsert })
-                }
-              } else {
-                // Missing unique fields, fallback to upsert by id
-                await model.upsert({ where: { id: recordId }, create: recordToInsert, update: recordToInsert })
-              }
-            } else if (tableName === 'emojiLookup') {
+            if (tableName === 'emojiLookup') {
               // EmojiLookup has unique constraint on [emoji, description]
               // This table has no child references, so simple upsert is fine
               await model.upsert({
@@ -670,8 +682,8 @@ export async function restoreCleanBackup(
               // CRITICAL: r710TokenConfigs references r710Wlans.id, so we must preserve backup ID
               const existing = await model.findFirst({
                 where: {
-                  deviceRegistryId: record.deviceRegistryId,
-                  wlanId: record.wlanId
+                  deviceRegistryId: recordToInsert.deviceRegistryId,
+                  wlanId: recordToInsert.wlanId
                 }
               })
 
@@ -691,8 +703,8 @@ export async function restoreCleanBackup(
               // R710BusinessIntegrations has unique constraint on [businessId, deviceRegistryId]
               const existing = await model.findFirst({
                 where: {
-                  businessId: record.businessId,
-                  deviceRegistryId: record.deviceRegistryId
+                  businessId: recordToInsert.businessId,
+                  deviceRegistryId: recordToInsert.deviceRegistryId
                 }
               })
 
@@ -709,13 +721,13 @@ export async function restoreCleanBackup(
               // R710BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigId]
               const existing = await model.findFirst({
                 where: {
-                  businessId: record.businessId,
-                  tokenConfigId: record.tokenConfigId
+                  businessId: recordToInsert.businessId,
+                  tokenConfigId: recordToInsert.tokenConfigId
                 }
               })
 
-              if (existing && existing.id !== record.id) {
-                if (VERBOSE_LOGGING) console.log(`[restore-clean] r710BusinessTokenMenuItems: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+              if (existing && existing.id !== recordId) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] r710BusinessTokenMenuItems: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
                 await model.create({ data: recordToInsert })
               } else if (existing) {
@@ -727,13 +739,13 @@ export async function restoreCleanBackup(
               // ESP32 BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigurationId]
               const existing = await model.findFirst({
                 where: {
-                  businessId: record.businessId,
-                  tokenConfigurationId: record.tokenConfigurationId
+                  businessId: recordToInsert.businessId,
+                  tokenConfigurationId: recordToInsert.tokenConfigurationId
                 }
               })
 
-              if (existing && existing.id !== record.id) {
-                if (VERBOSE_LOGGING) console.log(`[restore-clean] businessTokenMenuItems: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+              if (existing && existing.id !== recordId) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] businessTokenMenuItems: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
                 await model.create({ data: recordToInsert })
               } else if (existing) {
@@ -745,13 +757,13 @@ export async function restoreCleanBackup(
               // EmployeeBusinessAssignments has unique constraint on [employeeId, businessId]
               const existing = await model.findFirst({
                 where: {
-                  employeeId: record.employeeId,
-                  businessId: record.businessId
+                  employeeId: recordToInsert.employeeId,
+                  businessId: recordToInsert.businessId
                 }
               })
 
-              if (existing && existing.id !== record.id) {
-                if (VERBOSE_LOGGING) console.log(`[restore-clean] employeeBusinessAssignments: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+              if (existing && existing.id !== recordId) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] employeeBusinessAssignments: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
                 await model.create({ data: recordToInsert })
               } else if (existing) {
@@ -763,13 +775,13 @@ export async function restoreCleanBackup(
               // BusinessMemberships has unique constraint on [userId, businessId]
               const existing = await model.findFirst({
                 where: {
-                  userId: record.userId,
-                  businessId: record.businessId
+                  userId: recordToInsert.userId,
+                  businessId: recordToInsert.businessId
                 }
               })
 
-              if (existing && existing.id !== record.id) {
-                if (VERBOSE_LOGGING) console.log(`[restore-clean] businessMemberships: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+              if (existing && existing.id !== recordId) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] businessMemberships: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
                 await model.create({ data: recordToInsert })
               } else if (existing) {
@@ -781,13 +793,13 @@ export async function restoreCleanBackup(
               // UserPermissions has unique constraint on [userId, permissionId]
               const existing = await model.findFirst({
                 where: {
-                  userId: record.userId,
-                  permissionId: record.permissionId
+                  userId: recordToInsert.userId,
+                  permissionId: recordToInsert.permissionId
                 }
               })
 
-              if (existing && existing.id !== record.id) {
-                if (VERBOSE_LOGGING) console.log(`[restore-clean] userPermissions: Replacing existing record (${existing.id}) with backup record (${record.id})`)
+              if (existing && existing.id !== recordId) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] userPermissions: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
                 await model.create({ data: recordToInsert })
               } else if (existing) {
@@ -809,7 +821,7 @@ export async function restoreCleanBackup(
               } else {
                 // Check for conflict by username (handles old unique constraint on just username)
                 const existingByUsername = await model.findFirst({
-                  where: { username: record.username }
+                  where: { username: recordToInsert.username }
                 })
 
                 if (existingByUsername) {
@@ -824,7 +836,7 @@ export async function restoreCleanBackup(
             } else if (tableName === 'wifiTokens') {
               // WifiTokens (ESP32) has unique constraint on [token] field
               const existing = await model.findFirst({
-                where: { token: record.token }
+                where: { token: recordToInsert.token }
               })
 
               if (existing && existing.id !== record.id) {
@@ -839,24 +851,13 @@ export async function restoreCleanBackup(
             } else if (uniqueConstraint) {
               // Handle tables with unique constraints on non-ID fields
               if (typeof uniqueConstraint === 'string' && record[uniqueConstraint]) {
-                // Single-field unique constraint
+                // Single-field unique constraint — find by unique field, then upsert
                 const existing = await model.findFirst({
                   where: { [uniqueConstraint]: record[uniqueConstraint] }
                 })
 
-                if (existing && existing.id !== recordId) {
-                  // Different ID — need to replace to preserve backup's ID
-                  const childDeps = SINGLE_UNIQUE_WITH_CHILDREN[tableName] || []
-                  if (childDeps.length > 0) {
-                    await replaceWithBackupId(prisma, model, tableName, existing.id, recordToInsert, childDeps)
-                  } else {
-                    // No known children — safe to delete and recreate
-                    await model.delete({ where: { id: existing.id } })
-                    await model.create({ data: recordToInsert })
-                  }
-                  if (VERBOSE_LOGGING) console.log(`[restore-clean] ${tableName}: Replaced ID ${existing.id} → ${recordId}`)
-                } else if (existing) {
-                  // Same ID — just update
+                if (existing) {
+                  // Update existing record (ID remapping already applied to recordToInsert)
                   await model.update({
                     where: { id: existing.id },
                     data: recordToInsert
@@ -882,12 +883,8 @@ export async function restoreCleanBackup(
                 if (hasAllFields) {
                   const existing = await model.findFirst({ where: whereClause })
 
-                  if (existing && existing.id !== recordId) {
-                    // Different ID — delete and recreate to preserve backup's ID
-                    await model.delete({ where: { id: existing.id } })
-                    await model.create({ data: recordToInsert })
-                    if (VERBOSE_LOGGING) console.log(`[restore-clean] ${tableName}: Replaced ID ${existing.id} → ${recordId}`)
-                  } else if (existing) {
+                  if (existing) {
+                    // Update existing record (ID remapping already applied)
                     await model.update({
                       where: { id: existing.id },
                       data: recordToInsert
@@ -998,11 +995,18 @@ export async function restoreCleanBackup(
         const model = prisma[modelName]
 
         if (model && typeof model.update === 'function') {
+          // Remap IDs in self-ref updates for cross-machine restores
+          const remappedRecordId = idRemap.get(recordId) || recordId
+          const remappedUpdates: Record<string, any> = {}
+          for (const [key, value] of Object.entries(updates)) {
+            remappedUpdates[key] = (typeof value === 'string' && idRemap.get(value)) || value
+          }
+
           await model.update({
-            where: { id: recordId },
-            data: updates
+            where: { id: remappedRecordId },
+            data: remappedUpdates
           })
-          console.log(`[restore-clean] Updated ${tableName} ${recordId} with self-ref FK: ${JSON.stringify(updates)}`)
+          console.log(`[restore-clean] Updated ${tableName} ${remappedRecordId} with self-ref FK: ${JSON.stringify(remappedUpdates)}`)
         }
       } catch (error: any) {
         const errorMsg = error.message || 'Unknown error'
