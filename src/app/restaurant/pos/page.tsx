@@ -539,7 +539,7 @@ export default function RestaurantPOS() {
       // Fetch products, purchase statistics, WiFi tokens, and menu combos in parallel
       const [productsResponse, statsResponse, wifiTokensResponse, combosResponse] = await Promise.all([
         fetch(`/api/universal/products?${queryParams.toString()}`),
-        fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId || ''}`),
+        fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId || ''}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
         currentBusinessId ? fetch(`/api/business/${currentBusinessId}/wifi-tokens`) : Promise.resolve({ ok: false }),
         currentBusinessId ? fetch(`/api/universal/menu-combos?businessId=${currentBusinessId}`) : Promise.resolve({ ok: false })
       ])
@@ -1093,7 +1093,7 @@ export default function RestaurantPOS() {
     if (!currentBusinessId) return
 
     try {
-      const response = await fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}`)
+      const response = await fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
       if (response.ok) {
         const data = await response.json()
         setDailySales(data.data)
@@ -1108,6 +1108,38 @@ export default function RestaurantPOS() {
     if (currentBusinessId && isRestaurantBusiness) {
       loadDailySales()
     }
+  }, [currentBusinessId, isRestaurantBusiness])
+
+  // Periodic refresh of stats (daily sales + sold today counts) every 30s for multi-user accuracy
+  useEffect(() => {
+    if (!currentBusinessId || !isRestaurantBusiness) return
+
+    const interval = setInterval(async () => {
+      // Refresh daily sales summary
+      loadDailySales()
+
+      // Lightweight refresh of product sold-today counts (without reloading full product list)
+      try {
+        const statsResponse = await fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId}`)
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json()
+          if (statsData.success && statsData.data) {
+            const soldTodayCounts: Record<string, number> = {}
+            statsData.data.forEach((item: any) => {
+              soldTodayCounts[item.productId] = item.soldToday || 0
+            })
+            setMenuItems(prev => prev.map(item => ({
+              ...item,
+              soldToday: soldTodayCounts[item.id] || 0
+            })))
+          }
+        }
+      } catch (error) {
+        console.error('[POS] Stats refresh failed:', error)
+      }
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [currentBusinessId, isRestaurantBusiness])
 
   // Reload daily sales and menu items after completing an order

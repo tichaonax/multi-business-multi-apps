@@ -764,7 +764,7 @@ export async function POST(request: NextRequest) {
               return expirationDate
             }
 
-            // Find available R710 tokens (AVAILABLE status, not yet sold)
+            // Find available R710 tokens (AVAILABLE status, not yet sold, not expired)
             for (let i = 0; i < itemQuantity; i++) {
               try {
                 const availableR710Token = await tx.r710Tokens.findFirst({
@@ -774,7 +774,11 @@ export async function POST(request: NextRequest) {
                     status: 'AVAILABLE',
                     r710_token_sales: {
                       none: {} // No sales records = not sold
-                    }
+                    },
+                    OR: [
+                      { expiresAtR710: null },         // No expiry set
+                      { expiresAtR710: { gte: new Date() } }  // Not yet expired
+                    ]
                   }
                 })
 

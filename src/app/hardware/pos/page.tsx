@@ -70,7 +70,7 @@ export default function HardwarePOSPage() {
     if (!currentBusinessId) return
 
     try {
-      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=hardware`)
+      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=hardware&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
       if (response.ok) {
         const data = await response.json()
         setDailySales(data.data)
@@ -93,6 +93,13 @@ export default function HardwarePOSPage() {
     if (currentBusinessId && isHardwareBusiness) {
       loadDailySales()
     }
+  }, [currentBusinessId, isHardwareBusiness])
+
+  // Periodic refresh of daily sales every 30s for multi-user accuracy
+  useEffect(() => {
+    if (!currentBusinessId || !isHardwareBusiness) return
+    const interval = setInterval(() => loadDailySales(), 30000)
+    return () => clearInterval(interval)
   }, [currentBusinessId, isHardwareBusiness])
 
   // Auto-open customer display and send greeting/context on mount

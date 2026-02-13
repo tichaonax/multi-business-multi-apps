@@ -1277,6 +1277,79 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
   }
 
   /**
+   * Get guest service configuration from device, including validDays.
+   * Parses the XML response to extract the 'valid' attribute.
+   */
+  async getGuestServiceConfig(guestServiceId: string): Promise<{ validDays?: number; title?: string; logoType?: string; name?: string } | null> {
+    try {
+      if (!this.isAuthenticated) {
+        const loginResult = await this.login();
+        if (!loginResult.success) throw new Error('Authentication failed');
+        await this.initializeSession();
+      }
+
+      const updaterId = this.generateUpdaterId('guestservice-list');
+      const getPayload = `<ajax-request action='getconf' DECRYPT_X='true' caller='unleashed_web' updater='${updaterId}' comp='guestservice-list'/>`;
+
+      const response = await this.client.post('/admin/_conf.jsp', getPayload, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-CSRF-Token': this.csrfToken || '',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': `${this.baseUrl}/admin/dashboard.jsp`
+        }
+      });
+
+      const responseText = response.data;
+      console.log(`[R710] getGuestServiceConfig: response length=${responseText.length}, looking for guestServiceId="${guestServiceId}"`);
+
+      // Find the guest service by ID - try id before and after other attributes
+      const gsRegex1 = new RegExp(`<guestservice[^>]*\\sid=["']${guestServiceId}["'][^>]*`, 'i');
+      const gsRegex2 = new RegExp(`<guestservice[^>]*\\bid=["']${guestServiceId}["'][^>]*`, 'i');
+      let gsMatch = responseText.match(gsRegex1) || responseText.match(gsRegex2);
+
+      if (!gsMatch) {
+        // Fallback: search for any guestservice tag containing id= with our value
+        const fallbackRegex = new RegExp(`<guestservice\\b[^>]*?id\\s*=\\s*["']?${guestServiceId}["']?[^>]*`, 'i');
+        gsMatch = responseText.match(fallbackRegex);
+      }
+
+      if (!gsMatch) {
+        // Debug: log what guest services ARE in the response
+        const allIds = responseText.match(/guestservice[^>]*id=["']?(\d+)["']?/gi);
+        console.log(`[R710] Guest Service ${guestServiceId} not found. Available IDs in response:`, allIds?.map(m => m.match(/id=["']?(\d+)["']?/)?.[1]) || 'none');
+        console.log(`[R710] Response snippet (first 500 chars):`, responseText.substring(0, 500));
+        return null;
+      }
+
+      const block = gsMatch[0];
+      console.log(`[R710] Matched guest service tag (first 300 chars):`, block.substring(0, 300));
+
+      // Parse valid (validDays) - handle valid='14', valid="14", or valid=14
+      const validMatch = block.match(/\bvalid\s*=\s*["']?(\d+)["']?/);
+      const validDays = validMatch ? parseInt(validMatch[1], 10) : undefined;
+
+      // Parse title
+      const titleMatch = block.match(/\btitle\s*=\s*["']([^"']*?)["']/);
+      const title = titleMatch ? titleMatch[1] : undefined;
+
+      // Parse logo-type
+      const logoMatch = block.match(/\blogo-type\s*=\s*["']([^"']*?)["']/);
+      const logoType = logoMatch ? logoMatch[1] : undefined;
+
+      // Parse name
+      const nameMatch = block.match(/\bname\s*=\s*["']([^"']*?)["']/);
+      const name = nameMatch ? nameMatch[1] : undefined;
+
+      console.log(`[R710] Guest Service ${guestServiceId} config from device: validDays=${validDays}, title="${title}", logoType=${logoType}, name="${name}"`);
+      return { validDays, title, logoType, name };
+    } catch (error) {
+      console.error('[R710] Failed to get guest service config:', error);
+      return null;
+    }
+  }
+
+  /**
    * Token Management Methods
    */
 

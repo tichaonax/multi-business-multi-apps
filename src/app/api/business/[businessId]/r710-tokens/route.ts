@@ -96,8 +96,26 @@ export async function GET(
       ],
     });
 
-    // Get available token counts per config
+    // Expire tokens that have passed their expiresAtR710 timestamp
     const configIds = menuItems.map(item => item.r710_token_configs.id);
+    const now = new Date();
+    const expiredResult = await prisma.r710Tokens.updateMany({
+      where: {
+        businessId: businessId,
+        tokenConfigId: { in: configIds },
+        status: 'AVAILABLE',
+        expiresAtR710: { lt: now },
+      },
+      data: {
+        status: 'EXPIRED',
+        updatedAt: now,
+      },
+    });
+    if (expiredResult.count > 0) {
+      console.log(`[R710 Tokens] Expired ${expiredResult.count} tokens for business ${businessId}`);
+    }
+
+    // Get available token counts per config (only non-expired)
     const availableCounts = await prisma.r710Tokens.groupBy({
       by: ['tokenConfigId'],
       where: {

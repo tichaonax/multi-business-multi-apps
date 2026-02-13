@@ -5,14 +5,27 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
+    const timezone = searchParams.get('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone
 
     if (!businessId) {
       return NextResponse.json({ success: true, data: [] })
     }
 
-    // Today at midnight (server local time) — resets daily
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    // Today at midnight in the client's timezone
+    const now = new Date()
+    const dateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now)
+    const [year, month, day] = dateStr.split('-').map(Number)
+    const midnightUTC = Date.UTC(year, month - 1, day, 0, 0, 0)
+    // Get timezone offset at midnight
+    const utcStr = new Date(midnightUTC).toLocaleString('en-US', { timeZone: 'UTC' })
+    const tzStr = new Date(midnightUTC).toLocaleString('en-US', { timeZone: timezone })
+    const offsetMs = new Date(tzStr).getTime() - new Date(utcStr).getTime()
+    const todayStart = new Date(midnightUTC - offsetMs)
 
     // Query ALL of today's order items for this business (including those without variants)
     const todayItems = await prisma.businessOrderItems.findMany({

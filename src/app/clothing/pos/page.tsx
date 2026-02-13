@@ -79,7 +79,7 @@ export default function ClothingPOSPage() {
     if (!currentBusinessId) return
 
     try {
-      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=clothing`)
+      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=clothing&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
       if (response.ok) {
         const data = await response.json()
         setDailySales(data.data)
@@ -102,6 +102,13 @@ export default function ClothingPOSPage() {
     if (currentBusinessId && isClothingBusiness) {
       loadDailySales()
     }
+  }, [currentBusinessId, isClothingBusiness])
+
+  // Periodic refresh of daily sales every 30s for multi-user accuracy
+  useEffect(() => {
+    if (!currentBusinessId || !isClothingBusiness) return
+    const interval = setInterval(() => loadDailySales(), 30000)
+    return () => clearInterval(interval)
   }, [currentBusinessId, isClothingBusiness])
 
   // Auto-open customer display and send greeting/context on mount

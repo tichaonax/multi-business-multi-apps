@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[R710 Sync] Found WLAN record: ${wlanRecord.wlanId} - Current SSID: ${wlanRecord.ssid}`);
+    console.log(`[R710 Sync] Found WLAN record: wlanId=${wlanRecord.wlanId}, guestServiceId=${wlanRecord.guestServiceId}, SSID=${wlanRecord.ssid}, validDays=${wlanRecord.validDays}`);
 
     // Get device details
     const device = integration.device_registry;
@@ -107,12 +107,52 @@ export async function POST(request: NextRequest) {
 
     console.log(`[R710 Sync] Device WLAN: ${deviceWlan.name} - SSID: ${deviceWlan.ssid}`);
 
-    // Check if SSID matches
-    if (deviceWlan.ssid === wlanRecord.ssid) {
-      console.log(`[R710 Sync] SSID unchanged: ${deviceWlan.ssid}`);
+    // Also fetch guest service config from device (contains validDays, title, logoType)
+    console.log(`[R710 Sync] Fetching guest service config for guestServiceId="${wlanRecord.guestServiceId}"...`);
+    let guestServiceConfig: { validDays?: number; title?: string; logoType?: string; name?: string } | null = null;
+    let guestServiceError: string | null = null;
+    try {
+      guestServiceConfig = await r710Service.getGuestServiceConfig(wlanRecord.guestServiceId);
+      console.log(`[R710 Sync] Guest service config from device:`, JSON.stringify(guestServiceConfig));
+    } catch (err) {
+      guestServiceError = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[R710 Sync] Failed to fetch guest service config:`, guestServiceError);
+    }
+
+    // Build updates for any fields that differ
+    const updates: Record<string, any> = {};
+    let changes: string[] = [];
+
+    // Check SSID
+    const ssidChanged = deviceWlan.ssid !== wlanRecord.ssid;
+
+    // Check guest service fields
+    if (guestServiceConfig) {
+      if (guestServiceConfig.validDays !== undefined && guestServiceConfig.validDays !== wlanRecord.validDays) {
+        updates.validDays = guestServiceConfig.validDays;
+        changes.push(`validDays: ${wlanRecord.validDays} → ${guestServiceConfig.validDays}`);
+      }
+      if (guestServiceConfig.title && guestServiceConfig.title !== wlanRecord.title) {
+        updates.title = guestServiceConfig.title;
+        changes.push(`title: "${wlanRecord.title}" → "${guestServiceConfig.title}"`);
+      }
+      if (guestServiceConfig.logoType && guestServiceConfig.logoType !== wlanRecord.logoType) {
+        updates.logoType = guestServiceConfig.logoType;
+        changes.push(`logoType: ${wlanRecord.logoType} → ${guestServiceConfig.logoType}`);
+      }
+    }
+
+    // If SSID changed, require user confirmation (existing behavior)
+    if (ssidChanged) {
+      console.log(`[R710 Sync] SSID mismatch detected: expected "${wlanRecord.ssid}" but found "${deviceWlan.ssid}"`);
+
       return NextResponse.json({
-        message: 'WLAN configuration is already up to date',
+        message: 'SSID mismatch detected. The WLAN on the device has a different name.',
         changed: false,
+        warning: 'SSID_MISMATCH',
+        expectedSsid: wlanRecord.ssid,
+        deviceSsid: deviceWlan.ssid,
+        pendingUpdates: updates,
         wlan: {
           wlanId: wlanRecord.wlanId,
           ssid: wlanRecord.ssid
@@ -120,18 +160,31 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // SSID mismatch detected - this could be:
-    // 1. WLAN was renamed on R710 (user should confirm)
-    // 2. Original WLAN was deleted and a different one now has this ID (mismatch)
-    console.log(`[R710 Sync] SSID mismatch detected: expected "${wlanRecord.ssid}" but found "${deviceWlan.ssid}"`);
+    // No SSID change - apply any other field updates silently
+    if (Object.keys(updates).length > 0) {
+      updates.updatedAt = new Date();
+      await prisma.r710Wlans.update({
+        where: { id: wlanRecord.id },
+        data: updates
+      });
 
-    // Don't auto-update - return mismatch warning for user to decide
+      console.log(`[R710 Sync] Updated fields: ${changes.join(', ')}`);
+      return NextResponse.json({
+        message: `WLAN configuration synced from device. Updated: ${changes.join(', ')}`,
+        changed: true,
+        changes,
+        wlan: {
+          wlanId: wlanRecord.wlanId,
+          ssid: wlanRecord.ssid,
+          ...updates
+        }
+      });
+    }
+
+    console.log(`[R710 Sync] Everything up to date`);
     return NextResponse.json({
-      message: 'SSID mismatch detected. The WLAN on the device has a different name.',
+      message: 'WLAN configuration is already up to date',
       changed: false,
-      warning: 'SSID_MISMATCH',
-      expectedSsid: wlanRecord.ssid,
-      deviceSsid: deviceWlan.ssid,
       wlan: {
         wlanId: wlanRecord.wlanId,
         ssid: wlanRecord.ssid
@@ -162,7 +215,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { businessId, newSsid } = body;
+    const { businessId, newSsid, pendingUpdates } = body;
 
     if (!businessId || !newSsid) {
       return NextResponse.json(
@@ -215,13 +268,22 @@ export async function PATCH(request: NextRequest) {
 
     const previousSsid = wlanRecord.ssid;
 
-    // Update database with new SSID
+    // Update database with new SSID and any pending guest service updates
+    const updateData: Record<string, any> = {
+      ssid: newSsid,
+      updatedAt: new Date()
+    };
+
+    // Apply pending updates from sync (validDays, title, logoType)
+    if (pendingUpdates) {
+      if (pendingUpdates.validDays !== undefined) updateData.validDays = pendingUpdates.validDays;
+      if (pendingUpdates.title !== undefined) updateData.title = pendingUpdates.title;
+      if (pendingUpdates.logoType !== undefined) updateData.logoType = pendingUpdates.logoType;
+    }
+
     const updatedWlan = await prisma.r710Wlans.update({
       where: { id: wlanRecord.id },
-      data: {
-        ssid: newSsid,
-        updatedAt: new Date()
-      }
+      data: updateData
     });
 
     console.log(`[R710 Sync] SSID updated: "${previousSsid}" → "${newSsid}"`);

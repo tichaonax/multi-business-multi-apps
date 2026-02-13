@@ -10,39 +10,34 @@ import { prisma } from '@/lib/prisma'
 import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
-// Get today's business day (considering 5AM cutoff)
-function getTodayBusinessDay(timezone: string = 'America/New_York'): { start: Date; end: Date; dateStr: string } {
+/**
+ * Get the UTC offset in ms for an IANA timezone at a given moment.
+ */
+function getTimezoneOffsetMs(timezone: string, date: Date = new Date()): number {
+  const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' })
+  const tzStr = date.toLocaleString('en-US', { timeZone: timezone })
+  return new Date(tzStr).getTime() - new Date(utcStr).getTime()
+}
+
+/**
+ * Get today's midnight-to-midnight boundary in a given IANA timezone,
+ * returned as UTC Date objects for use in DB queries.
+ */
+function getTodayInTimezone(timezone: string): { start: Date; end: Date; dateStr: string } {
   const now = new Date()
 
-  // Get current hour in timezone
-  const hourFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    hour: '2-digit',
-    hour12: false,
-  })
-  const hourStr = hourFormatter.format(now)
-  const currentHour = parseInt(hourStr, 10)
-
-  // If before 5AM, use previous day
-  let businessDayDate = now
-  if (currentHour < 5) {
-    businessDayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  }
-
-  // Get date string
-  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+  const dateStr = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  })
-  const dateStr = dateFormatter.format(businessDayDate)
+  }).format(now)
 
-  // Business day starts at 5AM today (or 5AM yesterday if before 5AM)
   const [year, month, day] = dateStr.split('-').map(Number)
-  const start = new Date(year, month - 1, day, 5, 0, 0)
 
-  // Business day ends at 5AM tomorrow
+  const midnightUTC = Date.UTC(year, month - 1, day, 0, 0, 0)
+  const offsetMs = getTimezoneOffsetMs(timezone, new Date(midnightUTC))
+  const start = new Date(midnightUTC - offsetMs)
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
 
   return { start, end, dateStr }
@@ -59,7 +54,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const businessType = searchParams.get('businessType')
-    const timezone = searchParams.get('timezone') || 'America/New_York'
+    const timezone = searchParams.get('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone
     const requestedDate = searchParams.get('date') // Optional: specific date for historical reports
     const startDate = searchParams.get('startDate') // Optional: start date for date range
     const endDate = searchParams.get('endDate') // Optional: end date for date range
@@ -80,21 +75,27 @@ export async function GET(request: NextRequest) {
     let start: Date, end: Date, dateStr: string
 
     if (startDate && endDate) {
-      // Date range query: use provided start and end dates
+      // Date range query: use provided start and end dates in the given timezone
       const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
       const [endYear, endMonth, endDay] = endDate.split('-').map(Number)
-      start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0)
-      end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59)
+      const startMidnightUTC = Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0)
+      const endMidnightUTC = Date.UTC(endYear, endMonth - 1, endDay + 1, 0, 0, 0) // start of day AFTER endDate
+      const startOffsetMs = getTimezoneOffsetMs(timezone, new Date(startMidnightUTC))
+      const endOffsetMs = getTimezoneOffsetMs(timezone, new Date(endMidnightUTC))
+      start = new Date(startMidnightUTC - startOffsetMs)
+      end = new Date(endMidnightUTC - endOffsetMs)
       dateStr = `${startDate} to ${endDate}`
     } else if (requestedDate) {
-      // Historical report: use the requested date
+      // Historical report: use the requested date in the given timezone
       const [year, month, day] = requestedDate.split('-').map(Number)
-      start = new Date(year, month - 1, day, 5, 0, 0)
+      const midnightUTC = Date.UTC(year, month - 1, day, 0, 0, 0)
+      const offsetMs = getTimezoneOffsetMs(timezone, new Date(midnightUTC))
+      start = new Date(midnightUTC - offsetMs)
       end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
       dateStr = requestedDate
     } else {
-      // Current day report: use today's business day
-      const today = getTodayBusinessDay(timezone)
+      // Current day report in the client's timezone
+      const today = getTodayInTimezone(timezone)
       start = today.start
       end = today.end
       dateStr = today.dateStr

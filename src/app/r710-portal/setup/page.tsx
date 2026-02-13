@@ -355,8 +355,8 @@ function R710SetupContent() {
           })
 
           if (shouldAccept) {
-            // User confirms it's the same WLAN, just renamed
-            await handleAcceptSsidChange(data.deviceSsid)
+            // User confirms it's the same WLAN, just renamed - also pass pending field updates
+            await handleAcceptSsidChange(data.deviceSsid, data.pendingUpdates)
           } else {
             // User says it's a different WLAN - recreate
             await handleRecreateIntegration()
@@ -374,9 +374,10 @@ function R710SetupContent() {
             await handleRecreateIntegration()
           }
         } else if (data.changed) {
+          const changesText = data.changes ? data.changes.join('\n') : ''
           await alert({
-            title: 'WLAN Configuration Synced',
-            description: `WLAN configuration has been synced from the R710 device.\n\nPrevious SSID: ${data.previousSsid}\nCurrent SSID: ${data.currentSsid}\n\nReceipts will now show the correct network name.`
+            title: 'Configuration Synced',
+            description: `WLAN configuration has been synced from the R710 device.\n\n${changesText}`
           })
           await loadData()
         } else {
@@ -429,7 +430,7 @@ function R710SetupContent() {
     }
   }
 
-  const handleAcceptSsidChange = async (newSsid: string) => {
+  const handleAcceptSsidChange = async (newSsid: string, pendingUpdates?: Record<string, any>) => {
     try {
       setUpdating(true)
       setErrorMessage(null)
@@ -440,7 +441,8 @@ function R710SetupContent() {
         credentials: 'include',
         body: JSON.stringify({
           businessId: currentBusinessId,
-          newSsid
+          newSsid,
+          pendingUpdates
         })
       })
 

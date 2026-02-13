@@ -814,7 +814,7 @@ function GroceryPOSContent() {
     if (!currentBusinessId) return
 
     try {
-      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=grocery`)
+      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=grocery&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
       if (response.ok) {
         const data = await response.json()
         setDailySales(data.data)
@@ -829,6 +829,13 @@ function GroceryPOSContent() {
     if (currentBusinessId) {
       loadDailySales()
     }
+  }, [currentBusinessId])
+
+  // Periodic refresh of daily sales every 30s for multi-user accuracy
+  useEffect(() => {
+    if (!currentBusinessId) return
+    const interval = setInterval(() => loadDailySales(), 30000)
+    return () => clearInterval(interval)
   }, [currentBusinessId])
 
   const findProductByBarcode = (barcode: string) => {
