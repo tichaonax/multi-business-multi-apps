@@ -13,12 +13,22 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { Printer, X, Check, AlertCircle } from 'lucide-react'
+import { Printer, X, Check, AlertCircle, Usb } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { useToastContext } from '@/components/ui/toast'
 import { ReceiptTemplate } from '@/components/printing/receipt-template'
+import { LocalPrinterSetup } from '@/components/printing/local-printer-setup'
+import { generateReceipt } from '@/lib/printing/receipt-templates'
+import {
+  isWebSerialSupported,
+  getLocalPrinterConfig,
+  printToLocalPrinter,
+  isLocalPrinterAvailable,
+} from '@/lib/printing/local-serial-printer'
 import type { ReceiptData, NetworkPrinter, BusinessType } from '@/types/printing'
+
+const LOCAL_PRINTER_ID = 'local-serial'
 
 interface UnifiedReceiptPreviewModalProps {
   isOpen: boolean
@@ -45,6 +55,9 @@ export function UnifiedReceiptPreviewModal({
   const [printCustomerCopy, setPrintCustomerCopy] = useState(true)
   const [loading, setLoading] = useState(false)
   const [printersLoading, setPrintersLoading] = useState(true)
+  const [hasLocalPrinter, setHasLocalPrinter] = useState(false)
+  const [localPrinterName, setLocalPrinterName] = useState('')
+  const [showLocalSetup, setShowLocalSetup] = useState(false)
   const toast = useToastContext()
 
   // Ref-based guard to prevent double-clicks (more reliable than state)
@@ -78,26 +91,42 @@ export function UnifiedReceiptPreviewModal({
 
       setPrinters(availablePrinters)
 
+      // Check for local USB printer
+      let localAvailable = false
+      if (isWebSerialSupported()) {
+        const localConfig = getLocalPrinterConfig()
+        if (localConfig) {
+          localAvailable = await isLocalPrinterAvailable()
+          setHasLocalPrinter(localAvailable)
+          setLocalPrinterName(localConfig.name)
+        }
+      }
+
       // Auto-select last used printer if available
       try {
         const lastPrinterId = localStorage.getItem('lastSelectedPrinterId')
-        if (lastPrinterId && availablePrinters.length > 0) {
-          // Check if the saved printer is in the available list and is online
-          const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
-          if (savedPrinter && savedPrinter.isOnline) {
-            setSelectedPrinterId(lastPrinterId)
-            console.log('✓ Auto-selected last used printer:', savedPrinter.printerName)
-          } else if (savedPrinter && !savedPrinter.isOnline) {
-            console.log('⚠️ Last used printer is offline:', savedPrinter.printerName)
+        if (lastPrinterId) {
+          // Check if it was the local printer
+          if (lastPrinterId === LOCAL_PRINTER_ID && localAvailable) {
+            setSelectedPrinterId(LOCAL_PRINTER_ID)
+            console.log('✓ Auto-selected local USB printer')
+          } else if (availablePrinters.length > 0) {
+            const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
+            if (savedPrinter && savedPrinter.isOnline) {
+              setSelectedPrinterId(lastPrinterId)
+              console.log('✓ Auto-selected last used printer:', savedPrinter.printerName)
+            } else if (savedPrinter && !savedPrinter.isOnline) {
+              console.log('⚠️ Last used printer is offline:', savedPrinter.printerName)
+            }
           }
         }
       } catch (storageError) {
         console.warn('Failed to load saved printer preference:', storageError)
       }
 
-      // Check if no printers available
-      if (availablePrinters.length === 0) {
-        toast.push('No receipt printers found. Please configure a printer in Admin > Printers.')
+      // Check if no printers available at all
+      if (availablePrinters.length === 0 && !localAvailable) {
+        toast.push('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
       }
 
     } catch (error) {
@@ -131,6 +160,30 @@ export function UnifiedReceiptPreviewModal({
     setLoading(true)
 
     try {
+      // Local USB printer path — print directly from browser via Web Serial
+      if (selectedPrinterId === LOCAL_PRINTER_ID) {
+        console.log('🖨️ [Modal] Printing to local USB printer via Web Serial')
+
+        // Generate business copy ESC/POS string client-side
+        const businessReceiptData = { ...receiptData, receiptType: 'business' as const }
+        const businessEscPos = generateReceipt(businessReceiptData)
+        await printToLocalPrinter(businessEscPos, 1)
+        console.log('✅ Business copy printed locally')
+
+        // Print customer copy if enabled
+        if (supportsCustomerCopy && printCustomerCopy) {
+          const customerReceiptData = { ...receiptData, receiptType: 'customer' as const }
+          const customerEscPos = generateReceipt(customerReceiptData)
+          await printToLocalPrinter(customerEscPos, copies)
+          console.log('✅ Customer copy printed locally (' + copies + ' copies)')
+        }
+
+        toast.push('Receipt printed to local USB printer')
+        onClose()
+        return
+      }
+
+      // Network printer path — send to server print queue
       console.log('📋 [Modal] Calling onPrintConfirm at:', new Date().toISOString())
       console.log('   printerId:', selectedPrinterId)
       console.log('   copies:', copies)
@@ -156,8 +209,10 @@ export function UnifiedReceiptPreviewModal({
   }
 
   const selectedPrinter = printers.find(p => p.id === selectedPrinterId)
+  const isLocalSelected = selectedPrinterId === LOCAL_PRINTER_ID
   const isRestaurant = businessType === 'restaurant'
   const supportsCustomerCopy = ['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)
+  const hasPrintersOrLocal = printers.length > 0 || hasLocalPrinter
 
   return (
     <Modal
@@ -202,7 +257,7 @@ export function UnifiedReceiptPreviewModal({
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 dark:border-gray-100"></div>
                 Loading printers...
               </div>
-            ) : printers.length === 0 ? (
+            ) : !hasPrintersOrLocal ? (
               <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm">
                 <AlertCircle className="w-4 h-4 text-yellow-600" />
                 <div>
@@ -210,7 +265,7 @@ export function UnifiedReceiptPreviewModal({
                     No printers configured
                   </div>
                   <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">
-                    Please set up a printer in Admin → Printers
+                    Set up a network printer in Admin → Printers, or connect a local USB printer below.
                   </div>
                 </div>
               </div>
@@ -234,6 +289,11 @@ export function UnifiedReceiptPreviewModal({
                 className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
               >
                 <option value="">-- Select a printer --</option>
+                {hasLocalPrinter && (
+                  <option value={LOCAL_PRINTER_ID}>
+                    {localPrinterName} (Local USB)
+                  </option>
+                )}
                 {printers.map((printer) => (
                   <option key={printer.id} value={printer.id}>
                     {printer.printerName} {printer.isOnline ? '(Online)' : '(Offline)'}
@@ -242,14 +302,21 @@ export function UnifiedReceiptPreviewModal({
               </select>
             )}
 
-            {!selectedPrinterId && printers.length > 0 && (
+            {!selectedPrinterId && hasPrintersOrLocal && (
               <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
                 <AlertCircle className="w-4 h-4" />
                 Please select a printer to continue
               </div>
             )}
 
-            {selectedPrinter && (
+            {isLocalSelected && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                <Usb className="w-4 h-4" />
+                Local USB printer — prints directly from this browser
+              </div>
+            )}
+
+            {selectedPrinter && !isLocalSelected && (
               <div className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 {selectedPrinter.isOnline ? (
                   <>
@@ -261,6 +328,33 @@ export function UnifiedReceiptPreviewModal({
                     <AlertCircle className="w-4 h-4 text-red-500" />
                     Printer is offline
                   </>
+                )}
+              </div>
+            )}
+
+            {/* Local USB Printer Setup */}
+            {isWebSerialSupported() && (
+              <div className="mt-3">
+                {!hasLocalPrinter && !showLocalSetup && (
+                  <button
+                    onClick={() => setShowLocalSetup(true)}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                  >
+                    <Usb className="w-3 h-3" />
+                    Setup Local USB Printer
+                  </button>
+                )}
+                {showLocalSetup && !hasLocalPrinter && (
+                  <LocalPrinterSetup
+                    compact
+                    onSetupComplete={(config) => {
+                      setHasLocalPrinter(true)
+                      setLocalPrinterName(config.name)
+                      setSelectedPrinterId(LOCAL_PRINTER_ID)
+                      setShowLocalSetup(false)
+                      localStorage.setItem('lastSelectedPrinterId', LOCAL_PRINTER_ID)
+                    }}
+                  />
                 )}
               </div>
             )}
@@ -339,11 +433,11 @@ export function UnifiedReceiptPreviewModal({
 
           <Button
             onClick={handlePrint}
-            disabled={loading || !selectedPrinterId || !selectedPrinter?.isOnline}
+            disabled={loading || !selectedPrinterId || (!isLocalSelected && !selectedPrinter?.isOnline)}
             title={
               !selectedPrinterId
                 ? 'Please select a printer first'
-                : !selectedPrinter?.isOnline
+                : !isLocalSelected && !selectedPrinter?.isOnline
                 ? 'Selected printer is offline'
                 : 'Print receipt'
             }

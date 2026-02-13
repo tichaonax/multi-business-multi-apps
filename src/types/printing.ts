@@ -26,6 +26,16 @@ export interface NetworkPrinter {
   updatedAt: Date;
 }
 
+/** Local USB printer connected via Web Serial API (client-side only, not stored in DB) */
+export interface LocalPrinterInfo {
+  id: 'local-serial';
+  printerName: string;
+  printerType: 'receipt';
+  isLocal: true;
+  isOnline: boolean;
+  baudRate: number;
+}
+
 export interface PrinterFormData {
   printerName: string;
   printerType: PrinterType;
