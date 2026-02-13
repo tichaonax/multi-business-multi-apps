@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 export async function GET(req: NextRequest) {
@@ -63,9 +63,7 @@ export async function GET(req: NextRequest) {
       let pendingRevenue = 0
 
       // Revenue from Business Orders (all business types) - include both COMPLETED and PENDING
-      if ((hasUserPermission(user, 'canViewOrders') ||
-          hasUserPermission(user, 'canViewBusinessOrders')) &&
-          hasUserPermission(user, 'canAccessFinancialData') ||
+      if (hasPermissionInAnyBusiness(user, 'canAccessFinancialData') ||
           isSystemAdmin(user)) {
         try {
           // Calculate completed revenue
@@ -189,8 +187,8 @@ export async function GET(req: NextRequest) {
 
     // 3. Count Team Members (users in same businesses)
     try {
-      if (hasUserPermission(user, 'canViewEmployees') ||
-          hasUserPermission(user, 'canManageEmployees') ||
+      if (hasPermissionInAnyBusiness(user, 'canViewEmployees') ||
+          hasPermissionInAnyBusiness(user, 'canManageEmployees') ||
           isSystemAdmin(user)) {
 
         if (isSystemAdmin(user)) {

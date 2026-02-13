@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 // Defensive wrapper: when Prisma client or certain model methods are unavailable
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Recent Orders (Restaurant business)
-    if (hasUserPermission(user, 'canViewOrders') || isSystemAdmin(user)) {
+    if (hasPermissionInAnyBusiness(user, 'canAccessFinancialData') || isSystemAdmin(user)) {
       try {
         // Build dynamic where clause for orders
         const orderWhereClause: any = {
@@ -500,8 +500,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Recent Business Orders (from business modules)
-    if (hasUserPermission(user, 'canViewOrders') ||
-        hasUserPermission(user, 'canViewBusinessOrders') ||
+    if (hasPermissionInAnyBusiness(user, 'canAccessFinancialData') ||
         isSystemAdmin(user)) {
       try {
         const businessWhereClause: any = {
@@ -530,7 +529,7 @@ export async function GET(req: NextRequest) {
         console.log('  - whereClause:', JSON.stringify(businessWhereClause, null, 2))
         console.log('  - targetBusinessIds applied:', targetBusinessIds)
         console.log('  - userBusinessIds:', userBusinessIds)
-        console.log('  - user permissions canViewBusinessOrders:', hasUserPermission(user, 'canViewBusinessOrders'))
+        console.log('  - user permissions canAccessFinancialData:', hasPermissionInAnyBusiness(user, 'canAccessFinancialData'))
         console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
         const recentBusinessOrders = await safePrisma.findMany('businessOrder', {
@@ -618,7 +617,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 9. R710 WiFi Portal Sync Events (Admin and Business Owners)
-    if (isSystemAdmin(user) || hasUserPermission(user, 'canManageWifiPortal')) {
+    if (isSystemAdmin(user) || hasPermissionInAnyBusiness(user, 'canManageBusinessSettings')) {
       try {
         const whereClause: any = {
           syncedAt: { gte: sevenDaysAgo }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { isSystemAdmin, hasPermissionInAnyBusiness } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 export async function GET(req: NextRequest) {
@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Get Team Members (Users) with business context
-    if (hasUserPermission(user, 'canViewEmployees') ||
-        hasUserPermission(user, 'canManageEmployees') ||
+    if (hasPermissionInAnyBusiness(user, 'canViewEmployees') ||
+        hasPermissionInAnyBusiness(user, 'canManageEmployees') ||
         isSystemAdmin(user)) {
 
       try {

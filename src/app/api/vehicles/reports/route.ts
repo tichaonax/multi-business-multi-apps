@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { hasPermission, hasPermissionInAnyBusiness, isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 const ReportQuerySchema = z.object({
@@ -65,16 +65,12 @@ export async function GET(request: NextRequest) {
     const requiresFinancialAccess = ['EXPENSE_SUMMARY', 'REIMBURSEMENT_SUMMARY', 'BUSINESS_ATTRIBUTION'].includes(reportType)
 
     if (requiresFinancialAccess && !isSystemAdmin(user)) {
-      if (businessId && !await hasUserPermission(user, 'canAccessFinancialData', businessId)) {
+      if (businessId && !hasPermission(user, 'canAccessFinancialData', businessId)) {
         return NextResponse.json({ error: 'Insufficient permissions to access financial data' }, { status: 403 })
       }
       // If no specific businessId, check if user has financial access to any business
       if (!businessId) {
-        const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
-        const hasAnyFinancialAccess = await Promise.all(
-          userBusinessIds.map(businessId => hasUserPermission(user, 'canAccessFinancialData', businessId))
-        )
-        if (!hasAnyFinancialAccess.some(access => access)) {
+        if (!hasPermissionInAnyBusiness(user, 'canAccessFinancialData')) {
           return NextResponse.json({ error: 'Insufficient permissions to access financial data' }, { status: 403 })
         }
       }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 export async function GET(req: NextRequest) {
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       // Filter businesses where user has financial data access permission
       const businessesWithPermission = await Promise.all(
         userBusinessIds.map(async (businessId) => {
-          const hasFinancialAccess = await hasUserPermission(user, 'canAccessFinancialData', businessId)
+          const hasFinancialAccess = hasPermission(user, 'canAccessFinancialData', businessId)
           if (hasFinancialAccess) {
             const business = await prisma.businesses.findUnique({
               where: { id: businessId, isActive: true },

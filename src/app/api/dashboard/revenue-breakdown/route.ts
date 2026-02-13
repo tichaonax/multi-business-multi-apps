@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 export async function GET(req: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Restaurant Orders Revenue
-    if (hasUserPermission(user, 'canViewOrders') || isSystemAdmin(user)) {
+    if (hasPermissionInAnyBusiness(user, 'canAccessFinancialData') || isSystemAdmin(user)) {
       try {
         const restaurantWhereClause: any = {
           status: 'COMPLETED',
@@ -50,8 +50,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Business Orders Revenue (non-restaurant)
-    if (hasUserPermission(user, 'canViewOrders') ||
-        hasUserPermission(user, 'canViewBusinessOrders') ||
+    if (hasPermissionInAnyBusiness(user, 'canAccessFinancialData') ||
         isSystemAdmin(user)) {
       try {
         const businessWhereClause: any = {

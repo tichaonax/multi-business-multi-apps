@@ -78,8 +78,8 @@ export async function POST(
       }
 
       // Check if user has permission to reprint
-      // Allow ADMIN, MANAGER, and STAFF roles
-      const allowedRoles = ['ADMIN', 'MANAGER', 'STAFF']
+      // Allow business owners, managers, and associates
+      const allowedRoles = ['business-owner', 'business-manager', 'employee', 'restaurant-associate', 'grocery-associate', 'clothing-associate']
       if (!allowedRoles.includes(membership.role)) {
         return NextResponse.json(
           { error: 'You do not have permission to reprint receipts' },

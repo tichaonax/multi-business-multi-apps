@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 /**
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     const user = session.user as SessionUser
 
     // Check if user has permission to access financial data for this business
-    if (!isSystemAdmin(user) && !await hasUserPermission(user, 'canAccessFinancialData', businessId)) {
+    if (!isSystemAdmin(user) && !hasPermission(user, 'canAccessFinancialData', businessId)) {
       return NextResponse.json({ error: 'Insufficient permissions to access financial data' }, { status: 403 })
     }
 

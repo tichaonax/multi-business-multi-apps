@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, hasUserPermission, getCustomPermissionValue } from '@/lib/permission-utils'
+import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness, getCustomPermissionValue } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 export async function GET(req: NextRequest) {
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     let pendingTasks: any[] = []
 
   // 1. Pending Orders (Restaurant business)
-  if (hasUserPermission(user, 'canViewOrders' as any) || isSystemAdmin(user)) {
+  if (hasPermissionInAnyBusiness(user, 'canAccessFinancialData') || isSystemAdmin(user)) {
       try {
         const pendingOrders = await prisma.orders.findMany({
           where: {
@@ -187,8 +187,8 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Pending Employee Leave Requests
-  if (hasUserPermission(user, 'canViewEmployees' as any) ||
-    hasUserPermission(user, 'canManageEmployees' as any) ||
+  if (hasPermissionInAnyBusiness(user, 'canViewEmployees') ||
+    hasPermissionInAnyBusiness(user, 'canManageEmployees') ||
     isSystemAdmin(user)) {
       try {
         const pendingLeaveRequests = await prisma.employeeLeaveRequests.findMany({
@@ -231,8 +231,8 @@ export async function GET(req: NextRequest) {
     }
 
     // 5. Pending Contract Renewals
-  if (hasUserPermission(user, 'canViewEmployees' as any) ||
-    hasUserPermission(user, 'canManageEmployees' as any) ||
+  if (hasPermissionInAnyBusiness(user, 'canViewEmployees') ||
+    hasPermissionInAnyBusiness(user, 'canManageEmployees') ||
     isSystemAdmin(user)) {
       try {
         const pendingRenewals = await prisma.contractRenewals.findMany({

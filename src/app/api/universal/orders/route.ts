@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (!isAdmin) {
-      const hasFinancialAccess = await hasUserPermission(user, 'canAccessFinancialData', businessId)
+      const hasFinancialAccess = hasPermission(user, 'canAccessFinancialData', businessId)
       console.log('Non-admin user financial access check:', { businessId, hasFinancialAccess })
       if (!hasFinancialAccess) {
         return NextResponse.json({ error: 'Insufficient permissions to access financial data' }, { status: 403 })
