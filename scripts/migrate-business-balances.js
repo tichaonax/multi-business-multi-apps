@@ -128,9 +128,18 @@ async function reconcileBusinessBalances() {
       _sum: { amount: true },
     })
 
+    // DEBIT records (from expense account & payroll deposits) use negative amounts
+    // e.g. type='DEBIT', amount=-499.97 means $499.97 was debited from business
+    const debits = await prisma.businessTransactions.aggregate({
+      where: { businessId, type: 'DEBIT' },
+      _sum: { amount: true },
+    })
+
     const totalDeposits = Number(deposits._sum.amount || 0)
     const totalWithdrawals = Number(withdrawals._sum.amount || 0)
-    const correctBalance = totalDeposits - totalWithdrawals
+    // DEBIT amounts are stored as negative, so adding them subtracts from balance
+    const totalDebits = Number(debits._sum.amount || 0)
+    const correctBalance = totalDeposits - totalWithdrawals + totalDebits
     const currentBalance = Number(account.balance)
 
     if (Math.abs(correctBalance - currentBalance) >= 0.01) {
