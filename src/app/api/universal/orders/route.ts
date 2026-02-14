@@ -896,6 +896,25 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Credit business account when order is created as COMPLETED with PAID status
+    if (result.status === 'COMPLETED' && result.paymentStatus === 'PAID' && Number(result.totalAmount) > 0) {
+      try {
+        await initializeBusinessAccount(orderData.businessId, 0, session.user.id)
+        await processBusinessTransaction({
+          businessId: orderData.businessId,
+          amount: Number(result.totalAmount),
+          type: 'deposit',
+          description: `Order revenue - ${result.orderNumber}`,
+          referenceId: result.id,
+          referenceType: 'order',
+          notes: 'Completed order payment received',
+          createdBy: session.user.id
+        })
+      } catch (balanceError) {
+        console.error('Failed to credit business balance for order:', balanceError)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: result,

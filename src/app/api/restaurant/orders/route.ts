@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog, auditCreate } from '@/lib/audit'
+import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
 import { hasPermission } from '@/lib/rbac'
 import { R710SessionManager } from '@/lib/r710-session-manager'
 import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
@@ -1145,6 +1146,25 @@ export async function POST(req: NextRequest) {
       }, { tableName: 'orders', recordId: newOrder.id })
     } catch (auditErr) {
       console.warn('Audit log failed for order creation', auditErr)
+    }
+
+    // Credit business account when order is COMPLETED with PAID status
+    if (paymentStatus === 'PAID' && total > 0) {
+      try {
+        await initializeBusinessAccount(businessId, 0, session.user.id)
+        await processBusinessTransaction({
+          businessId,
+          amount: total,
+          type: 'deposit',
+          description: `Order revenue - ${orderNumber}`,
+          referenceId: newOrder.id,
+          referenceType: 'order',
+          notes: 'Completed order payment received',
+          createdBy: session.user.id
+        })
+      } catch (balanceError) {
+        console.error('Failed to credit business balance for order:', balanceError)
+      }
     }
 
     // Fetch business details (address, phone) to include in response for receipt
