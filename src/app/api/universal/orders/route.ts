@@ -6,8 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { hasPermission, isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
-import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
-
+import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
 import { randomBytes } from 'crypto';
 // Validation schemas
 const CreateOrderItemSchema = z.object({
@@ -449,6 +448,7 @@ export async function POST(request: NextRequest) {
     const orderNumber = generateOrderNumber(orderData.businessType, orderCount)
 
     // Create order with items in a transaction
+    // Extended timeout for R710 on-the-fly token generation (external device API call)
     const result = await prisma.$transaction(async (tx) => {
       // Create the order with nested items
       const order = await tx.businessOrders.create({
@@ -702,196 +702,53 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Process R710 token items
-      const generatedR710Tokens = []
+      // Process R710 token items on-the-fly using shared utility
+      const generatedR710Tokens: any[] = []
 
       if (r710TokenItems.length > 0) {
-        // Get or create R710 expense account for this business
-        const r710ExpenseAccount = await getOrCreateR710ExpenseAccount(orderData.businessId, user.id)
+        for (const item of r710TokenItems) {
+          const tokenConfigId = item.attributes?.tokenConfigId
 
-        // Fetch R710 integration
-        const r710Integration = await tx.r710BusinessIntegrations.findFirst({
-          where: { businessId: orderData.businessId, isActive: true }
-        })
-
-        if (r710Integration) {
-          for (const item of r710TokenItems) {
-            const itemPrice = item.unitPrice
-            const itemQuantity = item.quantity
-            const tokenConfigId = item.attributes?.tokenConfigId
-
-            if (!tokenConfigId) {
-              console.error('Missing tokenConfigId in R710 token item attributes')
-              generatedR710Tokens.push({
-                itemName: item.attributes?.productName || 'R710 WiFi Token',
-                success: false,
-                error: 'Missing token configuration ID'
-              })
-              continue
-            }
-
-            // Get R710 token configuration
-            const r710Config = await tx.r710TokenConfigs.findUnique({
-              where: { id: tokenConfigId }
+          if (!tokenConfigId) {
+            generatedR710Tokens.push({
+              itemName: item.attributes?.productName || 'R710 WiFi Token',
+              success: false,
+              error: 'Missing token configuration ID'
             })
-
-            if (!r710Config) {
-              generatedR710Tokens.push({
-                itemName: item.attributes?.productName || 'R710 WiFi Token',
-                success: false,
-                error: 'Token configuration not found'
-              })
-              continue
-            }
-
-            // Get WLAN SSID for display from business integration
-            const wlan = await tx.r710Wlans.findFirst({
-              where: {
-                businessId: orderData.businessId,
-                deviceRegistryId: r710Integration.deviceRegistryId
-              },
-              select: { ssid: true }
-            })
-
-            // Calculate expiration date based on duration
-            const calculateR710Expiration = (durationValue: number, durationUnit: string): Date => {
-              const now = new Date()
-              const expirationDate = new Date(now)
-              const unit = durationUnit.toLowerCase()
-
-              if (unit.includes('hour')) {
-                expirationDate.setHours(expirationDate.getHours() + durationValue)
-              } else if (unit.includes('day')) {
-                expirationDate.setDate(expirationDate.getDate() + durationValue)
-              } else if (unit.includes('week')) {
-                expirationDate.setDate(expirationDate.getDate() + (durationValue * 7))
-              } else if (unit.includes('month')) {
-                expirationDate.setMonth(expirationDate.getMonth() + durationValue)
-              } else if (unit.includes('year')) {
-                expirationDate.setFullYear(expirationDate.getFullYear() + durationValue)
-              }
-
-              return expirationDate
-            }
-
-            // Find available R710 tokens (AVAILABLE status, not yet sold, not expired)
-            for (let i = 0; i < itemQuantity; i++) {
-              try {
-                const availableR710Token = await tx.r710Tokens.findFirst({
-                  where: {
-                    businessId: orderData.businessId,
-                    tokenConfigId: tokenConfigId,
-                    status: 'AVAILABLE',
-                    r710_token_sales: {
-                      none: {} // No sales records = not sold
-                    },
-                    OR: [
-                      { expiresAtR710: null },         // No expiry set
-                      { expiresAtR710: { gte: new Date() } }  // Not yet expired
-                    ]
-                  }
-                })
-
-                if (!availableR710Token) {
-                  throw new Error('No available R710 tokens. Please create more tokens in R710 Portal.')
-                }
-
-                // Mark token as SOLD and create sale record
-                await tx.r710Tokens.update({
-                  where: { id: availableR710Token.id },
-                  data: { status: 'SOLD' }
-                })
-
-                // Create R710 sale record
-                await tx.r710TokenSales.create({
-                  data: {
-                    businessId: orderData.businessId,
-                    tokenId: availableR710Token.id,
-                    expenseAccountId: r710ExpenseAccount.id,
-                    saleAmount: itemPrice,
-                    paymentMethod: orderData.paymentMethod || 'CASH',
-                    saleChannel: 'POS',
-                    soldBy: user.id,
-                    soldAt: new Date()
-                  }
-                })
-
-                // Create deposit into expense account
-                if (itemPrice > 0) {
-                  await tx.expenseAccountDeposits.create({
-                    data: {
-                      expenseAccountId: r710ExpenseAccount.id,
-                      sourceType: 'R710_TOKEN_SALE',
-                      sourceBusinessId: orderData.businessId,
-                      amount: itemPrice,
-                      depositDate: new Date(),
-                      autoGeneratedNote: `R710 WiFi Token Sale - ${r710Config.name || 'Token'} [${availableR710Token.username}]`,
-                      transactionType: 'SALE',
-                      createdBy: user.id
-                    }
-                  })
-
-                  // Update expense account balance
-                  const depositsSum = await tx.expenseAccountDeposits.aggregate({
-                    where: { expenseAccountId: r710ExpenseAccount.id },
-                    _sum: { amount: true },
-                  })
-
-                  const paymentsSum = await tx.expenseAccountPayments.aggregate({
-                    where: {
-                      expenseAccountId: r710ExpenseAccount.id,
-                      status: 'SUBMITTED',
-                    },
-                    _sum: { amount: true },
-                  })
-
-                  const totalDeposits = Number(depositsSum._sum.amount || 0)
-                  const totalPayments = Number(paymentsSum._sum.amount || 0)
-                  const newBalance = totalDeposits - totalPayments
-
-                  await tx.expenseAccounts.update({
-                    where: { id: r710ExpenseAccount.id },
-                    data: { balance: newBalance, updatedAt: new Date() },
-                  })
-                }
-
-                // Calculate expiration date
-                const expiresAt = calculateR710Expiration(r710Config.durationValue, r710Config.durationUnit)
-
-                // Add to response
-                generatedR710Tokens.push({
-                  itemName: item.attributes?.productName || 'R710 WiFi Token',
-                  username: availableR710Token.username,
-                  password: availableR710Token.password,
-                  packageName: r710Config.name,
-                  durationValue: r710Config.durationValue,
-                  durationUnit: r710Config.durationUnit,
-                  deviceLimit: r710Config.deviceLimit,
-                  expiresAt: expiresAt.toISOString(),
-                  ssid: wlan?.ssid,
-                  success: true
-                })
-
-                console.log(`✅ R710 token sold: ${availableR710Token.username}`)
-              } catch (tokenError) {
-                console.error('Error processing R710 token:', tokenError)
-                generatedR710Tokens.push({
-                  itemName: item.attributes?.productName || 'R710 WiFi Token',
-                  success: false,
-                  error: tokenError instanceof Error ? tokenError.message : 'Failed to process R710 token'
-                })
-              }
-            }
+            continue
           }
-        } else {
-          console.error('No R710 integration configured for business:', orderData.businessId)
-          // Add error tokens for all requested quantities
-          for (const item of r710TokenItems) {
-            for (let i = 0; i < item.quantity; i++) {
+
+          for (let i = 0; i < item.quantity; i++) {
+            try {
+              // Reuse shared generate-and-sell utility (same as /api/r710/direct-sale)
+              // Passing tx so DB writes participate in this transaction
+              const saleResult = await generateAndSellR710Token({
+                businessId: orderData.businessId,
+                tokenConfigId,
+                saleAmount: item.unitPrice,
+                paymentMethod: orderData.paymentMethod || 'CASH',
+                soldBy: user.id,
+                saleChannel: 'POS'
+              }, tx)
+
+              generatedR710Tokens.push({
+                itemName: item.attributes?.productName || 'R710 WiFi Token',
+                username: saleResult.token.username,
+                password: saleResult.token.password,
+                packageName: saleResult.token.tokenConfig.name,
+                durationValue: saleResult.token.tokenConfig.durationValue,
+                durationUnit: saleResult.token.tokenConfig.durationUnit,
+                deviceLimit: saleResult.token.tokenConfig.deviceLimit,
+                expiresAt: saleResult.token.expiresAt,
+                ssid: saleResult.wlanSsid,
+                success: true
+              })
+            } catch (tokenError) {
+              console.error('Error generating R710 token:', tokenError)
               generatedR710Tokens.push({
                 itemName: item.attributes?.productName || 'R710 WiFi Token',
                 success: false,
-                error: 'R710 integration not configured for this business'
+                error: tokenError instanceof Error ? tokenError.message : 'Failed to generate R710 token'
               })
             }
           }
@@ -904,7 +761,7 @@ export async function POST(request: NextRequest) {
         wifiTokens: generatedWifiTokens,
         r710Tokens: generatedR710Tokens
       }
-    })
+    }, { timeout: 30000 }) // Extended timeout for R710 device API calls
 
     // Credit business account when order is created as COMPLETED with PAID status
     if (result.status === 'COMPLETED' && result.paymentStatus === 'PAID' && Number(result.totalAmount) > 0) {

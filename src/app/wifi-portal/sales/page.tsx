@@ -781,10 +781,10 @@ export default function WiFiTokenSalesPage() {
                 </button>
                 <button
                   onClick={handleGenerateToken}
-                  disabled={paymentMethod === 'CASH' && parseFloat(customPrice || '0') > 0 && (!amountReceived || parseFloat(amountReceived) < parseFloat(customPrice || '0'))}
+                  disabled={generatingToken || (paymentMethod === 'CASH' && parseFloat(customPrice || '0') > 0 && (!amountReceived || parseFloat(amountReceived) < parseFloat(customPrice || '0')))}
                   className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Complete Sale
+                  {generatingToken ? 'Processing...' : 'Complete Sale'}
                 </button>
               </div>
             </div>

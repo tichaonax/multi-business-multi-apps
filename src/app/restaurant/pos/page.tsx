@@ -62,6 +62,7 @@ export default function RestaurantPOS() {
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const submitInFlightRef = useRef<{ current: boolean } | any>({ current: false })
+  const [orderSubmitting, setOrderSubmitting] = useState(false)
   // Ref-based guard to prevent duplicate print calls (more reliable than state)
   const printInFlightRef = useRef(false)
   const [cart, setCart] = useState<CartItem[]>([])
@@ -1470,11 +1471,12 @@ export default function RestaurantPOS() {
     console.log('Amount received:', amountReceived)
 
     // Prevent duplicate concurrent submissions
-    if (submitInFlightRef.current) {
+    if (submitInFlightRef.current || orderSubmitting) {
       console.log('⏸️ Already processing an order, skipping')
       return
     }
     submitInFlightRef.current = true
+    setOrderSubmitting(true)
 
     try {
       console.log('📤 Sending order request...')
@@ -1572,6 +1574,7 @@ export default function RestaurantPOS() {
     }
     finally {
       submitInFlightRef.current = false
+      setOrderSubmitting(false)
     }
   }
 
@@ -2241,10 +2244,10 @@ export default function RestaurantPOS() {
                 </button>
                 <button
                   onClick={completeOrderWithPayment}
-                  disabled={paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total)}
+                  disabled={orderSubmitting || (paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total))}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Complete Order
+                  {orderSubmitting ? 'Processing...' : 'Complete Order'}
                 </button>
               </div>
             </div>

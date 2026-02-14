@@ -93,6 +93,7 @@ function GroceryPOSContent() {
   const [completedOrder, setCompletedOrder] = useState<any>(null)
   const [showCashTenderModal, setShowCashTenderModal] = useState(false)
   const [cashTendered, setCashTendered] = useState('')
+  const [processingPayment, setProcessingPayment] = useState(false)
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
@@ -1143,6 +1144,8 @@ function GroceryPOSContent() {
   }
 
   const processPayment = async () => {
+    if (processingPayment) return
+    setProcessingPayment(true)
     const totals = calculateTotals()
 
     try {
@@ -1256,6 +1259,8 @@ function GroceryPOSContent() {
     } catch (error) {
       console.error('Payment processing error:', error)
       await customAlert({ title: 'Payment failed', description: `${error instanceof Error ? error.message : 'Unknown error'}` })
+    } finally {
+      setProcessingPayment(false)
     }
   }
 
@@ -1462,10 +1467,10 @@ function GroceryPOSContent() {
                     setShowCashTenderModal(false)
                     processPayment()
                   }}
-                  disabled={tenderedAmount < totals.total}
+                  disabled={processingPayment || tenderedAmount < totals.total}
                   className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold"
                 >
-                  Complete Sale
+                  {processingPayment ? 'Processing...' : 'Complete Sale'}
                 </button>
               </div>
             </div>
@@ -2392,10 +2397,10 @@ function GroceryPOSContent() {
 
             <button
               onClick={handlePayment}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || processingPayment}
               className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-base"
             >
-              Process Payment - {formatCurrency(totals.total)}
+              {processingPayment ? 'Processing...' : `Process Payment - ${formatCurrency(totals.total)}`}
             </button>
           </div>
         </div>
