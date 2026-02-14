@@ -28,18 +28,19 @@ export async function POST(request: NextRequest) {
 
     const userId = session.user.id;
 
-    // Check permission
+    // Check permission (admins always have access)
     const user = await prisma.users.findUnique({
       where: { id: userId },
-      select: { permissions: true },
+      select: { permissions: true, role: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const isAdmin = user.role === 'admin';
     const permissions = user.permissions as any;
-    if (!permissions?.canCreateExpenseSubcategories) {
+    if (!isAdmin && !permissions?.canCreateExpenseSubcategories) {
       return NextResponse.json(
         { error: 'You do not have permission to create expense subcategories' },
         { status: 403 }

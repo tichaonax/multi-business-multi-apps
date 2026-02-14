@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, emoji, color, description, requiresSubcategory, isUserCreated } = body
+    const { name, emoji, color, description, requiresSubcategory, isUserCreated, domainId } = body
 
     // Validate required fields
     if (!name || name.trim() === '') {
@@ -66,11 +66,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if category with same name already exists (globally)
+    // Validate domain exists if provided
+    if (domainId) {
+      const domain = await prisma.expenseDomains.findUnique({ where: { id: domainId } })
+      if (!domain) {
+        return NextResponse.json({ error: 'Domain not found' }, { status: 404 })
+      }
+    }
+
+    // Check if category with same name already exists (within same domain scope)
     const existing = await prisma.expenseCategories.findFirst({
       where: {
         name: name.trim(),
-        domainId: null, // Global categories only
+        domainId: domainId || null,
       },
     })
 
@@ -91,7 +99,7 @@ export async function POST(request: NextRequest) {
         requiresSubcategory: requiresSubcategory ?? false,
         isUserCreated: isUserCreated ?? true,
         isDefault: false,
-        domainId: null, // Global category, not tied to any domain
+        domainId: domainId || null,
         createdBy: session.user.id,
       },
     })

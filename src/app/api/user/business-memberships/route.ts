@@ -31,6 +31,11 @@ export async function GET() {
           address: true,
           phone: true,
           defaultPage: true,
+          expense_accounts: {
+            select: { id: true, accountName: true },
+            where: { isActive: true, isSibling: false },
+            orderBy: { accountName: 'asc' },
+          },
         },
         orderBy: {
           name: 'asc',
@@ -62,6 +67,7 @@ export async function GET() {
         address: business.address, // Business address for receipts
         phone: business.phone, // Business phone for receipts
         defaultPage: business.defaultPage, // Default landing page
+        expenseAccounts: business.expense_accounts.map(ea => ({ id: ea.id, accountName: ea.accountName })),
         joinedAt: new Date(),
         lastAccessedAt: new Date(),
       }));
@@ -92,6 +98,11 @@ export async function GET() {
             address: true,
             phone: true,
             defaultPage: true,
+            expense_accounts: {
+              select: { id: true, accountName: true },
+              where: { isActive: true, isSibling: false },
+              orderBy: { accountName: 'asc' },
+            },
           },
         },
       },
@@ -112,6 +123,7 @@ export async function GET() {
       address: membership.businesses.address, // Business address for receipts
       phone: membership.businesses.phone, // Business phone for receipts
       defaultPage: membership.businesses.defaultPage, // Default landing page
+      expenseAccounts: membership.businesses.expense_accounts.map(ea => ({ id: ea.id, accountName: ea.accountName })),
       joinedAt: membership.joinedAt,
       lastAccessedAt: membership.lastAccessedAt,
     }));

@@ -2466,6 +2466,7 @@ export interface BusinessMembership {
   address?: string; // Business address for receipts
   phone?: string; // Business phone for receipts
   defaultPage?: string | null; // Default landing page for business
+  expenseAccounts?: { id: string; accountName: string }[]; // Linked expense accounts for quick navigation
   joinedAt: Date;
   lastAccessedAt: Date | null;
 }

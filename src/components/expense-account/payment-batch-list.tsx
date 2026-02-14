@@ -27,6 +27,7 @@ interface PaymentBatchListProps {
   onEdit: (payment: BatchPayment) => void
   onDelete: (paymentId: string) => void
   onClearAll: () => void
+  disabled?: boolean
 }
 
 export function PaymentBatchList({
@@ -34,7 +35,8 @@ export function PaymentBatchList({
   currentBalance,
   onEdit,
   onDelete,
-  onClearAll
+  onClearAll,
+  disabled = false,
 }: PaymentBatchListProps) {
   const [expandedPaymentId, setExpandedPaymentId] = useState<string | null>(null)
 
@@ -101,7 +103,8 @@ export function PaymentBatchList({
         </div>
         <button
           onClick={onClearAll}
-          className="px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+          disabled={disabled}
+          className="px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Clear All
         </button>
@@ -173,7 +176,8 @@ export function PaymentBatchList({
                   </button>
                   <button
                     onClick={() => onEdit(payment)}
-                    className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded transition-colors"
+                    disabled={disabled}
+                    className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Edit payment"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,7 +186,8 @@ export function PaymentBatchList({
                   </button>
                   <button
                     onClick={() => onDelete(payment.id)}
-                    className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 rounded transition-colors"
+                    disabled={disabled}
+                    className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Delete payment"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

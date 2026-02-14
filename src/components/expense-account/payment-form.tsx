@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { PayeeSelector } from './payee-selector'
@@ -52,6 +52,215 @@ interface BatchPayment {
   isFullPayment?: boolean
 }
 
+// Quick inline create modal for subcategory/sub-subcategory
+function QuickCreateModal({
+  isOpen,
+  title,
+  placeholder,
+  onClose,
+  onSubmit,
+  loading,
+}: {
+  isOpen: boolean
+  title: string
+  placeholder: string
+  onClose: () => void
+  onSubmit: (name: string, emoji: string) => void
+  loading: boolean
+}) {
+  const [name, setName] = useState('')
+  const [emoji, setEmoji] = useState('📂')
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">{title}</h3>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={emoji}
+              onChange={(e) => setEmoji(e.target.value)}
+              className="w-14 px-2 py-2 text-xl text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
+              maxLength={2}
+            />
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+              placeholder={placeholder}
+              maxLength={50}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && name.trim()) {
+                  onSubmit(name.trim(), emoji.trim() || '📂')
+                  setName('')
+                  setEmoji('📂')
+                }
+              }}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => { onClose(); setName(''); setEmoji('📂') }}
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (name.trim()) {
+                  onSubmit(name.trim(), emoji.trim() || '📂')
+                  setName('')
+                  setEmoji('📂')
+                }
+              }}
+              className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading || !name.trim()}
+            >
+              {loading ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Searchable dropdown component for category selection
+function SearchableSelect({
+  value,
+  options,
+  onChange,
+  placeholder = 'Select...',
+  disabled = false,
+  loading = false,
+  error = false,
+}: {
+  value: string
+  options: { id: string; label: string }[]
+  onChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  loading?: boolean
+  error?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const selected = options.find(o => o.id === value)
+  const filtered = search
+    ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSelect = (id: string) => {
+    onChange(id)
+    setIsOpen(false)
+    setSearch('')
+  }
+
+  const borderClass = error
+    ? 'border-red-500'
+    : 'border-gray-300 dark:border-gray-600'
+
+  if (disabled && !loading) {
+    return (
+      <div className={`w-full px-3 py-2 border ${borderClass} rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed`}>
+        {placeholder}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className={`w-full px-3 py-2 border ${borderClass} rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400`}>
+        Loading...
+      </div>
+    )
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen)
+          if (!isOpen) setTimeout(() => inputRef.current?.focus(), 0)
+        }}
+        className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-left flex items-center justify-between bg-white dark:bg-gray-800`}
+      >
+        <span className={selected ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
+          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+            <input
+              ref={inputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Type to search..."
+              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div className="overflow-y-auto max-h-48">
+            {value && (
+              <button
+                type="button"
+                onClick={() => handleSelect('')}
+                className="w-full px-3 py-2 text-left text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Clear selection
+              </button>
+            )}
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No matches found</div>
+            ) : (
+              filtered.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handleSelect(option.id)}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 ${
+                    option.id === value ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-gray-900 dark:text-gray-100'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface PaymentFormProps {
   accountId: string
   currentBalance: number
@@ -84,12 +293,16 @@ export function PaymentForm({
   const [submitting, setSubmitting] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [showCreateSubcategory, setShowCreateSubcategory] = useState(false)
+  const [showCreateSubSubcategory, setShowCreateSubSubcategory] = useState(false)
+  const [creatingSubItem, setCreatingSubItem] = useState(false)
   const [showReceiptSection, setShowReceiptSection] = useState(false)
   const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)  // Increment to refresh payee list
   const [categoryRefreshTrigger, setCategoryRefreshTrigger] = useState(0)  // Increment to refresh category list
 
   const [batchPayments, setBatchPayments] = useState<BatchPayment[]>([])
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
+  const restoringEditRef = useRef(false) // Flag to prevent useEffects from wiping values during edit restore
 
   const [formData, setFormData] = useState({
     payee: null as { type: string; id: string; name: string } | null,
@@ -143,11 +356,14 @@ export function PaymentForm({
   useEffect(() => {
     if (formData.categoryId) {
       loadSubcategories(formData.categoryId)
-      setFormData(prev => ({ ...prev, subcategoryId: '', subSubcategoryId: '' }))
-      setSubSubcategories([])
+      if (!restoringEditRef.current) {
+        setFormData(prev => ({ ...prev, subcategoryId: '', subSubcategoryId: '' }))
+        setSubSubcategories([])
+      }
     } else {
       setSubcategories([])
       setSubSubcategories([])
+      restoringEditRef.current = false
     }
   }, [formData.categoryId])
 
@@ -155,10 +371,13 @@ export function PaymentForm({
   useEffect(() => {
     if (formData.subcategoryId) {
       loadSubSubcategories(formData.subcategoryId)
-      setFormData(prev => ({ ...prev, subSubcategoryId: '' }))
+      if (!restoringEditRef.current) {
+        setFormData(prev => ({ ...prev, subSubcategoryId: '' }))
+      }
     } else {
       setSubSubcategories([])
     }
+    restoringEditRef.current = false
   }, [formData.subcategoryId])
 
   const loadCategories = async () => {
@@ -189,6 +408,7 @@ export function PaymentForm({
           })
         }
 
+        flattenedCategories.sort((a, b) => a.name.localeCompare(b.name))
         setCategories(flattenedCategories)
       }
     } catch (error) {
@@ -212,7 +432,9 @@ export function PaymentForm({
 
       if (response.ok) {
         const data = await response.json()
-        setSubcategories(data.subcategories || [])
+        const subs = data.subcategories || []
+        subs.sort((a: ExpenseSubcategory, b: ExpenseSubcategory) => a.name.localeCompare(b.name))
+        setSubcategories(subs)
       }
     } catch (error) {
       console.error('Error loading subcategories:', error)
@@ -236,7 +458,9 @@ export function PaymentForm({
 
       if (response.ok) {
         const data = await response.json()
-        setSubSubcategories(data.subSubcategories || [])
+        const subSubs = data.subSubcategories || []
+        subSubs.sort((a: ExpenseSubSubcategory, b: ExpenseSubSubcategory) => a.name.localeCompare(b.name))
+        setSubSubcategories(subSubs)
       }
     } catch (error) {
       console.error('Error loading sub-subcategories:', error)
@@ -400,26 +624,42 @@ export function PaymentForm({
     resetForm()
   }
 
-  const resetForm = () => {
-    setFormData({
-      payee: null,
-      categoryId: '',
-      subcategoryId: '',
-      subSubcategoryId: '',
-      amount: '',
-      paymentDate: getTodayLocalDateString(),
-      notes: '',
-      receiptNumber: '',
-      receiptServiceProvider: '',
-      receiptReason: '',
-      isFullPayment: true
-    })
+  const resetForm = (full = false) => {
+    if (full) {
+      setFormData({
+        payee: null,
+        categoryId: '',
+        subcategoryId: '',
+        subSubcategoryId: '',
+        amount: '',
+        paymentDate: getTodayLocalDateString(),
+        notes: '',
+        receiptNumber: '',
+        receiptServiceProvider: '',
+        receiptReason: '',
+        isFullPayment: true
+      })
+    } else {
+      // Keep category and subcategory for faster repeat entries
+      setFormData(prev => ({
+        ...prev,
+        payee: null,
+        subSubcategoryId: '',
+        amount: '',
+        notes: '',
+        receiptNumber: '',
+        receiptServiceProvider: '',
+        receiptReason: '',
+        isFullPayment: true
+      }))
+    }
     setErrors({ payee: '', categoryId: '', amount: '', paymentDate: '' })
     setShowReceiptSection(false)
     setEditingPaymentId(null)
   }
 
   const handleEditPayment = (payment: BatchPayment) => {
+    restoringEditRef.current = true
     setFormData({
       payee: { type: payment.payeeType, id: payment.payeeId, name: payment.payeeName },
       categoryId: payment.categoryId,
@@ -446,7 +686,7 @@ export function PaymentForm({
     if (confirmed) {
       setBatchPayments(prev => prev.filter(p => p.id !== paymentId))
       if (editingPaymentId === paymentId) {
-        resetForm()
+        resetForm(true)
       }
     }
   }
@@ -457,7 +697,7 @@ export function PaymentForm({
     )
     if (confirmed) {
       setBatchPayments([])
-      resetForm()
+      resetForm(true)
     }
   }
 
@@ -490,15 +730,18 @@ export function PaymentForm({
     setSubmitting(true)
 
     try {
+      // Map form fields to DB fields:
+      // Form "category" = ExpenseDomains (domainId), form "subcategory" = ExpenseCategories (categoryId),
+      // form "sub-subcategory" = ExpenseSubcategories (subcategoryId)
+      // The payment table expects: categoryId → ExpenseCategories, subcategoryId → ExpenseSubcategories
       const paymentsPayload = batchPayments.map(p => ({
         payeeType: p.payeeType,
         payeeUserId: p.payeeType === 'USER' ? p.payeeId : undefined,
         payeeEmployeeId: p.payeeType === 'EMPLOYEE' ? p.payeeId : undefined,
         payeePersonId: p.payeeType === 'PERSON' ? p.payeeId : undefined,
         payeeBusinessId: p.payeeType === 'BUSINESS' ? p.payeeId : undefined,
-        categoryId: p.categoryId,
-        subcategoryId: p.subcategoryId || null,
-        subSubcategoryId: p.subSubcategoryId || null,
+        categoryId: p.subcategoryId || p.categoryId,
+        subcategoryId: p.subSubcategoryId || null,
         amount: p.amount,
         paymentDate: p.paymentDate,
         notes: p.notes || null,
@@ -530,7 +773,7 @@ export function PaymentForm({
         // Clear batch
         setBatchPayments([])
         sessionStorage.removeItem(`expense-batch-${accountId}`)
-        resetForm()
+        resetForm(true)
 
         if (onSuccess) {
           onSuccess()
@@ -581,6 +824,69 @@ export function PaymentForm({
       })
       // Trigger category list refresh
       setCategoryRefreshTrigger(prev => prev + 1)
+    }
+  }
+
+  // Create a new subcategory (ExpenseCategories) under the selected domain
+  const handleCreateSubcategory = async (name: string, emoji: string) => {
+    if (!formData.categoryId) return
+    setCreatingSubItem(true)
+    try {
+      const res = await fetch('/api/expense-categories/flat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name,
+          emoji,
+          color: '#3B82F6',
+          domainId: formData.categoryId,
+          requiresSubcategory: false,
+          isUserCreated: true,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.data?.category) {
+        await loadSubcategories(formData.categoryId)
+        setFormData(prev => ({ ...prev, subcategoryId: data.data.category.id, subSubcategoryId: '' }))
+        setShowCreateSubcategory(false)
+      } else {
+        customAlert({ title: 'Error', message: data.error || 'Failed to create subcategory', type: 'error' })
+      }
+    } catch (error) {
+      console.error('Error creating subcategory:', error)
+    } finally {
+      setCreatingSubItem(false)
+    }
+  }
+
+  // Create a new sub-subcategory (ExpenseSubcategories) under the selected category
+  const handleCreateSubSubcategory = async (name: string, emoji: string) => {
+    if (!formData.subcategoryId) return
+    setCreatingSubItem(true)
+    try {
+      const res = await fetch('/api/expense-categories/subcategories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          categoryId: formData.subcategoryId,
+          name,
+          emoji,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.subcategory) {
+        await loadSubSubcategories(formData.subcategoryId)
+        setFormData(prev => ({ ...prev, subSubcategoryId: data.subcategory.id }))
+        setShowCreateSubSubcategory(false)
+      } else {
+        customAlert({ title: 'Error', message: data.error || 'Failed to create sub-subcategory', type: 'error' })
+      }
+    } catch (error) {
+      console.error('Error creating sub-subcategory:', error)
+    } finally {
+      setCreatingSubItem(false)
     }
   }
 
@@ -669,23 +975,16 @@ export function PaymentForm({
                       + Create New
                     </button>
                   </div>
-                  <select
+                  <SearchableSelect
                     value={formData.categoryId}
-                    onChange={(e) => {
-                      setFormData({ ...formData, categoryId: e.target.value, subcategoryId: '', subSubcategoryId: '' })
+                    options={categories.map(c => ({ id: c.id, label: `${c.emoji} ${c.name}` }))}
+                    onChange={(val) => {
+                      setFormData({ ...formData, categoryId: val, subcategoryId: '', subSubcategoryId: '' })
                       setErrors({ ...errors, categoryId: '' })
                     }}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.categoryId ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                    }`}
-                  >
-                    <option value="">Select category...</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.emoji} {category.name}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select category..."
+                    error={!!errors.categoryId}
+                  />
                   {errors.categoryId && (
                     <p className="mt-1 text-sm text-red-500">{errors.categoryId}</p>
                   )}
@@ -699,45 +998,53 @@ export function PaymentForm({
                 {showSubcategories && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Subcategory
-                      </label>
-                      <select
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Subcategory
+                        </label>
+                        {formData.categoryId && (
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateSubcategory(true)}
+                            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                          >
+                            + Create New
+                          </button>
+                        )}
+                      </div>
+                      <SearchableSelect
                         value={formData.subcategoryId}
-                        onChange={(e) => setFormData({ ...formData, subcategoryId: e.target.value, subSubcategoryId: '' })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        disabled={!formData.categoryId || loadingSubcategories}
-                      >
-                        <option value="">
-                          {loadingSubcategories ? 'Loading...' : 'None'}
-                        </option>
-                        {subcategories.map((sub) => (
-                          <option key={sub.id} value={sub.id}>
-                            {sub.emoji} {sub.name}
-                          </option>
-                        ))}
-                      </select>
+                        options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                        onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
+                        placeholder="None"
+                        disabled={!formData.categoryId}
+                        loading={loadingSubcategories}
+                      />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Sub-subcategory
-                      </label>
-                      <select
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Sub-subcategory
+                        </label>
+                        {formData.subcategoryId && (
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateSubSubcategory(true)}
+                            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                          >
+                            + Create New
+                          </button>
+                        )}
+                      </div>
+                      <SearchableSelect
                         value={formData.subSubcategoryId}
-                        onChange={(e) => setFormData({ ...formData, subSubcategoryId: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        disabled={!formData.subcategoryId || loadingSubSubcategories}
-                      >
-                        <option value="">
-                          {loadingSubSubcategories ? 'Loading...' : 'None'}
-                        </option>
-                        {subSubcategories.map((subSub) => (
-                          <option key={subSub.id} value={subSub.id}>
-                            {subSub.emoji} {subSub.name}
-                          </option>
-                        ))}
-                      </select>
+                        options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                        onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
+                        placeholder="None"
+                        disabled={!formData.subcategoryId}
+                        loading={loadingSubSubcategories}
+                      />
                     </div>
                   </>
                 )}
@@ -928,7 +1235,7 @@ export function PaymentForm({
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
-              onClick={resetForm}
+              onClick={() => resetForm(true)}
               className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
             >
               {editingPaymentId ? 'Cancel Edit' : 'Reset'}
@@ -968,6 +1275,7 @@ export function PaymentForm({
           onEdit={handleEditPayment}
           onDelete={handleDeletePayment}
           onClearAll={handleClearAll}
+          disabled={submitting}
         />
       </div>
 
@@ -985,6 +1293,24 @@ export function PaymentForm({
         onClose={() => setShowCategoryModal(false)}
         onSuccess={handleCreateCategorySuccess}
         onError={(error) => console.error('Create category error:', error)}
+      />
+
+      {/* Quick create modals for subcategory and sub-subcategory */}
+      <QuickCreateModal
+        isOpen={showCreateSubcategory}
+        title="Create Subcategory"
+        placeholder="e.g., Dairy Products"
+        onClose={() => setShowCreateSubcategory(false)}
+        onSubmit={handleCreateSubcategory}
+        loading={creatingSubItem}
+      />
+      <QuickCreateModal
+        isOpen={showCreateSubSubcategory}
+        title="Create Sub-subcategory"
+        placeholder="e.g., Whole Milk"
+        onClose={() => setShowCreateSubSubcategory(false)}
+        onSubmit={handleCreateSubSubcategory}
+        loading={creatingSubItem}
       />
     </div>
   )

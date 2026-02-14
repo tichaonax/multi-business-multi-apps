@@ -106,9 +106,18 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       ]
     }
 
+    // Expense account links - one per account linked to this business
+    const expenseLinks: MenuLink[] = (currentBusiness?.expenseAccounts || []).map(ea => ({
+      href: `/expense-accounts/${ea.id}`,
+      icon: '💳',
+      label: ea.accountName,
+      permissions: ['canAccessExpenseAccount']
+    }))
+
     const allLinks = [
       ...baseLinks,
-      ...(businessSpecificLinks[businessType] || [])
+      ...(businessSpecificLinks[businessType] || []),
+      ...expenseLinks
     ]
 
     // Filter based on permissions and current page

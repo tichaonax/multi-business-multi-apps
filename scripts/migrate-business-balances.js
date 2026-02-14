@@ -1,13 +1,11 @@
 /**
- * Reconcile business_accounts.balance from completed BusinessOrders
+ * Reconcile business_accounts.balance for ALL businesses
  *
  * Runs on every service start (via seed:migration) to ensure balances are correct.
  *
- * For each business with completed+paid orders:
- * 1. Finds orders that have no matching businessTransactions deposit record
- * 2. Creates deposit transaction records for those orders
- * 3. Recalculates balance from the full transaction ledger
- * 4. Updates business_accounts.balance if it differs
+ * Two phases:
+ * 1. Backfill: Find COMPLETED+PAID orders missing transaction records, create them
+ * 2. Reconcile: For EVERY business account, recalculate balance from transaction ledger
  *
  * Idempotent — safe to run on every startup.
  *
@@ -35,6 +33,8 @@ async function reconcileBusinessBalances() {
   })
   const systemUserId = adminUser?.id || 'system'
 
+  // --- Phase 1: Backfill missing transaction records for completed orders ---
+
   // Get all businesses with completed+paid orders
   const orderTotals = await prisma.businessOrders.groupBy({
     by: ['businessId'],
@@ -46,18 +46,9 @@ async function reconcileBusinessBalances() {
     _count: true,
   })
 
-  if (orderTotals.length === 0) {
-    console.log('   No completed+paid orders found. Nothing to reconcile.')
-    return
-  }
-
-  let reconciled = 0
-
   for (const entry of orderTotals) {
     const businessId = entry.businessId
-    const orderRevenue = Number(entry._sum.totalAmount || 0)
 
-    // Get business name for logging
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },
       select: { name: true },
@@ -65,28 +56,18 @@ async function reconcileBusinessBalances() {
     const businessName = business?.name || businessId
 
     // Ensure business account exists
-    let account = await prisma.businessAccounts.findUnique({
+    const existingAccount = await prisma.businessAccounts.findUnique({
       where: { businessId },
     })
-
-    if (!account) {
-      account = await prisma.businessAccounts.create({
-        data: {
-          businessId,
-          balance: 0,
-          updatedAt: new Date(),
-        },
+    if (!existingAccount) {
+      await prisma.businessAccounts.create({
+        data: { businessId, balance: 0, updatedAt: new Date() },
       })
     }
 
     // Find completed+paid orders that have no matching deposit transaction
-    // A matching transaction has referenceId = order.id and referenceType = 'order'
     const existingOrderTxnIds = await prisma.businessTransactions.findMany({
-      where: {
-        businessId,
-        referenceType: 'order',
-        type: 'deposit',
-      },
+      where: { businessId, referenceType: 'order', type: 'deposit' },
       select: { referenceId: true },
     })
     const recordedOrderIds = new Set(existingOrderTxnIds.map(t => t.referenceId).filter(Boolean))
@@ -101,9 +82,7 @@ async function reconcileBusinessBalances() {
       select: { id: true, orderNumber: true, totalAmount: true },
     })
 
-    // Create deposit transaction records for unrecorded orders
     if (unrecordedOrders.length > 0) {
-      // Batch create in a single transaction for efficiency
       await prisma.$transaction(async (tx) => {
         for (const order of unrecordedOrders) {
           const amount = Number(order.totalAmount)
@@ -117,7 +96,7 @@ async function reconcileBusinessBalances() {
               description: `Order revenue - ${order.orderNumber}`,
               referenceId: order.id,
               referenceType: 'order',
-              balanceAfter: 0, // Will be corrected in reconciliation below
+              balanceAfter: 0, // Corrected in phase 2
               createdBy: systemUserId,
               notes: 'Backfilled from completed order',
             },
@@ -126,8 +105,20 @@ async function reconcileBusinessBalances() {
       })
       console.log(`   ${businessName}: created ${unrecordedOrders.length} missing transaction records`)
     }
+  }
 
-    // Now reconcile the balance from the full transaction ledger
+  // --- Phase 2: Reconcile balance for ALL business accounts ---
+
+  const allAccounts = await prisma.businessAccounts.findMany({
+    include: { businesses: { select: { name: true } } },
+  })
+
+  let reconciled = 0
+
+  for (const account of allAccounts) {
+    const businessId = account.businessId
+    const businessName = account.businesses?.name || businessId
+
     const deposits = await prisma.businessTransactions.aggregate({
       where: { businessId, type: { in: ['deposit', 'transfer', 'loan_received'] } },
       _sum: { amount: true },
@@ -142,14 +133,10 @@ async function reconcileBusinessBalances() {
     const correctBalance = totalDeposits - totalWithdrawals
     const currentBalance = Number(account.balance)
 
-    // Update if different (within 0.01 tolerance for floating point)
     if (Math.abs(correctBalance - currentBalance) >= 0.01) {
       await prisma.businessAccounts.update({
         where: { businessId },
-        data: {
-          balance: correctBalance,
-          updatedAt: new Date(),
-        },
+        data: { balance: correctBalance, updatedAt: new Date() },
       })
       console.log(`   ${businessName}: $${currentBalance.toFixed(2)} -> $${correctBalance.toFixed(2)}`)
       reconciled++
