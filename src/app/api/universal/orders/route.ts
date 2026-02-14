@@ -75,7 +75,13 @@ const UpdateOrderSchema = z.object({
   paymentStatus: z.enum(['PENDING', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'REFUNDED', 'FAILED']).optional(),
   paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK']).optional(),
   notes: z.string().optional(),
-  attributes: z.record(z.string(), z.any()).optional()
+  attributes: z.record(z.string(), z.any()).optional(),
+  // Partial refund fields
+  refundItems: z.array(z.object({
+    orderItemId: z.string().min(1),
+    quantity: z.number().int().min(1)
+  })).optional(),
+  refundReason: z.string().optional()
 })
 
 // Generate order number based on business type
@@ -953,7 +959,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const validatedData = UpdateOrderSchema.parse(body)
 
-    const { id, ...updateData } = validatedData
+    const { id, refundItems, refundReason, ...updateData } = validatedData
 
     // Verify order exists
     const existingOrder = await prisma.businessOrders.findUnique({
@@ -1081,23 +1087,95 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Handle refunds - debit the business account
+    // Handle refunds - debit the business account and restore stock
     if (updateData.status === 'REFUNDED' && existingOrder.status === 'COMPLETED') {
       try {
-        const refundAmount = Number(existingOrder.totalAmount)
-        await processBusinessTransaction({
-          businessId: existingOrder.businessId,
-          amount: refundAmount,
-          type: 'withdrawal',
-          description: `Order refund - ${existingOrder.orderNumber}`,
-          referenceId: existingOrder.id,
-          referenceType: 'order',
-          notes: `Refund for completed order`,
-          createdBy: session.user.id
+        let refundAmount: number
+        const isPartialRefund = refundItems && refundItems.length > 0
+
+        if (isPartialRefund) {
+          // Partial refund: calculate amount from selected items
+          refundAmount = 0
+          for (const ri of refundItems) {
+            const orderItem = existingOrder.business_order_items.find(i => i.id === ri.orderItemId)
+            if (!orderItem) continue
+            if (ri.quantity > orderItem.quantity) continue
+            refundAmount += Number(orderItem.unitPrice) * ri.quantity
+          }
+        } else {
+          // Full refund
+          refundAmount = Number(existingOrder.totalAmount)
+        }
+
+        if (refundAmount > 0) {
+          await processBusinessTransaction({
+            businessId: existingOrder.businessId,
+            amount: refundAmount,
+            type: 'withdrawal',
+            description: `Order refund - ${existingOrder.orderNumber}${isPartialRefund ? ' (partial)' : ''}`,
+            referenceId: existingOrder.id,
+            referenceType: 'order',
+            notes: refundReason || 'Refund for completed order',
+            createdBy: session.user.id
+          })
+          console.log(`Debited $${refundAmount} from business ${existingOrder.businessId} for refund`)
+        }
+
+        // Restore stock for refunded items
+        const itemsToRestore = isPartialRefund
+          ? refundItems.map(ri => {
+              const oi = existingOrder.business_order_items.find(i => i.id === ri.orderItemId)
+              return oi ? { productVariantId: oi.productVariantId, quantity: ri.quantity } : null
+            }).filter(Boolean) as { productVariantId: string; quantity: number }[]
+          : existingOrder.business_order_items.map(i => ({ productVariantId: i.productVariantId, quantity: i.quantity }))
+
+        await prisma.$transaction(async (tx) => {
+          for (const item of itemsToRestore) {
+            if (!item.productVariantId) continue // Skip virtual items (services)
+            try {
+              await tx.product_variants.update({
+                where: { id: item.productVariantId },
+                data: { stockQuantity: { increment: item.quantity } }
+              })
+              await tx.businessStockMovements.create({
+                data: {
+                  businessId: existingOrder.businessId,
+                  productVariantId: item.productVariantId,
+                  movementType: 'RETURN_IN',
+                  quantity: item.quantity,
+                  reference: existingOrder.orderNumber,
+                  reason: refundReason || 'Order refund',
+                  businessType: existingOrder.businessType,
+                  attributes: { orderId: existingOrder.id, refund: true }
+                }
+              })
+            } catch (stockErr) {
+              console.warn(`Failed to restore stock for variant ${item.productVariantId}:`, stockErr)
+            }
+          }
         })
-        console.log(`Debited $${refundAmount} from business ${existingOrder.businessId} for refund`)
+
+        // For partial refund: keep order COMPLETED, store refund info in attributes
+        if (isPartialRefund) {
+          const existingAttrs = (existingOrder.attributes as any) || {}
+          const refunds = existingAttrs.refunds || []
+          refunds.push({
+            items: refundItems,
+            reason: refundReason,
+            amount: refundAmount,
+            date: new Date().toISOString(),
+            refundedBy: session.user.id
+          })
+          await prisma.businessOrders.update({
+            where: { id },
+            data: {
+              status: 'COMPLETED', // Keep as completed for partial
+              attributes: { ...existingAttrs, refunds, partialRefund: true }
+            }
+          })
+        }
       } catch (balanceError) {
-        console.error('Failed to debit business balance for refund:', balanceError)
+        console.error('Failed to process refund:', balanceError)
       }
     }
 

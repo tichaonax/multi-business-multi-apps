@@ -6,7 +6,8 @@ import { useOrderActions } from './hooks/useOrderActions'
 import { OrderStats } from './OrderStats'
 import { OrderFilters } from './OrderFilters'
 import { OrderCard } from './OrderCard'
-import { OrderFilters as OrderFiltersType } from './types'
+import { RefundModal } from './RefundModal'
+import { OrderFilters as OrderFiltersType, BusinessOrder } from './types'
 import { BUSINESS_ORDER_CONFIGS } from './BusinessOrderConfig'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
@@ -15,7 +16,13 @@ interface UniversalOrdersPageProps {
 }
 
 export function UniversalOrdersPage({ businessType }: UniversalOrdersPageProps) {
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
+  const [refundingOrder, setRefundingOrder] = useState<BusinessOrder | null>(null)
+
+  // Only managers+ can refund, and only for clothing
+  const canRefund = businessType === 'clothing' && (
+    isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
+  )
 
   const { businessOrders, stats, loading, error, refreshOrders, filters, setFilters, pagination } = useOrders({
     businessId: currentBusinessId || '',
@@ -44,8 +51,30 @@ export function UniversalOrdersPage({ businessType }: UniversalOrdersPageProps) 
       await printReceipt(order.id)
     } catch (error) {
       console.error('Failed to print receipt:', error)
-      // You might want to show a toast notification here
     }
+  }
+
+  const handleRefund = async (data: { refundItems: { orderItemId: string; quantity: number }[]; refundReason: string }) => {
+    if (!refundingOrder) return
+
+    const response = await fetch('/api/universal/orders', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: refundingOrder.id,
+        status: 'REFUNDED',
+        refundItems: data.refundItems,
+        refundReason: data.refundReason
+      })
+    })
+
+    const result = await response.json()
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'Failed to process refund')
+    }
+
+    setRefundingOrder(null)
+    refreshOrders()
   }
 
   const config = BUSINESS_ORDER_CONFIGS[businessType]
@@ -126,6 +155,8 @@ export function UniversalOrdersPage({ businessType }: UniversalOrdersPageProps) 
                 order={order}
                 onStatusUpdate={handleStatusUpdate}
                 onPrintReceipt={handlePrintReceipt}
+                onRefund={canRefund ? (order) => setRefundingOrder(order) : undefined}
+                canRefund={canRefund}
                 businessType={businessType}
               />
             ))}
@@ -159,6 +190,15 @@ export function UniversalOrdersPage({ businessType }: UniversalOrdersPageProps) 
           </>
         )}
       </div>
+
+      {/* Refund Modal */}
+      {refundingOrder && (
+        <RefundModal
+          order={refundingOrder}
+          onConfirm={handleRefund}
+          onClose={() => setRefundingOrder(null)}
+        />
+      )}
     </div>
   )
 }

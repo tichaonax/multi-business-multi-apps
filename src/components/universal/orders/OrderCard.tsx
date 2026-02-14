@@ -9,10 +9,12 @@ interface OrderCardProps {
   order: BusinessOrder
   onStatusUpdate: (orderId: string, status: string) => void
   onPrintReceipt: (order: BusinessOrder) => void
+  onRefund?: (order: BusinessOrder) => void
+  canRefund?: boolean
   businessType: string
 }
 
-export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType }: OrderCardProps) {
+export function OrderCard({ order, onStatusUpdate, onPrintReceipt, onRefund, canRefund, businessType }: OrderCardProps) {
   const config = BUSINESS_ORDER_CONFIGS[businessType]
   const [expanded, setExpanded] = useState(false)
 
@@ -132,6 +134,17 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType 
                   <span className="font-medium">Notes:</span> {order.notes}
                 </div>
               )}
+              {order.attributes?.partialRefund && order.attributes?.refunds && (
+                <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded text-red-700 dark:text-red-300">
+                  <span className="font-medium">Partial Refund:</span>{' '}
+                  {(order.attributes.refunds as any[]).map((r: any, i: number) => (
+                    <span key={i}>
+                      {formatCurrency(r.amount)} - {r.reason}
+                      {i < (order.attributes!.refunds as any[]).length - 1 ? '; ' : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -157,6 +170,15 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType 
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             Print
+          </button>
+        )}
+
+        {canRefund && order.status === 'COMPLETED' && onRefund && (
+          <button
+            onClick={() => onRefund(order)}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            Refund
           </button>
         )}
 

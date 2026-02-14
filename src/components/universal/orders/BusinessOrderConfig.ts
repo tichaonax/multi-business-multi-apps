@@ -79,7 +79,7 @@ export const BUSINESS_ORDER_CONFIGS: Record<string, BusinessOrderConfig> = {
   },
   clothing: {
     orderTypes: ['SALE', 'RETURN', 'EXCHANGE'],
-    statuses: ['PENDING', 'CONFIRMED', 'PROCESSING', 'READY', 'COMPLETED', 'CANCELLED'],
+    statuses: ['PENDING', 'CONFIRMED', 'PROCESSING', 'READY', 'COMPLETED', 'CANCELLED', 'REFUNDED'],
     features: {
       tableNumbers: false,
       estimatedReadyTime: false,
@@ -99,7 +99,8 @@ export const BUSINESS_ORDER_CONFIGS: Record<string, BusinessOrderConfig> = {
       PROCESSING: 'bg-orange-100 text-orange-800',
       READY: 'bg-green-100 text-green-800',
       COMPLETED: 'bg-gray-100 text-gray-800',
-      CANCELLED: 'bg-red-100 text-red-800'
+      CANCELLED: 'bg-red-100 text-red-800',
+      REFUNDED: 'bg-red-200 text-red-900 dark:bg-red-800 dark:text-red-100'
     },
     orderTypeLabels: {
       SALE: '👕 Sale',
