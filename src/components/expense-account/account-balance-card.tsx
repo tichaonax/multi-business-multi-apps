@@ -75,8 +75,8 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
     : 'from-green-600 to-green-700'
 
   return (
-    <div className={`bg-gradient-to-r ${cardGradient} rounded-lg shadow-lg p-6 text-white`}>
-      <div className="flex items-center justify-between mb-4">
+    <div className={`bg-gradient-to-r ${cardGradient} rounded-lg shadow-lg p-4 text-white`}>
+      <div className="flex items-center justify-between mb-2">
         <div>
           <h2 className="text-sm font-medium opacity-90">{accountData.accountName || 'Expense Account'}</h2>
           <p className="text-xs opacity-75">{accountData.accountNumber}</p>
@@ -107,46 +107,40 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
       </div>
 
       {/* Main Balance */}
-      <div className="mb-4">
-        <p className="text-sm font-medium opacity-90 mb-1">Current Balance</p>
-        <p className="text-3xl font-bold">{formatCurrency(balance)}</p>
+      <div className="mb-2">
+        <p className="text-xs font-medium opacity-90">Current Balance</p>
+        <p className="text-2xl font-bold">{formatCurrency(balance)}</p>
       </div>
 
       {/* Balance Alert */}
       {isCriticalBalance && (
-        <div className="bg-white/10 border border-white/30 rounded-lg p-3 mb-4">
-          <div className="flex items-start space-x-2">
-            <span className="text-xl">⚠️</span>
-            <div className="flex-1">
-              <p className="font-semibold text-sm">Critical Balance Alert</p>
-              <p className="text-xs opacity-90">
-                Balance is below {formatCurrency(criticalThreshold)}. Please make a deposit soon to avoid payment delays.
-              </p>
-            </div>
+        <div className="bg-white/10 border border-white/30 rounded-md p-2 mb-2">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm">⚠️</span>
+            <p className="text-xs opacity-90">
+              <span className="font-semibold">Critical Balance Alert</span> — Below {formatCurrency(criticalThreshold)}. Please make a deposit soon.
+            </p>
           </div>
         </div>
       )}
 
       {isLowBalance && (
-        <div className="bg-white/10 border border-white/30 rounded-lg p-3 mb-4">
-          <div className="flex items-start space-x-2">
-            <span className="text-xl">⚡</span>
-            <div className="flex-1">
-              <p className="font-semibold text-sm">Low Balance Warning</p>
-              <p className="text-xs opacity-90">
-                Balance is below {formatCurrency(threshold)}. Consider making a deposit.
-              </p>
-            </div>
+        <div className="bg-white/10 border border-white/30 rounded-md p-2 mb-2">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm">⚡</span>
+            <p className="text-xs opacity-90">
+              <span className="font-semibold">Low Balance Warning</span> — Below {formatCurrency(threshold)}. Consider making a deposit.
+            </p>
           </div>
         </div>
       )}
 
       {/* Balance Summary Grid */}
       {balanceSummary && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white/10 rounded-lg p-4">
-            <p className="text-xs opacity-75 mb-1">Total Deposits</p>
-            <p className="text-lg font-semibold">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-white/10 rounded-md p-2">
+            <p className="text-xs opacity-75">Total Deposits</p>
+            <p className="text-sm font-semibold">
               {formatCurrency(balanceSummary.totalDeposits || 0)}
             </p>
             <p className="text-xs opacity-75">
@@ -169,9 +163,9 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
             </p>
           </div>
 
-          <div className="bg-white/10 rounded-lg p-4">
-            <p className="text-xs opacity-75 mb-1">Total Payments</p>
-            <p className="text-lg font-semibold">
+          <div className="bg-white/10 rounded-md p-2">
+            <p className="text-xs opacity-75">Total Payments</p>
+            <p className="text-sm font-semibold">
               {formatCurrency(balanceSummary.totalPayments || 0)}
             </p>
             <p className="text-xs opacity-75">
@@ -184,18 +178,15 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
 
           {balanceSummary.draftPaymentCount !== undefined &&
            balanceSummary.draftPaymentCount > 0 && (
-            <div className="col-span-2 bg-white/10 border border-white/30 rounded-lg p-4">
+            <div className="col-span-2 bg-white/10 border border-white/30 rounded-md p-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs opacity-75 mb-1">Draft Payments</p>
-                  <p className="text-lg font-semibold">
-                    {balanceSummary.draftPaymentCount} draft{balanceSummary.draftPaymentCount !== 1 ? 's' : ''}
-                  </p>
-                  <p className="text-xs opacity-75">
-                    {formatCurrency(balanceSummary.draftPaymentTotal || 0)} total (not yet submitted)
+                  <p className="text-xs opacity-75">Draft Payments</p>
+                  <p className="text-sm font-semibold">
+                    {balanceSummary.draftPaymentCount} draft{balanceSummary.draftPaymentCount !== 1 ? 's' : ''} — {formatCurrency(balanceSummary.draftPaymentTotal || 0)} (not yet submitted)
                   </p>
                 </div>
-                <span className="text-2xl">📝</span>
+                <span className="text-sm">📝</span>
               </div>
             </div>
           )}
@@ -203,7 +194,7 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
       )}
 
       {/* Account Status */}
-      <div className="mt-4 pt-4 border-t border-white/20 flex items-center justify-between">
+      <div className="mt-2 pt-2 border-t border-white/20 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <div className={`w-2 h-2 rounded-full ${accountData.isActive ? 'bg-white' : 'bg-gray-400'}`}></div>
           <span className="text-xs opacity-75">

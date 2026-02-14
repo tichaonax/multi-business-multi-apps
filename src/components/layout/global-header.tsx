@@ -264,6 +264,21 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </Link>
                         ))}
 
+                        {/* General Expense Account - always available */}
+                        {hasPermission('canAccessExpenseAccount') && (
+                          <>
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                            <Link
+                              href="/expense-accounts/acc-general-expenses"
+                              className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                              onClick={() => setShowBusinessMenu(false)}
+                            >
+                              <span>💳</span>
+                              <span>General Expenses</span>
+                            </Link>
+                          </>
+                        )}
+
                         {/* Business address and phone - non-clickable info at bottom */}
                         {(currentBusiness.address || currentBusiness.phone) && (
                           <>
