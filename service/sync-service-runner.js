@@ -304,15 +304,9 @@ class ServiceRunner {
 
   /**
    * Run database migrations on service startup.
-   * Respects SKIP_MIGRATIONS=true to bypass in special environments.
+   * Always runs to ensure pending migrations are applied.
    */
   async runMigrations() {
-    const skip = (process.env.SKIP_MIGRATIONS || 'false').toLowerCase() === 'true'
-    if (skip) {
-      logger.info('SKIP_MIGRATIONS=true, skipping database migrations')
-      return
-    }
-
     logger.info('Running database migrations...')
 
     return new Promise((resolve, reject) => {

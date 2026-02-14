@@ -157,14 +157,8 @@ class HybridServiceWrapper extends EventEmitter {
         );
       }
 
-      // Run database migrations BEFORE starting sync service
-      // Default: run migrations unless explicitly disabled
-      if (process.env.SKIP_MIGRATIONS_ON_START === 'true') {
-        console.log('⏭️  Skipping database migrations (SKIP_MIGRATIONS_ON_START=true)');
-        console.log('   Migrations will need to be run manually');
-      } else {
-        await this.runDatabaseMigrations();
-      }
+      // Always run database migrations BEFORE starting sync service
+      await this.runDatabaseMigrations();
 
       // Prepare arguments for sync service runner
       const args = ['start'];
@@ -183,7 +177,7 @@ class HybridServiceWrapper extends EventEmitter {
           SYNC_INTERVAL: process.env.SYNC_INTERVAL || '30000',
           LOG_LEVEL: process.env.LOG_LEVEL || 'info',
           SYNC_DATA_DIR: process.env.SYNC_DATA_DIR || './data/sync',
-          SKIP_SYNC_RUNNER_MIGRATIONS: 'true' // Migrations already handled by wrapper
+          // Runner will also run migrations (idempotent via prisma migrate deploy)
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false
@@ -234,13 +228,6 @@ class HybridServiceWrapper extends EventEmitter {
     return new Promise((resolve, reject) => {
       console.log('🗄️  Running database migrations...');
 
-      // Check if migrations should be skipped
-      if (process.env.SKIP_MIGRATIONS === 'true') {
-        console.log('Skipping database migrations (SKIP_MIGRATIONS=true)');
-        resolve();
-        return;
-      }
-
       const { spawn } = require('child_process');
 
       // First check migration status to see what needs to be applied
@@ -287,8 +274,7 @@ class HybridServiceWrapper extends EventEmitter {
         console.log(statusOutput);
         
         const isUpToDate = statusOutput.includes('Database is up to date') ||
-                          statusOutput.includes('No pending migrations') ||
-                          (code === 0 && statusOutput.includes('migrations'));
+                          statusOutput.includes('No pending migrations');
         
         // Check for pending migrations FIRST (more specific check)
         const hasPendingMigrations = statusOutput.includes('following migration') ||

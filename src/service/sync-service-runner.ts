@@ -232,14 +232,8 @@ class SyncServiceRunner {
         await this.forceBuild()
       }
 
-      // Run database setup after build
-      if (process.env.SKIP_SYNC_RUNNER_MIGRATIONS !== 'true') {
-        await this.runDatabaseSetup()
-      } else {
-        console.log('🔄 Skipping database setup (handled by service wrapper)')
-        // Still verify schema is ready
-        await this.verifyDatabaseSchema()
-      }
+      // Always run database setup (migrations + seeding) on startup
+      await this.runDatabaseSetup()
 
       this.service = createSyncService(this.config)
 

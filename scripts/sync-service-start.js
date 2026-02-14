@@ -143,11 +143,11 @@ async function run() {
         try { require('fs').unlinkSync(require('path').join(process.cwd(), '.migration.lock')) } catch (e) {}
       }
       
-      // Start the service runner directly with SKIP_SYNC_RUNNER_MIGRATIONS so the runner doesn't try to re-run them
+      // Start the service runner directly
       const serviceProcess = spawn('node', ['dist/service/sync-service-runner.js', ...serviceArgs], {
         cwd: process.cwd(),
         stdio: 'inherit',
-        env: { ...process.env, SKIP_SYNC_RUNNER_MIGRATIONS: 'true' }
+        env: { ...process.env }
       });
 
       // Handle process events
