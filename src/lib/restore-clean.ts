@@ -37,6 +37,21 @@ const DEVICE_SPECIFIC_TABLES = [
 ]
 
 /**
+ * Tables that depend on syncNodes (via networkPrinters.nodeId FK) and should
+ * be skipped on cross-machine restores. NetworkPrinters references SyncNodes.nodeId,
+ * and print jobs reference NetworkPrinters.id — so the whole chain fails when
+ * the source machine's syncNode doesn't exist on the target.
+ *
+ * These are safe to skip: printers need to be re-registered on each machine,
+ * and print jobs are historical queue entries (all COMPLETED).
+ */
+const PRINTER_TABLES_SKIP_CROSS_MACHINE = [
+  'networkPrinters',
+  'printJobs',
+  'barcodePrintJobs'
+]
+
+/**
  * Get current node ID (matches backup-clean.ts implementation)
  */
 async function getCurrentNodeId(prisma: PrismaClient): Promise<string> {
@@ -523,6 +538,14 @@ export async function restoreCleanBackup(
       const data = source[tableName]
 
       if (!data || !Array.isArray(data) || data.length === 0) {
+        continue
+      }
+
+      // Skip printer-related tables on cross-machine restores
+      // NetworkPrinters has FK to SyncNodes.nodeId which is device-specific
+      // PrintJobs and BarcodePrintJobs have FK to NetworkPrinters.id
+      if (!isSameDevice && PRINTER_TABLES_SKIP_CROSS_MACHINE.includes(tableName)) {
+        console.log(`[restore-clean] Skipping ${tableName} (${data.length} records) — printer tables depend on device-specific syncNodes`)
         continue
       }
 
