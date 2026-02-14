@@ -1,16 +1,15 @@
 /**
- * Migration: Backfill business_accounts.balance from completed BusinessOrders
+ * Reconcile business_accounts.balance from completed BusinessOrders
  *
- * Problem: processBusinessTransaction was never called for historical orders,
- * so business_accounts.balance is 0 even though businesses have completed orders.
+ * Runs on every service start (via seed:migration) to ensure balances are correct.
  *
- * This script:
- * 1. Aggregates totalAmount from COMPLETED+PAID BusinessOrders per business
- * 2. Subtracts any existing withdrawal transactions (expense deposits, etc.)
- * 3. Updates business_accounts.balance with the correct amount
- * 4. Creates a businessTransactions record for audit trail
+ * For each business with completed+paid orders:
+ * 1. Finds orders that have no matching businessTransactions deposit record
+ * 2. Creates deposit transaction records for those orders
+ * 3. Recalculates balance from the full transaction ledger
+ * 4. Updates business_accounts.balance if it differs
  *
- * Safe to run multiple times (idempotent) - uses a migration reference marker.
+ * Idempotent — safe to run on every startup.
  *
  * Usage: node scripts/migrate-business-balances.js
  */
@@ -18,12 +17,25 @@
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
-const MIGRATION_REF = 'balance-backfill-migration'
+async function reconcileBusinessBalances() {
+  console.log('🏦 Reconciling business account balances...')
 
-async function main() {
-  console.log('=== Business Balance Migration ===\n')
+  // Clean up old bulk-backfill records (replaced by per-order records)
+  const oldBackfills = await prisma.businessTransactions.deleteMany({
+    where: { referenceType: 'balance-backfill-migration' },
+  })
+  if (oldBackfills.count > 0) {
+    console.log(`   Cleaned up ${oldBackfills.count} old bulk-backfill record(s)`)
+  }
 
-  // 1. Get completed+paid order totals per business
+  // Get admin user for createdBy on new transaction records
+  const adminUser = await prisma.users.findFirst({
+    where: { role: 'admin' },
+    select: { id: true },
+  })
+  const systemUserId = adminUser?.id || 'system'
+
+  // Get all businesses with completed+paid orders
   const orderTotals = await prisma.businessOrders.groupBy({
     by: ['businessId'],
     where: {
@@ -35,58 +47,15 @@ async function main() {
   })
 
   if (orderTotals.length === 0) {
-    console.log('No completed+paid orders found. Nothing to migrate.')
+    console.log('   No completed+paid orders found. Nothing to reconcile.')
     return
   }
 
-  // 2. Get any existing business transactions (in case some were already recorded)
-  const existingDeposits = await prisma.businessTransactions.groupBy({
-    by: ['businessId'],
-    where: { type: 'deposit' },
-    _sum: { amount: true },
-  })
-
-  const existingWithdrawals = await prisma.businessTransactions.groupBy({
-    by: ['businessId'],
-    where: { type: 'withdrawal' },
-    _sum: { amount: true },
-  })
-
-  const depositMap = new Map(existingDeposits.map(d => [d.businessId, Number(d._sum.amount || 0)]))
-  const withdrawalMap = new Map(existingWithdrawals.map(w => [w.businessId, Number(w._sum.amount || 0)]))
-
-  // 3. Check if migration already ran
-  const migrationMarker = await prisma.businessTransactions.findFirst({
-    where: { referenceType: MIGRATION_REF },
-  })
-
-  if (migrationMarker) {
-    console.log('Migration already ran (found migration marker). Skipping.')
-    console.log('To re-run, delete businessTransactions with referenceType:', MIGRATION_REF)
-    return
-  }
-
-  console.log('Found order totals for', orderTotals.length, 'businesses:\n')
-
-  let totalUpdated = 0
+  let reconciled = 0
 
   for (const entry of orderTotals) {
     const businessId = entry.businessId
     const orderRevenue = Number(entry._sum.totalAmount || 0)
-    const orderCount = entry._count
-    const existingDepositTotal = depositMap.get(businessId) || 0
-    const existingWithdrawalTotal = withdrawalMap.get(businessId) || 0
-
-    // Revenue not yet tracked = order revenue minus already-deposited amounts
-    const unrecordedRevenue = orderRevenue - existingDepositTotal
-
-    if (unrecordedRevenue <= 0) {
-      console.log(`  [SKIP] Business ${businessId}: revenue already recorded`)
-      continue
-    }
-
-    // New balance = unrecorded revenue - existing withdrawals (withdrawals already subtracted from balance)
-    const correctBalance = orderRevenue - existingWithdrawalTotal
 
     // Get business name for logging
     const business = await prisma.businesses.findUnique({
@@ -110,49 +79,101 @@ async function main() {
       })
     }
 
+    // Find completed+paid orders that have no matching deposit transaction
+    // A matching transaction has referenceId = order.id and referenceType = 'order'
+    const existingOrderTxnIds = await prisma.businessTransactions.findMany({
+      where: {
+        businessId,
+        referenceType: 'order',
+        type: 'deposit',
+      },
+      select: { referenceId: true },
+    })
+    const recordedOrderIds = new Set(existingOrderTxnIds.map(t => t.referenceId).filter(Boolean))
+
+    const unrecordedOrders = await prisma.businessOrders.findMany({
+      where: {
+        businessId,
+        status: 'COMPLETED',
+        paymentStatus: 'PAID',
+        id: { notIn: Array.from(recordedOrderIds) },
+      },
+      select: { id: true, orderNumber: true, totalAmount: true },
+    })
+
+    // Create deposit transaction records for unrecorded orders
+    if (unrecordedOrders.length > 0) {
+      // Batch create in a single transaction for efficiency
+      await prisma.$transaction(async (tx) => {
+        for (const order of unrecordedOrders) {
+          const amount = Number(order.totalAmount)
+          if (amount <= 0) continue
+
+          await tx.businessTransactions.create({
+            data: {
+              businessId,
+              amount,
+              type: 'deposit',
+              description: `Order revenue - ${order.orderNumber}`,
+              referenceId: order.id,
+              referenceType: 'order',
+              balanceAfter: 0, // Will be corrected in reconciliation below
+              createdBy: systemUserId,
+              notes: 'Backfilled from completed order',
+            },
+          })
+        }
+      })
+      console.log(`   ${businessName}: created ${unrecordedOrders.length} missing transaction records`)
+    }
+
+    // Now reconcile the balance from the full transaction ledger
+    const deposits = await prisma.businessTransactions.aggregate({
+      where: { businessId, type: { in: ['deposit', 'transfer', 'loan_received'] } },
+      _sum: { amount: true },
+    })
+    const withdrawals = await prisma.businessTransactions.aggregate({
+      where: { businessId, type: { in: ['withdrawal', 'loan_disbursement', 'loan_payment'] } },
+      _sum: { amount: true },
+    })
+
+    const totalDeposits = Number(deposits._sum.amount || 0)
+    const totalWithdrawals = Number(withdrawals._sum.amount || 0)
+    const correctBalance = totalDeposits - totalWithdrawals
     const currentBalance = Number(account.balance)
 
-    // Update balance and create audit record in a transaction
-    await prisma.$transaction(async (tx) => {
-      await tx.businessAccounts.update({
+    // Update if different (within 0.01 tolerance for floating point)
+    if (Math.abs(correctBalance - currentBalance) >= 0.01) {
+      await prisma.businessAccounts.update({
         where: { businessId },
         data: {
           balance: correctBalance,
           updatedAt: new Date(),
         },
       })
-
-      // Create a migration transaction record for audit trail
-      // Use the first admin user as createdBy
-      const adminUser = await tx.users.findFirst({
-        where: { role: 'admin' },
-        select: { id: true },
-      })
-
-      await tx.businessTransactions.create({
-        data: {
-          businessId,
-          amount: unrecordedRevenue,
-          type: 'deposit',
-          description: `Balance migration - ${orderCount} completed orders`,
-          referenceType: MIGRATION_REF,
-          balanceAfter: correctBalance,
-          createdBy: adminUser?.id || 'system',
-          notes: `Backfilled from ${orderCount} completed+paid orders. Original balance: $${currentBalance.toFixed(2)}, Order revenue: $${orderRevenue.toFixed(2)}`,
-        },
-      })
-    })
-
-    console.log(`  [OK] ${businessName}: $${currentBalance.toFixed(2)} -> $${correctBalance.toFixed(2)} (${orderCount} orders, $${orderRevenue.toFixed(2)} revenue)`)
-    totalUpdated++
+      console.log(`   ${businessName}: $${currentBalance.toFixed(2)} -> $${correctBalance.toFixed(2)}`)
+      reconciled++
+    }
   }
 
-  console.log(`\nDone! Updated ${totalUpdated} business account balances.`)
+  if (reconciled === 0) {
+    console.log('   All business balances are correct.')
+  } else {
+    console.log(`   Reconciled ${reconciled} business account balances.`)
+  }
+
+  console.log('✅ Business balance reconciliation complete')
 }
 
-main()
-  .catch((err) => {
-    console.error('Migration failed:', err)
-    process.exit(1)
-  })
-  .finally(() => prisma.$disconnect())
+// Export for use in seed-migration-data.js
+module.exports = { reconcileBusinessBalances }
+
+// Run standalone if executed directly
+if (require.main === module) {
+  reconcileBusinessBalances()
+    .catch((err) => {
+      console.error('Reconciliation failed:', err)
+      process.exit(1)
+    })
+    .finally(() => prisma.$disconnect())
+}

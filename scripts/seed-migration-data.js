@@ -945,6 +945,15 @@ async function main() {
       console.warn('⚠️  Failed to seed payroll account:', err.message)
     }
 
+    // Reconcile business account balances from order history
+    try {
+      const { reconcileBusinessBalances } = require('./migrate-business-balances.js')
+      console.log('')
+      await reconcileBusinessBalances()
+    } catch (err) {
+      console.warn('⚠️  Failed to reconcile business balances:', err.message)
+    }
+
     console.log('')
     console.log('🎉 Migration data seeding completed successfully!')
     console.log('')
