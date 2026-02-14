@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { canAccessModule, hasPermission, checkPermission, isSystemAdmin, hasUserPermission, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useNavigation } from '@/contexts/navigation-context'
+import { useGlobalCart } from '@/contexts/global-cart-context'
 import { BusinessRevenueBreakdownModal } from '@/components/dashboard/business-revenue-breakdown-modal'
 
 interface Business {
@@ -81,6 +82,9 @@ export function Sidebar() {
     businesses: businessMemberships,
     switchBusiness
   } = useBusinessPermissionsContext()
+
+  // Get global cart for real-time sidebar badge updates
+  const { getCartItemCount: getGlobalCartCount } = useGlobalCart()
 
   // Use businesses from BusinessPermissionsContext instead of separate API call
   useEffect(() => {
@@ -215,15 +219,40 @@ export function Sidebar() {
 
       businesses.forEach(business => {
         try {
-          const cartKey = `cart-${business.id}`
-          const cartData = localStorage.getItem(cartKey)
-          if (cartData) {
-            const cart = JSON.parse(cartData)
-            if (Array.isArray(cart) && cart.length > 0) {
-              // Count total items in cart
-              const itemCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0)
-              counts[business.id] = itemCount
+          // Check both POS cart and global cart keys
+          const posCartData = localStorage.getItem(`cart-${business.id}`)
+          const globalCartData = localStorage.getItem(`global-cart-${business.id}`)
+
+          let totalItems = 0
+          const countedVariants = new Set<string>()
+
+          // Count POS cart items
+          if (posCartData) {
+            const posCart = JSON.parse(posCartData)
+            if (Array.isArray(posCart)) {
+              posCart.forEach((item: any) => {
+                const key = item.variantId || item.id
+                countedVariants.add(key)
+                totalItems += (item.quantity || 1)
+              })
             }
+          }
+
+          // Count global cart items (avoid duplicates already in POS cart)
+          if (globalCartData) {
+            const globalCart = JSON.parse(globalCartData)
+            if (Array.isArray(globalCart)) {
+              globalCart.forEach((item: any) => {
+                const key = item.variantId || item.id
+                if (!countedVariants.has(key)) {
+                  totalItems += (item.quantity || 1)
+                }
+              })
+            }
+          }
+
+          if (totalItems > 0) {
+            counts[business.id] = totalItems
           }
         } catch (error) {
           // Ignore localStorage errors
@@ -238,7 +267,7 @@ export function Sidebar() {
 
       // Listen for storage events to update counts when carts change
       const handleStorageChange = (e: StorageEvent) => {
-        if (e.key?.startsWith('cart-')) {
+        if (e.key?.startsWith('cart-') || e.key?.startsWith('global-cart-')) {
           checkCartCounts()
         }
       }
@@ -501,12 +530,17 @@ export function Sidebar() {
                           <div className="flex flex-col truncate">
                             <div className="flex items-center gap-2">
                               <span className="truncate">{business.name}</span>
-                              {/* Cart indicator badge */}
-                              {businessCartCounts[business.id] > 0 && (
-                                <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full min-w-[20px]">
-                                  {businessCartCounts[business.id]}
-                                </span>
-                              )}
+                              {/* Cart indicator badge - use global cart for current business (real-time), localStorage for others */}
+                              {(() => {
+                                const count = business.id === currentBusinessId
+                                  ? getGlobalCartCount()
+                                  : (businessCartCounts[business.id] || 0)
+                                return count > 0 ? (
+                                  <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full min-w-[20px]">
+                                    {count}
+                                  </span>
+                                ) : null
+                              })()}
                             </div>
                             {/* Show business type badge for "Other" category */}
                             {group.type === 'other' && (
@@ -564,6 +598,11 @@ export function Sidebar() {
                     <span>Menu Management</span>
                   </Link>
                 )}
+                {/* Business Services */}
+                <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                  <span className="text-lg">🔧</span>
+                  <span>Services</span>
+                </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/restaurant/wifi-tokens" className={getLinkClasses('/restaurant/wifi-tokens')}>
@@ -612,6 +651,11 @@ export function Sidebar() {
                 <Link href="/grocery/products" className={getLinkClasses('/grocery/products')}>
                   <span className="text-lg">📦</span>
                   <span>Products</span>
+                </Link>
+                {/* Business Services */}
+                <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                  <span className="text-lg">🔧</span>
+                  <span>Services</span>
                 </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
@@ -662,6 +706,11 @@ export function Sidebar() {
                   <span className="text-lg">👗</span>
                   <span>Products</span>
                 </Link>
+                {/* Business Services */}
+                <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                  <span className="text-lg">🔧</span>
+                  <span>Services</span>
+                </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/clothing/wifi-tokens" className={getLinkClasses('/clothing/wifi-tokens')}>
@@ -710,6 +759,11 @@ export function Sidebar() {
                 <Link href="/hardware/products" className={getLinkClasses('/hardware/products')}>
                   <span className="text-lg">🛠️</span>
                   <span>Products</span>
+                </Link>
+                {/* Business Services */}
+                <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                  <span className="text-lg">🔧</span>
+                  <span>Services</span>
                 </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (

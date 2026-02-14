@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import { BusinessOrder } from './types'
 import { formatCurrency, getStatusColor, getStatusIcon } from './utils'
 import { BUSINESS_ORDER_CONFIGS } from './BusinessOrderConfig'
@@ -11,6 +14,7 @@ interface OrderCardProps {
 
 export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType }: OrderCardProps) {
   const config = BUSINESS_ORDER_CONFIGS[businessType]
+  const [expanded, setExpanded] = useState(false)
 
   const handleStatusChange = (newStatus: string) => {
     onStatusUpdate(order.id, newStatus)
@@ -32,6 +36,9 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType 
   }
 
   const businessSpecificInfo = getBusinessSpecificInfo()
+  const items = order.items || []
+  const displayedItems = expanded ? items : items.slice(0, 3)
+  const hasMoreItems = items.length > 3
 
   return (
     <div className="card p-4 sm:p-6 hover:shadow-md transition-shadow">
@@ -66,7 +73,7 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType 
             {formatCurrency(order.totalAmount)}
           </p>
           <p className="text-sm text-secondary">
-            {(order.items?.length || 0)} item{(order.items?.length || 0) !== 1 ? 's' : ''}
+            {items.length} item{items.length !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
@@ -74,7 +81,7 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType 
       {/* Order Items */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
         <div className="space-y-2">
-          {(order.items || []).slice(0, 3).map((item, index) => (
+          {displayedItems.map((item, index) => (
             <div key={index} className="flex justify-between text-sm">
               <span className="text-secondary">
                 {item.quantity}x {item.productName || 'Unknown Product'}
@@ -85,10 +92,47 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType 
               </span>
             </div>
           ))}
-          {(order.items?.length || 0) > 3 && (
+          {!expanded && hasMoreItems && (
             <p className="text-sm text-secondary">
-              +{(order.items?.length || 0) - 3} more items
+              +{items.length - 3} more items
             </p>
+          )}
+
+          {/* Expanded details */}
+          {expanded && (
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 text-sm text-secondary">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span className="font-medium">{formatCurrency(order.subtotal || order.totalAmount)}</span>
+              </div>
+              {order.taxAmount > 0 && (
+                <div className="flex justify-between">
+                  <span>Tax</span>
+                  <span className="font-medium">{formatCurrency(order.taxAmount)}</span>
+                </div>
+              )}
+              {order.discountAmount > 0 && (
+                <div className="flex justify-between">
+                  <span>Discount</span>
+                  <span className="font-medium text-red-500">-{formatCurrency(order.discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold text-primary">
+                <span>Total</span>
+                <span>{formatCurrency(order.totalAmount)}</span>
+              </div>
+              {order.paymentMethod && (
+                <div className="flex justify-between">
+                  <span>Payment</span>
+                  <span className="font-medium capitalize">{order.paymentMethod.toLowerCase()}</span>
+                </div>
+              )}
+              {order.notes && (
+                <div className="mt-2">
+                  <span className="font-medium">Notes:</span> {order.notes}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -112,12 +156,15 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, businessType 
             onClick={() => onPrintReceipt(order)}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            🖨️ Print
+            Print
           </button>
         )}
 
-        <button className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-secondary rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
-          View Details
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-secondary rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+          {expanded ? 'Hide Details' : 'View Details'}
         </button>
       </div>
     </div>

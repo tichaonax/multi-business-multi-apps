@@ -580,8 +580,7 @@ export function PaymentForm({
     if (amount > availableBalance) {
       customAlert({
         title: 'Insufficient Funds',
-        message: `Adding this payment would exceed available balance. Available: ${formatCurrency(availableBalance)}. You can add funds before continuing.`,
-        type: 'error'
+        description: `Adding this payment would exceed available balance. Available: ${formatCurrency(availableBalance)}. You can add funds before continuing.`
       })
       return
     }
@@ -705,8 +704,7 @@ export function PaymentForm({
     if (batchPayments.length === 0) {
       customAlert({
         title: 'No Payments',
-        message: 'Please add at least one payment to the batch',
-        type: 'error'
+        description: 'Please add at least one payment to the batch'
       })
       return
     }
@@ -715,8 +713,7 @@ export function PaymentForm({
     if (totalAmount > currentBalance) {
       customAlert({
         title: 'Insufficient Funds',
-        message: `Batch total (${formatCurrency(totalAmount)}) exceeds account balance (${formatCurrency(currentBalance)})`,
-        type: 'error'
+        description: `Batch total (${formatCurrency(totalAmount)}) exceeds account balance (${formatCurrency(currentBalance)})`
       })
       return
     }
@@ -766,8 +763,7 @@ export function PaymentForm({
       if (response.ok) {
         customAlert({
           title: 'Success',
-          message: `Successfully submitted ${batchPayments.length} payment(s)`,
-          type: 'success',
+          description: `Successfully submitted ${batchPayments.length} payment(s)`,
         })
 
         // Clear batch
@@ -781,16 +777,14 @@ export function PaymentForm({
       } else {
         customAlert({
           title: 'Error',
-          message: data.error || 'Failed to submit payments',
-          type: 'error',
+          description: data.error || 'Failed to submit payments',
         })
       }
     } catch (error) {
       console.error('Error submitting batch:', error)
       customAlert({
         title: 'Error',
-        message: 'An error occurred while submitting payments',
-        type: 'error',
+        description: 'An error occurred while submitting payments',
       })
     } finally {
       setSubmitting(false)
@@ -851,7 +845,7 @@ export function PaymentForm({
         setFormData(prev => ({ ...prev, subcategoryId: data.data.category.id, subSubcategoryId: '' }))
         setShowCreateSubcategory(false)
       } else {
-        customAlert({ title: 'Error', message: data.error || 'Failed to create subcategory', type: 'error' })
+        customAlert({ title: 'Error', description: data.error || 'Failed to create subcategory' })
       }
     } catch (error) {
       console.error('Error creating subcategory:', error)
@@ -881,7 +875,7 @@ export function PaymentForm({
         setFormData(prev => ({ ...prev, subSubcategoryId: data.subcategory.id }))
         setShowCreateSubSubcategory(false)
       } else {
-        customAlert({ title: 'Error', message: data.error || 'Failed to create sub-subcategory', type: 'error' })
+        customAlert({ title: 'Error', description: data.error || 'Failed to create sub-subcategory' })
       }
     } catch (error) {
       console.error('Error creating sub-subcategory:', error)

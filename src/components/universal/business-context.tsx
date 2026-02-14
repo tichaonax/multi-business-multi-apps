@@ -111,8 +111,8 @@ export function BusinessProvider({ businessId, children }: BusinessProviderProps
         language: 'en-US',
         dateFormat: 'MM/dd/yyyy',
         numberFormat: 'en-US',
-        taxEnabled: true,
-        taxRate: 0.08
+        taxEnabled: false,
+        taxRate: 0
       },
       pos: {
         enableBarcodeScan: true,

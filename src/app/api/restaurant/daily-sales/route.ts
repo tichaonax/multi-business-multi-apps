@@ -176,12 +176,46 @@ export async function GET(request: NextRequest) {
       { name: string; itemCount: number; totalSales: number }
     > = {}
 
+    // Collect categoryIds from item attributes for fallback lookup
+    const fallbackCategoryIds = new Set<string>()
+    orders.forEach((order: any) => {
+      order.business_order_items.forEach((item: any) => {
+        const product = item.product_variants?.business_products
+        if (!product?.business_categories) {
+          const attrCatId = (item.attributes as any)?.categoryId
+          if (attrCatId) fallbackCategoryIds.add(attrCatId)
+        }
+      })
+    })
+
+    // Batch-fetch fallback categories
+    let fallbackCategories: Record<string, string> = {}
+    if (fallbackCategoryIds.size > 0) {
+      const cats = await prisma.businessCategories.findMany({
+        where: { id: { in: Array.from(fallbackCategoryIds) } },
+        select: { id: true, name: true }
+      })
+      cats.forEach(c => { fallbackCategories[c.id] = c.name })
+    }
+
     orders.forEach((order: any) => {
       order.business_order_items.forEach((item: any) => {
         const product = item.product_variants?.business_products
         const category = product?.business_categories
-        const categoryId = category?.id || 'uncategorized'
-        const categoryName = category?.name || 'Uncategorized'
+        let categoryId = category?.id
+        let categoryName = category?.name
+
+        // Fallback: use categoryId from item attributes
+        if (!categoryId) {
+          const attrCatId = (item.attributes as any)?.categoryId
+          if (attrCatId && fallbackCategories[attrCatId]) {
+            categoryId = attrCatId
+            categoryName = fallbackCategories[attrCatId]
+          }
+        }
+
+        categoryId = categoryId || 'uncategorized'
+        categoryName = categoryName || 'Uncategorized'
 
         if (!categoryBreakdown[categoryId]) {
           categoryBreakdown[categoryId] = {

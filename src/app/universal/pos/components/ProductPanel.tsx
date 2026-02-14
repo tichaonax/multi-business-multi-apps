@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Search, Barcode, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Product } from '../hooks/useProductLoader'
@@ -34,6 +34,28 @@ export function ProductPanel({
   const [barcodeInput, setBarcodeInput] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
+
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    if (!businessId) return
+    try {
+      const stored = localStorage.getItem(`pos-favorites-${businessId}`)
+      if (stored) setFavorites(new Set(JSON.parse(stored)))
+    } catch { /* ignore */ }
+  }, [businessId])
+
+  const toggleFavorite = (productId: string) => {
+    setFavorites(prev => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      if (businessId) {
+        localStorage.setItem(`pos-favorites-${businessId}`, JSON.stringify([...next]))
+      }
+      return next
+    })
+  }
 
   // Extract unique categories from products
   const categories = useMemo(() => {
@@ -69,8 +91,15 @@ export function ProductPanel({
       filtered = filtered.filter((p) => p.category === selectedCategory)
     }
 
+    // Sort favorites to top
+    filtered.sort((a, b) => {
+      const aFav = favorites.has(a.id) ? 0 : 1
+      const bFav = favorites.has(b.id) ? 0 : 1
+      return aFav - bFav
+    })
+
     return filtered
-  }, [products, searchTerm, barcodeInput, selectedCategory, config.features.barcodeScan])
+  }, [products, searchTerm, barcodeInput, selectedCategory, config.features.barcodeScan, favorites])
 
   const handleRequestMore = async (product: Product) => {
     if (!businessId || !product.tokenConfigId) return
@@ -139,6 +168,7 @@ export function ProductPanel({
       variantId: variant?.id,
       categoryId: product.categoryId,
       imageUrl: product.imageUrl,
+      isService: product.isService,
       isWiFiToken: product.isWiFiToken,
       tokenConfigId: product.tokenConfigId,
       packageName: product.packageName,
@@ -244,8 +274,20 @@ export function ProductPanel({
                   return (
                     <div
                       key={product.id}
-                      className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all text-left bg-white dark:bg-gray-700"
+                      className={`p-3 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all text-left bg-white dark:bg-gray-700 ${
+                        favorites.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : 'border-gray-200 dark:border-gray-700'
+                      }`}
                     >
+                      <div className="flex justify-end -mb-2">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id) }}
+                          className="text-lg leading-none hover:scale-110 transition-transform"
+                          title={favorites.has(product.id) ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                          {favorites.has(product.id) ? <span className="text-yellow-400">★</span> : <span className="text-gray-300 dark:text-gray-500">☆</span>}
+                        </button>
+                      </div>
                       <button
                         onClick={() => handleAddToCart(product)}
                         className="w-full text-left"
@@ -281,7 +323,7 @@ export function ProductPanel({
                             {remaining} available
                           </span>
                         )}
-                        {!product.isWiFiToken && product.stockQuantity !== undefined && product.stockQuantity <= 0 && (
+                        {!product.isWiFiToken && !product.isService && product.stockQuantity !== undefined && product.stockQuantity <= 0 && (
                           <span className="inline-block px-2 py-1 text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded mt-2">
                             Out of Stock
                           </span>
@@ -319,8 +361,18 @@ export function ProductPanel({
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
-                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700"
+                    className={`flex items-center justify-between p-3 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700 ${
+                      favorites.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : 'border-gray-200 dark:border-gray-700'
+                    }`}
                   >
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id) }}
+                      className="mr-2 text-lg leading-none hover:scale-110 transition-transform flex-shrink-0"
+                      title={favorites.has(product.id) ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      {favorites.has(product.id) ? <span className="text-yellow-400">★</span> : <span className="text-gray-300 dark:text-gray-500">☆</span>}
+                    </button>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-gray-900 dark:text-white truncate">
                         {product.name}
@@ -361,10 +413,21 @@ export function ProductPanel({
                   return (
                     <div
                       key={product.id}
-                      className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700"
+                      className={`p-4 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700 ${
+                        favorites.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : 'border-gray-200 dark:border-gray-700'
+                      }`}
                     >
                       <div className="flex items-start justify-between">
-                        <div className="flex-1">
+                        <div className="flex items-start gap-2 flex-1">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id) }}
+                            className="mt-0.5 text-lg leading-none hover:scale-110 transition-transform flex-shrink-0"
+                            title={favorites.has(product.id) ? 'Remove from favorites' : 'Add to favorites'}
+                          >
+                            {favorites.has(product.id) ? <span className="text-yellow-400">★</span> : <span className="text-gray-300 dark:text-gray-500">☆</span>}
+                          </button>
+                          <div className="flex-1">
                           <h3 className="font-medium text-gray-900 dark:text-white">
                             {product.name}
                           </h3>
@@ -391,6 +454,7 @@ export function ProductPanel({
                           }`}>
                             <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
                           </span>
+                          </div>
                         </div>
                         <div className="ml-3 flex flex-col items-end gap-2">
                           <button

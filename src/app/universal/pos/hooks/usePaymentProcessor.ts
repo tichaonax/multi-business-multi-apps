@@ -95,13 +95,29 @@ export function usePaymentProcessor(
             }
           }
 
+          if (item.isService) {
+            return {
+              productVariantId: item.variantId || null,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discountAmount: 0,
+              attributes: {
+                businessService: true,
+                productName: item.name,
+                hours: item.hours
+              }
+            }
+          }
+
           return {
             productVariantId: item.variantId || null,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             discountAmount: 0,
             attributes: {
+              productId: item.productId,
               productName: item.name,
+              categoryId: item.categoryId,
               weight: item.weight,
               size: item.size,
               color: item.color,

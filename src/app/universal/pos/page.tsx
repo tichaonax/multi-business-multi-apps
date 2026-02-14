@@ -140,7 +140,8 @@ export default function UniversalPOS() {
         variantId: item.variantId,
         imageUrl: item.imageUrl || undefined,
         isCombo: item.isCombo,
-        comboItems: item.comboItems
+        comboItems: item.comboItems,
+        isService: item.attributes?.isService || item.attributes?.businessService || false
       })
     })
 

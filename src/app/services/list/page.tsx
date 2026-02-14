@@ -10,6 +10,8 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { useGlobalCart } from '@/contexts/global-cart-context'
+import { toast } from 'sonner'
 
 interface ServiceProduct {
   id: string
@@ -31,6 +33,7 @@ export default function ServicesListPage() {
   const { currentBusiness } = useBusinessPermissionsContext()
   const customAlert = useAlert()
   const customConfirm = useConfirm()
+  const { addToCart } = useGlobalCart()
   const [services, setServices] = useState<ServiceProduct[]>([])
   const [filteredServices, setFilteredServices] = useState<ServiceProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -72,7 +75,7 @@ export default function ServicesListPage() {
       }
     } catch (error) {
       console.error('Error fetching services:', error)
-      customAlert('Error fetching services')
+      customAlert({ title: 'Error', description: 'Error fetching services' })
     } finally {
       setLoading(false)
     }
@@ -120,10 +123,10 @@ export default function ServicesListPage() {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    const confirmed = await customConfirm(
-      `Are you sure you want to delete "${name}"?`,
-      'This action cannot be undone.'
-    )
+    const confirmed = await customConfirm({
+      title: 'Delete Service',
+      description: `Are you sure you want to delete "${name}"? This action cannot be undone.`
+    })
 
     if (confirmed) {
       try {
@@ -132,17 +135,29 @@ export default function ServicesListPage() {
         })
 
         if (response.ok) {
-          await customAlert(`Service "${name}" deleted successfully`)
+          await customAlert({ title: 'Success', description: `Service "${name}" deleted successfully` })
           fetchServices()
         } else {
           const error = await response.json()
-          await customAlert(`Error: ${error.message || 'Failed to delete service'}`)
+          await customAlert({ title: 'Error', description: error.message || 'Failed to delete service' })
         }
       } catch (error) {
         console.error('Error deleting service:', error)
-        await customAlert('Error deleting service')
+        await customAlert({ title: 'Error', description: 'Error deleting service' })
       }
     }
+  }
+
+  const handleAddToCart = (service: ServiceProduct) => {
+    addToCart({
+      productId: service.id,
+      variantId: `svc_${service.id}`,  // Virtual variant ID for cart display
+      name: service.name,
+      sku: service.sku,
+      price: service.sellingPrice,
+      attributes: { isService: true, businessService: true, productName: service.name }
+    })
+    toast.success(`Added "${service.name}" to cart`)
   }
 
   const handleToggleStatus = async (id: string, currentStatus: boolean) => {
@@ -156,11 +171,11 @@ export default function ServicesListPage() {
       if (response.ok) {
         fetchServices()
       } else {
-        await customAlert('Error updating service status')
+        await customAlert({ title: 'Error', description: 'Error updating service status' })
       }
     } catch (error) {
       console.error('Error updating status:', error)
-      await customAlert('Error updating service status')
+      await customAlert({ title: 'Error', description: 'Error updating service status' })
     }
   }
 
@@ -312,6 +327,15 @@ export default function ServicesListPage() {
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex justify-center gap-2">
+                              {service.isActive && service.sellingPrice > 0 && (
+                                <button
+                                  onClick={() => handleAddToCart(service)}
+                                  className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
+                                  title="Add to Cart"
+                                >
+                                  🛒
+                                </button>
+                              )}
                               <Link
                                 href={`/services/edit/${service.id}`}
                                 className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"

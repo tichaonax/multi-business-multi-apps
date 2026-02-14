@@ -247,8 +247,7 @@ function GroceryPOSContent() {
         sku: item.barcode || item.pluCode || item.id,
         price: item.price,
         quantity: item.quantity,
-        attributes: {},
-        stock: 0
+        attributes: {}
       }))
       replaceGlobalCart(globalCartItems)
     } catch (error) {

@@ -79,7 +79,7 @@ export default function RestaurantPOS() {
   const [completedOrder, setCompletedOrder] = useState<any>(null)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [taxIncludedInPrice, setTaxIncludedInPrice] = useState(true) // Default: tax included
-  const [taxRate, setTaxRate] = useState(0.08) // Default: 8%
+  const [taxRate, setTaxRate] = useState(0) // Default: 0% - businesses configure their own tax rate
   const [printerId, setPrinterId] = useState<string | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
@@ -185,7 +185,7 @@ export default function RestaurantPOS() {
         price: item.price,
         quantity: item.quantity,
         attributes: {},
-        stock: item.stockQuantity || 0,
+        stock: item.stockQuantity || undefined,
         imageUrl: item.imageUrl,
         // Include combo data for mini cart display
         isCombo: (item as any).isCombo || false,

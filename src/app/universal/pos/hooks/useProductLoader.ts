@@ -26,6 +26,8 @@ export interface Product {
   barcode?: string
   isWiFiToken?: boolean
   isR710Token?: boolean
+  isService?: boolean
+  productType?: string
 
   // Product variants
   variants?: ProductVariant[]
@@ -76,7 +78,7 @@ export function useProductLoader(
     try {
       // Load regular products
       const productsResponse = await fetch(
-        `/api/universal/products?businessId=${businessId}&businessType=${businessType}&includeVariants=true`
+        `/api/universal/products?businessId=${businessId}&businessType=${businessType}&includeVariants=true&limit=5000`
       )
 
       if (!productsResponse.ok) {
@@ -97,6 +99,8 @@ export function useProductLoader(
         imageUrl: product.imageUrl || product.images?.[0]?.url,
         stockQuantity: product.stockQuantity,
         barcode: product.barcode,
+        productType: product.productType,
+        isService: product.productType === 'SERVICE',
         isCombo: product.isCombo,
         comboItems: product.comboItems,
         variants: product.variants?.map((variant: any) => ({

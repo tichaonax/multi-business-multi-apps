@@ -117,8 +117,8 @@ const BusinessConfigSchema = z.object({
     language: z.string().default('en'),
     dateFormat: z.enum(['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD']).default('MM/DD/YYYY'),
     numberFormat: z.enum(['US', 'EU']).default('US'),
-    taxEnabled: z.boolean().default(true),
-    taxRate: z.number().min(0).max(100).default(8.25)
+    taxEnabled: z.boolean().default(false),
+    taxRate: z.number().min(0).max(100).default(0)
   }).optional(),
   pos: z.object({
     enableBarcodeScan: z.boolean().default(true),
@@ -202,8 +202,8 @@ export async function GET(request: NextRequest) {
           language: 'en',
           dateFormat: 'MM/DD/YYYY',
           numberFormat: 'US',
-          taxEnabled: true,
-          taxRate: 8.25
+          taxEnabled: false,
+          taxRate: 0
         },
         pos: {
           enableBarcodeScan: true,
@@ -352,7 +352,7 @@ export async function GET(request: NextRequest) {
       ecocashEnabled: business.ecocashEnabled ?? false,
       receiptReturnPolicy: business.receiptReturnPolicy,
       taxIncludedInPrice: business.taxIncludedInPrice ?? true,
-      taxRate: business.taxRate ? Number(business.taxRate) : null,
+      taxRate: business.taxRate != null ? Number(business.taxRate) : null,
       taxLabel: business.taxLabel,
       defaultPage: business.defaultPage,
       slogan: business.slogan || 'Where Customer Is King',

@@ -1,6 +1,5 @@
 'use client'
 
-
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
@@ -8,7 +7,7 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 
@@ -18,12 +17,15 @@ interface Category {
   emoji?: string
 }
 
-export default function AddServicePage() {
+export default function EditServicePage() {
   const { currentBusiness } = useBusinessPermissionsContext()
   const router = useRouter()
+  const params = useParams()
+  const serviceId = params.id as string
   const customAlert = useAlert()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingData, setLoadingData] = useState(true)
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [creatingCategory, setCreatingCategory] = useState(false)
@@ -41,15 +43,46 @@ export default function AddServicePage() {
   useEffect(() => {
     if (currentBusiness?.businessId) {
       fetchCategories()
+      fetchService()
     }
   }, [currentBusiness?.businessId])
+
+  const fetchService = async () => {
+    try {
+      setLoadingData(true)
+      const response = await fetch(`/api/business/${currentBusiness?.businessId}/products`)
+      if (response.ok) {
+        const data = await response.json()
+        const service = data.find((p: any) => p.id === serviceId)
+        if (service) {
+          setFormData({
+            name: service.name || '',
+            sku: service.sku || '',
+            description: service.description || '',
+            sellingPrice: service.sellingPrice?.toString() || '',
+            cost: service.cost?.toString() || '',
+            unitOfMeasure: service.unitOfMeasure || 'fixed',
+            categoryId: service.business_categories?.id || '',
+            isActive: service.isActive ?? true,
+          })
+        } else {
+          await customAlert({ title: 'Error', description: 'Service not found' })
+          router.replace('/services/list')
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching service:', error)
+      await customAlert({ title: 'Error', description: 'Error loading service' })
+    } finally {
+      setLoadingData(false)
+    }
+  }
 
   const fetchCategories = async () => {
     try {
       const response = await fetch(`/api/business/${currentBusiness?.businessId}/categories`)
       if (response.ok) {
         const data = await response.json()
-        // Sort alphabetically (API already sorts, but ensure client-side)
         const sorted = [...data].sort((a: Category, b: Category) => a.name.localeCompare(b.name))
         setCategories(sorted)
       }
@@ -90,35 +123,36 @@ export default function AddServicePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.name || !formData.sku || !formData.categoryId) {
-      await customAlert({ title: 'Missing Fields', description: 'Please fill in service name, SKU, and select a category.' })
+    if (!formData.name || !formData.categoryId) {
+      await customAlert({ title: 'Missing Fields', description: 'Please fill in service name and select a category.' })
       return
     }
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/business/${currentBusiness?.businessId}/products`, {
-        method: 'POST',
+      const response = await fetch(`/api/business/${currentBusiness?.businessId}/products/${serviceId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
+          name: formData.name,
+          description: formData.description,
           sellingPrice: parseFloat(formData.sellingPrice) || 0,
           cost: parseFloat(formData.cost) || 0,
-          productType: 'SERVICE',
+          categoryId: formData.categoryId,
+          isActive: formData.isActive,
         }),
       })
 
       if (response.ok) {
-        await customAlert({ title: 'Success', description: 'Service created successfully!' })
-        // Use replace instead of push to prevent back button from returning to form
+        await customAlert({ title: 'Success', description: 'Service updated successfully!' })
         router.replace('/services/list')
       } else {
         const error = await response.json()
-        await customAlert({ title: 'Error', description: error.message || 'Failed to create service' })
+        await customAlert({ title: 'Error', description: error.error || 'Failed to update service' })
       }
     } catch (error) {
-      console.error('Error creating service:', error)
-      await customAlert({ title: 'Error', description: 'Error creating service' })
+      console.error('Error updating service:', error)
+      await customAlert({ title: 'Error', description: 'Error updating service' })
     } finally {
       setLoading(false)
     }
@@ -132,27 +166,30 @@ export default function AddServicePage() {
     }))
   }
 
-  const generateSKU = () => {
-    const prefix = formData.name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 3)
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
-    setFormData(prev => ({ ...prev, sku: `SVC-${prefix}-${random}` }))
+  if (loadingData) {
+    return (
+      <ProtectedRoute>
+        <MainLayout>
+          <ContentLayout title="Edit Service" subtitle="Loading...">
+            <div className="card p-6 text-center">
+              <p className="text-slate-600 dark:text-slate-400">Loading service data...</p>
+            </div>
+          </ContentLayout>
+        </MainLayout>
+      </ProtectedRoute>
+    )
   }
 
   return (
     <ProtectedRoute>
       <MainLayout>
         <ContentLayout
-          title="Add New Service"
-          subtitle="Create a new service offering"
+          title="Edit Service"
+          subtitle={`Editing: ${formData.name}`}
           breadcrumb={[
             { label: 'Business Hub', href: '/dashboard' },
-            { label: 'Services', href: '/services' },
-            { label: 'Add', isActive: true }
+            { label: 'Services', href: '/services/list' },
+            { label: 'Edit', isActive: true }
           ]}
         >
           <div className="card p-6">
@@ -180,26 +217,15 @@ export default function AddServicePage() {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      SKU <span className="text-red-500">*</span>
+                      SKU
                     </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        name="sku"
-                        value={formData.sku}
-                        onChange={handleChange}
-                        required
-                        className="input flex-1"
-                        placeholder="e.g., SVC-PLB-001"
-                      />
-                      <button
-                        type="button"
-                        onClick={generateSKU}
-                        className="btn-secondary"
-                      >
-                        Generate
-                      </button>
-                    </div>
+                    <input
+                      type="text"
+                      name="sku"
+                      value={formData.sku}
+                      disabled
+                      className="input w-full px-4 py-2.5 text-base bg-slate-100 dark:bg-slate-700 cursor-not-allowed"
+                    />
                   </div>
 
                   <div className="md:col-span-2">
@@ -388,7 +414,7 @@ export default function AddServicePage() {
                   className="btn-primary"
                   disabled={loading}
                 >
-                  {loading ? 'Creating...' : 'Create Service'}
+                  {loading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

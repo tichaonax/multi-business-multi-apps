@@ -107,6 +107,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
 
+  // Pinned quick-add products (persisted in localStorage)
+  const [pinnedProductIds, setPinnedProductIds] = useState<Set<string>>(new Set())
+
   // Business tax configuration
   const [businessConfig, setBusinessConfig] = useState<{
     taxIncludedInPrice: boolean
@@ -114,7 +117,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     taxLabel: string
   }>({
     taxIncludedInPrice: true,
-    taxRate: 8.0,
+    taxRate: 0,
     taxLabel: 'Tax'
   })
 
@@ -175,7 +178,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           if (result.success && result.data) {
             setBusinessConfig({
               taxIncludedInPrice: result.data.taxIncludedInPrice ?? true,
-              taxRate: result.data.taxRate ?? 8.0,
+              taxRate: result.data.taxRate != null ? result.data.taxRate : 0,
               taxLabel: result.data.taxLabel || 'Tax'
             })
           }
@@ -187,6 +190,26 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
     fetchBusinessConfig()
   }, [businessId])
+
+  // Load pinned quick-add product IDs from localStorage
+  useEffect(() => {
+    if (!businessId) return
+    try {
+      const stored = localStorage.getItem(`pos-quickadd-${businessId}`)
+      if (stored) setPinnedProductIds(new Set(JSON.parse(stored)))
+    } catch { /* ignore */ }
+  }, [businessId])
+
+  // Toggle pin/unpin a product for quick add
+  const toggleQuickAdd = (productId: string) => {
+    setPinnedProductIds(prev => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      localStorage.setItem(`pos-quickadd-${businessId}`, JSON.stringify([...next]))
+      return next
+    })
+  }
 
   // Send page context to customer display so it knows to show cart
   useEffect(() => {
@@ -239,30 +262,23 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           attributes: item.attributes
         }))
 
-        // Merge carts - update quantity if variant already exists, otherwise add new items
+        // Merge carts - prefer global cart quantity for existing items (avoid doubling)
         const mergedCart = [...existingCart]
         importedItems.forEach(newItem => {
-          console.log('📥 [Merge] Checking item:', {
-            name: newItem.name,
-            sku: newItem.sku,
-            variantId: newItem.variantId,
-            id: newItem.id
-          })
           const existingIndex = mergedCart.findIndex(item => item.variantId === newItem.variantId)
           if (existingIndex >= 0) {
-            console.log('  ✅ Found existing item, increasing quantity')
-            // Variant already exists - increase quantity
-            mergedCart[existingIndex].quantity += newItem.quantity
+            // Item exists in both — use the higher quantity (don't sum, that doubles)
+            mergedCart[existingIndex].quantity = Math.max(mergedCart[existingIndex].quantity, newItem.quantity)
           } else {
-            console.log('  ➕ No match found, adding as new item')
-            // New variant - add to cart
+            // New item from global cart — add it
             mergedCart.push(newItem)
           }
         })
 
         finalCart = mergedCart
         setCart(mergedCart)
-        // NOTE: We do NOT clear global cart here anymore
+        // Clear global cart after importing to prevent re-merge on next load
+        clearGlobalCart()
         // Global cart will be cleared after successful payment
       } else {
         // No global cart items - just use existing cart
@@ -312,7 +328,6 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           price: item.price,
           quantity: item.quantity,
           attributes: item.attributes,
-          stock: 0,
           imageUrl: item.imageUrl
         }
       })
@@ -442,7 +457,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             console.warn('Failed to load R710 WiFi tokens for clothing POS:', wifiError)
           }
 
-          setQuickAddProducts([...wifiTokenProducts, ...products].slice(0, 20)) // WiFi tokens first, then products
+          setQuickAddProducts([...wifiTokenProducts, ...products]) // Store all products; display is filtered below
         }
       }
     } catch (error) {
@@ -456,6 +471,74 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   useEffect(() => {
     loadProducts()
   }, [loadProducts])
+
+  // Fetch any pinned products that weren't included in the initial product load
+  useEffect(() => {
+    if (!currentBusiness?.businessId || pinnedProductIds.size === 0 || productsLoading) return
+
+    const loadedIds = new Set(quickAddProducts.map(p => p.id))
+    const missingIds = [...pinnedProductIds].filter(id => !loadedIds.has(id))
+    if (missingIds.length === 0) return
+
+    const fetchMissingPinned = async () => {
+      const fetched: any[] = []
+      for (const pid of missingIds) {
+        try {
+          const response = await fetch(
+            `/api/universal/products?productId=${pid}&includeVariants=true&includeImages=true`
+          )
+          if (!response.ok) continue
+          const result = await response.json()
+          if (!result.success || !result.data?.length) continue
+
+          const match = result.data[0]
+          const validVariants = (match.variants || []).filter((v: any) => {
+            const price = parseFloat(v.price)
+            return !isNaN(price) && price > 0
+          })
+
+          // For SERVICE products without variants, create a virtual variant
+          if (validVariants.length === 0 && match.productType === 'SERVICE' && parseFloat(match.basePrice) > 0) {
+            validVariants.push({
+              id: `svc_${match.id}`,
+              sku: match.sku || match.id,
+              price: parseFloat(match.basePrice),
+              attributes: { isService: true },
+              stock: 999
+            })
+          }
+
+          if (validVariants.length === 0) continue
+
+          const primaryImage = match.images?.find((img: any) => img.isPrimary) || match.images?.[0]
+          fetched.push({
+            id: match.id,
+            name: match.name,
+            imageUrl: primaryImage?.imageUrl || primaryImage?.url || null,
+            category: match.category?.name || '',
+            categoryEmoji: match.category?.emoji || '📦',
+            productType: match.productType,
+            variants: validVariants.map((v: any) => ({
+              id: v.id,
+              sku: v.sku,
+              price: parseFloat(v.price),
+              attributes: v.attributes || {},
+              stock: v.stockQuantity ?? v.stock ?? 999
+            }))
+          })
+        } catch (err) {
+          console.warn(`Failed to fetch pinned product ${pid}:`, err)
+        }
+      }
+
+      if (fetched.length > 0) {
+        setQuickAddProducts(prev => [...fetched, ...prev])
+      }
+    }
+
+    fetchMissingPinned()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBusiness?.businessId, pinnedProductIds, productsLoading])
 
   // Auto-reload products when window regains focus (e.g., after seeding)
   // DISABLED: This was causing issues when switching between businesses
@@ -488,14 +571,23 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
           if (result.success && result.data) {
             // Map API products to same format as quick add products
-            const productsWithVariants = result.data.filter((p: any) => p.variants && p.variants.length > 0)
-
-            const products = productsWithVariants
+            const products = result.data
               .map((p: any) => {
-                const validVariants = p.variants.filter((v: any) => {
+                const validVariants = (p.variants || []).filter((v: any) => {
                   const price = parseFloat(v.price)
                   return !isNaN(price) && price > 0
                 })
+
+                // For SERVICE products without variants, create a virtual variant from base price
+                if (validVariants.length === 0 && p.productType === 'SERVICE' && parseFloat(p.basePrice) > 0) {
+                  validVariants.push({
+                    id: `svc_${p.id}`,
+                    sku: p.sku || p.id,
+                    price: parseFloat(p.basePrice),
+                    attributes: { isService: true },
+                    stock: 999
+                  })
+                }
 
                 // Get primary image or first image
                 const primaryImage = p.images?.find((img: any) => img.isPrimary) || p.images?.[0]
@@ -507,12 +599,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   imageUrl: imageUrl || null,
                   category: p.category?.name || '',
                   categoryEmoji: p.category?.emoji || '📦',
+                  productType: p.productType,
                   variants: validVariants.map((v: any) => ({
                     id: v.id,
                     sku: v.sku,
                     price: parseFloat(v.price),
                     attributes: v.attributes || {},
-                    stock: v.stockQuantity || 0
+                    stock: v.stockQuantity ?? v.stock ?? 999
                   }))
                 }
               })
@@ -1051,7 +1144,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 <div className="space-y-2">
                   {searchResults.map((product) => (
                     <div key={product.id} className="border rounded-lg p-3">
-                      <h4 className="font-medium text-primary mb-2">{product.name}</h4>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-primary">{product.name}</h4>
+                        <button
+                          type="button"
+                          onClick={() => toggleQuickAdd(product.id)}
+                          className="text-lg leading-none hover:scale-110 transition-transform ml-2"
+                          title={pinnedProductIds.has(product.id) ? 'Remove from Quick Add' : 'Pin to Quick Add'}
+                        >
+                          {pinnedProductIds.has(product.id) ? '★' : '☆'}
+                        </button>
+                      </div>
                       <div className="space-y-2">
                         {product.variants.map((variant: any) => (
                           <div key={variant.id} className="flex items-center justify-between">
@@ -1088,7 +1191,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           <h3 className="font-semibold text-primary mb-4">
             Quick Add Products
             {!productsLoading && quickAddProducts.length > 0 && (
-              <span className="text-sm text-secondary ml-2">({quickAddProducts.length} available)</span>
+              <span className="text-sm text-secondary ml-2">
+                ({(() => {
+                  const pinned = quickAddProducts.filter(p => pinnedProductIds.has(p.id))
+                  const unpinned = quickAddProducts.filter(p => !pinnedProductIds.has(p.id))
+                  return [...pinned, ...unpinned].slice(0, Math.max(20, pinned.length)).length
+                })()} available)
+              </span>
             )}
           </h3>
           {productsLoading ? (
@@ -1103,8 +1212,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-              {quickAddProducts.map((product) => (
-                <div key={product.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow">
+              {(() => {
+                // Pinned products first, then fill remaining slots up to 20
+                const pinned = quickAddProducts.filter(p => pinnedProductIds.has(p.id))
+                const unpinned = quickAddProducts.filter(p => !pinnedProductIds.has(p.id))
+                const displayProducts = [...pinned, ...unpinned].slice(0, Math.max(20, pinned.length))
+                return displayProducts.map((product) => (
+                <div key={product.id} className={`border rounded-lg p-3 hover:shadow-md transition-shadow ${pinnedProductIds.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : ''}`}>
                   <div className="flex gap-3 mb-3">
                     {/* Product Image */}
                     <div className="flex-shrink-0">
@@ -1122,7 +1236,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                     </div>
                     {/* Product Info */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-primary truncate">{product.name}</h4>
+                      <div className="flex items-center gap-1">
+                        <h4 className="font-medium text-primary truncate">{product.name}</h4>
+                        <button
+                          type="button"
+                          onClick={() => toggleQuickAdd(product.id)}
+                          className="flex-shrink-0 text-lg leading-none hover:scale-110 transition-transform"
+                          title={pinnedProductIds.has(product.id) ? 'Remove from Quick Add' : 'Pin to Quick Add'}
+                        >
+                          {pinnedProductIds.has(product.id) ? '★' : '☆'}
+                        </button>
+                      </div>
                       {product.category && (
                         <p className="text-xs text-secondary flex items-center gap-1">
                           <span>{product.categoryEmoji}</span>
@@ -1162,7 +1286,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                     })}
                   </div>
                 </div>
-              ))}
+                ))
+              })()}
             </div>
           )}
         </div>

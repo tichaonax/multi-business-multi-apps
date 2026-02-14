@@ -74,9 +74,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     try {
       localStorage.setItem(`global-cart-${currentBusinessId}`, JSON.stringify(cart))
-      // NOTE: We do NOT broadcast to customer display from global cart
-      // Only POS broadcasts to customer display (with correct tax/totals)
-      // Global cart is just for browsing/shopping, not checkout
     } catch (error) {
       console.error('❌ [GlobalCart] Failed to save cart:', error)
     }
@@ -187,8 +184,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const existingItem = currentCart[existingItemIndex]
         const newQuantity = existingItem.quantity + quantityToAdd
 
-        // Check stock limit if available
-        if (item.stock !== undefined && newQuantity > item.stock) {
+        // Check stock limit - only enforce for physical products with real stock
+        if (item.stock && item.stock > 0 && newQuantity > item.stock) {
           console.warn(`⚠️ [GlobalCart] Cannot add more than ${item.stock} items (stock limit)`)
           return currentCart // Don't add, return unchanged cart
         }
@@ -200,8 +197,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
         return updatedCart
       } else {
-        // Check stock limit for new item
-        if (item.stock !== undefined && quantityToAdd > item.stock) {
+        // Check stock limit - only enforce for physical products with real stock
+        if (item.stock && item.stock > 0 && quantityToAdd > item.stock) {
           console.warn(`⚠️ [GlobalCart] Cannot add ${quantityToAdd} items, only ${item.stock} in stock`)
           return currentCart // Don't add, return unchanged cart
         }
@@ -238,10 +235,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart(currentCart => {
       const updatedCart = currentCart.map(item => {
         if (item.id === itemId) {
-          // Check stock limit if available
-          if (item.stock !== undefined && quantity > item.stock) {
+          // Check stock limit - only enforce for physical products with real stock (stock > 0)
+          // Services (stock: 0 or undefined) and WiFi tokens should allow unlimited quantity
+          if (item.stock && item.stock > 0 && quantity > item.stock) {
             console.warn(`⚠️ [GlobalCart] Cannot set quantity to ${quantity}, only ${item.stock} in stock`)
-            return item // Don't update, return unchanged item
+            return item
           }
           return { ...item, quantity }
         }

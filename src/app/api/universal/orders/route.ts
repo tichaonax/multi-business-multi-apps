@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { hasPermission, isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
@@ -251,8 +251,8 @@ export async function GET(request: NextRequest) {
         unitPrice: item.unitPrice,
         discountAmount: item.discountAmount,
         totalPrice: item.totalPrice,
-        productName: item.product_variants?.business_products?.name || 'Unknown Product',
-        variantName: item.product_variants?.name || '',
+        productName: item.product_variants?.business_products?.name || (item.attributes as any)?.productName || 'Unknown Product',
+        variantName: item.product_variants?.name || (item.attributes as any)?.variantName || '',
         attributes: item.attributes
       })) || []
     }))
@@ -366,7 +366,7 @@ export async function POST(request: NextRequest) {
     // Separate WiFi tokens (ESP32), R710 tokens, and regular products
     const wifiTokenItems = items.filter(item => item.attributes?.wifiToken === true)
     const r710TokenItems = items.filter(item => item.attributes?.r710Token === true)
-    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true)
+    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true && item.attributes?.businessService !== true && item.attributes?.isService !== true)
 
     // Verify all product variants exist and get their details (for regular items only)
     const variantIds = regularItems.map(item => item.productVariantId).filter(Boolean) as string[]
@@ -403,8 +403,10 @@ export async function POST(request: NextRequest) {
     // Check stock availability for physical products (regular items only)
     const stockIssues = []
     for (const item of regularItems) {
-      const variant = variants.find(v => v.id === item.productVariantId)!
-      if ((variant as any).businessProducts?.productType === 'PHYSICAL' && variant.stockQuantity < item.quantity) {
+      if (!item.productVariantId) continue
+      const variant = variants.find(v => v.id === item.productVariantId)
+      if (!variant) continue
+      if ((variant as any).business_products?.productType === 'PHYSICAL' && variant.stockQuantity < item.quantity) {
         stockIssues.push({
           variantId: item.productVariantId,
           requested: item.quantity,
@@ -458,8 +460,9 @@ export async function POST(request: NextRequest) {
           orderNumber,
           subtotal,
           totalAmount,
-          status: 'PENDING',
-          paymentStatus: 'PENDING',
+          // POS orders with immediate payment are completed right away
+          status: orderData.attributes?.posOrder && orderData.paymentMethod ? 'COMPLETED' : 'PENDING',
+          paymentStatus: orderData.attributes?.posOrder && orderData.paymentMethod ? 'PAID' : 'PENDING',
           updatedAt: new Date(),
           business_order_items: {
             create: orderItems.map(item => {
@@ -472,8 +475,9 @@ export async function POST(request: NextRequest) {
               };
 
               // For regular products: use connect (Prisma sets productVariantId automatically)
-              // For virtual items (WiFi tokens): don't set productVariantId at all
-              if (item.productVariantId) {
+              // For virtual items (WiFi tokens, services): don't set productVariantId at all
+              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService
+              if (item.productVariantId && !isVirtualItem) {
                 orderItem.product_variants = {
                   connect: { id: item.productVariantId }
                 };
@@ -1107,8 +1111,8 @@ export async function PUT(request: NextRequest) {
         unitPrice: item.unitPrice,
         discountAmount: item.discountAmount,
         totalPrice: item.totalPrice,
-        productName: item.product_variants?.business_products?.name || 'Unknown Product',
-        variantName: item.product_variants?.name || '',
+        productName: item.product_variants?.business_products?.name || (item.attributes as any)?.productName || 'Unknown Product',
+        variantName: item.product_variants?.name || (item.attributes as any)?.variantName || '',
         attributes: item.attributes
       })) || []
     }

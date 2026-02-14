@@ -64,7 +64,13 @@ export async function GET(req: NextRequest, { params }: Context) {
       },
     });
 
-    return NextResponse.json(members);
+    // Map Prisma relation name 'users' to frontend expected 'user'
+    const mapped = members.map(({ users, ...rest }) => ({
+      ...rest,
+      user: users
+    }));
+
+    return NextResponse.json(mapped);
   } catch (error) {
     console.error('Error fetching business members:', error);
     return NextResponse.json(

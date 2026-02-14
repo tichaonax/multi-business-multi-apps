@@ -124,17 +124,27 @@ export async function POST(
       )
     }
 
-    // Create category
-    const category = await prisma.businessCategories.create({
-      data: {
-        businessId: businessId,
-        businessType: business.type,
-        name: body.name,
-        description: body.description || null,
-        emoji: body.emoji || null,
-        isActive: body.isActive !== false,
-        updatedAt: new Date()
-      }
+    // Create category using raw SQL to avoid Prisma extension validation issues
+    const id = crypto.randomUUID()
+    const now = new Date()
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO business_categories (id, "businessId", "businessType", name, description, emoji, "isActive", "isUserCreated", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      id,
+      businessId,
+      business.type,
+      body.name,
+      body.description || null,
+      body.emoji || '📦',
+      body.isActive !== false,
+      true,
+      now,
+      now
+    )
+
+    // Fetch the created category to return it
+    const category = await prisma.businessCategories.findUnique({
+      where: { id }
     })
 
     return NextResponse.json(category, { status: 201 })

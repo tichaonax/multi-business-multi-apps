@@ -31,6 +31,9 @@ export interface UniversalCartItem {
   categoryId?: string
   imageUrl?: string
 
+  // Service item
+  isService?: boolean
+
   // WiFi Token specific
   isWiFiToken?: boolean
   tokenConfigId?: string
@@ -48,7 +51,7 @@ export interface CartTotals {
   itemCount: number
 }
 
-const TAX_RATE = 0.08 // 8% default tax rate
+const TAX_RATE = 0 // 0% default tax rate - businesses configure their own tax rate
 
 /**
  * Universal Cart Hook

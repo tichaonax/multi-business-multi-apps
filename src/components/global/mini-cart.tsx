@@ -23,16 +23,8 @@ export function MiniCart() {
     }
   }
 
-  // Remove single item and also sync to POS localStorage
   const handleRemoveItem = (itemId: string) => {
     removeFromCart(itemId)
-    // After removing, sync the updated cart to POS-specific localStorage
-    if (currentBusinessId) {
-      try {
-        const updatedCart = cart.filter(item => item.id !== itemId)
-        localStorage.setItem(`cart-${currentBusinessId}`, JSON.stringify(updatedCart))
-      } catch {}
-    }
   }
 
   const itemCount = getCartItemCount()
@@ -100,7 +92,10 @@ export function MiniCart() {
           />
 
           {/* Dropdown Panel */}
-          <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[80vh] overflow-hidden flex flex-col">
+          <div
+            className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
@@ -203,17 +198,19 @@ export function MiniCart() {
                         <div className="flex items-center gap-2 mt-2">
                           <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600">
                             <button
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                              className="px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, item.quantity - 1) }}
+                              className="px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-bold text-lg leading-none"
                             >
                               −
                             </button>
-                            <span className="px-2 text-sm font-medium text-gray-900 dark:text-white">
+                            <span className="px-2 text-sm font-medium text-gray-900 dark:text-white min-w-[24px] text-center">
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                              className="px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, item.quantity + 1) }}
+                              className="px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-bold text-lg leading-none"
                             >
                               +
                             </button>
@@ -222,7 +219,8 @@ export function MiniCart() {
                             {formatCurrency(item.price * item.quantity)}
                           </span>
                           <button
-                            onClick={() => handleRemoveItem(item.id)}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id) }}
                             className="ml-auto text-red-500 hover:text-red-700 text-xs"
                           >
                             Remove
