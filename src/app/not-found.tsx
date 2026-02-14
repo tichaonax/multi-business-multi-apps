@@ -1,9 +1,5 @@
 import Link from 'next/link'
 
-// Force dynamic rendering to avoid static generation conflicts
-export const dynamic = 'force-dynamic'
-export const dynamicParams = true
-
 export default function NotFound() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
