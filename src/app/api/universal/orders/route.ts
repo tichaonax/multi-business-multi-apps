@@ -371,7 +371,7 @@ export async function POST(request: NextRequest) {
     // Separate WiFi tokens (ESP32), R710 tokens, and regular products
     const wifiTokenItems = items.filter(item => item.attributes?.wifiToken === true)
     const r710TokenItems = items.filter(item => item.attributes?.r710Token === true)
-    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true && item.attributes?.businessService !== true && item.attributes?.isService !== true)
+    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true && item.attributes?.businessService !== true && item.attributes?.isService !== true && !item.attributes?.baleId)
 
     // Verify all product variants exist and get their details (for regular items only)
     const variantIds = regularItems.map(item => item.productVariantId).filter(Boolean) as string[]
@@ -533,6 +533,50 @@ export async function POST(request: NextRequest) {
                 orderId: order.id,
                 orderType: orderData.orderType
               }
+            }
+          })
+        }
+      }
+
+      // Decrement bale remaining counts for clothing bale items
+      const baleItems = items.filter(item => item.attributes?.baleId)
+      if (baleItems.length > 0) {
+        // Group by baleId and sum quantities (exclude BOGO free items)
+        const baleQuantities: Record<string, number> = {}
+        for (const item of baleItems) {
+          const baleId = item.attributes!.baleId as string
+          if (!item.attributes?.isBOGOFree) {
+            baleQuantities[baleId] = (baleQuantities[baleId] || 0) + item.quantity
+          }
+        }
+
+        for (const [baleId, qty] of Object.entries(baleQuantities)) {
+          await tx.clothingBales.update({
+            where: { id: baleId },
+            data: {
+              remainingCount: { decrement: qty }
+            }
+          })
+        }
+      }
+
+      // Record coupon usage if a coupon was applied
+      if (orderData.attributes?.couponId) {
+        const couponId = orderData.attributes.couponId as string
+        const couponDiscount = Number(orderData.attributes.couponDiscount) || orderData.discountAmount
+
+        // Verify coupon exists and is active
+        const coupon = await tx.coupons.findUnique({
+          where: { id: couponId }
+        })
+
+        if (coupon && coupon.isActive) {
+          await tx.couponUsages.create({
+            data: {
+              couponId: coupon.id,
+              orderId: order.id,
+              appliedAmount: couponDiscount,
+              approvedBy: orderData.employeeId || null
             }
           })
         }

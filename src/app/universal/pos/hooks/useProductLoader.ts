@@ -41,6 +41,15 @@ export interface Product {
   bandwidthUpMb?: number
   availableQuantity?: number
 
+  // Product condition (NEW, USED, etc.)
+  condition?: string
+
+  // Bale-specific fields (clothing)
+  isBale?: boolean
+  baleId?: string
+  bogoActive?: boolean
+  bogoRatio?: number
+
   // Business specific
   isCombo?: boolean
   comboItems?: any[]
@@ -100,6 +109,7 @@ export function useProductLoader(
         stockQuantity: product.stockQuantity,
         barcode: product.barcode,
         productType: product.productType,
+        condition: product.condition || 'NEW',
         isService: product.productType === 'SERVICE',
         isCombo: product.isCombo,
         comboItems: product.comboItems,
@@ -214,8 +224,44 @@ export function useProductLoader(
         console.warn('Failed to load product stats, continuing without them:', statsError)
       }
 
+      // Load bale products for clothing businesses
+      let baleProducts: Product[] = []
+      if (businessType === 'clothing') {
+        try {
+          const baleResponse = await fetch(
+            `/api/clothing/bales?businessId=${businessId}`
+          )
+
+          if (baleResponse.ok) {
+            const baleJson = await baleResponse.json()
+            const balesData = baleJson.data || []
+
+            baleProducts = balesData
+              .filter((bale: any) => bale.isActive && bale.remainingCount > 0)
+              .map((bale: any) => ({
+                id: `bale_${bale.id}`,
+                name: `${bale.category?.name || 'Bale'} - ${bale.batchNumber}`,
+                description: bale.notes || `${bale.remainingCount} of ${bale.itemCount} items remaining`,
+                basePrice: parseFloat(bale.unitPrice || 0),
+                category: bale.category?.name || 'Bales',
+                barcode: bale.barcode,
+                stockQuantity: bale.remainingCount,
+                condition: 'USED',
+                isBale: true,
+                baleId: bale.id,
+                bogoActive: bale.bogoActive,
+                bogoRatio: bale.bogoRatio
+              }))
+
+            console.log(`Loaded ${baleProducts.length} bale products for clothing POS`)
+          }
+        } catch (baleError) {
+          console.warn('Failed to load bale products, continuing without them:', baleError)
+        }
+      }
+
       // Merge soldToday into all products
-      const allProducts = [...transformedProducts, ...wifiTokenProducts, ...r710TokenProducts]
+      const allProducts = [...transformedProducts, ...baleProducts, ...wifiTokenProducts, ...r710TokenProducts]
       allProducts.forEach(p => {
         p.soldToday = soldTodayCounts[p.id] || 0
       })

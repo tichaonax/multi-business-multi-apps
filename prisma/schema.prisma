@@ -215,6 +215,7 @@ model BusinessOrders {
   business_customers   BusinessCustomers?   @relation(fields: [customerId], references: [id])
   employees            Employees?           @relation(fields: [employeeId], references: [id])
   reprint_logs         ReprintLog[]
+  coupon_usages        CouponUsages[]
 
   @@unique([businessId, orderNumber])
   @@index([orderNumber])
@@ -469,6 +470,10 @@ model Businesses {
   wifi_token_sales                                                         WifiTokenSales[]
   wifi_tokens                                                              WifiTokens[]
   wifi_usage_analytics                                                     WiFiUsageAnalytics[]
+  coupons                                                                  Coupons[]
+  inventory_transfers_source                                               InventoryTransfers[]          @relation("TransferSource")
+  inventory_transfers_target                                               InventoryTransfers[]          @relation("TransferTarget")
+  clothing_bales                                                           ClothingBales[]
 
   @@map("businesses")
 }
@@ -1175,6 +1180,10 @@ model Employees {
   expense_account_payments_as_payee                                         ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeEmployee")
   payroll_account_payments                                                  PayrollAccountPayments[]
   payroll_entries                                                           PayrollEntries[]
+  coupons_created                                                           Coupons[]                     @relation("CouponCreatedBy")
+  coupon_approvals                                                          CouponUsages[]                @relation("CouponApprovedBy")
+  inventory_transfers                                                       InventoryTransfers[]          @relation("TransferEmployee")
+  clothing_bales_stocked                                                    ClothingBales[]               @relation("BaleStockedBy")
 
   @@map("employees")
 }
@@ -1235,28 +1244,28 @@ model ExpenseSubcategories {
 }
 
 model ExpenseAccounts {
-  id                  String                   @id @default(uuid())
-  accountNumber       String                   @unique
-  accountName         String
-  balance             Decimal                  @default(0) @db.Decimal(12, 2)
-  description         String?
-  isActive            Boolean                  @default(true)
-  lowBalanceThreshold Decimal                  @default(500) @db.Decimal(12, 2)
-  createdBy           String
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @default(now()) @updatedAt
-  parentAccountId     String?
-  siblingNumber       Int?
-  isSibling           Boolean                  @default(false)
-  canMerge            Boolean                  @default(true)
-  businessId          String?
-  business                   Businesses?                  @relation("BusinessExpenseAccounts", fields: [businessId], references: [id])
+  id                         String                     @id @default(uuid())
+  accountNumber              String                     @unique
+  accountName                String
+  balance                    Decimal                    @default(0) @db.Decimal(12, 2)
+  description                String?
+  isActive                   Boolean                    @default(true)
+  lowBalanceThreshold        Decimal                    @default(500) @db.Decimal(12, 2)
+  createdBy                  String
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @default(now()) @updatedAt
+  parentAccountId            String?
+  siblingNumber              Int?
+  isSibling                  Boolean                    @default(false)
+  canMerge                   Boolean                    @default(true)
+  businessId                 String?
+  business                   Businesses?                @relation("BusinessExpenseAccounts", fields: [businessId], references: [id])
   deposits                   ExpenseAccountDeposits[]
   payments                   ExpenseAccountPayments[]
-  creator                    Users                        @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
-  portal_integrations        PortalIntegrations[]         @relation("PortalIntegrationExpenseAccount")
-  r710_business_integrations R710BusinessIntegrations[]   @relation("R710IntegrationExpenseAccount")
-  r710_token_sales           R710TokenSales[]             @relation("R710TokenSaleToExpenseAccount")
+  creator                    Users                      @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
+  portal_integrations        PortalIntegrations[]       @relation("PortalIntegrationExpenseAccount")
+  r710_business_integrations R710BusinessIntegrations[] @relation("R710IntegrationExpenseAccount")
+  r710_token_sales           R710TokenSales[]           @relation("R710TokenSaleToExpenseAccount")
   wifi_token_sales           WifiTokenSales[]
 
   @@index([isActive], map: "idx_expense_accounts_active")
@@ -1482,24 +1491,24 @@ model InterBusinessLoans {
 }
 
 model JobTitles {
-  id                      String              @id @default(uuid())
-  title                   String              @unique
-  description             String?
-  responsibilities        String[]
-  department              String?
-  level                   String?
-  isActive                Boolean             @default(true)
-  createdAt               DateTime            @default(now())
-  updatedAt               DateTime            @default(now())
-  employee_contracts      EmployeeContracts[]
-  employees               Employees[]
+  id                 String              @id @default(uuid())
+  title              String              @unique
+  description        String?
+  responsibilities   String[]
+  department         String?
+  level              String?
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @default(now())
+  employee_contracts EmployeeContracts[]
+  employees          Employees[]
 
   // Role template fields
   jobSummary              String?
   skillsRequired          String[]
   qualifications          String[]
   businessType            String?
-  isRoleTemplate          Boolean             @default(false)
+  isRoleTemplate          Boolean  @default(false)
   defaultNotes            String?
   defaultPermissionPreset String?
 
@@ -2030,6 +2039,7 @@ model ProductVariants {
   menu_combo_items         MenuComboItems[]
   product_barcodes         ProductBarcodes[]
   business_products        BusinessProducts         @relation(fields: [productId], references: [id])
+  inventory_transfer_items InventoryTransferItems[]
 
   @@map("product_variants")
 }
@@ -3808,4 +3818,132 @@ enum BarcodePrintJobStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================
+// Coupon & Inventory Transfer Models (MBM-123)
+// ============================================================
+
+model Coupons {
+  id               String   @id @default(uuid())
+  businessId       String
+  code             String
+  barcode          String?
+  description      String?
+  discountAmount   Decimal  @db.Decimal(10, 2)
+  requiresApproval Boolean  @default(false)
+  isActive         Boolean  @default(true)
+  createdBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  businesses    Businesses     @relation(fields: [businessId], references: [id])
+  employees     Employees?     @relation("CouponCreatedBy", fields: [createdBy], references: [id])
+  coupon_usages CouponUsages[]
+
+  @@unique([businessId, code])
+  @@map("coupons")
+}
+
+model CouponUsages {
+  id            String   @id @default(uuid())
+  couponId      String
+  orderId       String
+  appliedAmount Decimal  @db.Decimal(10, 2)
+  approvedBy    String?
+  createdAt     DateTime @default(now())
+
+  coupons   Coupons        @relation(fields: [couponId], references: [id])
+  orders    BusinessOrders @relation(fields: [orderId], references: [id])
+  employees Employees?     @relation("CouponApprovedBy", fields: [approvedBy], references: [id])
+
+  @@map("coupon_usages")
+}
+
+model InventoryTransfers {
+  id               String         @id @default(uuid())
+  sourceBusinessId String
+  targetBusinessId String
+  status           TransferStatus @default(PENDING)
+  transferDate     DateTime       @default(now())
+  employeeId       String?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  sourceBusiness Businesses               @relation("TransferSource", fields: [sourceBusinessId], references: [id])
+  targetBusiness Businesses               @relation("TransferTarget", fields: [targetBusinessId], references: [id])
+  employees      Employees?               @relation("TransferEmployee", fields: [employeeId], references: [id])
+  items          InventoryTransferItems[]
+
+  @@map("inventory_transfers")
+}
+
+model InventoryTransferItems {
+  id               String   @id @default(uuid())
+  transferId       String
+  productVariantId String?
+  quantity         Int
+  sourcePrice      Decimal  @db.Decimal(10, 2)
+  targetPrice      Decimal  @db.Decimal(10, 2)
+  productName      String
+  barcode          String?
+  baleId           String?
+  createdAt        DateTime @default(now())
+
+  transfer        InventoryTransfers @relation(fields: [transferId], references: [id])
+  productVariants ProductVariants?   @relation(fields: [productVariantId], references: [id])
+  bale            ClothingBales?     @relation(fields: [baleId], references: [id])
+
+  @@map("inventory_transfer_items")
+}
+
+// ============================================================
+// Clothing Bale System (MBM-123 - Bale Enhancement)
+// ============================================================
+
+model ClothingBaleCategories {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bales ClothingBales[]
+
+  @@map("clothing_bale_categories")
+}
+
+model ClothingBales {
+  id             String   @id @default(uuid())
+  businessId     String
+  categoryId     String
+  batchNumber    String
+  itemCount      Int
+  remainingCount Int
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  sku            String   @unique
+  barcode        String?
+  bogoActive     Boolean  @default(false)
+  bogoRatio      Int      @default(1)
+  isActive       Boolean  @default(true)
+  employeeId     String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  business              Businesses              @relation(fields: [businessId], references: [id])
+  category              ClothingBaleCategories  @relation(fields: [categoryId], references: [id])
+  employee              Employees?              @relation("BaleStockedBy", fields: [employeeId], references: [id])
+  inventory_transfer_items InventoryTransferItems[]
+
+  @@unique([businessId, batchNumber])
+  @@map("clothing_bales")
 }

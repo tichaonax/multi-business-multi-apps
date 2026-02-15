@@ -47,6 +47,34 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/history`,
       icon: '📅',
       color: 'bg-blue-600 hover:bg-blue-700'
+    },
+    {
+      title: 'Coupon Usage Report',
+      description: 'Coupons redeemed, total discounts given, usage by coupon code',
+      href: `/${businessType}/reports/coupon-usage`,
+      icon: '🏷️',
+      color: 'bg-teal-600 hover:bg-teal-700'
+    },
+    {
+      title: 'BOGO Sales Report',
+      description: 'BOGO transactions, free items given, revenue impact',
+      href: `/${businessType}/reports/bogo-sales`,
+      icon: '🎁',
+      color: 'bg-pink-600 hover:bg-pink-700'
+    },
+    {
+      title: 'Inventory Transfer Report',
+      description: 'Items transferred between businesses, pricing changes, history',
+      href: `/${businessType}/reports/inventory-transfers`,
+      icon: '📦',
+      color: 'bg-amber-600 hover:bg-amber-700'
+    },
+    {
+      title: 'Bale Inventory Report',
+      description: 'Bale stock levels, sales per bale, BOGO impact, utilization',
+      href: `/${businessType}/reports/bale-inventory`,
+      icon: '📋',
+      color: 'bg-indigo-600 hover:bg-indigo-700'
     }
   ]
 

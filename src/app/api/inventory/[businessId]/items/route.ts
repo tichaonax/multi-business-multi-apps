@@ -86,6 +86,7 @@ export async function GET(
     const domainId = searchParams.get('domainId')
     const search = searchParams.get('search')
     const isActive = searchParams.get('isActive')
+    const condition = searchParams.get('condition')
     const lowStock = searchParams.get('lowStock') === 'true'
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -105,6 +106,11 @@ export async function GET(
         { sku: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } }
       ]
+    }
+
+    // Filter by condition (NEW, USED, etc.) if specified
+    if (condition && condition !== 'all') {
+      where.condition = condition
     }
 
     // Filter by domain (department) if specified
@@ -170,6 +176,7 @@ export async function GET(
         supplierId: product.supplierId || null,
         location: product.business_locations?.name || '',
         locationId: product.locationId || null,
+        condition: product.condition || 'NEW',
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),

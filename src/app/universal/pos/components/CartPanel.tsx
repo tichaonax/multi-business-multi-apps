@@ -2,6 +2,8 @@
 
 import { Trash2 } from 'lucide-react'
 import type { UniversalCartItem, CartTotals } from '../hooks/useUniversalCart'
+import type { AppliedCoupon } from '../hooks/useCoupon'
+import { CouponInput } from './CouponInput'
 
 interface CartPanelProps {
   cart: UniversalCartItem[]
@@ -9,6 +11,13 @@ interface CartPanelProps {
   onUpdateQuantity: (itemId: string, quantity: number) => void
   onRemoveItem: (itemId: string) => void
   onClearCart: () => void
+  // Coupon props (optional - only passed when coupons feature is enabled)
+  appliedCoupon?: AppliedCoupon | null
+  isValidatingCoupon?: boolean
+  couponError?: string | null
+  onApplyCoupon?: (input: string) => Promise<AppliedCoupon | null>
+  onRemoveCoupon?: () => void
+  onClearCouponError?: () => void
 }
 
 /**
@@ -20,7 +29,13 @@ export function CartPanel({
   totals,
   onUpdateQuantity,
   onRemoveItem,
-  onClearCart
+  onClearCart,
+  appliedCoupon,
+  isValidatingCoupon,
+  couponError,
+  onApplyCoupon,
+  onRemoveCoupon,
+  onClearCouponError
 }: CartPanelProps) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
@@ -102,6 +117,13 @@ export function CartPanel({
                       </p>
                     )}
 
+                    {/* BOGO Free Badge */}
+                    {item.isBOGOFree && (
+                      <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+                        BOGO FREE
+                      </span>
+                    )}
+
                     {/* WiFi Token Info */}
                     {item.isWiFiToken && (
                       <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
@@ -171,6 +193,20 @@ export function CartPanel({
         )}
       </div>
 
+      {/* Coupon Input */}
+      {cart.length > 0 && onApplyCoupon && (
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+          <CouponInput
+            appliedCoupon={appliedCoupon || null}
+            isValidating={isValidatingCoupon || false}
+            couponError={couponError || null}
+            onApplyCoupon={onApplyCoupon}
+            onRemoveCoupon={onRemoveCoupon || (() => {})}
+            onClearError={onClearCouponError || (() => {})}
+          />
+        </div>
+      )}
+
       {/* Totals */}
       {cart.length > 0 && (
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
@@ -188,8 +224,8 @@ export function CartPanel({
           </div>
           {totals.discount > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">
-                Discount
+              <span className="text-green-600 dark:text-green-400">
+                {appliedCoupon ? `Coupon (${appliedCoupon.code})` : 'Discount'}
               </span>
               <span className="text-green-600 dark:text-green-400">
                 -${totals.discount.toFixed(2)}

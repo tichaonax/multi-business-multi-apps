@@ -18,6 +18,10 @@ export interface BusinessTypeFeatures {
   timeTracking?: boolean        // Time/hours tracking
   sizeColorOptions?: boolean    // Size and color selection
   businessServices?: boolean    // Support business service sales
+  coupons?: boolean             // Support coupon discounts at POS
+  usedInventory?: boolean       // Support used/new condition tracking
+  inventoryTransfer?: boolean   // Support inventory transfer between businesses
+  bogoPromotion?: boolean       // Support BOGO pricing on used items
 }
 
 export interface BusinessTypeConfig {
@@ -85,7 +89,11 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       customerLookup: true,
       categoryFilter: true,
       wifiTokens: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true,
+      usedInventory: true,
+      inventoryTransfer: true,
+      bogoPromotion: true
     },
     receiptType: 'clothing',
     quickActionsEnabled: true

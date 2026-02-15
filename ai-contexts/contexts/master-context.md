@@ -56,6 +56,21 @@ This is a hard requirement - no exceptions.
 
 **PROJECT PLANS MUST HAVE APPROVAL CHECKPOINTS BUILT-IN FROM THE START**
 
+## 🚨 DATABASE MIGRATION RULES (MANDATORY - NO EXCEPTIONS)
+
+This project has a **production database with real data**. All schema changes must go through the Prisma migration system.
+
+1. **NEVER use `prisma db push`** — This is a prototyping-only tool that bypasses the migration system. It creates no migration file, meaning changes cannot be deployed to production through the service startup pipeline (`prisma migrate deploy`).
+2. **ALWAYS use `npx prisma migrate dev --name <descriptive_name>`** to create migration files for ANY schema change (new models, new fields, enum changes, index changes, relation changes, etc.).
+3. **Every schema change MUST produce a migration file** in `prisma/migrations/` that can be applied via `prisma migrate deploy` during service startup.
+4. **Test the migration** by verifying the generated SQL in the migration file before marking the task complete.
+5. **Never mark a database schema task as complete** unless a migration file exists in `prisma/migrations/` and has been successfully applied.
+6. **If `prisma db push` is found in any plan or task, REJECT IT** and replace with `prisma migrate dev`.
+
+Any AI session that uses `prisma db push` is **NON-COMPLIANT**.
+
+---
+
 **CRITICAL:** The AI must read code-workflow.md FIRST and follow Phase 1 planning requirements before any other actions.
 
 ---

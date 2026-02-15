@@ -45,6 +45,7 @@ interface UniversalInventoryGridProps {
   businessType?: string
   categoryFilter?: string  // External category filter (from parent component)
   departmentFilter?: string  // External department filter (from parent component)
+  conditionFilter?: string   // External condition filter (NEW, USED, etc.)
   onItemEdit?: (item: UniversalInventoryItem) => void
   onItemView?: (item: UniversalInventoryItem) => void
   onItemDelete?: (item: UniversalInventoryItem) => void
@@ -67,6 +68,7 @@ export function UniversalInventoryGrid({
   businessType = 'restaurant',
   categoryFilter,  // External filter from parent
   departmentFilter,  // External department filter from parent
+  conditionFilter,   // External condition filter from parent
   onItemEdit,
   onItemView,
   onItemDelete,
@@ -134,7 +136,8 @@ export function UniversalInventoryGrid({
           limit: pageSize.toString(),
           ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
           ...(effectiveCategory !== 'all' && { category: effectiveCategory }),
-          ...(departmentFilter && { domainId: departmentFilter })
+          ...(departmentFilter && { domainId: departmentFilter }),
+          ...(conditionFilter && conditionFilter !== 'all' && { condition: conditionFilter })
         })
 
         const response = await fetch(`/api/inventory/${businessId}/items?${params}`)
@@ -172,7 +175,7 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, refreshTrigger])
+  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, refreshTrigger])
 
   // Filter items by supplier and location
   const filteredItems = items.filter(item => {

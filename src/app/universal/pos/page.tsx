@@ -3,7 +3,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -15,6 +15,8 @@ import { useUniversalCart } from './hooks/useUniversalCart'
 import { useProductLoader } from './hooks/useProductLoader'
 import { usePaymentProcessor } from './hooks/usePaymentProcessor'
 import { useWiFiTokenSync } from './hooks/useWiFiTokenSync'
+import { useCoupon } from './hooks/useCoupon'
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { getBusinessTypeConfig, getSupportedBusinessTypes } from './config/business-type-config'
 import { toast } from 'sonner'
 import type { ReceiptData } from '@/types/printing'
@@ -38,6 +40,9 @@ export default function UniversalPOS() {
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const printInFlightRef = useRef(false)
 
+  // BOGO promotion state
+  const [bogoPromotion, setBogoPromotion] = useState<{ isActive: boolean; value: number } | null>(null)
+
   // Initialize cart
   const {
     cart,
@@ -45,6 +50,7 @@ export default function UniversalPOS() {
     updateQuantity,
     removeFromCart,
     clearCart,
+    setDiscount,
     totals
   } = useUniversalCart()
 
@@ -58,6 +64,17 @@ export default function UniversalPOS() {
 
   // WiFi token sync (if business supports WiFi tokens)
   const { syncESP32TokenQuantities } = useWiFiTokenSync()
+
+  // Coupon support
+  const confirm = useConfirm()
+  const {
+    appliedCoupon,
+    isValidating: isValidatingCoupon,
+    couponError,
+    applyCoupon,
+    removeCoupon,
+    clearError: clearCouponError
+  } = useCoupon(currentBusinessId || undefined)
 
   // Payment processor with business info - no auto-print, show preview instead
   const { processCheckout, isProcessing, lastReceipt } = usePaymentProcessor(
@@ -75,6 +92,7 @@ export default function UniversalPOS() {
       onSuccess: (orderId, receiptData) => {
         console.log('✅ Order completed:', orderId)
         clearCart()
+        removeCoupon()
         reloadProducts()
         // Show receipt preview modal
         setPendingReceiptData(receiptData)
@@ -85,6 +103,58 @@ export default function UniversalPOS() {
       }
     }
   )
+
+  // Fetch BOGO promotion status (only for businesses with bogoPromotion feature)
+  useEffect(() => {
+    if (!currentBusinessId || !config.features.bogoPromotion) return
+
+    const fetchBogo = async () => {
+      try {
+        const response = await fetch(`/api/promotions/bogo?businessId=${currentBusinessId}`)
+        const data = await response.json()
+        if (data.success && data.data) {
+          setBogoPromotion({ isActive: data.data.isActive, value: Number(data.data.value) })
+        }
+      } catch (error) {
+        console.error('Failed to fetch BOGO status:', error)
+      }
+    }
+    fetchBogo()
+  }, [currentBusinessId, businessType])
+
+  // BOGO-aware addToCart wrapper
+  const handleAddToCart = useCallback((item: Omit<import('./hooks/useUniversalCart').UniversalCartItem, 'totalPrice'>) => {
+    addToCart(item)
+
+    // Per-bale BOGO: use bale's own bogoActive/bogoRatio
+    if (item.baleId && item.bogoActive && !item.isBOGOFree) {
+      const freeCount = item.bogoRatio || 1 // 1 = buy1get1, 2 = buy1get2
+      for (let i = 0; i < freeCount; i++) {
+        addToCart({
+          ...item,
+          id: `${item.id}_bogo_${Date.now()}_${i}`,
+          name: `${item.name} (BOGO Free)`,
+          unitPrice: 0,
+          quantity: item.quantity,
+          isBOGOFree: true,
+        })
+      }
+    }
+    // Fallback: global BOGO for non-bale used items
+    else if (bogoPromotion?.isActive && item.condition === 'USED' && !item.baleId && !item.isBOGOFree) {
+      const freeCount = bogoPromotion.value || 1
+      for (let i = 0; i < freeCount; i++) {
+        addToCart({
+          ...item,
+          id: `${item.id}_bogo_${Date.now()}_${i}`,
+          name: `${item.name} (BOGO Free)`,
+          unitPrice: 0,
+          quantity: item.quantity,
+          isBOGOFree: true,
+        })
+      }
+    }
+  }, [addToCart, bogoPromotion])
 
   // Sync ESP32 WiFi tokens on mount (only for ESP32 tokens, not R710)
   useEffect(() => {
@@ -154,6 +224,36 @@ export default function UniversalPOS() {
     toast.success(`Loaded ${itemCount} item(s) from cart`)
   }, [globalCart.cart, addToCart, globalCart.clearCart])
 
+  // Handle coupon apply with manager approval for >$5
+  const handleApplyCoupon = async (input: string) => {
+    const coupon = await applyCoupon(input)
+    if (coupon) {
+      // Manager approval for coupons requiring approval (>$5)
+      if (coupon.requiresApproval) {
+        const approved = await confirm({
+          title: 'Manager Approval Required',
+          description: `Coupon ${coupon.code} for $${coupon.discountAmount.toFixed(2)} requires manager approval. Approve this coupon?`,
+          confirmText: 'Approve',
+          cancelText: 'Deny'
+        })
+        if (!approved) {
+          removeCoupon()
+          setDiscount(0)
+          return null
+        }
+      }
+      setDiscount(coupon.discountAmount)
+      return coupon
+    }
+    return null
+  }
+
+  // Handle coupon removal
+  const handleRemoveCoupon = () => {
+    removeCoupon()
+    setDiscount(0)
+  }
+
   // Handle checkout
   const handleCheckout = async (paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty', amountPaid?: number) => {
     await processCheckout(cart, totals, {
@@ -163,7 +263,13 @@ export default function UniversalPOS() {
       customerPhone: undefined,
       customerEmail: undefined,
       notes: undefined,
-      attributes: {}
+      attributes: {
+        ...(appliedCoupon ? {
+          couponId: appliedCoupon.id,
+          couponCode: appliedCoupon.code,
+          couponDiscount: appliedCoupon.discountAmount
+        } : {})
+      }
     })
   }
 
@@ -178,7 +284,7 @@ export default function UniversalPOS() {
           productsLoading={productsLoading}
           cart={cart}
           totals={totals}
-          onAddToCart={addToCart}
+          onAddToCart={handleAddToCart}
           onUpdateQuantity={updateQuantity}
           onRemoveItem={removeFromCart}
           onClearCart={clearCart}
@@ -187,6 +293,14 @@ export default function UniversalPOS() {
           onCheckout={handleCheckout}
           businessId={currentBusinessId || undefined}
           onProductsReload={reloadProducts}
+          {...(config.features.coupons ? {
+            appliedCoupon,
+            isValidatingCoupon,
+            couponError,
+            onApplyCoupon: handleApplyCoupon,
+            onRemoveCoupon: handleRemoveCoupon,
+            onClearCouponError: clearCouponError
+          } : {})}
         />
 
         {/* Receipt Preview Modal - same pattern as restaurant POS */}

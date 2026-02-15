@@ -1,0 +1,167 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+
+export default function BogoSalesReportPage() {
+  const { currentBusinessId } = useBusinessPermissionsContext()
+  const [report, setReport] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().split('T')[0]
+  })
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
+
+  const fetchReport = async () => {
+    if (!currentBusinessId) return
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        businessId: currentBusinessId,
+        startDate,
+        endDate
+      })
+      const response = await fetch(`/api/reports/bogo-sales?${params}`)
+      const data = await response.json()
+      if (data.success) setReport(data.data)
+    } catch (error) {
+      console.error('Error fetching report:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchReport()
+  }, [currentBusinessId])
+
+  return (
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
+      <div className="mb-6">
+        <Link href="/clothing/reports" className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors inline-block">
+          ← Back to Reports
+        </Link>
+      </div>
+
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">BOGO Sales Report</h1>
+
+        {/* Date Range Filter */}
+        <div className="flex items-end gap-4 mb-6">
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Start Date</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">End Date</label>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+          </div>
+          <button onClick={fetchReport} className="btn-primary bg-pink-600 hover:bg-pink-700 px-4 py-2 text-white rounded-md">
+            Generate
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600 mx-auto"></div>
+          </div>
+        ) : !report ? (
+          <p className="text-gray-500 text-center py-12">No data available</p>
+        ) : (
+          <>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800 rounded-lg p-4">
+                <div className="text-2xl font-bold text-pink-700 dark:text-pink-300">{report.summary.totalBogoTransactions}</div>
+                <div className="text-sm text-pink-600 dark:text-pink-400">BOGO Transactions</div>
+              </div>
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                <div className="text-2xl font-bold text-green-700 dark:text-green-300">{report.summary.totalFreeItems}</div>
+                <div className="text-sm text-green-600 dark:text-green-400">Free Items Given</div>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">${report.summary.estimatedFreeItemValue.toFixed(2)}</div>
+                <div className="text-sm text-amber-600 dark:text-amber-400">Est. Free Item Value</div>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">${report.summary.totalOrderRevenue.toFixed(2)}</div>
+                <div className="text-sm text-blue-600 dark:text-blue-400">Total Revenue</div>
+              </div>
+            </div>
+
+            {/* Per-Bale Breakdown */}
+            {report.byBale && report.byBale.length > 0 && (
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">BOGO by Bale</h2>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-700/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Bale</th>
+                        <th className="px-4 py-3 text-right">Free Items</th>
+                        <th className="px-4 py-3 text-right">Est. Value</th>
+                        <th className="px-4 py-3 text-right">Transactions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {report.byBale.map((b: any) => (
+                        <tr key={b.baleId}>
+                          <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{b.name}</td>
+                          <td className="px-4 py-2 text-right text-green-600">{b.freeItems}</td>
+                          <td className="px-4 py-2 text-right text-amber-600">${b.estimatedValue.toFixed(2)}</td>
+                          <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-400">{b.transactions}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Transactions */}
+            {report.transactions.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No BOGO transactions found in this date range.</p>
+            ) : (
+              <div className="space-y-4">
+                {report.transactions.map((t: any, i: number) => (
+                  <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50">
+                      <div>
+                        <span className="font-medium">Order #{t.orderNumber}</span>
+                        <span className="text-sm text-gray-500 ml-3">{new Date(t.date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-medium">${t.orderTotal.toFixed(2)}</span>
+                        <span className="text-sm text-green-600 ml-3">{t.freeItemCount} free item(s)</span>
+                      </div>
+                    </div>
+                    <table className="w-full text-sm">
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {t.items.map((item: any, j: number) => (
+                          <tr key={j} className={item.isFree ? 'bg-green-50 dark:bg-green-900/10' : ''}>
+                            <td className="px-4 py-2">
+                              {item.name}
+                              {item.isFree && <span className="ml-2 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded">FREE</span>}
+                            </td>
+                            <td className="px-4 py-2 text-right">x{item.quantity}</td>
+                            <td className="px-4 py-2 text-right">${item.unitPrice.toFixed(2)}</td>
+                            <td className="px-4 py-2 text-right font-medium">${item.totalPrice.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

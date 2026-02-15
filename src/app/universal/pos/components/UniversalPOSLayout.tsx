@@ -5,6 +5,7 @@ import { CartPanel } from './CartPanel'
 import { PaymentPanel } from './PaymentPanel'
 import type { Product } from '../hooks/useProductLoader'
 import type { UniversalCartItem, CartTotals } from '../hooks/useUniversalCart'
+import type { AppliedCoupon } from '../hooks/useCoupon'
 import type { BusinessTypeConfig, PaymentMethod } from '../config/business-type-config'
 
 interface UniversalPOSLayoutProps {
@@ -28,6 +29,14 @@ interface UniversalPOSLayoutProps {
   // Business info
   businessId?: string
   onProductsReload?: () => void
+
+  // Coupon (optional)
+  appliedCoupon?: AppliedCoupon | null
+  isValidatingCoupon?: boolean
+  couponError?: string | null
+  onApplyCoupon?: (input: string) => Promise<AppliedCoupon | null>
+  onRemoveCoupon?: () => void
+  onClearCouponError?: () => void
 }
 
 /**
@@ -47,7 +56,13 @@ export function UniversalPOSLayout({
   isProcessing,
   onCheckout,
   businessId,
-  onProductsReload
+  onProductsReload,
+  appliedCoupon,
+  isValidatingCoupon,
+  couponError,
+  onApplyCoupon,
+  onRemoveCoupon,
+  onClearCouponError
 }: UniversalPOSLayoutProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-200px)]">
@@ -73,6 +88,12 @@ export function UniversalPOSLayout({
             onUpdateQuantity={onUpdateQuantity}
             onRemoveItem={onRemoveItem}
             onClearCart={onClearCart}
+            appliedCoupon={appliedCoupon}
+            isValidatingCoupon={isValidatingCoupon}
+            couponError={couponError}
+            onApplyCoupon={onApplyCoupon}
+            onRemoveCoupon={onRemoveCoupon}
+            onClearCouponError={onClearCouponError}
           />
         </div>
 

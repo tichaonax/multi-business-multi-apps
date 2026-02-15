@@ -176,7 +176,11 @@ export function ProductPanel({
       bandwidthDownMb: product.bandwidthDownMb,
       bandwidthUpMb: product.bandwidthUpMb,
       isCombo: product.isCombo,
-      comboItems: product.comboItems
+      comboItems: product.comboItems,
+      condition: product.condition,
+      baleId: product.baleId,
+      bogoActive: product.bogoActive,
+      bogoRatio: product.bogoRatio
     }
 
     onAddToCart(cartItem)
@@ -313,6 +317,18 @@ export function ProductPanel({
                         {product.isCombo && (
                           <span className="inline-block px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded mt-2">
                             Combo
+                          </span>
+                        )}
+                        {product.isBale && product.bogoActive && (
+                          <span className="inline-block px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded mt-2">
+                            BOGO {product.bogoRatio === 2 ? '1+2' : '1+1'}
+                          </span>
+                        )}
+                        {product.isBale && product.stockQuantity !== undefined && (
+                          <span className={`text-xs font-medium block mt-1 ${
+                            product.stockQuantity <= 3 ? 'text-orange-500' : 'text-green-600'
+                          }`}>
+                            {product.stockQuantity} remaining
                           </span>
                         )}
                         {/* WiFi token availability indicator */}

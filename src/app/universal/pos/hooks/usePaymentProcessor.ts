@@ -109,6 +109,22 @@ export function usePaymentProcessor(
             }
           }
 
+          // Bale items (clothing) — no productVariantId
+          if (item.baleId) {
+            return {
+              productVariantId: null,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discountAmount: 0,
+              attributes: {
+                baleId: item.baleId,
+                productName: item.name,
+                condition: item.condition,
+                isBOGOFree: item.isBOGOFree || false
+              }
+            }
+          }
+
           return {
             productVariantId: item.variantId || null,
             quantity: item.quantity,

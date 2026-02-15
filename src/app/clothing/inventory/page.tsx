@@ -20,16 +20,35 @@ import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useToastContext } from '@/components/ui/toast'
 
 function ClothingInventoryContent() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [showViewModal, setShowViewModal] = useState(false)
   const [selectedDepartment, setSelectedDepartment] = useState('')
+  const [selectedCondition, setSelectedCondition] = useState<'all' | 'NEW' | 'USED'>('all')
   const [stats, setStats] = useState<any>(null)
   const [isSeeding, setIsSeeding] = useState(false)
   const [hasSeededProducts, setHasSeededProducts] = useState(false)
   const [checkingSeedStatus, setCheckingSeedStatus] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [bogoPromotion, setBogoPromotion] = useState<any>(null)
+  const [bogoLoading, setBogoLoading] = useState(false)
+  // Bale state
+  const [bales, setBales] = useState<any[]>([])
+  const [baleCategories, setBaleCategories] = useState<any[]>([])
+  const [balesLoading, setBalesLoading] = useState(false)
+  const [showBaleForm, setShowBaleForm] = useState(false)
+  const [showCategoryForm, setShowCategoryForm] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [baleForm, setBaleForm] = useState({
+    categoryId: '',
+    batchNumber: '',
+    itemCount: '',
+    unitPrice: '',
+    barcode: '',
+    notes: ''
+  })
+  const [baleFormLoading, setBaleFormLoading] = useState(false)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
   const searchParams = useSearchParams()
   const customAlert = useAlert()
@@ -72,6 +91,181 @@ function ClothingInventoryContent() {
         })
     }
   }, [searchParams, currentBusinessId, router])
+
+  // Fetch BOGO promotion status
+  const fetchBogo = async () => {
+    if (!currentBusinessId) return
+    try {
+      const response = await fetch(`/api/promotions/bogo?businessId=${currentBusinessId}`)
+      const data = await response.json()
+      if (data.success) {
+        setBogoPromotion(data.data)
+      }
+    } catch (error) {
+      console.error('Error fetching BOGO:', error)
+    }
+  }
+
+  const handleBogoToggle = async () => {
+    if (!currentBusinessId) return
+    setBogoLoading(true)
+    try {
+      if (bogoPromotion) {
+        // Toggle existing
+        await fetch('/api/promotions/bogo', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessId: currentBusinessId, isActive: !bogoPromotion.isActive })
+        })
+      } else {
+        // Create new
+        await fetch('/api/promotions/bogo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessId: currentBusinessId, bogoRatio: '1+1', isActive: true })
+        })
+      }
+      await fetchBogo()
+    } catch (error) {
+      console.error('Error toggling BOGO:', error)
+    } finally {
+      setBogoLoading(false)
+    }
+  }
+
+  const handleBogoRatioChange = async (ratio: '1+1' | '1+2') => {
+    if (!currentBusinessId) return
+    setBogoLoading(true)
+    try {
+      await fetch('/api/promotions/bogo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: currentBusinessId, bogoRatio: ratio, isActive: bogoPromotion?.isActive ?? true })
+      })
+      await fetchBogo()
+    } catch (error) {
+      console.error('Error changing BOGO ratio:', error)
+    } finally {
+      setBogoLoading(false)
+    }
+  }
+
+  // Fetch bales for this business
+  const fetchBales = async () => {
+    if (!currentBusinessId) return
+    setBalesLoading(true)
+    try {
+      const response = await fetch(`/api/clothing/bales?businessId=${currentBusinessId}`)
+      const data = await response.json()
+      if (data.success) setBales(data.data)
+    } catch (error) {
+      console.error('Error fetching bales:', error)
+    } finally {
+      setBalesLoading(false)
+    }
+  }
+
+  // Fetch bale categories
+  const fetchBaleCategories = async () => {
+    try {
+      const response = await fetch('/api/clothing/bale-categories')
+      const data = await response.json()
+      if (data.success) setBaleCategories(data.data)
+    } catch (error) {
+      console.error('Error fetching bale categories:', error)
+    }
+  }
+
+  // Register a new bale
+  const handleBaleSubmit = async () => {
+    if (!currentBusinessId) return
+    if (!baleForm.categoryId || !baleForm.itemCount || !baleForm.unitPrice) {
+      await customAlert({ title: 'Validation Error', description: 'Category, item count, and unit price are required.' })
+      return
+    }
+    setBaleFormLoading(true)
+    try {
+      const response = await fetch('/api/clothing/bales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          categoryId: baleForm.categoryId,
+          ...(baleForm.batchNumber.trim() ? { batchNumber: baleForm.batchNumber.trim() } : {}),
+          itemCount: Number(baleForm.itemCount),
+          unitPrice: Number(baleForm.unitPrice),
+          barcode: baleForm.barcode.trim() || undefined,
+          notes: baleForm.notes.trim() || undefined
+        })
+      })
+      const data = await response.json()
+      if (data.success) {
+        showToast(`Bale ${data.data.batchNumber} registered (${data.data.itemCount} items)`, { type: 'success' })
+        setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', barcode: '', notes: '' })
+        setShowBaleForm(false)
+        fetchBales()
+      } else {
+        await customAlert({ title: 'Error', description: data.error || 'Failed to register bale' })
+      }
+    } catch (error) {
+      await customAlert({ title: 'Error', description: 'Failed to register bale' })
+    } finally {
+      setBaleFormLoading(false)
+    }
+  }
+
+  // Toggle BOGO on a specific bale
+  const handleBaleBogoToggle = async (baleId: string, currentActive: boolean) => {
+    try {
+      const response = await fetch(`/api/clothing/bales/${baleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bogoActive: !currentActive })
+      })
+      const data = await response.json()
+      if (data.success) fetchBales()
+    } catch (error) {
+      console.error('Error toggling bale BOGO:', error)
+    }
+  }
+
+  // Change BOGO ratio on a specific bale
+  const handleBaleBogoRatio = async (baleId: string, ratio: number) => {
+    try {
+      const response = await fetch(`/api/clothing/bales/${baleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bogoRatio: ratio })
+      })
+      const data = await response.json()
+      if (data.success) fetchBales()
+    } catch (error) {
+      console.error('Error changing bale BOGO ratio:', error)
+    }
+  }
+
+  // Add a new bale category
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return
+    try {
+      const response = await fetch('/api/clothing/bale-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCategoryName.trim() })
+      })
+      const data = await response.json()
+      if (data.success) {
+        showToast(`Category "${data.data.name}" added`, { type: 'success' })
+        setNewCategoryName('')
+        setShowCategoryForm(false)
+        fetchBaleCategories()
+      } else {
+        await customAlert({ title: 'Error', description: data.error || 'Failed to add category' })
+      }
+    } catch (error) {
+      await customAlert({ title: 'Error', description: 'Failed to add category' })
+    }
+  }
 
   // Fetch department statistics
   const fetchStats = async () => {
@@ -125,14 +319,17 @@ function ClothingInventoryContent() {
   // Restore active tab from sessionStorage on mount
   useEffect(() => {
     const savedTab = sessionStorage.getItem('clothing-inventory-active-tab')
-    if (savedTab && ['overview', 'inventory', 'movements', 'alerts', 'reports'].includes(savedTab)) {
+    if (savedTab && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports'].includes(savedTab)) {
       setActiveTab(savedTab as any)
     }
   }, [])
 
-  // Fetch stats when business changes
+  // Fetch stats, BOGO, and bales when business changes
   useEffect(() => {
     fetchStats()
+    fetchBogo()
+    fetchBales()
+    fetchBaleCategories()
   }, [currentBusinessId])
 
   // Check seeding status when business changes
@@ -199,7 +396,8 @@ function ClothingInventoryContent() {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'inventory', label: 'Items', icon: '👕' },
-    { id: 'movements', label: 'Stock Movements', icon: '📦' },
+    { id: 'bales', label: 'Bales', icon: '📦' },
+    { id: 'movements', label: 'Stock Movements', icon: '🔄' },
     { id: 'alerts', label: 'Low Stock & Alerts', icon: '⚠️' },
     { id: 'reports', label: 'Analytics', icon: '📈' }
   ]
@@ -305,6 +503,7 @@ function ClothingInventoryContent() {
 
   const handleResetExternalFilters = () => {
     setSelectedDepartment('')
+    setSelectedCondition('all')
   }
 
   const handleSeedProducts = async () => {
@@ -508,6 +707,71 @@ function ClothingInventoryContent() {
                       </div>
                     </div>
 
+                    {/* BOGO Promotion Card */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            BOGO Promotion (Used Clothing)
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Buy-one-get-one-free for used clothing items
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleBogoToggle}
+                          disabled={bogoLoading}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            bogoPromotion?.isActive
+                              ? 'bg-green-500'
+                              : 'bg-gray-300 dark:bg-gray-600'
+                          } ${bogoLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              bogoPromotion?.isActive ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {bogoPromotion?.isActive && (
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Ratio:</span>
+                          <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
+                            <button
+                              onClick={() => handleBogoRatioChange('1+1')}
+                              disabled={bogoLoading}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-l-md transition-colors ${
+                                Number(bogoPromotion?.value) === 1
+                                  ? 'bg-green-600 text-white'
+                                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              Buy 1, Get 1 Free
+                            </button>
+                            <button
+                              onClick={() => handleBogoRatioChange('1+2')}
+                              disabled={bogoLoading}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-r-md transition-colors ${
+                                Number(bogoPromotion?.value) === 2
+                                  ? 'bg-green-600 text-white'
+                                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              Buy 1, Get 2 Free
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!bogoPromotion && (
+                        <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                          Toggle on to activate BOGO pricing for used clothing items.
+                        </p>
+                      )}
+                    </div>
+
                     {/* Universal Inventory Stats */}
                     <UniversalInventoryStats
                       businessId={businessId}
@@ -543,6 +807,41 @@ function ClothingInventoryContent() {
                         >
                           ➕ Add Item
                         </button>
+                        {selectedCondition === 'USED' && (
+                          <button
+                            onClick={() => router.push('/clothing/inventory/transfer')}
+                            className="btn-secondary border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          >
+                            📦 Transfer Used
+                          </button>
+                        )}
+                        <button
+                          onClick={() => router.push('/clothing/inventory/transfer?endOfSale=true')}
+                          className="btn-secondary border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                          title="Transfer all remaining used inventory and deactivate BOGO"
+                        >
+                          🏁 End of Sale
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Condition Filter (New / Used / All) */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-secondary">Condition:</span>
+                      <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
+                        {(['all', 'NEW', 'USED'] as const).map((cond) => (
+                          <button
+                            key={cond}
+                            onClick={() => setSelectedCondition(cond)}
+                            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                              selectedCondition === cond
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            } ${cond === 'all' ? 'rounded-l-md' : ''} ${cond === 'USED' ? 'rounded-r-md' : ''}`}
+                          >
+                            {cond === 'all' ? 'All' : cond === 'NEW' ? 'New' : 'Used'}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
@@ -597,6 +896,7 @@ function ClothingInventoryContent() {
                       businessId={businessId}
                       businessType="clothing"
                       departmentFilter={selectedDepartment}
+                      conditionFilter={selectedCondition}
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
@@ -610,6 +910,239 @@ function ClothingInventoryContent() {
                       allowSorting={true}
                       showBusinessSpecificFields={true}
                     />
+                  </div>
+                )}
+
+                {/* Bales Tab */}
+                {activeTab === 'bales' && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <h3 className="text-lg font-semibold">Used Clothing Bales</h3>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => setShowCategoryForm(true)}
+                          className="btn-secondary text-sm"
+                        >
+                          + Category
+                        </button>
+                        <button
+                          onClick={() => { setShowBaleForm(true); fetchBaleCategories() }}
+                          className="btn-primary bg-purple-600 hover:bg-purple-700 text-sm"
+                        >
+                          + Register Bale
+                        </button>
+                        <button
+                          onClick={() => router.push('/clothing/inventory/transfer')}
+                          className="btn-secondary border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm"
+                        >
+                          Transfer Bales
+                        </button>
+                        <button
+                          onClick={() => router.push('/clothing/inventory/transfer?endOfSale=true')}
+                          className="btn-secondary border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-sm"
+                        >
+                          End of Sale
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Add Category Inline Form */}
+                    {showCategoryForm && (
+                      <div className="card p-4 border-2 border-purple-200 dark:border-purple-800">
+                        <h4 className="font-semibold mb-3">Add Bale Category</h4>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                            placeholder="Category name (e.g., Ladies Blouses)"
+                            className="input-field flex-1"
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                          />
+                          <button onClick={handleAddCategory} className="btn-primary bg-purple-600 hover:bg-purple-700 text-sm">Add</button>
+                          <button onClick={() => { setShowCategoryForm(false); setNewCategoryName('') }} className="btn-secondary text-sm">Cancel</button>
+                        </div>
+                        {baleCategories.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="text-xs text-secondary">Existing:</span>
+                            {baleCategories.map((cat: any) => (
+                              <span key={cat.id} className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">{cat.name}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Register Bale Form */}
+                    {showBaleForm && (
+                      <div className="card p-4 border-2 border-purple-200 dark:border-purple-800">
+                        <h4 className="font-semibold mb-3">Register New Bale</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">Category *</label>
+                            <select
+                              value={baleForm.categoryId}
+                              onChange={(e) => setBaleForm({ ...baleForm, categoryId: e.target.value })}
+                              className="input-field w-full"
+                            >
+                              <option value="">Select category...</option>
+                              {baleCategories.map((cat: any) => (
+                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">Batch Number</label>
+                            <input
+                              type="text"
+                              value={baleForm.batchNumber}
+                              onChange={(e) => setBaleForm({ ...baleForm, batchNumber: e.target.value })}
+                              placeholder="Auto-generated (or type to override)"
+                              className="input-field w-full"
+                            />
+                            <p className="text-xs text-secondary mt-1">Leave blank for auto-generated (e.g., B-260215-001)</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">Item Count *</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={baleForm.itemCount}
+                              onChange={(e) => setBaleForm({ ...baleForm, itemCount: e.target.value })}
+                              placeholder="e.g., 150"
+                              className="input-field w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">Unit Price ($) *</label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={baleForm.unitPrice}
+                              onChange={(e) => setBaleForm({ ...baleForm, unitPrice: e.target.value })}
+                              placeholder="e.g., 3.00"
+                              className="input-field w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">Barcode (optional)</label>
+                            <input
+                              type="text"
+                              value={baleForm.barcode}
+                              onChange={(e) => setBaleForm({ ...baleForm, barcode: e.target.value })}
+                              placeholder="Scan or enter barcode"
+                              className="input-field w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">Notes (optional)</label>
+                            <input
+                              type="text"
+                              value={baleForm.notes}
+                              onChange={(e) => setBaleForm({ ...baleForm, notes: e.target.value })}
+                              placeholder="Any notes about this bale"
+                              className="input-field w-full"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={handleBaleSubmit}
+                            disabled={baleFormLoading}
+                            className="btn-primary bg-purple-600 hover:bg-purple-700"
+                          >
+                            {baleFormLoading ? 'Registering...' : 'Register Bale'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowBaleForm(false)
+                              setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', barcode: '', notes: '' })
+                            }}
+                            className="btn-secondary"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bales List */}
+                    {balesLoading ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                      </div>
+                    ) : bales.length === 0 ? (
+                      <div className="text-center py-12 text-secondary">
+                        <p className="text-lg mb-2">No bales registered yet</p>
+                        <p className="text-sm">Click "Register Bale" to stock used clothing bales.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">Batch #</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">Category</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-secondary uppercase">Price</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-secondary uppercase">Stock</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">SKU</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">Barcode</th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-secondary uppercase">BOGO</th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-secondary uppercase">Ratio</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {bales.map((bale: any) => (
+                              <tr key={bale.id} className={`${bale.remainingCount === 0 ? 'opacity-50' : ''}`}>
+                                <td className="px-4 py-3 text-sm font-medium">{bale.batchNumber}</td>
+                                <td className="px-4 py-3 text-sm">{bale.category?.name}</td>
+                                <td className="px-4 py-3 text-sm text-right">${Number(bale.unitPrice).toFixed(2)}</td>
+                                <td className="px-4 py-3 text-sm text-right">
+                                  <span className={bale.remainingCount === 0 ? 'text-red-500' : bale.remainingCount < 10 ? 'text-amber-500' : ''}>
+                                    {bale.remainingCount}
+                                  </span>
+                                  <span className="text-secondary">/{bale.itemCount}</span>
+                                </td>
+                                <td className="px-4 py-3 text-sm font-mono text-xs">{bale.sku}</td>
+                                <td className="px-4 py-3 text-sm font-mono text-xs">{bale.barcode || '—'}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={() => handleBaleBogoToggle(bale.id, bale.bogoActive)}
+                                    disabled={bale.remainingCount === 0}
+                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                      bale.bogoActive ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                                    } ${bale.remainingCount === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  >
+                                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                                      bale.bogoActive ? 'translate-x-5' : 'translate-x-1'
+                                    }`} />
+                                  </button>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {bale.bogoActive && (
+                                    <div className="inline-flex rounded border border-gray-200 dark:border-gray-700 text-xs">
+                                      <button
+                                        onClick={() => handleBaleBogoRatio(bale.id, 1)}
+                                        className={`px-2 py-1 rounded-l ${bale.bogoRatio === 1 ? 'bg-green-600 text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                      >
+                                        1+1
+                                      </button>
+                                      <button
+                                        onClick={() => handleBaleBogoRatio(bale.id, 2)}
+                                        className={`px-2 py-1 rounded-r ${bale.bogoRatio === 2 ? 'bg-green-600 text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                      >
+                                        1+2
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
 
